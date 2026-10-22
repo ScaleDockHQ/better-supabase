@@ -418,6 +418,16 @@ An entity rename reaches the TypeScript side too: method names, argument and
 result keys, event types and the generated types. See
 [Typed blocks](/docs/blocks/typed-blocks).
 
+Every block that owns tables names its nouns this way, from `quotes`
+(`quote`) and `orders` (`order`, `cart`) to `ai-chat` (`chat`, `project`) and
+`hiring` (`job`, `application`, `interview`). Quotes, invoices, orders,
+bookings and forms are also record types, so comments, attachments, tags and
+activity can point at them. Chats, AI documents and knowledge documents stay
+plain entities: only their owner or scope reads them, and a record type would
+open them to every member with the block's read permission. JSON payload keys
+the clients read (`orderId`, `promotionId`), the `/memories` path and ledger
+account keys stored in rows (`invoices:cash:<code>`) keep their names.
+
 You can rename the entities of a block you already installed. Change
 `blocks.<name>.names`, then run `better-supabase upgrade`. It reads the
 names from each file's `@bsb-names` line, compares the old and new module

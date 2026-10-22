@@ -260,6 +260,10 @@ export const permissions = {
     read: "pipelines.read",
     manage: "pipelines.manage",
   },
+  quote: {
+    read: "quotes.read",
+    write: "quotes.write",
+  },
   quotes: {
     read: "quotes.read",
     write: "quotes.write",

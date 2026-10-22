@@ -64,6 +64,9 @@ const EVENTS: BlockSqlEvents<PipelinesEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    pipeline: { table: "pipelines", singular: "pipeline", primary: true },
+  },
   events: EVENTS,
   hooks: [
     "before_pipeline_save",
@@ -171,8 +174,8 @@ create table if not exists ${t("transitions")} (
   ${c("transitions", "to")} uuid not null references ${t("stages")} (${c("stages", "id")}) on delete cascade,
   primary key (${c("transitions", "from")}, ${c("transitions", "to")})
 );
-create index if not exists pipeline_transitions_pipeline_idx on ${t("transitions")} (${c("transitions", "pipeline")});
-create index if not exists pipeline_transitions_to_idx on ${t("transitions")} (${c("transitions", "to")});
+create index if not exists ${ctx.naming.rename("pipeline_transitions_pipeline_idx")} on ${t("transitions")} (${c("transitions", "pipeline")});
+create index if not exists ${ctx.naming.rename("pipeline_transitions_to_idx")} on ${t("transitions")} (${c("transitions", "to")});
 ${lockTable(t("transitions"), { read: true })}
 ${read("transitions")}
 `
@@ -196,7 +199,7 @@ create table if not exists ${t("pipelines")} (
   ${c("pipelines", "updatedAt")} timestamptz not null default now(),
   unique nulls not distinct (${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, ${c("pipelines", "scope")}, ${c("pipelines", "key")})
 );
-create unique index if not exists pipelines_default_idx on ${t("pipelines")} (${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, coalesce(${c("pipelines", "scope")}, ''))
+create unique index if not exists ${ctx.naming.rename("pipelines_default_idx")} on ${t("pipelines")} (${c("pipelines", "tenant")}, ${c("pipelines", "subjectType")}, coalesce(${c("pipelines", "scope")}, ''))
   where ${c("pipelines", "isDefault")} and ${c("pipelines", "archivedAt")} is null;${addExtraColumns(t("pipelines"), names.extras)}
 ${lockTable(t("pipelines"), { read: true })}
 ${read("pipelines")}
@@ -220,7 +223,7 @@ create table if not exists ${t("stages")} (
   ${c("stages", "updatedAt")} timestamptz not null default now(),
   unique (${c("stages", "pipeline")}, ${c("stages", "key")})
 );
-create index if not exists pipeline_stages_pipeline_idx on ${t("stages")} (${c("stages", "pipeline")}, ${c("stages", "rank")});
+create index if not exists ${ctx.naming.rename("pipeline_stages_pipeline_idx")} on ${t("stages")} (${c("stages", "pipeline")}, ${c("stages", "rank")});
 ${lockTable(t("stages"), { read: true })}
 ${read("stages")}
 ${transitions}
@@ -241,13 +244,13 @@ create table if not exists ${t("history")} (
   ${h("enteredAt")} timestamptz not null default now(),
   ${h("exitedAt")} timestamptz
 );
-create index if not exists pipeline_stage_history_subject_idx on ${t("history")} (${h("subjectType")}, ${h("subjectId")}, ${h("enteredAt")});
-create index if not exists pipeline_stage_history_pipeline_idx on ${t("history")} (${h("pipeline")}, ${h("enteredAt")});
-create unique index if not exists pipeline_stage_history_open_idx on ${t("history")} (${h("subjectType")}, ${h("subjectId")}) where ${h("exitedAt")} is null;
+create index if not exists ${ctx.naming.rename("pipeline_stage_history_subject_idx")} on ${t("history")} (${h("subjectType")}, ${h("subjectId")}, ${h("enteredAt")});
+create index if not exists ${ctx.naming.rename("pipeline_stage_history_pipeline_idx")} on ${t("history")} (${h("pipeline")}, ${h("enteredAt")});
+create unique index if not exists ${ctx.naming.rename("pipeline_stage_history_open_idx")} on ${t("history")} (${h("subjectType")}, ${h("subjectId")}) where ${h("exitedAt")} is null;
 ${lockTable(t("history"), { read: true })}
 -- A history row is visible to whoever can read its record.
-drop policy if exists pipeline_stage_history_read on ${t("history")};
-create policy pipeline_stage_history_read on ${t("history")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("pipeline_stage_history_read")} on ${t("history")};
+create policy ${ctx.naming.rename("pipeline_stage_history_read")} on ${t("history")} for select to authenticated
 using (${ctx.scope.check(h("tenant"), names.read)} and ${canSubject}(${h("subjectType")}, ${h("subjectId")}, 'read'));
 `;
 }

@@ -58,8 +58,8 @@ alter table "better_supabase"."forms" enable row level security;
 revoke all on "better_supabase"."forms" from anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
-drop policy if exists "forms_read" on "better_supabase"."forms";
-create policy "forms_read" on "better_supabase"."forms" for select to authenticated
+drop policy if exists forms_read on "better_supabase"."forms";
+create policy forms_read on "better_supabase"."forms" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_versions" (
@@ -77,8 +77,8 @@ alter table "better_supabase"."form_versions" enable row level security;
 revoke all on "better_supabase"."form_versions" from anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
-drop policy if exists "form_versions_read" on "better_supabase"."form_versions";
-create policy "form_versions_read" on "better_supabase"."form_versions" for select to authenticated
+drop policy if exists form_versions_read on "better_supabase"."form_versions";
+create policy form_versions_read on "better_supabase"."form_versions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_submissions" (
@@ -107,8 +107,8 @@ alter table "better_supabase"."form_submissions" enable row level security;
 revoke all on "better_supabase"."form_submissions" from anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
-drop policy if exists "form_submissions_read" on "better_supabase"."form_submissions";
-create policy "form_submissions_read" on "better_supabase"."form_submissions" for select to authenticated
+drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
+create policy form_submissions_read on "better_supabase"."form_submissions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
 alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
@@ -1093,8 +1093,8 @@ alter table "better_supabase"."forms" enable row level security;
 revoke all on "better_supabase"."forms" from anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
-drop policy if exists "forms_read" on "better_supabase"."forms";
-create policy "forms_read" on "better_supabase"."forms" for select to authenticated
+drop policy if exists forms_read on "better_supabase"."forms";
+create policy forms_read on "better_supabase"."forms" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_versions" (
@@ -1112,8 +1112,8 @@ alter table "better_supabase"."form_versions" enable row level security;
 revoke all on "better_supabase"."form_versions" from anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
-drop policy if exists "form_versions_read" on "better_supabase"."form_versions";
-create policy "form_versions_read" on "better_supabase"."form_versions" for select to authenticated
+drop policy if exists form_versions_read on "better_supabase"."form_versions";
+create policy form_versions_read on "better_supabase"."form_versions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_submissions" (
@@ -1142,8 +1142,8 @@ alter table "better_supabase"."form_submissions" enable row level security;
 revoke all on "better_supabase"."form_submissions" from anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
-drop policy if exists "form_submissions_read" on "better_supabase"."form_submissions";
-create policy "form_submissions_read" on "better_supabase"."form_submissions" for select to authenticated
+drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
+create policy form_submissions_read on "better_supabase"."form_submissions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
 alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;
@@ -2278,8 +2278,8 @@ alter table "app_private"."forms" enable row level security;
 revoke all on "app_private"."forms" from anon, authenticated;
 grant select on "app_private"."forms" to authenticated;
 grant all on "app_private"."forms" to service_role;
-drop policy if exists "forms_read" on "app_private"."forms";
-create policy "forms_read" on "app_private"."forms" for select to authenticated
+drop policy if exists forms_read on "app_private"."forms";
+create policy forms_read on "app_private"."forms" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "app_private"."form_versions" (
@@ -2297,8 +2297,8 @@ alter table "app_private"."form_versions" enable row level security;
 revoke all on "app_private"."form_versions" from anon, authenticated;
 grant select on "app_private"."form_versions" to authenticated;
 grant all on "app_private"."form_versions" to service_role;
-drop policy if exists "form_versions_read" on "app_private"."form_versions";
-create policy "form_versions_read" on "app_private"."form_versions" for select to authenticated
+drop policy if exists form_versions_read on "app_private"."form_versions";
+create policy form_versions_read on "app_private"."form_versions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "app_private"."form_submissions" (
@@ -2327,8 +2327,8 @@ alter table "app_private"."form_submissions" enable row level security;
 revoke all on "app_private"."form_submissions" from anon, authenticated;
 grant select on "app_private"."form_submissions" to authenticated;
 grant all on "app_private"."form_submissions" to service_role;
-drop policy if exists "form_submissions_read" on "app_private"."form_submissions";
-create policy "form_submissions_read" on "app_private"."form_submissions" for select to authenticated
+drop policy if exists form_submissions_read on "app_private"."form_submissions";
+create policy form_submissions_read on "app_private"."form_submissions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "app_private"."form_submissions" add column if not exists "score" numeric;
 alter table "app_private"."form_submissions" add column if not exists "max_score" numeric;
@@ -3313,8 +3313,8 @@ alter table "better_supabase"."forms" enable row level security;
 revoke all on "better_supabase"."forms" from anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;
 grant all on "better_supabase"."forms" to service_role;
-drop policy if exists "forms_read" on "better_supabase"."forms";
-create policy "forms_read" on "better_supabase"."forms" for select to authenticated
+drop policy if exists forms_read on "better_supabase"."forms";
+create policy forms_read on "better_supabase"."forms" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_versions" (
@@ -3332,8 +3332,8 @@ alter table "better_supabase"."form_versions" enable row level security;
 revoke all on "better_supabase"."form_versions" from anon, authenticated;
 grant select on "better_supabase"."form_versions" to authenticated;
 grant all on "better_supabase"."form_versions" to service_role;
-drop policy if exists "form_versions_read" on "better_supabase"."form_versions";
-create policy "form_versions_read" on "better_supabase"."form_versions" for select to authenticated
+drop policy if exists form_versions_read on "better_supabase"."form_versions";
+create policy form_versions_read on "better_supabase"."form_versions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.read')));
 
 create table if not exists "better_supabase"."form_submissions" (
@@ -3362,8 +3362,8 @@ alter table "better_supabase"."form_submissions" enable row level security;
 revoke all on "better_supabase"."form_submissions" from anon, authenticated;
 grant select on "better_supabase"."form_submissions" to authenticated;
 grant all on "better_supabase"."form_submissions" to service_role;
-drop policy if exists "form_submissions_read" on "better_supabase"."form_submissions";
-create policy "form_submissions_read" on "better_supabase"."form_submissions" for select to authenticated
+drop policy if exists form_submissions_read on "better_supabase"."form_submissions";
+create policy form_submissions_read on "better_supabase"."form_submissions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forms.review')) or "respondent_id" = (select auth.uid()));
 alter table "better_supabase"."form_submissions" add column if not exists "score" numeric;
 alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric;

@@ -302,7 +302,7 @@ begin
   if coalesce(granted, true) then
     insert into ${g} (${cg("definition")}, ${cg("principalKind")}, ${cg("principalId")}, ${cg("action")}, ${cg("createdBy")})
     values (definition, principal_kind, principal_id, action, (select auth.uid()))
-    on conflict on constraint workflow_definition_grants_key do nothing;
+    on conflict on constraint ${ctx.naming.rename("workflow_definition_grants_key")} do nothing;
   else
     delete from ${g} x
     where x.${cg("definition")} = definition and x.${cg("principalKind")} = principal_kind

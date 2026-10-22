@@ -122,6 +122,10 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
+  booking: {
+    read: "bookings.read",
+    write: "bookings.manage",
+  },
   bookings: {
     manage: "bookings.manage",
     create: "bookings.create",

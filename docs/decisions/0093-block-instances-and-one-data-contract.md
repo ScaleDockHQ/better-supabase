@@ -58,6 +58,15 @@ installed database moves only its `better_supabase.blocks` rows. Two tables
 clashed with a renamed block and move: hiring's `jobs` becomes
 `job_openings` and catalog's `collections` becomes `product_collections`.
 
+A primary noun becomes a record type when members of the organization share
+it (quotes, invoices, orders, bookings, forms). A noun only its owner or
+scope reads (AI chats, AI documents, knowledge documents) stays a plain
+entity, because a record type grants access through the block's
+organization-wide read permission. Purchase orders wait for a title column.
+JSON payload keys, storage paths and ledger account keys stored in rows keep
+their names under a rename; `tests/sql/entity-renames.test.ts` lists them per
+block.
+
 **Instances.** `blocks` in the config is keyed by instance. An entry takes
 `block` (defaulting to the key), `on` (the record types an attachable block
 attaches to, defaulting to all of them) and `uses` (which instance of a

@@ -88,6 +88,7 @@ const EVENTS: BlockSqlEvents<AgentsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: { agent: { table: "agents", singular: "agent", primary: true } },
   events: EVENTS,
   options: ["maxInstructions", "extraColumns"],
   tables: {
@@ -216,14 +217,14 @@ create table if not exists ${agents} (
   ${a.updatedAt} timestamptz not null default now(),
   unique (${a.tenant}, ${a.slug})
 );
-create index if not exists agents_owner_idx on ${agents} (${a.owner});${addExtraColumns(agents, extras)}
-create index if not exists agents_published_idx on ${agents} (${a.visibility}, ${a.publishedAt}) where ${a.publishedAt} is not null;
+create index if not exists ${ctx.naming.rename("agents_owner_idx")} on ${agents} (${a.owner});${addExtraColumns(agents, extras)}
+create index if not exists ${ctx.naming.rename("agents_published_idx")} on ${agents} (${a.visibility}, ${a.publishedAt}) where ${a.publishedAt} is not null;
 alter table ${agents} enable row level security;
 ${revokeTable(agents)}
 grant select on ${agents} to authenticated;
 grant all on ${agents} to service_role;
-drop policy if exists agents_read on ${agents};
-create policy agents_read on ${agents} for select to authenticated
+drop policy if exists ${ctx.naming.rename("agents_read")} on ${agents};
+create policy ${ctx.naming.rename("agents_read")} on ${agents} for select to authenticated
   using ${readable(agents)};
 
 create table if not exists ${installs} (
@@ -233,13 +234,13 @@ create table if not exists ${installs} (
   ${i.installedAt} timestamptz not null default now(),
   primary key (${i.agent}, ${i.user}, ${i.tenant})
 );
-create index if not exists agent_installs_user_idx on ${installs} (${i.user}, ${i.tenant});
+create index if not exists ${ctx.naming.rename("agent_installs_user_idx")} on ${installs} (${i.user}, ${i.tenant});
 alter table ${installs} enable row level security;
 ${revokeTable(installs)}
 grant select on ${installs} to authenticated;
 grant all on ${installs} to service_role;
-drop policy if exists agent_installs_read on ${installs};
-create policy agent_installs_read on ${installs} for select to authenticated
+drop policy if exists ${ctx.naming.rename("agent_installs_read")} on ${installs};
+create policy ${ctx.naming.rename("agent_installs_read")} on ${installs} for select to authenticated
   using (${i.user} = (select auth.uid()));
 
 create table if not exists ${ratings} (
@@ -250,13 +251,13 @@ create table if not exists ${ratings} (
   ${r.createdAt} timestamptz not null default now(),
   primary key (${r.agent}, ${r.user})
 );
-create index if not exists agent_ratings_user_idx on ${ratings} (${r.user});
+create index if not exists ${ctx.naming.rename("agent_ratings_user_idx")} on ${ratings} (${r.user});
 alter table ${ratings} enable row level security;
 ${revokeTable(ratings)}
 grant select on ${ratings} to authenticated;
 grant all on ${ratings} to service_role;
-drop policy if exists agent_ratings_read on ${ratings};
-create policy agent_ratings_read on ${ratings} for select to authenticated
+drop policy if exists ${ctx.naming.rename("agent_ratings_read")} on ${ratings};
+create policy ${ctx.naming.rename("agent_ratings_read")} on ${ratings} for select to authenticated
   using (exists (select 1 from ${agents} x where x.${a.id} = ${r.agent}));
 
 -- Skills an agent loads from a provider (a reference such as a skill id).
@@ -267,13 +268,13 @@ create table if not exists ${skills} (
   ${s.reference} jsonb not null check (jsonb_typeof(${s.reference}) = 'object'),
   ${s.createdAt} timestamptz not null default now()
 );
-create index if not exists agent_skills_agent_idx on ${skills} (${s.agent});
+create index if not exists ${ctx.naming.rename("agent_skills_agent_idx")} on ${skills} (${s.agent});
 alter table ${skills} enable row level security;
 ${revokeTable(skills)}
 grant select on ${skills} to authenticated;
 grant all on ${skills} to service_role;
-drop policy if exists agent_skills_read on ${skills};
-create policy agent_skills_read on ${skills} for select to authenticated
+drop policy if exists ${ctx.naming.rename("agent_skills_read")} on ${skills};
+create policy ${ctx.naming.rename("agent_skills_read")} on ${skills} for select to authenticated
   using (exists (select 1 from ${agents} x where x.${a.id} = ${s.agent}));
 
 -- Creates an agent (id null, needs ${create}) or changes one its owner or a

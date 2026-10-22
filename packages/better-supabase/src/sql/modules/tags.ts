@@ -48,6 +48,7 @@ const EVENTS: BlockSqlEvents<TagsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: { tag: { table: "tags", singular: "tag", primary: true } },
   events: EVENTS,
   hooks: ["before_tag_apply", "after_tag_apply"],
   options: ["subjects", "extraColumns"],

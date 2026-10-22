@@ -301,7 +301,44 @@ export const PRESET_CATALOG: PresetCatalog = {
         "service-accounts",
         "data-lifecycle"
       ],
-      "manifest": "webhooks"
+      "manifest": "webhooks",
+      "entities": {
+        "specs": {
+          "endpoint": {
+            "table": "endpoints",
+            "singular": "webhook_endpoint",
+            "primary": true
+          }
+        },
+        "tables": {
+          "endpoints": {
+            "name": "webhook_endpoints",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "name": "name",
+              "url": "url",
+              "enabled": "enabled",
+              "eventTypes": "event_types",
+              "permissions": "permissions",
+              "batch": "batch",
+              "signing": "signing",
+              "format": "format",
+              "credentialRef": "credential_ref",
+              "failingSince": "failing_since",
+              "disabledAt": "disabled_at",
+              "disabledReason": "disabled_reason",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "webhooks.manage",
+          "view": "webhooks.read"
+        }
+      }
     },
     {
       "name": "session-revocation",
@@ -339,7 +376,45 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "keys"
+      "extraColumns": "keys",
+      "entities": {
+        "specs": {
+          "key": {
+            "table": "keys",
+            "singular": "api_key",
+            "primary": true
+          }
+        },
+        "tables": {
+          "keys": {
+            "name": "api_keys",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "user": "user_id",
+              "name": "name",
+              "prefix": "prefix",
+              "publicId": "public_id",
+              "secretHash": "secret_hash",
+              "scopes": "scopes",
+              "kind": "kind",
+              "rateLimit": "rate_limit",
+              "windowStart": "window_start",
+              "windowHits": "window_hits",
+              "expiresAt": "expires_at",
+              "lastUsedAt": "last_used_at",
+              "revokedAt": "revoked_at",
+              "rotatedFrom": "rotated_from",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "api_keys.manage",
+          "own": "api_keys.own"
+        }
+      }
     },
     {
       "name": "settings",
@@ -405,7 +480,37 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "flags"
+      "extraColumns": "flags",
+      "entities": {
+        "specs": {
+          "flag": {
+            "table": "flags",
+            "singular": "flag",
+            "primary": true
+          }
+        },
+        "tables": {
+          "flags": {
+            "name": "flags",
+            "columns": {
+              "key": "key",
+              "type": "type",
+              "description": "description",
+              "variants": "variants",
+              "defaultVariant": "default_variant",
+              "enabled": "enabled",
+              "archived": "archived",
+              "rules": "rules",
+              "rolloutPercentage": "rollout_percentage",
+              "rolloutVariant": "rollout_variant",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "flags.manage"
+        }
+      }
     },
     {
       "name": "comments",
@@ -552,7 +657,38 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "entries"
+      "extraColumns": "entries",
+      "entities": {
+        "specs": {
+          "entry": {
+            "table": "entries",
+            "singular": "waitlist_entry",
+            "plural": "waitlist_entries",
+            "primary": true
+          }
+        },
+        "tables": {
+          "entries": {
+            "name": "waitlist_entries",
+            "columns": {
+              "id": "id",
+              "email": "email",
+              "status": "status",
+              "position": "position",
+              "referrer": "referrer",
+              "metadata": "metadata",
+              "user": "user_id",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "waitlist.manage",
+          "invite": "members.invite"
+        }
+      }
     },
     {
       "name": "announcements",
@@ -569,7 +705,39 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "announcements"
+      "extraColumns": "announcements",
+      "entities": {
+        "specs": {
+          "announcement": {
+            "table": "announcements",
+            "singular": "announcement",
+            "primary": true
+          }
+        },
+        "tables": {
+          "announcements": {
+            "name": "announcements",
+            "columns": {
+              "id": "id",
+              "title": "title",
+              "body": "body",
+              "severity": "severity",
+              "href": "href",
+              "audience": "audience",
+              "targets": "targets",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "dismissible": "dismissible",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "announcements.manage"
+        }
+      }
     },
     {
       "name": "streams",
@@ -636,7 +804,43 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "definitions"
+      "extraColumns": "definitions",
+      "entities": {
+        "specs": {
+          "definition": {
+            "table": "definitions",
+            "singular": "workflow_definition",
+            "primary": true
+          }
+        },
+        "tables": {
+          "definitions": {
+            "name": "workflow_definitions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "slug": "slug",
+              "name": "name",
+              "description": "description",
+              "subjectTypes": "subject_types",
+              "scope": "scope",
+              "forkedFrom": "forked_from",
+              "forkedFromVersion": "forked_from_version",
+              "restricted": "restricted",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "workflow.read",
+          "run": "workflow.run",
+          "edit": "workflow.edit",
+          "publish": "workflow.publish",
+          "admin": "workflow.admin"
+        }
+      }
     },
     {
       "name": "chat-sdk-state",
@@ -670,7 +874,41 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "tenantNameClashes": [
         "team"
-      ]
+      ],
+      "entities": {
+        "specs": {
+          "inbox": {
+            "table": "inboxes",
+            "singular": "inbox",
+            "plural": "inboxes",
+            "primary": true
+          }
+        },
+        "tables": {
+          "inboxes": {
+            "name": "inboxes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "channel": "channel",
+              "address": "channel_address",
+              "installation": "installation_id",
+              "botMode": "bot_mode",
+              "settings": "settings",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "archivedAt": "archived_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "inbox.read",
+          "reply": "inbox.reply",
+          "assign": "inbox.assign",
+          "manage": "inbox.manage"
+        }
+      }
     },
     {
       "name": "ai-chat",
@@ -691,7 +929,68 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "chats"
+      "extraColumns": "chats",
+      "entities": {
+        "specs": {
+          "chat": {
+            "table": "chats",
+            "singular": "ai_chat",
+            "primary": true
+          },
+          "project": {
+            "table": "projects",
+            "singular": "ai_project"
+          }
+        },
+        "tables": {
+          "chats": {
+            "name": "ai_chats",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "owner": "owner_id",
+              "project": "project_id",
+              "agent": "agent_id",
+              "title": "title",
+              "model": "model",
+              "visibility": "visibility",
+              "pinned": "pinned",
+              "archivedAt": "archived_at",
+              "temporary": "is_temporary",
+              "expiresAt": "expires_at",
+              "leaf": "current_leaf_id",
+              "activeStream": "active_stream_id",
+              "activeRun": "active_run_id",
+              "lastMessageAt": "last_message_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "search": "search_tsv"
+            }
+          },
+          "projects": {
+            "name": "ai_projects",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "owner": "owner_id",
+              "name": "name",
+              "instructions": "instructions",
+              "model": "default_model",
+              "pinned": "pinned",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "ai_chat.read",
+          "create": "ai_chat.create",
+          "share": "ai_chat.share",
+          "moderate": "ai_chat.moderate",
+          "admin": "ai_chat.admin"
+        }
+      }
     },
     {
       "name": "ai-files",
@@ -708,7 +1007,36 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "files"
+      "extraColumns": "files",
+      "entities": {
+        "specs": {
+          "document": {
+            "table": "documents",
+            "singular": "ai_document",
+            "primary": true
+          }
+        },
+        "tables": {
+          "documents": {
+            "name": "ai_documents",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "owner": "owner_id",
+              "chat": "chat_id",
+              "kind": "kind",
+              "title": "title",
+              "version": "current_version",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "upload": "ai.create",
+          "manage": "ai.admin"
+        }
+      }
     },
     {
       "name": "knowledge",
@@ -727,7 +1055,43 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "knowledge",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "entities": {
+        "specs": {
+          "document": {
+            "table": "documents",
+            "singular": "knowledge_document",
+            "primary": true
+          }
+        },
+        "tables": {
+          "documents": {
+            "name": "knowledge_documents",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "owner": "owner_id",
+              "scope": "scope",
+              "scopeId": "scope_id",
+              "file": "file_id",
+              "title": "title",
+              "source": "source",
+              "metadata": "metadata",
+              "status": "status",
+              "error": "error",
+              "chunkCount": "chunk_count",
+              "model": "embedding_model",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "ai.read",
+          "write": "ai.create",
+          "manage": "ai.admin"
+        }
+      }
     },
     {
       "name": "memory",
@@ -744,7 +1108,46 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "memory",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "entities": {
+        "specs": {
+          "memory": {
+            "table": "memories",
+            "singular": "memory",
+            "plural": "memories",
+            "primary": true
+          }
+        },
+        "tables": {
+          "memories": {
+            "name": "memories",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "owner": "owner_id",
+              "scope": "scope",
+              "agent": "agent_id",
+              "chat": "chat_id",
+              "project": "project_id",
+              "kind": "kind",
+              "path": "path",
+              "content": "content",
+              "version": "version",
+              "embedding": "embedding",
+              "model": "embedding_model",
+              "sourceMessage": "source_message_id",
+              "supersededBy": "superseded_by",
+              "tsv": "tsv",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "ai.read",
+          "manage": "ai.admin"
+        }
+      }
     },
     {
       "name": "agents",
@@ -759,7 +1162,48 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "agents"
+      "extraColumns": "agents",
+      "entities": {
+        "specs": {
+          "agent": {
+            "table": "agents",
+            "singular": "agent",
+            "primary": true
+          }
+        },
+        "tables": {
+          "agents": {
+            "name": "agents",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "owner": "owner_id",
+              "slug": "slug",
+              "name": "name",
+              "description": "description",
+              "instructions": "instructions",
+              "model": "model",
+              "tools": "tools",
+              "connectors": "connector_ids",
+              "knowledgeScope": "knowledge_scope",
+              "starters": "starters",
+              "visibility": "visibility",
+              "publishedAt": "published_at",
+              "installCount": "install_count",
+              "ratingCount": "rating_count",
+              "ratingSum": "rating_sum",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "ai.read",
+          "create": "ai.create",
+          "publish": "ai.share",
+          "moderate": "ai.moderate"
+        }
+      }
     },
     {
       "name": "connectors",
@@ -774,7 +1218,41 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "servers"
+      "extraColumns": "servers",
+      "entities": {
+        "specs": {
+          "server": {
+            "table": "servers",
+            "singular": "connector_server",
+            "primary": true
+          }
+        },
+        "tables": {
+          "servers": {
+            "name": "connector_servers",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "name": "name",
+              "url": "url",
+              "transport": "transport",
+              "authType": "auth_type",
+              "credentialRef": "credential_ref",
+              "scopes": "scopes",
+              "clientMetadata": "client_metadata",
+              "enabled": "enabled",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "ai.read",
+          "use": "ai.create",
+          "manage": "ai.admin"
+        }
+      }
     },
     {
       "name": "ai-schedules",
@@ -793,7 +1271,41 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "tasks"
+      "extraColumns": "tasks",
+      "entities": {
+        "specs": {
+          "task": {
+            "table": "tasks",
+            "singular": "ai_scheduled_task",
+            "primary": true
+          }
+        },
+        "tables": {
+          "tasks": {
+            "name": "ai_scheduled_tasks",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "user": "user_id",
+              "chat": "chat_id",
+              "agent": "agent_id",
+              "title": "title",
+              "prompt": "prompt",
+              "cron": "cron",
+              "timezone": "timezone",
+              "enabled": "enabled",
+              "nextRunAt": "next_run_at",
+              "lastRunAt": "last_run_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "create": "ai.create",
+          "manage": "ai.admin"
+        }
+      }
     },
     {
       "name": "push",
@@ -865,7 +1377,36 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "teams"
+      "extraColumns": "teams",
+      "entities": {
+        "specs": {
+          "team": {
+            "table": "teams",
+            "singular": "team",
+            "primary": true
+          }
+        },
+        "tables": {
+          "teams": {
+            "name": "teams",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "slug": "slug",
+              "description": "description",
+              "status": "status",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "teams.manage",
+          "read": "teams.read"
+        }
+      }
     },
     {
       "name": "tags",
@@ -885,7 +1426,38 @@ export const PRESET_CATALOG: PresetCatalog = {
         "user",
         "none"
       ],
-      "extraColumns": "tags"
+      "extraColumns": "tags",
+      "entities": {
+        "specs": {
+          "tag": {
+            "table": "tags",
+            "singular": "tag",
+            "primary": true
+          }
+        },
+        "tables": {
+          "tags": {
+            "name": "tags",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "name": "name",
+              "slug": "slug",
+              "color": "color",
+              "description": "description",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "tags.manage",
+          "read": "tags.read",
+          "apply": "tags.apply"
+        }
+      }
     },
     {
       "name": "state-machine",
@@ -921,7 +1493,39 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "custom-fields",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "entities": {
+        "specs": {
+          "field": {
+            "table": "definitions",
+            "singular": "field",
+            "primary": true
+          }
+        },
+        "tables": {
+          "definitions": {
+            "name": "field_definitions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "entity": "entity",
+              "key": "key",
+              "label": "label",
+              "type": "type",
+              "required": "required",
+              "sensitive": "sensitive",
+              "permission": "permission",
+              "rank": "rank",
+              "encrypted": "encrypted"
+            }
+          }
+        },
+        "keys": {
+          "manage": "custom_fields.manage",
+          "read": "custom_fields.read",
+          "sensitive": "custom_fields.sensitive.read"
+        }
+      }
     },
     {
       "name": "share-links",
@@ -944,7 +1548,41 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "links"
+      "extraColumns": "links",
+      "entities": {
+        "specs": {
+          "link": {
+            "table": "links",
+            "singular": "share_link",
+            "primary": true
+          }
+        },
+        "tables": {
+          "links": {
+            "name": "share_links",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "tokenHash": "token_hash",
+              "role": "role",
+              "version": "version",
+              "expiresAt": "expires_at",
+              "revokedAt": "revoked_at",
+              "maxUses": "max_uses",
+              "useCount": "use_count",
+              "createdBy": "created_by",
+              "leaf": "leaf_id",
+              "versionId": "version_id"
+            }
+          }
+        },
+        "keys": {
+          "create": "share_links.create",
+          "read": "share_links.read"
+        }
+      }
     },
     {
       "name": "reminders",
@@ -1067,7 +1705,40 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "views"
+      "extraColumns": "views",
+      "entities": {
+        "specs": {
+          "view": {
+            "table": "views",
+            "singular": "saved_view",
+            "primary": true
+          }
+        },
+        "tables": {
+          "views": {
+            "name": "saved_views",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "list": "list",
+              "scope": "scope",
+              "owner": "owner_id",
+              "team": "team_id",
+              "name": "name",
+              "kind": "kind",
+              "state": "state",
+              "rank": "rank",
+              "isDefault": "is_default",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "views.read",
+          "share": "views.share"
+        }
+      }
     },
     {
       "name": "relations",
@@ -1084,7 +1755,37 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "relations"
+      "extraColumns": "relations",
+      "entities": {
+        "specs": {
+          "relation": {
+            "table": "relations",
+            "singular": "relation",
+            "primary": true
+          }
+        },
+        "tables": {
+          "relations": {
+            "name": "relations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "sourceType": "source_type",
+              "sourceId": "source_id",
+              "targetType": "target_type",
+              "targetId": "target_id",
+              "data": "data",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "relations.read",
+          "manage": "relations.manage"
+        }
+      }
     },
     {
       "name": "bulk-actions",
@@ -1260,7 +1961,56 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "bookings"
+      "extraColumns": "bookings",
+      "entities": {
+        "specs": {
+          "booking": {
+            "table": "bookings",
+            "singular": "booking",
+            "primary": true,
+            "subject": {
+              "title": "customerName",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          }
+        },
+        "tables": {
+          "bookings": {
+            "name": "bookings",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "resource": "resource_id",
+              "service": "service_id",
+              "seat": "seat",
+              "during": "during",
+              "blocked": "blocked",
+              "status": "status",
+              "holdExpiresAt": "hold_expires_at",
+              "customerName": "customer_name",
+              "customerEmail": "customer_email",
+              "customerUser": "customer_user_id",
+              "notes": "notes",
+              "accessHash": "access_hash",
+              "calendarEvent": "calendar_event_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "cancelledAt": "cancelled_at",
+              "cancelReason": "cancel_reason",
+              "series": "series_id"
+            }
+          }
+        },
+        "keys": {
+          "manage": "bookings.manage",
+          "create": "bookings.create",
+          "read": "bookings.read"
+        }
+      }
     },
     {
       "name": "versions",
@@ -1279,7 +2029,42 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "versions"
+      "extraColumns": "versions",
+      "entities": {
+        "specs": {
+          "version": {
+            "table": "versions",
+            "singular": "version",
+            "primary": true
+          }
+        },
+        "tables": {
+          "versions": {
+            "name": "versions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "number": "number",
+              "label": "label",
+              "content": "content",
+              "storagePath": "storage_path",
+              "contentHash": "content_hash",
+              "source": "source",
+              "frozen": "frozen",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "versions.read",
+          "create": "versions.create",
+          "restore": "versions.restore",
+          "manage": "versions.manage"
+        }
+      }
     },
     {
       "name": "trash",
@@ -1375,7 +2160,43 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "requests"
+      "extraColumns": "requests",
+      "entities": {
+        "specs": {
+          "approval": {
+            "table": "requests",
+            "singular": "approval",
+            "primary": true
+          }
+        },
+        "tables": {
+          "requests": {
+            "name": "approval_requests",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "action": "action",
+              "policy": "policy",
+              "step": "step",
+              "status": "status",
+              "requestedBy": "requested_by",
+              "reason": "reason",
+              "payload": "payload",
+              "expiresAt": "expires_at",
+              "remindedAt": "reminded_at",
+              "decidedAt": "decided_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "approvals.read",
+          "request": "approvals.request",
+          "manage": "approvals.manage"
+        }
+      }
     },
     {
       "name": "access-requests",
@@ -1394,7 +2215,40 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "requests"
+      "extraColumns": "requests",
+      "entities": {
+        "specs": {
+          "request": {
+            "table": "requests",
+            "singular": "access_request",
+            "primary": true
+          }
+        },
+        "tables": {
+          "requests": {
+            "name": "access_requests",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "role": "role",
+              "previousRole": "previous_role",
+              "reason": "reason",
+              "duration": "duration",
+              "approval": "approval_id",
+              "grantedAt": "granted_at",
+              "expiresAt": "expires_at",
+              "endedAt": "ended_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "access_requests.read",
+          "create": "access_requests.create",
+          "manage": "access_requests.manage"
+        }
+      }
     },
     {
       "name": "documents",
@@ -1589,7 +2443,58 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "locations"
+      "extraColumns": "locations",
+      "entities": {
+        "specs": {
+          "location": {
+            "table": "locations",
+            "singular": "inventory_location",
+            "primary": true
+          },
+          "purchase_order": {
+            "table": "purchaseOrders",
+            "singular": "purchase_order"
+          }
+        },
+        "tables": {
+          "locations": {
+            "name": "inventory_locations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "code": "code",
+              "name": "name",
+              "kind": "kind",
+              "active": "active",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "purchaseOrders": {
+            "name": "purchase_orders",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "location": "location_id",
+              "supplierType": "supplier_type",
+              "supplierId": "supplier_id",
+              "status": "status",
+              "currency": "currency",
+              "expectedAt": "expected_at",
+              "note": "note",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "placedAt": "placed_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "inventory.manage",
+          "read": "inventory.read",
+          "reserve": "inventory.reserve",
+          "purchase": "inventory.purchase"
+        }
+      }
     },
     {
       "name": "drive",
@@ -1616,7 +2521,40 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "nodes"
+      "extraColumns": "nodes",
+      "entities": {
+        "specs": {
+          "node": {
+            "table": "nodes",
+            "singular": "drive_node",
+            "primary": true
+          }
+        },
+        "tables": {
+          "nodes": {
+            "name": "drive_nodes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "parent": "parent_id",
+              "kind": "kind",
+              "name": "name",
+              "attachment": "attachment_id",
+              "path": "path",
+              "rank": "rank",
+              "deletedAt": "deleted_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "drive.read",
+          "create": "drive.create",
+          "manage": "drive.manage"
+        }
+      }
     },
     {
       "name": "drive-files",
@@ -1662,7 +2600,90 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "orders"
+      "extraColumns": "orders",
+      "entities": {
+        "specs": {
+          "order": {
+            "table": "orders",
+            "singular": "order",
+            "primary": true,
+            "subject": {
+              "title": "number",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "cart": {
+            "table": "carts",
+            "singular": "cart"
+          }
+        },
+        "tables": {
+          "orders": {
+            "name": "orders",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "sequence": "sequence",
+              "cart": "cart_id",
+              "customer": "customer_id",
+              "email": "email",
+              "status": "status",
+              "currency": "currency",
+              "subtotal": "subtotal",
+              "discountTotal": "discount_total",
+              "shippingTotal": "shipping_total",
+              "taxTotal": "tax_total",
+              "total": "total",
+              "paidTotal": "paid_total",
+              "refundedTotal": "refunded_total",
+              "taxInclusive": "tax_inclusive",
+              "shippingAddress": "shipping_address",
+              "billingAddress": "billing_address",
+              "shipping": "shipping",
+              "promotions": "promotions",
+              "tax": "tax",
+              "taxTransaction": "tax_transaction",
+              "invoiceNumber": "invoice_number",
+              "invoiceSequence": "invoice_sequence",
+              "invoicedAt": "invoiced_at",
+              "placedAt": "placed_at",
+              "paidAt": "paid_at",
+              "fulfilledAt": "fulfilled_at",
+              "completedAt": "completed_at",
+              "cancelledAt": "cancelled_at",
+              "cancelReason": "cancel_reason",
+              "updatedAt": "updated_at"
+            }
+          },
+          "carts": {
+            "name": "carts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "currency": "currency",
+              "priceList": "price_list_id",
+              "status": "status",
+              "email": "email",
+              "shippingAddress": "shipping_address",
+              "billingAddress": "billing_address",
+              "shippingRate": "shipping_rate_id",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "convertedAt": "converted_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "orders.manage",
+          "read": "orders.read",
+          "prepare": "orders.prepare"
+        }
+      }
     },
     {
       "name": "promotions",
@@ -1681,7 +2702,49 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "promotions"
+      "extraColumns": "promotions",
+      "entities": {
+        "specs": {
+          "promotion": {
+            "table": "promotions",
+            "singular": "promotion",
+            "primary": true
+          }
+        },
+        "tables": {
+          "promotions": {
+            "name": "promotions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "description": "description",
+              "kind": "kind",
+              "percent": "percent",
+              "currency": "currency",
+              "amount": "amount",
+              "minSubtotal": "min_subtotal",
+              "scope": "scope",
+              "targets": "target_ids",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "usageLimit": "usage_limit",
+              "perCustomerLimit": "per_customer_limit",
+              "redemptions": "redemptions",
+              "stackable": "stackable",
+              "priority": "priority",
+              "automatic": "automatic",
+              "active": "active",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "promotions.manage",
+          "read": "promotions.read"
+        }
+      }
     },
     {
       "name": "forms",
@@ -1703,7 +2766,46 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "forms"
+      "extraColumns": "forms",
+      "entities": {
+        "specs": {
+          "form": {
+            "table": "forms",
+            "singular": "form",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          }
+        },
+        "tables": {
+          "forms": {
+            "name": "forms",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "title": "title",
+              "description": "description",
+              "status": "status",
+              "currentVersion": "current_version_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "forms.read",
+          "manage": "forms.manage",
+          "submit": "forms.submit",
+          "review": "forms.review"
+        }
+      }
     },
     {
       "name": "signatures",
@@ -1724,7 +2826,42 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "requests"
+      "extraColumns": "requests",
+      "entities": {
+        "specs": {
+          "request": {
+            "table": "requests",
+            "singular": "signature_request",
+            "primary": true
+          }
+        },
+        "tables": {
+          "requests": {
+            "name": "signature_requests",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "version": "version_id",
+              "contentHash": "content_hash",
+              "signers": "signers",
+              "order": "sign_order",
+              "status": "status",
+              "approval": "approval_request_id",
+              "message": "message",
+              "requestedBy": "requested_by",
+              "createdAt": "created_at",
+              "completedAt": "completed_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "signatures.read",
+          "request": "signatures.request",
+          "manage": "signatures.manage"
+        }
+      }
     },
     {
       "name": "time-tracking",
@@ -1743,7 +2880,62 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "entries"
+      "extraColumns": "entries",
+      "entities": {
+        "specs": {
+          "entry": {
+            "table": "entries",
+            "singular": "time_entry",
+            "plural": "time_entries",
+            "primary": true
+          },
+          "timesheet": {
+            "table": "timesheets",
+            "singular": "timesheet"
+          }
+        },
+        "tables": {
+          "entries": {
+            "name": "time_entries",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "startedAt": "started_at",
+              "endedAt": "ended_at",
+              "billable": "billable",
+              "rate": "rate",
+              "rateCurrency": "rate_currency",
+              "note": "note",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "seconds": "seconds"
+            }
+          },
+          "timesheets": {
+            "name": "timesheets",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "week": "week",
+              "approval": "approval_id",
+              "note": "note",
+              "submittedAt": "submitted_at",
+              "approvedAt": "approved_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "time_tracking.read",
+          "track": "time_tracking.track",
+          "approve": "time_tracking.approve",
+          "manage": "time_tracking.manage"
+        }
+      }
     },
     {
       "name": "linked-identities",
@@ -1790,7 +2982,42 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "templates"
+      "extraColumns": "templates",
+      "entities": {
+        "specs": {
+          "template": {
+            "table": "templates",
+            "singular": "template",
+            "primary": true
+          }
+        },
+        "tables": {
+          "templates": {
+            "name": "templates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "scope": "scope",
+              "key": "key",
+              "type": "type",
+              "name": "name",
+              "language": "language",
+              "isDefault": "is_default",
+              "settings": "settings",
+              "forkedFrom": "forked_from",
+              "forkedFromVersion": "forked_from_version",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "templates.read",
+          "apply": "templates.apply",
+          "manage": "templates.manage"
+        }
+      }
     },
     {
       "name": "pipelines",
@@ -1814,7 +3041,38 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "pipelines"
+      "extraColumns": "pipelines",
+      "entities": {
+        "specs": {
+          "pipeline": {
+            "table": "pipelines",
+            "singular": "pipeline",
+            "primary": true
+          }
+        },
+        "tables": {
+          "pipelines": {
+            "name": "pipelines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "scope": "scope_id",
+              "key": "key",
+              "name": "name",
+              "rank": "rank",
+              "isDefault": "is_default",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "pipelines.read",
+          "manage": "pipelines.manage"
+        }
+      }
     },
     {
       "name": "contacts",
@@ -2272,7 +3530,68 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "quotes"
+      "extraColumns": "quotes",
+      "entities": {
+        "specs": {
+          "quote": {
+            "table": "quotes",
+            "singular": "quote",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          }
+        },
+        "tables": {
+          "quotes": {
+            "name": "quotes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "identifier": "identifier",
+              "revision": "revision",
+              "supersedes": "supersedes_id",
+              "title": "title",
+              "companyType": "company_type",
+              "companyId": "company_id",
+              "contactType": "contact_type",
+              "contactId": "contact_id",
+              "owner": "owner_user_id",
+              "currency": "currency",
+              "status": "status",
+              "validUntil": "valid_until",
+              "terms": "terms",
+              "note": "note",
+              "originType": "origin_type",
+              "originId": "origin_id",
+              "tokenHash": "token_hash",
+              "sentAt": "sent_at",
+              "viewedAt": "viewed_at",
+              "decidedAt": "decided_at",
+              "decidedBy": "decided_by",
+              "decisionNote": "decision_note",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "listTotal": "list_total",
+              "discountTotal": "discount_total",
+              "subtotal": "subtotal",
+              "taxTotal": "tax_total",
+              "total": "total"
+            }
+          }
+        },
+        "keys": {
+          "read": "quotes.read",
+          "write": "quotes.write",
+          "manage": "quotes.manage"
+        }
+      }
     },
     {
       "name": "invoices",
@@ -2296,7 +3615,68 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "invoices"
+      "extraColumns": "invoices",
+      "entities": {
+        "specs": {
+          "invoice": {
+            "table": "invoices",
+            "singular": "invoice",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          }
+        },
+        "tables": {
+          "invoices": {
+            "name": "invoices",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "number": "number",
+              "identifier": "identifier",
+              "original": "original_id",
+              "title": "title",
+              "companyType": "company_type",
+              "companyId": "company_id",
+              "contactType": "contact_type",
+              "contactId": "contact_id",
+              "currency": "currency",
+              "status": "status",
+              "termsDays": "terms_days",
+              "issuedOn": "issued_on",
+              "dueOn": "due_on",
+              "paidTotal": "paid_total",
+              "creditedTotal": "credited_total",
+              "paidAt": "paid_at",
+              "voidedAt": "voided_at",
+              "voidReason": "void_reason",
+              "note": "note",
+              "originType": "origin_type",
+              "originId": "origin_id",
+              "depositBps": "deposit_bps",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "listTotal": "list_total",
+              "discountTotal": "discount_total",
+              "subtotal": "subtotal",
+              "taxTotal": "tax_total",
+              "total": "total"
+            }
+          }
+        },
+        "keys": {
+          "read": "invoices.read",
+          "write": "invoices.write",
+          "manage": "invoices.manage"
+        }
+      }
     },
     {
       "name": "sla",
@@ -2315,7 +3695,41 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "policies"
+      "extraColumns": "policies",
+      "entities": {
+        "specs": {
+          "policy": {
+            "table": "policies",
+            "singular": "sla_policy",
+            "plural": "sla_policies",
+            "primary": true
+          }
+        },
+        "tables": {
+          "policies": {
+            "name": "sla_policies",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "name": "name",
+              "priority": "priority",
+              "firstResponse": "first_response_minutes",
+              "nextResponse": "next_response_minutes",
+              "resolution": "resolution_minutes",
+              "warnPercent": "warn_at_percent",
+              "businessHours": "business_hours",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "sla.read",
+          "manage": "sla.manage"
+        }
+      }
     },
     {
       "name": "goals",
@@ -2337,7 +3751,41 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "targets"
+      "extraColumns": "targets",
+      "entities": {
+        "specs": {
+          "target": {
+            "table": "targets",
+            "singular": "target",
+            "primary": true
+          }
+        },
+        "tables": {
+          "targets": {
+            "name": "targets",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "metric": "metric",
+              "owner": "owner_user_id",
+              "team": "team_id",
+              "periodStart": "period_start",
+              "periodEnd": "period_end",
+              "currency": "currency",
+              "goal": "goal",
+              "actual": "actual",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "targets.read",
+          "manage": "targets.manage"
+        }
+      }
     },
     {
       "name": "hiring",
@@ -2359,7 +3807,85 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "jobs"
+      "extraColumns": "jobs",
+      "entities": {
+        "specs": {
+          "job": {
+            "table": "jobs",
+            "singular": "job_opening",
+            "primary": true
+          },
+          "application": {
+            "table": "applications",
+            "singular": "application"
+          },
+          "interview": {
+            "table": "interviews",
+            "singular": "interview"
+          }
+        },
+        "tables": {
+          "jobs": {
+            "name": "job_openings",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "team": "team_id",
+              "location": "location",
+              "employmentType": "employment_type",
+              "description": "description",
+              "hiringManager": "hiring_manager_user_id",
+              "status": "status",
+              "openedAt": "opened_at",
+              "closedAt": "closed_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "applications": {
+            "name": "applications",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "job": "job_id",
+              "candidateType": "candidate_type",
+              "candidateId": "candidate_id",
+              "source": "source",
+              "owner": "owner_user_id",
+              "pipeline": "pipeline_id",
+              "stage": "stage_id",
+              "stageEnteredAt": "stage_entered_at",
+              "state": "state",
+              "rejectionReason": "rejection_reason",
+              "hiredAt": "hired_at",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "interviews": {
+            "name": "interviews",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "application": "application_id",
+              "kind": "kind",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "location": "location",
+              "interviewers": "interviewer_user_ids",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "hiring.read",
+          "write": "hiring.write",
+          "manage": "hiring.manage"
+        }
+      }
     },
     {
       "name": "employees",
@@ -2456,7 +3982,40 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "collections"
+      "extraColumns": "collections",
+      "entities": {
+        "specs": {
+          "collection": {
+            "table": "collections",
+            "singular": "subject_collection",
+            "primary": true
+          }
+        },
+        "tables": {
+          "collections": {
+            "name": "subject_collections",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "scope": "scope",
+              "owner": "owner_id",
+              "team": "team_id",
+              "name": "name",
+              "description": "description",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "collections.read",
+          "write": "collections.write",
+          "share": "collections.share"
+        }
+      }
     },
     {
       "name": "signing-keys",
@@ -2581,7 +4140,44 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "reviews"
+      "extraColumns": "reviews",
+      "entities": {
+        "specs": {
+          "review": {
+            "table": "reviews",
+            "singular": "review",
+            "primary": true
+          }
+        },
+        "tables": {
+          "reviews": {
+            "name": "reviews",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "author": "author_id",
+              "authorName": "author_name",
+              "rating": "rating",
+              "title": "title",
+              "body": "body",
+              "status": "status",
+              "verified": "verified",
+              "rejectionReason": "rejection_reason",
+              "reply": "reply",
+              "repliedBy": "replied_by",
+              "repliedAt": "replied_at",
+              "publishedAt": "published_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "manage": "reviews.manage"
+        }
+      }
     },
     {
       "name": "leave",
@@ -2601,7 +4197,66 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "requests"
+      "extraColumns": "requests",
+      "entities": {
+        "specs": {
+          "request": {
+            "table": "requests",
+            "singular": "leave_request",
+            "primary": true
+          },
+          "type": {
+            "table": "types",
+            "singular": "leave_type"
+          }
+        },
+        "tables": {
+          "requests": {
+            "name": "leave_requests",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "type": "type_id",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "partial": "partial",
+              "amount": "amount",
+              "note": "note",
+              "approval": "approval_id",
+              "approvedAt": "approved_at",
+              "cancelledAt": "cancelled_at",
+              "cancelledBy": "cancelled_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "types": {
+            "name": "leave_types",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "unit": "unit",
+              "paid": "paid",
+              "tracked": "tracked",
+              "allowance": "allowance",
+              "carryoverMax": "carryover_max",
+              "color": "color",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "request": "leave.request",
+          "read": "leave.read",
+          "approve": "leave.approve",
+          "manage": "leave.manage"
+        }
+      }
     },
     {
       "name": "automations",
@@ -2615,7 +4270,45 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "automations",
       "scopes": [
         "tenant"
-      ]
+      ],
+      "entities": {
+        "specs": {
+          "rule": {
+            "table": "rules",
+            "singular": "rule",
+            "primary": true
+          }
+        },
+        "tables": {
+          "rules": {
+            "name": "rules",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "subjectType": "subject_type",
+              "trigger": "trigger",
+              "name": "name",
+              "description": "description",
+              "conditions": "conditions",
+              "actions": "actions",
+              "enabled": "enabled",
+              "stopProcessing": "stop_processing",
+              "rank": "rank",
+              "version": "version",
+              "createdBy": "created_by",
+              "updatedBy": "updated_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "rules.read",
+          "edit": "rules.edit",
+          "publish": "rules.publish",
+          "admin": "rules.admin"
+        }
+      }
     },
     {
       "name": "vercel-marketplace",
@@ -4388,7 +6081,37 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant",
         "user",
         "none"
-      ]
+      ],
+      "entities": {
+        "specs": {
+          "entry": {
+            "table": "activity",
+            "singular": "activity_entry",
+            "plural": "activity_entries",
+            "primary": true
+          }
+        },
+        "tables": {
+          "activity": {
+            "name": "activity_entries",
+            "columns": {
+              "id": "id",
+              "tenant": "organization_id",
+              "event": "event_id",
+              "type": "type",
+              "actor": "actor_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "summary": "summary",
+              "data": "data",
+              "occurredAt": "occurred_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "activity.read"
+        }
+      }
     },
     {
       "name": "mail-sync",
@@ -4950,6 +6673,30 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "AccessRequest"
+        },
+        {
+          "name": "AccessRequestInput"
+        },
+        {
+          "name": "AccessRequestListOptions"
+        },
+        {
+          "name": "AccessRequests",
+          "fields": true
+        },
+        {
+          "name": "AccessRequestsEvents"
+        },
+        {
+          "name": "AccessRequestsOptions"
+        },
+        {
+          "name": "AccessRequestStatus"
+        }
+      ],
       "events": {
         "type": "AccessRequestsEvents",
         "types": [
@@ -4981,6 +6728,39 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Agent"
+        },
+        {
+          "name": "AgentFields"
+        },
+        {
+          "name": "AgentFilter"
+        },
+        {
+          "name": "AgentKnowledgeScope"
+        },
+        {
+          "name": "Agents",
+          "fields": true
+        },
+        {
+          "name": "AgentsEvents"
+        },
+        {
+          "name": "AgentSkill"
+        },
+        {
+          "name": "AgentsOptions"
+        },
+        {
+          "name": "AgentVisibility"
+        },
+        {
+          "name": "NewAgent"
+        }
+      ],
       "events": {
         "type": "AgentsEvents",
         "types": [
@@ -5017,6 +6797,73 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "AiChat",
+          "fields": true
+        },
+        {
+          "name": "AiChatEvents"
+        },
+        {
+          "name": "AiChatInput"
+        },
+        {
+          "name": "AiChatOptions"
+        },
+        {
+          "name": "AiChatPage",
+          "fields": true
+        },
+        {
+          "name": "AiChatPatch"
+        },
+        {
+          "name": "AiChatQuery"
+        },
+        {
+          "name": "AiChatRecord"
+        },
+        {
+          "name": "AiChatsActions"
+        },
+        {
+          "name": "AiChatsController"
+        },
+        {
+          "name": "AiChatsControllerOptions"
+        },
+        {
+          "name": "AiChatShare"
+        },
+        {
+          "name": "AiChatsSnapshot"
+        },
+        {
+          "name": "AiChatTreeActions"
+        },
+        {
+          "name": "AiChatTreeController"
+        },
+        {
+          "name": "AiChatTreeControllerOptions"
+        },
+        {
+          "name": "AiChatTreeSnapshot"
+        },
+        {
+          "name": "AiChatVisibility"
+        },
+        {
+          "name": "AiProject"
+        },
+        {
+          "name": "AiProjectInput"
+        },
+        {
+          "name": "SharedAiChat"
+        }
+      ],
       "events": {
         "type": "AiChatEvents",
         "types": [
@@ -5041,6 +6888,26 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {},
       "provides": [
         "files"
+      ],
+      "entityTypes": [
+        {
+          "name": "AiDocument"
+        },
+        {
+          "name": "AiDocumentEdit"
+        },
+        {
+          "name": "AiDocumentKind"
+        },
+        {
+          "name": "AiDocumentVersion"
+        },
+        {
+          "name": "AiDocumentWithContent"
+        },
+        {
+          "name": "NewAiDocument"
+        }
       ]
     },
     {
@@ -5090,6 +6957,45 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Announcement"
+        },
+        {
+          "name": "AnnouncementAudience"
+        },
+        {
+          "name": "AnnouncementInput"
+        },
+        {
+          "name": "Announcements",
+          "fields": true
+        },
+        {
+          "name": "AnnouncementsActions"
+        },
+        {
+          "name": "AnnouncementsController"
+        },
+        {
+          "name": "AnnouncementsControllerOptions"
+        },
+        {
+          "name": "AnnouncementsEvents"
+        },
+        {
+          "name": "AnnouncementSeverity"
+        },
+        {
+          "name": "AnnouncementsOptions"
+        },
+        {
+          "name": "AnnouncementsSnapshot"
+        },
+        {
+          "name": "ManagedAnnouncement"
+        }
+      ],
       "events": {
         "type": "AnnouncementsEvents",
         "types": [
@@ -5110,6 +7016,83 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "ApiKey"
+        },
+        {
+          "name": "ApiKeyAuth"
+        },
+        {
+          "name": "ApiKeyChange"
+        },
+        {
+          "name": "ApiKeyCheck",
+          "fields": true
+        },
+        {
+          "name": "ApiKeyClaimsOptions",
+          "fields": true
+        },
+        {
+          "name": "ApiKeyContributions"
+        },
+        {
+          "name": "ApiKeyDraft"
+        },
+        {
+          "name": "ApiKeyExtraClaim"
+        },
+        {
+          "name": "ApiKeyExtraClaims"
+        },
+        {
+          "name": "ApiKeyReservedClaim"
+        },
+        {
+          "name": "ApiKeyResolverOptions",
+          "fields": true
+        },
+        {
+          "name": "ApiKeys",
+          "fields": true
+        },
+        {
+          "name": "ApiKeysActions"
+        },
+        {
+          "name": "ApiKeysController"
+        },
+        {
+          "name": "ApiKeysControllerOptions"
+        },
+        {
+          "name": "ApiKeysEvents"
+        },
+        {
+          "name": "ApiKeysOptions"
+        },
+        {
+          "name": "ApiKeysSnapshot"
+        },
+        {
+          "name": "ApiKeyState"
+        },
+        {
+          "name": "CreateApiKeyInput"
+        },
+        {
+          "name": "CreatedApiKey",
+          "fields": true
+        },
+        {
+          "name": "ParsedApiKey"
+        },
+        {
+          "name": "WithApiKeyOptions",
+          "fields": true
+        }
+      ],
       "events": {
         "type": "ApiKeysEvents",
         "types": [
@@ -5131,6 +7114,42 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "ApprovalApprovers"
+        },
+        {
+          "name": "ApprovalDecision"
+        },
+        {
+          "name": "ApprovalListOptions"
+        },
+        {
+          "name": "ApprovalRequest"
+        },
+        {
+          "name": "ApprovalRequestDetail"
+        },
+        {
+          "name": "ApprovalRequestInput"
+        },
+        {
+          "name": "Approvals",
+          "fields": true
+        },
+        {
+          "name": "ApprovalsEvents"
+        },
+        {
+          "name": "ApprovalsOptions"
+        },
+        {
+          "name": "ApprovalStatus"
+        },
+        {
+          "name": "ApprovalStep"
+        }
+      ],
       "events": {
         "type": "ApprovalsEvents",
         "types": [
@@ -5401,6 +7420,72 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Booking"
+        },
+        {
+          "name": "BookingCustomer"
+        },
+        {
+          "name": "BookingDuration"
+        },
+        {
+          "name": "BookingEventOptions"
+        },
+        {
+          "name": "BookingExceptionInput"
+        },
+        {
+          "name": "BookingExpirePayload"
+        },
+        {
+          "name": "BookingRange"
+        },
+        {
+          "name": "BookingRecurrence"
+        },
+        {
+          "name": "BookingResourceInput"
+        },
+        {
+          "name": "Bookings",
+          "fields": true
+        },
+        {
+          "name": "BookingSeries"
+        },
+        {
+          "name": "BookingSeriesScope"
+        },
+        {
+          "name": "BookingSeriesStatus"
+        },
+        {
+          "name": "BookingServiceInput"
+        },
+        {
+          "name": "BookingsEvents"
+        },
+        {
+          "name": "BookingSlot"
+        },
+        {
+          "name": "BookingsOptions"
+        },
+        {
+          "name": "BookingStatus"
+        },
+        {
+          "name": "BookingWeekday"
+        },
+        {
+          "name": "PlacedBooking"
+        },
+        {
+          "name": "PublicBookingService"
+        }
+      ],
       "events": {
         "type": "BookingsEvents",
         "types": [
@@ -6089,6 +8174,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "ConnectorServer",
+          "fields": true
+        },
+        {
+          "name": "ConnectorServerFields",
+          "fields": true
+        }
+      ],
       "events": {
         "type": "ConnectorsEvents",
         "types": [
@@ -6122,6 +8217,26 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "CustomFields"
+        },
+        {
+          "name": "CustomFieldsEvents"
+        },
+        {
+          "name": "CustomFieldsOptions"
+        },
+        {
+          "name": "CustomFieldType"
+        },
+        {
+          "name": "FieldDefinition"
+        },
+        {
+          "name": "FieldDefinitionDetail"
+        }
+      ],
       "events": {
         "type": "CustomFieldsEvents",
         "types": [
@@ -6626,6 +8741,41 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Review",
+          "fields": true
+        },
+        {
+          "name": "ReviewEventData"
+        },
+        {
+          "name": "ReviewInput",
+          "fields": true
+        },
+        {
+          "name": "ReviewListOptions"
+        },
+        {
+          "name": "ReviewQueueOptions"
+        },
+        {
+          "name": "Reviews",
+          "fields": true
+        },
+        {
+          "name": "ReviewsEvents"
+        },
+        {
+          "name": "ReviewsOptions"
+        },
+        {
+          "name": "ReviewStatus"
+        },
+        {
+          "name": "ReviewSummary"
+        }
+      ],
       "events": {
         "type": "ReviewsEvents",
         "types": [
@@ -6649,6 +8799,28 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "LeaveRequest",
+          "fields": true
+        },
+        {
+          "name": "LeaveRequestEventData"
+        },
+        {
+          "name": "LeaveRequestInput",
+          "fields": true
+        },
+        {
+          "name": "LeaveRequestListOptions"
+        },
+        {
+          "name": "LeaveType"
+        },
+        {
+          "name": "LeaveTypeInput"
+        }
+      ],
       "events": {
         "type": "LeaveEvents",
         "types": [
@@ -11130,6 +13302,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "attachments": "optional"
       },
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "DriveNode",
+          "fields": true
+        },
+        {
+          "name": "DriveNodeKind"
+        }
+      ],
       "events": {
         "type": "DriveEvents",
         "types": [
@@ -11716,6 +13897,80 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "FeatureFlags",
+          "fields": true
+        },
+        {
+          "name": "FeatureFlagsEvents"
+        },
+        {
+          "name": "FeatureFlagsOptions"
+        },
+        {
+          "name": "FeatureFlagsProvider"
+        },
+        {
+          "name": "FeatureFlagsProviderOptions"
+        },
+        {
+          "name": "FlagClient"
+        },
+        {
+          "name": "FlagContext"
+        },
+        {
+          "name": "FlagContextOptions"
+        },
+        {
+          "name": "FlagContextSource"
+        },
+        {
+          "name": "FlagDefinition"
+        },
+        {
+          "name": "FlagDetails"
+        },
+        {
+          "name": "FlagErrorCode"
+        },
+        {
+          "name": "FlagEvaluation"
+        },
+        {
+          "name": "FlagInput",
+          "fields": true
+        },
+        {
+          "name": "FlagOverride"
+        },
+        {
+          "name": "FlagOverrideTarget"
+        },
+        {
+          "name": "FlagReason"
+        },
+        {
+          "name": "FlagRecord",
+          "fields": true
+        },
+        {
+          "name": "FlagResolution"
+        },
+        {
+          "name": "FlagRule"
+        },
+        {
+          "name": "FlagType"
+        },
+        {
+          "name": "FlagValue"
+        },
+        {
+          "name": "RequestFlagContext"
+        }
+      ],
       "events": {
         "type": "FeatureFlagsEvents",
         "types": [
@@ -11737,6 +13992,91 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Form",
+          "fields": true
+        },
+        {
+          "name": "FormAnswers"
+        },
+        {
+          "name": "FormCondition"
+        },
+        {
+          "name": "FormDefinition"
+        },
+        {
+          "name": "FormDetail",
+          "fields": true
+        },
+        {
+          "name": "FormField"
+        },
+        {
+          "name": "FormFieldType"
+        },
+        {
+          "name": "FormInput",
+          "fields": true
+        },
+        {
+          "name": "FormJson"
+        },
+        {
+          "name": "FormJsonSchema"
+        },
+        {
+          "name": "FormNps"
+        },
+        {
+          "name": "FormOption"
+        },
+        {
+          "name": "Forms",
+          "fields": true
+        },
+        {
+          "name": "FormScore"
+        },
+        {
+          "name": "FormScoring"
+        },
+        {
+          "name": "FormsEvents"
+        },
+        {
+          "name": "FormsOptions"
+        },
+        {
+          "name": "FormStatus"
+        },
+        {
+          "name": "FormStep"
+        },
+        {
+          "name": "FormSubmission"
+        },
+        {
+          "name": "FormSubmissionSource"
+        },
+        {
+          "name": "FormSubmissionStatus"
+        },
+        {
+          "name": "FormUpdate",
+          "fields": true
+        },
+        {
+          "name": "FormVersion"
+        },
+        {
+          "name": "PublicForm"
+        },
+        {
+          "name": "QuestionnaireForm"
+        }
+      ],
       "events": {
         "type": "FormsEvents",
         "types": [
@@ -11760,6 +14100,26 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "SignatureRequest",
+          "fields": true
+        },
+        {
+          "name": "SignatureRequestDetail",
+          "fields": true
+        },
+        {
+          "name": "SignatureRequestInput",
+          "fields": true
+        },
+        {
+          "name": "SignatureRequestListOptions"
+        },
+        {
+          "name": "SignatureRequestStatus"
+        }
+      ],
       "events": {
         "type": "SignaturesEvents",
         "types": [
@@ -11793,6 +14153,20 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Application"
+        },
+        {
+          "name": "ApplicationDetail"
+        },
+        {
+          "name": "ApplicationState"
+        },
+        {
+          "name": "Interview"
+        }
+      ],
       "events": {
         "type": "HiringEvents",
         "types": [
@@ -11853,6 +14227,77 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "CreateInboxInput"
+        },
+        {
+          "name": "Inbox"
+        },
+        {
+          "name": "InboxChannel"
+        },
+        {
+          "name": "InboxController"
+        },
+        {
+          "name": "InboxControllerOptions"
+        },
+        {
+          "name": "InboxCounts"
+        },
+        {
+          "name": "InboxEvents"
+        },
+        {
+          "name": "InboxFileSource"
+        },
+        {
+          "name": "InboxHooks"
+        },
+        {
+          "name": "InboxListActions"
+        },
+        {
+          "name": "InboxListSnapshot"
+        },
+        {
+          "name": "InboxMessage"
+        },
+        {
+          "name": "InboxOptions"
+        },
+        {
+          "name": "InboxPatch"
+        },
+        {
+          "name": "InboxRow"
+        },
+        {
+          "name": "InboxSource"
+        },
+        {
+          "name": "InboxUpload"
+        },
+        {
+          "name": "InboxWidgetActions"
+        },
+        {
+          "name": "InboxWidgetController"
+        },
+        {
+          "name": "InboxWidgetControllerOptions"
+        },
+        {
+          "name": "InboxWidgetSnapshot"
+        },
+        {
+          "name": "PendingInboxFile"
+        },
+        {
+          "name": "ScheduledInboxMessage"
+        }
+      ],
       "events": {
         "type": "InboxEvents",
         "types": [
@@ -11877,6 +14322,17 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "PurchaseOrderInput"
+        },
+        {
+          "name": "PurchaseOrderLine"
+        },
+        {
+          "name": "PurchaseOrderStatus"
+        }
+      ],
       "events": {
         "type": "InventoryEvents",
         "types": [
@@ -11906,6 +14362,35 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Invoice",
+          "fields": true
+        },
+        {
+          "name": "InvoiceAging"
+        },
+        {
+          "name": "InvoiceInput",
+          "fields": true
+        },
+        {
+          "name": "InvoicePayment"
+        },
+        {
+          "name": "Invoices",
+          "fields": true
+        },
+        {
+          "name": "InvoicesEvents"
+        },
+        {
+          "name": "InvoicesOptions"
+        },
+        {
+          "name": "InvoiceStatus"
+        }
+      ],
       "events": {
         "type": "InvoicesEvents",
         "types": [
@@ -11994,7 +14479,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {
         "files": "optional"
       },
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "KnowledgeDocument"
+        },
+        {
+          "name": "NewKnowledgeDocument"
+        }
+      ]
     },
     {
       "name": "memory",
@@ -12007,7 +14500,42 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/memory"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Memory"
+        },
+        {
+          "name": "MemoryCommand"
+        },
+        {
+          "name": "MemoryDocument"
+        },
+        {
+          "name": "MemoryHit"
+        },
+        {
+          "name": "MemoryHooks"
+        },
+        {
+          "name": "MemoryKind"
+        },
+        {
+          "name": "MemoryNamespace"
+        },
+        {
+          "name": "MemoryOptions"
+        },
+        {
+          "name": "MemoryRecord"
+        },
+        {
+          "name": "MemoryScope"
+        },
+        {
+          "name": "MemoryView"
+        }
+      ]
     },
     {
       "name": "messaging",
@@ -12464,7 +14992,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/timeline"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ActivityEntry"
+        }
+      ]
     },
     {
       "name": "mail-sync",
@@ -13066,6 +15599,70 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "CartDetails"
+        },
+        {
+          "name": "CartInput"
+        },
+        {
+          "name": "CartLine"
+        },
+        {
+          "name": "CartProblem"
+        },
+        {
+          "name": "Order",
+          "fields": true
+        },
+        {
+          "name": "OrderBoardCard"
+        },
+        {
+          "name": "OrderBoardQuery"
+        },
+        {
+          "name": "OrderKitchen"
+        },
+        {
+          "name": "OrderLine"
+        },
+        {
+          "name": "OrderMetrics"
+        },
+        {
+          "name": "OrderMetricsOptions"
+        },
+        {
+          "name": "OrderPayment"
+        },
+        {
+          "name": "OrderRefund"
+        },
+        {
+          "name": "OrderRefundStatus"
+        },
+        {
+          "name": "OrderReturn"
+        },
+        {
+          "name": "Orders",
+          "fields": true
+        },
+        {
+          "name": "OrdersEvents"
+        },
+        {
+          "name": "OrdersOptions"
+        },
+        {
+          "name": "OrderStatus"
+        },
+        {
+          "name": "PricedCart"
+        }
+      ],
       "events": {
         "type": "OrdersEvents",
         "types": [
@@ -13518,6 +16115,50 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Pipeline",
+          "fields": true
+        },
+        {
+          "name": "PipelineColumn"
+        },
+        {
+          "name": "PipelineHealth"
+        },
+        {
+          "name": "PipelineInput",
+          "fields": true
+        },
+        {
+          "name": "PipelineOutcome"
+        },
+        {
+          "name": "Pipelines",
+          "fields": true
+        },
+        {
+          "name": "PipelinesEvents"
+        },
+        {
+          "name": "PipelinesOptions"
+        },
+        {
+          "name": "PipelineStage"
+        },
+        {
+          "name": "PipelineStageInput"
+        },
+        {
+          "name": "PipelineStats"
+        },
+        {
+          "name": "PipelineTotal"
+        },
+        {
+          "name": "PipelineTransition"
+        }
+      ],
       "events": {
         "type": "PipelinesEvents",
         "types": [
@@ -13555,6 +16196,38 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "PromotionCode"
+        },
+        {
+          "name": "PromotionDiscount"
+        },
+        {
+          "name": "PromotionInput",
+          "fields": true
+        },
+        {
+          "name": "PromotionKind"
+        },
+        {
+          "name": "Promotions",
+          "fields": true
+        },
+        {
+          "name": "PromotionScope"
+        },
+        {
+          "name": "PromotionsEvents"
+        },
+        {
+          "name": "PromotionsOptions"
+        },
+        {
+          "name": "SavedPromotion",
+          "fields": true
+        }
+      ],
       "events": {
         "type": "PromotionsEvents",
         "types": [
@@ -13594,6 +16267,35 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "PublicQuote"
+        },
+        {
+          "name": "Quote",
+          "fields": true
+        },
+        {
+          "name": "QuoteDecision"
+        },
+        {
+          "name": "QuoteInput",
+          "fields": true
+        },
+        {
+          "name": "Quotes",
+          "fields": true
+        },
+        {
+          "name": "QuotesEvents"
+        },
+        {
+          "name": "QuotesOptions"
+        },
+        {
+          "name": "QuoteStatus"
+        }
+      ],
       "events": {
         "type": "QuotesEvents",
         "types": [
@@ -13700,6 +16402,41 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Relation",
+          "fields": true
+        },
+        {
+          "name": "RelationEdge",
+          "fields": true
+        },
+        {
+          "name": "RelationInput"
+        },
+        {
+          "name": "RelationNode"
+        },
+        {
+          "name": "RelationRollup"
+        },
+        {
+          "name": "Relations",
+          "fields": true
+        },
+        {
+          "name": "RelationsEvents"
+        },
+        {
+          "name": "RelationsOptions"
+        },
+        {
+          "name": "RelationsWrites"
+        },
+        {
+          "name": "UnlinkRelationInput"
+        }
+      ],
       "sections": {
         "relations": [
           "link",
@@ -13779,6 +16516,107 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Rule"
+        },
+        {
+          "name": "RuleAction"
+        },
+        {
+          "name": "RuleActionCall"
+        },
+        {
+          "name": "RuleActionHandler"
+        },
+        {
+          "name": "RuleActionOutcome"
+        },
+        {
+          "name": "RuleApprovals"
+        },
+        {
+          "name": "RuleBuilderActions"
+        },
+        {
+          "name": "RuleBuilderController"
+        },
+        {
+          "name": "RuleBuilderControllerOptions"
+        },
+        {
+          "name": "RuleBuilderSnapshot"
+        },
+        {
+          "name": "RuleDispatcher"
+        },
+        {
+          "name": "RuleDispatcherOptions"
+        },
+        {
+          "name": "RuleEvaluationEntry"
+        },
+        {
+          "name": "RuleEventData"
+        },
+        {
+          "name": "RuleField"
+        },
+        {
+          "name": "RuleFieldCatalog"
+        },
+        {
+          "name": "RuleFieldDefinition"
+        },
+        {
+          "name": "RuleFieldSetter"
+        },
+        {
+          "name": "RuleFieldWrite"
+        },
+        {
+          "name": "RuleInput"
+        },
+        {
+          "name": "RuleListOptions"
+        },
+        {
+          "name": "RuleMatch"
+        },
+        {
+          "name": "RuleMatchedEventData"
+        },
+        {
+          "name": "RuleNotifier"
+        },
+        {
+          "name": "RulesAdminOptions"
+        },
+        {
+          "name": "RuleSinkEvent"
+        },
+        {
+          "name": "RuleSinkOptions"
+        },
+        {
+          "name": "RuleSinkTarget"
+        },
+        {
+          "name": "RuleSubject"
+        },
+        {
+          "name": "RuleSubjectContext"
+        },
+        {
+          "name": "RuleVersion"
+        },
+        {
+          "name": "RuleWebhooks"
+        },
+        {
+          "name": "RuleWorkflows"
+        }
+      ],
       "events": {
         "type": "AutomationsEvents",
         "types": [
@@ -13823,6 +16661,73 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "SavedView"
+        },
+        {
+          "name": "SavedViewColumns"
+        },
+        {
+          "name": "SavedViewDensity"
+        },
+        {
+          "name": "SavedViewDisplayState"
+        },
+        {
+          "name": "SavedViewKind"
+        },
+        {
+          "name": "SavedViewLike"
+        },
+        {
+          "name": "SavedViewList"
+        },
+        {
+          "name": "SavedViewPreference"
+        },
+        {
+          "name": "SavedViewPreferenceInput"
+        },
+        {
+          "name": "SavedViewRef",
+          "fields": true
+        },
+        {
+          "name": "SavedViews",
+          "fields": true
+        },
+        {
+          "name": "SavedViewsActions"
+        },
+        {
+          "name": "SavedViewsController"
+        },
+        {
+          "name": "SavedViewsControllerOptions"
+        },
+        {
+          "name": "SavedViewScope"
+        },
+        {
+          "name": "SavedViewsEvents"
+        },
+        {
+          "name": "SavedViewsMatch"
+        },
+        {
+          "name": "SavedViewsOptions"
+        },
+        {
+          "name": "SavedViewsSnapshot"
+        },
+        {
+          "name": "SavedViewsSyncOptions"
+        },
+        {
+          "name": "SavedViewState"
+        }
+      ],
       "events": {
         "type": "SavedViewsEvents",
         "types": [
@@ -13911,6 +16816,39 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "CreatedShareLink",
+          "fields": true
+        },
+        {
+          "name": "CreateShareLinkOptions",
+          "fields": true
+        },
+        {
+          "name": "ResolvedShareLink"
+        },
+        {
+          "name": "ShareLink",
+          "fields": true
+        },
+        {
+          "name": "ShareLinkInput"
+        },
+        {
+          "name": "ShareLinks",
+          "fields": true
+        },
+        {
+          "name": "ShareLinksEvents"
+        },
+        {
+          "name": "ShareLinksOptions"
+        },
+        {
+          "name": "ShareLinksWrites"
+        }
+      ],
       "sections": {
         "shareLinks": [
           "create",
@@ -13979,6 +16917,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "SlaPolicy",
+          "fields": true
+        },
+        {
+          "name": "SlaPolicyInput",
+          "fields": true
+        }
+      ],
       "sections": {
         "sla": [
           "start"
@@ -14091,6 +17039,46 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Tag",
+          "fields": true
+        },
+        {
+          "name": "TagChange"
+        },
+        {
+          "name": "TagInputActions"
+        },
+        {
+          "name": "TagInputController"
+        },
+        {
+          "name": "TagInputControllerOptions"
+        },
+        {
+          "name": "TagInputSnapshot"
+        },
+        {
+          "name": "TagRefInput"
+        },
+        {
+          "name": "Tags",
+          "fields": true
+        },
+        {
+          "name": "TagsEvents"
+        },
+        {
+          "name": "TagsOptimisticAction"
+        },
+        {
+          "name": "TagsOptions"
+        },
+        {
+          "name": "TagsWrites"
+        }
+      ],
       "sections": {
         "tags": [
           "apply",
@@ -14119,7 +17107,24 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/goals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Target",
+          "fields": true
+        },
+        {
+          "name": "TargetInput",
+          "fields": true
+        },
+        {
+          "name": "TargetMetric"
+        },
+        {
+          "name": "TargetProgress",
+          "fields": true
+        }
+      ]
     },
     {
       "name": "teams",
@@ -14133,6 +17138,22 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Team",
+          "fields": true
+        },
+        {
+          "name": "Teams",
+          "fields": true
+        },
+        {
+          "name": "TeamsEvents"
+        },
+        {
+          "name": "TeamsOptions"
+        }
+      ],
       "events": {
         "type": "TeamsEvents",
         "types": [
@@ -14157,6 +17178,75 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "EmailTemplateBody"
+        },
+        {
+          "name": "Template",
+          "fields": true
+        },
+        {
+          "name": "TemplateApplication"
+        },
+        {
+          "name": "TemplateApplied"
+        },
+        {
+          "name": "TemplateApplyCall"
+        },
+        {
+          "name": "TemplateApplyResult"
+        },
+        {
+          "name": "TemplateDetail",
+          "fields": true
+        },
+        {
+          "name": "TemplateEmailOptions"
+        },
+        {
+          "name": "TemplateInput",
+          "fields": true
+        },
+        {
+          "name": "TemplateRunStart"
+        },
+        {
+          "name": "Templates",
+          "fields": true
+        },
+        {
+          "name": "TemplatesApplyOutput"
+        },
+        {
+          "name": "TemplateScope"
+        },
+        {
+          "name": "TemplatesEvents"
+        },
+        {
+          "name": "TemplatesOptions"
+        },
+        {
+          "name": "TemplateStarter"
+        },
+        {
+          "name": "TemplateSubject"
+        },
+        {
+          "name": "TemplateType"
+        },
+        {
+          "name": "TemplateVersion"
+        },
+        {
+          "name": "TemplateWorkflow"
+        },
+        {
+          "name": "TemplateWorkflowInput"
+        }
+      ],
       "events": {
         "type": "TemplatesEvents",
         "types": [
@@ -14187,6 +17277,39 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "TimeEntry",
+          "fields": true
+        },
+        {
+          "name": "TimeEntryFields",
+          "fields": true
+        },
+        {
+          "name": "TimeEntryListOptions"
+        },
+        {
+          "name": "TimeEntryPatch",
+          "fields": true
+        },
+        {
+          "name": "Timesheet"
+        },
+        {
+          "name": "TimesheetDetail",
+          "fields": true
+        },
+        {
+          "name": "TimesheetListOptions"
+        },
+        {
+          "name": "TimesheetStatus"
+        },
+        {
+          "name": "TimesheetTotals"
+        }
+      ],
       "events": {
         "type": "TimeTrackingEvents",
         "types": [
@@ -14277,6 +17400,34 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Version",
+          "fields": true
+        },
+        {
+          "name": "VersionInput"
+        },
+        {
+          "name": "VersionListOptions"
+        },
+        {
+          "name": "Versions",
+          "fields": true
+        },
+        {
+          "name": "VersionsEvents"
+        },
+        {
+          "name": "VersionsOptions"
+        },
+        {
+          "name": "VersionSource"
+        },
+        {
+          "name": "VersionsWrites"
+        }
+      ],
       "sections": {
         "versions": [
           "snapshot",
@@ -14304,6 +17455,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "WaitlistEntry",
+          "fields": true
+        }
+      ],
       "events": {
         "type": "WaitlistEvents",
         "types": [
@@ -14772,6 +17929,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         "workflows": "optional"
       },
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "WorkflowDefinition",
+          "fields": true
+        },
+        {
+          "name": "WorkflowDefinitionGrant"
+        },
+        {
+          "name": "WorkflowDefinitionScope"
+        }
+      ],
       "events": {
         "type": "WorkflowEditorEvents",
         "types": [

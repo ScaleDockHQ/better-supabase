@@ -266,6 +266,10 @@ const EVENTS: BlockSqlEvents<AiChatEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    chat: { table: "chats", singular: "ai_chat", primary: true },
+    project: { table: "projects", singular: "ai_project" },
+  },
   events: EVENTS,
   options: [
     "topic",
@@ -568,11 +572,11 @@ create table if not exists ${t.projects} (
   ${p.createdAt} timestamptz not null default now(),
   ${p.updatedAt} timestamptz not null default now()
 );
-create index if not exists ai_projects_owner_idx on ${t.projects} (${p.owner}, ${p.tenant});
+create index if not exists ${ctx.naming.rename("ai_projects_owner_idx")} on ${t.projects} (${p.owner}, ${p.tenant});
 ${lockTable(t.projects)}
 grant select on ${t.projects} to authenticated;
-drop policy if exists ai_projects_owner_read on ${t.projects};
-create policy ai_projects_owner_read on ${t.projects} for select to authenticated
+drop policy if exists ${ctx.naming.rename("ai_projects_owner_read")} on ${t.projects};
+create policy ${ctx.naming.rename("ai_projects_owner_read")} on ${t.projects} for select to authenticated
   using (${p.owner} = (select auth.uid()));
 
 -- One row per conversation. current_leaf_id is the message the chat shows;
@@ -599,15 +603,15 @@ create table if not exists ${t.chats} (
   ${ch.search} tsvector generated always as (to_tsvector('simple'::regconfig, ${ch.title})) stored,
   check (not ${ch.temporary} or ${ch.expiresAt} is not null)
 );
-create index if not exists ai_chats_owner_idx on ${t.chats} (${ch.owner}, ${ch.lastMessageAt} desc, ${ch.id} desc);
-create index if not exists ai_chats_tenant_idx on ${t.chats} (${ch.tenant});
-create index if not exists ai_chats_project_idx on ${t.chats} (${ch.project});
-create index if not exists ai_chats_expires_idx on ${t.chats} (${ch.expiresAt}) where ${ch.temporary};
-create index if not exists ai_chats_search_idx on ${t.chats} using gin (${ch.search});${addExtraColumns(t.chats, names.chatExtras)}
+create index if not exists ${ctx.naming.rename("ai_chats_owner_idx")} on ${t.chats} (${ch.owner}, ${ch.lastMessageAt} desc, ${ch.id} desc);
+create index if not exists ${ctx.naming.rename("ai_chats_tenant_idx")} on ${t.chats} (${ch.tenant});
+create index if not exists ${ctx.naming.rename("ai_chats_project_idx")} on ${t.chats} (${ch.project});
+create index if not exists ${ctx.naming.rename("ai_chats_expires_idx")} on ${t.chats} (${ch.expiresAt}) where ${ch.temporary};
+create index if not exists ${ctx.naming.rename("ai_chats_search_idx")} on ${t.chats} using gin (${ch.search});${addExtraColumns(t.chats, names.chatExtras)}
 ${lockTable(t.chats)}
 grant select on ${t.chats} to authenticated;
-drop policy if exists ai_chats_read on ${t.chats};
-create policy ai_chats_read on ${t.chats} for select to authenticated
+drop policy if exists ${ctx.naming.rename("ai_chats_read")} on ${t.chats};
+create policy ${ctx.naming.rename("ai_chats_read")} on ${t.chats} for select to authenticated
   using (
     ${ch.owner} = (select auth.uid())
     or (${ch.visibility} = 'organization' and ${visible})
@@ -782,8 +786,8 @@ create table if not exists ${t.shares} (
   ${sh.createdAt} timestamptz not null default now(),
   ${sh.revokedAt} timestamptz
 );
-create index if not exists ai_chat_shares_chat_idx on ${t.shares} (${sh.chat});
-create index if not exists ai_chat_shares_created_by_idx on ${t.shares} (${sh.createdBy});
+create index if not exists ${ctx.naming.rename("ai_chat_shares_chat_idx")} on ${t.shares} (${sh.chat});
+create index if not exists ${ctx.naming.rename("ai_chat_shares_created_by_idx")} on ${t.shares} (${sh.createdBy});
 ${lockTable(t.shares)}
 
 -- The models a tenant may pick, refreshed from the gateway. plans limits a

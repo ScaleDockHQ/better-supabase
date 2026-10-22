@@ -61,6 +61,11 @@ const EVENTS: BlockSqlEvents<HiringEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    job: { table: "jobs", singular: "job_opening", primary: true },
+    application: { table: "applications", singular: "application" },
+    interview: { table: "interviews", singular: "interview" },
+  },
   events: EVENTS,
   hooks: ["before_application_hire", "after_application_hire"],
   options: ["candidate", "extraColumns"],
@@ -246,11 +251,11 @@ create table if not exists ${t("applications")} (
   ${a("updatedAt")} timestamptz not null default now(),
   unique (${a("job")}, ${a("candidateType")}, ${a("candidateId")})
 );
-create index if not exists applications_board_idx on ${t("applications")} (${a("pipeline")}, ${a("stage")}, ${a("rank")});
-create index if not exists applications_candidate_idx on ${t("applications")} (${a("candidateType")}, ${a("candidateId")});
+create index if not exists ${ctx.naming.rename("applications_board_idx")} on ${t("applications")} (${a("pipeline")}, ${a("stage")}, ${a("rank")});
+create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${a("candidateType")}, ${a("candidateId")});
 ${lockTable(t("applications"), { read: true })}
-drop policy if exists applications_read on ${t("applications")};
-create policy applications_read on ${t("applications")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("applications_read")} on ${t("applications")};
+create policy ${ctx.naming.rename("applications_read")} on ${t("applications")} for select to authenticated
 using (${ctx.scope.check(a("tenant"), read)});
 
 create table if not exists ${t("scorecards")} (
@@ -265,10 +270,10 @@ create table if not exists ${t("scorecards")} (
   ${s("submittedAt")} timestamptz not null default now(),
   unique nulls not distinct (${s("application")}, ${s("stage")}, ${s("reviewer")})
 );
-create index if not exists application_scorecards_reviewer_idx on ${t("scorecards")} (${s("reviewer")});
+create index if not exists ${ctx.naming.rename("application_scorecards_reviewer_idx")} on ${t("scorecards")} (${s("reviewer")});
 ${lockTable(t("scorecards"), { read: true })}
-drop policy if exists application_scorecards_read on ${t("scorecards")};
-create policy application_scorecards_read on ${t("scorecards")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")};
+create policy ${ctx.naming.rename("application_scorecards_read")} on ${t("scorecards")} for select to authenticated
 using (${ctx.scope.check(s("tenant"), read)});
 
 create table if not exists ${t("interviews")} (
@@ -284,10 +289,10 @@ create table if not exists ${t("interviews")} (
   ${v("createdAt")} timestamptz not null default now(),
   check (${v("endsAt")} > ${v("startsAt")})
 );
-create index if not exists interviews_application_idx on ${t("interviews")} (${v("application")}, ${v("startsAt")});
+create index if not exists ${ctx.naming.rename("interviews_application_idx")} on ${t("interviews")} (${v("application")}, ${v("startsAt")});
 ${lockTable(t("interviews"), { read: true })}
-drop policy if exists interviews_read on ${t("interviews")};
-create policy interviews_read on ${t("interviews")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("interviews_read")} on ${t("interviews")};
+create policy ${ctx.naming.rename("interviews_read")} on ${t("interviews")} for select to authenticated
 using (${ctx.scope.check(v("tenant"), read)} or (select auth.uid()) = any (${v("interviewers")}));
 `
     : "";
@@ -298,7 +303,7 @@ using (${ctx.scope.check(v("tenant"), read)} or (select auth.uid()) = any (${v("
 ${tables}
 -- A rejected, withdrawn or hired application records its event and its
 -- time; reopening clears them.
-create or replace function better_supabase.bsb_application_guard()
+create or replace function better_supabase.${ctx.naming.rename("bsb_application_guard")}()
 returns trigger
 language plpgsql
 security definer
@@ -323,10 +328,10 @@ begin
   return new;
 end;
 $$;
-${triggerGrant("better_supabase.bsb_application_guard()")}
-drop trigger if exists bsb_application_guard on ${t("applications")};
-create trigger bsb_application_guard before update of ${a("state")} on ${t("applications")}
-for each row execute function better_supabase.bsb_application_guard();
+${triggerGrant(`better_supabase.${ctx.naming.rename("bsb_application_guard")}()`)}
+drop trigger if exists ${ctx.naming.rename("bsb_application_guard")} on ${t("applications")};
+create trigger ${ctx.naming.rename("bsb_application_guard")} before update of ${a("state")} on ${t("applications")}
+for each row execute function better_supabase.${ctx.naming.rename("bsb_application_guard")}();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and

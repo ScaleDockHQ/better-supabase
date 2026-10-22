@@ -201,3 +201,21 @@ their 0.14 values. Run `better-supabase upgrade`, then
 their new names, and renames two tables whose names clashed with a renamed
 block. Hiring's `jobs` table becomes `job_openings`, and catalog's
 `collections` table becomes `product_collections`.
+
+## More blocks register record types
+
+The quotes, invoices, orders, bookings and forms blocks register their primary
+noun as a record type, so `records.quote`, `records.invoice`, `records.order`,
+`records.booking` and `records.form` now fail with `config_invalid`. Remove the
+entry when it points at the block's own table. When it points at a table of
+your own, keep it and turn the block's record type off:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  bookings: { names: { booking: { subject: false } } },
+},
+```
+
+Then run `better-supabase upgrade`. Every block that owns tables now declares
+its nouns, so `blocks.<name>.names` renames them; see
+[SQL blocks](/docs/blocks/sql).

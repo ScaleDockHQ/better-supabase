@@ -69,6 +69,17 @@ const EVENTS: BlockSqlEvents<FormsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    form: {
+      table: "forms",
+      singular: "form",
+      primary: true,
+      subject: {
+        title: "title",
+        permissions: { read: "read", write: "manage" },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_form_publish",
@@ -411,8 +422,8 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
   unique (${f("tenant")}, ${f("key")})
 );${addExtraColumns(forms, extras)}
 ${lockTable(forms, { read: true })}
-drop policy if exists "forms_read" on ${forms};
-create policy "forms_read" on ${forms} for select to authenticated
+drop policy if exists ${ctx.naming.rename("forms_read")} on ${forms};
+create policy ${ctx.naming.rename("forms_read")} on ${forms} for select to authenticated
   using (${ctx.scope.check(f("tenant"), read)});
 
 create table if not exists ${versions} (
@@ -427,8 +438,8 @@ create table if not exists ${versions} (
   unique (${v("form")}, ${v("number")})
 );
 ${lockTable(versions, { read: true })}
-drop policy if exists "form_versions_read" on ${versions};
-create policy "form_versions_read" on ${versions} for select to authenticated
+drop policy if exists ${ctx.naming.rename("form_versions_read")} on ${versions};
+create policy ${ctx.naming.rename("form_versions_read")} on ${versions} for select to authenticated
   using (${ctx.scope.check(v("tenant"), read)});
 
 create table if not exists ${submissions} (
@@ -449,13 +460,13 @@ create table if not exists ${submissions} (
   ${s("updatedAt")} timestamptz not null default now(),
   check ((${s("subjectType")} is null) = (${s("subjectId")} is null))
 );
-create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_form_idx`)} on ${submissions} (${s("form")}, ${s("createdAt")} desc);
+create index if not exists ${sqlIdent(ctx.naming.rename(`${ctx.tableName("submissions").name}_form_idx`))} on ${submissions} (${s("form")}, ${s("createdAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_version_idx`)} on ${submissions} (${s("version")});
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_respondent_idx`)} on ${submissions} (${s("respondent")}) where ${s("respondent")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("submissions").name}_subject_idx`)} on ${submissions} (${s("subjectType")}, ${s("subjectId")}) where ${s("subjectType")} is not null;
 ${lockTable(submissions, { read: true })}
-drop policy if exists "form_submissions_read" on ${submissions};
-create policy "form_submissions_read" on ${submissions} for select to authenticated
+drop policy if exists ${ctx.naming.rename("form_submissions_read")} on ${submissions};
+create policy ${ctx.naming.rename("form_submissions_read")} on ${submissions} for select to authenticated
   using (${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid()));
 alter table ${submissions} add column if not exists ${s("score")} numeric;
 alter table ${submissions} add column if not exists ${s("maxScore")} numeric;

@@ -40,6 +40,14 @@ const EVENTS: BlockSqlEvents<SlaEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    policy: {
+      table: "policies",
+      singular: "sla_policy",
+      plural: "sla_policies",
+      primary: true,
+    },
+  },
   events: EVENTS,
   hooks: [],
   options: ["businessHours", "subjects", "extraColumns"],
@@ -347,10 +355,10 @@ ${
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now()
 );${addExtraColumns(t("policies"), extras)}
-create unique index if not exists sla_policies_match_idx on ${t("policies")} (${p("tenant")}, ${p("subjectType")}, coalesce(${p("priority")}, '')) where ${p("archivedAt")} is null;
+create unique index if not exists ${ctx.naming.rename("sla_policies_match_idx")} on ${t("policies")} (${p("tenant")}, ${p("subjectType")}, coalesce(${p("priority")}, '')) where ${p("archivedAt")} is null;
 ${lockTable(t("policies"), { read: true })}
-drop policy if exists sla_policies_read on ${t("policies")};
-create policy sla_policies_read on ${t("policies")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("sla_policies_read")} on ${t("policies")};
+create policy ${ctx.naming.rename("sla_policies_read")} on ${t("policies")} for select to authenticated
 using (${ctx.scope.check(p("tenant"), read)});
 
 create table if not exists ${t("clocks")} (

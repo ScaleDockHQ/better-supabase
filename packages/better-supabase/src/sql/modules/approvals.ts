@@ -103,6 +103,9 @@ const REQUEST_KEYS: readonly string[] = [
 ];
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    approval: { table: "requests", singular: "approval", primary: true },
+  },
   events: EVENTS,
   hooks: [
     "before_approval_request",
@@ -516,8 +519,8 @@ ${queues
 create unique index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_pending_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending';
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("status")}, ${c("createdAt")} desc);${addExtraColumns(requests, extras)}
 ${lockTable(requests, { read: true })}
-drop policy if exists "approval_requests_read" on ${requests};
-create policy "approval_requests_read" on ${requests} for select to authenticated
+drop policy if exists ${ctx.naming.rename("approval_requests_read")} on ${requests};
+create policy ${ctx.naming.rename("approval_requests_read")} on ${requests} for select to authenticated
   using (${linked.length === 0 ? ctx.scope.check(c("tenant"), read) : `(${ctx.scope.check(c("tenant"), read)} and not ${linkedRow(c("subjectType"))})`} or ${c("requestedBy")} = (select auth.uid()));
 
 create table if not exists ${decisions} (
@@ -535,8 +538,8 @@ create table if not exists ${decisions} (
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("decisions").name}_delegate_idx`)} on ${decisions} (${d("delegateTo")}) where ${d("delegateTo")} is not null;
 ${lockTable(decisions, { read: true })}
-drop policy if exists "approval_decisions_read" on ${decisions};
-create policy "approval_decisions_read" on ${decisions} for select to authenticated
+drop policy if exists ${ctx.naming.rename("approval_decisions_read")} on ${decisions};
+create policy ${ctx.naming.rename("approval_decisions_read")} on ${decisions} for select to authenticated
   using (${ctx.scope.check(d("tenant"), read)});
 `
     : "";

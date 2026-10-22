@@ -136,7 +136,7 @@ begin
     end if;
   end;
   if v_acyclic or v_single then
-    perform pg_advisory_xact_lock(hashtext(link.tenant::text || ':relations:' || v_kind));
+    perform pg_advisory_xact_lock(hashtext(link.tenant::text || ':relation:' || v_kind));
   end if;
   select "id", "data" into v_id, v_previous from "better_supabase"."relations"
     where "tenant_id" = link.tenant and "kind" = v_kind

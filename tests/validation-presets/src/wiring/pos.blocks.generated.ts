@@ -133,6 +133,10 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
+  booking: {
+    read: "bookings.read",
+    write: "bookings.manage",
+  },
   bookings: {
     manage: "bookings.manage",
     create: "bookings.create",
@@ -174,6 +178,10 @@ export const permissions = {
   onboarding: {
     read: "onboarding.read",
     complete: "onboarding.complete",
+  },
+  order: {
+    read: "orders.read",
+    write: "orders.manage",
   },
   orders: {
     manage: "orders.manage",

@@ -49,6 +49,13 @@ const EVENTS: BlockSqlEvents<WorkflowEditorEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    definition: {
+      table: "definitions",
+      singular: "workflow_definition",
+      primary: true,
+    },
+  },
   events: EVENTS,
   options: ["extraColumns"],
   tables: {
@@ -280,9 +287,9 @@ create table if not exists ${d} (
   ${cd("createdBy")} uuid references auth.users (id) on delete set null,
   ${cd("createdAt")} timestamptz not null default now(),
   ${cd("updatedAt")} timestamptz not null default now(),
-  constraint workflow_definitions_tenant_slug_key unique nulls not distinct (${cd("tenant")}, ${cd("slug")})
+  constraint ${ctx.naming.rename("workflow_definitions_tenant_slug_key")} unique nulls not distinct (${cd("tenant")}, ${cd("slug")})
 );
-create index if not exists workflow_definitions_created_by_idx on ${d} (${cd("createdBy")});
+create index if not exists ${ctx.naming.rename("workflow_definitions_created_by_idx")} on ${d} (${cd("createdBy")});
 -- subject_types: the record types a run of the definition may belong to.
 -- scope: a system definition has no tenant, every member with
 -- workflow.read reads it, only the service role saves and publishes it, and
@@ -296,15 +303,15 @@ alter table ${d} add column if not exists ${cd("scope")} text not null default '
 alter table ${d} add column if not exists ${cd("forkedFrom")} uuid references ${d} (${cd("id")}) on delete set null;
 alter table ${d} add column if not exists ${cd("forkedFromVersion")} integer check (${cd("forkedFromVersion")} > 0);
 alter table ${d} add column if not exists ${cd("restricted")} boolean not null default false;
-${ensureCheck(d, "workflow_definitions_system_check", `${cd("scope")} = 'tenant' or ${cd("tenant")} is null`)}
-${ensureCheck(d, "workflow_definitions_subject_types_check", `cardinality(${cd("subjectTypes")}) <= 50 and array_position(${cd("subjectTypes")}, null) is null`)}
-create index if not exists workflow_definitions_forked_from_idx on ${d} (${cd("forkedFrom")}) where ${cd("forkedFrom")} is not null;${addExtraColumns(d, extras)}
+${ensureCheck(d, ctx.naming.rename("workflow_definitions_system_check"), `${cd("scope")} = 'tenant' or ${cd("tenant")} is null`)}
+${ensureCheck(d, ctx.naming.rename("workflow_definitions_subject_types_check"), `cardinality(${cd("subjectTypes")}) <= 50 and array_position(${cd("subjectTypes")}, null) is null`)}
+create index if not exists ${ctx.naming.rename("workflow_definitions_forked_from_idx")} on ${d} (${cd("forkedFrom")}) where ${cd("forkedFrom")} is not null;${addExtraColumns(d, extras)}
 alter table ${d} enable row level security;
 ${revokeTable(d)}
 grant select on ${d} to authenticated;
 grant all on ${d} to service_role;
-drop policy if exists workflow_definitions_read on ${d};
-create policy workflow_definitions_read on ${d} for select to authenticated
+drop policy if exists ${ctx.naming.rename("workflow_definitions_read")} on ${d};
+create policy ${ctx.naming.rename("workflow_definitions_read")} on ${d} for select to authenticated
   using (${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))})));
 
 -- The tenants that opted out of a definition, usually a system one: its
@@ -336,16 +343,16 @@ create table if not exists ${g} (
   ${cg("action")} text not null check (${cg("action")} in (${list(GRANT_ACTIONS)})),
   ${cg("createdBy")} uuid references auth.users (id) on delete set null,
   ${cg("createdAt")} timestamptz not null default now(),
-  constraint workflow_definition_grants_key unique (${cg("definition")}, ${cg("principalKind")}, ${cg("principalId")}, ${cg("action")})
+  constraint ${ctx.naming.rename("workflow_definition_grants_key")} unique (${cg("definition")}, ${cg("principalKind")}, ${cg("principalId")}, ${cg("action")})
 );
-create index if not exists workflow_definition_grants_principal_idx on ${g} (${cg("principalKind")}, ${cg("principalId")});
-create index if not exists workflow_definition_grants_created_by_idx on ${g} (${cg("createdBy")});
+create index if not exists ${ctx.naming.rename("workflow_definition_grants_principal_idx")} on ${g} (${cg("principalKind")}, ${cg("principalId")});
+create index if not exists ${ctx.naming.rename("workflow_definition_grants_created_by_idx")} on ${g} (${cg("createdBy")});
 alter table ${g} enable row level security;
 ${revokeTable(g)}
 grant select on ${g} to authenticated;
 grant all on ${g} to service_role;
-drop policy if exists workflow_definition_grants_read on ${g};
-create policy workflow_definition_grants_read on ${g} for select to authenticated
+drop policy if exists ${ctx.naming.rename("workflow_definition_grants_read")} on ${g};
+create policy ${ctx.naming.rename("workflow_definition_grants_read")} on ${g} for select to authenticated
   using (${definitionReadable(cg("definition"))});
 
 create table if not exists ${v} (

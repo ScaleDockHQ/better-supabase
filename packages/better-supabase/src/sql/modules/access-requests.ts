@@ -48,6 +48,9 @@ const EVENTS: BlockSqlEvents<AccessRequestsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    request: { table: "requests", singular: "access_request", primary: true },
+  },
   events: EVENTS,
   hooks: [
     "before_access_request",
@@ -269,8 +272,8 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${c("approval")}) where ${c("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_expiry_idx`)} on ${requests} (${c("expiresAt")}) where ${c("grantedAt")} is not null and ${c("endedAt")} is null;
 ${lockTable(requests, { read: true })}
-drop policy if exists "access_requests_read" on ${requests};
-create policy "access_requests_read" on ${requests} for select to authenticated
+drop policy if exists ${ctx.naming.rename("access_requests_read")} on ${requests};
+create policy ${ctx.naming.rename("access_requests_read")} on ${requests} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)} or ${c("user")} = (select auth.uid()));
 `
     : "";

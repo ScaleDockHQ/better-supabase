@@ -88,6 +88,9 @@ const EVENTS: BlockSqlEvents<RelationsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    relation: { table: "relations", singular: "relation", primary: true },
+  },
   events: EVENTS,
   hooks: ["before_relation_link", "after_relation_link"],
   options: ["kinds", "subjects", "extraColumns"],
@@ -295,7 +298,7 @@ function build(ctx: BlockSqlContext): string {
   unique (${tenant}, ${kind}, ${sourceType}, ${sourceId}, ${targetType}, ${targetId}),
   check (not (${sourceType} = ${targetType} and ${sourceId} = ${targetId}))
 );
-create index if not exists relations_target_idx on ${relations} (${tenant}, ${targetType}, ${targetId}, ${kind});${addExtraColumns(relations, extras)}
+create index if not exists ${ctx.naming.rename("relations_target_idx")} on ${relations} (${tenant}, ${targetType}, ${targetId}, ${kind});${addExtraColumns(relations, extras)}
 ${lockTable(relations, { read: true })}
 `
     : "";
@@ -400,8 +403,8 @@ ${lockTable(relations, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-drop policy if exists relations_read on ${relations};
-create policy relations_read on ${relations} for select to authenticated
+drop policy if exists ${ctx.naming.rename("relations_read")} on ${relations};
+create policy ${ctx.naming.rename("relations_read")} on ${relations} for select to authenticated
 using (${tenant} in (select ${ctx.scope.ids(read)}));
 
 -- Links two subjects. An inverse name (blocked_by) stores the link from the
@@ -446,7 +449,7 @@ ${canonical("link")}
     ["text", "v_target_id"],
   ])}
   if v_acyclic or v_single then
-    perform pg_advisory_xact_lock(hashtext(link.tenant::text || ':relations:' || v_kind));
+    perform pg_advisory_xact_lock(hashtext(link.tenant::text || ':relation:' || v_kind));
   end if;
   select ${id}, ${data} into v_id, v_previous from ${relations}
     where ${tenant} = link.tenant and ${kind} = v_kind

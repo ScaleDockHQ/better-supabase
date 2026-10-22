@@ -64,8 +64,8 @@ alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
-drop policy if exists "versions_read" on "better_supabase"."versions";
-create policy "versions_read" on "better_supabase"."versions" for select to authenticated
+drop policy if exists versions_read on "better_supabase"."versions";
+create policy versions_read on "better_supabase"."versions" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
 -- Writes a version, numbered per subject. A version without a label whose
@@ -89,7 +89,7 @@ declare
   v_id uuid;
   v_number integer;
 begin
-  perform pg_advisory_xact_lock(hashtextextended('better_supabase.versions:' || version_insert.subject_type || ':' || version_insert.subject_id, 0));
+  perform pg_advisory_xact_lock(hashtextextended('better_supabase.version:' || version_insert.subject_type || ':' || version_insert.subject_id, 0));
   select v."id", v."number", v."content_hash", v."label" is null and not v."frozen", v."source", v."created_at"
     into v_last_id, v_last_number, v_last_hash, v_last_open, v_last_source, v_last_at
     from "better_supabase"."versions" v
@@ -375,7 +375,7 @@ grant execute on function "better_supabase"."delete_version"(uuid) to authentica
 
 -- options.subjects.<type>.auto and .freeze: tg_argv is the subject type, its
 -- id and tenant columns, the snapshot columns, then the freeze column and
--- values (empty for auto). A restore sets better_supabase.versions_restoring, so it isn't
+-- values (empty for auto). A restore sets better_supabase.restoring_version, so it isn't
 -- snapshotted twice.
 create or replace function "better_supabase"."versions_capture"()
 returns trigger
@@ -391,7 +391,7 @@ declare
   v_previous jsonb;
   v_label text;
 begin
-  if coalesce(current_setting('better_supabase.versions_restoring', true), '') = 'on' then
+  if coalesce(current_setting('better_supabase.restoring_version', true), '') = 'on' then
     return null;
   end if;
   select jsonb_object_agg(e.key, e.value) into v_content from jsonb_each(v_new) e where e.key = any (v_columns);

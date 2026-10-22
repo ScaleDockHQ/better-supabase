@@ -42,6 +42,9 @@ const EVENTS: BlockSqlEvents<TemplatesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    template: { table: "templates", singular: "template", primary: true },
+  },
   events: EVENTS,
   hooks: [
     "before_template_save",
@@ -237,16 +240,16 @@ create table if not exists ${t} (
   ${ct("createdBy")} uuid references auth.users (id) on delete set null,
   ${ct("createdAt")} timestamptz not null default now(),
   ${ct("updatedAt")} timestamptz not null default now(),
-  constraint templates_system_check check ((${ct("scope")} = 'system') = (${ct("tenant")} is null))
+  constraint ${ctx.naming.rename("templates_system_check")} check ((${ct("scope")} = 'system') = (${ct("tenant")} is null))
 );${addExtraColumns(t, extras)}
-create unique index if not exists templates_key_idx on ${t} (${ct("tenant")}, ${ct("key")}) nulls not distinct where ${ct("key")} is not null;
-create unique index if not exists templates_default_idx on ${t} (${ct("tenant")}, ${ct("type")}, ${ct("language")}) nulls not distinct where ${ct("isDefault")};
-create index if not exists templates_type_idx on ${t} (${ct("tenant")}, ${ct("type")});
-create index if not exists templates_forked_from_idx on ${t} (${ct("forkedFrom")}) where ${ct("forkedFrom")} is not null;
-create index if not exists templates_created_by_idx on ${t} (${ct("createdBy")});
+create unique index if not exists ${ctx.naming.rename("templates_key_idx")} on ${t} (${ct("tenant")}, ${ct("key")}) nulls not distinct where ${ct("key")} is not null;
+create unique index if not exists ${ctx.naming.rename("templates_default_idx")} on ${t} (${ct("tenant")}, ${ct("type")}, ${ct("language")}) nulls not distinct where ${ct("isDefault")};
+create index if not exists ${ctx.naming.rename("templates_type_idx")} on ${t} (${ct("tenant")}, ${ct("type")});
+create index if not exists ${ctx.naming.rename("templates_forked_from_idx")} on ${t} (${ct("forkedFrom")}) where ${ct("forkedFrom")} is not null;
+create index if not exists ${ctx.naming.rename("templates_created_by_idx")} on ${t} (${ct("createdBy")});
 ${lockTable(t, { read: true })}
-drop policy if exists templates_read on ${t};
-create policy templates_read on ${t} for select to authenticated
+drop policy if exists ${ctx.naming.rename("templates_read")} on ${t};
+create policy ${ctx.naming.rename("templates_read")} on ${t} for select to authenticated
   using (${readable});
 
 -- Numbered snapshots of a template's body: at most one draft, and published
@@ -260,13 +263,13 @@ create table if not exists ${ver} (
   ${cv("publishedAt")} timestamptz,
   ${cv("createdBy")} uuid references auth.users (id) on delete set null,
   ${cv("createdAt")} timestamptz not null default now(),
-  constraint template_versions_template_version_key unique (${cv("template")}, ${cv("version")})
+  constraint ${ctx.naming.rename("template_versions_template_version_key")} unique (${cv("template")}, ${cv("version")})
 );
-create unique index if not exists template_versions_one_draft_idx on ${ver} (${cv("template")}) where ${cv("publishedAt")} is null;
-create index if not exists template_versions_created_by_idx on ${ver} (${cv("createdBy")});
+create unique index if not exists ${ctx.naming.rename("template_versions_one_draft_idx")} on ${ver} (${cv("template")}) where ${cv("publishedAt")} is null;
+create index if not exists ${ctx.naming.rename("template_versions_created_by_idx")} on ${ver} (${cv("createdBy")});
 ${lockTable(ver, { read: true })}
-drop policy if exists template_versions_read on ${ver};
-create policy template_versions_read on ${ver} for select to authenticated
+drop policy if exists ${ctx.naming.rename("template_versions_read")} on ${ver};
+create policy ${ctx.naming.rename("template_versions_read")} on ${ver} for select to authenticated
   using (exists (select 1 from ${t} x where x.${ct("id")} = ${cv("template")}));
 
 -- Each time a published version created a record, and which one.
@@ -280,14 +283,14 @@ create table if not exists ${app} (
   ${ca("appliedBy")} uuid references auth.users (id) on delete set null,
   ${ca("appliedAt")} timestamptz not null default now()
 );
-create index if not exists template_applications_tenant_idx on ${app} (${ca("tenant")}, ${ca("appliedAt")} desc);
-create index if not exists template_applications_template_idx on ${app} (${ca("template")});
-create index if not exists template_applications_version_idx on ${app} (${ca("version")});
-create index if not exists template_applications_subject_idx on ${app} (${ca("subjectType")}, ${ca("subjectId")});
-create index if not exists template_applications_applied_by_idx on ${app} (${ca("appliedBy")});
+create index if not exists ${ctx.naming.rename("template_applications_tenant_idx")} on ${app} (${ca("tenant")}, ${ca("appliedAt")} desc);
+create index if not exists ${ctx.naming.rename("template_applications_template_idx")} on ${app} (${ca("template")});
+create index if not exists ${ctx.naming.rename("template_applications_version_idx")} on ${app} (${ca("version")});
+create index if not exists ${ctx.naming.rename("template_applications_subject_idx")} on ${app} (${ca("subjectType")}, ${ca("subjectId")});
+create index if not exists ${ctx.naming.rename("template_applications_applied_by_idx")} on ${app} (${ca("appliedBy")});
 ${lockTable(app, { read: true })}
-drop policy if exists template_applications_read on ${app};
-create policy template_applications_read on ${app} for select to authenticated
+drop policy if exists ${ctx.naming.rename("template_applications_read")} on ${app};
+create policy ${ctx.naming.rename("template_applications_read")} on ${app} for select to authenticated
   using (${ca("tenant")} in (select ${ctx.scope.ids(read)}));
 ${workflows?.ddl ?? ""}
 -- Creates a template (template_id null) or renames it and replaces its

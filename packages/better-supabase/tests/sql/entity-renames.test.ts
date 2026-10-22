@@ -99,6 +99,19 @@ describe("blocks.<name>.entities in the SQL", () => {
     expect(left).toEqual([]);
   });
 
+  // JSON payload keys the TypeScript client reads, ledger account keys stored
+  // in rows, option defaults and columns another block owns keep their names.
+  const CONTRACT: Readonly<Record<string, readonly string[]>> = {
+    announcements: ["'announcement_changed'"],
+    automations: ["'rules'", "'rules[]'", '"rules"', "'ruleId'"],
+    hiring: ["'interviews[]'", "'interviews'"],
+    inbox: ["'inbox_id'"],
+    invoices: ["'invoices:cash:", "'invoiceId'"],
+    memory: ["'/memories'", "'/memories{}'"],
+    orders: ["'cartId'", "'orderId'"],
+    promotions: ['"promotions"', "'promotionId'"],
+  };
+
   const renamable = Object.entries(SQL_MODULES).flatMap(([name, module]) => {
     const entities = Object.entries(module.names?.entities ?? {}).filter(
       ([, entity]) => !entity.global,
@@ -180,7 +193,8 @@ describe("blocks.<name>.entities in the SQL", () => {
         .flatMap((file) => file.contents.split("\n"))
         .filter((line) => !line.trimStart().startsWith("--"))
         .map((line) =>
-          line
+          (CONTRACT[name] ?? [])
+            .reduce((rest, literal) => rest.replaceAll(literal, ""), line)
             .replaceAll(`'${name}'`, "")
             .replaceAll(`'${name}.`, "'")
             .replaceAll(/'[^']*\s[^']*'/g, "")

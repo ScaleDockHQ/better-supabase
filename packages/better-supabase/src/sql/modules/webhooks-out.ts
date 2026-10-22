@@ -38,6 +38,13 @@ const EVENTS: BlockSqlEvents<WebhooksEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    endpoint: {
+      table: "endpoints",
+      singular: "webhook_endpoint",
+      primary: true,
+    },
+  },
   events: EVENTS,
   options: [
     "allowHttp",
@@ -266,8 +273,8 @@ ${added(n, "endpoints", [
   ["signing", signingType],
   ["format", formatType],
   ["credentialRef", credentialRefType],
-])}${formatDefault(ctx, n)}create index if not exists webhook_endpoints_types_idx on ${n.table("endpoints")} using gin (${d("eventTypes")});
-${n.has("endpoints", "tenant") ? `create index if not exists webhook_endpoints_tenant_idx on ${n.table("endpoints")} (${d("tenant")});\n` : ""}${n.has("endpoints", "createdBy") ? `create index if not exists webhook_endpoints_created_by_idx on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}${lockTable(n.table("endpoints"))}${
+])}${formatDefault(ctx, n)}create index if not exists ${ctx.naming.rename("webhook_endpoints_types_idx")} on ${n.table("endpoints")} using gin (${d("eventTypes")});
+${n.has("endpoints", "tenant") ? `create index if not exists ${ctx.naming.rename("webhook_endpoints_tenant_idx")} on ${n.table("endpoints")} (${d("tenant")});\n` : ""}${n.has("endpoints", "createdBy") ? `create index if not exists ${ctx.naming.rename("webhook_endpoints_created_by_idx")} on ${n.table("endpoints")} (${d("createdBy")});\n` : ""}${n.has("endpoints", "updatedAt") ? `${updatedAt(n.table("endpoints"), d("updatedAt"))}\n` : ""}${lockTable(n.table("endpoints"))}${
     scoped
       ? `
 grant select, insert, update, delete on ${n.table("endpoints")} to authenticated;${policy(
@@ -304,7 +311,7 @@ create table if not exists ${n.table("secrets")} (
     `${s("createdAt")} timestamptz not null default now()`,
   ].join(",\n  ")}
 );
-create index if not exists webhook_endpoint_secrets_endpoint_idx on ${n.table("secrets")} (${s("endpoint")});
+create index if not exists ${ctx.naming.rename("webhook_endpoint_secrets_endpoint_idx")} on ${n.table("secrets")} (${s("endpoint")});
 ${lockTable(n.table("secrets"))}`;
 
   const fallback = defaultPartitionName(ctx.tableName("deliveries"));

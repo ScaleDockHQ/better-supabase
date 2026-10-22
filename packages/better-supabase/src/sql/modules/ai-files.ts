@@ -105,6 +105,9 @@ const SUGGESTIONS = {
 } as const;
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    document: { table: "documents", singular: "ai_document", primary: true },
+  },
   options: [
     "bucket",
     "maxSize",
@@ -339,15 +342,15 @@ create table if not exists ${documents} (
   ${d.createdAt} timestamptz not null default now(),
   ${d.updatedAt} timestamptz not null default now()
 );
-create index if not exists ai_documents_owner_idx on ${documents} (${d.owner});
-create index if not exists ai_documents_tenant_idx on ${documents} (${d.tenant});
-create index if not exists ai_documents_chat_idx on ${documents} (${d.chat}) where ${d.chat} is not null;
+create index if not exists ${ctx.naming.rename("ai_documents_owner_idx")} on ${documents} (${d.owner});
+create index if not exists ${ctx.naming.rename("ai_documents_tenant_idx")} on ${documents} (${d.tenant});
+create index if not exists ${ctx.naming.rename("ai_documents_chat_idx")} on ${documents} (${d.chat}) where ${d.chat} is not null;
 alter table ${documents} enable row level security;
 ${revokeTable(documents)}
 grant select on ${documents} to authenticated;
 grant all on ${documents} to service_role;
-drop policy if exists ai_documents_read on ${documents};
-create policy ai_documents_read on ${documents} for select to authenticated
+drop policy if exists ${ctx.naming.rename("ai_documents_read")} on ${documents};
+create policy ${ctx.naming.rename("ai_documents_read")} on ${documents} for select to authenticated
   using (${readable("", d.owner, d.tenant, d.chat)});
 
 create table if not exists ${versions} (
@@ -361,13 +364,13 @@ create table if not exists ${versions} (
   primary key (${v.document}, ${v.version}),
   check (${v.content} is not null or ${v.storagePath} is not null)
 );
-create index if not exists ai_document_versions_created_by_idx on ${versions} (${v.createdBy}) where ${v.createdBy} is not null;
+create index if not exists ${ctx.naming.rename("ai_document_versions_created_by_idx")} on ${versions} (${v.createdBy}) where ${v.createdBy} is not null;
 alter table ${versions} enable row level security;
 ${revokeTable(versions)}
 grant select on ${versions} to authenticated;
 grant all on ${versions} to service_role;
-drop policy if exists ai_document_versions_read on ${versions};
-create policy ai_document_versions_read on ${versions} for select to authenticated
+drop policy if exists ${ctx.naming.rename("ai_document_versions_read")} on ${versions};
+create policy ${ctx.naming.rename("ai_document_versions_read")} on ${versions} for select to authenticated
   using (exists (select 1 from ${documents} doc where doc.${d.id} = ${v.document}));
 
 create table if not exists ${suggestions} (

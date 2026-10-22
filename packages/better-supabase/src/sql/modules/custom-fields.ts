@@ -44,6 +44,9 @@ const EVENTS: BlockSqlEvents<CustomFieldsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    field: { table: "definitions", singular: "field", primary: true },
+  },
   events: EVENTS,
   options: ["layout", "auditReads"],
   tables: {
@@ -176,7 +179,7 @@ ${lockTable(definitions, { read: true })}
   ${inline || !ctx.has("values", "definition") ? "" : `, unique (${ctx.col("values", "tenant")}, ${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "definition")})`}
 );
 ${lockTable(values, { read: true })}
-${inline || !ctx.has("values", "definition") ? "" : `create index if not exists field_values_definition_idx on ${values} (${ctx.col("values", "definition")});`}
+${inline || !ctx.has("values", "definition") ? "" : `create index if not exists ${ctx.naming.rename("field_values_definition_idx")} on ${values} (${ctx.col("values", "definition")});`}
 `
     : !inline && ctx.has("definitions", "encrypted")
       ? `alter table ${definitions} add column if not exists ${ctx.col("definitions", "encrypted")} boolean not null default false;
@@ -421,7 +424,7 @@ function typeCheck(ctx: BlockSqlContext, definitions: string): string {
   const legacy = `${ctx.tableName("definitions").name}_${column}_check`;
 
   return `alter table ${definitions} drop constraint if exists ${sqlIdent(legacy)};
-${ensureCheck(definitions, "bsb_field_definitions_type", `${sqlIdent(column)} in (${CUSTOM_FIELD_TYPES.map(sqlString).join(", ")})`)}`;
+${ensureCheck(definitions, ctx.naming.rename("bsb_field_definitions_type"), `${sqlIdent(column)} in (${CUSTOM_FIELD_TYPES.map(sqlString).join(", ")})`)}`;
 }
 
 function listDefinitions(

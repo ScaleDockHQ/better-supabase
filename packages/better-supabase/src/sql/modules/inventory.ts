@@ -97,6 +97,14 @@ const EVENTS: BlockSqlEvents<InventoryEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    location: {
+      table: "locations",
+      singular: "inventory_location",
+      primary: true,
+    },
+    purchase_order: { table: "purchaseOrders", singular: "purchase_order" },
+  },
   events: EVENTS,
   options: ["extraColumns"],
   hooks: [
@@ -343,8 +351,8 @@ create table if not exists ${t("purchaseOrders")} (
   ${po("placedAt")} timestamptz,
   check ((${po("supplierType")} is null) = (${po("supplierId")} is null))
 );
-create index if not exists purchase_orders_location_idx on ${t("purchaseOrders")} (${po("location")});
-create index if not exists purchase_orders_status_idx on ${t("purchaseOrders")} (${po("tenant")}, ${po("status")});
+create index if not exists ${ctx.naming.rename("purchase_orders_location_idx")} on ${t("purchaseOrders")} (${po("location")});
+create index if not exists ${ctx.naming.rename("purchase_orders_status_idx")} on ${t("purchaseOrders")} (${po("tenant")}, ${po("status")});
 ${lockTable(t("purchaseOrders"), { read: true })}
 ${read("purchaseOrders")}
 
@@ -358,7 +366,7 @@ create table if not exists ${t("purchaseOrderLines")} (
   ${pl("unitCost")} bigint not null check (${pl("unitCost")} >= 0),
   unique (${pl("order")}, ${pl("variant")})
 );
-create index if not exists purchase_order_lines_variant_idx on ${t("purchaseOrderLines")} (${pl("variant")});
+create index if not exists ${ctx.naming.rename("purchase_order_lines_variant_idx")} on ${t("purchaseOrderLines")} (${pl("variant")});
 ${lockTable(t("purchaseOrderLines"), { read: true })}
 ${read("purchaseOrderLines")}
 `

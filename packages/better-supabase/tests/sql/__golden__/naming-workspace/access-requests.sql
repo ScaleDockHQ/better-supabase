@@ -62,8 +62,8 @@ alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-drop policy if exists "access_requests_read" on "better_supabase"."access_requests";
-create policy "access_requests_read" on "better_supabase"."access_requests" for select to authenticated
+drop policy if exists access_requests_read on "better_supabase"."access_requests";
+create policy access_requests_read on "better_supabase"."access_requests" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
 -- Asks for a role in an organization. Approvers come from options.policy;

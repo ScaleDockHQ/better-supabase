@@ -50,6 +50,13 @@ const EVENTS: BlockSqlEvents<SignaturesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    request: {
+      table: "requests",
+      singular: "signature_request",
+      primary: true,
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_signature_request",
@@ -270,8 +277,8 @@ create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_subject
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_version_idx`)} on ${requests} (${r("version")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_signers_idx`)} on ${requests} using gin (${r("signers")});
 ${lockTable(requests, { read: true })}
-drop policy if exists "signature_requests_read" on ${requests};
-create policy "signature_requests_read" on ${requests} for select to authenticated
+drop policy if exists ${ctx.naming.rename("signature_requests_read")} on ${requests};
+create policy ${ctx.naming.rename("signature_requests_read")} on ${requests} for select to authenticated
   using (${ctx.scope.check(r("tenant"), read)} or (select auth.uid()) = any (${r("signers")}));
 
 create table if not exists ${signatures} (
@@ -291,8 +298,8 @@ create table if not exists ${signatures} (
   unique (${s("request")}, ${s("signer")})
 );
 ${lockTable(signatures, { read: true })}
-drop policy if exists "signatures_read" on ${signatures};
-create policy "signatures_read" on ${signatures} for select to authenticated
+drop policy if exists ${ctx.naming.rename("signatures_read")} on ${signatures};
+create policy ${ctx.naming.rename("signatures_read")} on ${signatures} for select to authenticated
   using (${ctx.scope.check(s("tenant"), read)} or ${s("signer")} = (select auth.uid()));
 `
     : "";

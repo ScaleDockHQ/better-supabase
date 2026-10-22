@@ -54,6 +54,14 @@ const EVENTS: BlockSqlEvents<WaitlistEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    entry: {
+      table: "entries",
+      singular: "waitlist_entry",
+      plural: "waitlist_entries",
+      primary: true,
+    },
+  },
   events: EVENTS,
   options: ["defaultRole", "codeField", "roles", "extraColumns"],
   tables: {
@@ -238,9 +246,9 @@ create table if not exists ${e} (
   ${ce("decidedAt")} timestamptz,
   ${ce("createdAt")} timestamptz not null default now()
 );${addExtraColumns(e, extras)}
-create index if not exists waitlist_entries_status_idx on ${e} (${ce("status")}, ${ce("position")});
-create index if not exists waitlist_entries_user_idx on ${e} (${ce("user")});
-create index if not exists waitlist_entries_decided_by_idx on ${e} (${ce("decidedBy")});
+create index if not exists ${ctx.naming.rename("waitlist_entries_status_idx")} on ${e} (${ce("status")}, ${ce("position")});
+create index if not exists ${ctx.naming.rename("waitlist_entries_user_idx")} on ${e} (${ce("user")});
+create index if not exists ${ctx.naming.rename("waitlist_entries_decided_by_idx")} on ${e} (${ce("decidedBy")});
 ${lockTable(e)}
 
 -- Invite codes, stored as the SHA-256 of the upper-cased code. One with an

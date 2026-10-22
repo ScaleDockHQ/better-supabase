@@ -87,6 +87,14 @@ const EVENTS: BlockSqlEvents<InboxEvents> = {
 };
 
 export const INBOX_NAMES: BlockSqlNames = {
+  entities: {
+    inbox: {
+      table: "inboxes",
+      singular: "inbox",
+      plural: "inboxes",
+      primary: true,
+    },
+  },
   events: EVENTS,
   options: [
     "topic",

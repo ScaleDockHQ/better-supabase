@@ -51,6 +51,9 @@ const EVENTS: BlockSqlEvents<VersionsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    version: { table: "versions", singular: "version", primary: true },
+  },
   events: EVENTS,
   hooks: [
     "before_version_snapshot",
@@ -84,7 +87,7 @@ const NAMES: BlockSqlNames = {
 
 const COLUMN = /^[a-z_][a-z0-9_]*$/;
 const FUNCTION = /^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)?$/;
-const RESTORING = "better_supabase.versions_restoring";
+const RESTORING = "better_supabase.restoring_version";
 
 interface Versioned {
   readonly type: string;
@@ -412,8 +415,8 @@ function build(ctx: BlockSqlContext): string {
 );${addExtraColumns(versions, extras)}
 create index if not exists ${sqlIdent(`${ctx.tableName("versions").name}_tenant_idx`)} on ${versions} (${c("tenant")});
 ${lockTable(versions, { read: true })}
-drop policy if exists "versions_read" on ${versions};
-create policy "versions_read" on ${versions} for select to authenticated
+drop policy if exists ${ctx.naming.rename("versions_read")} on ${versions};
+create policy ${ctx.naming.rename("versions_read")} on ${versions} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)});
 `
     : "";
@@ -448,7 +451,7 @@ declare
   v_id uuid;
   v_number integer;
 begin
-  perform pg_advisory_xact_lock(hashtextextended('better_supabase.versions:' || version_insert.subject_type || ':' || version_insert.subject_id, 0));
+  perform pg_advisory_xact_lock(hashtextextended('better_supabase.version:' || version_insert.subject_type || ':' || version_insert.subject_id, 0));
   select v.${c("id")}, v.${c("number")}, v.${c("contentHash")}, v.${c("label")} is null and not v.${c("frozen")}, v.${c("source")}, v.${c("createdAt")}
     into v_last_id, v_last_number, v_last_hash, v_last_open, v_last_source, v_last_at
     from ${versions} v

@@ -43,6 +43,13 @@ const CHUNKS = {
 } as const;
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    document: {
+      table: "documents",
+      singular: "knowledge_document",
+      primary: true,
+    },
+  },
   options: ["dimensions", "type", "textSearch", "embedQueue"],
   tables: {
     documents: {
@@ -225,16 +232,16 @@ create table if not exists ${documents} (
   ${d.updatedAt} timestamptz not null default now(),
   check ((${d.scope} = 'organization') = (${d.scopeId} is null))
 );
-create index if not exists knowledge_documents_tenant_idx on ${documents} (${d.tenant}, ${d.scope}, ${d.scopeId});
-create index if not exists knowledge_documents_owner_idx on ${documents} (${d.owner}) where ${d.owner} is not null;
-create index if not exists knowledge_documents_file_idx on ${documents} (${d.file}) where ${d.file} is not null;
-create index if not exists knowledge_documents_pending_idx on ${documents} (${d.updatedAt}) where ${d.status} = 'pending';
+create index if not exists ${ctx.naming.rename("knowledge_documents_tenant_idx")} on ${documents} (${d.tenant}, ${d.scope}, ${d.scopeId});
+create index if not exists ${ctx.naming.rename("knowledge_documents_owner_idx")} on ${documents} (${d.owner}) where ${d.owner} is not null;
+create index if not exists ${ctx.naming.rename("knowledge_documents_file_idx")} on ${documents} (${d.file}) where ${d.file} is not null;
+create index if not exists ${ctx.naming.rename("knowledge_documents_pending_idx")} on ${documents} (${d.updatedAt}) where ${d.status} = 'pending';
 alter table ${documents} enable row level security;
 ${revokeTable(documents)}
 grant select on ${documents} to authenticated;
 grant all on ${documents} to service_role;
-drop policy if exists knowledge_documents_read on ${documents};
-create policy knowledge_documents_read on ${documents} for select to authenticated
+drop policy if exists ${ctx.naming.rename("knowledge_documents_read")} on ${documents};
+create policy ${ctx.naming.rename("knowledge_documents_read")} on ${documents} for select to authenticated
   using (${readable});
 
 -- A chunk is visible when its document is, so search inherits the scopes.

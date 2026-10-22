@@ -184,8 +184,8 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
-drop policy if exists "drive_nodes_read" on "better_supabase"."drive_nodes";
-create policy "drive_nodes_read" on "better_supabase"."drive_nodes" for select to authenticated
+drop policy if exists drive_nodes_read on "better_supabase"."drive_nodes";
+create policy drive_nodes_read on "better_supabase"."drive_nodes" for select to authenticated
   using ("deleted_at" is null and "better_supabase"."drive_can"("id", 'viewer'));
 
 -- Keeps path, the ids from the root to the node, in step with parent, so

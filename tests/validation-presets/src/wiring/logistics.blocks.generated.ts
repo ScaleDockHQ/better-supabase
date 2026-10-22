@@ -172,6 +172,10 @@ export const permissions = {
     read: "onboarding.read",
     complete: "onboarding.complete",
   },
+  order: {
+    read: "orders.read",
+    write: "orders.manage",
+  },
   orders: {
     manage: "orders.manage",
     read: "orders.read",

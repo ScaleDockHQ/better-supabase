@@ -51,6 +51,7 @@ const EVENTS: BlockSqlEvents<ReviewsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: { review: { table: "reviews", singular: "review", primary: true } },
   events: EVENTS,
   hooks: ["before_review_submit", "after_review_submit"],
   options: [

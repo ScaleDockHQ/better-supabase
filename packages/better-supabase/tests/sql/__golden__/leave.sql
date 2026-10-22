@@ -65,8 +65,8 @@ alter table "better_supabase"."leave_types" enable row level security;
 revoke all on "better_supabase"."leave_types" from anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
-drop policy if exists "leave_types_read" on "better_supabase"."leave_types";
-create policy "leave_types_read" on "better_supabase"."leave_types" for select to authenticated
+drop policy if exists leave_types_read on "better_supabase"."leave_types";
+create policy leave_types_read on "better_supabase"."leave_types" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "better_supabase"."leave_requests" (
@@ -97,8 +97,8 @@ alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
-drop policy if exists "leave_requests_read" on "better_supabase"."leave_requests";
-create policy "leave_requests_read" on "better_supabase"."leave_requests" for select to authenticated
+drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
+create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 
@@ -811,8 +811,8 @@ alter table "better_supabase"."leave_types" enable row level security;
 revoke all on "better_supabase"."leave_types" from anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
-drop policy if exists "leave_types_read" on "better_supabase"."leave_types";
-create policy "leave_types_read" on "better_supabase"."leave_types" for select to authenticated
+drop policy if exists leave_types_read on "better_supabase"."leave_types";
+create policy leave_types_read on "better_supabase"."leave_types" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "better_supabase"."leave_requests" (
@@ -843,8 +843,8 @@ alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
-drop policy if exists "leave_requests_read" on "better_supabase"."leave_requests";
-create policy "leave_requests_read" on "better_supabase"."leave_requests" for select to authenticated
+drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
+create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 
@@ -1595,8 +1595,8 @@ alter table "app_private"."leave_types" enable row level security;
 revoke all on "app_private"."leave_types" from anon, authenticated;
 grant select on "app_private"."leave_types" to authenticated;
 grant all on "app_private"."leave_types" to service_role;
-drop policy if exists "leave_types_read" on "app_private"."leave_types";
-create policy "leave_types_read" on "app_private"."leave_types" for select to authenticated
+drop policy if exists leave_types_read on "app_private"."leave_types";
+create policy leave_types_read on "app_private"."leave_types" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "app_private"."leave_requests" (
@@ -1627,8 +1627,8 @@ alter table "app_private"."leave_requests" enable row level security;
 revoke all on "app_private"."leave_requests" from anon, authenticated;
 grant select on "app_private"."leave_requests" to authenticated;
 grant all on "app_private"."leave_requests" to service_role;
-drop policy if exists "leave_requests_read" on "app_private"."leave_requests";
-create policy "leave_requests_read" on "app_private"."leave_requests" for select to authenticated
+drop policy if exists leave_requests_read on "app_private"."leave_requests";
+create policy leave_requests_read on "app_private"."leave_requests" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 
@@ -2341,8 +2341,8 @@ alter table "better_supabase"."leave_types" enable row level security;
 revoke all on "better_supabase"."leave_types" from anon, authenticated;
 grant select on "better_supabase"."leave_types" to authenticated;
 grant all on "better_supabase"."leave_types" to service_role;
-drop policy if exists "leave_types_read" on "better_supabase"."leave_types";
-create policy "leave_types_read" on "better_supabase"."leave_types" for select to authenticated
+drop policy if exists leave_types_read on "better_supabase"."leave_types";
+create policy leave_types_read on "better_supabase"."leave_types" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leave.request')) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 create table if not exists "better_supabase"."leave_requests" (
@@ -2373,8 +2373,8 @@ alter table "better_supabase"."leave_requests" enable row level security;
 revoke all on "better_supabase"."leave_requests" from anon, authenticated;
 grant select on "better_supabase"."leave_requests" to authenticated;
 grant all on "better_supabase"."leave_requests" to service_role;
-drop policy if exists "leave_requests_read" on "better_supabase"."leave_requests";
-create policy "leave_requests_read" on "better_supabase"."leave_requests" for select to authenticated
+drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
+create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
 

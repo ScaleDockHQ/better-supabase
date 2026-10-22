@@ -93,6 +93,9 @@ const EVENTS: BlockSqlEvents<ConnectorsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    server: { table: "servers", singular: "connector_server", primary: true },
+  },
   events: EVENTS,
   options: ["allowHttp", "trustFirstUse", "sessionTtl", "extraColumns"],
   tables: {
@@ -220,14 +223,14 @@ create table if not exists ${servers} (
   ${v.updatedAt} timestamptz not null default now(),
   check ((${v.authType} = 'header') = (${v.credentialRef} is not null))
 );${addExtraColumns(servers, extras)}
-create index if not exists connector_servers_tenant_idx on ${servers} (${v.tenant});
-create index if not exists connector_servers_created_by_idx on ${servers} (${v.createdBy});
+create index if not exists ${ctx.naming.rename("connector_servers_tenant_idx")} on ${servers} (${v.tenant});
+create index if not exists ${ctx.naming.rename("connector_servers_created_by_idx")} on ${servers} (${v.createdBy});
 alter table ${servers} enable row level security;
 ${revokeTable(servers)}
 grant select on ${servers} to authenticated;
 grant all on ${servers} to service_role;
-drop policy if exists connector_servers_read on ${servers};
-create policy connector_servers_read on ${servers} for select to authenticated
+drop policy if exists ${ctx.naming.rename("connector_servers_read")} on ${servers};
+create policy ${ctx.naming.rename("connector_servers_read")} on ${servers} for select to authenticated
   using (${ctx.scope.check(v.tenant, read)});
 
 -- A user's connection to a server. credential_ref names where the provider

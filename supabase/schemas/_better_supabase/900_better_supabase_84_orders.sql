@@ -1010,7 +1010,7 @@ begin
     end if;
   end if;
   v_total := (v_priced ->> 'total')::bigint + case when v_inclusive then 0 else v_tax end;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_cart.tenant::text || ':orders:order', 0));
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_cart.tenant::text || ':commerce:order', 0));
   select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."orders" x where x."tenant_id" = v_cart.tenant;
   v_number := v_seq::text;
   insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "cart_id", "customer_id", "email", "currency",
@@ -1164,7 +1164,7 @@ begin
         end;
       end;
     end loop;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_order.tenant::text || ':orders:invoice', 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_order.tenant::text || ':commerce:invoice', 0));
   select coalesce(max(x."invoice_sequence"), 0) + 1 into v_seq from "better_supabase"."orders" x where x."tenant_id" = v_order.tenant;
   v_number := v_seq::text;
     update "better_supabase"."orders" x set "invoice_number" = v_number, "invoice_sequence" = v_seq, "invoiced_at" = now()

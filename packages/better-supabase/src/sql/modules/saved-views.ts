@@ -49,6 +49,7 @@ const EVENTS: BlockSqlEvents<SavedViewsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: { view: { table: "views", singular: "saved_view", primary: true } },
   events: EVENTS,
   hooks: ["before_view_save", "after_view_save"],
   options: ["extraColumns"],
@@ -195,8 +196,8 @@ ${lockTable(views, { read: true })}
 
   return `${schemaPreamble(ctx)}
 ${tables}
-drop policy if exists saved_views_read on ${views};
-create policy saved_views_read on ${views} for select to authenticated
+drop policy if exists ${ctx.naming.rename("saved_views_read")} on ${views};
+create policy ${ctx.naming.rename("saved_views_read")} on ${views} for select to authenticated
 using (${visible});
 ${preferences?.ddl ?? ""}
 
@@ -519,8 +520,8 @@ ${lockTable(prefs, { read: true })}
     `jsonb_build_object('isDefault', coalesce(${alias}.${isDefault}, false), 'hidden', coalesce(${alias}.${hidden}, false), 'pinned', coalesce(${alias}.${pinned}, false))`;
 
   return {
-    ddl: `${table}drop policy if exists saved_view_preferences_read on ${prefs};
-create policy saved_view_preferences_read on ${prefs} for select to authenticated
+    ddl: `${table}drop policy if exists ${ctx.naming.rename("saved_view_preferences_read")} on ${prefs};
+create policy ${ctx.naming.rename("saved_view_preferences_read")} on ${prefs} for select to authenticated
 using (${user} = (select auth.uid()));
 `,
     functions: `

@@ -297,8 +297,8 @@ revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, aut
 ${
   ctx.manages
     ? `
-drop policy if exists "drive_nodes_read" on ${T};
-create policy "drive_nodes_read" on ${T} for select to authenticated
+drop policy if exists ${ctx.naming.rename("drive_nodes_read")} on ${T};
+create policy ${ctx.naming.rename("drive_nodes_read")} on ${T} for select to authenticated
   using (${n("deletedAt")} is null and ${canRead(n("id"))});
 `
     : ""

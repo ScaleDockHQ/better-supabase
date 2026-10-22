@@ -164,7 +164,7 @@ export function assignNumber(
   const o = columns(ctx, "orders");
   const column = entity === "order" ? o("sequence") : o("invoiceSequence");
 
-  return `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ':orders:${entity}', 0));
+  return `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ':commerce:${entity}', 0));
   select coalesce(max(x.${column}), 0) + 1 into ${target.seq} from ${ctx.table("orders")} x where x.${o("tenant")} = ${tenant};
   ${target.number} := ${target.seq}::text;`;
 }

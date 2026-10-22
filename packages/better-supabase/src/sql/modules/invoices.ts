@@ -50,6 +50,17 @@ const EVENTS: BlockSqlEvents<InvoicesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  entities: {
+    invoice: {
+      table: "invoices",
+      singular: "invoice",
+      primary: true,
+      subject: {
+        title: "title",
+        permissions: { read: "read", write: "write" },
+      },
+    },
+  },
   events: EVENTS,
   hooks: [
     "before_invoice_issue",
@@ -150,13 +161,13 @@ create table if not exists ${t("invoices")} (
   check (${i("status")} in ('draft', 'void') or ${i("number")} is not null),
   check ((${i("companyType")} is null) = (${i("companyId")} is null))
 );
-create index if not exists invoices_tenant_status_idx on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});
-create index if not exists invoices_origin_idx on ${t("invoices")} (${i("originType")}, ${i("originId")});
-create index if not exists invoices_original_idx on ${t("invoices")} (${i("original")});
-create index if not exists invoices_company_idx on ${t("invoices")} (${i("companyType")}, ${i("companyId")});${addExtraColumns(t("invoices"), n.extras)}
+create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});
+create index if not exists ${ctx.naming.rename("invoices_origin_idx")} on ${t("invoices")} (${i("originType")}, ${i("originId")});
+create index if not exists ${ctx.naming.rename("invoices_original_idx")} on ${t("invoices")} (${i("original")});
+create index if not exists ${ctx.naming.rename("invoices_company_idx")} on ${t("invoices")} (${i("companyType")}, ${i("companyId")});${addExtraColumns(t("invoices"), n.extras)}
 ${lockTable(t("invoices"), { read: true })}
-drop policy if exists invoices_read on ${t("invoices")};
-create policy invoices_read on ${t("invoices")} for select to authenticated
+drop policy if exists ${ctx.naming.rename("invoices_read")} on ${t("invoices")};
+create policy ${ctx.naming.rename("invoices_read")} on ${t("invoices")} for select to authenticated
 using (${guestOr(ctx.scope.check(i("tenant"), n.read), [
     ctx.scope.guest(i("tenant"), "'invoice'", `${i("id")}::text`, "read"),
     ctx.scope.guestParty(i("tenant"), i("companyType"), i("companyId")),

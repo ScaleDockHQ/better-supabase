@@ -64,8 +64,8 @@ alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
-drop policy if exists "signature_requests_read" on "better_supabase"."signature_requests";
-create policy "signature_requests_read" on "better_supabase"."signature_requests" for select to authenticated
+drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
+create policy signature_requests_read on "better_supabase"."signature_requests" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "better_supabase"."signatures" (
@@ -88,8 +88,8 @@ alter table "better_supabase"."signatures" enable row level security;
 revoke all on "better_supabase"."signatures" from anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
-drop policy if exists "signatures_read" on "better_supabase"."signatures";
-create policy "signatures_read" on "better_supabase"."signatures" for select to authenticated
+drop policy if exists signatures_read on "better_supabase"."signatures";
+create policy signatures_read on "better_supabase"."signatures" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
@@ -529,8 +529,8 @@ alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
-drop policy if exists "signature_requests_read" on "better_supabase"."signature_requests";
-create policy "signature_requests_read" on "better_supabase"."signature_requests" for select to authenticated
+drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
+create policy signature_requests_read on "better_supabase"."signature_requests" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "better_supabase"."signatures" (
@@ -553,8 +553,8 @@ alter table "better_supabase"."signatures" enable row level security;
 revoke all on "better_supabase"."signatures" from anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
-drop policy if exists "signatures_read" on "better_supabase"."signatures";
-create policy "signatures_read" on "better_supabase"."signatures" for select to authenticated
+drop policy if exists signatures_read on "better_supabase"."signatures";
+create policy signatures_read on "better_supabase"."signatures" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
@@ -1046,8 +1046,8 @@ alter table "app_private"."signature_requests" enable row level security;
 revoke all on "app_private"."signature_requests" from anon, authenticated;
 grant select on "app_private"."signature_requests" to authenticated;
 grant all on "app_private"."signature_requests" to service_role;
-drop policy if exists "signature_requests_read" on "app_private"."signature_requests";
-create policy "signature_requests_read" on "app_private"."signature_requests" for select to authenticated
+drop policy if exists signature_requests_read on "app_private"."signature_requests";
+create policy signature_requests_read on "app_private"."signature_requests" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "app_private"."signatures" (
@@ -1070,8 +1070,8 @@ alter table "app_private"."signatures" enable row level security;
 revoke all on "app_private"."signatures" from anon, authenticated;
 grant select on "app_private"."signatures" to authenticated;
 grant all on "app_private"."signatures" to service_role;
-drop policy if exists "signatures_read" on "app_private"."signatures";
-create policy "signatures_read" on "app_private"."signatures" for select to authenticated
+drop policy if exists signatures_read on "app_private"."signatures";
+create policy signatures_read on "app_private"."signatures" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
@@ -1511,8 +1511,8 @@ alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
-drop policy if exists "signature_requests_read" on "better_supabase"."signature_requests";
-create policy "signature_requests_read" on "better_supabase"."signature_requests" for select to authenticated
+drop policy if exists signature_requests_read on "better_supabase"."signature_requests";
+create policy signature_requests_read on "better_supabase"."signature_requests" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
 create table if not exists "better_supabase"."signatures" (
@@ -1535,8 +1535,8 @@ alter table "better_supabase"."signatures" enable row level security;
 revoke all on "better_supabase"."signatures" from anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
-drop policy if exists "signatures_read" on "better_supabase"."signatures";
-create policy "signatures_read" on "better_supabase"."signatures" for select to authenticated
+drop policy if exists signatures_read on "better_supabase"."signatures";
+create policy signatures_read on "better_supabase"."signatures" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 
 -- Asks members to sign one version of a record. The version is frozen, so
