@@ -94,6 +94,33 @@ describe("custom-fields module", () => {
     expect(sql).not.toContain("field_open");
   });
 
+  it("adds the encrypted flag to an adopted definitions table", () => {
+    const adopt = (columns: Record<string, Record<string, null>> = {}) =>
+      sqlOf({
+        modules: {
+          "custom-fields": {
+            mode: "adopt",
+            tables: {
+              definitions: "app.field_definitions",
+              options: "app.field_options",
+              values: "app.field_values",
+            },
+            columns,
+          },
+        },
+      });
+
+    expect(adopt()).toContain(
+      `alter table "app"."field_definitions" add column if not exists "encrypted" boolean not null default false;`,
+    );
+    expect(adopt()).not.toContain(
+      `create table if not exists "app"."field_definitions"`,
+    );
+    expect(adopt({ definitions: { encrypted: null } })).not.toContain(
+      `"encrypted"`,
+    );
+  });
+
   it("audits protected reads once per call with auditReads", () => {
     const sql = sqlOf(
       { modules: { "custom-fields": { options: { auditReads: true } } } },

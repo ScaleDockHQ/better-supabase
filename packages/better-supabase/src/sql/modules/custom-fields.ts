@@ -178,7 +178,10 @@ ${lockTable(definitions, { read: true })}
 ${lockTable(values, { read: true })}
 ${inline || !ctx.has("values", "definition") ? "" : `create index if not exists field_values_definition_idx on ${values} (${ctx.col("values", "definition")});`}
 `
-    : "";
+    : !inline && ctx.has("definitions", "encrypted")
+      ? `alter table ${definitions} add column if not exists ${ctx.col("definitions", "encrypted")} boolean not null default false;
+`
+      : "";
 
   const visible = inline
     ? "true"
@@ -601,6 +604,7 @@ alter table ${definitions} drop column if exists position;`;
     },
   ],
   names: NAMES,
+  adoptOptional: () => ({ definitions: ["encrypted"] }),
   contract,
   build,
 };
