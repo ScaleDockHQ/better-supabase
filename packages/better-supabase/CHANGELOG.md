@@ -1,5 +1,497 @@
 # better-supabase
 
+## 0.14.0
+
+### Minor Changes
+
+- [#284](https://github.com/ScaleDockHQ/better-supabase/pull/284) [`e5d2b63`](https://github.com/ScaleDockHQ/better-supabase/commit/e5d2b63066dd35be63a7bcec4917394ae3eed66c) Thanks [@martijn00](https://github.com/martijn00)! - Fix seven issues an adopter reported, around `$rpc` types, `findMany`, `DbException` and PowerSync.
+  
+  - `gen` types a `returns table` column through a `not null` domain as non-null, and prints a notice that points to `@notNull` for a function whose columns stay nullable. Function arguments stay `| null`, which only widens what you can pass.
+  - A top-level `_count`, `_sum`, `_avg`, `_min` or `_max` in `findMany` and the other reads is now a type error and returns an `invalid_request` error. Before, the key was silently ignored, so code that passed one gets an error now: move it into `include: { _count: { notes: true } }`, or call `aggregate()` for the table itself.
+  - `DbException` has the `DbError` fields as its own properties (`kind`, `status`, and `code`, `details`, `hint` and `table` when set), and the `DbError` as its `cause`.
+  - PowerSync and Expo SQLite run includes (nested, filtered, ordered, limited and `required`), related counts and related aggregates as one SQL statement. `checkSqlite` also takes a query spec from `betterSupabase.spec`.
+  - `createUploadConnector` takes `onError`, which reports a failed `getSession` (`phase: "credentials"`, kind `unauthorized` or `network`) and uploads that stay queued for a retry (`phase: "upload"`).
+  - `UploadRepository<Insert, Key>` is typed by the table, so generated repositories fit it without a cast. `uploadRoute(repository, { put: "create" })` makes an insert-only route for write-once tables: a `PUT` calls `create`, and a conflict counts as applied.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`1b150af`](https://github.com/ScaleDockHQ/better-supabase/commit/1b150affcfccb8ccf883ff75cdf6ce5e3d57cba0) Thanks [@martijn00](https://github.com/martijn00)! - Add the `assets` block: a location hierarchy and an asset registry with assignment, coordinates and optional PostGIS.
+  
+  - `better-supabase add assets` installs locations in a tree (site, building, unit) without cycles, and assets with a kind, a tag, a serial number, a status (`active`, `maintenance`, `retired`) and an assignment to a member or any record, with its history. `createAssets` from `better-supabase/blocks/assets` manages them, and `assetsSection` shows the assets a record holds on its page.
+  - `near` finds assets and locations within a radius. The `postgis` option adds geography points and location areas with GiST indexes, and `locationsAt` returns the locations whose area contains a point (ADR 0066).
+  - With bookings or work items installed, booking resources and work items get an `asset_id` that `link` sets.
+  - New permissions: `assets.read`, `assets.manage` and `assets.assign`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`e3368ab`](https://github.com/ScaleDockHQ/better-supabase/commit/e3368abcc824a25098ad870d74b13ac4237f646a) Thanks [@martijn00](https://github.com/martijn00)! - Add the `billable-time` block (`better-supabase/blocks/billable-time`). It keeps an hourly rate card per organization, member and record, previews the unbilled time with `unbilled()`, and bills it as lines on a draft invoice with `invoice()`, in bigint minor units. Billed entries can't be changed or deleted until the invoice is voided, and the `billableTime` section shows a record's unbilled time. Install it with `better-supabase add billable-time`; it needs `time-tracking` and `invoices`.
+
+- [#328](https://github.com/ScaleDockHQ/better-supabase/pull/328) [`351da0d`](https://github.com/ScaleDockHQ/better-supabase/commit/351da0da05e09a6a0978971a5b988475bacf2bf7) Thanks [@mick340](https://github.com/mick340)! - The `billing` block can bill tenants as Stripe Accounts v2 accounts with the `customer` configuration, and the module stores the account next to the customer.
+  
+  - `createBilling({ customerAccounts })` creates or reuses the tenant's `v2.core.account` (`resolve` returns an existing one, `params` adds `v2.core.accounts.create` parameters) and passes `customer_account` to Checkout and the customer portal. A tenant that already has a v1 customer keeps it. `account(organizationId)` and `ensureAccount(organizationId, details)` are new, and `ensureCustomer` fails with `BILLING_CUSTOMER_PENDING` for an account until Stripe creates its customer.
+  - `handleStripeEvent` resolves a tenant by its customer or its account, and records the `cus_` id Stripe creates for the account from the first Checkout session, subscription or other event that carries both ids. Outcomes, `billing.*` block events and `BillingStatus` report `accountId`, and the new `billing.account_linked` event is recorded when an account is linked.
+  - `connectEvents: "ignore"` makes `handleStripeEvent` skip Connect events (`event.account`), for an endpoint that receives platform and connected account events together. The default still handles them.
+  - The `billing` SQL module is at version 3: `billing_customers` has a nullable `stripe_customer_account_id` (`^acct_`), `stripe_customer_id` is nullable, and a row needs one of the two. `link_billing_account(tenant, account)` and `billing_account(tenant)` are new, `link_billing_customer` records the customer on a row that has only an account, `billing_customer_tenant` matches either id, and `billing_status` returns `account`. Run `better-supabase sql upgrade` and generate a migration.
+  - `StripeClient` takes an optional `v2.core.accounts`, and the portal session accepts `customer_account`.
+  - `stripeInboxVerify` and `verifyStripeWebhook` are now tested with Connect events and with the thin event notifications of event destinations, which Stripe signs the same way.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`046bb08`](https://github.com/ScaleDockHQ/better-supabase/commit/046bb08796d623a78e5916862fbd40fbc659b12b) Thanks [@martijn00](https://github.com/martijn00)! - Extend three blocks. Each extension is behind a new option that is off by default, so existing installs render the same SQL.
+  
+  - `engagements` with `recordings: true` stores call and meeting recordings as `ai-files` files, keeps transcript segments with speakers and timestamps, and attaches AI notes and a summary through the AI-neutral interfaces. New events: `engagement.recorded`, `engagement.transcribed` and `engagement.summarized`.
+  - `orders` with `kitchen: true` gives every order line a preparation state (`queued`, `preparing`, `ready`, `served`) and a station, published for Realtime, with the `kitchen-display` and `order-state-board` recipes. New events: `order.prepared` and `order.served`.
+  - `bookings` with `recurring: true` books a series from a recurrence rule (`bookSeries`, with `parseRecurrence` and `formatRecurrence` for the RRULE subset), moves one occurrence or every following one (`reschedule`) and cancels a series (`cancelSeries`). Every occurrence goes through the same exclusion constraint. New event: `booking.rescheduled`.
+  - `passes` with `credits: true` pays for classes with a pack of credits (`bookWithCredit`), keeps every credit in a ledger (`credits`), and refunds the credit when the booking is cancelled at least `creditRefundBefore` (default 12 hours) before it starts. New events: `pass.credit_used` and `pass.credit_refunded`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`bf8f0bc`](https://github.com/ScaleDockHQ/better-supabase/commit/bf8f0bc41c38c75a6fbd3568164cc0b889b07da3) Thanks [@martijn00](https://github.com/martijn00)! - The calendar block can now tell you when members are free, and bookings can run appointment schedules.
+  
+  - Events take a `kind` (`event`, `out_of_office` or `focus_time`), a `transparency` (`opaque` or `transparent`, mapped to the iCalendar `TRANSP` property) and `autoDecline`.
+  - `setWorkingHours` and `workingHours` store each member's weekly hours in a time zone, in the new `calendar_working_hours` table.
+  - `freeBusy(organizationId, userIds, range)` returns busy, out-of-office, focus-time and working-hours ranges per member. Postgres computes them, so recurring series, overrides, accepted invitations and approved leave all count. `commonFreeTime` finds the ranges when everyone is free.
+  - An out-of-office block, and a focus time block with `autoDecline`, declines new invitations it covers.
+  - Bookings resources take `hostUserId` and `checkBusy`, so their slots skip the times the host's calendar is busy. Use them for appointment schedules.
+  
+  Run `better-supabase sql sync`, then generate a migration. The new columns have defaults, so existing rows keep working.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`9646a3f`](https://github.com/ScaleDockHQ/better-supabase/commit/9646a3f1b943637ea9984b515005c6b274e1ff78) Thanks [@martijn00](https://github.com/martijn00)! - Add presence on any record, record mentions with backlinks, and save for later.
+  
+  - The subjects module authorizes Realtime presence on `presence:<type>:<id>` for anyone who can read the record. `subjectPresence` and `subjectPresenceValues(subject)` from `better-supabase/realtime` join it with `usePresence`, so a channel, a comment thread's record and a document share one helper. The `presence-avatars` UI recipe shows who else has a channel open.
+  - Messages and comments mention a record as `@[Name](subject:<type>/<id>)`. `messaging.recordMentions(subject)` lists the messages that mention a record, for its readers only, and `message.sent` carries the mentioned records as `recordMentions`. `mentionSegments`, `parseMentions`, `recordMention` and `userMention` from `better-supabase/blocks/messaging` parse and write the syntax, and the `message-list` recipe renders record mentions as chips.
+  - The collections block keeps a saved items list per member: `saveForLater(organizationId, subject, { note, remindAt })`, `saved`, `completeSaved` and `removeSaved`. `remindDue()` (service role) sends the `notification` you configure through the `notifier` port when a reminder is due and records `saved_item.reminded`. The block now consumes `notifier` as an optional port.
+  
+  Run `better-supabase sql sync` and generate a migration to get the new tables, functions and policies.
+
+- [#287](https://github.com/ScaleDockHQ/better-supabase/pull/287) [`022b3ff`](https://github.com/ScaleDockHQ/better-supabase/commit/022b3ff74163fd009de338d26b0925819cfd2f38) Thanks [@martijn00](https://github.com/martijn00)! - The comments, attachments, reactions, engagements, documents, calendar and reminders blocks declare their entities, so `blocks.<name>.entities` renames them like the other entity blocks: `{ comments: { entities: { comment: "note" } } }` turns the `comments` table into `notes`, `create_comment` into `create_note` and `comment.created` into `note.created`. Their table indexes and policies are now named after the table, so they follow a rename.
+  
+  Installing comments, engagements, documents or calendar registers `comment`, `engagement`, `document` and `calendar_event` as subjects, so reactions, attachments, search, relations and the other subject blocks accept them with no `subjects` entry. Attaching a file to a comment checks `comments.create` instead of `attachments.upload`, the key the comments table checks for writes; a block entity's subject can name its own `upload` action this way. Engagements and calendar events are indexed for search when the search module is installed. Comments, attachments, engagements and calendar export input schemas: `commentInputSchema`, `commentChangeSchema`, `attachmentInputSchema`, `engagementInputSchema`, `engagementChangeSchema` and `calendarEventInputSchema`.
+  
+  To upgrade:
+  
+  1. Remove `subjects.comment`, `subjects.engagement`, `subjects.document` and `subjects.calendar_event` from your config when the block that owns them is installed: a `subjects` entry with a block entity's name is an error. To keep your own entry instead, set `blocks.<name>.entities.<entity>.subject` to `false`.
+  2. Run `better-supabase sql sync`, then generate a migration. Reactions now checks a comment through the comment subject, which also requires `comments.read`, and refuses a reaction to any subject whose `deletedAt` is set. Its backfill setting is now `better_supabase.bs_reactions_backfill`.
+  3. If you set `tables` for one of these blocks, its policies get new names that follow the table; drop the old `<block>_read` style policies by hand after the migration, or leave them, since they are the same permissive select policies.
+
+- [#334](https://github.com/ScaleDockHQ/better-supabase/pull/334) [`0bad351`](https://github.com/ScaleDockHQ/better-supabase/commit/0bad3514e5b5a971ac7623c3568213ece5350ff1) Thanks [@mick340](https://github.com/mick340)! - Comments and messaging notifications can be turned off again, and they no longer write a notification nobody receives.
+  
+  - `blocks.comments.options.notify` (default `true`) restores the opt-out the 0.14 comments move removed: `false` sends no `comment.posted`. `blocks.messaging.options.notify` (default `true`) does the same for `message.mentioned`, `message.direct` and `message.replied`; following records and threads still works.
+  - `comment.posted` and `message.replied` are sent only when the record or thread has a follower besides the author and the mentioned members, or a `notification_audience` hook can add recipients.
+  - Every comment and message notification carries a `subject_label`: the record's `subject_title` from `config.subjects`, or the conversation's title. An adopted notifications table that requires a label no longer makes `create_comment` fail, and one that restricts types can turn the comment and message types off with `notify: false`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`2d2983e`](https://github.com/ScaleDockHQ/better-supabase/commit/2d2983e5a54ef223ec1c4868a028e18ae40c3663) Thanks [@martijn00](https://github.com/martijn00)! - Move comments onto the messaging core, and the activity feed into its own `activity` block. A record's comments are now its messaging conversation, so comments get resolve, pins, edit history, anchors, attachments and read markers from messaging, and `assign` turns a comment into a work item. See [Comments](https://bettersupabase.com/docs/blocks/comments), [Activity](https://bettersupabase.com/docs/blocks/activity) and the upgrade steps in [From 0.13 to 0.14](https://bettersupabase.com/docs/migration/0.13-to-0.14#comments-on-the-messaging-core).
+  
+  - The comments block now requires `tenant`, `access`, `subjects` and `messaging`, and runs in the `tenant` scope only. Register each record type you comment on in `config.subjects`.
+  - The comments module goes to version 8. `better-supabase sql upgrade` moves each record's comments into one conversation, keeps every comment's id, author, body, document, mentions, thread and timestamps, moves reactions and attachments on a comment to the message, and drops the `comments` table and its functions.
+  - Followers of a record get the `comment.posted` notification, and mentioned users get messaging's `message.mentioned`.
+  - `better-supabase/blocks/activity` exports `createActivity`, `activitySink`, `activityListQuery` and `activityBlock`. The crm, projects, helpdesk and docs presets include it.
+  
+  | Before                                                                           | After                                                                                                |
+  | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+  | `comments.read`, `comments.create`, `comments.moderate`                          | `messages.read`, `messages.send`, `messages.moderate`                                                |
+  | `comments.activity`, `blocks.comments.permissions.activity`                      | `activity.read`, `blocks.activity.permissions.read`                                                  |
+  | `comment.created`, `comment.deleted`                                             | `message.sent`, `message.deleted`, with `conversationKind`, `recordType` and `recordId` on a comment |
+  | `comment.mentioned`                                                              | the `message.mentioned` notification                                                                 |
+  | `commentsEvents`, `CommentsEvents`                                               | `messagingEvents`, `MessagingEvents` from `better-supabase/blocks/messaging`                         |
+  | `comments.history(organizationId, subject?, options?)`, `ActivityHistoryOptions` | `createActivity({ transport, tenant }).list(subject?, options?)`, `ActivityListOptions`              |
+  | `activitySink`, `activityListQuery` from `better-supabase/blocks/comments`       | the same names from `better-supabase/blocks/activity`                                                |
+  | `blocks.comments.options.subjects`                                               | `config.subjects`                                                                                    |
+  | `blocks.comments.options.maxBodyLength`, `extraColumns`                          | `blocks.messaging.options.maxBodyLength`, `extraColumns`                                             |
+  | `blocks.comments.options.documentSchema`                                         | removed                                                                                              |
+  | `blocks.comments.entities` (the `comment` entity)                                | the `message` entity, `blocks.messaging.entities`                                                    |
+  | `comment.mentions`, `comment.createdAt`                                          | `comment.mentionIds`, `comment.sentAt`                                                               |
+  | `commentsBlock.schemas`                                                          | removed; `commentInputSchema` and `commentChangeSchema` stay                                         |
+  | reactions on `{ type: "comment", id }`                                           | reactions on `{ type: "message", id }`                                                               |
+  | `edit_comment`, `delete_comment`, `comment_subject_readable`, `comment_authors`  | `edit_message`, `delete_message`, `can_subject(type, id, 'read')`                                    |
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`e8be393`](https://github.com/ScaleDockHQ/better-supabase/commit/e8be39354de68f03deb50036bf67bda74bb1fcc9) Thanks [@martijn00](https://github.com/martijn00)! - The comments controller and its React, Vue, Svelte and Solid hooks fetch only the comment a Realtime ping names, and its thread's root for the reply count, instead of loading the whole thread again. A client passed to `createCommentsController` now needs `get`.
+
+- [#333](https://github.com/ScaleDockHQ/better-supabase/pull/333) [`df002b5`](https://github.com/ScaleDockHQ/better-supabase/commit/df002b520c1f375593b79d2fd9378b60e742ccde) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/preset` adds the `community` and `feedback` presets to the `verticals` group, both on the `posts` block. `community` is `saas` plus forum boards of voted posts, messaging and channels, comments, reactions, moderation, post scores, tags and search. `feedback` is `saas` plus feedback boards of voted ideas with roadmap statuses, comments, reactions, moderation, work items linked to the ideas they ship through relations, tags and search. Each has a page under [Presets](https://bettersupabase.com/docs/presets). Existing presets and preset codes keep their blocks.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`7ccfe89`](https://github.com/ScaleDockHQ/better-supabase/commit/7ccfe8919392225176073f14403e7143f9b1d4fe) Thanks [@martijn00](https://github.com/martijn00)! - Add the `contracts` block (`better-supabase/blocks/contracts`). A contract with a registered counterparty moves from draft through review and e-signature (the contract is frozen as a version and signed with the `signatures` block) to active, expired or terminated. Values are bigint minor units, renewal terms (auto-renew, a notice period) schedule a reminder for the owner before the notice deadline, and `runRenewals()` renews or expires contracts past their end date. Obligations carry due dates and owners, and the `contracts` section lists a record's contracts. Install it with `better-supabase add contracts`; it needs `subjects`, `versions`, `signatures` and `reminders`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`7ccfe89`](https://github.com/ScaleDockHQ/better-supabase/commit/7ccfe8919392225176073f14403e7143f9b1d4fe) Thanks [@martijn00](https://github.com/martijn00)! - Add the `controls` block (`better-supabase/blocks/controls`). It keeps compliance frameworks and their controls, evidence linked to a control (an attachment or a note, valid until a date), and recurring evidence tasks with an assignee and an overdue state that `notifyOverdue()` reports once per lapse. A control's status (passing, failing, not started or not applicable) is computed from its evidence and tasks and rolled up per framework. Policies are published as versions, and members acknowledge each one. Install it with `better-supabase add controls`; it needs `versions`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`90e9151`](https://github.com/ScaleDockHQ/better-supabase/commit/90e9151565367cc04ddc613d8c7e387f81ae4411) Thanks [@martijn00](https://github.com/martijn00)! - New `courses` block (`better-supabase/blocks/courses`) for courses with modules, lessons, scored quizzes, learner progress and certificates. It runs on the `enrollments` block: a learner's enrollment in a course is an enrollment in the program `course:<id>`, with a step per required lesson, so the enrollments block keeps one record of who is enrolled in what.
+  
+  - `save`, `saveModule` and `saveLesson` build the outline; modules and lessons order by fractional rank keys (ADR 0021), and a new one goes last. A lesson is `content`, `video` or `quiz`; a quiz lesson names a `forms` form.
+  - `enroll`, `unenroll`, `start`, `complete`, `reset` and `submitQuiz` track progress per lesson in `course_lesson_progress`. Postgres grades a quiz through the forms block's scoring, so the browser never sees the answer key and can't change the score; a passed quiz completes its lesson.
+  - Completing every required lesson completes the course and, when the course gives one, issues a certificate with a random code. `verifyCertificate(code)` checks it without signing in; `revokeCertificate` withdraws it.
+  - `outline`, `lesson`, `progress` and `learners` read the course; members read published courses, `courses.enroll` enrolls others, `courses.manage` builds them.
+  - The block emits `course.*`, `course_lesson.completed` and `course_certificate.*` events, and every write is audited. Its five tables rename through `blocks.courses.entities`.
+  - The enrollments block refuses to complete or reset the steps of a `course:` program, so progress only changes through the courses block.
+  
+  Install it with `courses: {}` next to `forms` and `enrollments`, then run `better-supabase sql sync` and `db diff`. The `course-outline` and `lesson-player` recipes render it with ReUI.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`b59c3f6`](https://github.com/ScaleDockHQ/better-supabase/commit/b59c3f6e298b04fc46815496ef3a74d75c10fcee) Thanks [@martijn00](https://github.com/martijn00)! - Add `blocks.engagements.options.bookings`. With the bookings block installed and the option on, every confirmed booking becomes a `meeting` engagement with the external ref `booking:<id>`: rescheduling moves it, and cancelling completes it with the outcome `cancelled: <reason>`. With parties installed, the meeting sits on the person whose user or email matches the booker's, and on their company. A trigger on the bookings table does this, so bookings made through the public link or by a direct write are logged too.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`39463f3`](https://github.com/ScaleDockHQ/better-supabase/commit/39463f31ab89a978b441bc3b006d2a921aa87734) Thanks [@martijn00](https://github.com/martijn00)! - Add the `enrichment` block (`better-supabase/blocks/enrichment`). `createEnrichment({ transport, provider })` looks a parties company or person up and stores the profile per record and provider. A match fills the record's empty `domain` and `website`, or `phone` and `title`, and never overwrites a value. `enrichDue()` works through records with no result or a stale one from a cron, and every result writes `party.enriched`. `peopleDataLabsEnrichment({ apiKey })` calls People Data Labs over `fetch`; any other source plugs in as an `EnrichmentProvider` with `apiVersion: 1`. The block adds the `enrichment.read` and `enrichment.run` permissions.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`8842e62`](https://github.com/ScaleDockHQ/better-supabase/commit/8842e621dd7b41de74183c13d97e13ed086d40e0) Thanks [@martijn00](https://github.com/martijn00)! - Add the `forecasts` block (`better-supabase/blocks/forecasts`). `createForecasts({ transport })` snapshots the deals forecast for a period and currency with `snapshot()`, keeps a copy of the deals behind each number, and lists, opens and compares snapshots with `list()`, `get()` and `changes()`, which labels each deal added, removed, won, lost or changed. Every snapshot writes `forecast.snapshotted`, and the block adds the `forecasts.read` and `forecasts.snapshot` permissions.
+  
+  Add the `field-history` block (`better-supabase/blocks/field-history`). Name the database columns to track per subject type in its `subjects` option, and a trigger records each change with the old and new value, the author and the time. `createFieldHistory({ transport }).of(subject)` reads a record's changes, newest first, for members with `history.read` and read access to the record.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`21ed397`](https://github.com/ScaleDockHQ/better-supabase/commit/21ed397c767dc7a3bc378d8281a3bb0917f884f2) Thanks [@martijn00](https://github.com/martijn00)! - Add the `mail-sync` block (`better-supabase/blocks/mail-sync`). Members connect their own Gmail or Outlook mailbox, and `syncDue()` pulls new mail on a cron: each thread lands as an `email` engagement on the people whose addresses appear in it and, with `matchDomains`, on the companies whose domain matches. `threadsOf(record)` lists a record's mail, `send()` sends a new message or a reply and stores it on its thread, and a private mailbox stays visible only to its owner.
+  
+  `gmailMail()` and `outlookMail()` call the Gmail API and Microsoft Graph over `fetch`, so no SDK is needed. Another host implements `MailProvider` (`apiVersion: 1`). Tokens come from your `CredentialProvider`, such as `vercelConnectCredentials()`, asked for the mailbox owner, and the block never stores one. The block adds the `mail.read`, `mail.connect`, `mail.send` and `mail.manage` permissions and the `mail_account.connected`, `mail_account.disconnected`, `mail_message.received` and `mail_message.sent` events. Deleting a member's data purges their mailboxes and revokes the credential reference.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`762d478`](https://github.com/ScaleDockHQ/better-supabase/commit/762d4787eef6edf8d73fc0d1b210eb209c337df2) Thanks [@martijn00](https://github.com/martijn00)! - Track opens and clicks of mail sent through the `mail-sync` block, and record which template version a message came from. With `tracking: { url }` on `createMailSync`, `send()` rewrites the HTML body's links through your tracking route and adds an open pixel; the database keeps the original HTML and only a SHA-256 of the message's tracking token. `track(request)` answers that route: it returns the pixel for an open, redirects a click to the stored link, and answers 404 for an unknown token. `track: false` sends one message untracked.
+  
+  `send()` takes a `templateVersionId`, such as a `templates` version, and `templateStats(organizationId, { since })` returns the messages sent, opened, clicked and replied to per version. Sent messages carry `tracked`, `openCount`, `clickCount`, `openedAt` and `clickedAt`. The block adds the `mail_message.opened` event (once per message) and the `mail_message.clicked` event (each click, with its `url`).
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`1ba6793`](https://github.com/ScaleDockHQ/better-supabase/commit/1ba67934351a6505c0bf2aa1a647867d9b056acd) Thanks [@martijn00](https://github.com/martijn00)! - The crm preset now installs deals, quotes and sales targets next to pipelines, so a new CRM app starts with the full sales flow.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`b03fac3`](https://github.com/ScaleDockHQ/better-supabase/commit/b03fac3b04b805fecca57ec1899862130fc09f99) Thanks [@martijn00](https://github.com/martijn00)! - Add the `segments` block (`better-supabase/blocks/segments`). A segment saves a rules filter tree over one subject type, such as companies in the `customer` lifecycle, and keeps the records it matches in Postgres. `refresh(segmentId)` or `refreshDue()` on a cron re-evaluates it and writes `segment.entered` and `segment.left` for each record that joined or left, so a workflow can react. `members()`, `of(record)` and `list()` read the result. The block adds the `segments.read` and `segments.edit` permissions and the `maxMembers` option.
+  
+  Add the `assignment` block (`better-supabase/blocks/assignment`). A queue covers one subject type, a `round_robin` or `weighted` strategy and an optional territory filter. `assign(organizationId, { type, id, fields })` picks an owner from the first matching queue, logs the pick and writes `subject.assigned`; the app writes the owner onto the record. The block adds the `assignment.read`, `assignment.manage` and `assignment.assign` permissions.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`7514c24`](https://github.com/ScaleDockHQ/better-supabase/commit/7514c24b93e38d69e082b5def81ec13ebac10faf) Thanks [@martijn00](https://github.com/martijn00)! - Add the `dispatch` block (`better-supabase/blocks/dispatch`). It schedules work orders at a location or asset into time slots for technicians who are members, orders a technician's day as a route of stops, moves each order through `unscheduled`, `scheduled`, `en_route`, `on_site`, `done` and `cancelled` with an event for every step, and links the parts an order uses to assets or inventory items. `board()` returns the schedule and the backlog for a date range, and `dispatchSection` shows a record's work orders. Install it with `better-supabase add dispatch`.
+  
+  Add the `shipments` block (`better-supabase/blocks/shipments`). It stores packages, addresses and labels, keeps a tracking timeline per shipment, and derives the status and delivery time from the latest tracking event, and `shipmentsSection` shows a record's shipments. Carriers plug in through the versioned `ShipmentCarrier` interface (`apiVersion: 1`); `flatRateCarrier` covers fixed prices, and `ingest()` records a carrier's signed tracking webhook once, however often it is delivered. `better-supabase/testing` adds `testShipmentCarrier`, the conformance case for carrier adapters. Install it with `better-supabase add shipments`.
+  
+  The Next.js example adds a dispatch board, a technician's day and shipment tracking as UI recipes.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`905590a`](https://github.com/ScaleDockHQ/better-supabase/commit/905590acc0e7a4eb1d27bf3743241fa8aa83416c) Thanks [@martijn00](https://github.com/martijn00)! - Documents now take suggestions and named versions.
+  
+  - `suggest(documentId, update, summary)` stores a Yjs update as a suggestion without changing the document. Members get the new `documents.suggest` permission, so someone who can only read a subject can still suggest.
+  - `suggestions(documentId)` lists them, and `decideSuggestion(id, decision, note)` accepts, rejects or withdraws one. Accepting appends the update to the log with the author as its actor.
+  - The provider from `better-supabase/yjs` takes `mode: "suggest"` and `setMode()`, keeps edits as a draft in that mode, and adds `submitSuggestion()` and `acceptSuggestion()`. `open` returns `canSuggest`.
+  - `nameVersion(documentId, versionId, label)` names or unnames a version, `versions(documentId, { named: true })` lists the named ones, and each version carries `source` and `frozen`.
+  - New events: `document.suggested`, `document.suggestion_accepted` and `document.suggestion_rejected`.
+  
+  Run `better-supabase sql sync`, then generate a migration. If you list role permissions yourself, add `documents.suggest` where members should suggest.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`5b8fe95`](https://github.com/ScaleDockHQ/better-supabase/commit/5b8fe95ed7f72f1be5b777ae442f8807e951cc83) Thanks [@martijn00](https://github.com/martijn00)! - The drive takes labels and file approvals.
+  
+  - With the tags block installed, `label(id, tagId, applied?)` puts a tag on a node or takes it off, and `labeled(organizationId, tagId)` lists the nodes with a tag. Every node carries `labels`.
+  - With the approvals block installed, `requestApproval(id, { attachmentId, reason })` asks for approval of the file's current content or of one earlier revision, and `approvals(id)` lists the requests with `attachmentId`, `revision` and `current`. Every node carries `approval`, the request for its current content, so a new upload clears it and restoring an approved revision brings it back. Add a policy for the `approve` action on `drive_node`.
+  - New types: `DriveLabel`, `DriveApprovalState` and `DriveApproval`.
+  
+  With a managed drive installed, the tags and approvals functions now check the drive grants for `drive_node` subjects: reading tags or listing requests needs read access to the node, and tagging or requesting approval needs write access. Before, any member of the organization could do both. Run `better-supabase sql sync`, then generate a migration.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`3db3171`](https://github.com/ScaleDockHQ/better-supabase/commit/3db31714e4f6fcee049bb7f3bf39462c90e65b29) Thanks [@martijn00](https://github.com/martijn00)! - Add the `enrollments` block: enroll a party, member or any record in a program of steps, and track its progress and completion.
+  
+  - `better-supabase add enrollments` installs programs per organization. A program has ordered steps and the subject types it enrolls. Saving changed steps raises the program's version, and enrolling again picks up the new steps while keeping the completed ones.
+  - `createEnrollments` from `better-supabase/blocks/enrollments` saves programs, enrolls subjects, completes and resets steps, cancels enrollments and lists them by program, subject or status. Changes emit `enrollment.created`, `enrollment.step_completed`, `enrollment.completed` and `enrollment.cancelled`, and `enrollmentsSection` shows a record's enrollments on its page (ADR 0077).
+  - New permissions: `enrollments.read`, `enrollments.enroll` and `enrollments.manage`.
+
+- [#286](https://github.com/ScaleDockHQ/better-supabase/pull/286) [`96c4c3b`](https://github.com/ScaleDockHQ/better-supabase/commit/96c4c3b2223222f439653ced32ed87d2dce6517f) Thanks [@martijn00](https://github.com/martijn00)! - `sql upgrade` renames an installed block's tables when you change `blocks.<name>.entities`, instead of refusing the change.
+  
+  - It compares the module SQL under the installed names (from the `@bs-entities` line) and the new ones, and writes guarded renames for tables, columns, indexes, policies, triggers and functions, so the rows stay. Permission keys in a role and permission catalog and stored `subject_type` values move to the new names too. Each statement checks the old name first, so a second run changes nothing.
+  - `sql upgrade --check` reports `<block> has entity renames to apply to its tables`, and its JSON `data` gains `renames` when there are any.
+  - Number sequence keys, recorded outbox events and your own hook functions keep their names; rename those yourself.
+  - SQL modules can declare a renamed table or column in `NAMES.migrations`. `sql upgrade` renders the rename after your table and entity renames.
+  - `entityRenameChanges` is removed from `better-supabase/sql`. Use `entityRenamePlan(names, installedModules, installedSql, layout)`, which returns the rename steps and the modules it can't pair up.
+
+- [#327](https://github.com/ScaleDockHQ/better-supabase/pull/327) [`2e3aa1b`](https://github.com/ScaleDockHQ/better-supabase/commit/2e3aa1b46235ce4039232ba40c25feb5c2b3d5e2) Thanks [@martijn00](https://github.com/martijn00)! - Add the `field-encryption` block and audited reads, for apps that keep values such as a diagnosis or a birth date.
+  
+  - `field-encryption` keeps one data key per tenant, user or app in Supabase Vault and encrypts values with pgcrypto (AES-256). `drop_field_key(owner)` deletes a key, which shreds every value sealed under it, and records `field_key.dropped`.
+  - An app table column takes `encrypted: true`. It is stored as ciphertext, hidden from signed-in users, and read through `public.<table>_reveal(ids)`, which returns the configured types for the rows in the caller's scope. `gen` types the column as its configured type. An encrypted column can't be unique, indexed, a reference, an identity, `text[]`, or used where the database reads the value.
+  - Custom fields take `encryptDefinition(id)` for `text`, `email` and `url` fields, and `listDefinitions` reports `encrypted`. The definitions table gains an `encrypted` column, added to an adopted table too unless you map `blocks.custom-fields.columns.definitions.encrypted` to `null`; run `sql sync` and generate a migration.
+  - `appTables.<t>.auditReads` and the `custom-fields` option `auditReads` write one audit entry per tenant and call, with the new category `read`, the acting member and the row ids. They need the `audit` block.
+  - Designs that use `encrypted` or `auditReads` are design format 6, and turning encryption on or off is a breaking change in the design diff.
+  
+  There is no searchable equality on encrypted values; see the Field encryption docs page for the limits.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`afa5285`](https://github.com/ScaleDockHQ/better-supabase/commit/afa52851a77ac3728c60e0a007fa3a88768e26f2) Thanks [@martijn00](https://github.com/martijn00)! - Anchor messages and comments to a file. `fileAnchor(attachmentId, { page, region, start, end })` from `better-supabase/blocks/messaging` or `better-supabase/blocks/comments` points a top-level message at a page, a region of a page or video frame, or a moment or span of an attachment on the same record or conversation. `send_message` checks the shape and the file and fails with `MESSAGING_ANCHOR_INVALID` otherwise, and `anchoredTo(attachmentId)` on both clients lists a file's messages or comments. Other anchors, such as text ranges, are stored as before.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`73c59ff`](https://github.com/ScaleDockHQ/better-supabase/commit/73c59ff6eab4c05b282407e48a8c776839f39169) Thanks [@martijn00](https://github.com/martijn00)! - Turn an event in one block into a record in another, and build forms from a block's entity schema with the organization's custom fields. See [Flows](https://bettersupabase.com/docs/blocks/flows), [Entity forms](https://bettersupabase.com/docs/blocks/entity-forms) and [Composing blocks](https://bettersupabase.com/docs/blocks/composing-blocks).
+  
+  - `better-supabase/flows` is a new subpath. `defineFlow({ name, on, target, source, load, input, map, create })` describes a flow, and `createFlows({ flows, clients, enqueue })` runs the listed flows from the outbox through `flows.sink()`, or as jobs through `enqueue` and `flows.handler()`. A flow runs once per source record: it records a `created_from` relation and finds it again on a redelivered event. Flows carry `apiVersion: 1`.
+  - Four built-in flows, each off until listed: `conversationToWorkItem`, `applicationToEmployee`, `bookingToEngagement` and `quoteToOrder` (which takes your `create`, since orders have no conversion from a quote yet).
+  - `entityForm(schema, { fields, labels, customFields, timeZone })` in `better-supabase/records` lists the form fields of an entity schema and the custom fields, turns input text into typed values and validates both, returning the entity input and the custom values apart.
+  - `useEntityForm(form, { initial, onSubmit })` in `better-supabase/react` holds the values, errors and pending state of an entity form.
+  - The `entity-form` recipe renders the work item create dialog with the organization's custom fields.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`d244471`](https://github.com/ScaleDockHQ/better-supabase/commit/d244471a2d79ae6bd32489dd62e0d4337dc93c12) Thanks [@martijn00](https://github.com/martijn00)! - The `forms` block scores quizzes and rolls up Net Promoter Scores. Existing forms keep working: scoring and NPS only apply to versions that use them.
+  
+  - A field takes a `correct` answer and `points` (1 by default), and a definition takes `scoring.passMark`, a percentage. `publish` moves the correct answers into the new `form_answer_keys` table, which no client role reads, so respondents never see them; callers with `forms.manage` get them merged back.
+  - Postgres scores a final submission inside `submit` and stores `score`, `max_score` and `passed` on `form_submissions`. Submissions return them as `score: { score, maxScore, passed }`, and the `form_submission.submitted` event carries them. `formScore(definition, answers)` computes the same grade in the app.
+  - The `nps` field type takes an integer from 0 to 10. `forms.nps(formId, { field, since, until, bucket })` (SQL `form_nps`) returns the promoters, passives, detractors and score, overall and per UTC day, week, month, quarter or year. `npsCategory` and `npsScore` do the same in the app.
+  - On adopted tables, map `tables.answerKeys` and the `score`, `maxScore` and `passed` submission columns to score; without them, `publish` refuses a correct answer with `FORM_SCORING_UNAVAILABLE`.
+  
+  The forms module moves to version 2. Run `better-supabase sql sync`, then `db diff`, to add the table and columns.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`74f77f9`](https://github.com/ScaleDockHQ/better-supabase/commit/74f77f96fdff4264770424e100caabdfebdf912d) Thanks [@martijn00](https://github.com/martijn00)! - `gen` writes a record feature per subject, so a record page needs no hand-written loader or actions.
+  
+  - With a block that adds record sections installed, `gen` writes `features/<subject>/` next to the main module: the feature (`defineRecordFeature`), and for Next.js a server file (`recordServer`), one Server Action per section write and a client provider. With TanStack Query installed it also writes the record's query options. Set `generateFeatures: false` to turn it off. No UI is generated; the cards stay recipes.
+  - The share links, relations, versions and SLA blocks add sections (`shareLinks`, `relations`, `versions`, `sla`), and every section can declare its writes.
+  - `better-supabase/records` adds `defineRecordFeature`, `featureWrites` and `runSectionWrite`; `better-supabase/next` adds `recordServer`; `better-supabase/react` adds `createRecordProvider`; `better-supabase/query` adds `recordQueries` and `invalidateOnRecordEvents`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`e1c8ce2`](https://github.com/ScaleDockHQ/better-supabase/commit/e1c8ce2bef354c3d02e1148a05f9fd78e38341ae) Thanks [@martijn00](https://github.com/martijn00)! - Add the `guests` block: clients and contractors invited by email who reach only the records you grant them, and a portal for the party they act for.
+  
+  - `better-supabase add guests` installs guests and per-record grants. `createGuests` from `better-supabase/blocks/guests` invites by email (a one-time token whose email must match on accept), grants `read`, `comment` and `upload` on a record, revokes, and lists a record's guests or the caller's own access; `guestsSection` shows a record's guests on its page.
+  - Comments, attachments, invoices and bookings let guests in through the new `ctx.scope.guest` and `ctx.scope.guestParty` checks: a granted record, and the invoices addressed to the guest's party. Guests are never members, and without the block the policies don't change.
+  - An authorization provider can answer for guests through the optional `portalSubjects` and `portalParties` templates in `authorization.functions`; `apiVersion` stays 1.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`b3936c2`](https://github.com/ScaleDockHQ/better-supabase/commit/b3936c253b7b6f25ca6a709f62fdb494006d70f4) Thanks [@martijn00](https://github.com/martijn00)! - Move the inbox onto the messaging core. Inbox conversations are core conversations of kind `inbox`, and messages and internal notes are core messages, so the inbox shares read markers, typing, mentions, files and reactions with channels and comments. See [Inbox](https://bettersupabase.com/docs/blocks/inbox) and the upgrade steps in [From 0.13 to 0.14](https://bettersupabase.com/docs/migration/0.13-to-0.14#the-inbox-on-the-messaging-core).
+  
+  - The inbox block now requires `messaging` and `attachments`, and reactions on inbox messages need the `reactions` block.
+  - Notes are messages with `kind: "note"` that only staff read. Read markers live in `conversation_members.last_read_at`, and typing goes through messaging's `set_typing`.
+  - Files are scanned attachment rows. Upload with `messages.createUpload` and `confirmUpload`; channel files wait in `files.pending()` until the chat-sdk `importFiles` fetches and confirms them.
+  - `useConversation`, `useInboxWidget` and their controllers take `get(messageId)` and fetch only the message a Realtime ping names.
+  - The inbox module goes to version 4. `better-supabase sql upgrade` moves conversations, messages, notes, participants, read markers, files and reactions with their ids, then drops the old tables and functions.
+  
+  | Before                                                                 | After                                                                      |
+  | ---------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+  | `inbox_messages`, `conversation_participants`, `conversation_reads`    | `messages` with `inbox_message_details`, `conversation_members`            |
+  | `set_inbox_typing`                                                     | `set_typing(conversation, typing, actor)`                                  |
+  | reactions on `{ type: "inbox_message", id }`                           | reactions on `{ type: "message", id }`, through `react_to_inbox_message`   |
+  | `messages.react` and `InboxMessage.reactions` as `{ [emoji]: actors }` | arrays of `{ emoji, count, reacted, actors }`                              |
+  | `InboxMessage.mentions`                                                | `mentionIds`                                                               |
+  | `authorId`, `editedAt`, `deletedAt` as `null`                          | `undefined`; a contact's id is `conversation.contactId`                    |
+  | `MessageAttachment`, paths in `MessageInput.attachments`               | upload ids in `attachments`, channel files as `InboxFileSource` in `files` |
+  | `PurgedContact.attachments` as paths                                   | `{ bucket, path }` records                                                 |
+  | the topic `inbox:<conversationId>`                                     | `messages:<conversationId>`                                                |
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`74a6717`](https://github.com/ScaleDockHQ/better-supabase/commit/74a671760c197f32ad9e80c07946b5a420cb4a01) Thanks [@martijn00](https://github.com/martijn00)! - The inbox block schedules staff replies and wakes snoozed conversations on time.
+  
+  - `inbox.messages.schedule(conversationId, input, at)` saves a reply for later in the new `scheduled_inbox_messages` table. Only its author sees it (`messages.scheduled`), moves it (`reschedule`) or deletes it (`cancelScheduled`). `inbox.publishDue()` (service only) sends the due replies through the normal reply path as their authors, and drops a reply whose author lost `inbox.reply`.
+  - Snoozing needs a time in the future: `set_conversation_status` with a past `snoozed_until` now fails with `INBOX_SNOOZE_UNTIL` (`22023`).
+  - `wakeSnoozed()` logs `unsnoozed` in the conversation's events, emits the new `inbox_conversation.unsnoozed` event and notifies the assignee, or the inbox's members while nobody is assigned (`inbox.snooze_ended`).
+  - With the jobs block, snoozing and scheduling queue a delayed job on `inbox_schedule` (the new `scheduleQueue` option) for the right time, so a handler that calls `wakeSnoozed()` and `publishDue()` runs them without a cron.
+  - The chat-sdk `maintain()` also sends the due replies and returns their count as `published`.
+  
+  Run `better-supabase sql sync` and generate a migration for the new table and functions.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`7ccfe89`](https://github.com/ScaleDockHQ/better-supabase/commit/7ccfe8919392225176073f14403e7143f9b1d4fe) Thanks [@martijn00](https://github.com/martijn00)! - Add the `incidents` block (`better-supabase/blocks/incidents`). Incidents carry a severity, a status timeline of updates, the components they affect and a postmortem. A component's status follows its open incidents and keeps an uptime history. Each organization can publish a status page, and `publicStatusPage(slug)` returns it to anyone, signed in or not: the public components with their daily uptime and the public incidents with their public updates, and nothing else. Install it with `better-supabase add incidents`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`3064eb5`](https://github.com/ScaleDockHQ/better-supabase/commit/3064eb50e066a1671ac9f580188fd6db8698425e) Thanks [@martijn00](https://github.com/martijn00)! - Add the `leases`, `expenses` and `donations` blocks, which post on the ledger instead of keeping balances of their own.
+  
+  - `leases` (`better-supabase/blocks/leases`) lets units from the assets block to parties, with rent in bigint minor units per week, month, quarter or year. `postDueRent()` posts each rent period on the ledger once, so running it again posts nothing new, and `recordPayment()` settles the balance due. Deposits are held through ledger holds until `terminate()` captures a deduction and returns the rest. Leases renew, and members file maintenance requests on the unit. The `leasesSection` lists a party's leases.
+  - `expenses` (`better-supabase/blocks/expenses`) collects reports with lines in categories and receipts as attachments on the lines. `submit()` checks the spend policy (a limit per category and a receipt threshold) and opens an approval through the approvals block. An approved report posts on the ledger against the member's payable account, and `reimburse()` settles it.
+  - `donations` (`better-supabase/blocks/donations`) records gifts and pledges from donors to funds and campaigns, and posts each gift on the ledger. `give()` and `chargeDuePledges()` charge through a `PaymentProvider`, once per pledge period, and `webhook()` applies the provider's events. Gift and yearly tax receipts are numbered per organization, with number-sequences when it's installed, and `givingSummary()` returns a donor's year. The `givingSection` shows a donor's giving.
+  
+  Each block takes `extraColumns` on its main table (`lease_agreements`, `expense_reports`, `donations`), typed with the client's `fields` schema.
+  
+  Install them with `better-supabase add leases`, `add expenses` or `add donations`; each needs `ledger`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`fc67e66`](https://github.com/ScaleDockHQ/better-supabase/commit/fc67e66955298cd78229ceca8789c891501d9129) Thanks [@martijn00](https://github.com/martijn00)! - Add the `ledger` block: double-entry accounts, balanced transactions, running balances and holds. Inventory stock, leave balances and invoice payments move onto it (breaking for apps that read those tables directly).
+  
+  - `better-supabase add ledger` installs accounts per organization in a currency (minor units, `Money`) or a custom unit, transactions whose entries sum to zero per unit, append-only entries corrected by `reverse`, and holds that are captured or released. `createLedger` from `better-supabase/blocks/ledger` opens accounts, posts and reads balances; `ledgerSection` shows a record's accounts on its page. Credits, loyalty points, gift cards and trust balances are account kinds.
+  - Inventory, leave and invoices require `ledger`. Their client methods and SQL functions keep their names and results; `sql upgrade` copies the old rows into ledger transactions with the same ids and drops the old tables.
+  
+  | Before                                   | After                                                              |
+  | ---------------------------------------- | ------------------------------------------------------------------ |
+  | `stock_movements`                        | `ledger_transactions` of kind `stock.<reason>`                     |
+  | `leave_ledger`                           | `ledger_transactions` of kind `leave.<entry>`                      |
+  | `invoice_payments`                       | `ledger_transactions` of kind `invoice.payment` / `invoice.refund` |
+  | `blocks.<name>.tables` key for the above | removed; read the ledger instead                                   |
+  
+  See the 0.13 to 0.14 upgrade guide.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`7e4dd9d`](https://github.com/ScaleDockHQ/better-supabase/commit/7e4dd9d2699c2c529008a04a48260e229bdd1559) Thanks [@martijn00](https://github.com/martijn00)! - Add the `channels` block: public and private team channels on the messaging core, with topics, purposes, membership, archiving and an optional linked record. See [Channels](https://bettersupabase.com/docs/blocks/channels).
+  
+  - `createChannels` in `better-supabase/blocks/channels` creates, updates, archives, joins, leaves, invites, lists, browses and finds channels, and lists the channels linked to a record.
+  - Channels are an entity, so search, share links and reactions accept them, and `blocks.channels.entities` renames them.
+  - `useMessages` and `useConversations` in `better-supabase/blocks/messaging/react` (and the Vue, Svelte and Solid entries) keep a conversation's messages, a thread, who is typing and the conversation list live over Realtime. `createMessagesController` and `createConversationsController` run them without a framework.
+  - The `chat` preset installs `saas` with messaging, channels, reactions and attachments.
+  - The `channels.create` and `channels.manage` permissions join the default roles.
+  - The recipes `channel-sidebar`, `message-list`, `message-composer` and `thread-panel` build a chat screen.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`6694337`](https://github.com/ScaleDockHQ/better-supabase/commit/66943375c7e06940f8a9d2465f1eac257da49d3a) Thanks [@martijn00](https://github.com/martijn00)! - Add the `messaging` block: conversations, members, threaded messages, edits, pins, mentions, scheduled messages, read markers and typing, which channels, comments and the inbox build on (ADR 0062). See [Messaging](https://bettersupabase.com/docs/blocks/messaging).
+  
+  The inbox renames the names that now belong to the core. Run `better-supabase sql upgrade` (the inbox module moves to version 3) and update your calls:
+  
+  | Before                                        | After                                                           |
+  | --------------------------------------------- | --------------------------------------------------------------- |
+  | the `conversations` table                     | `inbox_conversations`                                           |
+  | `send_message`, `edit_message`, `get_message` | `send_inbox_message`, `edit_inbox_message`, `get_inbox_message` |
+  | `list_messages`, `list_conversations`         | `list_inbox_messages`, `list_inbox_conversations`               |
+  | `set_typing`                                  | `set_inbox_typing`                                              |
+  
+  `createInbox` and the Chat SDK inbox adapter call the new names, so apps that go through them need no change beyond the upgrade.
+  
+  - `createMessaging` in `better-supabase/blocks/messaging` opens channels, direct and group messages and record conversations, sends, edits and threads messages, lists conversations with unread and mention counts, and moves read markers.
+  - Messages and conversations are entities, so reactions, attachments, share links and search accept them, and `blocks.messaging.entities` renames them.
+  - Mentions notify readers of the conversation, direct messages notify the other people in them, and thread replies notify the thread's followers.
+  - The `messages.read`, `messages.send` and `messages.moderate` permissions join the default roles.
+  - `ctx.enqueue` in module code takes a `delay`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`622d721`](https://github.com/ScaleDockHQ/better-supabase/commit/622d7214d72b32aa29069dfbcbbbe89f4eb83ea9) Thanks [@martijn00](https://github.com/martijn00)! - Add the `moderation` block: reports, a review queue, decisions and bans for any subject.
+  
+  - `better-supabase add moderation` installs moderation items, reports, a decision log and bans per organization. Members report a subject for one of the configured `reasons`. At `autoHideThreshold` open reports (3 by default, 0 turns it off) the content is hidden until a moderator decides.
+  - `createModeration` from `better-supabase/blocks/moderation` reports content, reads the queue and one item with its reports and actions, decides (approve, hide, remove, restore, or ban, which removes the content and bans its author), reads the statuses of a list of subjects, and bans and unbans users. Decisions emit `moderation_item.decided`, reports emit `moderation_report.created`, and bans emit `moderation_ban.created` and `moderation_ban.lifted`. `moderationSection` shows a record's item on its page.
+  - With the messaging block, report a message or a comment as `{ type: "message", id }`. Hidden, removed and pending messages stay readable only to their author and moderators, removing a message empties it, and banned members can't send messages or comments.
+  - New permissions: `moderation.read`, `moderation.report`, `moderation.manage` and `moderation.ban`. Members get `moderation.report` by default.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`3db3171`](https://github.com/ScaleDockHQ/better-supabase/commit/3db31714e4f6fcee049bb7f3bf39462c90e65b29) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: onboarding checklists run on the enrollments block.
+  
+  - The onboarding block now requires `enrollments`. Each checklist is the program `onboarding:<checklist>`, with the organization or the user enrolled in it.
+  - `better-supabase sql upgrade` moves the rows of `onboarding_progress` into enrollments and their completed steps, then drops the table. `createOnboarding`, `useOnboarding` and the onboarding functions keep their signatures.
+  - Queries on `onboarding_progress` read `enrollment_steps` joined to `enrollments` instead. See the 0.13 to 0.14 guide.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`a908667`](https://github.com/ScaleDockHQ/better-supabase/commit/a908667cdeafd33981e52adeb13b394fc17f3e72) Thanks [@martijn00](https://github.com/martijn00)! - Add the `passes` block (`better-supabase/blocks/passes`): admission passes on QR codes and NFC tags. Issue a ticket for a booking or a pass for a resource, sign its token with the signing-keys block (`token`, `typ: vnd.pass+jwt`), and check holders in with `checkIn`, which verifies the signature against your JWKS before the database decides. Every scan is logged with why it was turned away, and passes without a booking count against the resource's capacity with its confirmed bookings and live holds. A passes section lists a record's passes, and a merged record keeps its passes. Install it with `better-supabase add passes`.
+
+- [#289](https://github.com/ScaleDockHQ/better-supabase/pull/289) [`038b791`](https://github.com/ScaleDockHQ/better-supabase/commit/038b791f1ad6ccccfa710c8a65574c72098eb2e6) Thanks [@martijn00](https://github.com/martijn00)! - The app can now check permissions and show any subject's title without writing its own queries.
+  
+  `better-supabase/blocks/access` calls the new `my_permissions(tenant, keys)` SQL function, which returns the keys the caller holds in a tenant. `access.can(key)`, `access.flags({ edit: key })` and `permissionFlags(set, map)` return `canX` booleans typed by the keys you pass, such as the generated `permissions` constant. In React, `usePermission(key)` and `<Can permission={key}>` from `better-supabase/blocks/access/react` share one call per render, and the Vue, Svelte and Solid bindings export `usePermissions`.
+  
+  `better-supabase/blocks/subjects` resolves `SubjectRef` lists to a title and a path through the new `subject_titles(refs)` SQL function, which runs as the caller and leaves out rows the caller can't read. `useSubject` and `useSubjects` batch every lookup of one render into one call. The new SubjectLink, SubjectChip and Can recipes show them in the Next.js example.
+  
+  `gen` now writes a `urls` entry for every subject type with a `url` (block entities, `config.subjects` and app table subjects), and `better-supabase add client` passes the generated `blockConfig` to the browser client when the project has blocks.
+  
+  To upgrade, run `better-supabase sql sync` and generate a migration. With `blocks.access.mode: "custom"`, write `my_permissions(tenant, keys text[] default null) returns text[]` yourself before you use `<Can>`.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`03a8da7`](https://github.com/ScaleDockHQ/better-supabase/commit/03a8da715409f38fed05eb01d0911e01cf3eb685) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: reactions carry up and down votes.
+  
+  - `vote(subject, value)` sets the caller's vote (`1`, `-1`, or `0` to clear it) and returns the subject's tally, and `votes(subjects)` reads tallies keyed `type:id`. The `reaction_scores` table keeps each subject's score, up and down counts.
+  - Reaction rows gain `kind` (`emoji` or `vote`) and `value`, and the unique key includes `kind`. `better-supabase sql upgrade` fills them for existing rows. A custom-mode reactions table needs both columns.
+  - `reaction.added` and `reaction.removed` also fire for votes, with `kind` and `value`. Filter on `kind === "emoji"` to keep the old meaning. See the 0.13 to 0.14 guide.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`d556034`](https://github.com/ScaleDockHQ/better-supabase/commit/d5560348ea29036080d3e811622be579ba3077d5) Thanks [@martijn00](https://github.com/martijn00)! - Show record sections as list columns, merge a record's sections into one timeline, and list what waits on the caller across blocks. See [Record lists and My work](https://bettersupabase.com/docs/blocks/record-lists).
+  
+  - `defineRecordList(feature, list, { columns })` in `better-supabase/records` runs a list query and fills each section column (`count` or `data`) for the whole page in one wave, with `can` flags and the filter fields. `recordListServer(bs, recordList)` in `better-supabase/next` loads it as plain data.
+  - `loadTimeline(source, subject)` merges every section with a `timeline` hook, newest first, and lists the sections it skipped. The comments, versions and attachments sections map their rows to timeline entries, and the comments section counts rows for list columns. `recordServer(...).timeline(id)` loads it after the permission check.
+  - The subjects block installs `my_work(tenant, page_size)`: assigned work items, approvals the caller can decide, due reminders, mentions and SLA warnings, each only when its block is installed. `blocks.subjects.myWork()` calls it, and `loadMyWork` groups the items by kind with counts.
+  - `useRecordListState(list, useQueryStates(parsers))` in `better-supabase/react` keeps a list's sort, facets, filter and page in the URL through nuqs and returns the typed query.
+  - With record features on, `gen` writes `navigation.generated.ts` and `commands.generated.ts`: a sidebar item and a "Go to" command per subject with a list route, each with its read permission.
+  
+  Run `better-supabase sql upgrade` to add `my_work` to an installed subjects block.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`8b3a8f6`](https://github.com/ScaleDockHQ/better-supabase/commit/8b3a8f674fcc2ca7d38f9739b7be4ef4999618c6) Thanks [@martijn00](https://github.com/martijn00)! - Load a record page's sections with `better-supabase/records`.
+  
+  - Blocks declare the parts of a record page they own with `defineSection` (an extension interface, `apiVersion: 1`) on the manifest's `sections`. The comments, attachments and tags blocks ship `commentsSection`, `attachmentsSection` and `tagsSection`, each with an optimistic reducer for `useOptimistic`.
+  - `loadSections` loads several sections of one record in parallel, each settled as `ok`, `error` or `hidden`; `sectionCan` hides the sections the caller has no permission for, without running their query. `countSection` counts one section's rows for many records. `createRecordController` keeps the sections current over one realtime topic.
+  - The subjects block's `summary` calls the new `record_summary` function: the record's title and path with a count and unread flag for `comments` and `attachments` in one round trip. Tags are not counted, because taggings have no read policy. Apps in custom access mode that install `subjects` get `record_summary` in the subjects contract.
+  - `better-supabase/next` adds `recordTag`, `sectionTag`, `invalidateSection` and `bs.sectionAction`, a block action that drops the cached section after a write.
+  - `better-supabase/testing` adds `testSection`, which checks a section against the `defineSection` contract.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`622d721`](https://github.com/ScaleDockHQ/better-supabase/commit/622d7214d72b32aa29069dfbcbbbe89f4eb83ea9) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: review moderation moves to the moderation block.
+  
+  - The reviews block now requires `moderation`. Each review has a moderation item, and moderators can decide on reviews from the moderation queue next to other content. `publish_review` and `reject_review` keep working and approve or hide the review's item.
+  - The `moderated_by` and `moderated_at` columns of `reviews` are gone. `better-supabase sql upgrade` moves them onto moderation items and logs each past decision, and `better-supabase sql data` puts the reviews written before the upgrade under moderation. Read the last decision from the item (`decidedBy`, `decidedAt`) instead.
+  - A custom-mode reviews table drops both columns, and `moderatedBy` and `moderatedAt` are no longer column names you can rename. See the 0.13 to 0.14 guide.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`aa15bc7`](https://github.com/ScaleDockHQ/better-supabase/commit/aa15bc766c2bff3750fb45cba154b4db40906d95) Thanks [@martijn00](https://github.com/martijn00)! - Add the `scores` block: tenant-editable scoring models that write versioned scores to any record.
+  
+  - `better-supabase add scores` installs score models per organization. A model has rules (a rules filter tree worth points), metrics (a number field or the vote score times a weight, with a cap) and bands. Saving changed rules, metrics or bands raises the model's version and keeps the old definition.
+  - `createScores` from `better-supabase/blocks/scores` saves models, computes a record's score from its fields with a breakdown, and reads current scores, history and the top scores per band. A changed score emits `score.changed`, and `scoresSection` shows a record's scores on its page. Lead scoring and health scoring are models (ADR 0067).
+  - New permissions: `scores.read`, `scores.manage` and `scores.compute`.
+
+- [#331](https://github.com/ScaleDockHQ/better-supabase/pull/331) [`4717b60`](https://github.com/ScaleDockHQ/better-supabase/commit/4717b6028e7b4e66964922332c57f262d4024b27) Thanks [@martijn00](https://github.com/martijn00)! - Add three blocks: `sequences` for multi-step outreach, `lead-scoring` for scores fed by segments, mail and enrichment, and `posts` for forum and feedback boards.
+  
+  - `better-supabase/blocks/sequences` runs email, wait and task steps per contact as an enrollment program (`sequence:<id>`). `runDue()` sends due emails from the contact's mailbox through the new `mailer` port, which `mail-sync` provides, retries failed sends and ends a run when the contact replies. Task steps create work items when `work-items` is installed.
+  - `better-supabase/blocks/lead-scoring` scores people, and optionally companies, under a `scores` model. `leadRuleFields(subjectType)` adds the `segments`, `mail.*` and `enrichment.status` fields to the rule catalog, a trigger marks records whose columns, segments or mail changed, and `scoreDue()` rescores them.
+  - `better-supabase/blocks/posts` keeps boards and posts with votes from `reactions`, replies from `comments` and reports, hiding and bans from `moderation`. Moderators set a roadmap status, pin, lock and merge duplicates, and `moderation: "pre"` holds new posts for review.
+  - `mail-sync` lets the service role record a sent message for any connected mailbox, so a server-side sender such as the sequences runner can send on a member's behalf.
+  - The enrollments block refuses to complete or reset a step of a `sequence:` program, as it does for `course:` programs.
+  - The `sequence-builder` and `post-board` UI recipes show the blocks in the example app.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`10e292d`](https://github.com/ScaleDockHQ/better-supabase/commit/10e292d68f4780a08d155ca3d3192cc9fc80a261) Thanks [@martijn00](https://github.com/martijn00)! - Give signatures their own block at `better-supabase/blocks/signatures`. The SQL module, its tables and `blocks.signatures` stay the same, so only imports change. See [Signatures](https://bettersupabase.com/docs/blocks/signatures) and [From 0.13 to 0.14](https://bettersupabase.com/docs/migration/0.13-to-0.14#signatures-get-their-own-block).
+  
+  | Before (`better-supabase/blocks/forms`) | After (`better-supabase/blocks/signatures`) |
+  | --------------------------------------- | ------------------------------------------- |
+  | `createSignatures` and its types        | `createSignatures` and its types            |
+  | `signaturesBlock`                       | `signaturesBlock`                           |
+  | `signaturesEvents`, `SignaturesEvents`  | `signaturesEvents`, `SignaturesEvents`      |
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`bf1f3c1`](https://github.com/ScaleDockHQ/better-supabase/commit/bf1f3c142ff47418ad695f7448bbbae9ca93d85f) Thanks [@martijn00](https://github.com/martijn00)! - Merging two companies or two people now moves the dropped record's comments, attachments, reactions, tags, relations and guest grants to the kept record in the same transaction.
+  
+  - Each module that stores rows per subject installs a merge handler, and `better_supabase.merge_subject_refs(subject_table, keep, drop)` runs them all. Rows the kept record already has (the same reaction, tag or guest grant) are dropped instead of duplicated.
+  - Apps can move their own tables in the same merge with a `security definer` function marked `better-supabase:subject-merge`. See Merging subject records on the SQL modules page.
+  - Run `better-supabase sql sync` and generate a migration to install the handlers. The `company.merged` and `person.merged` events still fire, so existing consumers keep working.
+
+- [#288](https://github.com/ScaleDockHQ/better-supabase/pull/288) [`0a61352`](https://github.com/ScaleDockHQ/better-supabase/commit/0a61352ef99f2dbe20b83257604b2033a1cce6e8) Thanks [@martijn00](https://github.com/martijn00)! - Every block method that works on a subject now takes a `SubjectRef` (`{ type, id }`) as its first argument, and reads the tenant from the block's new `tenant` option instead of an `organizationId` argument. This covers comments, attachments, tags, reactions, relations, versions, sla, share links, custom fields, reminders, time tracking, approvals and the state machine. Rows carry `subject: SubjectRef` in place of `subjectType` and `subjectId`, and batch methods take a list of subjects and return a record keyed `type:id`. A call without a tenant fails with `invalid_request` and the hint `TENANT_REQUIRED`.
+  
+  `createBlockClient(ctx.db, commentsBlock, { config: blockConfig })` and `blockSet.client(ctx.db, "comments")` build one block for a request: they call through `ctx.db` and read the tenant from `db.$context.tenant`, so `lib/blocks.ts` no longer needs a wrapper per block that passes the organization. In the browser, pass `blocks: blockConfig` to `createClient`, and the hooks read each block's schema and realtime topic from it and the tenant from the client's `tenant` option or the session's tenant claim; the hooks no longer take `schema` or `organizationId`.
+  
+  Comments and attachments return their author on `list`: `author` holds the name and avatar URL from the profiles module, through the new `comment_authors` and `attachment_authors` functions, which return only authors of rows the caller may read. It is `undefined` without the profiles module.
+  
+  | Before                                                                                                | After                                                                                                                           |
+  | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+  | `comments.create({ organizationId, subjectType, subjectId, body })`                                   | `comments.create(subject, { body })`                                                                                            |
+  | `comments.list(organizationId, subjectType, subjectId, options?)`                                     | `comments.list(subject, options?)`                                                                                              |
+  | `comments.counts(organizationId, subjectType, subjectIds)`, keyed by id                               | `comments.counts(subjects)`, keyed `type:id`                                                                                    |
+  | `comments.copy(organizationId, from, to)`                                                             | `comments.copy(from, to)`                                                                                                       |
+  | `comments.history(organizationId, subject?, options?)`                                                | `comments.history(subject?, options?)`                                                                                          |
+  | `attachments.upload({ organizationId, subjectType, subjectId, ... })`                                 | `attachments.upload(subject \| null, attachment)`                                                                               |
+  | `attachments.put({ organizationId, subjectType, subjectId, ... }, file)`                              | `attachments.put(subject \| null, attachment, file)`                                                                            |
+  | `attachments.list(organizationId, subjectType?, subjectId?)`                                          | `attachments.list(subject?)`                                                                                                    |
+  | `versions.snapshot({ organizationId, subjectType, subjectId, ... })`                                  | `versions.snapshot(subject, input?)`                                                                                            |
+  | `versions.list(organizationId, subjectType, subjectId, options?)`                                     | `versions.list(subject, options?)`                                                                                              |
+  | `shareLinks.create(organizationId, subjectType, subjectId, options?)`                                 | `shareLinks.create(subject, options?)`                                                                                          |
+  | `shareLinks.recordView(organizationId, subjectType, subjectId, viewerKind, viewer?)`                  | `shareLinks.recordView(subject, viewerKind, viewer?)`                                                                           |
+  | `shareLinks.list(subjectType, subjectId)`, `setState(subjectType, subjectId, starred)`                | `shareLinks.list(subject)`, `setState(subject, starred)`                                                                        |
+  | `tags.create(organizationId, kind, name, ...)`, `tags.list(organizationId, kind?)`                    | `tags.create(kind, name, ...)`, `tags.list(kind?)`                                                                              |
+  | `tags.tag(organizationId, subjectType, subjectId, tagId)`, and `untag`                                | `tags.tag(subject, tagId)`, and `untag`                                                                                         |
+  | `tags.forSubject(organizationId, subjectType, subjectId)`                                             | `tags.forSubject(subject)`                                                                                                      |
+  | `reactions.react(organizationId, subjectType, subjectId, emoji, options?)`                            | `reactions.react(subject, emoji, options?)`                                                                                     |
+  | `reactions.summary(organizationId, subjectType, subjectIds)`, keyed by id                             | `reactions.summary(subjects)`, keyed `type:id`                                                                                  |
+  | `reactions.customEmoji(organizationId)`, `saveCustomEmoji(organizationId, input)`                     | `reactions.customEmoji()`, `saveCustomEmoji(input)`                                                                             |
+  | `customFields.listDefinitions(organizationId, entity)`, `saveDefinition(organizationId, entity, ...)` | `customFields.listDefinitions(entity)`, `saveDefinition(entity, ...)`                                                           |
+  | `customFields.readValues(organizationId, subjectType, subjectId)`                                     | `customFields.readValues(subject)`                                                                                              |
+  | `customFields.setValue(organizationId, subjectType, subjectId, definitionId, value)`                  | `customFields.setValue(subject, definitionId, value)`                                                                           |
+  | `relations.link({ organizationId, source, target, kind, ... })`, and `unlink`                         | `relations.link(source, target, { kind, data?, fields? })`, and `unlink(source, target, { kind })`                              |
+  | `relations.of(organizationId, subject, kind?)`, `edges(organizationId, kind)`                         | `relations.of(subject, kind?)`, `edges(kind)`                                                                                   |
+  | `relations.ancestors(organizationId, kind, subject)`, and `descendants`                               | `relations.ancestors(subject, kind)`, and `descendants`                                                                         |
+  | `relations.rollup({ organizationId, subject, ... })`                                                  | `relations.rollup(subject, { kind, of, agg, column? })`                                                                         |
+  | `relations.convertedInto(organizationId, origin, intoType)`, `lineage(organizationId, subject)`       | `relations.convertedInto(origin, intoType)`, `lineage(subject)`                                                                 |
+  | `sla.savePolicy(organizationId, policy)`                                                              | `sla.savePolicy(policy)`                                                                                                        |
+  | `approvals.request({ organizationId, subjectType, subjectId, action, ... })`                          | `approvals.request(subject, { action, reason?, payload? })`                                                                     |
+  | `approvals.list(organizationId, options?)`                                                            | `approvals.list(options?)`, with an optional `subject` filter                                                                   |
+  | `approvals.isApproved(subjectType, subjectId, action)`                                                | `approvals.isApproved(subject, action)`                                                                                         |
+  | `stateMachine.transition(subjectType, subjectId, to, reason?)`                                        | `stateMachine.transition(subject, to, reason?)`, and the same for `pause`, `resume`, `setFlag`, `state`, `history` and `stages` |
+  | `reminders.save(organizationId, subjectType, subjectId, offsetMinutes?, fields?)`                     | `reminders.save(subject, offsetMinutes?, fields?)`                                                                              |
+  | `reminders.list(organizationId, subjectType, subjectId)`                                              | `reminders.list(subject)`                                                                                                       |
+  | `timeTracking.start(organizationId, fields?)`, `stop(organizationId)`, `running(organizationId)`      | `timeTracking.start(fields?)`, `stop()`, `running()`                                                                            |
+  | `timeTracking.log`, `list`, `timesheet`, `submit` and `timesheets` with `organizationId` first        | the same calls without it; entries take `subject` instead of `subjectType` and `subjectId`                                      |
+  | `row.subjectType`, `row.subjectId`                                                                    | `row.subject.type`, `row.subject.id`                                                                                            |
+  | `useComments({ organizationId, subjectType, subjectId, schema?, topic?, limit? })`                    | `useComments({ subject, topic?, limit? })`                                                                                      |
+  | `useReactions({ organizationId, subjectType, subjectIds, schema?, topic? })`                          | `useReactions({ subjects, topic? })`                                                                                            |
+  | `useTagInput({ organizationId, subjectType, subjectId, kind, schema? })`                              | `useTagInput({ subject, kind })`                                                                                                |
+  
+  To upgrade:
+  
+  1. Pass `tenant` to blocks you create yourself (`createComments({ transport, tenant: () => ctx.tenant })`), or build them with `createBlockClient` or `blockSet.client`, which pass the request's tenant.
+  2. Replace each `organizationId, subjectType, subjectId` argument list with one `{ type, id }` object, and read `row.subject` instead of `row.subjectType` and `row.subjectId`. Read batch results by `` `${type}:${id}` ``.
+  3. Pass `blocks: blockConfig` to the browser `createClient` and drop `schema` from the hooks.
+  4. Run `better-supabase sql sync`, then generate a migration, for the comments and attachments author functions.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`a1ea401`](https://github.com/ScaleDockHQ/better-supabase/commit/a1ea401df73e2c6e4456c1483d94eff201680458) Thanks [@martijn00](https://github.com/martijn00)! - Attachments keep versions and show image previews, and work items get checklists, repeat rules, watchers and attachments. See [Attachments](https://bettersupabase.com/docs/blocks/attachments) and [Work items](https://bettersupabase.com/docs/blocks/work-items).
+  
+  Run `better-supabase sql upgrade` (or `sql sync` and a new migration): `create_attachment` takes three more arguments, so the upgrade drops and recreates it.
+  
+  - `attachments.replace(id, file)` uploads a new file under the same attachment and keeps the current one as an earlier version. `versions(id)` lists them and `restore(id, version)` makes one current again. Both emit `attachment.replaced` and `attachment.restored`.
+  - Attachments record `width`, `height` and `pages`, and `attachments.images(options)` signs resized URLs for `useImage`, behind the scan gate.
+  - `createAttachmentUploadController` and `useAttachmentUpload` in `better-supabase/blocks/attachments/react`, `/vue`, `/svelte` and `/solid` upload files side by side with progress, wait for the scan, and retry or dismiss a failed upload.
+  - Work items take `attachmentIds` on `create` and an `attachments` change on `update`, which link files the caller uploaded without a subject.
+  - Work items have checklists: `saveChecklistItem`, `removeChecklistItem` and `checklist`, and each item carries `checklist: { total, done }`. `get(id)` reads one item. The `checklist` section (`workItemChecklistSection`, with the `workItemChecklistOptimistic` reducer) shows the steps on the item's page.
+  - With the reminders block installed, `setRecurrence(id, { rrule, tzid })` gives an item a repeat rule, and `workItemRecurrenceSink(workItems)` creates the next item when a repeating one is completed. `repeat(id, dueAt)` runs once per item, so a redelivered event changes nothing.
+  - With the notifications block installed, `watch(id, level)` and `watchers(id)` follow an item through notification subscriptions.
+
+- [#330](https://github.com/ScaleDockHQ/better-supabase/pull/330) [`98b9308`](https://github.com/ScaleDockHQ/better-supabase/commit/98b9308b75f68054c21e3e079850a63762cff0e1) Thanks [@martijn00](https://github.com/martijn00)! - Add AI thread summaries to the messaging block, without tying it to an SDK.
+  
+  - `messaging.summarize(target, summarizer, { force, maxMessages })` summarizes a conversation (`{ conversationId }`) or a thread (`{ threadId }`) from the messages the caller can read, leaving out internal notes and deleted messages, and saves it as the service role. `messaging.summary(target)` reads it. A saved summary is `stale` once a message in its scope is sent after it, edited or deleted, and `summarize` returns a current one without calling the model.
+  - The summarizer is a versioned `ThreadSummarizer` (`apiVersion: 1`). `summarizeWith(model, { providers, instructions, gateway, maxOutputTokens })` from `better-supabase/ai-sdk` provides one over `generateText` with an AI Gateway model string, tags the spend with the tenant and the `summary` feature, and sends the tenant's own keys as BYOK when you pass the ai-providers block.
+  - `createMessaging` takes an optional `service` transport for the summary writes; `createBlocks` passes it.
+  
+  Run `better-supabase sql sync` and generate a migration to get the `thread_summaries` table and the `thread_summary` and `save_thread_summary` functions.
+
+- [#282](https://github.com/ScaleDockHQ/better-supabase/pull/282) [`d3012c7`](https://github.com/ScaleDockHQ/better-supabase/commit/d3012c77b79ed278eab96bc74deae838fc6f215a) Thanks [@martijn00](https://github.com/martijn00)! - Rename a block's entities once in the config and get typed config keys, renamed clients, automatic subjects, generated name constants, input schemas, block hooks and server helpers. See [Typed blocks](https://bettersupabase.com/docs/blocks/typed-blocks).
+  
+  This release breaks the config and a few exports. Update them as follows:
+  
+  | Before                                                                                                                  | After                                                                                                                                                |
+  | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `sql: { naming: { tenant: "workspace" } }`                                                                              | `blocks: { tenant: { entities: { organization: "workspace" } } }`                                                                                    |
+  | `workItemsSubjects()`, `dealsSubjects()`, `partiesSubjects()`, `catalogSubjects()`, `employeesSubjects()` in `subjects` | nothing: installed blocks register their entities as subjects. Remove the spread.                                                                    |
+  | the helpers' `url` option                                                                                               | `blocks.<name>.entities.<entity>.url`, such as `catalog: { entities: { product: { url: "/products/{id}" } } }`                                       |
+  | `CatalogSubjectsOptions`, `SqlNaming`                                                                                   | `EntityConfig`, `EntitiesConfig`                                                                                                                     |
+  | `blockConfig[name].naming` in `blocks.generated.ts`                                                                     | `blockConfig[name].names` (run `better-supabase gen`)                                                                                                |
+  | `work_item` methods, types and events after `entities: { work_item: "task" }`                                           | `saveWorkItem` becomes `saveTask`, `workItemId` becomes `taskId`, `work_item.created` becomes `task.created`, `work_items.read` becomes `tasks.read` |
+  
+  A `subjects` entry with the name of a block entity is now an error, and changing `entities` on an installed block makes `sql upgrade` refuse.
+  
+  - `blocks.<name>.entities` renames a block's nouns in its tables, columns, functions, events, permission keys, subjects and generated types. Every config key under `blocks` is typed from the block's names, and `defineConfig` keeps the config's literal types.
+  - `renameBlock(block, names)` in `better-supabase/blocks` renames a block client's methods, argument keys, result keys and events. `gen` writes `tasksBlock` and type aliases such as `Task` for each renamed block.
+  - `blocks.generated.ts` also exports `permissions`, `PermissionKey`, `RoleName`, `blockEvents`, `urls`, `topics` and `paths`.
+  - The deals, parties, work-items, employees and catalog blocks export Standard Schema input schemas, such as `workItemInputSchema`, `workItemChangeSchema` and `workItemListFilterSchema`.
+  - The `zod`, `valibot`, `standardSchema` and `jsonSchema` generators write schemas for SQL functions (`<function>Args`, `<function>Result`) and for block entities (`<entity>Input`, `<entity>Change`, `<entity>ListFilter`). `fieldMeta: true` adds labels, required flags, enum options and check bounds.
+  - `blockQueries(blocks)` and `invalidateOnBlockEvents` in `better-supabase/query` make TanStack Query options for every block method and invalidate reads when a block event arrives.
+  - `useBlockQuery`, `useBlockMutation` and `useBlockEvent` in `better-supabase/react`, `/vue`, `/svelte` and `/solid` work with any block client, renamed or not.
+  - `bs.blockAction(client, method, options)` in `better-supabase/next` and `blockRouter(client, options)` in `better-supabase/orpc` expose block methods as server actions and oRPC procedures.
+  - The `nuqs()` generator writes typed search params for your tables, and the `factories()` generator writes test factories, with `defineFactory` and `factoryTime` in `better-supabase/testing`.
+
+- [#329](https://github.com/ScaleDockHQ/better-supabase/pull/329) [`2075ea7`](https://github.com/ScaleDockHQ/better-supabase/commit/2075ea7ce387342b5ebf40db8afc690035b76648) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/preset` adds 17 vertical presets in a new `verticals` group (`PRESET_GROUPS.verticals`), so `/create` and `init` list them under Verticals: `property`, `field-service`, `clinic`, `lms`, `events`, `legal`, `spend`, `contracts`, `customer-success`, `logistics`, `pos`, `fitness`, `nonprofit`, `itsm`, `compliance`, `construction` and `claims`. Each one is `saas` plus the blocks of one kind of business app, such as leases on the ledger for property management, a dispatch board for field service or controls with recurring evidence for compliance, and each has a page under [Presets](https://bettersupabase.com/docs/presets). The `clinic` preset installs `field-encryption`; its page shows the config for encrypted columns and read audits, which name your own tables and so stay in your config. Existing presets and preset codes keep their blocks.
+
+### Patch Changes
+
+- [#334](https://github.com/ScaleDockHQ/better-supabase/pull/334) [`1de6e2f`](https://github.com/ScaleDockHQ/better-supabase/commit/1de6e2f922d67b7857724db4b8b7e67b3f060c6f) Thanks [@mick340](https://github.com/mick340)! - Security fix: a record's conversation and a channel linked to a record stay in the record's tenant. `open_conversation` with kind `subject` (and so `create_comment`) and `create_channel` with `subjectType` and `subjectId` checked only that the record exists and that the caller holds its read permission in the record's own tenant, and they read the record past its table's policies. A member of two tenants could post a comment in one tenant on a record of the other, and any member could when the record type has no read permission in `config.subjects`. Both now refuse a record whose tenant column in `config.subjects` names another tenant, with `MESSAGING_NOT_FOUND` or `CHANNELS_NOT_FOUND`, for the service role as well. Types with `tenant: false` are not compared.
+
 ## 0.13.0
 
 ### Minor Changes
