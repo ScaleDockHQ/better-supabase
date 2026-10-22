@@ -873,6 +873,7 @@ export type {
   EmployeeEventData,
   DealEventData,
   EngagementEventData,
+  EngagementRecordingEventData,
   InvoiceEventData,
   JobEventData,
   PartyEventData,

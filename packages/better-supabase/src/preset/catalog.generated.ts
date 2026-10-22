@@ -1941,7 +1941,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "notifications"
+        "notifications",
+        "ai-files",
+        "jobs"
       ],
       "manifest": "engagements",
       "scopes": [
@@ -5964,7 +5966,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "engagementsBlock",
         "subpath": "better-supabase/blocks/engagements"
       },
-      "consumes": {},
+      "consumes": {
+        "files": "optional"
+      },
       "provides": [],
       "entityTypes": [
         {
@@ -6247,7 +6251,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "engagement.logged",
           "engagement.updated",
           "engagement.completed",
-          "engagement.deleted"
+          "engagement.deleted",
+          "engagement.recorded",
+          "engagement.transcribed",
+          "engagement.summarized"
         ]
       }
     },

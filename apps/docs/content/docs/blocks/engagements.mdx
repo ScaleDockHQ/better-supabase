@@ -88,11 +88,67 @@ await engagements.log(
 
 Each engagement has `overdue`: open and past its due time. Reads run as the caller: an engagement is visible to members who can read one of its records, or to every reader of the organization when it is on none.
 
+## Recordings and notes
+
+`blocks.engagements.options.recordings` (off by default) stores call and meeting recordings, their transcripts and notes about an engagement. It needs the [ai-files](/docs/blocks/ai-files) block, which holds the audio or video, and adds the `engagement_recordings`, `engagement_transcript_segments` and `engagement_notes` tables. The block imports no speech or AI SDK (ADR 0010): you pass a `Transcriber` and a `NoteTaker` that wrap the provider you use.
+
+```ts
+import { createEngagements } from "better-supabase/blocks/engagements";
+
+const engagements = createEngagements({
+  transport,
+  service: serviceTransport,
+  files: aiFiles,
+  transcriber: {
+    apiVersion: 1,
+    model: "my-stt",
+    transcribe: async ({ url, language }, { signal } = {}) => {
+      const result = await speechToText(url, { language, signal });
+      return {
+        language: result.language,
+        segments: result.turns.map((turn) => ({
+          speaker: turn.speaker,
+          startMs: turn.start,
+          endMs: turn.end,
+          text: turn.text,
+        })),
+      };
+    },
+  },
+  noteTaker: {
+    apiVersion: 1,
+    model: "my-model",
+    summarize: async ({ engagement, transcript }) =>
+      summarizeCall(engagement, transcript),
+  },
+});
+
+const recording = await engagements
+  .attachRecording(engagementId, fileId, { language: "en" })
+  .orThrow();
+```
+
+`attachRecording(engagementId, fileId)` links a ready ai-files file of the same organization: the author, the owner and `engagements.manage` may attach one, and the file must be the caller's unless they hold `engagements.manage`. The recording starts `pending`. With the [jobs](/docs/blocks/jobs) block installed it queues a transcription on `engagements.transcribe`; register `transcribeJob()` as that queue's handler, and its last attempt marks the recording `failed` with the error. Without jobs, call `transcribe(recordingId)` yourself or run `drainRecordings()` on a schedule as the service role.
+
+`transcribe` signs the file's URL and reads its bytes through `files`, calls the transcriber and saves its speaker turns. `saveTranscript(recordingId, transcript)` stores a transcript you already have, such as one a meeting tool exports; saving again replaces it. Each segment has a `speaker` label, an optional `speakerUserId`, `startMs` and `endMs` from the start of the recording, its `text` and an optional `confidence`.
+
+`summarize(engagementId)` gives the note taker the engagement and every transcript turn and saves its summary and action items as the engagement's notes (`source: "ai"`, with the model). `saveNotes(engagementId, { summary, actionItems })` saves notes a member wrote (`source: "member"`), replacing earlier ones.
+
+| Method                                      | Returns                                                      |
+| ------------------------------------------- | ------------------------------------------------------------ |
+| `recordings(engagementId)`                  | The engagement's recordings, oldest first, with their status |
+| `transcript(recordingId, { after, limit })` | Speaker turns in order, 500 by default and 5000 at most      |
+| `notes(engagementId)`                       | The engagement's notes, or `undefined`                       |
+
+Recordings, transcripts and notes are readable by whoever can read the engagement. Teammates see the filename and media type without access to the file itself. `testTranscriber` and `testNoteTaker` from `better-supabase/testing` check that your wrappers keep the contract.
+
 ## Events
 
 | Event                                                                                   | Data                                                                             |
 | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `engagement.logged`, `engagement.updated`, `engagement.completed`, `engagement.deleted` | `organizationId`, `engagementId`, `type`, `subjectType`, `subjectId`, `subjects` |
+| `engagement.recorded`, `engagement.transcribed`                                         | The same, and `recordingId`                                                      |
+| `engagement.summarized`                                                                 | The same as `engagement.logged`                                                  |
 
 ## Hooks
 
@@ -104,11 +160,18 @@ The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day 
 
 ## Errors
 
-| Hint                           | Cause                                                      |
-| ------------------------------ | ---------------------------------------------------------- |
-| `ENGAGEMENT_FORBIDDEN`         | the caller lacks `engagements.write`                       |
-| `ENGAGEMENT_TYPE_INVALID`      | not a configured type                                      |
-| `ENGAGEMENT_TITLE_REQUIRED`    | the title is empty                                         |
-| `ENGAGEMENT_SUBJECTS_INVALID`  | `subjects` isn't a list of `{ type, id }`                  |
-| `ENGAGEMENT_SUBJECT_FORBIDDEN` | a record is unknown, in another organization or unreadable |
-| `ENGAGEMENT_NOT_FOUND`         | no engagement the caller can edit                          |
+| Hint                                                                           | Cause                                                      |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `ENGAGEMENT_FORBIDDEN`                                                         | the caller lacks `engagements.write`                       |
+| `ENGAGEMENT_TYPE_INVALID`                                                      | not a configured type                                      |
+| `ENGAGEMENT_TITLE_REQUIRED`                                                    | the title is empty                                         |
+| `ENGAGEMENT_SUBJECTS_INVALID`                                                  | `subjects` isn't a list of `{ type, id }`                  |
+| `ENGAGEMENT_SUBJECT_FORBIDDEN`                                                 | a record is unknown, in another organization or unreadable |
+| `ENGAGEMENT_NOT_FOUND`                                                         | no engagement the caller can edit                          |
+| `AI_FILE_NOT_FOUND`                                                            | no ready file of the organization the caller may attach    |
+| `ENGAGEMENT_RECORDING_EXISTS`                                                  | the file is already a recording of the engagement          |
+| `ENGAGEMENT_RECORDING_NOT_FOUND`                                               | no such recording                                          |
+| `ENGAGEMENT_TRANSCRIPT_INVALID`                                                | a segment lacks its text or ends before it starts          |
+| `ENGAGEMENT_NOTES_INVALID`                                                     | an empty summary or an action item without text            |
+| `ENGAGEMENT_NO_TRANSCRIBER`, `ENGAGEMENT_NO_FILES`, `ENGAGEMENT_NO_NOTE_TAKER` | `createEngagements` lacks the option the method needs      |
+| `ENGAGEMENT_TRANSCRIBE_FAILED`, `ENGAGEMENT_SUMMARIZE_FAILED`                  | the transcriber or note taker threw                        |

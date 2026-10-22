@@ -184,6 +184,8 @@ export {
   testEmbedder,
   testEveDocumentBackend,
   testGraphCompiler,
+  testNoteTaker,
+  testTranscriber,
 } from "./injectables.ts";
 
 export type {
@@ -192,6 +194,8 @@ export type {
   TestEmbedderOptions,
   TestEveDocumentBackendOptions,
   TestGraphCompilerOptions,
+  TestNoteTakerOptions,
+  TestTranscriberOptions,
 } from "./injectables.ts";
 
 export { testNotificationChannel } from "./notification-channel.ts";

@@ -24,6 +24,11 @@ export interface EngagementEventData extends SubjectEventData {
   readonly subjects: readonly { readonly type: string; readonly id: string }[];
 }
 
+/** `engagement.recorded` and `engagement.transcribed`: a recording's turn. */
+export interface EngagementRecordingEventData extends EngagementEventData {
+  readonly recordingId: string;
+}
+
 /** `collection.created` and `collection.archived`: a list of one subject type. */
 export interface CollectionEventData {
   readonly organizationId: string;

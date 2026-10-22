@@ -3,6 +3,11 @@ import type {
   AiTaskRun,
   AiTaskRunner,
 } from "../blocks/ai-tasks/ai-tasks.ts";
+import type {
+  NoteTaker,
+  Transcriber,
+  TranscriberInput,
+} from "../blocks/engagements/recordings.ts";
 import type { Embedder } from "../blocks/knowledge/knowledge.ts";
 import type { WorkflowGraph } from "../blocks/workflow-builder/graph.ts";
 import type {
@@ -281,6 +286,158 @@ export function testEveDocumentBackend(
         expect(
           (await backend.read({ key }))?.content === "two",
           "a refused write changed the document",
+        );
+      },
+    ],
+  ]);
+}
+
+export interface TestTranscriberOptions {
+  /** The recording to transcribe. Defaults to a fake file with no bytes. */
+  readonly input?: TranscriberInput;
+}
+
+const FAKE_RECORDING: TranscriberInput = {
+  file: { id: "recording", filename: "call.webm", mediaType: "audio/webm" },
+  url: "https://example.com/call.webm",
+  read: () => Promise.resolve(new Uint8Array()),
+};
+
+/**
+ * Proves a `Transcriber` for the engagements block names its model, returns
+ * speaker turns in order with `startMs` at most `endMs` and text on each, and
+ * rejects once its signal is aborted. Pass a real recording in `input` to call
+ * the real provider.
+ */
+export function testTranscriber(
+  transcriber: Transcriber,
+  options: TestTranscriberOptions = {},
+): Promise<ConformanceReport> {
+  const input = options.input ?? FAKE_RECORDING;
+
+  return conform(`Transcriber "${transcriber.model}"`, [
+    hasApiVersion(transcriber),
+    [
+      "names its model",
+      () => {
+        expect(
+          typeof transcriber.model === "string" && transcriber.model !== "",
+          "model must be a non-empty string",
+        );
+      },
+    ],
+    [
+      "returns ordered speaker turns",
+      async () => {
+        const { segments } = await transcriber.transcribe(input);
+        let last = 0;
+
+        for (const segment of segments) {
+          expect(
+            typeof segment.text === "string",
+            "every segment needs its text",
+          );
+          expect(
+            Number.isFinite(segment.startMs) &&
+              Number.isFinite(segment.endMs) &&
+              segment.startMs <= segment.endMs,
+            `segment ${segment.startMs}-${segment.endMs} must start before it ends`,
+          );
+          expect(
+            segment.startMs >= last,
+            "segments must be ordered by startMs",
+          );
+          last = segment.startMs;
+        }
+      },
+    ],
+    [
+      "rejects once aborted",
+      async () => {
+        expect(
+          await rejects(() =>
+            transcriber.transcribe(input, { signal: AbortSignal.abort() }),
+          ),
+          "transcribe must reject when its signal is aborted",
+        );
+      },
+    ],
+  ]);
+}
+
+export interface TestNoteTakerOptions {
+  /** The engagement and transcript to summarize. Defaults to a short call. */
+  readonly input?: Parameters<NoteTaker["summarize"]>[0];
+}
+
+const FAKE_CALL: Parameters<NoteTaker["summarize"]>[0] = {
+  engagement: { id: "engagement", kind: "call", title: "Intro call" },
+  transcript: [
+    {
+      recordingId: "recording",
+      position: 1,
+      speaker: "Speaker 1",
+      startMs: 0,
+      endMs: 4000,
+      text: "Can you send the proposal by Friday?",
+    },
+    {
+      recordingId: "recording",
+      position: 2,
+      speaker: "Speaker 2",
+      startMs: 4000,
+      endMs: 7000,
+      text: "Yes, I will send it on Thursday.",
+    },
+  ],
+};
+
+/**
+ * Proves a `NoteTaker` for the engagements block names its model, returns a
+ * non-empty summary with well-formed action items, and rejects once its signal
+ * is aborted. It calls the real model.
+ */
+export function testNoteTaker(
+  noteTaker: NoteTaker,
+  options: TestNoteTakerOptions = {},
+): Promise<ConformanceReport> {
+  const input = options.input ?? FAKE_CALL;
+
+  return conform(`NoteTaker "${noteTaker.model}"`, [
+    hasApiVersion(noteTaker),
+    [
+      "names its model",
+      () => {
+        expect(
+          typeof noteTaker.model === "string" && noteTaker.model !== "",
+          "model must be a non-empty string",
+        );
+      },
+    ],
+    [
+      "writes a summary and action items",
+      async () => {
+        const notes = await noteTaker.summarize(input);
+        expect(
+          typeof notes.summary === "string" && notes.summary.trim() !== "",
+          "summary must be a non-empty string",
+        );
+        expect(
+          (notes.actionItems ?? []).every(
+            (item) => typeof item.text === "string" && item.text !== "",
+          ),
+          "every action item needs its text",
+        );
+      },
+    ],
+    [
+      "rejects once aborted",
+      async () => {
+        expect(
+          await rejects(() =>
+            noteTaker.summarize(input, { signal: AbortSignal.abort() }),
+          ),
+          "summarize must reject when its signal is aborted",
         );
       },
     ],

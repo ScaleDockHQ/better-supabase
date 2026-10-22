@@ -358,7 +358,8 @@ export default defineConfig({
     },
     pipelines: {},
     deals: { entities: { deal: { url: "/crm/deals" } } },
-    engagements: {},
+    // Call recordings on ai-files, with transcripts and notes.
+    engagements: { options: { recordings: true } },
     quotes: {},
     targets: {},
     "state-machine": {

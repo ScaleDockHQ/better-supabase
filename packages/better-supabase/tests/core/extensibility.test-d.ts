@@ -7,6 +7,10 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthResolver } from "../../src/auth/resolve.ts";
 import type { AiTaskRunner } from "../../src/blocks/ai-tasks/index.ts";
+import type {
+  NoteTaker,
+  Transcriber,
+} from "../../src/blocks/engagements/index.ts";
 import type { QueueBackend } from "../../src/blocks/jobs/index.ts";
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 import type {
@@ -343,6 +347,8 @@ describe("block injectables", () => {
     expectTypeOf<EveDocumentBackend["apiVersion"]>().toEqualTypeOf<
       1 | undefined
     >();
+    expectTypeOf<Transcriber["apiVersion"]>().toEqualTypeOf<1 | undefined>();
+    expectTypeOf<NoteTaker["apiVersion"]>().toEqualTypeOf<1 | undefined>();
     expectTypeOf(async () => undefined).toExtend<AiTaskRunner>();
     expectTypeOf(async () => "run_1").toExtend<BuilderStarter>();
     expectTypeOf(() => ({})).toExtend<GraphCompiler>();
