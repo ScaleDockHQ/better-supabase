@@ -91,7 +91,7 @@ describe("time-tracking module", () => {
   it("lets approvals lock the week and read timesheet requests", () => {
     const approvals = sqlOf(BASE, {}, "approvals");
     expect(approvals).toContain(`"better_supabase"."approve_timesheet"(`);
-    expect(approvals).toContain(`in ('access_request', 'timesheet')`);
+    expect(approvals).toContain(`= 'timesheet'`);
     const alone = sqlOf(["approvals"], {}, "approvals");
     expect(alone).not.toContain("approve_timesheet");
   });

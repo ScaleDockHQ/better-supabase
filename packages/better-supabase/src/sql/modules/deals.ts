@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { DealNames } from "./deals-functions.ts";
 
@@ -455,7 +456,59 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
+/** How deals run on pipelines. */
+const DEAL_PIPELINE: Readonly<Record<string, unknown>> = {
+  enteredAt: "stage_entered_at",
+  amount: "amount",
+  currency: "currency",
+  probability: "probability",
+  owner: "owner_user_id",
+  categories: { open: "open", won: "success", lost: "failure" },
+  status: {
+    column: "outcome",
+    values: { open: "open", won: "won", lost: "lost" },
+  },
+  stages: [
+    { key: "qualified", name: "Qualified", category: "open", probability: 20 },
+    { key: "discovery", name: "Discovery", category: "open", probability: 35 },
+    { key: "proposal", name: "Proposal", category: "open", probability: 55 },
+    {
+      key: "negotiation",
+      name: "Negotiation",
+      category: "open",
+      probability: 75,
+    },
+    {
+      key: "closed_won",
+      name: "Closed won",
+      category: "won",
+      probability: 100,
+    },
+    {
+      key: "closed_lost",
+      name: "Closed lost",
+      category: "lost",
+      probability: 0,
+    },
+  ],
+};
+
+const CONTRIBUTES: BlockContributes = {
+  pipelines: (own) => {
+    const { schema, name } = own.tableName("deals");
+
+    return [
+      {
+        type: own.resolved.entityNaming.rename("deal"),
+        table: `${schema}.${name}`,
+        entry: DEAL_PIPELINE,
+      },
+    ];
+  },
+};
+
 export const DEALS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "deals",
   scopes: ["tenant"],
   title: "Deals",

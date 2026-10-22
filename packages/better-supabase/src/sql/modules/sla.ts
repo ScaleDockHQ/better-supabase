@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
@@ -23,6 +24,8 @@ import {
 import { subjectInTenant, subjectTenant } from "../subject-check-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { myWorkTenant } from "./subjects.ts";
+import { workItemType } from "./tasks.ts";
 
 const CLOCK = [
   "organizationId",
@@ -689,14 +692,42 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  subjects: (own) => {
+    if (!own.installed("tasks") || own.of("tasks").mode === "custom") {
+      return [];
+    }
+
+    const work = own.of("tasks");
+    const k = (column: string): string => `k.${own.col("clocks", column)}`;
+
+    return [
+      {
+        work: `select 'sla'::text, ${k("subjectType")}::text, ${k("subjectId")}::text, ${k("id")}::text, null::text,
+      ${k("dueAt")}
+    from ${own.table("clocks")} k
+    where ${k("subjectType")} = ${sqlString(workItemType(work))}
+      and ${k("warnedAt")} is not null
+      and ${k("metAt")} is null
+      and ${myWorkTenant(k("tenant"))}
+      and exists (
+        select 1 from ${work.table("assignees")} a
+        where a.${work.col("assignees", "item")}::text = ${k("subjectId")}::text
+          and a.${work.col("assignees", "user")} = v_me)`,
+      },
+    ];
+  },
+};
+
 export const SLA: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "sla",
   scopes: ["tenant"],
   title: "Service levels",
   description:
     "Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.",
   requires: ["memberships", "permissions", "subjects"],
-  integrates: ["outbox", "notifications"],
+  integrates: ["outbox", "notifications", "tasks"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

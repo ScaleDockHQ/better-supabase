@@ -6,6 +6,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { SubjectTableBinding } from "../subjects.ts";
 
@@ -638,7 +639,23 @@ ${userGrant(`${ctx.fn("rank_tag")}(uuid, text)`)}
 `;
 }
 
+const CONTRIBUTES: BlockContributes = {
+  "bulk-actions": (own) => [
+    {
+      name: "tags.set",
+      declare: "v_tag uuid;",
+      run: `for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'add', '[]'::jsonb)) loop
+  perform ${own.fn("tag")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);
+end loop;
+for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'remove', '[]'::jsonb)) loop
+  perform ${own.fn("untag")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);
+end loop;`,
+    },
+  ],
+};
+
 export const TAGS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "tags",
   scopes: ["tenant", "user", "none"],
   title: "Tags",

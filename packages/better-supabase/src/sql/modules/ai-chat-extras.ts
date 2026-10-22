@@ -11,9 +11,15 @@ import {
   userGrant,
   pageSize,
 } from "../shared.ts";
-import { AI_TOOL_SUBJECT, linkedPolicy } from "./approvals.ts";
+import { linkedPolicy } from "./approvals.ts";
 import { AI_TOOL_APPROVAL, approverCheck } from "./approver.ts";
 import { READ_ONLY_GUARD } from "./drive-kit.ts";
+
+/**
+ * Tool calls the ai-chat block files with approvals; their subject is its
+ * approval row, action `run`.
+ */
+export const AI_TOOL_SUBJECT = "ai_tool_approval";
 
 /** `jsonb_build_object` of an approval row, with stable keys. */
 export function approvalJson(names: AiChatNames, row: string): string {

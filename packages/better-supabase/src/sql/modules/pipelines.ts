@@ -353,15 +353,7 @@ export const PIPELINES: BlockSqlDefinition = {
   description:
     "Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.",
   requires: ["memberships", "permissions", "subjects"],
-  integrates: [
-    "outbox",
-    "audit",
-    "state-machine",
-    "notifications",
-    "deals",
-    "tasks",
-    "hiring",
-  ],
+  integrates: ["outbox", "audit", "state-machine", "notifications"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

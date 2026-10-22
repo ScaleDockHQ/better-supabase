@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -16,6 +17,7 @@ import {
 } from "../shared.ts";
 import {
   EXPENSE_REPORT_RESERVED,
+  EXPENSE_REPORT_SUBJECT,
   expensesFunctions,
 } from "./expenses-functions.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -301,7 +303,19 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  approvals: (own) => [
+    {
+      subject: EXPENSE_REPORT_SUBJECT,
+      access: "declared",
+      approve: ({ subjectId }) =>
+        `perform ${own.fn("approve_expense_report")}(${subjectId}::uuid);`,
+    },
+  ],
+};
+
 export const EXPENSES: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "expenses",
   scopes: ["tenant"],
   title: "Expenses",

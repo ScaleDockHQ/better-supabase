@@ -21,6 +21,7 @@ import type {
   BlockSqlIdType,
   BlockSqlNames,
 } from "./context.ts";
+import type { BlockContributes } from "./contributions.ts";
 import type { DeclaredForeignKey } from "./foreign-keys.ts";
 import type { FunctionGrant, TableGrant } from "./modules/data-api-grants.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
@@ -100,6 +101,12 @@ export interface BlockSql {
    * stands for every module, for one that reads them all (`data-lifecycle`).
    */
   readonly integrates?: readonly string[];
+  /**
+   * What it adds to generic blocks (approvals, bulk actions, share links and
+   * the subject functions) that read it without naming it. Each function gets
+   * this block's context and the generic block's.
+   */
+  readonly contributes?: BlockContributes;
   /**
    * What it needs for this layout, e.g. per `blocks.permissions.model`;
    * overrides both.

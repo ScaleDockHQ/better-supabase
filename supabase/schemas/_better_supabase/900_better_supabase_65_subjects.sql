@@ -1354,10 +1354,8 @@ $$;
 revoke execute on function "better_supabase"."my_reminders_due"(uuid) from public, anon;
 grant execute on function "better_supabase"."my_reminders_due"(uuid) to authenticated, service_role;
 
--- What waits on the caller across the installed blocks, newest first: open
--- work items assigned to them, approvals they can decide, their reminders
--- sent this week, mentions from the last 30 days and SLA clocks warned on
--- their work items. Runs as the caller, so each row is one they can read.
+-- What waits on the caller across the installed blocks, newest first. Runs as
+-- the caller, so each row is one they can read.
 create or replace function "better_supabase"."my_work"(tenant uuid default null, page_size integer default 50)
 returns jsonb
 language plpgsql
@@ -1382,14 +1380,18 @@ begin
     ) order by w.at desc nulls last, w.kind, w.ref), '[]'::jsonb)
     from (
       select * from (
-    select 'assigned'::text, 'work_item'::text, i."id"::text, i."id"::text, i."title"::text,
-      coalesce(i."due_at", a."created_at")
-    from "better_supabase"."work_item_assignees" a
-    join "better_supabase"."work_items" i on i."id" = a."work_item_id"
-    where a."user_id" = v_me
-      and i."state" not in ('completed', 'canceled')
-      and i."archived_at" is null
-      and (my_work.tenant is null or i."tenant_id" = my_work.tenant)
+    select 'mention'::text, c."subject_type"::text, c."subject_id"::text, m."id"::text, null::text,
+      m."sent_at"
+    from "better_supabase"."messages" m
+    join "better_supabase"."conversations" c on c."id" = m."conversation_id" and c."kind" = 'subject'
+    where v_me = any (m."mentions")
+      and m."deleted_at" is null
+      and m."sent_at" > now() - interval '30 days'
+      and (my_work.tenant is null or m."tenant_id" = my_work.tenant)
+    union all
+    select 'reminder'::text, d.subject_type, d.subject_id, d.reminder::text, null::text, d.at
+    from "better_supabase"."my_reminders_due"(my_work.tenant) d
+    where "better_supabase"."can_subject"(d.subject_type, d.subject_id, 'read')
     union all
     select 'approval'::text, r."subject_type"::text, r."subject_id"::text, r."id"::text, null::text,
       r."created_at"
@@ -1399,18 +1401,14 @@ begin
       and (my_work.tenant is null or r."tenant_id" = my_work.tenant)
       and "better_supabase"."approval_eligible"(r."id")
     union all
-    select 'reminder'::text, d.subject_type, d.subject_id, d.reminder::text, null::text, d.at
-    from "better_supabase"."my_reminders_due"(my_work.tenant) d
-    where "better_supabase"."can_subject"(d.subject_type, d.subject_id, 'read')
-    union all
-    select 'mention'::text, c."subject_type"::text, c."subject_id"::text, m."id"::text, null::text,
-      m."sent_at"
-    from "better_supabase"."messages" m
-    join "better_supabase"."conversations" c on c."id" = m."conversation_id" and c."kind" = 'subject'
-    where v_me = any (m."mentions")
-      and m."deleted_at" is null
-      and m."sent_at" > now() - interval '30 days'
-      and (my_work.tenant is null or m."tenant_id" = my_work.tenant)
+    select 'assigned'::text, 'work_item'::text, i."id"::text, i."id"::text, i."title"::text,
+      coalesce(i."due_at", a."created_at")
+    from "better_supabase"."work_item_assignees" a
+    join "better_supabase"."work_items" i on i."id" = a."work_item_id"
+    where a."user_id" = v_me
+      and i."state" not in ('completed', 'canceled')
+      and i."archived_at" is null
+      and (my_work.tenant is null or i."tenant_id" = my_work.tenant)
     union all
     select 'sla'::text, k."subject_type"::text, k."subject_id"::text, k."id"::text, null::text,
       k."due_at"

@@ -16,7 +16,7 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { linkedPolicy, SUPPORT_REQUEST_SUBJECT } from "./approvals.ts";
+import { linkedPolicy } from "./approvals.ts";
 import { approverCheck, SUPPORT_SESSION_APPROVAL } from "./approver.ts";
 import { READ_ONLY_GUARD } from "./drive-kit.ts";
 import {
@@ -24,7 +24,12 @@ import {
   OPERATIONS,
   providerPlatformRoles,
 } from "./permissions-model.ts";
-import { approvalMode, supportApprovalFunctions } from "./support-approvals.ts";
+import {
+  SUPPORT_CONTRIBUTES,
+  SUPPORT_REQUEST_SUBJECT,
+  approvalMode,
+  supportApprovalFunctions,
+} from "./support-approvals.ts";
 
 const EVENTS: BlockSqlEvents<ImpersonationEvents> = {
   "support.started": {
@@ -1044,6 +1049,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 }
 
 export const SUPPORT_SESSIONS: BlockSqlDefinition = {
+  contributes: SUPPORT_CONTRIBUTES,
   name: "impersonation",
   scopes: ["tenant"],
   title: "Support sessions",

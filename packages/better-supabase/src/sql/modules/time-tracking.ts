@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -23,8 +24,10 @@ import {
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
-import { TIMESHEET_SUBJECT } from "./approvals.ts";
 import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
+
+/** Timesheets this block submits to approvals. */
+const TIMESHEET_SUBJECT = "timesheet";
 
 const WHERE = "blocks.time-tracking.options";
 
@@ -1026,7 +1029,19 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  approvals: (own) => [
+    {
+      subject: TIMESHEET_SUBJECT,
+      access: "declared",
+      approve: ({ subjectId }) =>
+        `perform ${own.fn("approve_timesheet")}(${subjectId}::uuid);`,
+    },
+  ],
+};
+
 export const TIME_TRACKING: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "time-tracking",
   scopes: ["tenant"],
   title: "Time tracking",

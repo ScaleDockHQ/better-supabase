@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 import type { CollectionNames } from "./collections-functions.ts";
@@ -405,7 +406,17 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  "bulk-actions": (own) => [
+    {
+      name: "collections.add",
+      run: `perform ${own.fn("add_collection_entries")}((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);`,
+    },
+  ],
+};
+
 export const COLLECTIONS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "collections",
   scopes: ["tenant"],
   title: "Collections",

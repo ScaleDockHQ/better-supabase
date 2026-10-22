@@ -23,6 +23,7 @@ import {
   sandboxTable,
   upgradeSandboxes,
 } from "./ai-chat-sandboxes.ts";
+import { AI_CHAT_CONTRIBUTES } from "./ai-chat-shares.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const PROJECTS = {
@@ -1037,6 +1038,7 @@ ${replaceColumnCheck({
 }
 
 export const AI_CHAT: BlockSqlDefinition = {
+  contributes: AI_CHAT_CONTRIBUTES,
   name: "ai-chat",
   scopes: ["tenant"],
   title: "AI chat",

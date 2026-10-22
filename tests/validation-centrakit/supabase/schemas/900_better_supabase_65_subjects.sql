@@ -369,10 +369,8 @@ $$;
 revoke execute on function "better_supabase"."my_reminders_due"(uuid) from public, anon;
 grant execute on function "better_supabase"."my_reminders_due"(uuid) to authenticated, service_role;
 
--- What waits on the caller across the installed blocks, newest first: open
--- work items assigned to them, approvals they can decide, their reminders
--- sent this week, mentions from the last 30 days and SLA clocks warned on
--- their work items. Runs as the caller, so each row is one they can read.
+-- What waits on the caller across the installed blocks, newest first. Runs as
+-- the caller, so each row is one they can read.
 create or replace function "better_supabase"."my_work"(tenant uuid default null, page_size integer default 50)
 returns jsonb
 language plpgsql
@@ -397,10 +395,6 @@ begin
     ) order by w.at desc nulls last, w.kind, w.ref), '[]'::jsonb)
     from (
       select * from (
-    select 'reminder'::text, d.subject_type, d.subject_id, d.reminder::text, null::text, d.at
-    from "better_supabase"."my_reminders_due"(my_work.tenant) d
-    where "better_supabase"."can_subject"(d.subject_type, d.subject_id, 'read')
-    union all
     select 'mention'::text, c."subject_type"::text, c."subject_id"::text, m."id"::text, null::text,
       m."sent_at"
     from "better_supabase"."messages" m
@@ -409,6 +403,10 @@ begin
       and m."deleted_at" is null
       and m."sent_at" > now() - interval '30 days'
       and (my_work.tenant is null or m."tenant_id" = my_work.tenant)
+    union all
+    select 'reminder'::text, d.subject_type, d.subject_id, d.reminder::text, null::text, d.at
+    from "better_supabase"."my_reminders_due"(my_work.tenant) d
+    where "better_supabase"."can_subject"(d.subject_type, d.subject_id, 'read')
       ) u (kind, subject_type, subject_id, ref, title, at)
       order by u.at desc nulls last, u.kind, u.ref
       limit least(greatest(coalesce(my_work.page_size, 50), 1), 200)

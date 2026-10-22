@@ -246,6 +246,9 @@ declare
 begin
   select * into v_req from "better_supabase"."approval_requests" r where r."id" = approval_finalize.request_id;
   v_run := v_req."policy" -> 'run';
+  if v_req."subject_type" = 'ai_tool_approval' then
+    perform "better_supabase"."apply_ai_tool_approval"(v_req."subject_id", true, (select x."comment" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" order by x."created_at" desc, x."id" desc limit 1));
+  end if;
   if v_req."subject_type" = 'access_request' then
     perform "better_supabase"."grant_access_request"(v_req."subject_id"::uuid);
   end if;
@@ -254,9 +257,6 @@ begin
   end if;
   if v_req."subject_type" = 'expense_report' then
     perform "better_supabase"."approve_expense_report"(v_req."subject_id"::uuid);
-  end if;
-  if v_req."subject_type" = 'ai_tool_approval' then
-    perform "better_supabase"."apply_ai_tool_approval"(v_req."subject_id", true, (select x."comment" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" order by x."created_at" desc, x."id" desc limit 1));
   end if;
   perform "better_supabase".emit_event('approval.approved', jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step"), 'approval-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(

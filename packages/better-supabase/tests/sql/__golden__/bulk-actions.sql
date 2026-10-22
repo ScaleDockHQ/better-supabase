@@ -73,8 +73,6 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
-declare
-  v_tag uuid;
 begin
   raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
 end;
@@ -657,8 +655,6 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
-declare
-  v_tag uuid;
 begin
   raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
 end;
@@ -939,8 +935,6 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
-declare
-  v_tag uuid;
 begin
   raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
 end;
@@ -1263,8 +1257,6 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
-declare
-  v_tag uuid;
 begin
   raise exception 'unknown bulk action' using errcode = '22023', hint = 'BULK_ACTION_UNKNOWN';
 end;

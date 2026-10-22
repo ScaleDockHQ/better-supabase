@@ -1,4 +1,5 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 
 /**
  * The callbacks the approvals module makes for a support request it filed.
@@ -71,3 +72,28 @@ export function approvalMode(ctx: BlockSqlContext): ApprovalMode {
 
   return mode;
 }
+
+/**
+ * Requests the impersonation block files with approvals; their subject is its
+ * request, action `start`.
+ */
+export const SUPPORT_REQUEST_SUBJECT = "support_request";
+
+/** What impersonation adds to approvals. */
+export const SUPPORT_CONTRIBUTES: BlockContributes = {
+  approvals: (own) =>
+    own.hasTable("requests")
+      ? [
+          {
+            subject: SUPPORT_REQUEST_SUBJECT,
+            access: "linked",
+            approve: ({ subjectId }) =>
+              `perform ${own.fn("apply_support_approval")}(${subjectId}::uuid, auth.uid());`,
+            reject: ({ subjectId }) =>
+              `perform ${own.fn("close_support_request")}(${subjectId}::uuid);`,
+            approvable: ({ subjectId }) =>
+              `${own.fn("support_request_approvable")}(${subjectId}::uuid)`,
+          },
+        ]
+      : [],
+};

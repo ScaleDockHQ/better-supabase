@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -350,7 +351,39 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  subjects: (own, target) => [
+    {
+      work: `select 'reminder'::text, d.subject_type, d.subject_id, d.reminder::text, null::text, d.at
+    from ${target.fn("my_reminders_due")}(my_work.tenant) d
+    where ${target.fn("can_subject")}(d.subject_type, d.subject_id, 'read')`,
+      sql: `
+-- The caller's own reminders sent in the last week, for my_work. Reminders
+-- have no read policy, so this reads them past it, keeping only the caller's.
+create or replace function ${target.fn("my_reminders_due")}(tenant ${target.idType} default null)
+returns table (reminder uuid, subject_type text, subject_id text, at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select r.${own.col("reminders", "id")}, r.${own.col("reminders", "subjectType")}::text,
+    r.${own.col("reminders", "subjectId")}::text, max(d.${own.col("deliveries", "occurrenceAt")})
+  from ${own.table("reminders")} r
+  join ${own.table("deliveries")} d on d.${own.col("deliveries", "reminder")} = r.${own.col("reminders", "id")}
+  where r.${own.col("reminders", "user")} = (select auth.uid())
+    and (my_reminders_due.tenant is null or r.${own.col("reminders", "tenant")} = my_reminders_due.tenant)
+    and d.${own.col("deliveries", "sentAt")} > now() - interval '7 days'
+  group by 1, 2, 3
+$$;
+${userGrant(`${target.fn("my_reminders_due")}(${target.idType})`)}
+`,
+    },
+  ],
+};
+
 export const REMINDERS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "reminders",
   scopes: ["tenant"],
   title: "Reminders",

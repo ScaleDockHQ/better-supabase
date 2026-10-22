@@ -3,6 +3,7 @@ import type {
   BlockSqlContractFunction,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition, BlockSqlUpgrade } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -21,6 +22,7 @@ import { subjectCascades, subjectsOption } from "../subjects.ts";
 import { followersSql, watchSql } from "../watch-sql.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { messagingTableDdl } from "./messaging-tables.ts";
+import { myWorkTenant } from "./subjects.ts";
 
 const NAMES: BlockSqlNames = {
   options: ["follow", "mentionGroups", "notify"],
@@ -749,7 +751,51 @@ drop function if exists ${fn("comments_after_write")}();`;
   },
 };
 
+const CONTRIBUTES: BlockContributes = {
+  subjects: (own) => {
+    const messaging = own.of("messaging");
+
+    if (messaging.mode === "custom") {
+      return [];
+    }
+
+    const m = (column: string): string =>
+      `m.${messaging.col("messages", column)}`;
+
+    const c = (column: string): string =>
+      `c.${messaging.col("conversations", column)}`;
+
+    return [
+      {
+        summary: {
+          name: "comments",
+          from: `${messaging.table("messages")} x
+      join ${messaging.table("conversations")} c on c.${messaging.col("conversations", "id")} = x.${messaging.col("messages", "conversation")}
+        and c.${messaging.col("conversations", "kind")} = 'subject'`,
+          subjectType: `c.${messaging.col("conversations", "subjectType")}`,
+          subjectId: `c.${messaging.col("conversations", "subjectId")}`,
+          latest: `x.${messaging.col("messages", "sentAt")}`,
+          live: `x.${messaging.col("messages", "sentAt")} is not null and x.${messaging.col("messages", "deletedAt")} is null`,
+          readAt: `(select ${messaging.fn("conversation_read_at")}(c.${messaging.col("conversations", "id")}) from ${messaging.table("conversations")} c
+        where c.${messaging.col("conversations", "kind")} = 'subject'
+          and c.${messaging.col("conversations", "subjectType")} = record_summary.subject_type
+          and c.${messaging.col("conversations", "subjectId")} = record_summary.subject_id)`,
+        },
+        work: `select 'mention'::text, ${c("subjectType")}::text, ${c("subjectId")}::text, ${m("id")}::text, null::text,
+      ${m("sentAt")}
+    from ${messaging.table("messages")} m
+    join ${messaging.table("conversations")} c on ${c("id")} = ${m("conversation")} and ${c("kind")} = 'subject'
+    where v_me = any (${m("mentions")})
+      and ${m("deletedAt")} is null
+      and ${m("sentAt")} > now() - interval '30 days'
+      and ${myWorkTenant(m("tenant"))}`,
+      },
+    ];
+  },
+};
+
 export const COMMENTS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   internal: ["comment_message_readable", "comments_json", "comment_sent"],
   name: "comments",
   scopes: ["tenant"],

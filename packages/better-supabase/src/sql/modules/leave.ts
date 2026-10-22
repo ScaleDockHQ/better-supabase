@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -21,9 +22,11 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
-import { LEAVE_REQUEST_SUBJECT } from "./approvals.ts";
 import { leaveLedgerFunctions, leaveLedgerUpgrade } from "./leave-ledger.ts";
 import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
+
+/** Leave requests this block files with approvals. */
+const LEAVE_REQUEST_SUBJECT = "leave_request";
 
 const WHERE = "blocks.leave.options";
 
@@ -640,7 +643,19 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  approvals: (own) => [
+    {
+      subject: LEAVE_REQUEST_SUBJECT,
+      access: "declared",
+      approve: ({ subjectId }) =>
+        `perform ${own.fn("approve_leave_request")}(${subjectId}::uuid);`,
+    },
+  ],
+};
+
 export const LEAVE: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   internal: ["leave_available", "leave_post", "leave_posted"],
   name: "leave",
   scopes: ["tenant"],
