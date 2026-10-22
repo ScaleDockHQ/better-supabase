@@ -85,6 +85,11 @@ export interface WebhookEventData {
 export interface BillingEventData {
   readonly organizationId: string;
   readonly customerId?: string;
+  /**
+   * The tenant's Stripe Accounts v2 account (`acct_`), when it is billed as
+   * one.
+   */
+  readonly accountId?: string;
   readonly subscriptionId?: string;
   /** The Stripe subscription status. */
   readonly status?: string;

@@ -154,4 +154,34 @@ describe("billing module", () => {
       sql({ read: "billing.view", viewAll: "platform.billing" }),
     ).toContain("better_supabase.is_platform('platform.billing')");
   });
+
+  it("stores a Stripe Accounts v2 account and upgrades the table in place", () => {
+    const sql = billing();
+    const table = '"better_supabase"."billing_customers"';
+
+    expect(sql).toContain(
+      `"stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_')`,
+    );
+    expect(sql).toContain(
+      `alter table ${table} add column if not exists "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_');`,
+    );
+    expect(sql).toContain(
+      `alter table ${table} alter column "stripe_customer_id" drop not null;`,
+    );
+    expect(sql).toContain(
+      `add constraint bs_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);`,
+    );
+    expect(sql).toContain(
+      `on conflict ("organization_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"\n    where b."stripe_customer_id" is null;`,
+    );
+    expect(sql).toContain(
+      `or b."stripe_customer_account_id" = billing_customer_tenant.customer`,
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."link_billing_account"(uuid, text) to service_role;',
+    );
+    expect(sql).toContain(
+      'grant execute on function "better_supabase"."billing_account"(uuid) to authenticated, service_role;',
+    );
+  });
 });
