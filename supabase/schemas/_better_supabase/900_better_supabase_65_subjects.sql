@@ -14,7 +14,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{comment,company,person,deal,engagement,work_item,employee,product,product_variant,calendar_event,document,customer,drive_node,application,project,task}'::text[]
+  select '{comment,company,person,deal,engagement,work_item,employee,ledger_account,product,product_variant,calendar_event,document,customer,drive_node,application,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -42,6 +42,8 @@ begin
       return (select s."title"::text from "better_supabase"."work_items" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
       return (select s."name"::text from "better_supabase"."employees" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'ledger_account' then
+      return (select s."name"::text from "better_supabase"."ledger_accounts" s where s."id" = (subject_title.subject_id)::uuid);
     when 'product' then
       return (select s."title"::text from "better_supabase"."products" s where s."id" = (subject_title.subject_id)::uuid);
     when 'product_variant' then
@@ -168,6 +170,12 @@ begin
       'title', s."name"::text, 'url', '/people'))
     from "better_supabase"."employees" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'employee')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'ledger_account', 'id', s."id"::text,
+      'title', s."name"::text, 'url', null::text))
+    from "better_supabase"."ledger_accounts" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'ledger_account')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'product', 'id', s."id"::text,
@@ -312,6 +320,16 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'employees.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'employees.write'), false)
+          else true
+        end)
+      );
+    when 'ledger_account' then
+      return exists (
+        select 1 from "better_supabase"."ledger_accounts" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'ledger.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'ledger.manage'), false)
           else true
         end)
       );
@@ -546,6 +564,16 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'employees.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'employees.write'), false)
+          else false
+        end
+      );
+    when 'ledger_account' then
+      return exists (
+        select 1 from "better_supabase"."ledger_accounts" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'ledger.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'ledger.manage'), false)
           else false
         end
       );

@@ -1,4 +1,4 @@
--- better-supabase module: orders (0.9.0)
+-- better-supabase module: orders
 -- @bs-module orders@1 managed
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -1158,8 +1158,7 @@ begin
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
   perform "better_supabase"."release_reservation"(v_line.reservation);
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
-          insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
-          values (v_order.tenant, v_line.variant, v_line.location, -v_line.quantity, 'sale', 'order', v_order.id::text);
+          perform "better_supabase"."move_stock"(v_order.tenant, v_line.variant, v_line.location, -v_line.quantity, 'sale', 'order', v_order.id::text, null);
         exception when sqlstate '23514' then
           update "better_supabase"."order_lines" x set "backordered" = true where x."id" = v_line.id;
         end;
@@ -1632,8 +1631,7 @@ begin
     update "better_supabase"."order_lines" x set "quantity_returned" = x."quantity_returned" + v_line.quantity where x."id" = v_line.line;
     if receive_return.restock and v_line.variant is not null and coalesce(receive_return.location, v_line.location) is not null
       and exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = v_line.variant and cv."track_inventory") then
-      insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
-      values (v_order.tenant, v_line.variant, coalesce(receive_return.location, v_line.location), v_line.quantity, 'return', 'order_return', receive_return.return_id::text);
+      perform "better_supabase"."move_stock"(v_order.tenant, v_line.variant, coalesce(receive_return.location, v_line.location), v_line.quantity, 'return', 'order_return', receive_return.return_id::text, null);
     end if;
     v_units := v_units + v_line.quantity;
   end loop;
