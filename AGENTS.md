@@ -191,6 +191,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0072: a record merge moves every module's rows through handlers marked `better-supabase:subject-merge`.
 - 0073: admission passes carry a signed token; the database keeps the nonce and decides every scan.
 - 0074: billable time prices entries from a rate card; billed entries lock until the invoice is voided.
+- 0075: record presence, record mentions and saved items build on the subject registry.
 - 0076: one moderation item per subject; reviews and comments moderate through `moderation` (breaking).
 - 0077: `enrollments` tracks subjects through programs of steps; onboarding checklists run on it (breaking).
 - 0080: balances live only on the ledger; rent and pledges post once per period, keyed by owner and period start.

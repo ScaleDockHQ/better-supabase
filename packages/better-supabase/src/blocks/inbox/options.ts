@@ -9,6 +9,7 @@ export type InboxSqlOptions = {
   readonly maxBodyLength?: number;
   readonly botQueue?: unknown;
   readonly outboundQueue?: unknown;
+  readonly scheduleQueue?: unknown;
   readonly notify?: boolean;
 };
 
@@ -19,5 +20,6 @@ export const inboxSqlOptions: BlockOptionsSchema<InboxSqlOptions> =
     maxBodyLength: option.number({ default: 20_000 }),
     botQueue: option.unknown(),
     outboundQueue: option.unknown(),
+    scheduleQueue: option.unknown(),
     notify: option.boolean({ default: true }),
   });

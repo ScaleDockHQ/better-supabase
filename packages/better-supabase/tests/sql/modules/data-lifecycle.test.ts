@@ -88,7 +88,7 @@ describe("data-lifecycle module", () => {
         "audit",
         "profiles",
         "settings",
-        "comments",
+        "activity",
         "attachments",
         "api-keys",
         "usage",

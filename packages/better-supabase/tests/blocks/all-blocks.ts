@@ -1,5 +1,6 @@
 import type { accessRequestsBlock } from "../../src/blocks/access-requests/manifest.ts";
 import type { accessBlock } from "../../src/blocks/access/manifest.ts";
+import type { activityBlock } from "../../src/blocks/activity/manifest.ts";
 import type { actorBlock } from "../../src/blocks/actor/manifest.ts";
 import type { agentsBlock } from "../../src/blocks/agents/manifest.ts";
 import type { aiCacheBlock } from "../../src/blocks/ai-cache/manifest.ts";
@@ -19,6 +20,7 @@ import type { bookingsBlock } from "../../src/blocks/bookings/manifest.ts";
 import type { bulkBlock } from "../../src/blocks/bulk/manifest.ts";
 import type { calendarBlock } from "../../src/blocks/calendar/manifest.ts";
 import type { catalogBlock } from "../../src/blocks/catalog/manifest.ts";
+import type { channelsBlock } from "../../src/blocks/channels/manifest.ts";
 import type { collectionsBlock } from "../../src/blocks/collections/manifest.ts";
 import type { commentsBlock } from "../../src/blocks/comments/manifest.ts";
 import type { connectorsBlock } from "../../src/blocks/connectors/manifest.ts";
@@ -42,10 +44,7 @@ import type { ensureRlsBlock } from "../../src/blocks/ensure-rls/manifest.ts";
 import type { entitlementsBlock } from "../../src/blocks/entitlements/manifest.ts";
 import type { expensesBlock } from "../../src/blocks/expenses/manifest.ts";
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
-import type {
-  formsBlock,
-  signaturesBlock,
-} from "../../src/blocks/forms/manifest.ts";
+import type { formsBlock } from "../../src/blocks/forms/manifest.ts";
 import type { grantsBlock } from "../../src/blocks/grants/manifest.ts";
 import type { guestsBlock } from "../../src/blocks/guests/manifest.ts";
 import type { hiringBlock } from "../../src/blocks/hiring/manifest.ts";
@@ -67,6 +66,7 @@ import type { leasesBlock } from "../../src/blocks/leases/manifest.ts";
 import type { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import type { ledgerBlock } from "../../src/blocks/ledger/manifest.ts";
 import type { memoryBlock } from "../../src/blocks/memory/manifest.ts";
+import type { messagingBlock } from "../../src/blocks/messaging/manifest.ts";
 import type { metricsBlock } from "../../src/blocks/metrics/manifest.ts";
 import type { mfaBlock } from "../../src/blocks/mfa/manifest.ts";
 import type { moderationBlock } from "../../src/blocks/moderation/manifest.ts";
@@ -103,6 +103,7 @@ import type { settingsBlock } from "../../src/blocks/settings/manifest.ts";
 import type { shareLinksBlock } from "../../src/blocks/share-links/manifest.ts";
 import type { sharedSignalsBlock } from "../../src/blocks/shared-signals/manifest.ts";
 import type { shipmentsBlock } from "../../src/blocks/shipments/manifest.ts";
+import type { signaturesBlock } from "../../src/blocks/signatures/manifest.ts";
 import type { signingKeysBlock } from "../../src/blocks/signing-keys/manifest.ts";
 import type { slaBlock } from "../../src/blocks/sla/manifest.ts";
 import type { ssoBlock } from "../../src/blocks/sso/manifest.ts";
@@ -155,7 +156,9 @@ export type AllBlocks = {
   readonly calendar: typeof calendarBlock;
   readonly catalog: typeof catalogBlock;
   readonly collections: typeof collectionsBlock;
+  readonly channels: typeof channelsBlock;
   readonly comments: typeof commentsBlock;
+  readonly activity: typeof activityBlock;
   readonly connectors: typeof connectorsBlock;
   readonly credentials: typeof credentialsBlock;
   readonly customFields: typeof customFieldsBlock;
@@ -203,6 +206,7 @@ export type AllBlocks = {
   readonly moderation: typeof moderationBlock;
   readonly enrollments: typeof enrollmentsBlock;
   readonly memory: typeof memoryBlock;
+  readonly messaging: typeof messagingBlock;
   readonly metrics: typeof metricsBlock;
   readonly mfa: typeof mfaBlock;
   readonly notifications: typeof notificationsBlock;

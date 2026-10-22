@@ -37,7 +37,7 @@ import type { EngagementsSqlOptions } from "./engagements/options.ts";
 import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
 import type { ExpensesSqlOptions } from "./expenses/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
-import type { FormsSqlOptions, SignaturesSqlOptions } from "./forms/options.ts";
+import type { FormsSqlOptions } from "./forms/options.ts";
 import type { GrantsSqlOptions } from "./grants/options.ts";
 import type { HiringSqlOptions } from "./hiring/options.ts";
 import type { IdentitiesSqlOptions } from "./identities/options.ts";
@@ -54,6 +54,7 @@ import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
 import type { LeasesSqlOptions } from "./leases/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
+import type { MessagingSqlOptions } from "./messaging/options.ts";
 import type { MetricsSqlOptions } from "./metrics/options.ts";
 import type { ModerationSqlOptions } from "./moderation/options.ts";
 import type { NotificationsSqlOptions } from "./notifications/options.ts";
@@ -89,6 +90,7 @@ import type { SettingsSqlOptions } from "./settings/options.ts";
 import type { ShareLinksSqlOptions } from "./share-links/options.ts";
 import type { SharedSignalsSqlOptions } from "./shared-signals/options.ts";
 import type { ShipmentsSqlOptions } from "./shipments/options.ts";
+import type { SignaturesSqlOptions } from "./signatures/options.ts";
 import type { SigningKeysSqlOptions } from "./signing-keys/options.ts";
 import type { SlaSqlOptions } from "./sla/options.ts";
 import type { SsoSqlOptions } from "./sso/options.ts";
@@ -154,7 +156,7 @@ import { engagementsSqlOptions } from "./engagements/options.ts";
 import { enrollmentsSqlOptions } from "./enrollments/options.ts";
 import { expensesSqlOptions } from "./expenses/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
-import { formsSqlOptions, signaturesSqlOptions } from "./forms/options.ts";
+import { formsSqlOptions } from "./forms/options.ts";
 import { grantsSqlOptions } from "./grants/options.ts";
 import { hiringSqlOptions } from "./hiring/options.ts";
 import { identitiesSqlOptions } from "./identities/options.ts";
@@ -171,6 +173,7 @@ import { knowledgeSqlOptions } from "./knowledge/options.ts";
 import { leasesSqlOptions } from "./leases/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
+import { messagingSqlOptions } from "./messaging/options.ts";
 import { metricsSqlOptions } from "./metrics/options.ts";
 import { moderationSqlOptions } from "./moderation/options.ts";
 import { notificationsSqlOptions } from "./notifications/options.ts";
@@ -206,6 +209,7 @@ import { settingsSqlOptions } from "./settings/options.ts";
 import { shareLinksSqlOptions } from "./share-links/options.ts";
 import { sharedSignalsSqlOptions } from "./shared-signals/options.ts";
 import { shipmentsSqlOptions } from "./shipments/options.ts";
+import { signaturesSqlOptions } from "./signatures/options.ts";
 import { signingKeysSqlOptions } from "./signing-keys/options.ts";
 import { slaSqlOptions } from "./sla/options.ts";
 import { ssoSqlOptions } from "./sso/options.ts";
@@ -295,6 +299,9 @@ export interface BlockOptionsRegistry {
   readonly assets: AssetsSqlOptions;
   readonly guests: None;
   readonly memory: MemorySqlOptions;
+  readonly messaging: MessagingSqlOptions;
+  readonly channels: None;
+  readonly activity: None;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
   readonly notifications: NotificationsSqlOptions;
@@ -432,6 +439,9 @@ export const BLOCK_OPTION_SCHEMAS: {
   assets: assetsSqlOptions,
   guests: NO_OPTIONS,
   memory: memorySqlOptions,
+  channels: NO_OPTIONS,
+  activity: NO_OPTIONS,
+  messaging: messagingSqlOptions,
   metrics: metricsSqlOptions,
   mfa: NO_OPTIONS,
   notifications: notificationsSqlOptions,

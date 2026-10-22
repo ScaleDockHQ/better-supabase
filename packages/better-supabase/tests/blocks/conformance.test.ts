@@ -43,6 +43,8 @@ const NO_BLOCK_CALL: readonly string[] = [];
 const NO_FIELDS: readonly string[] = [
   // Role and catalog rows are the access model; the client reads permission keys.
   "access",
+  // Entries are written from the outbox by the activity sink; they record app events.
+  "activity",
   // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
   // Provider keys and batch jobs the block writes itself.
@@ -58,6 +60,11 @@ const NO_FIELDS: readonly string[] = [
   "billing",
   // Run records of the block's own bulk jobs.
   "bulk",
+  // A channel names a conversation; app data goes on its linked record or on messages.
+  "channels",
+  // Comments are messages, so app columns go on blocks.messaging.options.extraColumns;
+  // a comment task only links a message to a work item.
+  "comments",
   // The block is itself the app's extra fields.
   "custom-fields",
   // Export and deletion requests are the module's bookkeeping, not app records.

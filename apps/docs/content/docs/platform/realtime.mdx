@@ -578,6 +578,42 @@ collaborative editing, broadcast positions as a regular event; presence
 suits state that changes a few times a session, since every change reaches
 everyone.
 
+### Who has a record open
+
+With the [subjects](/docs/blocks/sql#subject-registry) module, every
+registered record has a presence topic, `presence:<type>:<id>`, and the
+module's policies let anyone who can read the record join it. You define no
+topic and write no policy: `subjectPresence` is the topic, and
+`subjectPresenceValues(subject)` turns a record into its values (`null` pauses
+the join).
+
+```tsx title="features/deals/components/deal-viewers.tsx"
+"use client";
+
+import { usePresence } from "better-supabase/react";
+import {
+  subjectPresence,
+  subjectPresenceValues,
+} from "better-supabase/realtime";
+
+export function DealViewers({ dealId, me }: Props) {
+  const { members } = usePresence(
+    subjectPresence,
+    subjectPresenceValues({ type: "deal", id: dealId }),
+    { state: { userId: me.id, name: me.name, avatarUrl: me.avatarUrl } },
+  );
+
+  return <AvatarStack people={members.map((member) => member.state)} />;
+}
+```
+
+A channel passes its `conversation` subject, a comment thread the record it
+belongs to, and a [document](/docs/blocks/documents) its own subject, so one
+helper covers all three. `subjectPresenceTopic(schema)` validates the
+tracked states. The states come from the clients: show them as hints and
+never decide access on them. A record id the subject's id type can't cast is
+refused, not an error.
+
 ## Chat and cursors
 
 The realtime chat and cursor blocks in the Supabase library join a public

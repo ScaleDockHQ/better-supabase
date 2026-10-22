@@ -244,7 +244,7 @@ export async function CustomerDetail({
             <CommentThread
               subject={{ type: "customer", id: customer.id }}
               authors={authors}
-              canComment={can(session, "comments.create")}
+              canComment={can(session, "messages.send")}
             />
           </CardContent>
         </Card>

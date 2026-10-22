@@ -521,6 +521,11 @@
       "types": "./dist/blocks/flags/index.d.ts",
       "default": "./dist/blocks/flags/index.js"
     },
+    "./blocks/activity": {
+      "@better-supabase/source": "./src/blocks/activity/index.ts",
+      "types": "./dist/blocks/activity/index.d.ts",
+      "default": "./dist/blocks/activity/index.js"
+    },
     "./blocks/comments": {
       "@better-supabase/source": "./src/blocks/comments/index.ts",
       "types": "./dist/blocks/comments/index.d.ts",
@@ -782,6 +787,16 @@
       "@better-supabase/source": "./src/blocks/memory/index.ts",
       "types": "./dist/blocks/memory/index.d.ts",
       "default": "./dist/blocks/memory/index.js"
+    },
+    "./blocks/channels": {
+      "@better-supabase/source": "./src/blocks/channels/index.ts",
+      "types": "./dist/blocks/channels/index.d.ts",
+      "default": "./dist/blocks/channels/index.js"
+    },
+    "./blocks/messaging": {
+      "@better-supabase/source": "./src/blocks/messaging/index.ts",
+      "types": "./dist/blocks/messaging/index.d.ts",
+      "default": "./dist/blocks/messaging/index.js"
     },
     "./blocks/agents": {
       "@better-supabase/source": "./src/blocks/agents/index.ts",
@@ -1201,6 +1216,11 @@
       "types": "./dist/blocks/drive/index.d.ts",
       "default": "./dist/blocks/drive/index.js"
     },
+    "./blocks/signatures": {
+      "@better-supabase/source": "./src/blocks/signatures/index.ts",
+      "types": "./dist/blocks/signatures/index.d.ts",
+      "default": "./dist/blocks/signatures/index.js"
+    },
     "./blocks/forms": {
       "@better-supabase/source": "./src/blocks/forms/index.ts",
       "types": "./dist/blocks/forms/index.d.ts",
@@ -1317,6 +1337,27 @@
       "@better-supabase/source": "./src/blocks/reactions/solid/index.ts",
       "types": "./dist/blocks/reactions/solid/index.d.ts",
       "default": "./dist/blocks/reactions/solid/index.js"
+    },
+    "./blocks/messaging/react": {
+      "@better-supabase/source": "./src/blocks/messaging/react/index.ts",
+      "types": "./dist/blocks/messaging/react/index.d.ts",
+      "react-server": "./dist/blocks/messaging/react/server.js",
+      "default": "./dist/blocks/messaging/react/index.js"
+    },
+    "./blocks/messaging/vue": {
+      "@better-supabase/source": "./src/blocks/messaging/vue/index.ts",
+      "types": "./dist/blocks/messaging/vue/index.d.ts",
+      "default": "./dist/blocks/messaging/vue/index.js"
+    },
+    "./blocks/messaging/svelte": {
+      "@better-supabase/source": "./src/blocks/messaging/svelte/index.ts",
+      "types": "./dist/blocks/messaging/svelte/index.d.ts",
+      "default": "./dist/blocks/messaging/svelte/index.js"
+    },
+    "./blocks/messaging/solid": {
+      "@better-supabase/source": "./src/blocks/messaging/solid/index.ts",
+      "types": "./dist/blocks/messaging/solid/index.d.ts",
+      "default": "./dist/blocks/messaging/solid/index.js"
     },
     "./blocks/comments/react": {
       "@better-supabase/source": "./src/blocks/comments/react/index.ts",
@@ -2051,6 +2092,10 @@
         "types": "./dist/blocks/flags/index.d.ts",
         "default": "./dist/blocks/flags/index.js"
       },
+      "./blocks/activity": {
+        "types": "./dist/blocks/activity/index.d.ts",
+        "default": "./dist/blocks/activity/index.js"
+      },
       "./blocks/comments": {
         "types": "./dist/blocks/comments/index.d.ts",
         "default": "./dist/blocks/comments/index.js"
@@ -2261,6 +2306,14 @@
       "./blocks/memory": {
         "types": "./dist/blocks/memory/index.d.ts",
         "default": "./dist/blocks/memory/index.js"
+      },
+      "./blocks/channels": {
+        "types": "./dist/blocks/channels/index.d.ts",
+        "default": "./dist/blocks/channels/index.js"
+      },
+      "./blocks/messaging": {
+        "types": "./dist/blocks/messaging/index.d.ts",
+        "default": "./dist/blocks/messaging/index.js"
       },
       "./blocks/agents": {
         "types": "./dist/blocks/agents/index.d.ts",
@@ -2598,6 +2651,10 @@
         "types": "./dist/blocks/drive/index.d.ts",
         "default": "./dist/blocks/drive/index.js"
       },
+      "./blocks/signatures": {
+        "types": "./dist/blocks/signatures/index.d.ts",
+        "default": "./dist/blocks/signatures/index.js"
+      },
       "./blocks/forms": {
         "types": "./dist/blocks/forms/index.d.ts",
         "default": "./dist/blocks/forms/index.js"
@@ -2691,6 +2748,23 @@
       "./blocks/reactions/solid": {
         "types": "./dist/blocks/reactions/solid/index.d.ts",
         "default": "./dist/blocks/reactions/solid/index.js"
+      },
+      "./blocks/messaging/react": {
+        "types": "./dist/blocks/messaging/react/index.d.ts",
+        "react-server": "./dist/blocks/messaging/react/server.js",
+        "default": "./dist/blocks/messaging/react/index.js"
+      },
+      "./blocks/messaging/vue": {
+        "types": "./dist/blocks/messaging/vue/index.d.ts",
+        "default": "./dist/blocks/messaging/vue/index.js"
+      },
+      "./blocks/messaging/svelte": {
+        "types": "./dist/blocks/messaging/svelte/index.d.ts",
+        "default": "./dist/blocks/messaging/svelte/index.js"
+      },
+      "./blocks/messaging/solid": {
+        "types": "./dist/blocks/messaging/solid/index.d.ts",
+        "default": "./dist/blocks/messaging/solid/index.js"
       },
       "./blocks/comments/react": {
         "types": "./dist/blocks/comments/react/index.d.ts",

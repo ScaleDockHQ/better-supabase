@@ -128,14 +128,17 @@ grant all on "better_supabase"."attachments" to service_role;
 -- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
 -- without a subject pass; with options.subjects, an unlisted type fails.
+-- plpgsql, so a subject table a later module creates (messages) binds late.
 create or replace function "better_supabase"."attachment_subject_readable"(subject_type text, subject_id text, tenant uuid)
 returns boolean
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select true
+begin
+  return true;
+end;
 $$;
 revoke execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) to authenticated, service_role;

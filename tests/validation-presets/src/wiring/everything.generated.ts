@@ -54,7 +54,7 @@ import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { flagsBlock } from "better-supabase/blocks/flags";
 import { formsBlock } from "better-supabase/blocks/forms";
-import { signaturesBlock } from "better-supabase/blocks/forms";
+import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { hiringBlock } from "better-supabase/blocks/hiring";
 import { identitiesBlock } from "better-supabase/blocks/identities";
 import { importsBlock } from "better-supabase/blocks/imports";
@@ -67,6 +67,9 @@ import { rateLimitBlock } from "better-supabase/blocks/jobs";
 import { webhookInboxBlock } from "better-supabase/blocks/jobs";
 import { knowledgeBlock } from "better-supabase/blocks/knowledge";
 import { memoryBlock } from "better-supabase/blocks/memory";
+import { messagingBlock } from "better-supabase/blocks/messaging";
+import { channelsBlock } from "better-supabase/blocks/channels";
+import { activityBlock } from "better-supabase/blocks/activity";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
@@ -181,6 +184,9 @@ export const blockSet = defineBlocks(blockConfig, {
   webhookInbox: webhookInboxBlock,
   knowledge: knowledgeBlock,
   memory: memoryBlock,
+  messaging: messagingBlock,
+  channels: channelsBlock,
+  activity: activityBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numberSequences: numberSequencesBlock,

@@ -156,19 +156,27 @@ const MAX_SUMMARY_SECTIONS = 20;
 
 interface SummarySection {
   readonly name: string;
-  readonly table: string;
+  /** The rows counted, aliased `x`, with their record in `type` and `id`. */
+  readonly from: string;
   readonly subjectType: string;
   readonly subjectId: string;
   /** The column whose newest value marks the section unread. */
   readonly latest: string;
   /** Extra conditions a counted row meets, such as not being deleted. */
   readonly live?: string;
+  /**
+   * When the caller last read the section, as a SQL expression; the `seen_at`
+   * argument is the fallback.
+   */
+  readonly readAt?: string;
 }
 
 /**
  * The sections `record_summary` counts: each installed managed module whose
  * rows the caller reads through policies. Taggings have no read policy (tags
- * are read through `subject_tags`), so tags aren't counted.
+ * are read through `subject_tags`), so tags aren't counted. Comments are the
+ * sent messages of the record's conversation, unread after the caller's read
+ * marker on it.
  */
 function summarySections(ctx: ModuleContext): readonly SummarySection[] {
   const of = (module: string): ModuleContext | undefined =>
@@ -176,20 +184,26 @@ function summarySections(ctx: ModuleContext): readonly SummarySection[] {
       ? ctx.of(module)
       : undefined;
 
-  const comments = of("comments");
+  const messaging = of("comments") === undefined ? undefined : of("messaging");
   const attachments = of("attachments");
 
   return [
-    ...(comments === undefined
+    ...(messaging === undefined
       ? []
       : [
           {
             name: "comments",
-            table: comments.table("comments"),
-            subjectType: comments.col("comments", "subjectType"),
-            subjectId: comments.col("comments", "subjectId"),
-            latest: comments.col("comments", "createdAt"),
-            live: `x.${comments.col("comments", "deletedAt")} is null`,
+            from: `${messaging.table("messages")} x
+      join ${messaging.table("conversations")} c on c.${messaging.col("conversations", "id")} = x.${messaging.col("messages", "conversation")}
+        and c.${messaging.col("conversations", "kind")} = 'subject'`,
+            subjectType: `c.${messaging.col("conversations", "subjectType")}`,
+            subjectId: `c.${messaging.col("conversations", "subjectId")}`,
+            latest: `x.${messaging.col("messages", "sentAt")}`,
+            live: `x.${messaging.col("messages", "sentAt")} is not null and x.${messaging.col("messages", "deletedAt")} is null`,
+            readAt: `(select ${messaging.fn("conversation_read_at")}(c.${messaging.col("conversations", "id")}) from ${messaging.table("conversations")} c
+        where c.${messaging.col("conversations", "kind")} = 'subject'
+          and c.${messaging.col("conversations", "subjectType")} = record_summary.subject_type
+          and c.${messaging.col("conversations", "subjectId")} = record_summary.subject_id)`,
           },
         ]),
     ...(attachments === undefined
@@ -197,10 +211,10 @@ function summarySections(ctx: ModuleContext): readonly SummarySection[] {
       : [
           {
             name: "attachments",
-            table: attachments.table("attachments"),
-            subjectType: attachments.col("attachments", "subjectType"),
-            subjectId: attachments.col("attachments", "subjectId"),
-            latest: attachments.col("attachments", "uploadedAt"),
+            from: `${attachments.table("attachments")} x`,
+            subjectType: `x.${attachments.col("attachments", "subjectType")}`,
+            subjectId: `x.${attachments.col("attachments", "subjectId")}`,
+            latest: `x.${attachments.col("attachments", "uploadedAt")}`,
             live: `x.${attachments.col("attachments", "uploadedAt")} is not null and x.${attachments.col("attachments", "status")} <> 'infected'`,
           },
         ]),
@@ -209,17 +223,23 @@ function summarySections(ctx: ModuleContext): readonly SummarySection[] {
 
 /** The `record_summary` step that counts one section. */
 function summaryBranch(section: SummarySection): string {
+  const seen =
+    section.readAt === undefined
+      ? "record_summary.seen_at"
+      : `coalesce(${section.readAt}, record_summary.seen_at)`;
+
   return `  if ${sqlString(section.name)} = any (record_summary.sections) then
-    select count(*), max(x.${section.latest})
+    select count(*), max(${section.latest})
       into v_count, v_latest
-      from ${section.table} x
-      where x.${section.subjectType}::text = record_summary.subject_type
-        and x.${section.subjectId}::text = record_summary.subject_id${
+      from ${section.from}
+      where ${section.subjectType}::text = record_summary.subject_type
+        and ${section.subjectId}::text = record_summary.subject_id${
           section.live === undefined ? "" : `\n        and ${section.live}`
         };
+    v_seen := ${seen};
     v_counts := v_counts || jsonb_build_object(${sqlString(section.name)}, v_count);
     v_unread := v_unread || jsonb_build_object(${sqlString(section.name)},
-      record_summary.seen_at is not null and v_latest is not null and v_latest > record_summary.seen_at);
+      v_seen is not null and v_latest is not null and v_latest > v_seen);
   end if;`;
 }
 
@@ -540,6 +560,7 @@ declare
   v_unread jsonb := '{}'::jsonb;
   v_count bigint;
   v_latest timestamptz;
+  v_seen timestamptz;
 begin
   if coalesce(cardinality(record_summary.sections), 0) > ${MAX_SUMMARY_SECTIONS} then
     raise exception 'record_summary takes at most ${MAX_SUMMARY_SECTIONS} sections'
@@ -595,7 +616,67 @@ exception
 end;
 $$;
 ${serviceGrant(`${fn("can_subject_for")}(uuid, text, text, text)`)}
-${myWork(ctx)}`;
+${myWork(ctx)}${presenceSql(ctx)}`;
+}
+
+/** The prefix of a subject's presence topic, `presence:<type>:<id>`. */
+const PRESENCE_TOPIC_PREFIX = "presence";
+
+/**
+ * Realtime presence on `presence:<type>:<id>`: who has a record open. A caller
+ * who can read the subject joins, tracks and sees the others there.
+ */
+function presenceSql(ctx: ModuleContext): string {
+  const fn = (name: string): string => ctx.fn(name);
+  const receive = ctx.trigger("subject_presence_receive");
+  const send = ctx.trigger("subject_presence_send");
+  const prefix = sqlString(`${PRESENCE_TOPIC_PREFIX}:`);
+
+  const check = `realtime.messages.extension = 'presence'
+        and (select realtime.topic()) like ${prefix} || '%'
+        and ${fn("subject_presence_allowed")}((select realtime.topic()))`;
+
+  return `
+-- Whether the caller may join presence topic \`topic\`
+-- (presence:<type>:<id>): they can read that subject.
+create or replace function ${fn("subject_presence_allowed")}(topic text)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_parts text[] := regexp_match(subject_presence_allowed.topic, '^${PRESENCE_TOPIC_PREFIX}:([a-z][a-z0-9_]{0,62}):([^:]{1,200})$');
+begin
+  if v_parts is null then
+    return false;
+  end if;
+  return coalesce(${fn("can_subject")}(v_parts[1], v_parts[2], 'read'), false);
+exception
+  when invalid_text_representation then
+    return false;
+end;
+$$;
+${userGrant(`${fn("subject_presence_allowed")}(text)`)}
+
+do $$
+begin
+  if to_regclass('realtime.messages') is not null then
+    drop policy if exists ${receive} on realtime.messages;
+    create policy ${receive} on realtime.messages for select to authenticated
+      using (
+        ${check}
+      );
+    drop policy if exists ${send} on realtime.messages;
+    create policy ${send} on realtime.messages for insert to authenticated
+      with check (
+        ${check}
+      );
+  end if;
+end;
+$$;
+`;
 }
 
 function contract(): readonly ModuleContractFunction[] {
@@ -616,6 +697,7 @@ function contract(): readonly ModuleContractFunction[] {
       returns: "boolean",
     },
     { name: "my_work", args: ["{id}", "integer"], returns: "jsonb" },
+    { name: "subject_presence_allowed", args: ["text"], returns: "boolean" },
   ];
 }
 
@@ -624,10 +706,11 @@ export const SUBJECTS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, and my_work across the installed blocks.",
+    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.",
   requires: ["access"],
   integrates: [
     "comments",
+    "messaging",
     "attachments",
     "work-items",
     "approvals",

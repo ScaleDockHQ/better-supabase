@@ -57,7 +57,10 @@ export type CommentsWrites = {
   readonly remove: SectionWrite<Comments, SectionRowInput, boolean>;
 };
 
-/** A record's comment thread, oldest first. */
+/**
+ * A record's comment thread, oldest first. The messaging events make it stale:
+ * a record conversation's messages carry `conversationKind: "subject"`.
+ */
 export const commentsSection: Section<
   Comments,
   readonly Comment[],
@@ -73,11 +76,17 @@ export const commentsSection: Section<
     comments.map((comment) => ({
       id: comment.id,
       kind: "comment",
-      at: comment.createdAt,
+      at: comment.sentAt,
       ...(comment.authorId === undefined ? {} : { actor: comment.authorId }),
       row: comment,
     })),
-  events: ["comment.created", "comment.deleted"],
+  events: [
+    "message.sent",
+    "message.edited",
+    "message.deleted",
+    "message.pinned",
+    "message.resolved",
+  ],
   optimistic: commentsOptimistic,
   writes: {
     add: {

@@ -85,15 +85,18 @@ grant all on "better_supabase"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
 -- published public storefront or in a catalog the caller reads, or a
--- registered subject in an organization the caller belongs to.
+-- registered subject in an organization the caller belongs to. plpgsql, so
+-- a subject table a later module creates (messages) binds late.
 create or replace function "better_supabase"."review_subject_readable"(tenant uuid, subject_type text, subject_id text)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select false
+begin
+  return false;
+end;
 $$;
 revoke execute on function "better_supabase"."review_subject_readable"(uuid, text, text) from public, anon, authenticated;
 
@@ -627,18 +630,21 @@ grant all on "better_supabase"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
 -- published public storefront or in a catalog the caller reads, or a
--- registered subject in an organization the caller belongs to.
+-- registered subject in an organization the caller belongs to. plpgsql, so
+-- a subject table a later module creates (messages) binds late.
 create or replace function "better_supabase"."review_subject_readable"(tenant uuid, subject_type text, subject_id text)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(case review_subject_readable.subject_type
+begin
+  return coalesce(case review_subject_readable.subject_type
     when 'product' then exists (select 1 from "better_supabase"."products" p where p."id"::text = review_subject_readable.subject_id and p."tenant_id" = review_subject_readable.tenant and p."status" = 'active' and (coalesce(better_supabase.can('tenant', review_subject_readable.tenant, 'catalog.read'), false)))
     else false
-  end, false)
+  end, false);
+end;
 $$;
 revoke execute on function "better_supabase"."review_subject_readable"(uuid, text, text) from public, anon, authenticated;
 
@@ -1263,15 +1269,18 @@ grant all on "app_private"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
 -- published public storefront or in a catalog the caller reads, or a
--- registered subject in an organization the caller belongs to.
+-- registered subject in an organization the caller belongs to. plpgsql, so
+-- a subject table a later module creates (messages) binds late.
 create or replace function "app_private"."review_subject_readable"(tenant uuid, subject_type text, subject_id text)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select false
+begin
+  return false;
+end;
 $$;
 revoke execute on function "app_private"."review_subject_readable"(uuid, text, text) from public, anon, authenticated;
 
@@ -1805,15 +1814,18 @@ grant all on "better_supabase"."review_stats" to service_role;
 
 -- Whether the caller may read and review a subject: an active product on a
 -- published public storefront or in a catalog the caller reads, or a
--- registered subject in an organization the caller belongs to.
+-- registered subject in an organization the caller belongs to. plpgsql, so
+-- a subject table a later module creates (messages) binds late.
 create or replace function "better_supabase"."review_subject_readable"(tenant uuid, subject_type text, subject_id text)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select false
+begin
+  return false;
+end;
 $$;
 revoke execute on function "better_supabase"."review_subject_readable"(uuid, text, text) from public, anon, authenticated;
 

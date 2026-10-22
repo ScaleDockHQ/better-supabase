@@ -46,6 +46,19 @@ export interface CollectionEntryEventData extends SubjectEventData {
   readonly collectionId: string;
 }
 
+/**
+ * `saved_item.reminded`: a record a member saved for later reached its reminder
+ * time.
+ */
+export interface SavedItemEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly savedItemId: string;
+  /** The member who saved it. */
+  readonly userId: string;
+  readonly note?: string;
+  readonly remindAt: string;
+}
+
 /** Events from the deals module. Amounts are minor units as text. */
 export interface DealEventData extends SubjectEventData {
   readonly organizationId: string;
@@ -183,3 +196,57 @@ export interface PipelineEventData {
 
 /** `pipeline.stage_changed`: the record that moved and its stages. */
 export type PipelineStageEventData = PipelineEventData & SubjectEventData;
+
+/** Events from the messaging module about a conversation. */
+export interface ConversationEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly conversationId: string;
+  /** `channel`, `dm`, `group_dm`, `subject` or `inbox`. */
+  readonly kind: string;
+  /** For `conversation.created` of a record conversation: the record. */
+  readonly recordType?: string | null;
+  readonly recordId?: string | null;
+  /** For `conversation.member_added` and `member_removed`. */
+  readonly userId?: string;
+}
+
+/** Events from the messaging module about a message. */
+export interface MessageEventData extends SubjectEventData {
+  readonly organizationId: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly authorId: string | null;
+  /** The thread's root message, null for a top-level message. */
+  readonly threadId: string | null;
+  /** The conversation's kind: `subject` for a record's comments. */
+  readonly conversationKind?: string;
+  /** The record a `subject` conversation discusses, null otherwise. */
+  readonly recordType?: string | null;
+  readonly recordId?: string | null;
+  /** For `message.sent`: the users it mentions. */
+  readonly mentionIds?: readonly string[];
+  /**
+   * For `message.sent`: the records it mentions
+   * (`@[Name](subject:<type>/<id>)`).
+   */
+  readonly recordMentions?: readonly {
+    readonly type: string;
+    readonly id: string;
+  }[];
+  /** For `message.pinned` and `message.resolved`: the new state. */
+  readonly pinned?: boolean;
+  readonly resolved?: boolean;
+}
+
+/** Events from the channels module. */
+export interface ChannelEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The channel's id, which is also its conversation's id. */
+  readonly channelId: string;
+  readonly name: string;
+  /** `public` or `private`. */
+  readonly visibility: string;
+  /** The record the channel is linked to. */
+  readonly recordType: string | null;
+  readonly recordId: string | null;
+}

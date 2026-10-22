@@ -454,4 +454,101 @@ describe.skipIf(!live)("collections", () => {
       await s.close();
     }
   });
+
+  it("saves records for later and reminds the member when due", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const rep = await s.user("rep");
+      const stranger = await s.user("stranger");
+      await s.client.query(MEMOS);
+      await s.install(MODULES, layout);
+      const org = await s.organization(owner, { member: rep });
+      await s.organization(stranger);
+      const transport = sqlTransport(s.sql);
+      const companies = createParties({ transport });
+      const sent: { key: unknown; recipients: unknown }[] = [];
+
+      const collections = createCollections({
+        transport,
+        notification: "saved_item.reminder",
+        notifier: {
+          send: (_type, input) => {
+            sent.push({ key: input.key, recipients: input.recipients });
+
+            return { ok: true };
+          },
+        },
+      });
+
+      await s.as(rep);
+      const acme = await companies.saveCompany(org, { name: "Acme" }).orThrow();
+      const company = { type: "company", id: acme.id };
+
+      expect(
+        hint(
+          await collections.saveForLater(org, company, {
+            remindAt: Temporal.Now.instant().subtract({ minutes: 1 }),
+          }),
+        ),
+      ).toBe("SAVED_ITEM_INVALID");
+      expect(
+        hint(
+          await collections.saveForLater(org, company, {
+            note: "x".repeat(1001),
+          }),
+        ),
+      ).toBe("SAVED_ITEM_INVALID");
+
+      const item = await collections
+        .saveForLater(org, company, {
+          note: "Call back",
+          remindAt: Temporal.Now.instant().add({ hours: 1 }),
+        })
+        .orThrow();
+
+      expect(item.note).toBe("Call back");
+      const page = await collections.saved(org).orThrow();
+      expect(page.items.map((saved) => saved.title)).toEqual(["Acme"]);
+
+      await s.as(owner);
+      expect((await collections.saved(org).orThrow()).items).toHaveLength(0);
+      expect(await collections.removeSaved(item.id).orThrow()).toBe(false);
+
+      await s.as(stranger);
+      expect(hint(await collections.saveForLater(org, company))).toBe(
+        "SAVED_ITEM_FORBIDDEN",
+      );
+
+      await s.as(rep);
+      expect(hint(await collections.remindDue())).toBe("SAVED_ITEM_FORBIDDEN");
+
+      await s.service();
+      await s.client.query(
+        "update better_supabase.saved_items set remind_at = now() - interval '1 minute' where id = $1",
+        [item.id],
+      );
+
+      const due = await collections.remindDue().orThrow();
+      expect(due.map((saved) => saved.id)).toEqual([item.id]);
+      expect(sent).toEqual([
+        { key: expect.stringContaining(item.id), recipients: [rep.id] },
+      ]);
+      expect(await collections.remindDue().orThrow()).toHaveLength(0);
+
+      await s.as(rep);
+      expect(await collections.completeSaved(item.id).orThrow()).toBe(true);
+      expect((await collections.saved(org).orThrow()).items).toHaveLength(0);
+      expect(
+        (await collections.saved(org, { completed: true }).orThrow()).items,
+      ).toHaveLength(1);
+
+      await collections.saveForLater(org, company).orThrow();
+      expect((await collections.saved(org).orThrow()).items).toHaveLength(1);
+      expect(await collections.removeSaved(item.id).orThrow()).toBe(true);
+    } finally {
+      await s.close();
+    }
+  });
 });

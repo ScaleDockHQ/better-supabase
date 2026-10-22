@@ -59,6 +59,8 @@ describe("expandPreset", () => {
         tenant: {},
         access: { model: "catalog", idType: "bigint" },
         comments: {},
+        subjects: {},
+        messaging: {},
       },
     });
   });

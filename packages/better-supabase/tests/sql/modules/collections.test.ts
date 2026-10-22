@@ -113,4 +113,19 @@ describe("collections module", () => {
     expect(sql).toContain("'{}'::text[]");
     expect(sql).not.toContain("_cascade");
   });
+
+  it("saves records for later and claims due reminders as the service role", () => {
+    const sql = sqlOf(["outbox"]);
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."saved_items"',
+    );
+    expect(sql).toContain("create policy saved_items_read");
+    expect(sql).toContain("SAVED_ITEM_SUBJECT_FORBIDDEN");
+    expect(sql).toContain("the reminder time must be in the future");
+    expect(sql).toContain("for update skip locked");
+    expect(sql).toContain("'saved_item.reminded'");
+    expect(sql).toContain(
+      `delete from "better_supabase"."saved_items" where "subject_type" = v_type`,
+    );
+  });
 });

@@ -307,6 +307,118 @@ describe.skipIf(!live)("inbox module", () => {
       await s.close();
     }
   });
+
+  it("schedules replies and wakes snoozed conversations through delayed jobs", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(MODULES);
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const viewer = await s.user("viewer");
+      const visitor = await s.user("visitor");
+      const org = await s.organization(owner, { member, viewer });
+      const inbox = createInbox({ transport: sqlTransport(s.sql) });
+      const later = Temporal.Now.instant().add({ hours: 1 });
+
+      await s.asRole(owner);
+
+      const widget = await inbox.inboxes
+        .create({ tenant: org, name: "Help", settings: { widget: true } })
+        .orThrow();
+
+      await s.asRole(visitor);
+
+      const opened = await inbox.conversations
+        .open(widget.id, { message: "Can someone call me back?" })
+        .orThrow();
+
+      await s.asRole(member);
+
+      const past = await inbox.messages.schedule(
+        opened.id,
+        { body: "Too late" },
+        Temporal.Now.instant().subtract({ minutes: 1 }),
+      );
+
+      expect(past.ok).toBe(false);
+
+      const scheduled = await inbox.messages
+        .schedule(opened.id, { body: "Calling you at nine." }, later)
+        .orThrow();
+
+      expect(scheduled).toMatchObject({
+        conversationId: opened.id,
+        authorId: member.id,
+        body: "Calling you at nine.",
+      });
+
+      const dropped = await inbox.messages
+        .schedule(opened.id, { body: "Never mind" }, later)
+        .orThrow();
+
+      await inbox.messages.cancelScheduled(dropped.id).orThrow();
+      expect(
+        (await inbox.messages.scheduled(opened.id).orThrow()).map(
+          (row) => row.id,
+        ),
+      ).toEqual([scheduled.id]);
+      await inbox.conversations.snooze(opened.id, later).orThrow();
+
+      await s.asRole(viewer);
+
+      const denied = await inbox.messages.schedule(
+        opened.id,
+        { body: "x" },
+        later,
+      );
+
+      expect(denied.ok ? undefined : denied.error.kind).toBe("forbidden");
+      expect(await inbox.messages.scheduled().orThrow()).toEqual([]);
+
+      const jobs = await claim(s, "inbox_schedule");
+      expect(jobs).toEqual([]);
+
+      const queued = await s.rows<{ type: string }>(
+        "select message -> 'payload' ->> 'type' as type from pgmq.q_inbox_schedule order by msg_id",
+      );
+
+      expect(queued.map((row) => row.type)).toEqual([
+        "inbox.publish",
+        "inbox.publish",
+        "inbox.wake",
+      ]);
+
+      await s.rows(
+        "update better_supabase.scheduled_inbox_messages set scheduled_for = now() - interval '1 minute'",
+      );
+      await s.rows(
+        "update better_supabase.inbox_conversations set snoozed_until = now() - interval '1 minute' where id = $1",
+        [opened.id],
+      );
+      expect(await inbox.publishDue().orThrow()).toBe(1);
+      expect(await inbox.wakeSnoozed().orThrow()).toBe(1);
+
+      await s.asRole(member);
+      const messages = await inbox.messages.list(opened.id).orThrow();
+      expect(messages.at(-1)).toMatchObject({
+        body: "Calling you at nine.",
+        authorId: member.id,
+        direction: "outbound",
+      });
+      expect(await inbox.messages.scheduled().orThrow()).toEqual([]);
+      expect((await inbox.conversations.get(opened.id).orThrow())?.status).toBe(
+        "open",
+      );
+      expect(
+        (await inbox.conversations.events(opened.id).orThrow()).map(
+          (event) => event.type,
+        ),
+      ).toContain("unsnoozed");
+    } finally {
+      await s.close();
+    }
+  });
 });
 
 describe.skipIf(!live)("chat-sdk-state module", () => {

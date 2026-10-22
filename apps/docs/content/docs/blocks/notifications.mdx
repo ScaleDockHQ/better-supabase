@@ -782,9 +782,10 @@ stay unpartitioned: they're referenced and leased by `id`. An existing table
 stays as it is, and `better-supabase doctor` reports it as BS335.
 
 SQL modules notify through the notifications module in the same
-transaction, not through this sink. The comments module already sends a
-notification for every mention (`comment.mentioned`), so don't map that
-event again.
+transaction, not through this sink. The messaging module already sends a
+notification for every mention (`message.mentioned`), and the comments
+module sends `comment.posted` to a record's followers, so don't map
+`message.sent` again.
 
 ### Watchers
 
@@ -804,7 +805,7 @@ await outbox.consume(
   watcherHandler(notifications, {
     types: {
       "status.changed": "deal.moved",
-      "comment.created": { type: "comment.new", activity: "comments" },
+      "subject.tagged": { type: "deal.tagged", activity: "tags" },
       "reminder.sent": {
         type: "reminder.due",
         recipients: (data) => [String(data["userId"])],
@@ -822,7 +823,7 @@ nothing twice. Events without a subject or a tenant, and types not in
 `relayRoute` consumer, and leaves out the actor each row records, so whoever
 tags, moves or shares a subject is not notified of it. `watcherSink` takes
 CloudEvents, which carry no actor, so it can only leave out an actor the
-event data names (`actorId`, or a comment's `authorId`). Use it when the
+event data names (`actorId`, or a message's `authorId`). Use it when the
 events come from a relay or a broker rather than from the outbox itself.
 
 ## Extending it

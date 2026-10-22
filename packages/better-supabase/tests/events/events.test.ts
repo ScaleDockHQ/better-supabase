@@ -317,6 +317,57 @@ describe("CloudEvents", () => {
     });
   });
 
+  it("rejects a request that isn't a CloudEvent", async () => {
+    const post = (contentType: string | undefined, body: string) =>
+      fromHttp(
+        new Request("http://x", {
+          method: "POST",
+          headers: {
+            ...(contentType ? { "content-type": contentType } : {}),
+            "ce-specversion": "1.0",
+          },
+          body,
+        }),
+      );
+
+    await expect(
+      post("application/cloudevents-batch+json", '[{"id":1}]'),
+    ).rejects.toThrow("Invalid CloudEvents batch");
+    await expect(
+      post("application/cloudevents-batch+json", "{}"),
+    ).rejects.toThrow("Invalid CloudEvents batch");
+    await expect(post("application/cloudevents+json", "null")).rejects.toThrow(
+      "Invalid CloudEvent",
+    );
+    await expect(post("text/plain", "hello")).rejects.toThrow(
+      "Request is not a CloudEvent",
+    );
+    await expect(post(undefined, "")).rejects.toThrow(
+      "Request is not a CloudEvent",
+    );
+  });
+
+  it("reads a binary event with text data", async () => {
+    const [event] = await fromHttp(
+      new Request("http://x", {
+        method: "POST",
+        headers: {
+          "content-type": "text/plain",
+          "ce-specversion": "1.0",
+          "ce-id": "1",
+          "ce-source": "/s",
+          "ce-type": "t",
+        },
+        body: "hello",
+      }),
+    );
+
+    expect(event).toMatchObject({
+      data: "hello",
+      datacontenttype: "text/plain",
+    });
+  });
+
   it("round-trips the HTTP binding in every mode", async () => {
     const event: CloudEvent = {
       specversion: "1.0",

@@ -640,9 +640,25 @@ describe.skipIf(!live)("block fields", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "comments"], extraColumns("comments"));
+      const table = `public.bs_fields_projects_${crypto.randomUUID().slice(0, 8)}`;
+      await s.rows(
+        `create table ${table} (id uuid primary key default gen_random_uuid(), organization_id uuid not null);
+         alter table ${table} enable row level security;
+         grant select on ${table} to authenticated;
+         create policy "read" on ${table} for select to authenticated using (true);`,
+      );
+      // Comments are messages, so their extra columns live on messaging.
+      await s.install(["organizations", "subjects", "messaging", "comments"], {
+        subjects: { project: { table } },
+        ...extraColumns("messaging"),
+      });
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
+      const [row] = await s.rows<{ id: string }>(
+        `insert into ${table} (organization_id) values ($1) returning id`,
+        [tenant],
+      );
 
       const comments = createComments({
         transport: sqlTransport(s.sql),
@@ -652,7 +668,7 @@ describe.skipIf(!live)("block fields", () => {
 
       await s.asRole(owner);
 
-      const project = { type: "project", id: "p1" };
+      const project = { type: "project", id: row!.id };
       const input = { body: "Looks good" };
 
       expect(

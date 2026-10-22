@@ -83,7 +83,7 @@ describe("reviews module", () => {
     expect(sql).not.toContain("when 'product'");
     expect(sql).toContain(`"better_supabase"."memberships" m`);
     expect(sql).toContain(`"public"."courses"`);
-    expect(sqlOf(["reviews"])).toContain("select false");
+    expect(sqlOf(["reviews"])).toContain("  return false;");
   });
 
   it("checks the rating against options.scale", () => {

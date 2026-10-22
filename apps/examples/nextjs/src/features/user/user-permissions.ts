@@ -29,8 +29,6 @@ export const PERMISSIONS = [
   "settings.update",
   "api_keys.manage",
   "api_keys.own",
-  "comments.create",
-  "comments.moderate",
   "tags.manage",
   "onboarding.complete",
   "workflow.read",
@@ -192,6 +190,11 @@ export const PERMISSIONS = [
   "courses.read",
   "courses.enroll",
   "courses.manage",
+  "messages.read",
+  "messages.send",
+  "messages.moderate",
+  "channels.create",
+  "channels.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -218,8 +221,6 @@ const grants = {
     "settings.update",
     "api_keys.manage",
     "api_keys.own",
-    "comments.create",
-    "comments.moderate",
     "tags.manage",
     "onboarding.complete",
     "workflow.read",
@@ -379,6 +380,11 @@ const grants = {
     "courses.read",
     "courses.enroll",
     "courses.manage",
+    "messages.read",
+    "messages.send",
+    "messages.moderate",
+    "channels.create",
+    "channels.manage",
   ],
   member: [
     "customers.read",
@@ -386,7 +392,6 @@ const grants = {
     "billing.read",
     "settings.read",
     "api_keys.own",
-    "comments.create",
     "workflow.read",
     "workflow.run",
     "inbox.read",
@@ -471,6 +476,9 @@ const grants = {
     "incidents.read",
     "incidents.write",
     "courses.read",
+    "messages.read",
+    "messages.send",
+    "channels.create",
   ],
 } satisfies Readonly<Record<Role, "*" | readonly Permission[]>>;
 

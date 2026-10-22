@@ -450,6 +450,39 @@
       }
     },
     {
+      "name": "chat",
+      "code": "16dMCXvqvcN6yNE2mYhotX1E7do",
+      "preset": {
+        "framework": "next",
+        "platforms": "web",
+        "casing": "snake",
+        "idType": "uuid",
+        "scope": "tenant",
+        "tenantName": "organization",
+        "access": "roles",
+        "api": "none",
+        "integrations": [],
+        "blocks": [
+          "audit",
+          "invitations",
+          "entitlements",
+          "organizations",
+          "profiles",
+          "outbox",
+          "notifications",
+          "api-keys",
+          "settings",
+          "billing",
+          "attachments",
+          "onboarding",
+          "teams",
+          "reactions",
+          "messaging",
+          "channels"
+        ]
+      }
+    },
+    {
       "name": "marketplace",
       "code": "1GaWcEeIZvY65EmTwCx81Mhc",
       "preset": {

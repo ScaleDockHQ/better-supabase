@@ -23,7 +23,7 @@ const answers = {
   set_inbox_team_member: true,
   upsert_contact: contactRow,
   start_conversation: conversationRow,
-  list_conversations: [conversationRow],
+  list_inbox_conversations: [conversationRow],
   get_conversation: null,
   assign_conversation: { ...conversationRow, assignee_id: "u1" },
   set_conversation_status: { ...conversationRow, status: "resolved" },
@@ -40,14 +40,53 @@ const answers = {
     },
   ],
   inbox_counts: { open: 3, mine: 1, unassigned: 2, unread: 1 },
-  send_message: {
+  send_inbox_message: {
     ...messageRow,
     delivery: { channel: "whatsapp", status: "sent", error: null },
   },
-  list_messages: [messageRow],
-  get_message: null,
-  edit_message: { ...messageRow, body: "edited", edited_at: AT },
-  react_to_message: { "👍": ["u1", "bot"] },
+  list_inbox_messages: [messageRow],
+  get_inbox_message: null,
+  edit_inbox_message: { ...messageRow, body: "edited", edited_at: AT },
+  react_to_inbox_message: [
+    { emoji: "👍", count: 2, reacted: false, actors: ["u1", "bot"] },
+  ],
+  create_inbox_attachment: {
+    id: "f2",
+    bucket: "attachments",
+    object_path: "org/conversation/c1/f2",
+  },
+  confirm_attachment: { id: "f2", status: "clean" },
+  pending_inbox_files: [
+    {
+      id: "f3",
+      tenant_id: "org",
+      conversation_id: "c1",
+      message_id: "m1",
+      bucket: "attachments",
+      object_path: "org/conversation/c1/f3",
+      name: "photo.jpg",
+      mime_type: null,
+      source: {
+        url: "https://cdn.test/photo.jpg",
+        path: "org/c1/photo.jpg",
+        bucket: "inbox-files",
+        name: "photo.jpg",
+        content_type: "image/jpeg",
+        size: 9,
+      },
+    },
+    {
+      id: "f4",
+      conversation_id: "c1",
+      message_id: "m1",
+      tenant_id: "org",
+      bucket: "attachments",
+      object_path: "p",
+      name: "x",
+      source: null,
+    },
+  ],
+  inbox_file_failed: true,
   record_delivery: null,
   set_delivery_status: 2,
   upsert_message_template: templateRow,
@@ -68,7 +107,7 @@ const answers = {
   purge_contact: {
     conversations: 2,
     messages: 5,
-    attachments: ["org/c1/photo.jpg", null],
+    attachments: [{ bucket: "inbox-files", path: "org/c1/photo.jpg" }, null],
   },
 };
 
@@ -177,7 +216,10 @@ describe("createInbox", () => {
       .send("c1", {
         body: "**hi**",
         format: "markdown",
-        attachments: [{ path: "a.png", contentType: "image/png", size: 1 }],
+        attachments: ["f2"],
+        files: [
+          { url: "https://cdn.test/a.png", contentType: "image/png", size: 1 },
+        ],
         mentions: ["u2"],
         authorType: "bot",
         deliveredByCaller: true,
@@ -196,11 +238,11 @@ describe("createInbox", () => {
       .orThrow();
 
     expect(message).toMatchObject({
-      attachments: [
-        { path: "org/c1/a.png", contentType: "image/png", size: 3 },
-      ],
-      reactions: { "👍": ["u1"] },
+      attachments: [{ id: "f1", mimeType: "image/png", status: "clean" }],
+      reactions: [{ emoji: "👍", count: 1, actors: ["u1"] }],
       externalId: "wamid.1",
+      authorId: undefined,
+      authorType: "contact",
     });
     expect(message?.delivery).toBeNull();
     expect(await inbox.messages.get("m1").orThrow()).toBeNull();
@@ -212,7 +254,43 @@ describe("createInbox", () => {
     await inbox.messages.remove("m1").orThrow();
     expect(
       await inbox.messages.react("m1", "👍", { actor: "bot" }).orThrow(),
-    ).toEqual({ "👍": ["u1", "bot"] });
+    ).toEqual([
+      { emoji: "👍", count: 2, reacted: false, actors: ["u1", "bot"] },
+    ]);
+    expect(
+      await inbox.messages
+        .createUpload("c1", { name: "a.png", mimeType: "image/png", size: 1 })
+        .orThrow(),
+    ).toEqual({
+      id: "f2",
+      bucket: "attachments",
+      path: "org/conversation/c1/f2",
+    });
+    await inbox.messages.confirmUpload("f2").orThrow();
+
+    const [pending, bare] = await inbox.files.pending(5).orThrow();
+
+    expect(pending).toEqual({
+      id: "f3",
+      conversationId: "c1",
+      messageId: "m1",
+      tenant: "org",
+      bucket: "attachments",
+      path: "org/conversation/c1/f3",
+      name: "photo.jpg",
+      mimeType: undefined,
+      source: {
+        url: "https://cdn.test/photo.jpg",
+        path: "org/c1/photo.jpg",
+        bucket: "inbox-files",
+        name: "photo.jpg",
+        contentType: "image/jpeg",
+        size: 9,
+      },
+    });
+    expect(bare?.source).toEqual({});
+    await inbox.files.stored("f3").orThrow();
+    await inbox.files.failed("f4", "404").orThrow();
 
     await inbox.deliveries
       .record({ messageId: "m1", channel: "whatsapp", externalId: "w1" })
@@ -267,7 +345,7 @@ describe("createInbox", () => {
     expect(await inbox.purgeContact("ct1").orThrow()).toEqual({
       conversations: 2,
       messages: 5,
-      attachments: ["org/c1/photo.jpg"],
+      attachments: [{ bucket: "inbox-files", path: "org/c1/photo.jpg" }],
     });
 
     for (const [schema] of call.mock.calls) {
@@ -286,5 +364,83 @@ describe("createInbox", () => {
 
   it("lists the channels", () => {
     expect(INBOX_CHANNELS).toContain("in_app");
+  });
+
+  it("schedules, lists, moves, cancels and publishes replies", async () => {
+    const scheduledRow = {
+      id: "s1",
+      tenant_id: "org",
+      conversation_id: "c1",
+      author_id: "u1",
+      input: {
+        body: "Back tomorrow",
+        format: "markdown",
+        attachments: ["f1"],
+        mentions: ["u2"],
+        reply_to: "m1",
+        metadata: { source: "composer" },
+      },
+      scheduled_for: AT,
+      created_at: AT,
+    };
+
+    const { transport, call } = fakeTransport({
+      schedule_inbox_message: scheduledRow,
+      list_scheduled_inbox_messages: [
+        scheduledRow,
+        { ...scheduledRow, id: "s2", input: { format: "html" } },
+      ],
+      reschedule_inbox_message: scheduledRow,
+      cancel_inbox_message: true,
+      publish_due_inbox_messages: 2,
+    });
+
+    const inbox = createInbox({ transport });
+    const at = Temporal.Instant.from(AT);
+
+    const scheduled = await inbox.messages
+      .schedule("c1", { body: "Back tomorrow", format: "markdown" }, at)
+      .orThrow();
+
+    expect(scheduled).toMatchObject({
+      id: "s1",
+      conversationId: "c1",
+      authorId: "u1",
+      body: "Back tomorrow",
+      format: "markdown",
+      attachments: ["f1"],
+      mentions: ["u2"],
+      replyTo: "m1",
+      metadata: { source: "composer" },
+    });
+    expect(scheduled.scheduledFor.toString()).toBe(AT);
+
+    const [, second] = await inbox.messages.scheduled().orThrow();
+    expect(second).toMatchObject({
+      id: "s2",
+      body: "",
+      format: null,
+      attachments: [],
+      replyTo: null,
+    });
+    await inbox.messages.scheduled("c1").orThrow();
+    await inbox.messages.reschedule("s1", at).orThrow();
+    await inbox.messages.cancelScheduled("s1").orThrow();
+    expect(await inbox.publishDue(5).orThrow()).toBe(2);
+    expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toEqual([
+      [
+        "schedule_inbox_message",
+        {
+          conversation: "c1",
+          input: { body: "Back tomorrow", format: "markdown" },
+          scheduled_for: AT,
+        },
+      ],
+      ["list_scheduled_inbox_messages", { conversation: null }],
+      ["list_scheduled_inbox_messages", { conversation: "c1" }],
+      ["reschedule_inbox_message", { scheduled: "s1", scheduled_for: AT }],
+      ["cancel_inbox_message", { scheduled: "s1" }],
+      ["publish_due_inbox_messages", { max_rows: 5 }],
+    ]);
   });
 });

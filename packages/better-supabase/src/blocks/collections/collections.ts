@@ -5,6 +5,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { Notifier } from "../ports.ts";
 import type { CursorPageOptions } from "../shared.ts";
 
 import {
@@ -15,10 +16,12 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { isDbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   blockCall,
+  instantArg,
   isRecord,
   oneOf,
   optionalInstant,
@@ -94,6 +97,48 @@ export interface Star {
   readonly starredAt: Temporal.Instant;
   readonly title?: string;
   readonly url?: string;
+}
+
+/**
+ * A record the caller saved for later, with its title and URL from
+ * `config.subjects`.
+ */
+export interface SavedItem {
+  readonly id: string;
+  readonly organizationId: string;
+  /** The member who saved it. */
+  readonly userId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+  readonly note?: string;
+  /** When to remind the member. */
+  readonly remindAt?: Temporal.Instant;
+  /** When `remindDue` sent the reminder. */
+  readonly remindedAt?: Temporal.Instant;
+  readonly completed: boolean;
+  readonly completedAt?: Temporal.Instant;
+  readonly createdAt: Temporal.Instant;
+  readonly title?: string;
+  readonly url?: string;
+}
+
+export interface SaveForLaterInput {
+  /** At most 1000 characters. */
+  readonly note?: string;
+  /** A future time to remind the member, sent by `remindDue`. */
+  readonly remindAt?: Temporal.Instant;
+}
+
+/** Where a page of saved items stops: the last item's save time and id. */
+export interface SavedItemCursor {
+  readonly createdAt: Temporal.Instant;
+  readonly id: string;
+}
+
+export interface SavedItemPage {
+  readonly items: readonly SavedItem[];
+  /** Pass as `cursor` for the next page; `undefined` on the last page. */
+  readonly next?: SavedItemCursor;
 }
 
 export interface CreateCollectionInput {
@@ -196,6 +241,36 @@ export interface Collections<F extends object = Record<never, never>> {
     subject: CollectionSubject,
     neighbors: RankNeighbors,
   ): AsyncResult<string>;
+  /**
+   * Saves a record for later. Saving it again replaces the note and reminder
+   * and reopens a completed item.
+   */
+  saveForLater(
+    organizationId: string,
+    subject: CollectionSubject,
+    input?: SaveForLaterInput,
+  ): AsyncResult<SavedItem>;
+  /** Marks a saved item done, or open again with `completed: false`. */
+  completeSaved(id: string, completed?: boolean): AsyncResult<boolean>;
+  /** Resolves to `false` when the caller has no such saved item. */
+  removeSaved(id: string): AsyncResult<boolean>;
+  /**
+   * A page of the caller's saved items, the newest first (default 50, at most
+   * 200): the open ones, or the completed ones with `completed: true`.
+   */
+  saved(
+    organizationId: string,
+    options?: CursorPageOptions<SavedItemCursor> & {
+      readonly completed?: boolean;
+    },
+  ): AsyncResult<SavedItemPage>;
+  /**
+   * Service role. Claims the open saved items whose reminder time has passed
+   * (default 100, at most 500), records `saved_item.reminded` for each and
+   * sends `notification` through `notifier` to the member who saved it. Each
+   * reminder is sent at most once.
+   */
+  remindDue(options?: { readonly limit?: number }): AsyncResult<SavedItem[]>;
 }
 
 export interface CollectionsOptions<
@@ -218,6 +293,13 @@ export interface CollectionsOptions<
   readonly hooks?: NoInfer<BlockHooks<Collections<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
+  /** The `notifier` port: the `notifications` block, from `createBlocks`. */
+  readonly notifier?: Notifier;
+  /**
+   * The notification type `remindDue` sends for a due saved item, about the
+   * saved record. Its data is `{ savedItemId, note }`.
+   */
+  readonly notification?: string;
 }
 
 const CREATE_KEYS: ReadonlySet<string> = new Set([
@@ -294,6 +376,38 @@ function starOf(value: unknown): Star {
   };
 }
 
+function savedItemOf(value: unknown): SavedItem {
+  const row = recordOf(value, "saved item");
+  const completedAt = optionalInstant(row["completedAt"]);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    userId: textOf(row["userId"]),
+    subjectType: textOf(row["subjectType"]),
+    subjectId: textOf(row["subjectId"]),
+    completed: completedAt !== undefined,
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...optional("note", optionalText(row["note"])),
+    ...optional("remindAt", optionalInstant(row["remindAt"])),
+    ...optional("remindedAt", optionalInstant(row["remindedAt"])),
+    ...optional("completedAt", completedAt),
+    ...optional("title", optionalText(row["title"])),
+    ...optional("url", optionalText(row["url"])),
+  };
+}
+
+function savedPage(
+  rows: readonly SavedItem[],
+  limit: number | undefined,
+): SavedItemPage {
+  const last = rows.at(-1);
+
+  return rows.length === (limit ?? 50) && last !== undefined
+    ? { items: rows, next: { createdAt: last.createdAt, id: last.id } }
+    : { items: rows };
+}
+
 function entryPage(
   rows: readonly CollectionEntry[],
   limit: number | undefined,
@@ -337,6 +451,34 @@ export function createCollections<
       { collection: id, max_ids: max ?? null },
       (value) => [...stringsOf(value)],
     );
+
+  const { notifier, notification } = options;
+
+  /** Sends the due reminders one by one; the first failed send fails the call. */
+  const notifyDue = (items: readonly SavedItem[]): AsyncResult<SavedItem[]> =>
+    AsyncResult.from(async () => {
+      if (notifier !== undefined && notification !== undefined) {
+        for (const item of items) {
+          const outcome: unknown = await notifier.send(notification, {
+            recipients: [item.userId],
+            tenant: item.organizationId,
+            key: `saved_item:${item.id}:${String(item.remindAt)}`,
+            subject: { type: item.subjectType, id: item.subjectId },
+            data: { savedItemId: item.id, note: item.note ?? null },
+          });
+
+          if (
+            isRecord(outcome) &&
+            outcome["ok"] === false &&
+            isDbError(outcome["error"])
+          ) {
+            return err(outcome["error"]);
+          }
+        }
+      }
+
+      return ok([...items]);
+    });
 
   const client: Collections<F> = {
     create: (organizationId, input) =>
@@ -474,6 +616,51 @@ export function createCollections<
         () => key.data,
       );
     },
+    saveForLater: (organizationId, subject, input = {}) =>
+      call(
+        "save_for_later",
+        {
+          tenant: organizationId,
+          subject_type: subject.type,
+          subject_id: subject.id,
+          note: input.note ?? null,
+          remind_at: instantArg(input.remindAt) ?? null,
+        },
+        savedItemOf,
+      ),
+    completeSaved: (id, completed = true) =>
+      call(
+        "complete_saved_item",
+        { item: id, completed },
+        (value) => value === true,
+      ),
+    removeSaved: (id) =>
+      call("remove_saved_item", { item: id }, (value) => value === true),
+    saved: (organizationId, savedOptions = {}) => {
+      const { limit, cursor } = pageOf(savedOptions);
+
+      return call(
+        "list_saved_items",
+        {
+          tenant: organizationId,
+          completed: savedOptions.completed ?? false,
+          before: instantArg(cursor?.createdAt) ?? null,
+          before_id: cursor?.id ?? null,
+          max_rows: limit ?? null,
+        },
+        (value) =>
+          savedPage(
+            recordsOf(value, "list_saved_items").map(savedItemOf),
+            limit,
+          ),
+      );
+    },
+    remindDue: (dueOptions = {}) =>
+      call(
+        "remind_due_saved_items",
+        { max_rows: dueOptions.limit ?? null },
+        (value) => recordsOf(value, "remind_due_saved_items").map(savedItemOf),
+      ).andThen(notifyDue),
   };
 
   return withBlockHooks(client, options.hooks, {

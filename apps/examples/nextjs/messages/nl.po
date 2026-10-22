@@ -107,6 +107,16 @@ msgctxt "courses.VtDU2z"
 msgid "Take the courses your organization publishes."
 msgstr "Volg de cursussen die je organisatie publiceert."
 
+#: src/app/[locale]/(app)/chat/page.tsx
+msgctxt "chat.WTrOy3"
+msgid "Chat"
+msgstr "Chat"
+
+#: src/app/[locale]/(app)/chat/page.tsx
+msgctxt "chat.CFR1hG"
+msgid "Channels for your team, with threads, mentions and files, kept live over Realtime."
+msgstr "Kanalen voor je team, met threads, vermeldingen en bestanden, live bijgewerkt via Realtime."
+
 #: src/app/[locale]/(app)/crm/contacts/[id]/page.tsx
 #: src/features/crm/components/contact-detail.tsx
 msgctxt "crm.IUQwPp"
@@ -2983,6 +2993,285 @@ msgstr "Maandag tot en met vrijdag, in je eigen tijdzone. Beschikbaarheid en tij
 msgctxt "calendar.jvo0vs"
 msgid "Save"
 msgstr "Opslaan"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.LUrJwE"
+msgid "Channels"
+msgstr "Kanalen"
+
+#: src/features/chat/components/channel-sidebar.tsx
+#: src/features/chat/components/message-list.tsx
+#: src/features/chat/components/thread-panel.tsx
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.ZQ3u01"
+msgid "Loading channels"
+msgstr "Kanalen laden"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.tTtG9x"
+msgid "No channels yet"
+msgstr "Nog geen kanalen"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.giNTcA"
+msgid "Create one, or browse the channels others made."
+msgstr "Maak er een, of blader door de kanalen van anderen."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.FHrxIZ"
+msgid "Browse channels"
+msgstr "Kanalen bekijken"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.nU1Blb"
+msgid "Every public channel, and the private ones you are in."
+msgstr "Elk openbaar kanaal, en de privékanalen waar je in zit."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.K1gPE8"
+msgid "No channels to join"
+msgstr "Geen kanalen om lid van te worden"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.DJh2pj"
+msgid "Close this and create the first one."
+msgstr "Sluit dit en maak het eerste kanaal."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.otTBkE"
+msgid "{count, plural, one {# member} other {# members}}"
+msgstr "{count, plural, one {# lid} other {# leden}}"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.JfG49w"
+msgid "Open"
+msgstr "Openen"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.P6PLpi"
+msgid "Join"
+msgstr "Deelnemen"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.fuDLDJ"
+msgid "Create a channel"
+msgstr "Kanaal maken"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.RKBape"
+msgid "A place for one team, project or topic."
+msgstr "Een plek voor één team, project of onderwerp."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.zFz4EZ"
+msgid "Lowercase letters, digits, - and _."
+msgstr "Kleine letters, cijfers, - en _."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.UdtpV7"
+msgid "Topic"
+msgstr "Onderwerp"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.2FW4am"
+msgid "Private: only the people you add see it"
+msgstr "Privé: alleen de mensen die je toevoegt zien het"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.VzzYJk"
+msgid "Create"
+msgstr "Maken"
+
+#: src/features/chat/components/chat-view.tsx
+msgctxt "chat.PpF3UH"
+msgid "Pick a channel"
+msgstr "Kies een kanaal"
+
+#: src/features/chat/components/chat-view.tsx
+msgctxt "chat.zs1bwT"
+msgid "Choose one on the left, or create a new one with +."
+msgstr "Kies er links een, of maak een nieuw kanaal met +."
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.3JmHTA"
+msgid "{name} did not upload. Try again."
+msgstr "{name} is niet geüpload. Probeer het opnieuw."
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.T7Ry38"
+msgid "Message"
+msgstr "Bericht"
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.T0e6Lh"
+msgid "Remove {name}"
+msgstr "{name} verwijderen"
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.8d3exg"
+msgid "Attach files"
+msgstr "Bestanden bijvoegen"
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.8JqG5l"
+msgid "Drop or paste files to attach them."
+msgstr "Sleep of plak bestanden om ze bij te voegen."
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.9WRlF4"
+msgid "Send"
+msgstr "Versturen"
+
+#: src/features/chat/components/message-item.tsx
+#: src/features/chat/components/presence-avatars.tsx
+msgctxt "chat.XDWEZM"
+msgid "Someone"
+msgstr "Iemand"
+
+#: src/features/chat/components/message-item.tsx
+msgctxt "chat.Zx1w1e"
+msgid "edited"
+msgstr "bewerkt"
+
+#: src/features/chat/components/message-item.tsx
+msgctxt "chat.NeaJFD"
+msgid "This message was deleted."
+msgstr "Dit bericht is verwijderd."
+
+#: src/features/chat/components/message-item.tsx
+msgctxt "chat.SPsY9a"
+msgid "{count, plural, one {# reply} other {# replies}}"
+msgstr "{count, plural, one {# reactie} other {# reacties}}"
+
+#: src/features/chat/components/message-item.tsx
+msgctxt "chat.Wi833r"
+msgid "Reply in thread"
+msgstr "Reageren in thread"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.6mYHLB"
+msgid "Loading messages"
+msgstr "Berichten laden"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.zu9kMq"
+msgid "No messages yet"
+msgstr "Nog geen berichten"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.bMU3Sg"
+msgid "Say hello to start the conversation."
+msgstr "Zeg hallo om het gesprek te beginnen."
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.gA50sn"
+msgid "Write a message"
+msgstr "Bericht schrijven"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.Jb8lBw"
+msgid "Load older messages"
+msgstr "Oudere berichten laden"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.ZzCfh0"
+msgid "{count, plural, one {Someone is typing} other {# people are typing}}"
+msgstr "{count, plural, one {Iemand is aan het typen} other {# mensen zijn aan het typen}}"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.jQ74Cd"
+msgid "Message #{name}"
+msgstr "Bericht aan #{name}"
+
+#: src/features/chat/components/presence-avatars.tsx
+msgctxt "chat.ECg3v5"
+msgid "{count, plural, one {# other viewer} other {# other viewers}}"
+msgstr "{count, plural, one {# andere kijker} other {# andere kijkers}}"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.6dmn4m"
+msgid "Thread"
+msgstr "Thread"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.1IcOZT"
+msgid "Close the thread"
+msgstr "Thread sluiten"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.ioWtYk"
+msgid "Loading the thread"
+msgstr "Thread laden"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.rrg2At"
+msgid "No replies yet"
+msgstr "Nog geen reacties"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.U6sE7j"
+msgid "Replies stay here, out of the channel."
+msgstr "Reacties blijven hier, buiten het kanaal."
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.9HU8vw"
+msgid "Reply"
+msgstr "Reageren"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.QXhiaM"
+msgid "Reply in the thread"
+msgstr "Reageren in de thread"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.RrCui3"
+msgid "Summary"
+msgstr "Samenvatting"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.SJDV5W"
+msgid "Summarize again"
+msgstr "Opnieuw samenvatten"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.3GDhyi"
+msgid "Summarizing the thread"
+msgstr "Thread samenvatten"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.a3jzLr"
+msgid "{count, plural, one {# message} other {# messages}}"
+msgstr "{count, plural, one {# bericht} other {# berichten}}"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.osuyeD"
+msgid "Out of date"
+msgstr "Verouderd"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat._0i3Qv"
+msgid "Catch up on this thread without reading every reply."
+msgstr "Lees bij zonder elk antwoord te lezen."
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.IQWhFZ"
+msgid "Summarize"
+msgstr "Samenvatten"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
@@ -6313,6 +6602,11 @@ msgid "Import another file"
 msgstr "Nog een bestand importeren"
 
 #: src/features/inbox/components/composer.tsx
+msgctxt "inbox.X4M1tJ"
+msgid "Reply scheduled"
+msgstr "Antwoord ingepland"
+
+#: src/features/inbox/components/composer.tsx
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.qMePPG"
 msgid "Note"
@@ -6337,6 +6631,11 @@ msgstr "Schrijf een antwoord"
 msgctxt "inbox.0kc5kM"
 msgid "Internal note"
 msgstr "Interne notitie"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.7tFha1"
+msgid "Send later"
+msgstr "Later versturen"
 
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.KgAlAZ"
@@ -6384,6 +6683,11 @@ msgid "Open"
 msgstr "Open"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.9OHSlH"
+msgid "Snoozed until {time}"
+msgstr "Gesnoozed tot {time}"
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.Vja_gq"
 msgid "Bot answers"
 msgstr "Bot antwoordt"
@@ -6407,6 +6711,11 @@ msgstr "Aan mij toewijzen"
 msgctxt "inbox.vpzvF9"
 msgid "Take over from the bot"
 msgstr "Overnemen van de bot"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.9qc7BX"
+msgid "Snooze"
+msgstr "Snoozen"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.8ujEro"
@@ -6532,6 +6841,46 @@ msgstr "Open Help in de kop om er als klant een te beginnen."
 msgctxt "inbox.bW7B87"
 msgid "New"
 msgstr "Nieuw"
+
+#: src/features/inbox/components/later-items.tsx
+msgctxt "inbox._qJpQY"
+msgid "In 1 hour"
+msgstr "Over 1 uur"
+
+#: src/features/inbox/components/later-items.tsx
+msgctxt "inbox.MtrTNy"
+msgid "Tomorrow"
+msgstr "Morgen"
+
+#: src/features/inbox/components/later-items.tsx
+msgctxt "inbox.iMjjOH"
+msgid "Next week"
+msgstr "Volgende week"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.TMrzNl"
+msgid "The scheduled replies didn't load"
+msgstr "De ingeplande antwoorden zijn niet geladen"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.yGEFsz"
+msgid "Scheduled replies"
+msgstr "Ingeplande antwoorden"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.pC2KQV"
+msgid "Cancel scheduled reply"
+msgstr "Ingepland antwoord annuleren"
 
 #: src/features/jobs/components/job-run-controls.tsx
 msgctxt "jobs.IJu8c2"
@@ -6969,6 +7318,11 @@ msgstr "Workflowbouwer"
 msgctxt "navigation.VCMKbt"
 msgid "Inbox"
 msgstr "Inbox"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.WTrOy3"
+msgid "Chat"
+msgstr "Chat"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.wSAvhu"

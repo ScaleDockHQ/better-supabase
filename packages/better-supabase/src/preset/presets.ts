@@ -56,6 +56,7 @@ export type PresetName =
   | "crm"
   | "projects"
   | "helpdesk"
+  | "chat"
   | "commerce"
   | "marketplace"
   | "scheduling"
@@ -110,15 +111,19 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "crm",
     title: "CRM",
     description:
-      "SaaS plus parties, pipelines and engagements, with tags, comments, custom fields, saved views and search.",
+      "SaaS plus parties, pipelines, deals, quotes, sales targets and engagements, with tags, comments, an activity feed, custom fields, saved views and search.",
     group: "products",
     blocks: [
       ...SAAS,
       "parties",
       "pipelines",
+      "deals",
+      "quotes",
+      "targets",
       "engagements",
       "tags",
       "comments",
+      "activity",
       "custom-fields",
       "saved-views",
       "search",
@@ -128,12 +133,13 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "projects",
     title: "Projects",
     description:
-      "SaaS plus tags, comments, attachments, a state machine, ranked ordering, reminders and time tracking.",
+      "SaaS plus tags, comments, an activity feed, attachments, a state machine, ranked ordering, reminders and time tracking.",
     group: "products",
     blocks: [
       ...SAAS,
       "tags",
       "comments",
+      "activity",
       "attachments",
       "state-machine",
       "rank",
@@ -145,7 +151,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "helpdesk",
     title: "Help desk",
     description:
-      "SaaS plus a shared inbox, work items with SLAs, comments, attachments, tags, saved views, a knowledge base and search.",
+      "SaaS plus a shared inbox, work items with SLAs, comments, an activity feed, attachments, tags, saved views, a knowledge base and search.",
     group: "products",
     blocks: [
       ...SAAS,
@@ -153,12 +159,21 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "work-items",
       "sla",
       "comments",
+      "activity",
       "attachments",
       "tags",
       "saved-views",
       "knowledge",
       "search",
     ],
+  },
+  chat: {
+    name: "chat",
+    title: "Team chat",
+    description:
+      "SaaS plus channels, direct messages, threads, mentions, reactions and files, kept live over Realtime.",
+    group: "products",
+    blocks: [...SAAS, "messaging", "channels", "reactions", "attachments"],
   },
   commerce: {
     name: "commerce",
@@ -235,6 +250,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "documents",
       "versions",
       "comments",
+      "activity",
       "reactions",
       "templates",
       "search",
@@ -377,6 +393,7 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "crm",
   "projects",
   "helpdesk",
+  "chat",
   "commerce",
   "marketplace",
   "scheduling",

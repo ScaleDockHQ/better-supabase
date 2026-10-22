@@ -92,13 +92,6 @@ const CASES = [
     read: "my_invitations",
   },
   {
-    module: "comments",
-    needs: [],
-    table: "comments",
-    write: "edit_comment.fields",
-    read: "list_comments",
-  },
-  {
     module: "connectors",
     needs: [],
     table: "connector_servers",

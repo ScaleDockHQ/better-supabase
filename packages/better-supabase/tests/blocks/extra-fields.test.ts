@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 
-import { createSignatures } from "../../src/blocks/forms/index.ts";
 import { createWebhookInbox } from "../../src/blocks/jobs/index.ts";
 import { createShareLinks } from "../../src/blocks/share-links/index.ts";
+import { createSignatures } from "../../src/blocks/signatures/index.ts";
 import { createSla } from "../../src/blocks/sla/index.ts";
 import { createSso } from "../../src/blocks/sso/index.ts";
 import { createStateMachine } from "../../src/blocks/state-machine/index.ts";

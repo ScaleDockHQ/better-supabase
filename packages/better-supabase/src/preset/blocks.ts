@@ -134,4 +134,7 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "controls",
   "incidents",
   "courses",
+  "messaging",
+  "channels",
+  "activity",
 ];

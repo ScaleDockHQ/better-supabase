@@ -2,6 +2,18 @@ export { defineTopic, rowChange, rowKeys } from "./topic.ts";
 
 export { topicPort, watchTopic } from "./watch-topic.ts";
 
+export {
+  SUBJECT_PRESENCE_TEMPLATE,
+  subjectPresence,
+  subjectPresenceTopic,
+  subjectPresenceValues,
+} from "./subject-presence.ts";
+
+export type {
+  SubjectPresenceTopic,
+  SubjectPresenceValues,
+} from "./subject-presence.ts";
+
 export type { TopicHandle, TopicPort, TopicWatch } from "./watch-topic.ts";
 
 export type {

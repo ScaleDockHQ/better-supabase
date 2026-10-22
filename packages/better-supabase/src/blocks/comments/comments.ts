@@ -1,53 +1,36 @@
-import type { Author } from "../../core/block-authors.ts";
-import type {
-  BlockFields,
-  ExtraFields,
-  FieldsOf,
-} from "../../core/block-fields.ts";
+import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
-import type { BetterSupabase } from "../../core/define.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { CloudEvent, EventSink } from "../../events/index.ts";
-import type { ListDefinition, ListQueryConfig } from "../../list/list-query.ts";
+import type { SubjectRef } from "../../schema/types.ts";
 import type {
-  AnyFunctions,
-  AnyModels,
-  SubjectRef,
-  TableKey,
-  TableMeta,
-} from "../../schema/types.ts";
+  Message,
+  MessageEdit,
+  MessageEdition,
+} from "../messaging/messaging.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 
-import { authorOf } from "../../core/block-authors.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import {
-  bySubjectType,
-  optionalSubjectRefOf,
-  subjectRefOf,
-} from "../../core/block-subjects.ts";
+import { bySubjectType, subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
-import { stripTypePrefix } from "../../events/cloud-event.ts";
-import { defineListQuery } from "../../list/list-query.ts";
+import { parseMentions } from "../messaging/mentions.ts";
+import { editOf, messageOf } from "../messaging/rows.ts";
 import {
+  applyTemporal,
   blockCall,
   instantArg,
   isRecord,
-  optionalInstant,
   optionalText,
+  pageOf,
   recordOf,
   recordsOf,
-  stringsOf,
-  textOf,
-  toInstant,
-  applyTemporal,
-  pageOf,
+  requiredInstant,
 } from "../shared.ts";
 
 export interface CommentsOptions<
@@ -55,8 +38,8 @@ export interface CommentsOptions<
 >
   extends BlockTemporalOptions, BlockTenantOptions {
   /**
-   * A Standard Schema for the comment's extra columns
-   * (`blocks.comments.options.extraColumns`), keyed by database name. It types
+   * A Standard Schema for the message extra columns
+   * (`blocks.messaging.options.extraColumns`), keyed by database name. It types
    * and parses them on reads, and validates them on `create` and `edit`.
    */
   readonly fields?: S;
@@ -72,8 +55,9 @@ export interface CommentsOptions<
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
   /**
-   * The user ids a comment mentions when the call passes no `mentions`, such as
-   * the mention nodes of a rich-text `document`. Default `mentionsIn(body)`.
+   * The user ids (or mention groups) a comment mentions when the call passes no
+   * `mentionIds`, such as the mention nodes of a rich-text `document`. Default
+   * `mentionsIn(body)`.
    */
   readonly mentionsOf?: (comment: {
     readonly body: string;
@@ -81,104 +65,64 @@ export interface CommentsOptions<
   }) => readonly string[];
 }
 
-/** A comment. `F` types the extra columns the `fields` schema describes. */
-export interface Comment<F extends object = Record<never, never>> {
-  readonly id: string;
-  readonly organizationId: string;
+/**
+ * A comment: a message in its record's conversation. `F` types the extra
+ * columns the `fields` schema describes.
+ */
+export interface Comment<
+  F extends object = Record<never, never>,
+> extends Message<F> {
+  /** The record the comment is on. */
   readonly subject: SubjectRef;
-  /** `undefined` once the author's account is deleted. */
-  readonly authorId: string | undefined;
-  /**
-   * The author's name and avatar from `profiles`; `undefined` without the
-   * `profiles` module or once the account is deleted.
-   */
-  readonly author: Author | undefined;
-  /** Empty for a deleted comment. */
-  readonly body: string;
-  /** The rich-text document an editor wrote, next to `body` as its plain text. */
-  readonly document: unknown;
-  readonly mentions: readonly string[];
-  readonly parentId: string | undefined;
-  readonly createdAt: Temporal.Instant;
-  readonly editedAt: Temporal.Instant | undefined;
-  readonly deletedAt: Temporal.Instant | undefined;
-  /** The extra columns, keyed by database name. */
-  readonly fields: ExtraFields<F>;
+  /** The work item `assign` turned it into, with the `work-items` block. */
+  readonly taskId: string | undefined;
 }
 
 export interface NewComment<F extends object = Record<never, never>> {
+  /** Plain text; `@[Name](<user id>)` mentions a user. */
   readonly body: string;
   /** A rich-text document (any JSON); keep `body` as its plain text. */
   readonly document?: unknown;
-  /** User ids; default `mentionsOf`, or the ids `mentionsIn(body)` finds. */
-  readonly mentions?: readonly string[];
-  /** A reply: the parent must be on the same subject. */
+  /**
+   * Where on the record the comment points, such as a text range or a field
+   * (any JSON). Top-level comments only.
+   */
+  readonly anchor?: unknown;
+  /**
+   * User ids or mention groups (`options.mentionGroups`); default `mentionsOf`,
+   * or the ids `mentionsIn(body)` finds.
+   */
+  readonly mentionIds?: readonly string[];
+  /** A reply: with one level of threads, a reply to a reply joins the root. */
   readonly parentId?: string;
+  /** Files the caller uploaded to the record's conversation (`attachments`). */
+  readonly attachmentIds?: readonly string[];
   /** The extra columns to set, keyed by database name. */
   readonly fields?: Partial<F>;
 }
 
-export interface CommentEdit<F extends object = Record<never, never>> {
-  readonly body: string;
-  /**
-   * A new document; `null` removes it, and leaving it out keeps the current
-   * one.
-   */
-  readonly document?: unknown;
-  /** Default `mentionsOf`, or the ids `mentionsIn(body)` finds. */
-  readonly mentions?: readonly string[];
-  /** The extra columns to set, keyed by database name; others keep their value. */
-  readonly fields?: Partial<F>;
-}
+/** What `edit` takes. */
+export type CommentEdit<F extends object = Record<never, never>> =
+  MessageEdition<F>;
 
-/**
- * Where a timeline entry comes from: `event` for an `activity_entries` row that
- * `activitySink()` wrote, `audit` for an audit log entry on the subject's row
- * (with the `audit` and `subjects` modules), `delivery` for a notification
- * delivery about the subject (with `notifications`) and `run` for a workflow
- * run on it (with `workflows`).
- */
-export type ActivitySource = "event" | "audit" | "delivery" | "run";
-
-const ACTIVITY_SOURCES: readonly ActivitySource[] = [
-  "event",
-  "audit",
-  "delivery",
-  "run",
-];
-
-function sourceOf(value: unknown): ActivitySource {
-  return ACTIVITY_SOURCES.find((source) => source === value) ?? "event";
-}
-
-export interface ActivityEntry {
-  /** An `activity_entries` id, or the audit entry's, delivery's or run's id. */
-  readonly id: string;
-  readonly source: ActivitySource;
-  readonly organizationId: string;
-  readonly type: string;
-  readonly actorId: string | undefined;
-  readonly subject: SubjectRef | undefined;
-  readonly summary: string | undefined;
-  readonly data: Readonly<Record<string, unknown>>;
-  readonly occurredAt: Temporal.Instant;
-}
-
-export interface ActivityHistoryOptions extends CursorPageOptions<Temporal.Instant> {
-  /** Entries before this instant, for paging back. */
-  readonly cursor?: Temporal.Instant;
-  /** Default 50, at most 500. */
-  readonly limit?: number;
-  /** The kinds of entry to return; all of them when left out. */
-  readonly sources?: readonly ActivitySource[];
+/** What `assign` passes to the work item. */
+export interface CommentAssignment {
+  /** Who works on it; nobody when left out. */
+  readonly assigneeId?: string;
+  /** Default the comment's first 120 characters. */
+  readonly title?: string;
+  /** Default the comment's body. */
+  readonly body?: string;
+  /** Other `create_work_item` attributes, such as `projectId` or `priority`. */
+  readonly attrs?: Readonly<Record<string, unknown>>;
 }
 
 export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant> {
-  /** Comments created after this instant, for polling a thread. */
+  /** Comments sent after this instant, for polling a thread. */
   readonly cursor?: Temporal.Instant;
   /**
-   * The id of the last comment you have, next to `cursor`, so comments created
-   * in the same instant as it aren't skipped.
+   * The id of the last comment you have, next to `cursor`, so comments sent in
+   * the same instant as it aren't skipped.
    */
   readonly cursorId?: string;
   /** Default 100, at most 500. */
@@ -188,17 +132,33 @@ export interface ListCommentsOptions extends CursorPageOptions<Temporal.Instant>
 }
 
 /**
- * `F` is the extra fields `options.fields` describes. Every method acts in the
- * block's `tenant`.
+ * `F` is the extra fields `options.fields` describes. Every method that takes a
+ * record acts in the block's `tenant`.
  */
 export interface Comments<F extends object = Record<never, never>> {
-  /** Posts a comment on `subject`. */
+  /** Posts a comment on `subject`, opening its conversation the first time. */
   create(subject: SubjectRef, comment: NewComment<F>): AsyncResult<Comment<F>>;
-  /** Only the author edits; `not_found` when the caller can't see it. */
+  /** One comment, or `not_found` when the caller can't read it. */
+  get(id: string): AsyncResult<Comment<F>>;
+  /** The author edits within `editWindow`; the old version is kept. */
   edit(id: string, edit: CommentEdit<F>): AsyncResult<Comment<F>>;
   /** Soft-deletes (the author, or a member with `comments.moderate`). */
   remove(id: string): AsyncResult<boolean>;
-  /** A subject's thread, oldest first, deleted comments as placeholders. */
+  /** Resolves a thread by its root comment, or opens it again. */
+  resolve(id: string, resolved?: boolean): AsyncResult<Comment<F>>;
+  /** Pins a comment to the top of its record, or unpins it. */
+  pin(id: string, pinned?: boolean): AsyncResult<Comment<F>>;
+  /** The earlier versions of an edited comment, newest first. */
+  edits(id: string): AsyncResult<readonly MessageEdit[]>;
+  /**
+   * Turns a comment into a work item (with the `work-items` block) and returns
+   * its id; assigning it again returns the same one.
+   */
+  assign(id: string, assignment?: CommentAssignment): AsyncResult<string>;
+  /**
+   * A record's comments and replies, oldest first, deleted ones as
+   * placeholders.
+   */
   list(
     subject: SubjectRef,
     options?: ListCommentsOptions,
@@ -218,75 +178,50 @@ export interface Comments<F extends object = Record<never, never>> {
    */
   copy(from: SubjectRef, to: SubjectRef): AsyncResult<number>;
   /**
-   * The activity feed of a tenant, newest first, or one subject's timeline with
-   * `subject`. Members with `activity.read` see it. With the `subjects` module,
-   * an entry on a registered subject type needs `can_subject` read, and a
-   * subject's timeline also lists its audit log entries (`source: "audit"`)
-   * when `audit` is installed with its read policy, the deliveries of
-   * notifications about it (`source: "delivery"`, for members who also hold
-   * `notifications.send`) and its workflow runs (`source: "run"`, as the runs'
-   * read policy allows).
+   * The record's conversation id, for Realtime (`conversationTopic`) and for
+   * uploads to attach (`attachments` on subject `conversation`). `open` creates
+   * it before the first comment; without it, `undefined` until then.
    */
-  history(
-    subject?: SubjectRef | null,
-    options?: ActivityHistoryOptions,
-  ): AsyncResult<readonly ActivityEntry[]>;
+  conversation(
+    subject: SubjectRef,
+    options?: { readonly open?: boolean },
+  ): AsyncResult<string | undefined>;
+  /**
+   * Moves the caller's read marker on the record's comments forward; returns
+   * where it is, or `undefined` before the first comment.
+   */
+  markRead(
+    subject: SubjectRef,
+    options?: { readonly readAt?: Temporal.Instant },
+  ): AsyncResult<Temporal.Instant | undefined>;
 }
-
-const MENTION =
-  /@\[[^\]\n]{1,100}\]\(([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\)/gi;
 
 /**
- * The user ids mentioned in a body written as `@[Ada](<user id>)`, the markup
- * mention inputs produce, in order and without repeats.
+ * The user ids mentioned in a body written as `@[Ada](user:<user id>)` or
+ * `@[Ada](<user id>)`, the markup mention inputs produce, in order and without
+ * repeats.
  */
 export function mentionsIn(body: string): readonly string[] {
-  return [
-    ...new Set(
-      [...body.matchAll(MENTION)].flatMap((match) =>
-        match[1] ? [match[1].toLowerCase()] : [],
-      ),
-    ),
-  ];
+  return parseMentions(body).users;
 }
 
-function commentOf(value: unknown): Comment {
-  const row = recordOf(value, "comments");
+/** A row of `list_comments` or `create_comment`. */
+export function commentOf(value: unknown): Comment {
+  const row = recordOf(value, "comment");
 
   return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    ...messageOf(row),
     subject: subjectRefOf(row["subject_type"], row["subject_id"]),
-    authorId: optionalText(row["author_id"]),
-    author: authorOf(row["author"]),
-    body: textOf(row["body"] ?? ""),
-    document: row["document"] ?? null,
-    mentions: stringsOf(row["mentions"]),
-    parentId: optionalText(row["parent_id"]),
-    createdAt: toInstant(textOf(row["created_at"])),
-    editedAt: optionalInstant(row["edited_at"]),
-    deletedAt: optionalInstant(row["deleted_at"]),
-    fields: isRecord(row["fields"]) ? row["fields"] : {},
+    taskId: optionalText(row["task_id"]),
   };
 }
 
-function activityOf(value: unknown): ActivityEntry {
-  const row = recordOf(value, "activity_entries");
+const notFound = (): ReturnType<typeof dbError> =>
+  dbError("not_found", "No comment you can read has this id", {
+    hint: "COMMENT_NOT_FOUND",
+  });
 
-  return {
-    id: textOf(row["id"]),
-    source: sourceOf(row["source"]),
-    organizationId: textOf(row["organization_id"]),
-    type: textOf(row["type"]),
-    actorId: optionalText(row["actor_id"]),
-    subject: optionalSubjectRefOf(row["subject_type"], row["subject_id"]),
-    summary: optionalText(row["summary"]),
-    data: isRecord(row["data"]) ? row["data"] : {},
-    occurredAt: toInstant(textOf(row["occurred_at"])),
-  };
-}
-
-/** Comments over the `comments` module's functions, as the caller. */
+/** Comments over the messaging core, as the caller. */
 export function createComments<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: CommentsOptions<S>): Comments<FieldsOf<S>> {
@@ -302,6 +237,37 @@ export function createComments<
       ? options.mentionsOf({ body, document: rich })
       : mentionsIn(body);
 
+  const get = (id: string): AsyncResult<Comment<F>> =>
+    call("get_comment", { message: id }, (value) =>
+      value === null || value === undefined ? undefined : commentOf(value),
+    ).andThen((comment) =>
+      comment === undefined ? AsyncResult.err(notFound()) : fields.row(comment),
+    );
+
+  const conversation: Comments<F>["conversation"] = (subject, open = {}) =>
+    tenant().andThen((organizationId) =>
+      open.open === true
+        ? call(
+            "open_conversation",
+            {
+              tenant: organizationId,
+              kind: "subject",
+              attrs: { subjectType: subject.type, subjectId: subject.id },
+              members: [],
+            },
+            (value) => optionalText(recordOf(value, "conversation")["id"]),
+          )
+        : call(
+            "comment_conversation",
+            {
+              tenant: organizationId,
+              subject_type: subject.type,
+              subject_id: subject.id,
+            },
+            optionalText,
+          ),
+    );
+
   const client: Comments<F> = {
     create: (subject, comment) =>
       tenant().andThen((organizationId) =>
@@ -315,43 +281,92 @@ export function createComments<
                 subject_type: subject.type,
                 subject_id: subject.id,
                 body: comment.body,
-                mentions:
-                  comment.mentions ??
-                  mentionsOf(comment.body, comment.document),
-                parent: comment.parentId,
-                document: comment.document,
-                fields: checked,
+                attrs: {
+                  mentions: [
+                    ...(comment.mentionIds ??
+                      mentionsOf(comment.body, comment.document)),
+                  ],
+                  ...(comment.parentId === undefined
+                    ? {}
+                    : { parentId: comment.parentId }),
+                  ...(comment.document === undefined
+                    ? {}
+                    : { document: comment.document }),
+                  ...(comment.anchor === undefined
+                    ? {}
+                    : { anchor: comment.anchor }),
+                  ...(checked === undefined ? {} : { fields: checked }),
+                },
+                attachments: [...(comment.attachmentIds ?? [])],
               },
               commentOf,
             ).andThen(fields.row),
           ),
       ),
+    get,
     edit: (id, edit) =>
       fields
         .args(edit.fields)
         .andThen((checked) =>
           call(
-            "edit_comment",
+            "edit_message",
             {
-              id,
+              message: id,
               body: edit.body,
-              mentions: edit.mentions ?? mentionsOf(edit.body, edit.document),
-              document: edit.document ?? undefined,
-              ...(edit.document === null ? { clear_document: true } : {}),
-              fields: checked,
+              attrs: {
+                mentions: [
+                  ...(edit.mentionIds ?? mentionsOf(edit.body, edit.document)),
+                ],
+                ...(edit.document === undefined
+                  ? {}
+                  : { document: edit.document }),
+                ...(checked === undefined ? {} : { fields: checked }),
+              },
             },
-            (value) => value,
-          ).andThen((value) =>
-            value === null || value === undefined
-              ? AsyncResult.err(
-                  dbError("not_found", "No comment you can edit has this id", {
-                    hint: "COMMENT_NOT_FOUND",
-                  }),
-                )
-              : fields.row(commentOf(value)),
+            () => undefined,
           ),
-        ),
-    remove: (id) => call("delete_comment", { id }, (value) => value === true),
+        )
+        .andThen(() => get(id)),
+    remove: (id) =>
+      call("delete_message", { message: id }, (value) => value === true),
+    resolve: (id, resolved = true) =>
+      call(
+        "resolve_message",
+        { message: id, resolved },
+        () => undefined,
+      ).andThen(() => get(id)),
+    pin: (id, pinned = true) =>
+      call("pin_message", { message: id, pinned }, () => undefined).andThen(
+        () => get(id),
+      ),
+    edits: (id) =>
+      call("list_message_edits", { message: id }, (value) =>
+        recordsOf(value, "list_message_edits").map(editOf),
+      ),
+    assign: (id, assignment = {}) =>
+      call(
+        "assign_comment",
+        {
+          message: id,
+          assignee: assignment.assigneeId ?? null,
+          attrs: {
+            ...assignment.attrs,
+            ...(assignment.title === undefined
+              ? {}
+              : { title: assignment.title }),
+            ...(assignment.body === undefined ? {} : { body: assignment.body }),
+          },
+        },
+        (value) => {
+          const task = optionalText(value);
+
+          if (task === undefined) {
+            throw new TypeError("assign_comment returned no work item id");
+          }
+
+          return task;
+        },
+      ),
     list: (subject, list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -398,20 +413,20 @@ export function createComments<
           (value) => Number(value ?? 0),
         ),
       ),
-    history: (subject, history = {}) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "list_activity",
-          {
-            tenant: organizationId,
-            subject_type: subject?.type,
-            subject_id: subject?.id,
-            before: instantArg(pageOf(history).cursor),
-            max_rows: history.limit,
-            sources: history.sources ? [...history.sources] : undefined,
-          },
-          (value) => recordsOf(value, "list_activity").map(activityOf),
-        ),
+    conversation,
+    markRead: (subject, read = {}) =>
+      conversation(subject).andThen((id) =>
+        id === undefined
+          ? AsyncResult.ok(undefined)
+          : call(
+              "mark_read",
+              {
+                conversation: id,
+                thread: null,
+                read_at: instantArg(read.readAt) ?? null,
+              },
+              (value) => requiredInstant(value, "readAt"),
+            ),
       ),
   };
 
@@ -419,214 +434,4 @@ export function createComments<
     block: "comments",
     ...(options.logger ? { logger: options.logger } : {}),
   });
-}
-
-/** What an activity entry says about an event; `null` skips the event. */
-export interface ActivityDescription {
-  readonly summary?: string;
-  readonly actorId?: string;
-  readonly subjectType?: string;
-  readonly subjectId?: string;
-  readonly data?: Readonly<Record<string, unknown>>;
-}
-
-export interface ActivitySinkOptions {
-  /**
-   * A service-role transport: `record_activity()` is granted to `service_role`
-   * only.
-   */
-  readonly transport: BlockTransport;
-  readonly schema?: string;
-  /**
-   * The outbox `typePrefix`, stripped from the stored type. Default
-   * `dev.better-supabase`.
-   */
-  readonly typePrefix?: string;
-  /** Types to keep, exact or ending in `.*`. Default every event with a tenant. */
-  readonly types?: readonly string[];
-  /** Summarizes an event, or returns `null` to skip it. */
-  readonly describe?: (
-    event: CloudEvent,
-    type: string,
-  ) => ActivityDescription | null | undefined;
-}
-
-const matches = (patterns: readonly string[], type: string): boolean =>
-  patterns.some((pattern) =>
-    pattern.endsWith(".*")
-      ? type.startsWith(pattern.slice(0, -1))
-      : pattern === type,
-  );
-
-const firstText = (
-  data: Readonly<Record<string, unknown>>,
-  keys: readonly string[],
-): string | undefined => {
-  for (const key of keys) {
-    const value = optionalText(data[key]);
-
-    if (value !== undefined) {
-      return value;
-    }
-  }
-
-  return undefined;
-};
-
-/** `comments/<id>` as `{ type: "comment", id }`, the shape block subjects use. */
-function subjectOf(
-  subject: string | undefined,
-): { type: string; id: string } | undefined {
-  const slash = subject?.indexOf("/") ?? -1;
-
-  if (subject === undefined || slash < 1) {
-    return undefined;
-  }
-
-  const plural = subject.slice(0, slash);
-
-  return {
-    type: plural.endsWith("s") ? plural.slice(0, -1) : plural,
-    id: subject.slice(slash + 1),
-  };
-}
-
-/**
- * An outbox sink that writes events into the activity feed:
- * `outbox.relay('activity', activitySink({ transport }))`. Events without a
- * tenant (`partitionkey`) are skipped, and a replayed event writes nothing.
- */
-export function activitySink(options: ActivitySinkOptions): EventSink {
-  const call = blockCall(options.transport, options.schema);
-
-  return {
-    async send(events) {
-      const entries: Record<string, unknown>[] = [];
-
-      for (const event of events) {
-        const tenant = optionalText(event["partitionkey"]);
-
-        if (tenant === undefined) {
-          continue;
-        }
-
-        const type = stripTypePrefix(event.type, options.typePrefix);
-
-        if (options.types && !matches(options.types, type)) {
-          continue;
-        }
-
-        const described = options.describe ? options.describe(event, type) : {};
-
-        if (described === null) {
-          continue;
-        }
-
-        const data = isRecord(event.data) ? event.data : {};
-        const subject = subjectOf(event.subject);
-        entries.push({
-          event_id: event.id,
-          organization_id: tenant,
-          type,
-          actor_id:
-            described?.actorId ??
-            firstText(data, ["actorId", "authorId", "userId"]),
-          subject_type:
-            described?.subjectType ??
-            optionalText(data["subjectType"]) ??
-            subject?.type,
-          subject_id:
-            described?.subjectId ??
-            optionalText(data["subjectId"]) ??
-            subject?.id,
-          summary: described?.summary,
-          data: described?.data ?? data,
-          occurred_at: event.time,
-        });
-      }
-
-      if (entries.length > 0) {
-        // A sink rejects on failure, so the relay retries the batch.
-        await call(
-          "record_activity",
-          { batch: { entries } },
-          () => undefined,
-        ).orThrow();
-      }
-    },
-  };
-}
-
-export type ActivitySort = "newest" | "oldest";
-
-export type ActivityFacet = "type" | "actor" | "subjectType" | "subjectId";
-
-const FACETS: readonly [ActivityFacet, string, string][] = [
-  ["type", "type", "type"],
-  ["actor", "actor_id", "actorId"],
-  ["subjectType", "subject_type", "subjectType"],
-  ["subjectId", "subject_id", "subjectId"],
-];
-
-/**
- * A cursor-paged list over `activity_entries` (generate types for the
- * `better_supabase` schema to get it in your models), newest first, filtered by
- * type, actor and subject. Members with `activity.read` see their tenants'
- * entries, less those on a registered subject that `can_subject` doesn't let
- * them read (with the `subjects` module). It reads the table, so it lists no
- * audit entries; `history()` does.
- */
-export function activityListQuery<
-  M extends AnyModels,
-  D,
-  Fn extends AnyFunctions,
-  E,
-  T extends TableKey<M>,
->(
-  betterSupabase: BetterSupabase<M, D, Fn, E>,
-  table: T,
-  options: { readonly pageSize?: number; readonly maxPageSize?: number } = {},
-): ListDefinition<M, T, E, ActivitySort, ActivityFacet> {
-  const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
-
-  if (!meta) {
-    throw new TypeError(`activityListQuery: unknown table "${table}"`);
-  }
-
-  const camel = meta.columns["occurredAt"] !== undefined;
-
-  const facets: Record<string, string> = Object.fromEntries(
-    FACETS.map(([key, snake, camelName]): [ActivityFacet, string] => [
-      key,
-      camel ? camelName : snake,
-    ]).filter(([, column]) => meta.columns[column] !== undefined),
-  );
-
-  const occurredAt = camel ? "occurredAt" : "occurred_at";
-
-  // SAFETY: defineListQuery checks every column against the table's meta
-  // and throws for one the table lacks; facets keeps only columns it has.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the column names are known only at runtime (camel or snake casing), so the config can't be typed against M.
-  const config = {
-    facets,
-    sorts: {
-      newest: [{ [occurredAt]: "desc" }, { id: "desc" }],
-      oldest: [{ [occurredAt]: "asc" }, { id: "asc" }],
-    },
-    defaultSort: "newest",
-    pagination: "cursor",
-    ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize }),
-    ...(options.maxPageSize === undefined
-      ? {}
-      : { maxPageSize: options.maxPageSize }),
-  } as unknown as ListQueryConfig<
-    M,
-    T,
-    ActivitySort,
-    ActivityFacet,
-    false,
-    "cursor"
-  >;
-
-  return defineListQuery(betterSupabase, table, config);
 }

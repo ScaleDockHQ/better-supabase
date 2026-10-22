@@ -11,6 +11,7 @@ import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
 import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCESS } from "./modules/access.ts";
+import { ACTIVITY } from "./modules/activity.ts";
 import { ACTOR } from "./modules/actor.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
 import { AI_CACHE } from "./modules/ai-cache.ts";
@@ -30,6 +31,7 @@ import { BOOKINGS } from "./modules/bookings.ts";
 import { BULK } from "./modules/bulk.ts";
 import { CALENDAR } from "./modules/calendar.ts";
 import { CATALOG } from "./modules/catalog.ts";
+import { CHANNELS } from "./modules/channels.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
@@ -72,6 +74,7 @@ import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
 import { MEMORY } from "./modules/memory.ts";
+import { MESSAGING } from "./modules/messaging.ts";
 import { METRICS } from "./modules/metrics.ts";
 import { MFA } from "./modules/mfa.ts";
 import { MODERATION } from "./modules/moderation.ts";
@@ -341,6 +344,9 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(CONTROLS),
       built(INCIDENTS),
       built(COURSES),
+      built(MESSAGING),
+      built(CHANNELS),
+      built(ACTIVITY),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

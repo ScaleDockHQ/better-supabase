@@ -5,6 +5,7 @@ import type {
   ConversationActions,
   ConversationControllerOptions,
   ConversationSnapshot,
+  Identified,
   InboxControllerOptions,
   InboxListActions,
   InboxListSnapshot,
@@ -28,6 +29,7 @@ export type {
   ConversationActions,
   ConversationControllerOptions,
   ConversationSnapshot,
+  Identified,
   InboxControllerOptions,
   InboxListActions,
   InboxListSnapshot,
@@ -58,7 +60,7 @@ export function useInbox<T>(
  * mount and the controller is disposed with the scope. `auth` and `ports`
  * default to the client of `app.use(betterSupabase(bs))`.
  */
-export function useConversation<T>(
+export function useConversation<T extends Identified>(
   options: BlockOptions<ConversationControllerOptions<T>>,
 ): VueController<ConversationSnapshot<T>, ConversationActions> {
   return useBlockController<
@@ -74,7 +76,7 @@ export function useConversation<T>(
  * mount and the controller is disposed with the scope. `auth` and `ports`
  * default to the client of `app.use(betterSupabase(bs))`.
  */
-export function useInboxWidget<T>(
+export function useInboxWidget<T extends Identified>(
   options: BlockOptions<InboxWidgetControllerOptions<T>>,
 ): VueController<InboxWidgetSnapshot<T>, InboxWidgetActions> {
   return useBlockController<

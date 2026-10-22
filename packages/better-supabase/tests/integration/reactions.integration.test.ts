@@ -18,7 +18,7 @@ const live = await reachable();
 const layout: ModuleLayout = {
   subjects: withBlockSubjects(
     { doc: { table: "reactions_it.docs", idType: "uuid" } },
-    ["comments"],
+    ["comments", "messaging"],
     {},
   ),
 };
@@ -132,20 +132,22 @@ describe.skipIf(!live)("reactions", () => {
         .orThrow();
 
       await reactions
-        .react({ type: "comment", id: comment.id }, "👀")
+        .react({ type: "message", id: comment.id }, "👀")
         .orThrow();
 
       const summary = await reactions
         .summary([
-          { type: "comment", id: comment.id },
-          { type: "comment", id: "nope" },
+          { type: "message", id: comment.id },
+          { type: "message", id: "00000000-0000-4000-8000-000000000000" },
         ])
         .orThrow();
 
-      expect(summary[`comment:${comment.id}`]).toEqual([
+      expect(summary[`message:${comment.id}`]).toEqual([
         { emoji: "👀", count: 1, reacted: true, actors: [member.id] },
       ]);
-      expect(summary["comment:nope"]).toEqual([]);
+      expect(summary["message:00000000-0000-4000-8000-000000000000"]).toEqual(
+        [],
+      );
 
       await s.asRole(stranger);
       expect(
@@ -367,7 +369,7 @@ values (gen_random_uuid(), 'doc', 'd1', 'u1', '👍');`);
     }
   });
 
-  it("keeps an inbox message's reactions column as a copy of the table", async () => {
+  it("stores inbox reactions on the core message subject", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -401,25 +403,23 @@ values (gen_random_uuid(), 'doc', 'd1', 'u1', '👍');`);
         .send(opened.id, { body: "Hi there" })
         .orThrow();
 
-      await inbox.messages.react(reply.id, "👍").orThrow();
+      const missing = await inbox.messages.react(reply.id, "👍");
+      expect(missing.ok ? undefined : missing.error).toMatchObject({
+        hint: "INBOX_REACTIONS_MISSING",
+      });
       await s.service();
       await s.install([...modules, "reactions"]);
+      await s.asRole(owner);
+      await inbox.messages.react(reply.id, "👍").orThrow();
       expect(
-        await s.rows<{ actor: string; emoji: string }>(
-          "select actor, emoji from better_supabase.reactions where subject_id = $1",
+        await s.rows<{ subject_type: string; actor: string; emoji: string }>(
+          "select subject_type, actor, emoji from better_supabase.reactions where subject_id = $1",
           [reply.id],
         ),
-      ).toEqual([{ actor: owner.id, emoji: "👍" }]);
-      expect(
-        await s.value<number>(
-          "(select count(*)::int from better_supabase.outbox_events where type = 'reaction.added' and organization_id = $1)",
-          [tenant],
-        ),
-      ).toBe(0);
-      await s.asRole(owner);
+      ).toEqual([{ subject_type: "message", actor: owner.id, emoji: "👍" }]);
 
       const counts = await reactions
-        .react({ type: "inbox_message", id: reply.id }, "🎉")
+        .react({ type: "message", id: reply.id }, "🎉")
         .orThrow();
 
       expect(counts.map((row) => row.emoji).toSorted()).toEqual(["🎉", "👍"]);
@@ -429,20 +429,36 @@ values (gen_random_uuid(), 'doc', 'd1', 'u1', '👍');`);
         .react(reply.id, "👍", { actor: "bot" })
         .orThrow();
 
-      expect(byBot["👍"]?.toSorted()).toEqual([owner.id, "bot"].toSorted());
-      expect(byBot["🎉"]).toEqual([owner.id]);
+      expect(
+        byBot.find((row) => row.emoji === "👍")?.actors.toSorted(),
+      ).toEqual([owner.id, "bot"].toSorted());
       await s.asRole(owner);
       expect(
-        await inbox.messages
-          .react(reply.id, "👍", { present: false })
-          .orThrow(),
-      ).toEqual({ "👍": ["bot"], "🎉": [owner.id] });
+        (
+          await inbox.messages
+            .react(reply.id, "👍", { present: false })
+            .orThrow()
+        ).map((row) => [row.emoji, row.actors]),
+      ).toEqual([
+        ["🎉", [owner.id]],
+        ["👍", ["bot"]],
+      ]);
       expect(
-        await s.value<number>(
-          "(select count(*)::int from better_supabase.reactions where subject_id = $1)",
-          [reply.id],
+        (await inbox.messages.get(reply.id).orThrow())?.reactions.map((row) => [
+          row.emoji,
+          row.count,
+          row.reacted,
+        ]),
+      ).toEqual([
+        ["🎉", 1, true],
+        ["👍", 1, false],
+      ]);
+      await s.asRole(visitor);
+      expect(
+        (await inbox.messages.react(reply.id, "❤️").orThrow()).map(
+          (row) => row.emoji,
         ),
-      ).toBe(2);
+      ).toContain("❤️");
     } finally {
       await s.close();
     }

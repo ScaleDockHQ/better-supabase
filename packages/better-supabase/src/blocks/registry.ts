@@ -2,6 +2,7 @@ import type { AnyBlock } from "./define-block.ts";
 
 import { accessRequestsBlock } from "./access-requests/manifest.ts";
 import { accessBlock } from "./access/manifest.ts";
+import { activityBlock } from "./activity/manifest.ts";
 import { actorBlock } from "./actor/manifest.ts";
 import { agentsBlock } from "./agents/manifest.ts";
 import { aiCacheBlock } from "./ai-cache/manifest.ts";
@@ -21,6 +22,7 @@ import { bookingsBlock } from "./bookings/manifest.ts";
 import { bulkBlock } from "./bulk/manifest.ts";
 import { calendarBlock } from "./calendar/manifest.ts";
 import { catalogBlock } from "./catalog/manifest.ts";
+import { channelsBlock } from "./channels/manifest.ts";
 import { collectionsBlock } from "./collections/manifest.ts";
 import { commentsBlock } from "./comments/manifest.ts";
 import { connectorsBlock } from "./connectors/manifest.ts";
@@ -43,7 +45,7 @@ import { ensureRlsBlock } from "./ensure-rls/manifest.ts";
 import { entitlementsBlock } from "./entitlements/manifest.ts";
 import { expensesBlock } from "./expenses/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
-import { formsBlock, signaturesBlock } from "./forms/manifest.ts";
+import { formsBlock } from "./forms/manifest.ts";
 import { grantsBlock } from "./grants/manifest.ts";
 import { guestsBlock } from "./guests/manifest.ts";
 import { hiringBlock } from "./hiring/manifest.ts";
@@ -65,6 +67,7 @@ import { leasesBlock } from "./leases/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
 import { ledgerBlock } from "./ledger/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
+import { messagingBlock } from "./messaging/manifest.ts";
 import { metricsBlock } from "./metrics/manifest.ts";
 import { mfaBlock } from "./mfa/manifest.ts";
 import { moderationBlock } from "./moderation/manifest.ts";
@@ -101,6 +104,7 @@ import { settingsBlock } from "./settings/manifest.ts";
 import { shareLinksBlock } from "./share-links/manifest.ts";
 import { sharedSignalsBlock } from "./shared-signals/manifest.ts";
 import { shipmentsBlock } from "./shipments/manifest.ts";
+import { signaturesBlock } from "./signatures/manifest.ts";
 import { signingKeysBlock } from "./signing-keys/manifest.ts";
 import { slaBlock } from "./sla/manifest.ts";
 import { ssoBlock } from "./sso/manifest.ts";
@@ -202,6 +206,9 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   jsonbSchemasBlock,
   knowledgeBlock,
   memoryBlock,
+  messagingBlock,
+  channelsBlock,
+  activityBlock,
   metricsBlock,
   mfaBlock,
   notificationsBlock,

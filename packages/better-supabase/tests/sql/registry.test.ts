@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
 
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { resolveConfig, resolveJsonSchema } from "../../src/config/index.ts";
 import { eventTriggersOf } from "../../src/sql/event-triggers.ts";
 import {
@@ -216,20 +217,11 @@ describe("renderModules", () => {
     const layouts = [
       {},
       {
-        modules: {
-          comments: {
-            options: {
-              subjects: {
-                deal: {
-                  table: "public.deals",
-                  idType: "uuid",
-                  permissions: {
-                    read: "deals.read",
-                    moderate: "deals.moderate",
-                  },
-                },
-              },
-            },
+        subjects: {
+          deal: {
+            table: "public.deals",
+            idType: "uuid",
+            permissions: { read: "deals.read", moderate: "deals.moderate" },
           },
         },
       },
@@ -251,20 +243,19 @@ describe("renderModules", () => {
   });
 
   it("compares subject ids on the id column's type when idType is set", () => {
-    const comments = (subject: Record<string, unknown>) =>
-      renderModules(["comments"], {
-        modules: { comments: { options: { subjects: { deal: subject } } } },
-      }).find((file) => file.module === "comments")!.contents;
+    const reactions = (subject: { table: string; idType?: string }) =>
+      renderModules(["reactions"], { subjects: { deal: subject } }).find(
+        (file) => file.module === "reactions",
+      )!.contents;
 
-    expect(comments({ table: "deals", idType: "uuid" })).toContain(
-      `s."id" = (subject_id)::uuid`,
+    expect(reactions({ table: "deals", idType: "uuid" })).toContain(
+      `s."id" = (reaction_subject_visible.subject_id)::uuid`,
     );
-    expect(comments({ table: "deals" })).toContain(`s."id"::text = subject_id`);
-    expect(() => comments({ table: "deals", idType: "uuid; drop" })).toThrow(
+    expect(reactions({ table: "deals" })).toContain(
+      `s."id"::text = reaction_subject_visible.subject_id`,
+    );
+    expect(() => reactions({ table: "deals", idType: "uuid; drop" })).toThrow(
       /idType/,
-    );
-    expect(renderModules(["comments"])[0]!.contents).not.toMatch(
-      /using \([^;]*comment_subject_readable/,
     );
   });
 
@@ -284,6 +275,41 @@ describe("renderModules", () => {
     expect(data("flags")).toContain(
       'create extension if not exists "pgcrypto" with schema "extensions";',
     );
+  });
+});
+
+describe("module order", () => {
+  it("binds a later module's tables late in sql functions", () => {
+    const all = Object.keys(SQL_MODULES);
+    const order = [...all];
+
+    const later = ["messages", "conversations", "conversation_members"].map(
+      (table) => `"better_supabase"."${table}"`,
+    );
+
+    const early = renderModules(all, {
+      subjects: withBlockSubjects({}, all, {}),
+    })
+      .filter(
+        (file) =>
+          file.kind !== "data" &&
+          order.indexOf(file.module) < order.indexOf("messaging"),
+      )
+      .flatMap((file) =>
+        [
+          ...file.contents.matchAll(
+            /create or replace function ([^\s(]+)[\s\S]*?language sql[\s\S]*?\$\$([\s\S]*?)\$\$/g,
+          ),
+        ]
+          .filter((match) =>
+            later.some((table) =>
+              (match[2] ?? "").replaceAll(/'[^']*'/g, "").includes(table),
+            ),
+          )
+          .map((match) => `${file.module}: ${match[1]}`),
+      );
+
+    expect(early).toEqual([]);
   });
 });
 

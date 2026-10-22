@@ -100,6 +100,31 @@ turns it into entries for the [usage block](/docs/blocks/usage)
 returns a `quota_exceeded` error with `retryAfter` when the meter is used up.
 `problem429(error)` is the RFC 9457 response for it, with `Retry-After`.
 
+## Thread summaries
+
+`summarizeWith(model, options)` is the summarizer
+[`messaging.summarize`](/docs/blocks/messaging#thread-summaries) takes. It
+calls `generateText` with an AI Gateway model string and tags the spend with
+the tenant and the `summary` feature:
+
+```ts
+import { summarizeWith } from "better-supabase/ai-sdk";
+
+const summarizer = summarizeWith("anthropic/claude-sonnet-4.5", {
+  providers, // the tenant's own keys as BYOK, when the app installs ai-providers
+  maxOutputTokens: 400,
+});
+
+const summary = await messaging
+  .summarize({ conversationId }, summarizer)
+  .orThrow();
+```
+
+With `providers`, the [AI providers block](/docs/blocks/ai-providers), each
+summary goes through [`tenantGatewayOptions`](/docs/ai-sdk/providers), so a
+tenant with a saved key pays for its own summaries. `instructions` replaces
+the default prompt and `gateway` adds AI Gateway options such as `order`.
+
 ## Jobs
 
 Two [job](/docs/blocks/jobs) handlers keep the block current:

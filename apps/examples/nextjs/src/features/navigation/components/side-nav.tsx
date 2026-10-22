@@ -34,6 +34,7 @@ import {
   CalendarClockIcon,
   CpuIcon,
   InboxIcon,
+  MessagesSquareIcon,
   BotIcon,
   ChartColumnIcon,
   KeyRoundIcon,
@@ -103,6 +104,7 @@ const ICONS = {
   workflows: WorkflowIcon,
   workflowBuilder: WaypointsIcon,
   inbox: InboxIcon,
+  chat: MessagesSquareIcon,
   assistant: BotIcon,
   knowledge: LibraryIcon,
   agentActivity: ActivityIcon,
@@ -259,6 +261,10 @@ function useNavLabel() {
 
       case "inbox": {
         return t("Inbox");
+      }
+
+      case "chat": {
+        return t("Chat");
       }
 
       case "assistant": {

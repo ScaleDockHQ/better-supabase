@@ -23,7 +23,6 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "api_keys.*",
     "settings.*",
     "usage.*",
-    "comments.*",
     "activity.read",
     "attachments.*",
     "organization.export",
@@ -68,6 +67,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "hiring.*",
     "employees.*",
     "collections.*",
+    "messages.*",
+    "channels.*",
     "domains.*",
     "rules.*",
     "reviews.*",
@@ -96,8 +97,6 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "notifications.read",
     "api_keys.own",
     "settings.read",
-    "comments.read",
-    "comments.create",
     "activity.read",
     "attachments.read",
     "attachments.upload",
@@ -185,6 +184,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "incidents.read",
     "incidents.write",
     "courses.read",
+    "messages.read",
+    "messages.send",
+    "channels.create",
   ],
   viewer: ["organization.read"],
 };
@@ -233,10 +235,10 @@ export const OPERATIONS = {
   "billing.read": "billing.read",
   "billing.manage": "billing.manage",
   "billing.viewAll": "billing.read",
-  "comments.read": "comments.read",
-  "comments.create": "comments.create",
-  "comments.moderate": "comments.moderate",
-  "comments.activity": "activity.read",
+  "comments.read": "messages.read",
+  "comments.create": "messages.send",
+  "comments.moderate": "messages.moderate",
+  "activity.read": "activity.read",
   "data-lifecycle.export": "organization.export",
   "data-lifecycle.delete": "organization.delete",
   "data-lifecycle.cancelDelete": "organization.delete",
@@ -459,6 +461,12 @@ export const OPERATIONS = {
   "courses.read": "courses.read",
   "courses.enroll": "courses.enroll",
   "courses.manage": "courses.manage",
+  "messaging.read": "messages.read",
+  "messaging.send": "messages.send",
+  "messaging.moderate": "messages.moderate",
+  "channels.read": "messages.read",
+  "channels.create": "channels.create",
+  "channels.manage": "channels.manage",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -540,12 +548,8 @@ export const MODULE_PERMISSION_SCOPES: {
   settings: { read: "tenant", update: "tenant", platform: "platform" },
   usage: { read: "tenant", record: "tenant" },
   billing: { read: "tenant", manage: "tenant", viewAll: "platform" },
-  comments: {
-    read: "tenant",
-    create: "tenant",
-    moderate: "tenant",
-    activity: "tenant",
-  },
+  comments: { read: "tenant", create: "tenant", moderate: "tenant" },
+  activity: { read: "tenant" },
   attachments: { read: "tenant", upload: "tenant", manage: "tenant" },
   "data-lifecycle": {
     export: "tenant",
@@ -703,6 +707,8 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   incidents: { read: "tenant", write: "tenant", manage: "tenant" },
   courses: { read: "tenant", enroll: "tenant", manage: "tenant" },
+  messaging: { read: "tenant", send: "tenant", moderate: "tenant" },
+  channels: { read: "tenant", create: "tenant", manage: "tenant" },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {

@@ -79,7 +79,7 @@ describe("preset decode", () => {
 
     expect(decoded.output).toContain("  casing        camel");
     expect(decoded.output).toContain(
-      "  tenant (required by access and comments)",
+      "  tenant (required by access, comments and messaging)",
     );
     expect(decoded.data).toMatchObject({ code, derived: [] });
   });
@@ -222,7 +222,14 @@ describe("apply", () => {
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
     ).toEqual({
-      blocks: { "updated-at": {}, tenant: {}, access: {}, comments: {} },
+      blocks: {
+        "updated-at": {},
+        tenant: {},
+        access: {},
+        comments: {},
+        subjects: {},
+        messaging: {},
+      },
     });
   });
 
@@ -634,7 +641,7 @@ describe("add <block>", () => {
     const result = await run(["add", "outbox", "comments", "--cwd", dir]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain(
-      "Wired access, comments, outbox in lib/blocks.ts.",
+      "Wired access, comments, messaging, outbox, subjects in lib/blocks.ts.",
     );
     expect(result.stdout).toContain(
       "Glue for next: npx shadcn@latest add @better-supabase/outbox @better-supabase/outbox-relay-next",
@@ -644,7 +651,7 @@ describe("add <block>", () => {
       'import { profilesBlock } from "better-supabase/blocks/profiles";\nimport { accessBlock } from "better-supabase/blocks/access";\nimport { commentsBlock } from "better-supabase/blocks/comments";',
     );
     expect(wiring).toContain(
-      "      profiles: profilesBlock,\n      access: accessBlock,\n      comments: commentsBlock,\n      outbox: outboxBlock,\n",
+      "      profiles: profilesBlock,\n      access: accessBlock,\n      comments: commentsBlock,\n      messaging: messagingBlock,\n      outbox: outboxBlock,\n      subjects: subjectsBlock,\n",
     );
     expect(
       JSON.parse(

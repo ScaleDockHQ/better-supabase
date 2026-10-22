@@ -846,10 +846,10 @@ export function CommentThread({
                     t("Someone")}
                 </span>{" "}
                 <span className="text-xs text-muted-foreground">
-                  {format.dateTime(comment.createdAt.epochMilliseconds, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
+                  {format.dateTime(
+                    (comment.sentAt ?? comment.createdAt).epochMilliseconds,
+                    { dateStyle: "medium", timeStyle: "short" },
+                  )}
                 </span>
               </p>
               <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
@@ -938,7 +938,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
         renderItem={({ item }) => (
           <View style={{ paddingVertical: 8 }}>
             <Text style={{ color: "#737373", fontSize: 12 }}>
-              {item.createdAt.toLocaleString()}
+              {(item.sentAt ?? item.createdAt).toLocaleString()}
             </Text>
             <Text>{item.body}</Text>
           </View>
@@ -4194,6 +4194,1142 @@ function ConversationList({
         </li>
       ))}
     </ul>
+  );
+}
+```
+
+## Channel sidebar
+
+The caller's channels with unread and mention counts, kept live, with dialogs to browse, join and create channels. It calls `useConversations` from `better-supabase/blocks/messaging/react`; the [channels](https://bettersupabase.com/blocks/channels), [messaging](https://bettersupabase.com/blocks/messaging) blocks must be installed (`npx better-supabase add channels messaging`). Page: https://bettersupabase.com/recipes/channel-sidebar.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card dialog empty field input label scroll-area skeleton switch
+```
+
+```tsx title="apps/examples/nextjs/src/features/chat/components/channel-sidebar.tsx"
+"use client";
+
+import type { SubmitEvent } from "react";
+
+import { useConversations } from "better-supabase/blocks/messaging/react";
+import { useAction } from "better-supabase/react";
+import {
+  HashIcon,
+  LockIcon,
+  PlusIcon,
+  RotateCwIcon,
+  SearchIcon,
+} from "lucide-react";
+import { useExtracted } from "next-intl";
+import { useId, useState } from "react";
+import { toast } from "sonner";
+
+import { Alert, AlertAction, AlertTitle } from "@/components/reui/alert";
+import { Badge } from "@/components/reui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { useErrorMessage } from "@/lib/use-error-message";
+import { cn } from "@/lib/utils";
+
+import type { ChannelRow } from "../chat-actions";
+
+import { browseChannels, createChannel, joinChannel } from "../chat-actions";
+
+export interface OpenChannel {
+  readonly id: string;
+  readonly name: string;
+}
+
+const KINDS = ["channel"] as const;
+
+/**
+ * The caller's channels with unread and mention counts, kept live over
+ * Realtime, plus dialogs to browse the organization's channels and create one.
+ */
+export function ChannelSidebar({
+  selected,
+  onSelect,
+}: {
+  selected: string | null;
+  onSelect: (channel: OpenChannel) => void;
+}) {
+  const t = useExtracted("chat");
+  const errorMessage = useErrorMessage();
+  const { conversations, error, refresh } = useConversations({ kinds: KINDS });
+
+  const opened = (channel: OpenChannel) => {
+    void refresh();
+    onSelect(channel);
+  };
+
+  return (
+    <Card size="sm" className="min-h-0">
+      <CardHeader>
+        <CardTitle>{t("Channels")}</CardTitle>
+        <CardAction className="flex gap-1">
+          <BrowseChannelsDialog onOpened={opened} />
+          <CreateChannelDialog onCreated={opened} />
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+        {error ? (
+          <Alert variant="destructive" aria-live="polite">
+            <AlertTitle>{errorMessage(error)}</AlertTitle>
+            <AlertAction>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void refresh()}
+              >
+                <RotateCwIcon aria-hidden />
+                {t("Retry")}
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : null}
+        {conversations === undefined ? (
+          <div
+            className="flex flex-col gap-2"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="sr-only">{t("Loading channels")}</span>
+            <Skeleton className="h-8" />
+            <Skeleton className="h-8" />
+            <Skeleton className="h-8" />
+          </div>
+        ) : conversations.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HashIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("No channels yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Create one, or browse the channels others made.")}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ScrollArea className="min-h-0 flex-1">
+            <ul className="flex flex-col gap-0.5" data-testid="channels">
+              {conversations.map((conversation) => {
+                const name = conversation.title ?? conversation.id;
+                const current = selected === conversation.id;
+
+                return (
+                  <li key={conversation.id}>
+                    <Button
+                      type="button"
+                      variant={current ? "secondary" : "ghost"}
+                      size="sm"
+                      className="w-full justify-start"
+                      aria-current={current ? "true" : undefined}
+                      onClick={() => {
+                        onSelect({ id: conversation.id, name });
+                      }}
+                    >
+                      {conversation.access === "members" ? (
+                        <LockIcon aria-hidden />
+                      ) : (
+                        <HashIcon aria-hidden />
+                      )}
+                      <span
+                        className={cn(
+                          "truncate",
+                          conversation.unread > 0 && "font-semibold",
+                        )}
+                      >
+                        {name}
+                      </span>
+                      {conversation.mentions > 0 ? (
+                        <Badge variant="destructive" className="ml-auto">
+                          @{conversation.mentions}
+                        </Badge>
+                      ) : conversation.unread > 0 ? (
+                        <Badge variant="secondary" className="ml-auto">
+                          {conversation.unread}
+                        </Badge>
+                      ) : null}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </ScrollArea>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BrowseChannelsDialog({
+  onOpened,
+}: {
+  onOpened: (channel: OpenChannel) => void;
+}) {
+  const t = useExtracted("chat");
+  const errorMessage = useErrorMessage();
+  const [open, setOpen] = useState(false);
+  const browse = useAction(browseChannels);
+  const join = useAction(joinChannel);
+
+  const pick = async (channel: ChannelRow) => {
+    if (!channel.joined) {
+      const joined = await join.run({ channelId: channel.id });
+
+      if (!joined.ok) {
+        toast.error(errorMessage(joined.error));
+
+        return;
+      }
+    }
+
+    setOpen(false);
+    onOpened({ id: channel.id, name: channel.name });
+  };
+
+  const rows = browse.data;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+
+        if (next) {
+          void browse.run({});
+        }
+      }}
+    >
+      <DialogTrigger
+        render={
+          <Button
+            size="icon-sm"
+            variant="outline"
+            aria-label={t("Browse channels")}
+          />
+        }
+      >
+        <SearchIcon aria-hidden />
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("Browse channels")}</DialogTitle>
+          <DialogDescription>
+            {t("Every public channel, and the private ones you are in.")}
+          </DialogDescription>
+        </DialogHeader>
+        {browse.error ? (
+          <Alert variant="destructive" aria-live="polite">
+            <AlertTitle>{errorMessage(browse.error)}</AlertTitle>
+            <AlertAction>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void browse.run({})}
+              >
+                <RotateCwIcon aria-hidden />
+                {t("Retry")}
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : rows === undefined ? (
+          <div
+            className="flex flex-col gap-2"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="sr-only">{t("Loading channels")}</span>
+            <Skeleton className="h-10" />
+            <Skeleton className="h-10" />
+          </div>
+        ) : rows.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>{t("No channels to join")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Close this and create the first one.")}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {rows.map((channel) => (
+              <li key={channel.id} className="flex items-center gap-3">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="flex items-center gap-1 text-sm font-medium">
+                    {channel.visibility === "private" ? (
+                      <LockIcon aria-hidden className="size-3.5" />
+                    ) : (
+                      <HashIcon aria-hidden className="size-3.5" />
+                    )}
+                    <span className="truncate">{channel.name}</span>
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {channel.topic ??
+                      t("{count, plural, one {# member} other {# members}}", {
+                        count: channel.memberCount,
+                      })}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={channel.joined ? "outline" : "default"}
+                  disabled={join.pending}
+                  onClick={() => void pick(channel)}
+                >
+                  {channel.joined ? t("Open") : t("Join")}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateChannelDialog({
+  onCreated,
+}: {
+  onCreated: (channel: OpenChannel) => void;
+}) {
+  const t = useExtracted("chat");
+  const errorMessage = useErrorMessage();
+  const fieldId = useId();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [topic, setTopic] = useState("");
+  const [isPrivate, setPrivate] = useState(false);
+
+  const create = useAction(createChannel, {
+    onSuccess: (id) => {
+      setOpen(false);
+      onCreated({ id, name: name.trim().toLowerCase() });
+    },
+  });
+
+  const message =
+    create.error === undefined ? null : errorMessage(create.error);
+
+  const submit = (event: SubmitEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void create.run({
+      name,
+      topic,
+      visibility: isPrivate ? "private" : "public",
+    });
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        setName("");
+        setTopic("");
+        setPrivate(false);
+        create.reset();
+      }}
+    >
+      <DialogTrigger
+        render={<Button size="icon-sm" aria-label={t("Create a channel")} />}
+      >
+        <PlusIcon aria-hidden />
+      </DialogTrigger>
+      <DialogContent>
+        <form onSubmit={submit} className="grid gap-6">
+          <DialogHeader>
+            <DialogTitle>{t("Create a channel")}</DialogTitle>
+            <DialogDescription>
+              {t("A place for one team, project or topic.")}
+            </DialogDescription>
+          </DialogHeader>
+          <FieldGroup>
+            <Field data-invalid={message ? true : undefined}>
+              <FieldLabel htmlFor={`${fieldId}-name`}>{t("Name")}</FieldLabel>
+              <Input
+                id={`${fieldId}-name`}
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                }}
+                required
+                maxLength={80}
+                pattern="[A-Za-z0-9][A-Za-z0-9_\-]*"
+                placeholder="launch"
+              />
+              <FieldDescription>
+                {t("Lowercase letters, digits, - and _.")}
+              </FieldDescription>
+              {message ? <FieldError>{message}</FieldError> : null}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`${fieldId}-topic`}>{t("Topic")}</FieldLabel>
+              <Input
+                id={`${fieldId}-topic`}
+                value={topic}
+                onChange={(event) => {
+                  setTopic(event.target.value);
+                }}
+                maxLength={250}
+              />
+            </Field>
+            <div className="flex items-center gap-2">
+              <Switch
+                id={`${fieldId}-private`}
+                checked={isPrivate}
+                onCheckedChange={setPrivate}
+              />
+              <Label
+                htmlFor={`${fieldId}-private`}
+                className="text-sm font-normal"
+              >
+                {t("Private: only the people you add see it")}
+              </Label>
+            </div>
+          </FieldGroup>
+          <DialogFooter>
+            <DialogClose render={<Button type="button" variant="outline" />}>
+              {t("Cancel")}
+            </DialogClose>
+            <Button type="submit" disabled={create.pending}>
+              {t("Create")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+## Message list
+
+A conversation's messages over Realtime, with older pages on demand, who is typing, reply counts and the composer. It calls `useMessages` from `better-supabase/blocks/messaging/react`; the [messaging](https://bettersupabase.com/blocks/messaging), [channels](https://bettersupabase.com/blocks/channels) blocks must be installed (`npx better-supabase add messaging channels`). Page: https://bettersupabase.com/recipes/message-list.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert button card empty scroll-area skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/chat/components/message-list.tsx"
+"use client";
+
+import type { Message } from "better-supabase/blocks/messaging";
+
+import { useMessages } from "better-supabase/blocks/messaging/react";
+import { MessagesSquareIcon, RotateCwIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+import { useRef } from "react";
+
+import { Alert, AlertAction, AlertTitle } from "@/components/reui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import { MessageComposer } from "./message-composer";
+import { MessageItem } from "./message-item";
+import { PresenceAvatars } from "./presence-avatars";
+
+/**
+ * A channel's top-level messages, live over Realtime: older pages on demand,
+ * who is typing, and the composer. Replies open in a thread.
+ */
+export function MessageList({
+  conversationId,
+  name,
+  topic,
+  onOpenThread,
+}: {
+  conversationId: string;
+  name: string;
+  topic?: string | undefined;
+  onOpenThread: (root: Message) => void;
+}) {
+  const t = useExtracted("chat");
+  const errorMessage = useErrorMessage();
+  const input = useRef<HTMLTextAreaElement>(null);
+
+  const {
+    messages,
+    hasOlder,
+    typing,
+    error,
+    send,
+    setTyping,
+    loadOlder,
+    refresh,
+  } = useMessages({ conversationId });
+
+  return (
+    <Card size="sm" className="min-h-0">
+      <CardHeader>
+        <CardTitle>#{name}</CardTitle>
+        {topic ? <CardDescription>{topic}</CardDescription> : null}
+        <CardAction>
+          <PresenceAvatars
+            subject={{ type: "conversation", id: conversationId }}
+          />
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+        {error ? (
+          <Alert variant="destructive" aria-live="polite">
+            <AlertTitle>{errorMessage(error)}</AlertTitle>
+            <AlertAction>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void refresh()}
+              >
+                <RotateCwIcon aria-hidden />
+                {t("Retry")}
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : null}
+        {messages === undefined ? (
+          <div
+            className="flex flex-col gap-4"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="sr-only">{t("Loading messages")}</span>
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
+          </div>
+        ) : messages.length === 0 ? (
+          <Empty className="flex-1">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <MessagesSquareIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("No messages yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Say hello to start the conversation.")}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => input.current?.focus()}
+              >
+                {t("Write a message")}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="flex flex-col gap-4 pr-3">
+              {hasOlder ? (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  className="self-center"
+                  onClick={() => void loadOlder()}
+                >
+                  {t("Load older messages")}
+                </Button>
+              ) : null}
+              <ol className="flex flex-col gap-4" data-testid="messages">
+                {messages.map((message) => (
+                  <MessageItem
+                    key={message.id}
+                    message={message}
+                    onOpenThread={onOpenThread}
+                  />
+                ))}
+              </ol>
+            </div>
+          </ScrollArea>
+        )}
+      </CardContent>
+      <CardFooter className="flex-col items-stretch gap-1">
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {typing.length > 0
+            ? t(
+                "{count, plural, one {Someone is typing} other {# people are typing}}",
+                { count: typing.length },
+              )
+            : null}
+        </p>
+        <MessageComposer
+          conversationId={conversationId}
+          inputRef={input}
+          placeholder={t("Message #{name}", { name })}
+          onSend={send}
+          onTyping={setTyping}
+        />
+      </CardFooter>
+    </Card>
+  );
+}
+```
+
+## Message composer
+
+A message box that sends on Enter, signals typing, and uploads dropped, pasted or picked files onto the message. It loads its data on the server through the block's client; the [messaging](https://bettersupabase.com/blocks/messaging), [attachments](https://bettersupabase.com/blocks/attachments) blocks must be installed (`npx better-supabase add messaging attachments`). Page: https://bettersupabase.com/recipes/message-composer.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge button label spinner textarea
+```
+
+```tsx title="apps/examples/nextjs/src/features/chat/components/message-composer.tsx"
+"use client";
+
+import type { Result } from "better-supabase";
+import type { MessageDraft } from "better-supabase/blocks/messaging/react";
+import type { DragEvent, Ref } from "react";
+
+import { useAction } from "better-supabase/react";
+import { PaperclipIcon, SendIcon, XIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+import { useId, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/reui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { useSupabase } from "@/lib/hooks";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import { confirmChatUpload, startChatUpload } from "../chat-actions";
+
+interface PendingFile {
+  readonly key: string;
+  readonly name: string;
+  /** Set once the bytes are uploaded and confirmed. */
+  readonly id: string | null;
+}
+
+/** How often a held key press tells the others the caller is typing. */
+const TYPING_EVERY_MS = 2000;
+
+/**
+ * Writes a message with files: drop them on the box, paste them, or pick them.
+ * Each file uploads to the conversation first; `send` moves it onto the
+ * message.
+ */
+export function MessageComposer({
+  conversationId,
+  placeholder,
+  inputRef,
+  onSend,
+  onTyping,
+}: {
+  conversationId: string;
+  placeholder: string;
+  inputRef?: Ref<HTMLTextAreaElement>;
+  onSend: (body: string, draft: MessageDraft) => Promise<Result<unknown>>;
+  onTyping: (typing: boolean) => void;
+}) {
+  const t = useExtracted("chat");
+  const errorMessage = useErrorMessage();
+  const supabase = useSupabase();
+  const bodyId = useId();
+  const picker = useRef<HTMLInputElement>(null);
+  const lastPing = useRef(0);
+  const [body, setBody] = useState("");
+  const [files, setFiles] = useState<readonly PendingFile[]>([]);
+  const [sending, setSending] = useState(false);
+
+  const start = useAction(startChatUpload);
+  const confirm = useAction(confirmChatUpload);
+
+  const uploading = files.some((file) => file.id === null);
+
+  const drop = (key: string) => {
+    setFiles((current) => current.filter((file) => file.key !== key));
+  };
+
+  const upload = async (file: File) => {
+    const key = crypto.randomUUID();
+    setFiles((current) => [...current, { key, name: file.name, id: null }]);
+
+    const started = await start.run({
+      conversationId,
+      name: file.name,
+      mimeType: file.type,
+      size: file.size,
+    });
+
+    if (!started.ok) {
+      drop(key);
+      toast.error(errorMessage(started.error));
+
+      return;
+    }
+
+    const { id, bucket, path, token } = started.data;
+
+    const sent = await supabase.storage
+      .from(bucket)
+      .uploadToSignedUrl(path, token, file, { contentType: file.type });
+
+    const confirmed = sent.error ? undefined : await confirm.run({ id });
+
+    if (!confirmed?.ok) {
+      drop(key);
+      toast.error(t("{name} did not upload. Try again.", { name: file.name }));
+
+      return;
+    }
+
+    setFiles((current) =>
+      current.map((each) => (each.key === key ? { ...each, id } : each)),
+    );
+  };
+
+  const add = (list: FileList | null) => {
+    for (const file of list ?? []) {
+      void upload(file);
+    }
+  };
+
+  const submit = async () => {
+    const text = body.trim();
+
+    if ((text === "" && files.length === 0) || uploading) {
+      return;
+    }
+
+    setSending(true);
+
+    const result = await onSend(text, {
+      attachmentIds: files.flatMap((file) => (file.id ? [file.id] : [])),
+    });
+
+    setSending(false);
+
+    if (result.ok) {
+      setBody("");
+      setFiles([]);
+    } else {
+      toast.error(errorMessage(result.error));
+    }
+  };
+
+  return (
+    <form
+      className="flex flex-col gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <Label htmlFor={bodyId} className="sr-only">
+        {t("Message")}
+      </Label>
+      <Textarea
+        ref={inputRef}
+        id={bodyId}
+        value={body}
+        rows={2}
+        maxLength={4000}
+        placeholder={placeholder}
+        onDragOver={(event: DragEvent) => {
+          event.preventDefault();
+        }}
+        onDrop={(event: DragEvent) => {
+          event.preventDefault();
+          add(event.dataTransfer.files);
+        }}
+        onChange={(event) => {
+          setBody(event.target.value);
+
+          if (event.timeStamp - lastPing.current > TYPING_EVERY_MS) {
+            lastPing.current = event.timeStamp;
+            onTyping(true);
+          }
+        }}
+        onPaste={(event) => {
+          if (event.clipboardData.files.length > 0) {
+            event.preventDefault();
+            add(event.clipboardData.files);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            void submit();
+          }
+        }}
+      />
+      {files.length > 0 ? (
+        <ul className="flex flex-wrap gap-2" aria-live="polite">
+          {files.map((file) => (
+            <li key={file.key}>
+              <Badge variant="outline">
+                {file.id === null ? <Spinner /> : <PaperclipIcon aria-hidden />}
+                {file.name}
+                <button
+                  type="button"
+                  aria-label={t("Remove {name}", { name: file.name })}
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => {
+                    drop(file.key);
+                  }}
+                >
+                  <XIcon aria-hidden />
+                </button>
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          hidden
+          onChange={(event) => {
+            add(event.target.files);
+            event.target.value = "";
+          }}
+        />
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("Attach files")}
+          onClick={() => picker.current?.click()}
+        >
+          <PaperclipIcon aria-hidden />
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {t("Drop or paste files to attach them.")}
+        </span>
+        <Button
+          type="submit"
+          size="sm"
+          className="ml-auto"
+          disabled={sending || uploading}
+        >
+          <SendIcon aria-hidden />
+          {t("Send")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+```
+
+## Thread panel
+
+A thread beside the channel: the root message, its replies live over Realtime, and a composer that replies into it. It calls `useMessages` from `better-supabase/blocks/messaging/react`; the [messaging](https://bettersupabase.com/blocks/messaging), [channels](https://bettersupabase.com/blocks/channels) blocks must be installed (`npx better-supabase add messaging channels`). Page: https://bettersupabase.com/recipes/thread-panel.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert button card empty scroll-area separator skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/chat/components/thread-panel.tsx"
+"use client";
+
+import type { Message } from "better-supabase/blocks/messaging";
+
+import { useMessages } from "better-supabase/blocks/messaging/react";
+import { MessageSquareIcon, RotateCwIcon, XIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+import { useRef } from "react";
+
+import { Alert, AlertAction, AlertTitle } from "@/components/reui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import { MessageComposer } from "./message-composer";
+import { MessageItem } from "./message-item";
+
+/** A thread: its root message, the replies, and a composer that replies into it. */
+export function ThreadPanel({
+  root,
+  onClose,
+}: {
+  /** The top-level message the thread hangs off. */
+  root: Message;
+  onClose: () => void;
+}) {
+  const t = useExtracted("chat");
+  const errorMessage = useErrorMessage();
+  const input = useRef<HTMLTextAreaElement>(null);
+
+  const thread = useMessages({
+    conversationId: root.conversationId,
+    threadId: root.id,
+  });
+
+  return (
+    <Card size="sm" className="min-h-0">
+      <CardHeader>
+        <CardTitle>{t("Thread")}</CardTitle>
+        <CardAction>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t("Close the thread")}
+            onClick={onClose}
+          >
+            <XIcon aria-hidden />
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+        {thread.error ? (
+          <Alert variant="destructive" aria-live="polite">
+            <AlertTitle>{errorMessage(thread.error)}</AlertTitle>
+            <AlertAction>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void thread.refresh()}
+              >
+                <RotateCwIcon aria-hidden />
+                {t("Retry")}
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : null}
+        {thread.messages === undefined ? (
+          <div
+            className="flex flex-col gap-4"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="sr-only">{t("Loading the thread")}</span>
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
+          </div>
+        ) : (
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="flex flex-col gap-4 pr-3">
+              <ol>
+                <MessageItem message={root} />
+              </ol>
+              <Separator />
+              {thread.messages.length === 0 ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageSquareIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>{t("No replies yet")}</EmptyTitle>
+                    <EmptyDescription>
+                      {t("Replies stay here, out of the channel.")}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => input.current?.focus()}
+                    >
+                      {t("Reply")}
+                    </Button>
+                  </EmptyContent>
+                </Empty>
+              ) : (
+                <ol className="flex flex-col gap-4">
+                  {thread.messages.map((message) => (
+                    <MessageItem key={message.id} message={message} />
+                  ))}
+                </ol>
+              )}
+            </div>
+          </ScrollArea>
+        )}
+      </CardContent>
+      <CardFooter className="flex-col items-stretch">
+        <MessageComposer
+          conversationId={root.conversationId}
+          inputRef={input}
+          placeholder={t("Reply in the thread")}
+          onSend={thread.send}
+          onTyping={thread.setTyping}
+        />
+      </CardFooter>
+    </Card>
+  );
+}
+```
+
+## Presence avatars
+
+Who else has a record open (a channel, a comment thread's record or a document), on the record's presence topic. It calls `usePresence` from `better-supabase/react`; the [messaging block](https://bettersupabase.com/blocks/messaging) must be installed (`npx better-supabase add messaging`). Page: https://bettersupabase.com/recipes/presence-avatars.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add avatar
+```
+
+```tsx title="apps/examples/nextjs/src/features/chat/components/presence-avatars.tsx"
+"use client";
+
+import { usePresence } from "better-supabase/react";
+import {
+  subjectPresenceTopic,
+  subjectPresenceValues,
+} from "better-supabase/realtime";
+import { useExtracted } from "next-intl";
+import * as v from "valibot";
+
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+} from "@/components/ui/avatar";
+import { useSession } from "@/lib/hooks";
+
+const SHOWN = 4;
+
+/** States that fail the schema never reach `members`. */
+const viewers = subjectPresenceTopic(
+  v.object({ userId: v.string(), name: v.string() }),
+);
+
+/**
+ * Who else has a record open: a channel, a comment thread's record or a
+ * document. The subjects module lets anyone who reads the record join its
+ * presence topic. States come from the clients, so they only label avatars.
+ */
+export function PresenceAvatars({
+  subject,
+}: {
+  subject: { readonly type: string; readonly id: string };
+}) {
+  const t = useExtracted("chat");
+  const session = useSession();
+  const me = session.kind === "user" ? session.user : null;
+
+  const { members } = usePresence(
+    viewers,
+    subjectPresenceValues(me ? subject : null),
+    { state: me ? { userId: me.id, name: me.email ?? t("Someone") } : null },
+  );
+
+  const others = new Map<string, string>();
+
+  for (const { state } of members) {
+    if (state.userId !== me?.id) {
+      others.set(state.userId, state.name);
+    }
+  }
+
+  if (others.size === 0) {
+    return null;
+  }
+
+  const people = [...others];
+
+  return (
+    <AvatarGroup
+      aria-label={t(
+        "{count, plural, one {# other viewer} other {# other viewers}}",
+        { count: people.length },
+      )}
+    >
+      {people.slice(0, SHOWN).map(([userId, name]) => (
+        <Avatar key={userId} size="sm" title={name}>
+          <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
+        </Avatar>
+      ))}
+      {people.length > SHOWN ? (
+        <AvatarGroupCount>+{people.length - SHOWN}</AvatarGroupCount>
+      ) : null}
+    </AvatarGroup>
   );
 }
 ```
@@ -21361,7 +22497,7 @@ export async function ProjectPage({
               authors={Object.fromEntries(
                 members.data.map((member) => [member.userId, member.name]),
               )}
-              canComment={can(session, "comments.create")}
+              canComment={can(session, "messages.send")}
             />
           </CardContent>
         </Card>
