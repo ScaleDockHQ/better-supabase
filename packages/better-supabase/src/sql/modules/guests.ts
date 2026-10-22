@@ -20,6 +20,8 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectTenant } from "../subject-check-sql.ts";
+import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
+import { registeredSubjects } from "../subject-registry.ts";
 import { moduleOperations } from "./access-model.ts";
 
 const ACCESS_PAYLOAD = [
@@ -602,7 +604,32 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 -- Guests: people outside the organization (a client, a contractor) who reach
 -- the records they are granted, and portal access for the party they act for.
 -- A guest is never a member; policies add them through ctx.scope.guest.
-${tables(ctx)}${functions(ctx, layout)}`;
+${tables(ctx)}${functions(ctx, layout)}${grantMerges(ctx)}`;
+}
+
+/** Moves the grants on a merged registered subject to the record it merged into. */
+function grantMerges(ctx: ModuleContext): string {
+  const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
+    (subject) =>
+      [
+        subject.type,
+        { table: `${subject.schema}.${subject.table}`, extra: {} },
+      ] as const,
+  );
+
+  return subjectMergeHandler(
+    ctx,
+    subjects,
+    moveSubjectRows(
+      {
+        table: ctx.table("grants"),
+        type: ctx.col("grants", "subjectType"),
+        id: ctx.col("grants", "subjectId"),
+        unique: [ctx.col("grants", "guest")],
+      },
+      "v_type",
+    ),
+  );
 }
 
 function contract(): readonly ModuleContractFunction[] {

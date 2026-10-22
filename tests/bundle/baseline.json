@@ -2,11 +2,11 @@
   ".": 68982,
   "./config": 71614,
   "./preset": 52751,
-  "./create": 999621,
+  "./create": 1002374,
   "./create/lite": 2661,
   "./create/oauth": 1586,
   "./create/supabase": 4646,
-  "./cli": 588383,
+  "./cli": 588560,
   "./client": 30019,
   "./client/native": 27895,
   "./react": 67087,
@@ -323,11 +323,11 @@
   "./plugins/tenant": 10017,
   "./plugins/actor": 6927,
   "./plugins/validation": 12425,
-  "./sql": 913625,
+  "./sql": 916380,
   "./testing": 242296,
   "./expo-sqlite": 34286,
   "./tanstack-db": 1674,
   "./tanstack-db/supabase": 4105,
   "./blocks/push": 26414,
-  "better-supabase CLI (startup)": 30650
+  "better-supabase CLI (startup)": 30649
 }

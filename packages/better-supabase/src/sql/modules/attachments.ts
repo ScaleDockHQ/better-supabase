@@ -20,6 +20,7 @@ import {
   SERVICE_CALLER,
   withExtraFields,
 } from "../shared.ts";
+import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
   subjectAccess,
   subjectCascades,
@@ -870,7 +871,7 @@ create trigger bs_object_scan_pending
   for each row when (new.bucket_id in (${scanBuckets.map(sqlString).join(", ")}))
   execute function ${fn("object_scan_pending")}();`
 }
-${cascades}
+${cascades}${subjectMergeHandler(ctx, subjects, moveSubjectRows({ table: t, type: c("subjectType"), id: c("subjectId") }, "v_type"))}
 revoke execute on function ${fn("object_clean")}(text, text) from public, anon;
 revoke execute on function ${fn("object_scan")}(text, text) from public, anon, authenticated;
 revoke execute on function ${fn("set_object_scan")}(text, text, text, text) from public, anon, authenticated;

@@ -24,6 +24,7 @@ import {
   fail,
   withExtraFields,
 } from "../shared.ts";
+import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
   qualifiedTable,
   subjectAccess,
@@ -935,7 +936,7 @@ begin${reads.gate}${reads.auditSetup}
   return v_rows;
 end;
 $$;
-${cascades}${documentCheck}
+${cascades}${subjectMergeHandler(ctx, subjects, moveSubjectRows({ table: comments, type: c("subjectType"), id: c("subjectId") }, "v_type"))}${documentCheck}
 revoke execute on function ${fn("comment_subject_readable")}(text, text, ${id}) from public, anon;
 revoke execute on function ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid, jsonb${extra.type}) from public, anon;
 revoke execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boolean${extra.type}) from public, anon;

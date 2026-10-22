@@ -3,6 +3,7 @@ import type { ModuleScope } from "../scope.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { columnsObject, fail, pageSize, userGrant } from "../shared.ts";
+import { recordMergeFunction } from "../subject-merge-sql.ts";
 import { watchSql } from "../watch-sql.ts";
 
 export interface PartyNames {
@@ -293,71 +294,50 @@ function mergeFunction(
   kind: Kind,
 ): string {
   const spec = SPEC[kind];
-  const { t, c, fn } = names;
+  const { t, c } = names;
   const col = (logical: string): string => c(spec.table, logical);
   const li = (logical: string): string => c("links", logical);
-  const name = kind === "company" ? "merge_companies" : "merge_people";
   const linkColumn = kind === "company" ? li("company") : li("person");
-  const unique = kind === "company" ? col("domain") : col("email");
 
-  const fill = FIELDS[kind]
-    .filter((field) => field.key !== "name" && field.key !== "lifecycle")
-    .map(
-      (field) =>
-        `${col(field.column)} = coalesce(x.${col(field.column)}, v_drop.${col(field.column)})`,
-    );
-
-  return `
--- Merges drop into keep: keep's empty fields take drop's values, drop's
--- links move to keep, and drop is archived with merged_into set. Apps move
--- their own references on the ${kind}.merged event.
-create or replace function ${fn(name)}(keep uuid, drop uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_keep ${t(spec.table)};
-  v_drop ${t(spec.table)};
-begin
-  select * into v_keep from ${t(spec.table)} x where x.${col("id")} = ${name}.keep for update;
-  select * into v_drop from ${t(spec.table)} x where x.${col("id")} = ${name}.drop for update;
-  if v_keep.${col("id")} is null or v_drop.${col("id")} is null then
-    ${fail("PARTY_NOT_FOUND", `${kind} not found`, "P0002")}
-  end if;
-  if v_keep.${col("tenant")} <> v_drop.${col("tenant")} or v_keep.${col("id")} = v_drop.${col("id")} or v_drop.${col("mergedInto")} is not null then
-    ${fail("PARTY_MERGE_INVALID", "merge two different, unmerged records of one organization", "22023")}
-  end if;
-  ${guard(names.scope, `v_keep.${col("tenant")}`, names.manage, "PARTY_FORBIDDEN")}
-  update ${t(spec.table)} x set ${unique} = null, ${col("mergedInto")} = ${name}.keep,
-    ${col("archivedAt")} = coalesce(x.${col("archivedAt")}, now()), ${col("updatedAt")} = now()
-  where x.${col("id")} = ${name}.drop;
-  update ${t(spec.table)} x set ${fill.join(", ")}, ${col("updatedAt")} = now()
-  where x.${col("id")} = ${name}.keep;
-  insert into ${t("links")} (${li("tenant")}, ${li("company")}, ${li("person")}, ${li("role")}, ${li("isPrimary")})
-  select l.${li("tenant")}, ${kind === "company" ? `${name}.keep, l.${li("person")}` : `l.${li("company")}, ${name}.keep`}, l.${li("role")}, false
-  from ${t("links")} l where l.${linkColumn} = ${name}.drop
+  return recordMergeFunction(ctx, {
+    name: kind === "company" ? "merge_companies" : "merge_people",
+    table: spec.table,
+    guard: (tenant) =>
+      guard(names.scope, tenant, names.manage, "PARTY_FORBIDDEN"),
+    notFound: ["PARTY_NOT_FOUND", `${kind} not found`],
+    invalid: [
+      "PARTY_MERGE_INVALID",
+      "merge two different, unmerged records of one organization",
+    ],
+    clear: [kind === "company" ? "domain" : "email"],
+    fill: FIELDS[kind]
+      .filter((field) => field.key !== "name" && field.key !== "lifecycle")
+      .map((field) => field.column),
+    move: (
+      keep,
+      drop,
+    ) => `insert into ${t("links")} (${li("tenant")}, ${li("company")}, ${li("person")}, ${li("role")}, ${li("isPrimary")})
+  select l.${li("tenant")}, ${kind === "company" ? `${keep}, l.${li("person")}` : `l.${li("company")}, ${keep}`}, l.${li("role")}, false
+  from ${t("links")} l where l.${linkColumn} = ${drop}
   on conflict do nothing;
-  delete from ${t("links")} l where l.${linkColumn} = ${name}.drop;
-  ${ctx.record({
-    type: `${kind}.merged`,
-    payload: `jsonb_build_object('organizationId', v_keep.${col("tenant")}, ${sqlString(spec.idKey)}, ${name}.keep, 'name', v_keep.${col("name")}, 'mergedId', ${name}.drop)`,
-    subject: `'${spec.subject}/' || ${name}.keep::text`,
-    tenant: `v_keep.${col("tenant")}::text`,
-    audit: {
-      category: "data",
-      targetType: kind,
-      recordId: `${name}.keep::text`,
-      targetLabel: `v_keep.${col("name")}`,
-      summary: `'merged ' || v_drop.${col("name")} || ' into ' || v_keep.${col("name")}`,
-    },
-  })}
-  return (select to_jsonb(x)${extraFields(ctx, kind, "x")} from ${t(spec.table)} x where x.${col("id")} = ${name}.keep);
-end;
-$$;
-${userGrant(`${fn(name)}(uuid, uuid)`)}
-`;
+  delete from ${t("links")} l where l.${linkColumn} = ${drop};`,
+    record: (keep, drop) =>
+      ctx.record({
+        type: `${kind}.merged`,
+        payload: `jsonb_build_object('organizationId', v_keep.${col("tenant")}, ${sqlString(spec.idKey)}, ${keep}, 'name', v_keep.${col("name")}, 'mergedId', ${drop})`,
+        subject: `'${spec.subject}/' || ${keep}::text`,
+        tenant: `v_keep.${col("tenant")}::text`,
+        audit: {
+          category: "data",
+          targetType: kind,
+          recordId: `${keep}::text`,
+          targetLabel: `v_keep.${col("name")}`,
+          summary: `'merged ' || v_drop.${col("name")} || ' into ' || v_keep.${col("name")}`,
+        },
+      }),
+    returns: (keep) =>
+      `(select to_jsonb(x)${extraFields(ctx, kind, "x")} from ${t(spec.table)} x where x.${col("id")} = ${keep})`,
+  });
 }
 
 function listFunction(

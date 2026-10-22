@@ -10,6 +10,7 @@ import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, schemaPreamble, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
   subjectCascades,
   subjectReadable,
@@ -503,7 +504,7 @@ begin
   end if;
 end;
 $do$;
-${subjectCascades(ctx, subjects, `delete from ${reactions} r where r.${c("subjectType")} = v_type and r.${c("subjectId")} = v_id;`)}
+${subjectCascades(ctx, subjects, `delete from ${reactions} r where r.${c("subjectType")} = v_type and r.${c("subjectId")} = v_id;`)}${subjectMergeHandler(ctx, subjects, moveSubjectRows({ table: reactions, type: c("subjectType"), id: c("subjectId"), unique: [c("actor"), c("emoji")] }, "v_type"))}
 `;
 }
 
