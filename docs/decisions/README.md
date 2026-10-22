@@ -71,4 +71,4 @@ add one, and link it from the code or config it explains.
 | [0063](0063-activity-block.md)                            | The activity feed moves out of comments into its own `activity` block                                                          |
 | [0078](0078-mail-sync-block.md)                           | Member mailboxes sync into engagements through a versioned mail provider over fetch                                            |
 | [0079](0079-segments-and-assignment.md)                   | Segments materialize rules filter trees; assignment queues pick owners by round robin, weight and territory                    |
-| [0080](0080-enrichment-provider.md)                       | Enrichment stores provider profiles per record and fills only empty columns, through a versioned provider over fetch           |
+| [0081](0081-enrichment-provider.md)                       | Enrichment stores provider profiles per record and fills only empty columns, through a versioned provider over fetch           |
