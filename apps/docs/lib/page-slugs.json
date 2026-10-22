@@ -37,6 +37,7 @@
   "blocks/api-keys",
   "blocks/app-tables",
   "blocks/approvals",
+  "blocks/assets",
   "blocks/attachments",
   "blocks/audit",
   "blocks/billing",
