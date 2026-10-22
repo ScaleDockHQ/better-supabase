@@ -1787,6 +1787,7 @@
               "drive-files",
               "employees",
               "engagements",
+              "enrichment",
               "ensure-rls",
               "entitlements",
               "flags",
@@ -1983,6 +1984,9 @@
             },
             "engagements": {
               "$ref": "#/$defs/blocks/engagements"
+            },
+            "enrichment": {
+              "$ref": "#/$defs/blocks/enrichment"
             },
             "ensure-rls": {
               "$ref": "#/$defs/blocks/ensure-rls"
@@ -3925,6 +3929,17 @@
               },
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "enrichment": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
