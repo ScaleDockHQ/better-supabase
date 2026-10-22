@@ -9496,6 +9496,111 @@
       "RpcClient"
     ]
   },
+  "./blocks/sequences": {
+    "values": [
+      "createSequences",
+      "dbTransport",
+      "extendBlock",
+      "fillPlaceholders",
+      "rpcTransport",
+      "sequenceDraft",
+      "sequenceEnrollInputSchema",
+      "sequenceInputSchema",
+      "sequencesBlock",
+      "sequencesEvents",
+      "sequencesSqlOptions",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "RpcClient",
+      "Sequence",
+      "SequenceCounts",
+      "SequenceEmailStep",
+      "SequenceEnrollInput",
+      "SequenceEnrollment",
+      "SequenceEnrollmentEventData",
+      "SequenceEnrollmentsFilter",
+      "SequenceEnrollmentStatus",
+      "SequenceEventData",
+      "SequenceExitReason",
+      "SequenceInput",
+      "SequenceRunReport",
+      "Sequences",
+      "SequencesEvents",
+      "SequencesOptions",
+      "SequencesSqlOptions",
+      "SequenceStatus",
+      "SequenceStep",
+      "SequenceTaskStep",
+      "SequenceWaitStep"
+    ]
+  },
+  "./blocks/lead-scoring": {
+    "values": [
+      "createLeadScoring",
+      "dbTransport",
+      "extendBlock",
+      "leadRuleFields",
+      "leadScoringBlock",
+      "leadScoringSqlOptions",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "LeadScoring",
+      "LeadScoringOptions",
+      "LeadScoringSqlOptions",
+      "RpcClient"
+    ]
+  },
+  "./blocks/posts": {
+    "values": [
+      "createPosts",
+      "dbTransport",
+      "extendBlock",
+      "postBoardInputSchema",
+      "postInputSchema",
+      "postsBlock",
+      "postsEvents",
+      "postsSqlOptions",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Post",
+      "PostBoard",
+      "PostBoardEventData",
+      "PostBoardInput",
+      "PostBoardKind",
+      "PostEventData",
+      "PostInput",
+      "PostModeration",
+      "Posts",
+      "PostsEvents",
+      "PostsFilter",
+      "PostsOptions",
+      "PostsSqlOptions",
+      "PostStateInput",
+      "PostStatus",
+      "PostVotes",
+      "RpcClient"
+    ]
+  },
   "./blocks/contracts": {
     "values": [
       "contractChangesSchema",

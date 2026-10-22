@@ -4711,6 +4711,201 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "sequences",
+      "title": "Sequences",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "enrollments"
+      ],
+      "integrates": [
+        "mail-sync",
+        "parties",
+        "work-items",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "sequences",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "sequence": {
+            "table": "sequences",
+            "singular": "sequence",
+            "primary": true
+          },
+          "sequence_enrollment": {
+            "table": "members",
+            "singular": "sequence_enrollment"
+          }
+        },
+        "tables": {
+          "sequences": {
+            "name": "sequences",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "description": "description",
+              "status": "status",
+              "exitOnReply": "exit_on_reply",
+              "account": "mail_account_id",
+              "steps": "steps",
+              "version": "version",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "members": {
+            "name": "sequence_enrollments",
+            "columns": {
+              "enrollment": "enrollment_id",
+              "tenant": "tenant_id",
+              "sequence": "sequence_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "address": "address",
+              "name": "name",
+              "account": "mail_account_id",
+              "thread": "mail_thread_id",
+              "step": "step",
+              "nextRunAt": "next_run_at",
+              "status": "status",
+              "exitReason": "exit_reason",
+              "attempts": "attempts",
+              "lastError": "last_error",
+              "variables": "variables",
+              "enrolledBy": "enrolled_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "sequences.read",
+          "enroll": "sequences.enroll",
+          "manage": "sequences.manage"
+        }
+      }
+    },
+    {
+      "name": "lead-scoring",
+      "title": "Lead scoring",
+      "category": "growth",
+      "requires": [
+        "tenant",
+        "access",
+        "parties",
+        "scores"
+      ],
+      "integrates": [
+        "enrichment",
+        "segments",
+        "mail-sync"
+      ],
+      "manifest": "lead-scoring",
+      "scopes": [
+        "tenant"
+      ]
+    },
+    {
+      "name": "posts",
+      "title": "Posts",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "messaging",
+        "comments",
+        "reactions",
+        "moderation"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "posts",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "posts",
+      "entities": {
+        "specs": {
+          "post_board": {
+            "table": "boards",
+            "singular": "post_board"
+          },
+          "post": {
+            "table": "posts",
+            "singular": "post",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "body"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "boards": {
+            "name": "post_boards",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "description": "description",
+              "kind": "kind",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "posts": {
+            "name": "posts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "board": "board_id",
+              "author": "author_id",
+              "title": "title",
+              "body": "body",
+              "status": "status",
+              "moderation": "moderation_status",
+              "pinnedAt": "pinned_at",
+              "lockedAt": "locked_at",
+              "mergedInto": "merged_into_id",
+              "replyCount": "reply_count",
+              "lastActivityAt": "last_activity_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "posts.read",
+          "write": "posts.write",
+          "moderate": "posts.moderate",
+          "manage": "posts.manage"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -10448,6 +10643,476 @@ export const PRESET_CATALOG: PresetCatalog = {
           "course_lesson.completed",
           "course_certificate.issued",
           "course_certificate.revoked"
+        ]
+      }
+    },
+    {
+      "name": "sequences",
+      "sql": [
+        "sequences"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "sequencesBlock",
+        "subpath": "better-supabase/blocks/sequences"
+      },
+      "consumes": {
+        "mailer": "optional"
+      },
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Sequence"
+        },
+        {
+          "name": "SequenceCounts"
+        },
+        {
+          "name": "SequenceEmailStep"
+        },
+        {
+          "name": "SequenceEnrollInput"
+        },
+        {
+          "name": "SequenceEnrollment"
+        },
+        {
+          "name": "SequenceEnrollmentEventData"
+        },
+        {
+          "name": "SequenceEnrollmentsFilter"
+        },
+        {
+          "name": "SequenceEnrollmentStatus"
+        },
+        {
+          "name": "SequenceEventData"
+        },
+        {
+          "name": "SequenceExitReason"
+        },
+        {
+          "name": "SequenceInput"
+        },
+        {
+          "name": "SequenceRunReport"
+        },
+        {
+          "name": "Sequences"
+        },
+        {
+          "name": "SequencesEvents"
+        },
+        {
+          "name": "SequencesOptions"
+        },
+        {
+          "name": "SequencesSqlOptions"
+        },
+        {
+          "name": "SequenceStatus"
+        },
+        {
+          "name": "SequenceStep"
+        },
+        {
+          "name": "SequenceTaskStep"
+        },
+        {
+          "name": "SequenceWaitStep"
+        }
+      ],
+      "entitySchemas": {
+        "sequence": {
+          "input": {
+            "title": "SequenceInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "key": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 63
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 2000
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "draft",
+                  "active",
+                  "paused",
+                  "archived"
+                ],
+                "optional": true
+              },
+              "exitOnReply": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "accountId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "steps": {
+                "kind": "json",
+                "optional": true,
+                "array": true,
+                "description": "Up to 50 email, task and wait steps, each with a unique id."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "SequenceInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "draft",
+                    "active",
+                    "paused",
+                    "archived"
+                  ]
+                },
+                "exitOnReply": {
+                  "type": "boolean"
+                },
+                "accountId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {},
+                  "description": "Up to 50 email, task and wait steps, each with a unique id."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "sequence_enrollment": {
+          "input": {
+            "title": "SequenceEnrollInput",
+            "fields": {
+              "address": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "accountId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "variables": {
+                "kind": "json",
+                "optional": true,
+                "description": "Values for the steps' {{key}} placeholders."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "SequenceEnrollInput",
+              "type": "object",
+              "properties": {
+                "address": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "accountId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "variables": {
+                  "description": "Values for the steps' {{key}} placeholders."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "SequencesEvents",
+        "types": [
+          "sequence.saved",
+          "sequence.deleted",
+          "sequence_enrollment.created",
+          "sequence_enrollment.step_completed",
+          "sequence_enrollment.paused",
+          "sequence_enrollment.resumed",
+          "sequence_enrollment.exited",
+          "sequence_enrollment.completed"
+        ]
+      }
+    },
+    {
+      "name": "lead-scoring",
+      "sql": [
+        "lead-scoring"
+      ],
+      "category": "growth",
+      "client": {
+        "export": "leadScoringBlock",
+        "subpath": "better-supabase/blocks/lead-scoring"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "posts",
+      "sql": [
+        "posts"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "postsBlock",
+        "subpath": "better-supabase/blocks/posts"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Post",
+          "fields": true
+        },
+        {
+          "name": "PostBoard"
+        },
+        {
+          "name": "PostBoardEventData"
+        },
+        {
+          "name": "PostBoardInput"
+        },
+        {
+          "name": "PostBoardKind"
+        },
+        {
+          "name": "PostEventData"
+        },
+        {
+          "name": "PostInput",
+          "fields": true
+        },
+        {
+          "name": "PostModeration"
+        },
+        {
+          "name": "Posts",
+          "fields": true
+        },
+        {
+          "name": "PostsEvents"
+        },
+        {
+          "name": "PostsFilter"
+        },
+        {
+          "name": "PostsOptions"
+        },
+        {
+          "name": "PostsSqlOptions"
+        },
+        {
+          "name": "PostStateInput"
+        },
+        {
+          "name": "PostStatus"
+        },
+        {
+          "name": "PostVotes"
+        }
+      ],
+      "entitySchemas": {
+        "post_board": {
+          "input": {
+            "title": "PostBoardInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "key": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 63
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 2000
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "forum",
+                  "feedback"
+                ],
+                "optional": true
+              },
+              "archived": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PostBoardInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "forum",
+                    "feedback"
+                  ]
+                },
+                "archived": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "post": {
+          "input": {
+            "title": "PostInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "body": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200000,
+                "description": "At most `options.maxBodyLength` characters."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PostInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 200000,
+                  "description": "At most `options.maxBodyLength` characters."
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "PostsEvents",
+        "types": [
+          "post_board.saved",
+          "post.created",
+          "post.updated",
+          "post.status_changed",
+          "post.moderated",
+          "post.merged",
+          "post.deleted"
         ]
       }
     },

@@ -323,6 +323,14 @@ function scoreOf(value: unknown, fn: string): Score {
   };
 }
 
+/** What `compute_score` returns, parsed; lead scoring shares it. */
+export function computedScoreOf(value: unknown, fn: string): ComputedScore {
+  return {
+    ...scoreOf(value, fn),
+    changed: recordOf(value, fn)["changed"] === true,
+  };
+}
+
 const scoresOf = (value: unknown, fn: string): readonly Score[] =>
   recordsOf(value, fn).map((row) => scoreOf(row, fn));
 
@@ -412,10 +420,7 @@ export function createScores(options: ScoresOptions): Scores {
             subject: fields,
             time_zone: compute.timeZone ?? "UTC",
           },
-          (value) => ({
-            ...scoreOf(value, "compute_score"),
-            changed: recordOf(value, "compute_score")["changed"] === true,
-          }),
+          (value) => computedScoreOf(value, "compute_score"),
         ),
       ),
     forSubject: (subject) =>

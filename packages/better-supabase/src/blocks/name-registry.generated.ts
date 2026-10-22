@@ -858,6 +858,16 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "lead-scoring": {
+    readonly tables: {
+      readonly "checks": "tenant" | "subjectType" | "subjectId" | "stale" | "checkedAt";
+    };
+    readonly functions: "lead_fields" | "lead_person_changed" | "score_lead" | "score_leads_due";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "leases": {
     readonly tables: {
       readonly "leases": "id" | "tenant" | "unit" | "partyType" | "partyId" | "title" | "status" | "startsOn" | "endsOn" | "rent" | "currency" | "frequency" | "deposit" | "depositHold" | "renewedAt" | "terminatedOn" | "terminationReason" | "metadata" | "createdBy" | "createdAt" | "updatedAt";
@@ -1130,6 +1140,20 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "posts": {
+    readonly tables: {
+      readonly "boards": "id" | "tenant" | "key" | "name" | "description" | "kind" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "posts": "id" | "tenant" | "board" | "author" | "title" | "body" | "status" | "moderation" | "pinnedAt" | "lockedAt" | "mergedInto" | "replyCount" | "lastActivityAt" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "create_post" | "delete_post" | "get_post" | "list_post_boards" | "list_posts" | "merge_posts" | "posts_moderated" | "posts_removed" | "posts_replied" | "posts_reply_guard" | "save_post_board" | "set_post_state" | "update_post" | "vote_on_post";
+    readonly actions: "read" | "write" | "moderate" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "post_board": "id" | "tenant_id" | "key" | "name" | "description" | "kind" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "post": "id" | "tenant_id" | "board_id" | "author_id" | "title" | "body" | "status" | "moderation_status" | "pinned_at" | "locked_at" | "merged_into_id" | "reply_count" | "last_activity_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "post";
+  };
   readonly "profiles": {
     readonly tables: {
       readonly "profiles": "key" | "email" | "username" | "fullName" | "firstName" | "lastName" | "avatar" | "avatarPath" | "activeTenant" | "activeTeam" | "onboarding" | "disabledAt" | "createdAt" | "updatedAt";
@@ -1323,6 +1347,20 @@ export interface BlockNameRegistry {
       readonly "segment": "id" | "tenant_id" | "name" | "description" | "subject_type" | "conditions" | "member_count" | "refreshed_at" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "segment";
+  };
+  readonly "sequences": {
+    readonly tables: {
+      readonly "sequences": "id" | "tenant" | "key" | "name" | "description" | "status" | "exitOnReply" | "account" | "steps" | "version" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "members": "enrollment" | "tenant" | "sequence" | "subjectType" | "subjectId" | "address" | "name" | "account" | "thread" | "step" | "nextRunAt" | "status" | "exitReason" | "attempts" | "lastError" | "variables" | "enrolledBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "change_sequence_enrollment" | "delete_sequence" | "enroll_in_sequence" | "enrollment_ensure" | "enrollment_mark" | "get_sequence" | "list_sequence_enrollments" | "list_sequences" | "run_due_sequences" | "save_sequence" | "sequence_exit" | "sequence_member_json" | "sequence_place" | "sequence_resync" | "sequence_step_done" | "sequence_step_failed" | "sequence_step_sent" | "sequence_steps_check";
+    readonly actions: "read" | "enroll" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "sequence": "id" | "tenant_id" | "key" | "name" | "description" | "status" | "exit_on_reply" | "mail_account_id" | "steps" | "version" | "created_by" | "created_at" | "updated_at";
+      readonly "sequence_enrollment": "enrollment_id" | "tenant_id" | "sequence_id" | "subject_type" | "subject_id" | "address" | "name" | "mail_account_id" | "mail_thread_id" | "step" | "next_run_at" | "status" | "exit_reason" | "attempts" | "last_error" | "variables" | "enrolled_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "sequence";
   };
   readonly "service-principals": {
     readonly tables: {

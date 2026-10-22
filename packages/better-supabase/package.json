@@ -1694,6 +1694,21 @@
       "types": "./dist/blocks/courses/index.d.ts",
       "default": "./dist/blocks/courses/index.js"
     },
+    "./blocks/sequences": {
+      "@better-supabase/source": "./src/blocks/sequences/index.ts",
+      "types": "./dist/blocks/sequences/index.d.ts",
+      "default": "./dist/blocks/sequences/index.js"
+    },
+    "./blocks/lead-scoring": {
+      "@better-supabase/source": "./src/blocks/lead-scoring/index.ts",
+      "types": "./dist/blocks/lead-scoring/index.d.ts",
+      "default": "./dist/blocks/lead-scoring/index.js"
+    },
+    "./blocks/posts": {
+      "@better-supabase/source": "./src/blocks/posts/index.ts",
+      "types": "./dist/blocks/posts/index.d.ts",
+      "default": "./dist/blocks/posts/index.js"
+    },
     "./blocks/contracts": {
       "@better-supabase/source": "./src/blocks/contracts/index.ts",
       "types": "./dist/blocks/contracts/index.d.ts",
@@ -3065,6 +3080,18 @@
       "./blocks/courses": {
         "types": "./dist/blocks/courses/index.d.ts",
         "default": "./dist/blocks/courses/index.js"
+      },
+      "./blocks/sequences": {
+        "types": "./dist/blocks/sequences/index.d.ts",
+        "default": "./dist/blocks/sequences/index.js"
+      },
+      "./blocks/lead-scoring": {
+        "types": "./dist/blocks/lead-scoring/index.d.ts",
+        "default": "./dist/blocks/lead-scoring/index.js"
+      },
+      "./blocks/posts": {
+        "types": "./dist/blocks/posts/index.d.ts",
+        "default": "./dist/blocks/posts/index.js"
       },
       "./blocks/contracts": {
         "types": "./dist/blocks/contracts/index.d.ts",

@@ -67,6 +67,7 @@ import {
 } from "./jobs/manifest.ts";
 import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
 import { knowledgeBlock } from "./knowledge/manifest.ts";
+import { leadScoringBlock } from "./lead-scoring/manifest.ts";
 import { leasesBlock } from "./leases/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
 import { ledgerBlock } from "./ledger/manifest.ts";
@@ -87,6 +88,7 @@ import { partiesBlock } from "./parties/manifest.ts";
 import { passesBlock } from "./passes/manifest.ts";
 import { pgtapBlock } from "./pgtap/manifest.ts";
 import { pipelinesBlock } from "./pipelines/manifest.ts";
+import { postsBlock } from "./posts/manifest.ts";
 import { profilesBlock } from "./profiles/manifest.ts";
 import { promotionsBlock } from "./promotions/manifest.ts";
 import { pushBlock } from "./push/manifest.ts";
@@ -104,6 +106,7 @@ import { savedViewsBlock } from "./saved-views/manifest.ts";
 import { scoresBlock } from "./scores/manifest.ts";
 import { searchBlock } from "./search/manifest.ts";
 import { segmentsBlock } from "./segments/manifest.ts";
+import { sequencesBlock } from "./sequences/manifest.ts";
 import { servicePrincipalsBlock } from "./service-principals/manifest.ts";
 import { sessionsBlock } from "./sessions/manifest.ts";
 import { settingsBlock } from "./settings/manifest.ts";
@@ -190,6 +193,9 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   controlsBlock,
   incidentsBlock,
   coursesBlock,
+  sequencesBlock,
+  leadScoringBlock,
+  postsBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

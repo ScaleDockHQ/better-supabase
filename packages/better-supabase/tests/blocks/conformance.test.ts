@@ -96,6 +96,9 @@ const NO_FIELDS: readonly string[] = [
   "incoming-webhooks",
   // Documents carry app data in metadata, which search filters on.
   "knowledge",
+  // A check row only marks a person or company to score again; app data lives
+  // on the record, which lead models read.
+  "lead-scoring",
   // Accounts and entries are double-entry bookkeeping other blocks post to;
   // per-account data goes in `metadata`.
   "ledger",
@@ -128,6 +131,9 @@ const NO_FIELDS: readonly string[] = [
   "search",
   // A segment is a saved filter; app data lives on the records it matches.
   "segments",
+  // Sequences carry their content in steps and each recipient's values in
+  // `variables`; app data lives on the enrolled record.
+  "sequences",
   // Values of app-defined keys, typed by `defineSettings` schemas.
   "settings",
   // Stream rows mirror the SSF stream configuration a receiver sends; nothing for an app to extend.
