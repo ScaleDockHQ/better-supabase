@@ -97,6 +97,7 @@ export const MESSAGING_NAMES: ModuleNames = {
     "editWindow",
     "scheduleQueue",
     "extraColumns",
+    "notify",
   ],
   tables: {
     conversations: {

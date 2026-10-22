@@ -20,7 +20,9 @@ Comments need tenants: the module runs in the `tenant`
 refuses it. The records come from the
 [subject registry](/docs/blocks/sql#subject-registry) (`config.subjects`).
 Whoever can read a record (`can_subject(type, id, 'read')`) and holds
-`messages.read` in the tenant reads its comments.
+`messages.read` in the tenant reads its comments. A comment goes in the record's own
+tenant only: `create_comment` refuses a record whose tenant column names
+another tenant, even for a member of both.
 
 | Table                       | Holds                                                                                                    |
 | --------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -62,12 +64,13 @@ export default defineConfig({
 });
 ```
 
-`blocks.comments.options` takes two keys:
+`blocks.comments.options` takes three keys:
 
 | Option          | Default | What it does                                                                                                |
 | --------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
 | `follow`        | `true`  | The author and the mentioned members follow the record, so they hear of later comments (with notifications) |
 | `mentionGroups` | none    | Expands a mention of a group, such as a team, into its members                                              |
+| `notify`        | `true`  | Sends `comment.posted` to the record's followers (with notifications); `false` sends none                   |
 
 The body limit, the extra columns and the Realtime topic are messaging
 options (`blocks.messaging.options.maxBodyLength`, `extraColumns` and
@@ -306,9 +309,15 @@ notifies two groups:
 | `message.mentioned` | the mentioned members who can read the record, sent by messaging                    |
 | `comment.posted`    | the record's followers, less the author and the members the mention already reached |
 
-`comment.posted` names the record as its subject, the first 140 characters of
-the body as its `summary` and the commenter as the actor, and its data holds
-`messageId` and `conversationId`. With `follow` on (the default), the author
+`comment.posted` names the record as its subject, with the record's
+`subject_title` from `config.subjects` as its `subject_label`, the first 140
+characters of the body as its `summary` and the commenter as the actor, and
+its data holds `messageId` and `conversationId`. It is sent only when the
+record has a follower besides the author and the mentioned members, or when a
+`notification_audience` hook can add recipients, so a comment nobody follows
+writes no notification. `notify: false` turns `comment.posted` off; mentions
+still notify through messaging unless `blocks.messaging.options.notify` is
+`false` too. With `follow` on (the default), the author
 and every mentioned member, after group expansion, follow the record: each
 gets a `participating` row in `notification_subscriptions`. A user who
 already has a row for the record keeps it, so someone who chose `ignore`

@@ -10,7 +10,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { watchSql } from "../watch-sql.ts";
+import { followersSql, watchSql } from "../watch-sql.ts";
 import { authorLookup } from "./authors.ts";
 import { conversationFunctions } from "./messaging-conversations.ts";
 import { summaryFunctions } from "./messaging-summaries.ts";
@@ -125,6 +125,9 @@ function sentEffects(q: MessagingSql): string {
   const message = sqlString(q.e("message"));
   const messageId = sqlString(q.e("messageId"));
   const notifications = ctx.installed("notifications");
+  const notifies = notifications && ctx.flag("notify", true);
+
+  const label = `coalesce(case when v_conv.${cv("kind")} = 'subject' then ${ctx.of("subjects").fn("subject_title")}(v_conv.${cv("subjectType")}, v_conv.${cv("subjectId")}) end, v_conv.${cv("title")})`;
 
   const notify = (type: string, extra: string): string =>
     ctx.notify(
@@ -134,6 +137,7 @@ function sentEffects(q: MessagingSql): string {
       'actor', v_msg.${ms("author")},
       'subject_type', ${message},
       'subject_id', coalesce(v_msg.${ms("thread")}, v_msg.${ms("id")})::text,
+      'subject_label', ${label},
       'summary', left(v_msg.${ms("body")}, 140),
       'data', jsonb_build_object(${messageId}, v_msg.${ms("id")}, ${sqlString(q.e("conversationId"))}, v_msg.${ms("conversation")})${extra}
     )`,
@@ -169,7 +173,30 @@ function sentEffects(q: MessagingSql): string {
       subjectId: `v_msg.${ms("thread")}::text`,
     });
 
-  const effects = notifications
+  const follows = [
+    follow(`v_msg.${ms("author")}`),
+    follow(
+      `(select r.${ms("author")} from ${t("messages")} r where r.${ms("id")} = v_msg.${ms("thread")})`,
+    ),
+  ].filter((statement) => statement !== "");
+
+  const replied = followersSql(ctx, {
+    tenant: `v_msg.${ms("tenant")}`,
+    subjectType: message,
+    subjectId: `v_msg.${ms("thread")}::text`,
+    exclude: `array[v_msg.${ms("author")}] || v_mentioned`,
+  });
+
+  const threadFollows =
+    follows.length === 0
+      ? ""
+      : `
+  if v_msg.${ms("thread")} is not null then
+    -- The replier and the root's author follow the thread.
+    ${follows.join("\n    ")}
+  end if;`;
+
+  const effects = notifies
     ? `
   -- Mentioned users who can read the conversation.
   v_mentioned := array(
@@ -201,15 +228,15 @@ function sentEffects(q: MessagingSql): string {
     if cardinality(v_direct) > 0 then
       ${notify("message.direct", `,\n      'recipients', to_jsonb(v_direct),\n      'watchers', false,\n      'key', ${sqlString(q.e("message.direct:"))} || v_msg.${ms("id")}::text`)}
     end if;
-  end if;
-  if v_msg.${ms("thread")} is not null then
-    -- The replier and the root's author follow the thread; its followers
-    -- hear of the reply, less the members already told above.
-    ${follow(`v_msg.${ms("author")}`)}
-    ${follow(`(select r.${ms("author")} from ${t("messages")} r where r.${ms("id")} = v_msg.${ms("thread")})`)}
+  end if;${threadFollows}
+  -- The thread's followers hear of a reply, less the members already told
+  -- above; nothing is sent when no one follows it.
+  if v_msg.${ms("thread")} is not null and ${replied} then
     ${notify("message.replied", `,\n      'recipients', '[]'::jsonb,\n      'exclude', to_jsonb(v_mentioned),\n      'key', ${sqlString(q.e("message.replied:"))} || v_msg.${ms("id")}::text`)}
   end if;`
-    : "";
+    : notifications
+      ? threadFollows
+      : "";
 
   return `
 -- Runs once a message is sent (now or when its schedule comes due): the
@@ -222,7 +249,7 @@ set search_path = ''
 as $$
 declare
   v_msg ${t("messages")};
-  v_conv ${t("conversations")};${notifications ? "\n  v_mentioned uuid[];\n  v_direct uuid[];\n  v_claims text;" : ""}
+  v_conv ${t("conversations")};${notifies ? "\n  v_mentioned uuid[];\n  v_direct uuid[];\n  v_claims text;" : ""}
 begin
   select * into v_msg from ${t("messages")} m where m.${ms("id")} = messaging_message_sent.message;
   select * into v_conv from ${t("conversations")} c where c.${cv("id")} = v_msg.${ms("conversation")};

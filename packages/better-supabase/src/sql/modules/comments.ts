@@ -18,12 +18,12 @@ import {
   quotedTable,
 } from "../shared.ts";
 import { subjectCascades, subjectsOption } from "../subjects.ts";
-import { watchSql } from "../watch-sql.ts";
+import { followersSql, watchSql } from "../watch-sql.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { messagingTableDdl } from "./messaging-tables.ts";
 
 const NAMES: ModuleNames = {
-  options: ["follow", "mentionGroups"],
+  options: ["follow", "mentionGroups", "notify"],
   tables: {
     tasks: {
       name: "comment_tasks",
@@ -105,7 +105,8 @@ const key = (column: string): string => sqlString(column.replaceAll('"', ""));
 /**
  * The statements after a comment is sent: its author and the members it
  * mentions follow the record, and the record's followers hear of it, less the
- * ones the message's own notifications reached. Empty without notifications.
+ * ones the message's own notifications reached. Empty without notifications, or
+ * with neither `follow` nor `notify`.
  */
 function afterSend(ctx: ModuleContext): string {
   if (!ctx.installed("notifications")) {
@@ -133,21 +134,35 @@ function afterSend(ctx: ModuleContext): string {
       })
     : "";
 
-  const notify = ctx.notify(
-    `jsonb_build_object(
+  const notify = ctx.flag("notify", true)
+    ? `if ${followersSql(ctx, {
+        tenant: `v_conv.${cv("tenant")}`,
+        subjectType: `v_conv.${cv("subjectType")}`,
+        subjectId: `v_conv.${cv("subjectId")}`,
+        exclude: `array[v_msg.${ms("author")}] || v_msg.${ms("mentions")}`,
+      })} then
+    ${ctx.notify(
+      `jsonb_build_object(
       'type', 'comment.posted',
       'tenant', v_msg.${ms("tenant")},
       'actor', v_msg.${ms("author")},
       'subject_type', v_conv.${cv("subjectType")},
       'subject_id', v_conv.${cv("subjectId")},
+      'subject_label', ${ctx.of("subjects").fn("subject_title")}(v_conv.${cv("subjectType")}, v_conv.${cv("subjectId")}),
       'summary', left(v_msg.${ms("body")}, 140),
       'recipients', '[]'::jsonb,
       'exclude', to_jsonb(v_msg.${ms("mentions")}),
       'key', 'comment.posted:' || v_msg.${ms("id")}::text,
       'data', jsonb_build_object('messageId', v_msg.${ms("id")}, 'conversationId', v_msg.${ms("conversation")})
     )`,
-    { indent: "  " },
-  );
+      { indent: "    " },
+    )}
+  end if;`
+    : "";
+
+  if (follow === "" && notify === "") {
+    return "";
+  }
 
   return `
 -- After create_comment sends: the author and the mentioned members follow
@@ -163,8 +178,7 @@ as $$
 declare
   v_msg record;
   v_conv record;
-  v_user uuid;
-  v_claims text;
+  v_user uuid;${notify === "" ? "" : "\n  v_claims text;"}
 begin
   select * into v_msg from ${m.table("messages")} x
   where x.${ms("id")} = comment_sent.message and x.${ms("author")} = auth.uid()

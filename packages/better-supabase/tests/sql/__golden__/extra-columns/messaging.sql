@@ -444,6 +444,10 @@ begin
       if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
+      -- A record with a tenant column takes conversations in its own tenant only.
+      if coalesce(null::text <> open_conversation.tenant::text, false) then
+        raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
+      end if;
       select c."id" into v_id from "better_supabase"."conversations" c
       where c."tenant_id" = open_conversation.tenant and c."kind" = 'subject'
         and c."subject_type" = open_conversation.attrs ->> 'subjectType' and c."subject_id" = open_conversation.attrs ->> 'subjectId';

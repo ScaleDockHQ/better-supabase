@@ -233,21 +233,29 @@ begin
     values (v_conv."tenant_id", v_user, v_conv."subject_type", v_conv."subject_id", 'participating')
     on conflict do nothing;
   end loop;
-  v_claims := current_setting('request.jwt.claims', true);
-  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
-  perform "better_supabase"."notify"(jsonb_build_object(
+  if (exists (
+      select 1 from "better_supabase"."notification_subscriptions" s
+      where s."subject_type" = v_conv."subject_type" and s."subject_id" = v_conv."subject_id" and s."organization_id" = v_conv."tenant_id"
+        and s."level" in ('all', 'participating')
+        and not s."user_id" = any (array[v_msg."author_id"] || v_msg."mentions")
+    ) or to_regprocedure('"public"."notification_audience"(jsonb)') is not null) then
+    v_claims := current_setting('request.jwt.claims', true);
+    perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+    perform "better_supabase"."notify"(jsonb_build_object(
       'type', 'comment.posted',
       'tenant', v_msg."tenant_id",
       'actor', v_msg."author_id",
       'subject_type', v_conv."subject_type",
       'subject_id', v_conv."subject_id",
+      'subject_label', "better_supabase"."subject_title"(v_conv."subject_type", v_conv."subject_id"),
       'summary', left(v_msg."body", 140),
       'recipients', '[]'::jsonb,
       'exclude', to_jsonb(v_msg."mentions"),
       'key', 'comment.posted:' || v_msg."id"::text,
       'data', jsonb_build_object('messageId', v_msg."id", 'conversationId', v_msg."conversation_id")
     ));
-  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  end if;
 end;
 $$;
 revoke execute on function "better_supabase"."comment_sent"(uuid) from public, anon;

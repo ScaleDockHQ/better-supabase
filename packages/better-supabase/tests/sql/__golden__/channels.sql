@@ -110,6 +110,9 @@ begin
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(create_channel.attrs ->> 'subjectType', create_channel.attrs ->> 'subjectId', 'read'), false)) then
     raise exception 'no such record you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
+  if coalesce(null::text <> create_channel.tenant::text, false) then
+    raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
+  end if;
   if exists (select 1 from "better_supabase"."channels" x where x."tenant_id" = create_channel.tenant and x."name" = v_name) then
     raise exception 'a channel with this name exists' using errcode = '23505', hint = 'CHANNELS_NAME_TAKEN';
   end if;
@@ -508,6 +511,9 @@ begin
   if nullif(create_channel.attrs ->> 'subjectType', '') is not null
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(create_channel.attrs ->> 'subjectType', create_channel.attrs ->> 'subjectId', 'read'), false)) then
     raise exception 'no such record you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
+  end if;
+  if coalesce(null::text <> create_channel.tenant::text, false) then
+    raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
   if exists (select 1 from "better_supabase"."channels" x where x."tenant_id" = create_channel.tenant and x."name" = v_name) then
     raise exception 'a channel with this name exists' using errcode = '23505', hint = 'CHANNELS_NAME_TAKEN';
@@ -928,6 +934,9 @@ begin
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(create_channel.attrs ->> 'subjectType', create_channel.attrs ->> 'subjectId', 'read'), false)) then
     raise exception 'no such record you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
+  if coalesce(null::text <> create_channel.tenant::text, false) then
+    raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
+  end if;
   if exists (select 1 from "app_private"."channels" x where x."tenant_id" = create_channel.tenant and x."name" = v_name) then
     raise exception 'a channel with this name exists' using errcode = '23505', hint = 'CHANNELS_NAME_TAKEN';
   end if;
@@ -1326,6 +1335,9 @@ begin
   if nullif(create_channel.attrs ->> 'subjectType', '') is not null
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(create_channel.attrs ->> 'subjectType', create_channel.attrs ->> 'subjectId', 'read'), false)) then
     raise exception 'no such record you can read' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
+  end if;
+  if coalesce(null::text <> create_channel.tenant::text, false) then
+    raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'CHANNELS_NOT_FOUND';
   end if;
   if exists (select 1 from "better_supabase"."channels" x where x."tenant_id" = create_channel.tenant and x."name" = v_name) then
     raise exception 'a channel with this name exists' using errcode = '23505', hint = 'CHANNELS_NAME_TAKEN';

@@ -443,6 +443,10 @@ begin
       if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
+      -- A record with a tenant column takes conversations in its own tenant only.
+      if coalesce(null::text <> open_conversation.tenant::text, false) then
+        raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
+      end if;
       select c."id" into v_id from "better_supabase"."conversations" c
       where c."tenant_id" = open_conversation.tenant and c."kind" = 'subject'
         and c."subject_type" = open_conversation.attrs ->> 'subjectType' and c."subject_id" = open_conversation.attrs ->> 'subjectId';
@@ -1946,6 +1950,7 @@ begin
       'actor', v_msg."author_id",
       'subject_type', 'message',
       'subject_id', coalesce(v_msg."thread_id", v_msg."id")::text,
+      'subject_label', coalesce(case when v_conv."kind" = 'subject' then "better_supabase"."subject_title"(v_conv."subject_type", v_conv."subject_id") end, v_conv."title"),
       'summary', left(v_msg."body", 140),
       'data', jsonb_build_object('messageId', v_msg."id", 'conversationId', v_msg."conversation_id"),
       'recipients', to_jsonb(v_mentioned),
@@ -1970,6 +1975,7 @@ begin
       'actor', v_msg."author_id",
       'subject_type', 'message',
       'subject_id', coalesce(v_msg."thread_id", v_msg."id")::text,
+      'subject_label', coalesce(case when v_conv."kind" = 'subject' then "better_supabase"."subject_title"(v_conv."subject_type", v_conv."subject_id") end, v_conv."title"),
       'summary', left(v_msg."body", 140),
       'data', jsonb_build_object('messageId', v_msg."id", 'conversationId', v_msg."conversation_id"),
       'recipients', to_jsonb(v_direct),
@@ -1980,14 +1986,22 @@ begin
     end if;
   end if;
   if v_msg."thread_id" is not null then
-    -- The replier and the root's author follow the thread; its followers
-    -- hear of the reply, less the members already told above.
+    -- The replier and the root's author follow the thread.
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
     values (v_msg."tenant_id", v_msg."author_id", 'message', v_msg."thread_id"::text, 'participating')
     on conflict do nothing;
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
     values (v_msg."tenant_id", (select r."author_id" from "better_supabase"."messages" r where r."id" = v_msg."thread_id"), 'message', v_msg."thread_id"::text, 'participating')
     on conflict do nothing;
+  end if;
+  -- The thread's followers hear of a reply, less the members already told
+  -- above; nothing is sent when no one follows it.
+  if v_msg."thread_id" is not null and (exists (
+      select 1 from "better_supabase"."notification_subscriptions" s
+      where s."subject_type" = 'message' and s."subject_id" = v_msg."thread_id"::text and s."organization_id" = v_msg."tenant_id"
+        and s."level" in ('all', 'participating')
+        and not s."user_id" = any (array[v_msg."author_id"] || v_mentioned)
+    ) or to_regprocedure('"public"."notification_audience"(jsonb)') is not null) then
     v_claims := current_setting('request.jwt.claims', true);
     perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
     perform "better_supabase"."notify"(jsonb_build_object(
@@ -1996,6 +2010,7 @@ begin
       'actor', v_msg."author_id",
       'subject_type', 'message',
       'subject_id', coalesce(v_msg."thread_id", v_msg."id")::text,
+      'subject_label', coalesce(case when v_conv."kind" = 'subject' then "better_supabase"."subject_title"(v_conv."subject_type", v_conv."subject_id") end, v_conv."title"),
       'summary', left(v_msg."body", 140),
       'data', jsonb_build_object('messageId', v_msg."id", 'conversationId', v_msg."conversation_id"),
       'recipients', '[]'::jsonb,
@@ -2121,6 +2136,10 @@ begin
       end if;
       if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_guest or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
+      end if;
+      -- A record with a tenant column takes conversations in its own tenant only.
+      if coalesce(null::text <> open_conversation.tenant::text, false) then
+        raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       select c."id" into v_id from "better_supabase"."conversations" c
       where c."tenant_id" = open_conversation.tenant and c."kind" = 'subject'
@@ -3769,6 +3788,10 @@ begin
       if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
+      -- A record with a tenant column takes conversations in its own tenant only.
+      if coalesce(null::text <> open_conversation.tenant::text, false) then
+        raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
+      end if;
       select c."id" into v_id from "app_private"."conversations" c
       where c."tenant_id" = open_conversation.tenant and c."kind" = 'subject'
         and c."subject_type" = open_conversation.attrs ->> 'subjectType' and c."subject_id" = open_conversation.attrs ->> 'subjectId';
@@ -5301,6 +5324,10 @@ begin
       end if;
       if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
+      end if;
+      -- A record with a tenant column takes conversations in its own tenant only.
+      if coalesce(null::text <> open_conversation.tenant::text, false) then
+        raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       select c."id" into v_id from "better_supabase"."conversations" c
       where c."tenant_id" = open_conversation.tenant and c."kind" = 'subject'

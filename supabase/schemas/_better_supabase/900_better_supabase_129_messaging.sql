@@ -413,6 +413,7 @@ begin
       'actor', v_msg."author_id",
       'subject_type', 'message',
       'subject_id', coalesce(v_msg."thread_id", v_msg."id")::text,
+      'subject_label', coalesce(case when v_conv."kind" = 'subject' then "better_supabase"."subject_title"(v_conv."subject_type", v_conv."subject_id") end, v_conv."title"),
       'summary', left(v_msg."body", 140),
       'data', jsonb_build_object('messageId', v_msg."id", 'conversationId', v_msg."conversation_id"),
       'recipients', to_jsonb(v_mentioned),
@@ -437,6 +438,7 @@ begin
       'actor', v_msg."author_id",
       'subject_type', 'message',
       'subject_id', coalesce(v_msg."thread_id", v_msg."id")::text,
+      'subject_label', coalesce(case when v_conv."kind" = 'subject' then "better_supabase"."subject_title"(v_conv."subject_type", v_conv."subject_id") end, v_conv."title"),
       'summary', left(v_msg."body", 140),
       'data', jsonb_build_object('messageId', v_msg."id", 'conversationId', v_msg."conversation_id"),
       'recipients', to_jsonb(v_direct),
@@ -447,14 +449,22 @@ begin
     end if;
   end if;
   if v_msg."thread_id" is not null then
-    -- The replier and the root's author follow the thread; its followers
-    -- hear of the reply, less the members already told above.
+    -- The replier and the root's author follow the thread.
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
     values (v_msg."tenant_id", v_msg."author_id", 'message', v_msg."thread_id"::text, 'participating')
     on conflict do nothing;
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
     values (v_msg."tenant_id", (select r."author_id" from "better_supabase"."messages" r where r."id" = v_msg."thread_id"), 'message', v_msg."thread_id"::text, 'participating')
     on conflict do nothing;
+  end if;
+  -- The thread's followers hear of a reply, less the members already told
+  -- above; nothing is sent when no one follows it.
+  if v_msg."thread_id" is not null and (exists (
+      select 1 from "better_supabase"."notification_subscriptions" s
+      where s."subject_type" = 'message' and s."subject_id" = v_msg."thread_id"::text and s."organization_id" = v_msg."tenant_id"
+        and s."level" in ('all', 'participating')
+        and not s."user_id" = any (array[v_msg."author_id"] || v_mentioned)
+    ) or to_regprocedure('"public"."notification_audience"(jsonb)') is not null) then
     v_claims := current_setting('request.jwt.claims', true);
     perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
     perform "better_supabase"."notify"(jsonb_build_object(
@@ -463,6 +473,7 @@ begin
       'actor', v_msg."author_id",
       'subject_type', 'message',
       'subject_id', coalesce(v_msg."thread_id", v_msg."id")::text,
+      'subject_label', coalesce(case when v_conv."kind" = 'subject' then "better_supabase"."subject_title"(v_conv."subject_type", v_conv."subject_id") end, v_conv."title"),
       'summary', left(v_msg."body", 140),
       'data', jsonb_build_object('messageId', v_msg."id", 'conversationId', v_msg."conversation_id"),
       'recipients', '[]'::jsonb,
@@ -588,6 +599,46 @@ begin
       end if;
       if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_guest or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
+      end if;
+      -- A record with a tenant column takes conversations in its own tenant only.
+      if coalesce((case (open_conversation.attrs ->> 'subjectType')
+      when 'message' then (select s."tenant_id"::text from "better_supabase"."messages" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'conversation' then (select s."tenant_id"::text from "better_supabase"."conversations" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'channel' then (select s."tenant_id"::text from "better_supabase"."channels" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'company' then (select s."tenant_id"::text from "better_supabase"."companies" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'person' then (select s."tenant_id"::text from "better_supabase"."people" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'deal' then (select s."tenant_id"::text from "better_supabase"."deals" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'course' then (select s."tenant_id"::text from "better_supabase"."courses" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'post' then (select s."tenant_id"::text from "better_supabase"."posts" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'engagement' then (select s."tenant_id"::text from "better_supabase"."engagements" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'work_item' then (select s."tenant_id"::text from "better_supabase"."work_items" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'employee' then (select s."tenant_id"::text from "better_supabase"."employees" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'ledger_account' then (select s."tenant_id"::text from "better_supabase"."ledger_accounts" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'product' then (select s."tenant_id"::text from "better_supabase"."products" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'product_variant' then (select s."tenant_id"::text from "better_supabase"."product_variants" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'calendar_event' then (select s."tenant_id"::text from "better_supabase"."calendar_events" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'asset' then (select s."tenant_id"::text from "better_supabase"."assets" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'asset_location' then (select s."tenant_id"::text from "better_supabase"."asset_locations" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'lease' then (select s."tenant_id"::text from "better_supabase"."lease_agreements" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'maintenance_request' then (select s."tenant_id"::text from "better_supabase"."maintenance_requests" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'expense_report' then (select s."tenant_id"::text from "better_supabase"."expense_reports" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'expense_line' then (select s."tenant_id"::text from "better_supabase"."expense_lines" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'donation_fund' then (select s."tenant_id"::text from "better_supabase"."donation_funds" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'work_order' then (select s."tenant_id"::text from "better_supabase"."work_orders" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'shipment' then (select s."tenant_id"::text from "better_supabase"."shipments" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'contract' then (select s."tenant_id"::text from "better_supabase"."contracts" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'task' then (select s."organization_id"::text from "public"."tasks" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      else null::text
+    end) <> open_conversation.tenant::text, false) then
+        raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
       select c."id" into v_id from "better_supabase"."conversations" c
       where c."tenant_id" = open_conversation.tenant and c."kind" = 'subject'

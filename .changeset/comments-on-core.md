@@ -1,5 +1,5 @@
 ---
-"better-supabase": major
+"better-supabase": minor
 ---
 
 Move comments onto the messaging core, and the activity feed into its own `activity` block. A record's comments are now its messaging conversation, so comments get resolve, pins, edit history, anchors, attachments and read markers from messaging, and `assign` turns a comment into a work item. See [Comments](https://bettersupabase.com/docs/blocks/comments), [Activity](https://bettersupabase.com/docs/blocks/activity) and the upgrade steps in [From 0.13 to 0.14](https://bettersupabase.com/docs/migration/0.13-to-0.14#comments-on-the-messaging-core).
@@ -20,7 +20,7 @@ Move comments onto the messaging core, and the activity feed into its own `activ
 | `activitySink`, `activityListQuery` from `better-supabase/blocks/comments`       | the same names from `better-supabase/blocks/activity`                                                |
 | `blocks.comments.options.subjects`                                               | `config.subjects`                                                                                    |
 | `blocks.comments.options.maxBodyLength`, `extraColumns`                          | `blocks.messaging.options.maxBodyLength`, `extraColumns`                                             |
-| `blocks.comments.options.documentSchema`, `notify`                               | removed                                                                                              |
+| `blocks.comments.options.documentSchema`                                         | removed                                                                                              |
 | `blocks.comments.entities` (the `comment` entity)                                | the `message` entity, `blocks.messaging.entities`                                                    |
 | `comment.mentions`, `comment.createdAt`                                          | `comment.mentionIds`, `comment.sentAt`                                                               |
 | `commentsBlock.schemas`                                                          | removed; `commentInputSchema` and `commentChangeSchema` stay                                         |
