@@ -621,19 +621,23 @@ export interface MaintainOptions {
 
 export interface MaintainResult {
   readonly woken: number;
+  /** Scheduled replies sent. */
+  readonly published: number;
   readonly purgedEvents: number;
   readonly replayed: DrainResult;
   readonly purgedState: number;
 }
 
 /**
- * The inbox's periodic work: wake snoozed conversations, replay and purge
- * webhook events, sweep state. Run it from a cron job.
+ * The inbox's periodic work: wake snoozed conversations, send the scheduled
+ * replies whose time came, replay and purge webhook events, sweep state. Run it
+ * from a cron job.
  */
 export async function maintain(
   options: MaintainOptions,
 ): Promise<MaintainResult> {
   const woken = await options.inbox.wakeSnoozed().orThrow();
+  const published = await options.inbox.publishDue().orThrow();
 
   const replayed = options.handler
     ? await options.handler.drain()
@@ -645,5 +649,5 @@ export async function maintain(
 
   const purgedState = options.state ? await options.state.purge() : 0;
 
-  return { woken, purgedEvents, replayed, purgedState };
+  return { woken, published, purgedEvents, replayed, purgedState };
 }

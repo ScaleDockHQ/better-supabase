@@ -747,9 +747,10 @@ describe("whatsappWindowOpen", () => {
 });
 
 describe("maintain", () => {
-  it("wakes, replays, purges and sweeps", async () => {
+  it("wakes, publishes, replays, purges and sweeps", async () => {
     const { transport, call } = fakeTransport({
       wake_snoozed_conversations: 2,
+      publish_due_inbox_messages: 3,
       purge_inbound_events: 5,
     });
 
@@ -767,6 +768,7 @@ describe("maintain", () => {
       await maintain({ inbox, handler, state, keepEvents: "1 day" }),
     ).toEqual({
       woken: 2,
+      published: 3,
       purgedEvents: 5,
       replayed: { processed: 1, failed: 0 },
       purgedState: 7,
