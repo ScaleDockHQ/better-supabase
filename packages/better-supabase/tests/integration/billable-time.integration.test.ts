@@ -30,7 +30,7 @@ const MODULES = [
 ];
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties"], {}),
+  subjects: withBlockSubjects({}, ["contacts"], {}),
 };
 
 const hint = (result: Result<unknown>): string =>

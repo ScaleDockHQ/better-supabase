@@ -14,7 +14,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const { company, ...parties } = withBlockSubjects({}, ["parties"], {});
+const { company, ...parties } = withBlockSubjects({}, ["contacts"], {});
 
 const layout: BlockSqlLayout = {
   subjects: {

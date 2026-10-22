@@ -14,7 +14,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties"], {}),
+  subjects: withBlockSubjects({}, ["contacts"], {}),
 };
 
 const MODULES = [
@@ -166,7 +166,7 @@ describe.skipIf(!live)("engagements", () => {
       const rep = await s.user("rep");
       const stranger = await s.user("stranger");
       await s.install([...MODULES, "attachments"], {
-        subjects: withBlockSubjects({}, ["parties", "engagements"], {}),
+        subjects: withBlockSubjects({}, ["contacts", "activities"], {}),
       });
       const org = await s.organization(owner, { member: rep });
       await s.organization(stranger);

@@ -23,7 +23,7 @@ describe.skipIf(!live)("identities module", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["identities"]);
+      await s.install(["linked-identities"]);
       const alice = await s.user("alice");
       const bob = await s.user("bob");
 
@@ -84,7 +84,7 @@ describe.skipIf(!live)("identities module", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["identities"]);
+      await s.install(["linked-identities"]);
       const alice = await s.user("alice");
       const bob = await s.user("bob");
 
@@ -139,7 +139,7 @@ describe.skipIf(!live)("identities module", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["identities"]);
+      await s.install(["linked-identities"]);
       const alice = await s.user("alice");
       const bob = await s.user("bob");
 
@@ -206,7 +206,7 @@ describe.skipIf(!live)("identities module", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["identities"]);
+      await s.install(["linked-identities"]);
       const confirmed = await s.user("confirmed");
       const id = crypto.randomUUID();
       const pending = `Pending-${id.slice(0, 8)}@example.test`;
