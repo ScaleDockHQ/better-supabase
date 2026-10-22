@@ -378,7 +378,8 @@ export default defineConfig({
     },
     pipelines: {},
     deals: { entities: { deal: { url: "/crm/deals" } } },
-    engagements: {},
+    // Confirmed bookings show up as meetings on the booker's contact.
+    engagements: { options: { bookings: true } },
     quotes: {},
     targets: {},
     "state-machine": {

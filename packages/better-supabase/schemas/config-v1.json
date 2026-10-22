@@ -3935,7 +3935,10 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "bookings": {
+                "type": "boolean"
+              }
             }
           }
         }

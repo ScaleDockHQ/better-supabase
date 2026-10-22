@@ -125719,7 +125719,18 @@
             ]
           }
         ],
-        "triggers": [],
+        "triggers": [
+          {
+            "name": "bookings_engagement",
+            "timing": "after",
+            "events": [
+              "insert",
+              "update"
+            ],
+            "level": "row",
+            "function": "better_supabase.bs_booking_engagement"
+          }
+        ],
         "grants": [
           {
             "role": "authenticated",
