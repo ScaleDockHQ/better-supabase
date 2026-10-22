@@ -3442,6 +3442,11 @@ msgid "Files"
 msgstr "Bestanden"
 
 #: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.7hEmx-"
+msgid "Drop or paste files to upload. They download after the virus scan."
+msgstr "Sleep of plak bestanden om ze te uploaden. Ze zijn te downloaden na de virusscan."
+
+#: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.2Ne0Nv"
 msgid "Files download after the virus scan marks them clean."
 msgstr "Bestanden zijn te downloaden zodra de virusscan ze veilig heeft verklaard."
@@ -3462,9 +3467,19 @@ msgid "Attach contracts, quotes or anything else about this customer."
 msgstr "Voeg contracten, offertes of iets anders over deze klant toe."
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.5iaKnS"
-msgid "Upload unfinished"
-msgstr "Upload niet afgerond"
+msgctxt "customers.lrdlY6"
+msgid "File uploaded"
+msgstr "Bestand geüpload"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hsYvDX"
+msgid "Uploading"
+msgstr "Bezig met uploaden"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.QLkzoS"
+msgid "Saving"
+msgstr "Opslaan"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.oCixBp"
@@ -3472,14 +3487,44 @@ msgid "Waiting for scan"
 msgstr "Wacht op scan"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.IZFEUg"
-msgid "Ready"
-msgstr "Klaar"
+msgctxt "customers.LwdDVa"
+msgid "Uploaded"
+msgstr "Geüpload"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.qUJTsT"
 msgid "Blocked"
 msgstr "Geblokkeerd"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.vXCeIi"
+msgid "Failed"
+msgstr "Mislukt"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.minycD"
+msgid "Upload progress for {name}"
+msgstr "Uploadvoortgang van {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hRJjA7"
+msgid "Retry {name}"
+msgstr "{name} opnieuw proberen"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.OPIp6Z"
+msgid "Dismiss {name}"
+msgstr "{name} sluiten"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.5iaKnS"
+msgid "Upload unfinished"
+msgstr "Upload niet afgerond"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.IZFEUg"
+msgid "Ready"
+msgstr "Klaar"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.pRoW6a"
@@ -3492,24 +3537,14 @@ msgid "Download {name}"
 msgstr "{name} downloaden"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.C_zqJE"
-msgid "The upload failed. Try again."
-msgstr "Het uploaden is mislukt. Probeer het opnieuw."
+msgctxt "customers.w6J38y"
+msgid "Upload more"
+msgstr "Meer uploaden"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.lrdlY6"
-msgid "File uploaded"
-msgstr "Bestand geüpload"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.hsYvDX"
-msgid "Uploading"
-msgstr "Bezig met uploaden"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.6oOCCL"
-msgid "Upload file"
-msgstr "Bestand uploaden"
+msgctxt "customers.2jjdVz"
+msgid "Upload files"
+msgstr "Bestanden uploaden"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.88bXgO"

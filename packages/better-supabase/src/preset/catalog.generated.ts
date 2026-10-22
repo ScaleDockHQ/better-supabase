@@ -6657,6 +6657,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "WorkItemChangeResult"
         },
         {
+          "name": "WorkItemChecklistOptimisticAction"
+        },
+        {
           "name": "WorkItemField"
         },
         {

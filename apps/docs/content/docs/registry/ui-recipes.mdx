@@ -9459,9 +9459,10 @@ const VARIANT = {
 } as const satisfies Record<FileState, string>;
 
 /**
- * Files on the customer, in the private `attachments` bucket. The server
- * records each file and signs a one-time upload; the browser sends the bytes. A
- * file downloads once the scanner marked it clean.
+ * Files on the customer, in the private `attachments` bucket. Pick, drop or
+ * paste files: the server records each one and signs its upload,
+ * `useAttachmentUpload` sends the bytes with progress, and the server confirms
+ * it. A file downloads once the scanner marked it clean.
  */
 export function AttachmentsUploader({
   customerId,
@@ -9475,51 +9476,272 @@ export function AttachmentsUploader({
   canRemove: boolean;
 }) {
   const t = useExtracted("customers");
+  const upload = useCustomerUpload(customerId);
 
   return (
     <Card size="sm" data-recipe="attachments-uploader">
       <CardHeader>
         <CardTitle>{t("Files")}</CardTitle>
         <CardDescription>
-          {t("Files download after the virus scan marks them clean.")}
+          {canUpload
+            ? t(
+                "Drop or paste files to upload. They download after the virus scan.",
+              )
+            : t("Files download after the virus scan marks them clean.")}
         </CardDescription>
         {canUpload && files.kind === "ok" && files.data.length > 0 ? (
           <CardAction>
-            <UploadButton customerId={customerId} />
+            <UploadButton busy={upload.busy} onPick={upload.add} />
           </CardAction>
         ) : null}
       </CardHeader>
       <CardContent>
-        {files.kind === "error" ? (
-          <RecordLoadError title={t("The files didn't load")} />
-        ) : files.data.length === 0 ? (
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <PaperclipIcon />
-              </EmptyMedia>
-              <EmptyTitle>{t("No files yet")}</EmptyTitle>
-              <EmptyDescription>
-                {t(
-                  "Attach contracts, quotes or anything else about this customer.",
-                )}
-              </EmptyDescription>
-            </EmptyHeader>
-            {canUpload ? (
-              <EmptyContent>
-                <UploadButton customerId={customerId} />
-              </EmptyContent>
-            ) : null}
-          </Empty>
-        ) : (
-          <FileList
-            customerId={customerId}
-            files={files.data}
-            canRemove={canRemove}
-          />
-        )}
+        <DropZone enabled={canUpload} onFiles={upload.add}>
+          {upload.uploads.length > 0 ? <UploadList upload={upload} /> : null}
+          {files.kind === "error" ? (
+            <RecordLoadError title={t("The files didn't load")} />
+          ) : files.data.length === 0 ? (
+            upload.uploads.length > 0 ? null : (
+              <Empty className="border">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <PaperclipIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>{t("No files yet")}</EmptyTitle>
+                  <EmptyDescription>
+                    {t(
+                      "Attach contracts, quotes or anything else about this customer.",
+                    )}
+                  </EmptyDescription>
+                </EmptyHeader>
+                {canUpload ? (
+                  <EmptyContent>
+                    <UploadButton busy={upload.busy} onPick={upload.add} />
+                  </EmptyContent>
+                ) : null}
+              </Empty>
+            )
+          ) : (
+            <FileList
+              customerId={customerId}
+              files={files.data}
+              canRemove={canRemove}
+            />
+          )}
+        </DropZone>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Uploads to the customer through the server actions, which check
+ * `attachments.upload` and read the page again once a file is confirmed.
+ */
+function useCustomerUpload(customerId: string): AttachmentUploadState {
+  const t = useExtracted("customers");
+  const start = useAction(startAttachmentUpload);
+  const confirm = useAction(confirmAttachment);
+
+  return useAttachmentUpload({
+    subject: { type: "customer", id: customerId },
+    start: (file) =>
+      start.run({
+        customerId,
+        name: file.name,
+        mimeType: file.mimeType,
+        size: file.size,
+      }),
+    confirm: (id) => confirm.run({ id }),
+    refresh: false,
+    onUploaded: () => {
+      toast.success(t("File uploaded"));
+    },
+  });
+}
+
+const asInputs = (files: Iterable<File>): AttachmentFileInput[] =>
+  [...files].map((file) => ({ file, name: file.name }));
+
+const EDITABLE = "input, textarea, select, [contenteditable]";
+
+/**
+ * Takes files dropped on it and files pasted anywhere on the page outside a
+ * text field; a plain wrapper when uploads are off. The Upload button is the
+ * keyboard path, so the zone itself takes no focus.
+ */
+function DropZone({
+  enabled,
+  onFiles,
+  children,
+}: {
+  enabled: boolean;
+  onFiles: (files: readonly AttachmentFileInput[]) => void;
+  children: ReactNode;
+}) {
+  const zone = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const take = useEffectEvent((files: FileList | null | undefined) => {
+    const inputs = asInputs(files ?? []);
+
+    if (inputs.length > 0) {
+      onFiles(inputs);
+    }
+  });
+
+  useEffect(() => {
+    const element = zone.current;
+
+    if (!enabled || !element) {
+      return;
+    }
+
+    const over = (event: DragEvent) => {
+      event.preventDefault();
+      setDragging(true);
+    };
+
+    const leave = () => {
+      setDragging(false);
+    };
+
+    const drop = (event: DragEvent) => {
+      event.preventDefault();
+      setDragging(false);
+      take(event.dataTransfer?.files);
+    };
+
+    const paste = (event: ClipboardEvent) => {
+      const files = event.clipboardData?.files;
+
+      if (
+        !files ||
+        files.length === 0 ||
+        (event.target instanceof Element && event.target.closest(EDITABLE))
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      take(files);
+    };
+
+    element.addEventListener("dragover", over);
+    element.addEventListener("dragleave", leave);
+    element.addEventListener("drop", drop);
+    document.addEventListener("paste", paste);
+
+    return () => {
+      element.removeEventListener("dragover", over);
+      element.removeEventListener("dragleave", leave);
+      element.removeEventListener("drop", drop);
+      document.removeEventListener("paste", paste);
+    };
+  }, [enabled]);
+
+  return (
+    <div
+      ref={zone}
+      data-dragging={(enabled && dragging) || undefined}
+      className="-m-2 flex flex-col gap-3 p-2 transition-colors data-dragging:bg-muted"
+    >
+      {children}
+    </div>
+  );
+}
+
+function UploadList({ upload }: { upload: AttachmentUploadState }) {
+  return (
+    <ul className="flex flex-col divide-y" data-testid="uploads">
+      {upload.uploads.map((item) => (
+        <UploadRow
+          key={item.key}
+          item={item}
+          onRetry={upload.retry}
+          onDismiss={upload.dismiss}
+        />
+      ))}
+    </ul>
+  );
+}
+
+const UPLOAD_VARIANT = {
+  uploading: "info-light",
+  confirming: "info-light",
+  scanning: "info-light",
+  done: "success-light",
+  blocked: "destructive-light",
+  error: "destructive-light",
+} as const satisfies Record<AttachmentUploadItem["status"], string>;
+
+function UploadRow({
+  item,
+  onRetry,
+  onDismiss,
+}: {
+  item: AttachmentUploadItem;
+  onRetry: (key: string) => void;
+  onDismiss: (key: string) => void;
+}) {
+  const t = useExtracted("customers");
+  const errorMessage = useErrorMessage();
+
+  const label: Record<AttachmentUploadItem["status"], string> = {
+    uploading: t("Uploading"),
+    confirming: t("Saving"),
+    scanning: t("Waiting for scan"),
+    done: t("Uploaded"),
+    blocked: t("Blocked"),
+    error: t("Failed"),
+  };
+
+  return (
+    <li className="flex items-center justify-between gap-2 py-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="truncate text-sm font-medium">{item.name}</span>
+        <div className="flex items-center gap-2">
+          <Badge variant={UPLOAD_VARIANT[item.status]}>
+            {label[item.status]}
+          </Badge>
+          {item.status === "uploading" ? (
+            <Progress
+              className="flex-1"
+              value={Math.round(item.progress * 100)}
+              aria-label={t("Upload progress for {name}", { name: item.name })}
+            />
+          ) : item.error === undefined ? null : (
+            <span className="truncate text-xs text-muted-foreground">
+              {errorMessage(item.error)}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        {item.status === "error" ? (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t("Retry {name}", { name: item.name })}
+            onClick={() => {
+              onRetry(item.key);
+            }}
+          >
+            <RotateCwIcon />
+          </Button>
+        ) : null}
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("Dismiss {name}", { name: item.name })}
+          onClick={() => {
+            onDismiss(item.key);
+          }}
+        >
+          <XIcon />
+        </Button>
+      </div>
+    </li>
   );
 }
 
@@ -9603,63 +9825,23 @@ function FileList({
   );
 }
 
-function UploadButton({ customerId }: { customerId: string }) {
+function UploadButton({
+  busy,
+  onPick,
+}: {
+  busy: boolean;
+  onPick: (files: readonly AttachmentFileInput[]) => void;
+}) {
   const t = useExtracted("customers");
-  const errorMessage = useErrorMessage();
-  const supabase = useSupabase();
   const input = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const start = useAction(startAttachmentUpload);
-  const confirm = useAction(confirmAttachment);
-
-  const upload = async (file: File) => {
-    const started = await start.run({
-      customerId,
-      name: file.name,
-      mimeType: file.type,
-      size: file.size,
-    });
-
-    if (!started.ok) {
-      toast.error(errorMessage(started.error));
-
-      return;
-    }
-
-    const { id, bucket, path, token } = started.data;
-
-    const sent = await supabase.storage
-      .from(bucket)
-      .uploadToSignedUrl(path, token, file, { contentType: file.type });
-
-    if (sent.error) {
-      toast.error(t("The upload failed. Try again."));
-
-      return;
-    }
-
-    const confirmed = await confirm.run({ id });
-
-    if (confirmed.ok) {
-      toast.success(t("File uploaded"));
-    } else {
-      toast.error(errorMessage(confirmed.error));
-    }
-  };
 
   const pick = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const inputs = asInputs(event.target.files ?? []);
     event.target.value = "";
 
-    if (!file) {
-      return;
+    if (inputs.length > 0) {
+      onPick(inputs);
     }
-
-    setUploading(true);
-    void upload(file).finally(() => {
-      setUploading(false);
-    });
   };
 
   return (
@@ -9667,18 +9849,15 @@ function UploadButton({ customerId }: { customerId: string }) {
       <input
         ref={input}
         type="file"
+        multiple
         className="sr-only"
         tabIndex={-1}
         aria-hidden
         onChange={pick}
       />
-      <Button
-        size="sm"
-        disabled={uploading}
-        onClick={() => input.current?.click()}
-      >
+      <Button size="sm" onClick={() => input.current?.click()}>
         <UploadIcon />
-        {uploading ? t("Uploading") : t("Upload file")}
+        {busy ? t("Upload more") : t("Upload files")}
       </Button>
     </>
   );

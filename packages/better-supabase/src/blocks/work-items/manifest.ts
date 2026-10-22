@@ -10,6 +10,7 @@ import {
   workItemInputSchema,
   workItemListFilterSchema,
 } from "./schemas.ts";
+import { workItemChecklistSection } from "./section.ts";
 import { createWorkItems } from "./work-items.ts";
 
 /** The `work-items` block's manifest (ADR 0029). */
@@ -18,7 +19,8 @@ export const workItemsBlock: BlockOf<
   typeof createWorkItems,
   WorkItemsEvents,
   Record<never, never>,
-  "sink"
+  "sink",
+  { readonly checklist: typeof workItemChecklistSection }
 > = defineBlock({
   name: "work-items",
   sql: ["work-items"],
@@ -26,6 +28,7 @@ export const workItemsBlock: BlockOf<
   events: workItemsEvents,
   provides: { sink: (client) => workItemRecurrenceSink(client) },
   create: createWorkItems,
+  sections: { checklist: workItemChecklistSection },
   category: "work",
   recipes: ["work-item-board", "work-item-grid"],
   schemas: {

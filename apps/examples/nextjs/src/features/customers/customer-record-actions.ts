@@ -97,8 +97,8 @@ export const revokeShareLink = bs.action(
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 /**
- * Records a pending file and returns a one-time upload token; the browser sends
- * the bytes with `uploadToSignedUrl`, then calls `confirmAttachment`.
+ * Records a pending file and returns its signed upload URL for
+ * `useAttachmentUpload`, which sends the bytes and calls `confirmAttachment`.
  */
 export const startAttachmentUpload = bs.action(
   {
@@ -133,13 +133,9 @@ export const startAttachmentUpload = bs.action(
       return upload;
     }
 
-    const { attachment, token } = upload.data;
-
     return ok({
-      id: attachment.id,
-      bucket: attachment.bucket,
-      path: attachment.path,
-      token,
+      id: upload.data.attachment.id,
+      signedUrl: upload.data.signedUrl,
     });
   },
 );

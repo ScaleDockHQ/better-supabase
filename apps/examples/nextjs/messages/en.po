@@ -3442,6 +3442,11 @@ msgid "Files"
 msgstr "Files"
 
 #: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.7hEmx-"
+msgid "Drop or paste files to upload. They download after the virus scan."
+msgstr "Drop or paste files to upload. They download after the virus scan."
+
+#: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.2Ne0Nv"
 msgid "Files download after the virus scan marks them clean."
 msgstr "Files download after the virus scan marks them clean."
@@ -3462,9 +3467,19 @@ msgid "Attach contracts, quotes or anything else about this customer."
 msgstr "Attach contracts, quotes or anything else about this customer."
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.5iaKnS"
-msgid "Upload unfinished"
-msgstr "Upload unfinished"
+msgctxt "customers.lrdlY6"
+msgid "File uploaded"
+msgstr "File uploaded"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hsYvDX"
+msgid "Uploading"
+msgstr "Uploading"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.QLkzoS"
+msgid "Saving"
+msgstr "Saving"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.oCixBp"
@@ -3472,14 +3487,44 @@ msgid "Waiting for scan"
 msgstr "Waiting for scan"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.IZFEUg"
-msgid "Ready"
-msgstr "Ready"
+msgctxt "customers.LwdDVa"
+msgid "Uploaded"
+msgstr "Uploaded"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.qUJTsT"
 msgid "Blocked"
 msgstr "Blocked"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.vXCeIi"
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.minycD"
+msgid "Upload progress for {name}"
+msgstr "Upload progress for {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hRJjA7"
+msgid "Retry {name}"
+msgstr "Retry {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.OPIp6Z"
+msgid "Dismiss {name}"
+msgstr "Dismiss {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.5iaKnS"
+msgid "Upload unfinished"
+msgstr "Upload unfinished"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.IZFEUg"
+msgid "Ready"
+msgstr "Ready"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.pRoW6a"
@@ -3492,24 +3537,14 @@ msgid "Download {name}"
 msgstr "Download {name}"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.C_zqJE"
-msgid "The upload failed. Try again."
-msgstr "The upload failed. Try again."
+msgctxt "customers.w6J38y"
+msgid "Upload more"
+msgstr "Upload more"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.lrdlY6"
-msgid "File uploaded"
-msgstr "File uploaded"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.hsYvDX"
-msgid "Uploading"
-msgstr "Uploading"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.6oOCCL"
-msgid "Upload file"
-msgstr "Upload file"
+msgctxt "customers.2jjdVz"
+msgid "Upload files"
+msgstr "Upload files"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.88bXgO"

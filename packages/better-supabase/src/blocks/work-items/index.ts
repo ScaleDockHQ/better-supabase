@@ -45,6 +45,13 @@ export {
 export { workItemsBlock } from "./manifest.ts";
 
 export {
+  workItemChecklistOptimistic,
+  workItemChecklistSection,
+} from "./section.ts";
+
+export type { WorkItemChecklistOptimisticAction } from "./section.ts";
+
+export {
   workItemChangeSchema,
   workItemInputSchema,
   workItemListFilterSchema,
