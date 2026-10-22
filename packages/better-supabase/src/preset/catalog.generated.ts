@@ -5934,6 +5934,68 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "DispatchRoute"
+        },
+        {
+          "name": "DispatchRoutePlannedEventData"
+        },
+        {
+          "name": "WorkOrder",
+          "fields": true
+        },
+        {
+          "name": "WorkOrderCreatedEventData"
+        },
+        {
+          "name": "WorkOrderInput",
+          "fields": true
+        },
+        {
+          "name": "WorkOrderListOptions"
+        },
+        {
+          "name": "WorkOrderPart"
+        },
+        {
+          "name": "WorkOrderPartInput"
+        },
+        {
+          "name": "WorkOrderPartUsedEventData"
+        },
+        {
+          "name": "WorkOrderPatch",
+          "fields": true
+        },
+        {
+          "name": "WorkOrderPriority"
+        },
+        {
+          "name": "WorkOrderScheduledEventData"
+        },
+        {
+          "name": "WorkOrderSectionInput"
+        },
+        {
+          "name": "WorkOrderSlot"
+        },
+        {
+          "name": "WorkOrderStatus"
+        },
+        {
+          "name": "WorkOrderStatusChangedEventData"
+        },
+        {
+          "name": "WorkOrderTransition"
+        },
+        {
+          "name": "WorkOrderUnscheduledEventData"
+        },
+        {
+          "name": "WorkOrderUpdatedEventData"
+        }
+      ],
       "entitySchemas": {
         "work_order": {
           "input": {
@@ -6143,6 +6205,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "create",
           "cancel"
         ]
+      },
+      "events": {
+        "type": "DispatchEvents",
+        "types": [
+          "work_order.created",
+          "work_order.updated",
+          "work_order.scheduled",
+          "work_order.unscheduled",
+          "work_order.status_changed",
+          "work_order.part_used",
+          "dispatch_route.planned"
+        ]
       }
     },
     {
@@ -6157,6 +6231,80 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Shipment",
+          "fields": true
+        },
+        {
+          "name": "ShipmentAddress"
+        },
+        {
+          "name": "ShipmentCancelledEventData"
+        },
+        {
+          "name": "ShipmentCarrier"
+        },
+        {
+          "name": "ShipmentCreatedEventData"
+        },
+        {
+          "name": "ShipmentInput",
+          "fields": true
+        },
+        {
+          "name": "ShipmentLabel"
+        },
+        {
+          "name": "ShipmentLabelChoice"
+        },
+        {
+          "name": "ShipmentLabeledEventData"
+        },
+        {
+          "name": "ShipmentLabelRequest"
+        },
+        {
+          "name": "ShipmentListOptions"
+        },
+        {
+          "name": "ShipmentPackage"
+        },
+        {
+          "name": "ShipmentParcel"
+        },
+        {
+          "name": "ShipmentRate"
+        },
+        {
+          "name": "ShipmentRateRequest"
+        },
+        {
+          "name": "Shipments",
+          "fields": true
+        },
+        {
+          "name": "ShipmentSectionInput"
+        },
+        {
+          "name": "ShipmentsEvents"
+        },
+        {
+          "name": "ShipmentsOptions"
+        },
+        {
+          "name": "ShipmentsSqlOptions"
+        },
+        {
+          "name": "ShipmentStatus"
+        },
+        {
+          "name": "ShipmentStatusChangedEventData"
+        },
+        {
+          "name": "ShipmentsWrites"
+        }
+      ],
       "entitySchemas": {
         "shipment": {
           "input": {
@@ -6319,6 +6467,15 @@ export const PRESET_CATALOG: PresetCatalog = {
         "shipments": [
           "create",
           "cancel"
+        ]
+      },
+      "events": {
+        "type": "ShipmentsEvents",
+        "types": [
+          "shipment.created",
+          "shipment.labeled",
+          "shipment.status_changed",
+          "shipment.cancelled"
         ]
       }
     },

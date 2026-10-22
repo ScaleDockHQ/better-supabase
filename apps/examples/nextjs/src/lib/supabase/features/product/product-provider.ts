@@ -16,6 +16,10 @@ import {
   revokeProductPasses,
   setRateProductBillableTime,
   invoiceProductBillableTime,
+  createProductDispatch,
+  cancelProductDispatch,
+  createProductShipments,
+  cancelProductShipments,
   linkProductRelations,
   unlinkProductRelations,
   createProductShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateProductBillableTime,
     invoice: invoiceProductBillableTime,
+  },
+  dispatch: {
+    create: createProductDispatch,
+    cancel: cancelProductDispatch,
+  },
+  shipments: {
+    create: createProductShipments,
+    cancel: cancelProductShipments,
   },
   relations: {
     link: linkProductRelations,

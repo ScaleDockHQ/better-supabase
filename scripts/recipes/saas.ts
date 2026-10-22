@@ -399,6 +399,67 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "dispatch-board",
+    title: "Dispatch board",
+    blocks: ["dispatch"],
+    kind: "screen",
+    description:
+      "A week of technicians by day with their scheduled work orders, and the backlog to schedule.",
+    web: {
+      file: `${WEB_APP}/src/features/field/components/dispatch-board.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "dialog",
+        "empty",
+        "field",
+        "input",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "technician-day",
+    title: "Technician day",
+    blocks: ["dispatch"],
+    kind: "screen",
+    description:
+      "A technician's stops for the day in route order, each with the button that moves it on.",
+    web: {
+      file: `${WEB_APP}/src/features/field/components/technician-day.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
+  {
+    slug: "shipment-tracking",
+    title: "Shipment tracking",
+    blocks: ["shipments"],
+    kind: "screen",
+    description:
+      "Shipments with their status and the tracking timeline of the selected one, newest event first.",
+    web: {
+      file: `${WEB_APP}/src/features/field/components/shipment-tracking.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "dialog",
+        "empty",
+        "field",
+        "input",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+  },
+  {
     slug: "invoices-table",
     title: "Invoices table",
     blocks: ["invoices"],

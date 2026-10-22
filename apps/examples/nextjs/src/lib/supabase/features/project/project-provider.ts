@@ -16,6 +16,10 @@ import {
   revokeProjectPasses,
   setRateProjectBillableTime,
   invoiceProjectBillableTime,
+  createProjectDispatch,
+  cancelProjectDispatch,
+  createProjectShipments,
+  cancelProjectShipments,
   linkProjectRelations,
   unlinkProjectRelations,
   createProjectShareLinks,
@@ -49,6 +53,14 @@ const writes = {
   billableTime: {
     setRate: setRateProjectBillableTime,
     invoice: invoiceProjectBillableTime,
+  },
+  dispatch: {
+    create: createProjectDispatch,
+    cancel: cancelProjectDispatch,
+  },
+  shipments: {
+    create: createProjectShipments,
+    cancel: cancelProjectShipments,
   },
   relations: {
     link: linkProjectRelations,

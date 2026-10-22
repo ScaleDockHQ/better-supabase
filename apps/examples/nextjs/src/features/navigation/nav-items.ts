@@ -20,6 +20,9 @@ export type NavId =
   | "shop"
   | "inventory"
   | "orders"
+  | "dispatch"
+  | "myDay"
+  | "shipments"
   | "drive"
   | "documents"
   | "forms"
@@ -143,6 +146,24 @@ export const navItems: readonly NavItem[] = [
     href: "/shop/orders",
     group: "workspace",
     requires: "orders.read",
+  },
+  {
+    id: "dispatch",
+    href: "/field/dispatch",
+    group: "workspace",
+    requires: "dispatch.read",
+  },
+  {
+    id: "myDay",
+    href: "/field/day",
+    group: "workspace",
+    requires: "dispatch.work",
+  },
+  {
+    id: "shipments",
+    href: "/field/shipments",
+    group: "workspace",
+    requires: "shipments.read",
   },
   { id: "drive", href: "/drive", group: "workspace", requires: "drive.read" },
   {

@@ -22,6 +22,14 @@ export const setRateDriveNodeBillableTime = driveNodeRecord.actions.billableTime
 
 export const invoiceDriveNodeBillableTime = driveNodeRecord.actions.billableTime.invoice;
 
+export const createDriveNodeDispatch = driveNodeRecord.actions.dispatch.create;
+
+export const cancelDriveNodeDispatch = driveNodeRecord.actions.dispatch.cancel;
+
+export const createDriveNodeShipments = driveNodeRecord.actions.shipments.create;
+
+export const cancelDriveNodeShipments = driveNodeRecord.actions.shipments.cancel;
+
 export const linkDriveNodeRelations = driveNodeRecord.actions.relations.link;
 
 export const unlinkDriveNodeRelations = driveNodeRecord.actions.relations.unlink;

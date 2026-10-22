@@ -16,6 +16,7 @@ import { commentsBlock } from "better-supabase/blocks/comments";
 import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { dataLifecycleBlock } from "better-supabase/blocks/data-lifecycle";
 import { dealsBlock } from "better-supabase/blocks/deals";
+import { dispatchBlock } from "better-supabase/blocks/dispatch";
 import { documentsBlock } from "better-supabase/blocks/documents";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
@@ -55,6 +56,7 @@ import { searchBlock } from "better-supabase/blocks/search";
 import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
 import { createSettings, settingsBlock } from "better-supabase/blocks/settings";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
+import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { signingKeysBlock } from "better-supabase/blocks/signing-keys";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { ssoBlock } from "better-supabase/blocks/sso";
@@ -148,6 +150,8 @@ const blockSet = defineBlocks(blockConfig, {
   guests: guestsBlock,
   passes: passesBlock,
   "billable-time": billableTimeBlock,
+  dispatch: dispatchBlock,
+  shipments: shipmentsBlock,
   orders: ordersBlock,
   promotions: promotionsBlock,
   calendar: calendarBlock,

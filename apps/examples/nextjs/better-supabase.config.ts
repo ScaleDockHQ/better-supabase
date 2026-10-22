@@ -407,6 +407,8 @@ export default defineConfig({
     guests: {},
     passes: {},
     "billable-time": {},
+    dispatch: {},
+    shipments: {},
     reminders: {},
     "drive-files": {},
     drive: {},

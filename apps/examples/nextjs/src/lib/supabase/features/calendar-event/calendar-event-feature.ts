@@ -6,6 +6,7 @@ import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
+import { dispatchBlock } from "better-supabase/blocks/dispatch";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
@@ -14,6 +15,7 @@ import { passesBlock } from "better-supabase/blocks/passes";
 import { relationsBlock } from "better-supabase/blocks/relations";
 import { scoresBlock } from "better-supabase/blocks/scores";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
+import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
 
@@ -36,6 +38,8 @@ export const calendarEventFeature = defineRecordFeature({
     guests: guestsBlock,
     passes: passesBlock,
     billableTime: billableTimeBlock,
+    dispatch: dispatchBlock,
+    shipments: shipmentsBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

@@ -16,6 +16,10 @@ import {
   revokeDocumentPasses,
   setRateDocumentBillableTime,
   invoiceDocumentBillableTime,
+  createDocumentDispatch,
+  cancelDocumentDispatch,
+  createDocumentShipments,
+  cancelDocumentShipments,
   linkDocumentRelations,
   unlinkDocumentRelations,
   createDocumentShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateDocumentBillableTime,
     invoice: invoiceDocumentBillableTime,
+  },
+  dispatch: {
+    create: createDocumentDispatch,
+    cancel: cancelDocumentDispatch,
+  },
+  shipments: {
+    create: createDocumentShipments,
+    cancel: cancelDocumentShipments,
   },
   relations: {
     link: linkDocumentRelations,

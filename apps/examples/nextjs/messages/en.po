@@ -188,6 +188,37 @@ msgctxt "app.FazwRl"
 msgid "Try again"
 msgstr "Try again"
 
+#: src/app/[locale]/(app)/field/day/page.tsx
+msgctxt "field.XdSd3o"
+msgid "My day"
+msgstr "My day"
+
+#: src/app/[locale]/(app)/field/day/page.tsx
+msgctxt "field.G24OIU"
+msgid "Your stops for the day and the next step of each."
+msgstr "Your stops for the day and the next step of each."
+
+#: src/app/[locale]/(app)/field/dispatch/page.tsx
+msgctxt "field.g_6veL"
+msgid "Dispatch"
+msgstr "Dispatch"
+
+#: src/app/[locale]/(app)/field/dispatch/page.tsx
+msgctxt "field.6OAxn7"
+msgid "Schedule work orders into technicians' days and keep the backlog moving."
+msgstr "Schedule work orders into technicians' days and keep the backlog moving."
+
+#: src/app/[locale]/(app)/field/shipments/page.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field._VTdwj"
+msgid "Shipments"
+msgstr "Shipments"
+
+#: src/app/[locale]/(app)/field/shipments/page.tsx
+msgctxt "field.7grP0Y"
+msgid "Track packages from label to delivery."
+msgstr "Track packages from label to delivery."
+
 #: src/app/[locale]/(app)/forbidden.tsx
 msgctxt "app.yO2v_w"
 msgid "You don't have access"
@@ -4698,6 +4729,401 @@ msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Access"
 
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.s7o6zU"
+msgid "Leave for the stop"
+msgstr "Leave for the stop"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.W_6tSY"
+msgid "Arrived"
+msgstr "Arrived"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.tQpQon"
+msgid "Mark done"
+msgstr "Mark done"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.DgAp1f"
+msgid "Week of {range}"
+msgstr "Week of {range}"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.B1qonS"
+msgid "Scheduled work per technician, in {zone}."
+msgstr "Scheduled work per technician, in {zone}."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.m74Rqi"
+msgid "Scheduled work per technician."
+msgstr "Scheduled work per technician."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.GAjQnO"
+msgid "Previous week"
+msgstr "Previous week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.iMjjOH"
+msgid "Next week"
+msgstr "Next week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.oZZk8W"
+msgid "The schedule board didn't load"
+msgstr "The schedule board didn't load"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.CXAGzs"
+msgid "Nothing scheduled this week"
+msgstr "Nothing scheduled this week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.8rezaW"
+msgid "Work orders show here once they have a technician."
+msgstr "Work orders show here once they have a technician."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.LiYMhZ"
+msgid "Show next week"
+msgstr "Show next week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.FoMO5v"
+msgid "Technician"
+msgstr "Technician"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.mX1AFw"
+msgid "Backlog"
+msgstr "Backlog"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.a7n80f"
+msgid "Work orders without a slot, most urgent first."
+msgstr "Work orders without a slot, most urgent first."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.i7CstZ"
+msgid "The backlog didn't load"
+msgstr "The backlog didn't load"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.KV_tdf"
+msgid "The backlog is empty"
+msgstr "The backlog is empty"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.aeOe_6"
+msgid "Every open work order has a slot."
+msgstr "Every open work order has a slot."
+
+#: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.MEvKnW"
+msgid "Job"
+msgstr "Job"
+
+#: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.e6Ph5-"
+msgid "Address"
+msgstr "Address"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.8lCjAM"
+msgid "Priority"
+msgstr "Priority"
+
+#: src/features/field/components/field-load-error.tsx
+msgctxt "field.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/field/components/field-load-error.tsx
+msgctxt "field.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.eTrzQC"
+msgid "Shipment created"
+msgstr "Shipment created"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.HkTa1T"
+msgid "New shipment"
+msgstr "New shipment"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.UMshQz"
+msgid "One package from the warehouse, saved as a draft."
+msgstr "One package from the warehouse, saved as a draft."
+
+#: src/features/field/components/new-shipment-dialog.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.8Rkoyb"
+msgid "Recipient"
+msgstr "Recipient"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.LVbG7l"
+msgid "Street and number"
+msgstr "Street and number"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.3EnruA"
+msgid "Postal code"
+msgstr "Postal code"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.TE4fIS"
+msgid "City"
+msgstr "City"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.H36vgV"
+msgid "Country code"
+msgstr "Country code"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.SHl88G"
+msgid "Weight in grams"
+msgstr "Weight in grams"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.VzzYJk"
+msgid "Create"
+msgstr "Create"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.Wp_i6x"
+msgid "Work order added to the backlog"
+msgstr "Work order added to the backlog"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.WHfMpv"
+msgid "New work order"
+msgstr "New work order"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.1zY8SM"
+msgid "It waits in the backlog until you schedule it."
+msgstr "It waits in the backlog until you schedule it."
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.2_2yg-"
+msgid "Add"
+msgstr "Add"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.yNSJTr"
+msgid "Label created"
+msgstr "Label created"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.oLBci1"
+msgid "In transit"
+msgstr "In transit"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.UdVzmc"
+msgid "Out for delivery"
+msgstr "Out for delivery"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.DMqnF4"
+msgid "Delivered"
+msgstr "Delivered"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.YAnsyA"
+msgid "Exception"
+msgstr "Exception"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.wm96Jx"
+msgid "Returned"
+msgstr "Returned"
+
+#: src/features/field/components/shipment-tracking.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.3wsVWF"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.xd9-PX"
+msgid "The status follows the latest tracking event."
+msgstr "The status follows the latest tracking event."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.7CeqzL"
+msgid "The shipments didn't load"
+msgstr "The shipments didn't load"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.TsxaHw"
+msgid "No shipments yet"
+msgstr "No shipments yet"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.LLrtsC"
+msgid "Create a shipment, then buy its label from a carrier."
+msgstr "Create a shipment, then buy its label from a carrier."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.mcUhhf"
+msgid "Reference"
+msgstr "Reference"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.BzQPM-"
+msgid "Destination"
+msgstr "Destination"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.yT_GAp"
+msgid "Tracking number"
+msgstr "Tracking number"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.-jwfm8"
+msgid "Tracking for {reference}"
+msgstr "Tracking for {reference}"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.aAuZgr"
+msgid "Events from {carrier}, newest first."
+msgstr "Events from {carrier}, newest first."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.TLGw7J"
+msgid "Events show once the shipment has a label."
+msgstr "Events show once the shipment has a label."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.hH74PI"
+msgid "No tracking events yet"
+msgstr "No tracking events yet"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.oLP7kH"
+msgid "The carrier's webhook adds events as the package moves."
+msgstr "The carrier's webhook adds events as the package moves."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.1A8Z_l"
+msgid "Check again"
+msgstr "Check again"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.AE_HJl"
+msgid "Your stops in the order of the planned route."
+msgstr "Your stops in the order of the planned route."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.SGzIa0"
+msgid "Your stops by start time."
+msgstr "Your stops by start time."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.RMO5xM"
+msgid "Previous day"
+msgstr "Previous day"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.3XCLrO"
+msgid "Next day"
+msgstr "Next day"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.D-LF9w"
+msgid "Your day didn't load"
+msgstr "Your day didn't load"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.fWAPAL"
+msgid "No stops on this day"
+msgstr "No stops on this day"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.-PlOyW"
+msgid "Work orders scheduled for you show here."
+msgstr "Work orders scheduled for you show here."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.g-EdHj"
+msgid "Show the next day"
+msgstr "Show the next day"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.tXYVJd"
+msgid "{from} to {to}"
+msgstr "{from} to {to}"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.4MnrK6"
+msgid "Unscheduled"
+msgstr "Unscheduled"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.cXAlMR"
+msgid "Scheduled"
+msgstr "Scheduled"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.UHCOTT"
+msgid "En route"
+msgstr "En route"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.bC-TWQ"
+msgid "On site"
+msgstr "On site"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.477I0g"
+msgid "Low"
+msgstr "Low"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.myq2ZL"
+msgid "Normal"
+msgstr "Normal"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.AxMhQr"
+msgid "High"
+msgstr "High"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.yN7aqf"
+msgid "Urgent"
+msgstr "Urgent"
+
 #: src/features/flags/components/beta-content.tsx
 msgctxt "beta.hKwqKr"
 msgid "You're in the beta"
@@ -5835,6 +6261,21 @@ msgstr "Inventory"
 msgctxt "navigation.X7jl6w"
 msgid "Orders"
 msgstr "Orders"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.g_6veL"
+msgid "Dispatch"
+msgstr "Dispatch"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.XdSd3o"
+msgid "My day"
+msgstr "My day"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation._VTdwj"
+msgid "Shipments"
+msgstr "Shipments"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.1YAWJ3"
