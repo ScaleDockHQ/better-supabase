@@ -102,6 +102,7 @@ import {
   TimerIcon,
   TreePalmIcon,
   Trash2Icon,
+  UserKeyIcon,
   UserPenIcon,
   UserPlusIcon,
   UsersIcon,
@@ -145,6 +146,7 @@ export const BLOCK_ICONS = {
   attachments: PaperclipIcon,
   "share-links": Link2Icon,
   reactions: SmilePlusIcon,
+  guests: UserKeyIcon,
   // Notifications & messaging
   notifications: BellIcon,
   "chat-sdk-state": MessagesSquareIcon,
