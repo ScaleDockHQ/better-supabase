@@ -4897,6 +4897,13 @@
       "ParsedMentions",
       "RecordMention",
       "RpcClient",
+      "SummarizeOptions",
+      "SummaryMessage",
+      "SummaryTarget",
+      "ThreadSummarizer",
+      "ThreadSummary",
+      "ThreadSummaryInput",
+      "ThreadSummaryOutput",
       "UnreadCount"
     ]
   },
@@ -5028,6 +5035,7 @@
       "modelInputOf",
       "problem429",
       "spendReconciliation",
+      "summarizeWith",
       "tenantGatewayOptions",
       "tenantOfEvent",
       "toUIMessage",
@@ -5055,8 +5063,12 @@
       "SpendReconciliationOptions",
       "SpendReportClient",
       "SpendReportRow",
+      "SummarizeWithOptions",
       "TelemetryMeters",
       "TelemetryStart",
+      "ThreadSummarizer",
+      "ThreadSummaryInput",
+      "ThreadSummaryOutput",
       "TrackedSandboxOptions",
       "UsageSource"
     ]

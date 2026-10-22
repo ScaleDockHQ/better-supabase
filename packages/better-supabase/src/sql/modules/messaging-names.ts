@@ -198,6 +198,22 @@ export const MESSAGING_NAMES: ModuleNames = {
         createdAt: "created_at",
       },
     },
+    summaries: {
+      name: "thread_summaries",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        conversation: "conversation_id",
+        thread: "thread_id",
+        summary: "summary",
+        model: "model",
+        messageCount: "message_count",
+        throughAt: "through_at",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
   },
 };
 

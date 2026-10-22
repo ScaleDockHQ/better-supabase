@@ -13,6 +13,13 @@ import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { SubjectRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type {
+  SummarizeOptions,
+  SummarySteps,
+  SummaryTarget,
+  ThreadSummarizer,
+  ThreadSummary,
+} from "./summaries.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -30,6 +37,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { editOf, messageOf, num } from "./rows.ts";
+import { summarize, threadSummaryOf } from "./summaries.ts";
 
 export { conversationTopic } from "./rows.ts";
 
@@ -320,6 +328,21 @@ export interface Messaging<F extends object = Record<never, never>> {
   ): AsyncResult<RecordMention<F>[]>;
   /** The service role sends the scheduled messages that are due. */
   publishDue(limit?: number): AsyncResult<number>;
+  /**
+   * The summary of a thread or of a conversation's top-level messages, with
+   * whether it is stale; `undefined` before the first one.
+   */
+  summary(target: SummaryTarget): AsyncResult<ThreadSummary | undefined>;
+  /**
+   * Returns the summary while it is current. Otherwise reads the newest
+   * messages as the caller (internal notes left out), asks `summarizer` and
+   * saves what it wrote through the `service` transport.
+   */
+  summarize(
+    target: SummaryTarget,
+    summarizer: ThreadSummarizer,
+    options?: SummarizeOptions,
+  ): AsyncResult<ThreadSummary>;
 }
 
 export interface MessagingOptions<
@@ -327,6 +350,11 @@ export interface MessagingOptions<
 >
   extends BlockTemporalOptions, BlockTenantOptions {
   readonly transport: BlockTransport;
+  /**
+   * Calls as the service role, to save thread summaries: `rpcTransport(admin)`.
+   * Default `transport`.
+   */
+  readonly service?: BlockTransport;
   /** The module schema, or its API schema. Default `better_supabase`. */
   readonly schema?: string;
   /**
@@ -414,6 +442,11 @@ export function createMessaging<
 
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
+  const service = options.service
+    ? blockCall(options.service, options.schema, options.mappers)
+    : call;
+
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const fields: BlockFields<F> = blockFields(options.fields, "message fields");
 
@@ -451,6 +484,75 @@ export function createMessaging<
         conversationOf,
       ),
     );
+
+  const targetArgs = (target: SummaryTarget) =>
+    "threadId" in target
+      ? { conversation: null, thread: target.threadId }
+      : { conversation: target.conversationId, thread: null };
+
+  const currentSummary = (target: SummaryTarget) =>
+    call("thread_summary", targetArgs(target), (value) =>
+      value === null || value === undefined
+        ? undefined
+        : threadSummaryOf(value),
+    );
+
+  /** A thread's root and its newest replies, oldest first. */
+  const readThread = (
+    threadId: string,
+    max: number,
+    replies: readonly Message<F>[] = [],
+    after?: MessageCursor,
+  ): AsyncResult<readonly Message<F>[]> =>
+    many("list_replies", {
+      message: threadId,
+      ...cursorArgs("after", after),
+      max_rows: 500,
+    }).andThen((page) => {
+      const all = [...replies, ...page];
+      const last = page.at(-1);
+
+      if (page.length === 500 && last?.sentAt !== undefined) {
+        return readThread(threadId, max, all, {
+          sentAt: last.sentAt,
+          id: last.id,
+        });
+      }
+
+      return one("get_message", { message: threadId }).map((root) => [
+        root,
+        ...all.slice(-(max - 1)),
+      ]);
+    });
+
+  const steps: SummarySteps = {
+    current: currentSummary,
+    read: (target, max) =>
+      "threadId" in target
+        ? readThread(target.threadId, max)
+        : many("list_messages", {
+            conversation: target.conversationId,
+            ...cursorArgs("after", undefined),
+            ...cursorArgs("before", undefined),
+            max_rows: max,
+          }).map((messages) =>
+            messages.filter((message) => message.threadId === undefined),
+          ),
+    save: (target, saved) =>
+      service(
+        "save_thread_summary",
+        {
+          ...targetArgs(target),
+          summary: saved.summary,
+          attrs: {
+            messageCount: saved.messageCount,
+            throughAt: saved.throughAt.toString(),
+            ...(saved.model === undefined ? {} : { model: saved.model }),
+          },
+        },
+        threadSummaryOf,
+      ),
+  };
 
   const client: Messaging<F> = {
     open,
@@ -653,6 +755,9 @@ export function createMessaging<
       ),
     publishDue: (limit) =>
       call("publish_due_messages", { max_rows: limit ?? null }, num),
+    summary: currentSummary,
+    summarize: (target, summarizer, summarizeOptions) =>
+      summarize(steps, target, summarizer, summarizeOptions),
   };
 
   return withBlockHooks(client, options.hooks, {

@@ -109,6 +109,12 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       args: ["text", "text", "timestamptz", "uuid", "integer"],
       returns: "jsonb",
     },
+    { name: "thread_summary", args: ["uuid", "uuid"], returns: "jsonb" },
+    {
+      name: "save_thread_summary",
+      args: ["uuid", "uuid", "text", "jsonb"],
+      returns: "jsonb",
+    },
   ];
 
   if (ctx.installed("notifications")) {

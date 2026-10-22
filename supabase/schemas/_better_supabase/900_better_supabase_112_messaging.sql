@@ -234,6 +234,31 @@ drop policy if exists message_record_mentions_read on "better_supabase"."message
 create policy message_record_mentions_read on "better_supabase"."message_record_mentions" for select to authenticated
 using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
+-- A thread's or a conversation's summary, which the service role writes
+-- through save_thread_summary. It shows to whoever reads the conversation.
+create table if not exists "better_supabase"."thread_summaries" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
+  "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
+  "summary" text not null check (char_length("summary") between 1 and 20000),
+  "model" text check (char_length("model") <= 200),
+  "message_count" integer not null default 0 check ("message_count" >= 0),
+  "through_at" timestamptz not null,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique nulls not distinct ("conversation_id", "thread_id")
+);
+create index if not exists messaging_thread_summaries_thread_idx on "better_supabase"."thread_summaries" ("thread_id");
+alter table "better_supabase"."thread_summaries" enable row level security;
+revoke all on "better_supabase"."thread_summaries" from anon, authenticated;
+grant select on "better_supabase"."thread_summaries" to authenticated;
+grant all on "better_supabase"."thread_summaries" to service_role;
+
+drop policy if exists thread_summaries_read on "better_supabase"."thread_summaries";
+create policy thread_summaries_read on "better_supabase"."thread_summaries" for select to authenticated
+using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
+
 -- Keeps the thread root's reply count, last reply and first three repliers,
 -- and the conversation's last message time, as a reply is sent or deleted.
 create or replace function "better_supabase"."messaging_message_written"()
@@ -1463,6 +1488,97 @@ revoke execute on function "better_supabase"."list_pinned_messages"(uuid) from p
 grant execute on function "better_supabase"."list_pinned_messages"(uuid) to authenticated, service_role;
 
 
+-- The summary of a thread (by its root message) or of a conversation's
+-- top-level messages (thread null), or null. stale is true once a message in
+-- scope was sent after through_at, or edited or deleted after the summary was
+-- saved. Notes never count. Runs as the caller, so it shows only summaries of
+-- conversations they read.
+create or replace function "better_supabase"."thread_summary"(conversation uuid default null, thread uuid default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(s) || jsonb_build_object(
+    'stale', exists (
+      select 1 from "better_supabase"."messages" m
+      where m."conversation_id" = s."conversation_id"
+        and m."kind" = 'message' and m."sent_at" is not null
+        and case when s."thread_id" is null then m."thread_id" is null
+          else m."id" = s."thread_id" or m."thread_id" = s."thread_id" end
+        and (m."sent_at" > s."through_at"
+          or m."edited_at" > s."updated_at"
+          or m."deleted_at" > s."updated_at")
+    )
+  )
+  from "better_supabase"."thread_summaries" s
+  where s."conversation_id" = coalesce(thread_summary.conversation,
+      (select m."conversation_id" from "better_supabase"."messages" m where m."id" = thread_summary.thread))
+    and s."thread_id" is not distinct from thread_summary.thread
+$$;
+revoke execute on function "better_supabase"."thread_summary"(uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."thread_summary"(uuid, uuid) to authenticated, service_role;
+
+-- Saves the summary of a thread (by its sent root message) or of a
+-- conversation (thread null), in place of the one saved before. attrs: model,
+-- messageCount and throughAt (when the newest summarized message was sent).
+-- The service role calls it after the app read the messages as the user.
+-- Returns the summary as thread_summary does.
+create or replace function "better_supabase"."save_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_conversation uuid;
+  v_tenant uuid;
+  v_count integer;
+begin
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'save_thread_summary runs as the service role' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
+  end if;
+  if save_thread_summary.thread is null then
+    select c."id", c."tenant_id" into v_conversation, v_tenant
+    from "better_supabase"."conversations" c where c."id" = save_thread_summary.conversation;
+  else
+    select m."conversation_id", m."tenant_id" into v_conversation, v_tenant
+    from "better_supabase"."messages" m
+    where m."id" = save_thread_summary.thread and m."thread_id" is null and m."sent_at" is not null
+      and (save_thread_summary.conversation is null or m."conversation_id" = save_thread_summary.conversation);
+  end if;
+  if v_conversation is null then
+    raise exception 'no such conversation or thread root' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
+  end if;
+  begin
+    v_count := coalesce((save_thread_summary.attrs ->> 'messageCount')::integer, 0);
+  exception when invalid_text_representation or numeric_value_out_of_range then
+    v_count := -1;
+  end;
+  if char_length(btrim(coalesce(save_thread_summary.summary, ''))) not between 1 and 20000
+    or char_length(save_thread_summary.attrs ->> 'model') > 200
+    or v_count < 0
+    or save_thread_summary.attrs ->> 'throughAt' is null then
+    raise exception 'a summary needs 1 to 20000 characters, a message count and throughAt' using errcode = '22023', hint = 'MESSAGING_SUMMARY_INVALID';
+  end if;
+  insert into "better_supabase"."thread_summaries" ("tenant_id", "conversation_id", "thread_id", "summary", "model", "message_count", "through_at")
+  values (v_tenant, v_conversation, save_thread_summary.thread, btrim(save_thread_summary.summary),
+    save_thread_summary.attrs ->> 'model', v_count, (save_thread_summary.attrs ->> 'throughAt')::timestamptz)
+  on conflict ("conversation_id", "thread_id") do update
+  set "summary" = excluded."summary",
+    "model" = excluded."model",
+    "message_count" = excluded."message_count",
+    "through_at" = excluded."through_at",
+    "updated_at" = now();
+  return "better_supabase"."thread_summary"(v_conversation, save_thread_summary.thread);
+end;
+$$;
+revoke execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
+
+
 
 -- Whether the caller reads conversation `id` (text, from a topic name).
 create or replace function "better_supabase"."conversation_topic_allowed"(id text)
@@ -1784,6 +1900,24 @@ set search_path = ''
 as $$ select "better_supabase"."list_pinned_messages"($1) $$;
 revoke execute on function "api"."list_pinned_messages"(uuid) from public, anon;
 grant execute on function "api"."list_pinned_messages"(uuid) to authenticated, service_role;
+
+create or replace function "api"."thread_summary"(conversation uuid default null, thread uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."thread_summary"($1, $2) $$;
+revoke execute on function "api"."thread_summary"(uuid, uuid) from public, anon;
+grant execute on function "api"."thread_summary"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."save_thread_summary"(conversation uuid, thread uuid, summary text, attrs jsonb default '{}')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_thread_summary"($1, $2, $3, $4) $$;
+revoke execute on function "api"."save_thread_summary"(uuid, uuid, text, jsonb) from public, anon, authenticated;
+grant execute on function "api"."save_thread_summary"(uuid, uuid, text, jsonb) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

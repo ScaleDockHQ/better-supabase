@@ -5219,6 +5219,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "OpenConversation"
+        },
+        {
+          "name": "SummaryMessage"
         }
       ],
       "entitySchemas": {

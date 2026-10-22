@@ -5,6 +5,9 @@ import { addExtraColumns, lockTable, triggerGrant } from "../shared.ts";
 
 export const MESSAGE_RESERVED = ["fields"] as const;
 
+/** The longest thread summary `save_thread_summary` stores. */
+export const MAX_SUMMARY_LENGTH = 20_000;
+
 /**
  * Whether the caller may read conversation row `alias`: the tenant's read key
  * (or, for a record's conversation, the key on the record through its subject's
@@ -70,6 +73,7 @@ interface TableDdl {
   readonly edits: string;
   readonly reads: string;
   readonly recordMentions: string;
+  readonly summaries: string;
 }
 
 function tableDdl(q: MessagingSql): TableDdl {
@@ -80,6 +84,7 @@ function tableDdl(q: MessagingSql): TableDdl {
   const ed = q.cols("edits");
   const rd = q.cols("reads");
   const rm = q.cols("recordMentions");
+  const su = q.cols("summaries");
   const idx = (name: string): string => ctx.naming.rename(name);
 
   return {
@@ -185,6 +190,21 @@ ${lockTable(t("reads"), { read: true })}`,
 create index if not exists ${idx("messaging_record_mentions_subject_idx")} on ${t("recordMentions")} (${rm("subjectType")}, ${rm("subjectId")}, ${rm("createdAt")} desc, ${rm("message")});
 create index if not exists ${idx("messaging_record_mentions_conversation_idx")} on ${t("recordMentions")} (${rm("conversation")});
 ${lockTable(t("recordMentions"), { read: true })}`,
+    summaries: `create table if not exists ${t("summaries")} (
+  ${su("id")} uuid primary key default gen_random_uuid(),
+  ${su("tenant")} ${id} not null,
+  ${su("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
+  ${su("thread")} uuid references ${t("messages")} (${ms("id")}) on delete cascade,
+  ${su("summary")} text not null check (char_length(${su("summary")}) between 1 and ${String(MAX_SUMMARY_LENGTH)}),
+  ${su("model")} text check (char_length(${su("model")}) <= 200),
+  ${su("messageCount")} integer not null default 0 check (${su("messageCount")} >= 0),
+  ${su("throughAt")} timestamptz not null,
+  ${su("createdAt")} timestamptz not null default now(),
+  ${su("updatedAt")} timestamptz not null default now(),
+  unique nulls not distinct (${su("conversation")}, ${su("thread")})
+);
+create index if not exists ${idx("messaging_thread_summaries_thread_idx")} on ${t("summaries")} (${su("thread")});
+${lockTable(t("summaries"), { read: true })}`,
   };
 }
 
@@ -206,6 +226,7 @@ export function messagingTableDdl(q: MessagingSql): string {
     ddl.edits,
     ddl.reads,
     ddl.recordMentions,
+    ddl.summaries,
   ].join("\n\n");
 }
 
@@ -223,6 +244,7 @@ export function messagingTables(q: MessagingSql): string {
   const ed = q.cols("edits");
   const rd = q.cols("reads");
   const rm = q.cols("recordMentions");
+  const su = q.cols("summaries");
 
   const policy = (table: string, suffix: string): string =>
     `${ctx.tableName(table).name}_${suffix}`;
@@ -293,6 +315,14 @@ ${ddl.recordMentions}
 drop policy if exists ${policy("recordMentions", "read")} on ${t("recordMentions")};
 create policy ${policy("recordMentions", "read")} on ${t("recordMentions")} for select to authenticated
 using (exists (select 1 from ${t("messages")} m where m.${ms("id")} = ${rm("message")}));
+
+-- A thread's or a conversation's summary, which the service role writes
+-- through save_thread_summary. It shows to whoever reads the conversation.
+${ddl.summaries}
+
+drop policy if exists ${policy("summaries", "read")} on ${t("summaries")};
+create policy ${policy("summaries", "read")} on ${t("summaries")} for select to authenticated
+using (exists (select 1 from ${t("conversations")} c where c.${cv("id")} = ${su("conversation")}));
 
 -- Keeps the thread root's reply count, last reply and first three repliers,
 -- and the conversation's last message time, as a reply is sent or deleted.

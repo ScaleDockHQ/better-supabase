@@ -1,6 +1,12 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
+import type {
+  ThreadSummarizer,
+  ThreadSummaryInput,
+} from "../../src/blocks/messaging/index.ts";
+import type { BlockTransport } from "../../src/core/block-transport.ts";
+
 import {
   createMessaging,
   recordMention,
@@ -391,6 +397,130 @@ describe.skipIf(!live)("messaging", () => {
       await s.asRole(owner);
       await messaging.edit(message.id, { body: "Never mind" }).orThrow();
       expect(await messaging.recordMentions(memoRef).orThrow()).toEqual([]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("summarizes conversations and threads, saves them as the service role and marks them stale", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(MODULES);
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const outsider = await s.user("outsider");
+      const organization = await s.organization(owner, { member });
+
+      const transport = sqlTransport(s.sql);
+      let caller = owner;
+
+      const service: BlockTransport = {
+        async call(schema, fn, args) {
+          await s.service();
+
+          try {
+            return await transport.call(schema, fn, args);
+          } finally {
+            await s.asRole(caller);
+          }
+        },
+      };
+
+      const messaging = createMessaging({
+        transport,
+        service,
+        tenant: () => organization,
+      });
+
+      const seen: ThreadSummaryInput[] = [];
+
+      const summarizer: ThreadSummarizer = {
+        apiVersion: 1,
+        summarize(input) {
+          seen.push(input);
+
+          return Promise.resolve({
+            summary: `${String(input.messages.length)} messages`,
+            model: "test/model",
+          });
+        },
+      };
+
+      await s.asRole(owner);
+
+      const channel = await messaging
+        .open({ kind: "channel", title: "launch", memberIds: [member.id] })
+        .orThrow();
+
+      const root = await messaging
+        .send(channel.id, { body: "Ship on Friday?" })
+        .orThrow();
+
+      await messaging
+        .send(channel.id, { body: "Friday works", parentId: root.id })
+        .orThrow();
+
+      // The authenticated transport can't write a summary.
+      const spoofed = await createMessaging({
+        transport,
+        tenant: () => organization,
+      }).summarize({ conversationId: channel.id }, summarizer);
+
+      expect(spoofed.error?.kind).toBe("forbidden");
+
+      const summary = await messaging
+        .summarize({ conversationId: channel.id }, summarizer)
+        .orThrow();
+
+      expect(summary).toMatchObject({
+        conversationId: channel.id,
+        summary: "1 messages",
+        model: "test/model",
+        messageCount: 1,
+        stale: false,
+      });
+
+      // A current summary is returned without calling the model again.
+      seen.length = 0;
+      await messaging
+        .summarize({ conversationId: channel.id }, summarizer)
+        .orThrow();
+      expect(seen).toEqual([]);
+
+      const thread = await messaging
+        .summarize({ threadId: root.id }, summarizer)
+        .orThrow();
+
+      expect(thread).toMatchObject({
+        conversationId: channel.id,
+        threadId: root.id,
+        summary: "2 messages",
+      });
+
+      caller = member;
+      await s.asRole(member);
+      expect(
+        (await messaging.summary({ threadId: root.id }).orThrow())?.summary,
+      ).toBe("2 messages");
+
+      await s.asRole(outsider);
+      expect(
+        await messaging.summary({ conversationId: channel.id }).orThrow(),
+      ).toBeUndefined();
+
+      // The session is one transaction, so age the summary to let a later
+      // message land after it.
+      await s.client.query(
+        "reset role; update better_supabase.thread_summaries set through_at = now() - interval '1 minute'",
+      );
+      caller = owner;
+      await s.asRole(owner);
+      await messaging.send(channel.id, { body: "Or Monday" }).orThrow();
+      expect(
+        (await messaging.summary({ conversationId: channel.id }).orThrow())
+          ?.stale,
+      ).toBe(true);
     } finally {
       await s.close();
     }

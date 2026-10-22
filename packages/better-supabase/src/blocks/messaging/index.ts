@@ -23,6 +23,16 @@ export {
   type UnreadCount,
 } from "./messaging.ts";
 
+export type {
+  SummarizeOptions,
+  SummaryMessage,
+  SummaryTarget,
+  ThreadSummarizer,
+  ThreadSummary,
+  ThreadSummaryInput,
+  ThreadSummaryOutput,
+} from "./summaries.ts";
+
 export {
   mentionSegments,
   parseMentions,

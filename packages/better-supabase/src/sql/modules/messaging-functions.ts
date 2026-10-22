@@ -13,6 +13,7 @@ import { registeredSubjects } from "../subject-registry.ts";
 import { watchSql } from "../watch-sql.ts";
 import { authorLookup } from "./authors.ts";
 import { conversationFunctions } from "./messaging-conversations.ts";
+import { summaryFunctions } from "./messaging-summaries.ts";
 import { MESSAGE_RESERVED, conversationReadable } from "./messaging-tables.ts";
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -783,5 +784,6 @@ export function messagingFunctions(q: MessagingSql): string {
   return `${messagesJson(q)}
 ${sentEffects(q)}
 ${conversationFunctions(q)}
-${messageFunctions(q)}`;
+${messageFunctions(q)}
+${summaryFunctions(q)}`;
 }
