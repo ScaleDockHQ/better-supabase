@@ -12,7 +12,7 @@ import { FIELD_CIPHER_PREFIX, fieldKeyOwner } from "./field-encryption.ts";
 const SCHEMA = "public";
 
 /** The most ids one `<table>_reveal` call decrypts. */
-export const APP_REVEAL_LIMIT = 500;
+const APP_REVEAL_LIMIT = 500;
 
 /** An app table as the encryption SQL needs it. */
 export interface SealTable {
@@ -31,8 +31,7 @@ const qualified = (table: string): string =>
   `${sqlIdent(SCHEMA)}.${sqlIdent(table)}`;
 
 /** The reveal function of `table`, quoted. */
-export const revealFunction = (table: string): string =>
-  qualified(`${table}_reveal`);
+const revealFunction = (table: string): string => qualified(`${table}_reveal`);
 
 /** The SQL type of the table's id. */
 const idType = (config: AppTableConfig): string =>

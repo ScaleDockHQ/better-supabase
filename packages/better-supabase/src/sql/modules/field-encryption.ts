@@ -24,7 +24,7 @@ const NAMES: ModuleNames = { events: EVENTS, tables: {} };
 export const FIELD_CIPHER_PREFIX = "bsf1:";
 
 /** The Vault secret name prefix of a data key; the owner follows it. */
-export const FIELD_KEY_PREFIX = "bs:field-key:";
+const FIELD_KEY_PREFIX = "bs:field-key:";
 
 /** The pgcrypto options: AES-256, and one S2K pass since the key is random. */
 const CIPHER_OPTIONS = "cipher-algo=aes256, s2k-mode=1";
