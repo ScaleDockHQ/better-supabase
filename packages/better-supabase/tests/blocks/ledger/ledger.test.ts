@@ -367,12 +367,229 @@ describe("createLedger", () => {
     expect((await ledger.release("h1")).ok).toBe(false);
   });
 
+  it("passes every optional argument through", async () => {
+    const fake = fakeTransport({
+      open_ledger_account: { ...ACCOUNT, scale: null, allowNegative: true },
+      list_ledger_accounts: [ACCOUNT],
+      post_ledger_transaction: TRANSACTION,
+      place_ledger_hold: HOLD,
+      capture_ledger_hold: { ...HOLD, status: "captured" },
+    });
+
+    const ledger = createLedger({
+      transport: fake.transport,
+      tenant: "org-1",
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+    });
+
+    const at = Temporal.Instant.from(AT);
+
+    const account = await ledger
+      .openAccount({
+        kind: "points",
+        code: "points:p1",
+        name: "Points",
+        unit: "points",
+        scale: 2,
+        holder: { type: "party", id: "p1" },
+        ownerId: "u1",
+        allowNegative: true,
+        readPermission: "parties.read",
+        metadata: { tier: "gold" },
+      })
+      .orThrow();
+
+    await ledger
+      .accounts({ kind: "credit", holder: { type: "party", id: "p1" } })
+      .orThrow();
+    await ledger
+      .post({
+        kind: "credit.grant",
+        lines: [
+          { accountId: "a1", amount: 100n },
+          { accountId: "a2", amount: money(-100n, "EUR") },
+        ],
+        reference: { type: "orders", id: "o1" },
+        memo: "welcome",
+        idempotencyKey: "k1",
+        effectiveAt: at,
+        metadata: { source: "signup" },
+      })
+      .orThrow();
+    await ledger
+      .hold("a1", {
+        amount: 500n,
+        reference: { type: "orders", id: "o2" },
+        expiresAt: at,
+      })
+      .orThrow();
+    await ledger
+      .capture("h1", {
+        toAccountId: "a2",
+        amount: 200n,
+        kind: "gift_card.redeem",
+        memo: "order o2",
+      })
+      .orThrow();
+
+    expect(account).toMatchObject({ scale: 0, allowNegative: true });
+    expect(fake.calls).toEqual([
+      [
+        "open_ledger_account",
+        {
+          tenant: "org-1",
+          kind: "points",
+          code: "points:p1",
+          name: "Points",
+          unit: "points",
+          scale: 2,
+          holder_type: "party",
+          holder_id: "p1",
+          owner_id: "u1",
+          allow_negative: true,
+          read_permission: "parties.read",
+          metadata: { tier: "gold" },
+        },
+      ],
+      [
+        "list_ledger_accounts",
+        {
+          tenant: "org-1",
+          kind: "credit",
+          holder_type: "party",
+          holder_id: "p1",
+          page_size: null,
+        },
+      ],
+      [
+        "post_ledger_transaction",
+        {
+          tenant: "org-1",
+          kind: "credit.grant",
+          lines: [
+            { account: "a1", amount: "100" },
+            { account: "a2", amount: "-100" },
+          ],
+          reference_type: "orders",
+          reference_id: "o1",
+          memo: "welcome",
+          idempotency_key: "k1",
+          effective_at: AT,
+          metadata: { source: "signup" },
+        },
+      ],
+      [
+        "place_ledger_hold",
+        {
+          account_id: "a1",
+          amount: "500",
+          reference_type: "orders",
+          reference_id: "o2",
+          expires_at: AT,
+        },
+      ],
+      [
+        "capture_ledger_hold",
+        {
+          hold_id: "h1",
+          to_account: "a2",
+          amount: "200",
+          kind: "gift_card.redeem",
+          memo: "order o2",
+        },
+      ],
+    ]);
+  });
+
+  it("sends null for every option it isn't given", async () => {
+    const fake = fakeTransport({
+      open_ledger_account: ACCOUNT,
+      list_ledger_accounts: [],
+      post_ledger_transaction: TRANSACTION,
+      reverse_ledger_transaction: TRANSACTION,
+      place_ledger_hold: HOLD,
+      capture_ledger_hold: HOLD,
+    });
+
+    const ledger = createLedger({ transport: fake.transport, tenant: "org-1" });
+
+    await ledger
+      .openAccount({ kind: "cash", code: "cash", name: "Cash", unit: "EUR" })
+      .orThrow();
+    await ledger.accounts().orThrow();
+    await ledger
+      .post({
+        kind: "cash.move",
+        lines: [
+          { accountId: "a1", amount: 1n },
+          { accountId: "a2", amount: -1n },
+        ],
+      })
+      .orThrow();
+    await ledger.reverse("t1").orThrow();
+    await ledger.hold("a1", { amount: 1n }).orThrow();
+    await ledger.capture("h1", { toAccountId: "a2" }).orThrow();
+
+    expect(fake.calls.map(([, args]) => args)).toEqual([
+      {
+        tenant: "org-1",
+        kind: "cash",
+        code: "cash",
+        name: "Cash",
+        unit: "EUR",
+        scale: 0,
+        holder_type: null,
+        holder_id: null,
+        owner_id: null,
+        allow_negative: false,
+        read_permission: null,
+        metadata: null,
+      },
+      {
+        tenant: "org-1",
+        kind: null,
+        holder_type: null,
+        holder_id: null,
+        page_size: null,
+      },
+      {
+        tenant: "org-1",
+        kind: "cash.move",
+        lines: [
+          { account: "a1", amount: "1" },
+          { account: "a2", amount: "-1" },
+        ],
+        reference_type: null,
+        reference_id: null,
+        memo: null,
+        idempotency_key: null,
+        effective_at: undefined,
+        metadata: null,
+      },
+      { transaction_id: "t1", memo: null },
+      {
+        account_id: "a1",
+        amount: "1",
+        reference_type: null,
+        reference_id: null,
+        expires_at: undefined,
+      },
+      {
+        hold_id: "h1",
+        to_account: "a2",
+        amount: null,
+        kind: "ledger.capture",
+        memo: null,
+      },
+    ]);
+  });
+
   it("loads a record's accounts for its section", async () => {
     const fake = fakeTransport({ list_ledger_accounts: [ACCOUNT] });
     const ledger = createLedger({ transport: fake.transport });
 
     const accounts = await ledgerSection
-      .load(ledger, { type: "party", id: "p1" })
+      .load(ledger, { type: "party", id: "p1" }, undefined)
       .orThrow();
 
     expect(accounts.map((account) => account.id)).toEqual(["a1"]);

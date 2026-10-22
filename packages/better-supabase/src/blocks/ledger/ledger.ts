@@ -266,7 +266,7 @@ export function ledgerMoney(
   return isCurrency(account.unit) ? money(amount, account.unit) : undefined;
 }
 
-export function accountOf(value: unknown, fn: string): LedgerAccount {
+function accountOf(value: unknown, fn: string): LedgerAccount {
   const row = recordOf(value, fn);
 
   return {
