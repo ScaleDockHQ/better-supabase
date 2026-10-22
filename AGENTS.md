@@ -182,6 +182,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0063: the activity feed moves out of comments into its own `activity` block.
 - 0068: calendar free/busy runs in SQL; appointment schedules are bookings resources with a host.
 - 0069: document suggestions wait outside the update log until an editor accepts them; named versions are version labels.
+- 0071: drive labels are tags; file approvals target one attachment, and both follow the drive grants.
 
 ## Pre-release pins
 
