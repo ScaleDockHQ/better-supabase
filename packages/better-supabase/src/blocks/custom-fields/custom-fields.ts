@@ -42,6 +42,12 @@ export interface FieldDefinitionDetail extends FieldDefinition {
   readonly required: boolean;
   readonly sensitive: boolean;
   /**
+   * Whether values are stored as ciphertext under the tenant's Vault key
+   * (`encryptDefinition`). Always `false` without the `field-encryption`
+   * block.
+   */
+  readonly encrypted: boolean;
+  /**
    * The rank key, for `reorderDefinition`; absent when definitions aren't
    * ranked.
    */
@@ -64,6 +70,12 @@ export interface CustomFields {
     sensitive?: boolean,
   ): AsyncResult<FieldDefinition>;
   deleteDefinition(id: string): AsyncResult<boolean>;
+  /**
+   * Stores a `text`, `email` or `url` field's values as ciphertext from now on
+   * and encrypts the ones it has. Needs `custom_fields.manage` and the
+   * `field-encryption` block; there is no way back.
+   */
+  encryptDefinition(id: string): AsyncResult<boolean>;
   /**
    * Moves a definition between the definitions with rank keys `previous` and
    * `next`. Resolves to its new key.
@@ -106,6 +118,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
                 type: textOf(row["type"]),
                 required: row["required"] === true,
                 sensitive: row["sensitive"] === true,
+                encrypted: row["encrypted"] === true,
                 ...(rank === undefined ? {} : { rank }),
               };
             }),
@@ -142,6 +155,12 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
     deleteDefinition: (id) =>
       call(
         "delete_field_definition",
+        { definition: id },
+        (value) => value === true,
+      ),
+    encryptDefinition: (id) =>
+      call(
+        "encrypt_field_definition",
         { definition: id },
         (value) => value === true,
       ),

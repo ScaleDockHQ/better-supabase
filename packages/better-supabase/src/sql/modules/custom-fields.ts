@@ -448,7 +448,12 @@ as $$
     'label', d.${ctx.col("definitions", "label")},
     'type', d.${ctx.col("definitions", "type")},
     'required', d.${ctx.col("definitions", "required")},
-    'sensitive', d.${ctx.col("definitions", "sensitive")},
+    'sensitive', d.${ctx.col("definitions", "sensitive")},${
+      ctx.has("definitions", "encrypted")
+        ? `
+    'encrypted', d.${ctx.col("definitions", "encrypted")},`
+        : ""
+    }
     'rank', ${rank === "" ? "null" : `d.${rank}`}
   ) order by ${order}), '[]'::jsonb)
   from ${definitions} d

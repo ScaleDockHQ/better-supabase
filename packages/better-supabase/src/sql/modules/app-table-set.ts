@@ -15,9 +15,9 @@ export interface SettableTable {
 
 /**
  * The columns `appTables.set` may write: the table's own columns, without
- * identities and without the columns signed-in users can't write (`access`).
- * The id, the scope column and the timestamps aren't own columns, so they are
- * never in the list.
+ * identities and without the columns signed-in users can't write (`access` and
+ * `encrypted`). The id, the scope column and the timestamps aren't own columns,
+ * so they are never in the list.
  */
 export function settableColumns(config: AppTableConfig): readonly string[] {
   return Object.entries(config.columns ?? {})
