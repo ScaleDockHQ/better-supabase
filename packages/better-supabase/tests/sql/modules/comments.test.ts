@@ -118,7 +118,9 @@ describe("comments module", () => {
     });
 
     expect(quiet).toContain(`'type', 'comment.posted'`);
-    expect(quiet).not.toContain("notification_subscriptions");
+    expect(quiet).not.toContain(
+      `insert into "better_supabase"."notification_subscriptions"`,
+    );
   });
 
   it("turns a comment into a work item with work-items", () => {
@@ -132,8 +134,43 @@ describe("comments module", () => {
     );
   });
 
+  it("labels comment.posted and sends it only when someone may hear of it", () => {
+    const sql = sqlOf(["organizations", "notifications", "comments"]);
+    expect(sql).toContain(
+      `'subject_label', "better_supabase"."subject_title"(v_conv."subject_type", v_conv."subject_id"),`,
+    );
+    expect(sql).toContain(
+      `and not s."user_id" = any (array[v_msg."author_id"] || v_msg."mentions")`,
+    );
+    expect(sql).toContain(
+      `or to_regprocedure('"public"."notification_audience"(jsonb)') is not null) then`,
+    );
+    expect(
+      sql.indexOf(`from "better_supabase"."notification_subscriptions" s`),
+    ).toBeLessThan(sql.indexOf(`'type', 'comment.posted'`));
+  });
+
+  it("sends no comment.posted with options.notify false", () => {
+    const quiet = sqlOf(["organizations", "notifications", "comments"], {
+      notify: false,
+    });
+
+    expect(quiet).not.toContain("comment.posted");
+    expect(quiet).not.toContain("v_claims");
+    expect(quiet).toContain(
+      `insert into "better_supabase"."notification_subscriptions"`,
+    );
+
+    const silent = sqlOf(["organizations", "notifications", "comments"], {
+      notify: false,
+      follow: false,
+    });
+
+    expect(silent).not.toContain("comment_sent");
+    expect(() => sqlOf(["comments"], { notify: "no" })).toThrow(/notify/);
+  });
+
   it("rejects the options it dropped", () => {
-    expect(() => sqlOf(["comments"], { notify: false })).toThrow(/notify/);
     expect(() => sqlOf(["comments"], { subjects: {} })).toThrow(/subjects/);
   });
 

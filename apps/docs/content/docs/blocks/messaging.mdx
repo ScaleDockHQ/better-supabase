@@ -199,6 +199,12 @@ notifies:
 | `message.direct`    | the other people in a direct or group message whose `notify` is `all`              |
 | `message.replied`   | the thread's followers: its author and everyone who replied, besides the mentioned |
 
+Each one carries a `subject_label`: the record's `subject_title` for a
+record's conversation, else the conversation's title. `message.replied` is
+sent only when the thread has a follower besides the replier and the
+mentioned members. `notify: false` sends none of the three, and following
+threads still works.
+
 `follow` starts or stops following a conversation or a thread, and
 `setNotify` sets a member's level for a conversation.
 
@@ -231,6 +237,7 @@ screen; see [Channels](/docs/blocks/channels#a-chat-screen).
 | `editWindow`    | `0`           | Seconds an author may edit a message; `0` for always        |
 | `scheduleQueue` | `"messaging"` | The jobs queue for scheduled messages                       |
 | `extraColumns`  | none          | Extra columns on `messages`, set through `fields` in `send` |
+| `notify`        | `true`        | `false` sends no message notifications                      |
 
 ## Events
 

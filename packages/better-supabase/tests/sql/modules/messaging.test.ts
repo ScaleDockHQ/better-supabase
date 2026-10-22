@@ -96,6 +96,36 @@ describe("messaging module", () => {
     ).not.toContain("can_subject_for");
   });
 
+  it("labels its notifications and sends none with options.notify false", () => {
+    const render = (options: Readonly<Record<string, unknown>> = {}) =>
+      renderModules(["notifications", "messaging"], {
+        modules: { messaging: { options } },
+        subjects: { deal: { table: "deals", title: "name" } },
+      })
+        .filter((file) => file.module === "messaging")
+        .map((file) => file.contents)
+        .join("\n");
+
+    const sql = render();
+    expect(sql).toContain(
+      `'subject_label', coalesce(case when v_conv."kind" = 'subject' then "better_supabase"."subject_title"(v_conv."subject_type", v_conv."subject_id") end, v_conv."title"),`,
+    );
+    expect(sql).toContain(`if v_msg."thread_id" is not null and (exists (`);
+    expect(sql).toContain("'message.mentioned'");
+
+    const quiet = render({ notify: false });
+    expect(quiet).not.toContain("'message.mentioned'");
+    expect(quiet).not.toContain("'message.direct'");
+    expect(quiet).not.toContain("'message.replied'");
+    expect(quiet).not.toContain("v_claims");
+    expect(quiet).toContain(
+      `insert into "better_supabase"."notification_subscriptions"`,
+    );
+    expect(() => body({ messaging: { options: { notify: 1 } } })).toThrow(
+      /notify/,
+    );
+  });
+
   it("renders nothing for a custom implementation", () => {
     expect(
       moduleBody("messaging", { modules: { messaging: { mode: "custom" } } }),

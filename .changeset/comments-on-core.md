@@ -20,7 +20,7 @@ Move comments onto the messaging core, and the activity feed into its own `activ
 | `activitySink`, `activityListQuery` from `better-supabase/blocks/comments`       | the same names from `better-supabase/blocks/activity`                                                |
 | `blocks.comments.options.subjects`                                               | `config.subjects`                                                                                    |
 | `blocks.comments.options.maxBodyLength`, `extraColumns`                          | `blocks.messaging.options.maxBodyLength`, `extraColumns`                                             |
-| `blocks.comments.options.documentSchema`, `notify`                               | removed                                                                                              |
+| `blocks.comments.options.documentSchema`                                         | removed                                                                                              |
 | `blocks.comments.entities` (the `comment` entity)                                | the `message` entity, `blocks.messaging.entities`                                                    |
 | `comment.mentions`, `comment.createdAt`                                          | `comment.mentionIds`, `comment.sentAt`                                                               |
 | `commentsBlock.schemas`                                                          | removed; `commentInputSchema` and `commentChangeSchema` stay                                         |

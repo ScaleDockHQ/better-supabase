@@ -14,6 +14,11 @@ export type MessagingSqlOptions = {
   /** The jobs queue that sends scheduled messages. */
   readonly scheduleQueue?: string;
   readonly extraColumns?: unknown;
+  /**
+   * `false` sends no `message.mentioned`, `message.direct` or `message.replied`
+   * notification.
+   */
+  readonly notify?: boolean;
 };
 
 export const messagingSqlOptions: BlockOptionsSchema<MessagingSqlOptions> =
@@ -24,4 +29,5 @@ export const messagingSqlOptions: BlockOptionsSchema<MessagingSqlOptions> =
     editWindow: option.number({ default: 0 }),
     scheduleQueue: option.string({ default: "messaging" }),
     extraColumns: option.unknown(),
+    notify: option.boolean({ default: true }),
   });

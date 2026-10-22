@@ -3827,7 +3827,11 @@
                 "type": "boolean",
                 "default": true
               },
-              "mentionGroups": {}
+              "mentionGroups": {},
+              "notify": {
+                "type": "boolean",
+                "default": true
+              }
             }
           }
         }
@@ -4700,7 +4704,11 @@
                 "type": "string",
                 "default": "messaging"
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "notify": {
+                "type": "boolean",
+                "default": true
+              }
             }
           }
         }
