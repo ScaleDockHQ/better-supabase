@@ -8,6 +8,7 @@ import { isMoney, money } from "../../commerce/money.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { verifyWebhook } from "../../core/signatures.ts";
+import { temporal } from "../../core/temporal-required.ts";
 import { TRACKING_STATUSES } from "./statuses.ts";
 
 /** A sender or recipient address. */
@@ -254,7 +255,7 @@ function instantOf(value: unknown): Temporal.Instant | undefined {
   }
 
   try {
-    return Temporal.Instant.from(value);
+    return temporal().Instant.from(value);
   } catch {
     return undefined;
   }

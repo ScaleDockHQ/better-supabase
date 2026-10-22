@@ -497,7 +497,7 @@ begin
   if dispatch_board.from_date is null or dispatch_board.to_date is null
     or dispatch_board.to_date < dispatch_board.from_date
     or dispatch_board.to_date - dispatch_board.from_date >= 31 then
-    raise exception 'the board spans 1 to ${BOARD_DAYS} days' using errcode = '22023', hint = 'DISPATCH_RANGE_INVALID';
+    raise exception 'the board spans 1 to 31 days' using errcode = '22023', hint = 'DISPATCH_RANGE_INVALID';
   end if;
   v_from := (dispatch_board.from_date::timestamp at time zone 'UTC');
   v_until := ((dispatch_board.to_date + 1)::timestamp at time zone 'UTC');
@@ -1449,7 +1449,7 @@ begin
   if dispatch_board.from_date is null or dispatch_board.to_date is null
     or dispatch_board.to_date < dispatch_board.from_date
     or dispatch_board.to_date - dispatch_board.from_date >= 31 then
-    raise exception 'the board spans 1 to ${BOARD_DAYS} days' using errcode = '22023', hint = 'DISPATCH_RANGE_INVALID';
+    raise exception 'the board spans 1 to 31 days' using errcode = '22023', hint = 'DISPATCH_RANGE_INVALID';
   end if;
   v_from := (dispatch_board.from_date::timestamp at time zone 'UTC');
   v_until := ((dispatch_board.to_date + 1)::timestamp at time zone 'UTC');
@@ -2224,7 +2224,7 @@ begin
   if dispatch_board.from_date is null or dispatch_board.to_date is null
     or dispatch_board.to_date < dispatch_board.from_date
     or dispatch_board.to_date - dispatch_board.from_date >= 31 then
-    raise exception 'the board spans 1 to ${BOARD_DAYS} days' using errcode = '22023', hint = 'DISPATCH_RANGE_INVALID';
+    raise exception 'the board spans 1 to 31 days' using errcode = '22023', hint = 'DISPATCH_RANGE_INVALID';
   end if;
   v_from := (dispatch_board.from_date::timestamp at time zone 'UTC');
   v_until := ((dispatch_board.to_date + 1)::timestamp at time zone 'UTC');
@@ -2988,7 +2988,7 @@ begin
   if dispatch_board.from_date is null or dispatch_board.to_date is null
     or dispatch_board.to_date < dispatch_board.from_date
     or dispatch_board.to_date - dispatch_board.from_date >= 31 then
-    raise exception 'the board spans 1 to ${BOARD_DAYS} days' using errcode = '22023', hint = 'DISPATCH_RANGE_INVALID';
+    raise exception 'the board spans 1 to 31 days' using errcode = '22023', hint = 'DISPATCH_RANGE_INVALID';
   end if;
   v_from := (dispatch_board.from_date::timestamp at time zone 'UTC');
   v_until := ((dispatch_board.to_date + 1)::timestamp at time zone 'UTC');
