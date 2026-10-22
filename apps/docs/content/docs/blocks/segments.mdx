@@ -1,0 +1,153 @@
+---
+title: Segments
+description: Save a filter over companies, people, deals or any registered subject, keep its members in Postgres and react when records enter or leave it.
+---
+
+The `segments` block saves a [rules](/docs/blocks/rules) filter tree over
+one subject type and stores the records it matches. A refresh evaluates the
+filter in Postgres, adds the records that now match, removes the ones that
+no longer do and writes a `segment.entered` or `segment.left` event for
+each, so a workflow can start a sequence or notify an owner when a deal
+crosses a threshold.
+
+```bash
+better-supabase add segments   # adds tenant, access, subjects and rules as well
+```
+
+| Permission      | Lets a member                                         | Default roles          |
+| --------------- | ----------------------------------------------------- | ---------------------- |
+| `segments.read` | list segments and read the members they can also read | `member`, `admin`      |
+| `segments.edit` | create, change, refresh and remove segments           | `admin` (`segments.*`) |
+
+A segment is visible to everyone in the organization with `segments.read`,
+but its member list also checks the subject type's read permission, so a
+member without `deals.read` sees a deal segment's count and not its deals.
+
+## Fields
+
+A segment's conditions use the subject type's rule fields. Sync them once
+per deploy, as for rules. A segment reads the stored row, so each field's
+`column` names a database column of the subject's table (`lifecycle`,
+`amount_minor`, `archived_at`), not a camelCase key.
+
+```ts
+import {
+  createRulesAdmin,
+  defineRuleFields,
+} from "better-supabase/blocks/rules";
+
+export const companyFields = defineRuleFields("company", {
+  lifecycle: { type: "select", options: ["lead", "customer", "churned"] },
+  industry: { type: "select", options: ["saas", "retail", "finance"] },
+  archivedAt: { type: "date", column: "archived_at" },
+});
+
+await createRulesAdmin({ transport: serviceTransport })
+  .syncFields(companyFields)
+  .orThrow();
+```
+
+A subject with a `deletedAt` column in `config.subjects` leaves its deleted
+rows out. Parties and deals archive with `archived_at` instead, so add an
+`archivedAt` field and an "is empty" condition to keep archived records out
+of a segment.
+
+## Save and refresh
+
+```ts
+import { createSegments, rpcTransport } from "better-supabase/blocks/segments";
+
+const segments = createSegments({ transport: rpcTransport(supabase) });
+
+const saas = await segments
+  .save(organizationId, {
+    subjectType: "company",
+    name: "SaaS customers",
+    conditions: {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        {
+          id: "r1",
+          type: "rule",
+          path: ["lifecycle"],
+          operator: "is",
+          value: "customer",
+        },
+        {
+          id: "r2",
+          type: "rule",
+          path: ["industry"],
+          operator: "is",
+          value: "saas",
+        },
+        { id: "r3", type: "rule", path: ["archivedAt"], operator: "empty" },
+      ],
+    },
+  })
+  .orThrow();
+
+const { entered, left, memberCount } = await segments
+  .refresh(saas.id)
+  .orThrow();
+```
+
+`save` checks the tree against the rule fields and refuses an unknown field
+or operator with `RULE_FIELD_UNKNOWN` or `RULE_OPERATOR_INVALID`. Pass `id`
+to change a segment; a change to its conditions clears `refreshedAt`, so
+the next scheduled refresh picks it up. A segment's subject type can't
+change. `segmentInputSchema` validates what `save` takes.
+
+`members(segmentId, { after, limit })` pages through the members, the
+newest first, `of({ type, id })` lists the segments a record is in, and
+`list(organizationId, { subjectType })` and `get(segmentId)` read the
+segments themselves. `remove(segmentId)` deletes a segment and its members.
+
+## Refresh on a schedule
+
+`refreshDue()` runs as the service role and refreshes the segments not
+refreshed within `staleAfter` (`1 hour`), at most `segments` (25) of them.
+
+```ts title="app/api/cron/segments/route.ts"
+export async function GET() {
+  const report = await createSegments({ transport: rpcTransport(admin) })
+    .refreshDue({ staleAfter: "15 minutes" })
+    .orThrow();
+
+  return Response.json(report);
+}
+```
+
+A segment holds at most `maxMembers` records. A refresh that would go over
+fails with `SEGMENT_TOO_LARGE` and keeps the previous members, so narrow the
+conditions or raise the option.
+
+## Options
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  segments: { options: { maxMembers: 50000 } },
+},
+```
+
+| Option       | Default | What it does                          |
+| ------------ | ------- | ------------------------------------- |
+| `maxMembers` | `10000` | the most records one segment may hold |
+
+## Events
+
+The block writes `segment.saved` and `segment.removed`, and per record
+`segment.entered` and `segment.left`, to the [outbox](/docs/blocks/outbox).
+A member event names the segment and the record (`subjectType`,
+`subjectId`), so the [watcher sink](/docs/blocks/notifications#watchers)
+and record timelines handle it like any other subject event. See
+[Events](/docs/extending/events).
+
+| Error code                | When                                                |
+| ------------------------- | --------------------------------------------------- |
+| `SEGMENT_FORBIDDEN`       | the caller lacks `segments.read` or `segments.edit` |
+| `SEGMENT_NAME_TAKEN`      | another segment in the organization has the name    |
+| `SEGMENT_SUBJECT_UNKNOWN` | the subject type is not in `config.subjects`        |
+| `SEGMENT_FIELDS_MISSING`  | the subject type has no synced rule fields          |
+| `SEGMENT_TOO_LARGE`       | a refresh matched more than `maxMembers` records    |

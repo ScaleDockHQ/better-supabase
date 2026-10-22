@@ -85,6 +85,8 @@
     "parties",
     "engagements",
     "mail-sync",
+    "segments",
+    "assignment",
     "collections",
     "deals",
     "work-items",
