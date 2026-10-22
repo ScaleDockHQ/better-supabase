@@ -44,7 +44,7 @@ function autoEntries(
     layout.declaredColumns === undefined
   ) {
     throw new TypeError(
-      `${WHERE}.auto derives the entries from the foreign keys in the schema files, which \`sql sync\` reads. Render the tenant module through \`sql sync\`, or list the entries.`,
+      `${WHERE}.auto derives the entries from the foreign keys in the schema files, which \`upgrade\` reads. Render the tenant module through \`upgrade\`, or list the entries.`,
     );
   }
 

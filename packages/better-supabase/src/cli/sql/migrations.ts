@@ -104,7 +104,7 @@ export async function writeExtensionsMigration(
 
   const applied = await applyPlan(
     sqlPlan(config, {
-      regenerate: "better-supabase sql sync",
+      regenerate: "better-supabase upgrade",
       files: [
         {
           path,
@@ -126,9 +126,21 @@ export async function writeExtensionsMigration(
 }
 
 export const DATA_NEXT =
-  "The better-supabase-data files hold rows and settings a schema diff skips: after the schema migration, run `better-supabase sql data`.";
+  "The better-supabase-data files hold rows and settings a schema diff skips: after the schema migration, run `better-supabase add --adopt`.";
 
 const DATA_SUFFIX = "_better_supabase_module_data.sql";
+
+/**
+ * A migration without its comment lines, so a reworded comment needs no new
+ * one.
+ */
+const statements = (sql: string): string =>
+  sql
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("--"))
+    .join("\n")
+    .replaceAll(/\n{2,}/g, "\n")
+    .trim();
 
 /**
  * Writes the data files of `blocks` into one migration, meant to run after the
@@ -154,7 +166,7 @@ export async function dataMigration(
     return {
       code: 0,
       output:
-        "database.sql.workflow is 'migrations', so `better-supabase sql sync` already writes the rows into the module migration; nothing to write.",
+        "database.sql.workflow is 'migrations', so `better-supabase upgrade` already writes the rows into the module migration; nothing to write.",
       data: { wrote: false },
     };
   }
@@ -171,13 +183,13 @@ export async function dataMigration(
       code: 1,
       error: [
         `No migration before the data migration creates ${missing.map((extension) => extension.name).join(", ")}, and the schema migration needs ${missing.length === 1 ? "it" : "them"} while it applies.`,
-        "Run `better-supabase sql sync` to write the extensions migration, then create the schema migration again after it.",
+        "Run `better-supabase upgrade` to write the extensions migration, then create the schema migration again after it.",
       ].join("\n"),
     };
   }
 
   const files = rendered.filter((file) => file.kind === "data");
-  const contents = `-- better-supabase sql data: the rows and settings of ${files.map((file) => file.module).join(", ")}, which a schema diff skips.\n\n${files.map((file) => file.contents.trim()).join("\n\n")}\n`;
+  const contents = `-- better-supabase add --adopt: the rows and settings of ${files.map((file) => file.module).join(", ")}, which a schema diff skips.\n\n${files.map((file) => file.contents.trim()).join("\n\n")}\n`;
   const dir = migrationsDir(config);
 
   const existing: string[] = await readdir(resolve(config.root, dir)).catch(
@@ -190,7 +202,8 @@ export async function dataMigration(
 
   if (
     latest !== undefined &&
-    (await readFile(resolve(config.root, dir, latest), "utf-8")) === contents
+    statements(await readFile(resolve(config.root, dir, latest), "utf-8")) ===
+      statements(contents)
   ) {
     return {
       code: 0,
@@ -199,11 +212,19 @@ export async function dataMigration(
     };
   }
 
+  if (args.check === true) {
+    return {
+      code: 1,
+      error: `${latest === undefined ? "No data migration holds" : `${dir}/${latest} doesn't hold`} the current rows and settings of the blocks. Run \`better-supabase add --adopt\` after the schema migration.`,
+      data: { wrote: false },
+    };
+  }
+
   const path = `${dir}/${stampAfter(existing, now())}${DATA_SUFFIX}`;
 
   const applied = await applyPlan(
     sqlPlan(config, {
-      regenerate: "better-supabase sql data",
+      regenerate: "better-supabase add --adopt",
       files: [{ path, contents }],
     }),
     { "dry-run": args["dry-run"] },

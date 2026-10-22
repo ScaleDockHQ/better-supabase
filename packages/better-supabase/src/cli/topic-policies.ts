@@ -130,7 +130,7 @@ export async function topicPolicyFile(
 
   const header = [
     "-- better-supabase: realtime topic policies",
-    `-- Written by \`better-supabase sql sync\` from ${policies.from.join(", ")}; edit the topics, not this file.`,
+    `-- Written by \`better-supabase upgrade\` from ${policies.from.join(", ")}; edit the topics, not this file.`,
     ...skipped,
   ].join("\n");
 

@@ -176,13 +176,13 @@ describe("better-supabase mcp", () => {
       ["blocks", "search", "audit", "log"],
     ],
     ["config", {}, ["config"]],
-    ["preset_info", {}, ["preset", "info"]],
-    ["sql_list", {}, ["sql", "list"]],
+    ["config_preset", {}, ["config", "--preset"]],
+    ["blocks_installed", {}, ["blocks", "list", "--installed"]],
     ["gen_check", {}, ["gen", "--check"]],
     [
-      "apply_dry_run",
+      "add_preset_dry_run",
       { preset: "crm" },
-      ["apply", "--preset", "crm", "--dry-run"],
+      ["add", "--preset", "crm", "--dry-run"],
     ],
   ])("runs %s as the matching command", async (name, args, argv) => {
     const run = fakeRun();
@@ -197,13 +197,14 @@ describe("better-supabase mcp", () => {
 
   it.each([
     ["gen", {}, ["gen"]],
-    ["sql_sync", {}, ["sql", "sync"]],
-    ["apply", { preset: "crm" }, ["apply", "--preset", "crm"]],
+    ["upgrade", {}, ["upgrade"]],
+    ["add_preset", { preset: "crm" }, ["add", "--preset", "crm"]],
     [
-      "apply",
+      "add_preset",
       { preset: "crm", allow_breaking: true },
-      ["apply", "--preset", "crm", "--allow-breaking"],
+      ["add", "--preset", "crm", "--allow-breaking"],
     ],
+    ["remove", { blocks: ["tags"] }, ["remove", "tags"]],
   ])("runs the write tool %s after consent", async (name, args, argv) => {
     const run = fakeRun();
 

@@ -120,6 +120,7 @@ describe("run", () => {
   it("runs a real command through the CLI with the stack env", async () => {
     const result = await run(
       [
+        "dev",
         "run",
         "--status-file",
         "status.json",

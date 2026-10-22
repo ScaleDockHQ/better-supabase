@@ -13,7 +13,7 @@ export const GRANTS: BlockSqlDefinition = {
   requires: [],
   target: "schema",
   build:
-    () => `-- List tables and functions in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.
+    () => `-- List tables and functions in \`expose\` (better-supabase.config.ts); \`upgrade\` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.`,
   extras: (_ctx, layout) => tableGrants(layout),
@@ -36,7 +36,7 @@ const privilegeSql = (privilege: string): string => {
 
   if (hasColumnExclusions(privilege)) {
     throw new TypeError(
-      `expose: "${privilege}" resolves against the declared columns, which \`sql sync\` reads from the schema files. Run \`better-supabase sql sync\`, or list the columns.`,
+      `expose: "${privilege}" resolves against the declared columns, which \`upgrade\` reads from the schema files. Run \`better-supabase upgrade\`, or list the columns.`,
     );
   }
 

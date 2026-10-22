@@ -14,10 +14,11 @@ export type {
 } from "./generator-metadata.ts";
 
 /**
- * What `better-supabase introspect` reads from Postgres. `generator` is the
- * `@supabase/postgrest-typegen` contract (the same metadata behind `supabase
- * gen types`); `extras` holds what that contract leaves out. Codegen and doctor
- * both work from this snapshot, so either can run offline from a saved file.
+ * What `better-supabase gen --save-snapshot` reads from Postgres. `generator`
+ * is the `@supabase/postgrest-typegen` contract (the same metadata behind
+ * `supabase gen types`); `extras` holds what that contract leaves out. Codegen
+ * and doctor both work from this snapshot, so either can run offline from a
+ * saved file.
  */
 export interface Snapshot {
   readonly $schema?: string;

@@ -57,7 +57,7 @@ describe("rewriteCliCalls", () => {
       {
         line: 2,
         message:
-          "This call uses a renamed command or flag: run `better-supabase env --out - > .env`",
+          "This call uses a renamed command or flag: run `better-supabase dev env --out - > .env`",
       },
     ]);
   });
@@ -76,7 +76,7 @@ describe("codemod 0.9 on scripts", () => {
         "run: bsb adopt --from a,b\n",
         ".github/workflows/db.yml",
       ).text,
-    ).toBe("run: bsb adopt --tables a,b\n");
+    ).toBe("run: bsb add --adopt --tables a,b\n");
 
     const code = 'exec("better-supabase doctor --strict");\n';
 

@@ -569,7 +569,7 @@ export async function runInit(
       : [
           { command: "supabase start", when: "starts the local stack" },
           {
-            command: `better-supabase env${cwdFlag}`,
+            command: `better-supabase dev env${cwdFlag}`,
             when: "writes the stack's keys to .env",
           },
         ]),

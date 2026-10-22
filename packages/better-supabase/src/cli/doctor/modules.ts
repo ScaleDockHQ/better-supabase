@@ -146,7 +146,7 @@ async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
     {
       message:
         row.hook === null
-          ? "pgrst.db_pre_request isn't set for authenticator, so better_supabase.check_request() never runs. Apply the migration `better-supabase sql data` writes, which sets it."
+          ? "pgrst.db_pre_request isn't set for authenticator, so better_supabase.check_request() never runs. Apply the migration `better-supabase add --adopt` writes, which sets it."
           : `pgrst.db_pre_request is ${row.hook}, which doesn't call better_supabase.check_request(), so rate limits never apply. Call it from ${row.hook}.`,
       target: "authenticator pgrst.db_pre_request",
     },
@@ -178,7 +178,7 @@ async function danglingAuditRegistrations(
   }
 
   return rows.map((row) => ({
-    message: `better_supabase.audited_tables registers the table with oid ${row.oid}, which no longer exists. It was dropped before the audit module's sql_drop event trigger was installed. Run \`better-supabase sql sync\` and apply the migration \`better-supabase sql data\` writes, which deletes such rows, or run \`delete from better_supabase.audited_tables where not exists (select 1 from pg_catalog.pg_class c where c.oid = target::oid)\`.`,
+    message: `better_supabase.audited_tables registers the table with oid ${row.oid}, which no longer exists. It was dropped before the audit module's sql_drop event trigger was installed. Run \`better-supabase upgrade\` and apply the migration \`better-supabase add --adopt\` writes, which deletes such rows, or run \`delete from better_supabase.audited_tables where not exists (select 1 from pg_catalog.pg_class c where c.oid = target::oid)\`.`,
     target: `better_supabase.audited_tables ${row.oid}`,
   }));
 }
@@ -253,7 +253,7 @@ async function missingAdoptedColumns(
 }
 
 const EVENT_TRIGGER_FIX =
-  "Event triggers belong to no schema, so a schema diff limited to some schemas (`supabase db schema declarative sync -s ...`) leaves them out of the migration. Run `better-supabase sql sync`, then `better-supabase sql data`: the module's data migration creates it.";
+  "Event triggers belong to no schema, so a schema diff limited to some schemas (`supabase db schema declarative sync -s ...`) leaves them out of the migration. Run `better-supabase upgrade`, then `better-supabase add --adopt`: the module's data migration creates it.";
 
 /**
  * Event triggers the `blocks` create that the database, or every migration,
@@ -702,7 +702,7 @@ function sessionlessTables(context: DoctorContext): FindingInput[] {
         ),
     )
     .map((table) => ({
-      message: `${qualified(table)} has no restrictive session_active() policy, so a signed-out or revoked session keeps its access until the token expires. Set blocks.sessions.options.policies to true and run \`better-supabase sql sync\`, add the policy by hand, or list the table in blocks.sessions.options.exclude.`,
+      message: `${qualified(table)} has no restrictive session_active() policy, so a signed-out or revoked session keeps its access until the token expires. Set blocks.sessions.options.policies to true and run \`better-supabase upgrade\`, add the policy by hand, or list the table in blocks.sessions.options.exclude.`,
       target: qualified(table),
       object: tableObject(table),
     }));
@@ -885,7 +885,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "Shared roles table without a role condition",
     description:
-      "Under the `provider` model, the tenant module's `roleThrough` and the invitations module's `platformRoles.through` name the same roles table, and one of them has no `where` condition on `{row}`. That side then resolves a role id or key of the other kind: an organization invitation, accept or `update_member_role` can grant a platform role, or a platform invitation a tenant role. `sql sync` refuses the config; set `where` on both, such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.",
+      "Under the `provider` model, the tenant module's `roleThrough` and the invitations module's `platformRoles.through` name the same roles table, and one of them has no `where` condition on `{row}`. That side then resolves a role id or key of the other kind: an organization invitation, accept or `update_member_role` can grant a platform role, or a platform invitation a tenant role. `upgrade` refuses the config; set `where` on both, such as `{row}.scope = 'organization'` and `{row}.scope = 'system'`.",
     check: sharedRoleTables,
   },
   {

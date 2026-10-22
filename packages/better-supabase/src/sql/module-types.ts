@@ -26,7 +26,7 @@ import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
 import type { JsonSchemaCheck } from "./shared.ts";
 
-/** The step from one module version to the next, for `sql upgrade`. */
+/** The step from one module version to the next, for `upgrade`. */
 export interface BlockSqlUpgrade {
   /** The installed version this step upgrades from. */
   readonly from: number;

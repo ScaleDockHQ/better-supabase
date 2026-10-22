@@ -205,7 +205,7 @@ export function adoptedTables(
 
 /**
  * Adopt-mode modules that default an optional column to its physical name while
- * the adopted `create table` has no such column. `sql sync` refuses those
+ * the adopted `create table` has no such column. `upgrade` refuses those
  * configs so `has()` does not treat a missing column as present.
  */
 export function adoptedColumnProblems(

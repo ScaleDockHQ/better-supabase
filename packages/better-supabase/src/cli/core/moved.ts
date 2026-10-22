@@ -6,31 +6,44 @@ interface MovedCommand {
   readonly to: readonly string[];
 }
 
-/** Commands renamed in 0.9, longest prefix first. */
+/** Commands renamed in 0.9 and folded in 0.15, longest prefix first. */
 const MOVED_COMMANDS: readonly MovedCommand[] = [
   { from: ["openapi", "emit"], to: ["spec", "emit", "openapi"] },
   { from: ["openapi"], to: ["spec", "emit", "openapi"] },
   { from: ["spec", "check"], to: ["spec", "emit", "--check"] },
+  { from: ["sql", "list"], to: ["blocks", "list", "--installed"] },
+  { from: ["sql", "add"], to: ["add"] },
+  { from: ["sql", "sync"], to: ["upgrade"] },
+  { from: ["sql", "upgrade"], to: ["upgrade"] },
+  { from: ["sql", "data"], to: ["add", "--adopt"] },
+  { from: ["sql", "print"], to: ["blocks", "view", "--sql"] },
+  { from: ["preset", "decode"], to: ["blocks", "list", "--preset"] },
+  { from: ["preset", "info"], to: ["config", "--preset"] },
+  { from: ["apply"], to: ["add"] },
+  { from: ["adopt"], to: ["add", "--adopt"] },
+  { from: ["introspect"], to: ["gen", "--save-snapshot"] },
+  { from: ["seed"], to: ["db", "seed"] },
+  { from: ["env"], to: ["dev", "env"] },
+  { from: ["run"], to: ["dev", "run"] },
+  { from: ["keys"], to: ["dev", "keys"] },
+  { from: ["stack"], to: ["dev", "stack"] },
 ];
 
 /**
- * Flags renamed in 0.9, by command path. A replacement with a space takes no
- * value from argv.
+ * Flags renamed in 0.9, by the command path they have now. A replacement with a
+ * space takes no value from argv.
  */
 const MOVED_FLAGS: ReadonlyMap<
   string,
   Readonly<Record<string, string>>
 > = new Map([
   ["init", { with: "integration" }],
-  ["add", { framework: "integration" }],
-  ["adopt", { from: "tables" }],
-  ["gen", { tasks: "only", out: "out-dir" }],
-  ["introspect", { format: "kind" }],
+  ["add", { framework: "integration", from: "tables" }],
+  ["gen", { tasks: "only", format: "kind" }],
   ["doctor", { strict: "fail-on warning" }],
-  ["env", { print: "out -", from: "status-file" }],
+  ["dev env", { print: "out -", from: "status-file" }],
   ["skills list", { from: "source" }],
   ["skills install", { from: "source", agent: "for" }],
-  ["sql add", { force: "allow-hook-overlap" }],
 ]);
 
 /**
@@ -97,7 +110,7 @@ function renameFlags(
 }
 
 /**
- * The 0.9 spelling of a CLI call's arguments (the words after the bin), or
+ * The current spelling of a CLI call's arguments (the words after the bin), or
  * `undefined` when nothing in it moved. Codemods use it to rewrite scripts.
  */
 export function migrateCliCall(argv: readonly string[]): string[] | undefined {

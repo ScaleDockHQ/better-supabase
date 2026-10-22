@@ -135,7 +135,7 @@ export interface TestSigner {
 }
 
 /**
- * A private ES256 JWK, as `better-supabase keys` writes to
+ * A private ES256 JWK, as `better-supabase dev keys` writes to
  * `supabase/signing_keys.json`.
  */
 export interface SigningJwk extends webcrypto.JsonWebKey {

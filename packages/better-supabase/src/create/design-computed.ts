@@ -268,8 +268,7 @@ export function tableWithoutComputed(table: AppTable, name: string): AppTable {
 /**
  * The tables with every rollup and lookup that no longer fits dropped: one
  * whose table, link or column was deleted or retyped, or whose name a column
- * now uses. `sql sync` would refuse them, and the design code would not
- * encode.
+ * now uses. `upgrade` would refuse them, and the design code would not encode.
  */
 export function prunedComputed(tables: Tables): Tables {
   return Object.fromEntries(

@@ -105,8 +105,8 @@ export interface LayoutInput {
 }
 
 /**
- * The layout `sql sync` and doctor render the module files with, so both see
- * the same grants, session policies, audit triggers and vector schema.
+ * The layout `upgrade` and doctor render the module files with, so both see the
+ * same grants, session policies, audit triggers and vector schema.
  */
 export async function moduleLayoutFor(
   config: ResolvedConfig,

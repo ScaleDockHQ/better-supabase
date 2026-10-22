@@ -1047,7 +1047,15 @@ describe("gen", () => {
   });
 
   it("rejects an unknown introspect --kind", async () => {
-    const result = await run(["introspect", "--kind", "nope", "--cwd", dir]);
+    const result = await run([
+      "gen",
+      "--save-snapshot",
+      "--kind",
+      "nope",
+      "--cwd",
+      dir,
+    ]);
+
     expect(result.code).toBe(2);
   });
 
@@ -1055,7 +1063,7 @@ describe("gen", () => {
     const help = (await run(["--help"])).stdout;
     expect(help).toContain("Usage: better-supabase <command> [options]");
 
-    for (const command of ["init", "gen", "doctor", "sql"]) {
+    for (const command of ["init", "add", "upgrade", "gen", "doctor"]) {
       expect(help).toMatch(new RegExp(`^ +${command} +\\S`, "m"));
     }
 
@@ -1079,7 +1087,7 @@ describe("sql", () => {
   });
 
   it("adds modules with their dependencies and lists them in the config", async () => {
-    const added = await run(["sql", "add", "jobs", "pgtap", "--cwd", dir]);
+    const added = await run(["add", "jobs", "pgtap", "--cwd", dir]);
     expect(added.code).toBe(0);
     expect(added.stdout).toMatch(
       /Created supabase\/schemas\/900_better_supabase_\d\d_jobs\.sql/,
@@ -1096,7 +1104,7 @@ describe("sql", () => {
       ),
     ).toEqual({ blocks: ["invitations", "jobs", "pgtap"] });
 
-    const list = await run(["sql", "list", "--cwd", dir]);
+    const list = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(list.stdout).not.toMatch(/○ jobs/);
     expect(list.stdout).toMatch(/^ {2}audit/m);
   });
@@ -1107,7 +1115,7 @@ describe("sql", () => {
       join(dir, "supabase/config.toml"),
       '[db.migrations]\nschema_paths = [\n  "./schemas/010_app.sql",\n]\n',
     );
-    const added = await run(["sql", "add", "audit", "--cwd", dir]);
+    const added = await run(["add", "audit", "--cwd", dir]);
     expect(added.stdout).toContain("no entry matches these files");
     expect(added.stdout).toMatch(
       /^ {2}"\.\/schemas\/900_better_supabase_\d\d_audit\.sql",$/m,
@@ -1117,7 +1125,7 @@ describe("sql", () => {
       join(dir, "supabase/config.toml"),
       '[db.migrations]\nschema_paths = ["./schemas/9*.sql"]\n',
     );
-    const listed = await run(["sql", "add", "audit", "--cwd", dir]);
+    const listed = await run(["add", "audit", "--cwd", dir]);
     expect(listed.stdout).not.toContain("no entry matches");
     expect(listed.stdout).toMatch(
       /^Next:\n {2}supabase db diff -f better_supabase_module {2}creates a migration/m,
@@ -1130,7 +1138,7 @@ describe("sql", () => {
       join(dir, "supabase/config.toml"),
       '[db.migrations]\nschema_paths = ["./schemas/010_app.sql"]\n\n[experimental.pgdelta]\nenabled = true\n',
     );
-    const added = await run(["sql", "add", "audit", "--cwd", dir]);
+    const added = await run(["add", "audit", "--cwd", dir]);
     expect(added.stdout).not.toContain("no entry matches");
     expect(added.stdout).toContain(
       "supabase db schema declarative sync -f better_supabase_module",
@@ -1138,12 +1146,12 @@ describe("sql", () => {
   });
 
   it("syncs blocks and detects stale files with --check", async () => {
-    expect((await run(["sql", "sync", "--check", "--cwd", dir])).code).toBe(1);
-    const sync = await run(["sql", "sync", "--cwd", dir]);
+    expect((await run(["upgrade", "--check", "--cwd", dir])).code).toBe(1);
+    const sync = await run(["upgrade", "--cwd", dir]);
     expect(sync.stdout).toContain("tenant");
     expect(sync.stdout).toContain("invitations");
-    expect((await run(["sql", "sync", "--check", "--cwd", dir])).code).toBe(0);
-    const list = await run(["sql", "list", "--cwd", dir]);
+    expect((await run(["upgrade", "--check", "--cwd", dir])).code).toBe(0);
+    const list = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(list.stdout).toMatch(/● invitations/);
     expect(list.stdout).toMatch(/○ tenant/);
   });
@@ -1156,19 +1164,18 @@ describe("sql", () => {
         auth: { authorization: stubProvider },
       }),
     );
-    const stopped = await run(["sql", "add", "tenant", "--cwd", dir]);
+    const stopped = await run(["add", "tenant", "--cwd", dir]);
     expect(stopped.code).toBe(1);
     expect(stopped.stderr).toContain(
       "The access token hook of the authorization provider (stub) writes the memberships claim.",
     );
     expect(stopped.stderr).toContain("tenant would add a second source");
-    expect((await run(["sql", "list", "--cwd", dir])).stdout).toMatch(
-      /^ {2}tenant/m,
-    );
-    expect((await run(["sql", "add", "audit", "--cwd", dir])).code).toBe(0);
+    expect(
+      (await run(["blocks", "list", "--installed", "--cwd", dir])).stdout,
+    ).toMatch(/^ {2}tenant/m);
+    expect((await run(["add", "audit", "--cwd", dir])).code).toBe(0);
 
     const forced = await run([
-      "sql",
       "add",
       "tenant",
       "--allow-hook-overlap",
@@ -1199,7 +1206,7 @@ describe("sql", () => {
       );
 
     await config(stubProvider);
-    const added = await run(["sql", "add", "entitlements", "--cwd", dir]);
+    const added = await run(["add", "entitlements", "--cwd", dir]);
     expect(added.code).toBe(0);
     expect(added.stdout).not.toContain("came along as a dependency");
 
@@ -1213,14 +1220,13 @@ describe("sql", () => {
     );
 
     await config(withProvider({ tenantScope: "team" }));
-    const invalid = await run(["sql", "add", "entitlements", "--cwd", dir]);
+    const invalid = await run(["add", "entitlements", "--cwd", dir]);
     expect(invalid.code).toBe(2);
     expect(invalid.stderr).toContain('tenantScope "team" is not a scope');
 
     await config(stubProvider, "tenant");
 
     const tenant = await run([
-      "sql",
       "add",
       "entitlements",
       "--allow-hook-overlap",
@@ -1232,11 +1238,11 @@ describe("sql", () => {
   });
 
   it("prints a module and rejects unknown ones", async () => {
-    const print = await run(["sql", "print", "audit", "--cwd", dir]);
+    const print = await run(["blocks", "view", "--sql", "audit", "--cwd", dir]);
     expect(print.stdout).toContain('"better_supabase"."audit_events"');
-    expect((await run(["sql", "add", "nope", "--cwd", dir])).code).toBe(2);
+    expect((await run(["add", "nope", "--cwd", dir])).code).toBe(2);
     expect(
-      (await run(["sql", "add", "--dry-run", "audit", "--cwd", dir])).stdout,
+      (await run(["add", "--dry-run", "audit", "--cwd", dir])).stdout,
     ).toContain("Would create");
   });
 });

@@ -76,7 +76,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "expose excludes a column the table doesn't have",
     description:
-      "`sql sync` turns `select(*, -col)` in `expose` into the table's declared columns minus the excluded ones. An excluded column the table no longer has excludes nothing, and a renamed secret column is then granted under its new name. Remove the exclusion, or exclude the new name.",
+      "`upgrade` turns `select(*, -col)` in `expose` into the table's declared columns minus the excluded ones. An excluded column the table no longer has excludes nothing, and a renamed secret column is then granted under its new name. Remove the exclusion, or exclude the new name.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),
@@ -208,7 +208,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Adopted webhook endpoints without a format",
     description:
-      "An adopted `webhooks-out` endpoints table that maps no `format` column sends every endpoint in `blocks.webhooks-out.options.defaultFormat`. Its default changed from the 0.8 body (`standard`) to `cloudevents` in 0.9, so receivers built for the old body break without any change to the config. `sql sync` refuses this config; doctor reports it for configs it loads without that check. Set `defaultFormat` explicitly, or add a format column and map it in `columns.endpoints.format`.",
+      "An adopted `webhooks-out` endpoints table that maps no `format` column sends every endpoint in `blocks.webhooks-out.options.defaultFormat`. Its default changed from the 0.8 body (`standard`) to `cloudevents` in 0.9, so receivers built for the old body break without any change to the config. `upgrade` refuses this config; doctor reports it for configs it loads without that check. Set `defaultFormat` explicitly, or add a format column and map it in `columns.endpoints.format`.",
     check: (context) => {
       const block = context.config.blocks["webhooks-out"];
 

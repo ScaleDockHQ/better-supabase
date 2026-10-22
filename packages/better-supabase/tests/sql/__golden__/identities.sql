@@ -316,7 +316,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bsb-block-data identities
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -644,7 +644,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bsb-block-data identities
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -974,7 +974,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bsb-block-data identities
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1387,7 +1387,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_89_identities.sql
 -- better-supabase module: identities
 -- @bsb-block-data identities
--- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

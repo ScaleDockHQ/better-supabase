@@ -461,7 +461,7 @@ grant execute on function better_supabase.platform_can_assign(uuid, text) to ser
 }
 
 /**
- * The authorization provider behind the `provider` model, which `sql add` reads
+ * The authorization provider behind the `provider` model, which `add` reads
  * from the config's `authorization`. Never a default, so a project without one
  * never gets functions that call functions that don't exist.
  */

@@ -149,7 +149,7 @@ jobs:
       - name: Create the local signing key
         run: |
           pnpm exec turbo run build --filter=better-supabase...
-          pnpm exec better-supabase keys --cwd .
+          pnpm exec better-supabase dev keys --cwd .
 
       - name: Start Supabase
         uses: $/.github/actions/supabase-stack
@@ -193,7 +193,7 @@ jobs:
       - name: Create the local signing key
         run: |
           pnpm exec turbo run build --filter=better-supabase...
-          pnpm exec better-supabase keys --cwd .
+          pnpm exec better-supabase dev keys --cwd .
 
       - name: Start Supabase
         uses: $/.github/actions/supabase-stack

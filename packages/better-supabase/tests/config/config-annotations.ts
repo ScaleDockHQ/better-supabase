@@ -280,7 +280,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "database.realtime": { description: "Live query change broadcasts." },
   "database.realtime.tables": {
     description:
-      "Tables that broadcast change signals (`table` or `schema.table`). Install with `better-supabase sql add realtime-tables`.",
+      "Tables that broadcast change signals (`table` or `schema.table`). Install with `better-supabase add realtime-tables`.",
   },
   "database.realtime.global": {
     description:
@@ -292,11 +292,11 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "database.realtime.policies": {
     description:
-      "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `sql sync`; `sql sync --check` fails when the file is stale.",
+      "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `upgrade`; `upgrade --check` fails when the file is stale.",
   },
   "database.realtime.triggers": {
     description:
-      "Broadcast triggers `sql sync` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function.",
+      "Broadcast triggers `upgrade` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function.",
   },
   "database.realtime.triggers[].topic": {
     description: "The template of a topic `policies.from` exports.",
@@ -349,7 +349,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   tables: {
     description:
-      "Tables the app owns, keyed by name, created in public by `better-supabase sql sync` with an id, the scope column, created_at and updated_at, row level security and policies for the scope. Money is a bigint of minor units next to a text currency column. ADR 0040.",
+      "Tables the app owns, keyed by name, created in public by `better-supabase upgrade` with an id, the scope column, created_at and updated_at, row level security and policies for the scope. Money is a bigint of minor units next to a text currency column. ADR 0040.",
   },
   "tables.*.columns": {
     description:
@@ -518,7 +518,9 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Milliseconds between checks in gen --watch and spec emit --watch.",
   },
-  "tooling.env": { description: "The env file better-supabase env writes." },
+  "tooling.env": {
+    description: "The env file better-supabase dev env writes.",
+  },
   "tooling.env.output": { default: ".env.local" },
   "tooling.env.prefix": {
     description:
@@ -537,7 +539,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "tooling.keys.output": {
     description:
-      "Signing key file better-supabase keys writes. Defaults to supabase/signing_keys.json.",
+      "Signing key file better-supabase dev keys writes. Defaults to supabase/signing_keys.json.",
   },
   $env: {
     description:

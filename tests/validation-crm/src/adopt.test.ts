@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
-// The blocks the CRM already has tables for. `apply --adopt` maps them onto
+// The blocks the CRM already has tables for. `add --preset --adopt` maps them onto
 // those tables, and their requirements (updated-at, tenant) stay managed.
 const PRESET = encodePreset({
   scope: "tenant",
@@ -32,7 +32,7 @@ const committed = async (): Promise<{ blocks: unknown }> =>
     await readFile(join(ROOT, "better-supabase.config.json"), "utf-8"),
   ) as { blocks: unknown };
 
-describe("apply --adopt on the CRM schema", () => {
+describe("add --preset --adopt on the CRM schema", () => {
   it("proposes the adopt mappings the config holds", async () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
@@ -44,7 +44,7 @@ describe("apply --adopt on the CRM schema", () => {
     );
 
     const result = await run([
-      "apply",
+      "add",
       "--preset",
       PRESET,
       "--only",
@@ -97,7 +97,7 @@ describe("apply --adopt on the CRM schema", () => {
     );
 
     const result = await run([
-      "apply",
+      "add",
       "--preset",
       encodePreset({
         scope: "tenant",
@@ -134,7 +134,7 @@ describe("apply --adopt on the CRM schema", () => {
 
   it("finds nothing more to adopt once the config holds the mappings", async () => {
     const result = await run([
-      "apply",
+      "add",
       "--preset",
       PRESET,
       "--only",

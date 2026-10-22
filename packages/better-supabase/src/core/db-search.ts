@@ -189,7 +189,7 @@ export function searchTable(
       error.code === "PGRST202" || error.code === "42883"
         ? {
             ...error,
-            hint: `Add "${table.schema}.${table.name}" to vectorSearch in better-supabase.config.ts (with prefilter or hybrid for filter and text) and run \`better-supabase sql sync\`.`,
+            hint: `Add "${table.schema}.${table.name}" to vectorSearch in better-supabase.config.ts (with prefilter or hybrid for filter and text) and run \`better-supabase upgrade\`.`,
           }
         : error;
 

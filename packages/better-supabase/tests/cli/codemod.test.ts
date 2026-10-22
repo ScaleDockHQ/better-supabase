@@ -439,7 +439,10 @@ describe("sql add hint", () => {
     ]);
     expect(
       applyCodemod(v09, "bsb sql add teams\n", "/app/scripts/setup.sh").review,
-    ).toEqual([expect.objectContaining({ line: 1 })]);
+    ).toEqual([
+      expect.objectContaining({ line: 1 }),
+      expect.objectContaining({ line: 1 }),
+    ]);
   });
 });
 

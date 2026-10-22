@@ -82,11 +82,11 @@ export interface ResolvedSqlConfig {
 export interface SeedConfig {
   /** Module exporting `defineSeed(...)` as `seed` or default. */
   readonly entry?: string;
-  /** SQL file `better-supabase seed` writes. Add it to `[db.seed] sql_paths`. */
+  /** SQL file `better-supabase db seed` writes. Add it to `[db.seed] sql_paths`. */
   readonly output?: string;
   /**
    * Module exporting `defineTenantSeed(...)` as `seed` or default.
-   * `better-supabase seed --tenant <slug>` applies it to one tenant.
+   * `better-supabase db seed --tenant <slug>` applies it to one tenant.
    */
   readonly perTenant?: string;
 }
@@ -114,11 +114,11 @@ export interface RealtimeConfig {
   /**
    * Writes the `realtime.messages` policies of the topics that `from` exports
    * (`defineTopic`) to `output`, a file in `supabase/schemas`, on
-   * `better-supabase sql sync`; `sql sync --check` fails when it is stale.
+   * `better-supabase upgrade`; `upgrade --check` fails when it is stale.
    */
   readonly policies?: TopicPoliciesConfig;
   /**
-   * Broadcast triggers that `sql sync` writes to `policies.output` next to the
+   * Broadcast triggers that `upgrade` writes to `policies.output` next to the
    * policies, through the topic's `trigger()`, for topics that `policies.from`
    * exports. A trigger with column values, one topic, a `keys` or `row` payload
    * and one event name calls `better_supabase.broadcast_topic()` (the

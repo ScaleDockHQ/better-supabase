@@ -29,7 +29,7 @@ export function previewAccessProvider(preset: Preset): BlockSqlAccessProvider {
 }
 
 /**
- * The files `sql sync` writes for a config with only this preset and its
+ * The files `upgrade` writes for a config with only this preset and its
  * `/create` design (app tables and extra columns). With `access: "provider"`
  * the access functions come from `previewAccessProvider`.
  */

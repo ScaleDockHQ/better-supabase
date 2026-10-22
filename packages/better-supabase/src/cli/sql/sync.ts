@@ -83,7 +83,7 @@ export async function syncModules(
           await applyPlan(
             {
               root: config.root,
-              regenerate: "better-supabase sql sync",
+              regenerate: "better-supabase upgrade",
               files: topicsFile,
             },
             { "dry-run": args["dry-run"] },
@@ -102,7 +102,7 @@ export async function syncModules(
   const rendered = renderBlocks(config.blockNames, sqlLayout);
 
   const plan = sqlPlan(config, {
-    regenerate: "better-supabase sql sync",
+    regenerate: "better-supabase upgrade",
     files: [...rendered.map((file) => moduleFile(file)), ...topicsFile],
     remove: await staleModuleTests(
       config,
@@ -118,8 +118,8 @@ export async function syncModules(
 }
 
 /**
- * `sql sync --check` under the migrations workflow: the newest module migration
- * against what `sql sync` would write.
+ * `upgrade --check` under the migrations workflow: the newest module migration
+ * against what `upgrade` would write.
  */
 async function checkModuleMigration(
   config: ResolvedConfig,
@@ -141,7 +141,7 @@ async function checkModuleMigration(
   ).map((path) => display(config.root, path));
 
   const diffs: string[] = stale.map(
-    (path) => `${path} is no longer written; \`sql sync\` removes it.`,
+    (path) => `${path} is no longer written; \`upgrade\` removes it.`,
   );
 
   for (const file of files.filter((entry) => entry.kind === "test")) {
@@ -175,7 +175,7 @@ async function checkModuleMigration(
         code: 1,
         data: { stale },
         output: diffs.join("\n\n"),
-        error: `Out of date: ${stale.join(", ")}. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
+        error: `Out of date: ${stale.join(", ")}. Run \`better-supabase upgrade\`, then \`supabase migration up\`.`,
         errorCode: "check_failed",
       };
 }

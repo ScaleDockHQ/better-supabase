@@ -21,6 +21,7 @@ import {
   selectTasks,
   stepInputs,
 } from "./gen-pipeline.ts";
+import { SAVE_SNAPSHOT_ARGS, saveSnapshot } from "./save-snapshot.ts";
 import { loadSnapshot, openSource, snapshotFile } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceArgs, sourceFlags } from "./source-args.ts";
 
@@ -71,6 +72,7 @@ const ARGS = {
       "Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000",
     valueHint: "ms",
   },
+  ...SAVE_SNAPSHOT_ARGS,
   ...SOURCE_ARGS,
 } as const;
 
@@ -227,6 +229,35 @@ export const genCommand: AnyCommand = defineCliCommand({
   lists: ["only"],
   completions: { only: () => GEN_TASKS },
   run: async (args, context) => {
+    if (args["save-snapshot"] === true) {
+      const generating = [
+        ["--metadata", args.metadata],
+        ["--emit", args.emit],
+        ["--out-dir", args["out-dir"]],
+        ["--only", args.only],
+        ["--watch", args.watch],
+        ["--force", args.force],
+      ].find(([, value]) => value !== undefined && value !== false);
+
+      if (generating !== undefined) {
+        throw new CliError(
+          "usage",
+          `--save-snapshot writes a snapshot and generates nothing, so it takes no ${String(generating[0])}.`,
+        );
+      }
+
+      return saveSnapshot(args, context);
+    }
+
+    const snapshotOnly = args.out ?? args.kind;
+
+    if (snapshotOnly !== undefined) {
+      throw new CliError(
+        "usage",
+        `--${args.out === undefined ? "kind" : "out"} works with --save-snapshot.`,
+      );
+    }
+
     checkMetadataFlags({
       ...(args.metadata === undefined ? {} : { metadata: args.metadata }),
       ...(args.emit === undefined ? {} : { emit: args.emit }),

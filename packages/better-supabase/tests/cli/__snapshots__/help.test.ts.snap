@@ -3,88 +3,24 @@
 exports[`help > documents add 1`] = `
 "Usage: better-supabase add [options] [block...]
 
-Adds blocks with what they require, or glue for an integration with --integration
+Adds blocks with what they require, a preset with --preset, existing tables with --adopt, or glue for an integration with --integration
 
 Arguments
   [block...]  Blocks to install with what they require (\`better-supabase blocks list\`). Without blocks or --integration, sets up the integrations in the config that have no files yet
 
 Options
-  --integration <integration,...>  Adds glue for integrations instead: next, hono, orpc, edge, expo, mcp, client or react
-  --force                          Overwrite files that exist
-  --allow-hook-overlap             With blocks: write modules whose claim the authorization provider's hook already writes
-  --tests-dir <dir>                With blocks: where the pgtap module goes. Defaults to database.sql.testsDir
-  --dry-run                        Print what would change, with a diff, and write nothing
-  --check                          Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Examples
-  # Installs two blocks and the modules they require
-  $ better-supabase add organizations billing
-  # Adds the Hono glue
-  $ better-supabase add --integration hono
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/init#add
-"
-`;
-
-exports[`help > documents adopt 1`] = `
-"Usage: better-supabase adopt [options] [block]
-
-Maps a block onto tables the app already has: proposes blocks.<block> in adopt mode and reports what can't map
-
-Arguments
-  [block]  The block to adopt existing tables for
-
-Options
-  --tables <schema.table,...>  The existing tables, as table or schema.table; the block's other tables are looked up by their default names
-  --dry-run                    Show the proposed mapping and the config diff, and write nothing
-  --check                      Write nothing; exit 1 with the diff when the config lacks this mapping
-  --snapshot <file>            Read a saved snapshot instead of the database
-  --db-url-stdin               Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --project-ref <ref>          Read a hosted project through the Management API
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files, reads the database, calls the Supabase Management API with --project-ref.
-Docs: https://bettersupabase.com/docs/cli/presets#adopt
-"
-`;
-
-exports[`help > documents apply 1`] = `
-"Usage: better-supabase apply [options]
-
-Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules
-
-Options
+  --integration <integration,...>           Adds glue for integrations instead: next, hono, orpc, edge, expo, mcp, client or react
+  --force                                   Overwrite files that exist
+  --allow-hook-overlap                      With blocks: write modules whose claim the authorization provider's hook already writes
+  --tests-dir <dir>                         With blocks: where the pgtap module goes. Defaults to database.sql.testsDir
   --preset <name|code|url|file>             A named preset, a code from /create, its URL or a downloaded design file; the design (&design= or the file) adds its app tables and extra columns
   --package <dir>                           Workspace package whose config to edit, relative to --cwd; a Create URL's package= sets it too
   --only <blocks|conventions>               blocks: add the preset's blocks to blocks and leave the conventions; conventions: take the conventions and no blocks
-  --adopt                                   Map the preset's blocks onto tables the database already has under their default names (adopt mode)
+  --adopt                                   Map existing tables onto a block (with --tables), the preset's blocks onto tables under their default names, or, alone, write the data rows migration for adopted blocks
   --allow-breaking                          Write a design with breaking app table changes (a rename, a retyped or required column, a tighter constraint); renames print their alter statements
-  --dry-run                                 Show the config diff and write nothing
-  --check                                   Write nothing; exit 1 with the diff when the config lacks the preset
+  --dry-run                                 Print what would change, with a diff, and write nothing
+  --check                                   Write nothing; exit 1 with a diff when a file would change
+  --tables <schema.table,...>               The existing tables, as table or schema.table; the block's other tables are looked up by their default names
   --casing <snake|camel>                    Row keys: snake keeps the database's names (the default), camel renames them in the query
   --scope <tenant|user|none>                Row ownership (database.sql.owner): tenant (the default), user or none for one shared space
   --tenant-name <name>                      What a tenant is called (blocks.tenant.names.organization): organization (the default), workspace, team or another lowercase name
@@ -107,19 +43,29 @@ Global options
   --debug                Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help             Show help
 
+Examples
+  # Installs two blocks and the blocks they require
+  $ better-supabase add organizations billing
+  # Applies a preset to the config, shows the diff and writes the blocks' SQL
+  $ better-supabase add --preset saas
+  # Maps the teams block onto a table the app already has
+  $ better-supabase add teams --adopt --tables public.teams
+  # Adds the Hono glue
+  $ better-supabase add --integration hono
+
 Side effects: Writes files, reads the database with --adopt, calls the Supabase Management API with --project-ref.
-Docs: https://bettersupabase.com/docs/cli/presets#apply
+Docs: https://bettersupabase.com/docs/cli/init#add
 "
 `;
 
 exports[`help > documents blocks 1`] = `
 "Usage: better-supabase blocks <command> [options]
 
-Lists, shows and searches the blocks you can add
+Lists, shows and searches the blocks you can add, and decodes presets
 
 Commands
-  list    Lists the blocks, optionally in one category
-  view    Shows a block: its tables, the blocks it requires and its options
+  list    Lists the blocks, the ones this project installed with --installed, or a preset's with --preset
+  view    Shows a block: the blocks it requires, its modes and its client, or its SQL with --sql
   search  Finds blocks by name, description or category
 
 Global options
@@ -141,10 +87,13 @@ Docs: https://bettersupabase.com/docs/cli/presets#blocks
 exports[`help > documents blocks list 1`] = `
 "Usage: better-supabase blocks list [options]
 
-Lists the blocks, optionally in one category
+Lists the blocks, the ones this project installed with --installed, or a preset's with --preset
 
 Options
-  --category <name>  One category: identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin, database
+  --category <name>         One category: identity, tenancy, collaboration, messaging, growth, crm, work, people, commerce, scheduling, content, ai, automation, developer, admin, database
+  --installed               Every block's SQL with whether this project installed it and lists it in blocks
+  --preset <name|code|url>  The blocks and conventions of a preset name, a preset code or a /create URL
+  --tests-dir <dir>         Where the pgtap module goes. Defaults to database.sql.testsDir
 
 Global options
   --cwd <dir>            Project directory
@@ -157,6 +106,10 @@ Global options
   --no-color             Print no colors, like $NO_COLOR
   --debug                Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help             Show help
+
+Examples
+  # Prints the blocks, auth and settings a preset, code or Create URL holds
+  $ better-supabase blocks list --preset saas
 
 Side effects: None.
 Docs: https://bettersupabase.com/docs/cli/presets#blocks
@@ -191,10 +144,14 @@ Docs: https://bettersupabase.com/docs/cli/presets#blocks
 exports[`help > documents blocks view 1`] = `
 "Usage: better-supabase blocks view [options] <block>
 
-Shows a block: its tables, the blocks it requires and its options
+Shows a block: the blocks it requires, its modes and its client, or its SQL with --sql
 
 Arguments
   <block>  The block to show
+
+Options
+  --sql              Print the block's SQL as this project's config renders it, instead of its summary
+  --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
 
 Global options
   --cwd <dir>            Project directory
@@ -361,7 +318,7 @@ Docs: https://bettersupabase.com/docs/cli/codemod
 exports[`help > documents codemod 0.15 1`] = `
 "Usage: better-supabase codemod 0.15 [options] [path...]
 
-Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, and module, subject, carrier and backend exports take their block, record and provider names
+Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, and CLI calls use the new commands
 
 Arguments
   [path...]  Files or directories to rewrite (default: the project)
@@ -398,7 +355,7 @@ Commands
   0.6   Changes from 0.5 to 0.6: kits become blocks and modules
   0.9   Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags
   0.11  Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat
-  0.15  Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, and module, subject, carrier and backend exports take their block, record and provider names
+  0.15  Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, and CLI calls use the new commands
 
 Global options
   --cwd <dir>            Project directory
@@ -448,7 +405,10 @@ Docs: https://bettersupabase.com/docs/cli/completion
 exports[`help > documents config 1`] = `
 "Usage: better-supabase config [options]
 
-Prints the resolved config: the file it came from, the active environment and every option with its default
+Prints the resolved config: the file it came from, the active environment and every option with its default, or the preset it names with --preset
+
+Options
+  --preset  The preset the config names, what it resolves to, and how the config differs from it
 
 Global options
   --cwd <dir>            Project directory
@@ -470,11 +430,12 @@ Docs: https://bettersupabase.com/docs/cli/config#print-the-resolved-config
 exports[`help > documents db 1`] = `
 "Usage: better-supabase db <command> [options]
 
-Runs SQL files against the database: the local stack by default, or the one in the connection string
+Runs SQL files and seeds against the database, and diffs the declarative schema: the local stack by default, or the one in the connection string
 
 Commands
   query  Runs each file as one multi-statement script, in order, optionally in a single transaction
   diff   Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start
+  seed   Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --apply
 
 Global options
   --cwd <dir>            Project directory
@@ -559,6 +520,234 @@ Docs: https://bettersupabase.com/docs/cli/db#query
 "
 `;
 
+exports[`help > documents db seed 1`] = `
+"Usage: better-supabase db seed [options]
+
+Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --apply
+
+Options
+  --apply          Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)
+  --entry <file>   Defaults to database.seed.entry (supabase/seed.ts)
+  --out <file>     Defaults to database.seed.output (supabase/seeds/000_better_supabase.sql)
+  --tenant <slug>  Insert database.seed.perTenant (supabase/seed.tenant.ts) for this organization slug or id, or '*' for every organization
+  --db-url-stdin   Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --stack <name>   Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
+  --dry-run        Print what would change, with a diff, and write nothing
+  --check          Write nothing; exit 1 with a diff when a file would change
+  --force          Overwrite files the CLI did not generate
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Side effects: Writes files, writes to the database with --apply, writes to the database with --tenant.
+Docs: https://bettersupabase.com/docs/cli/db#seed
+"
+`;
+
+exports[`help > documents dev 1`] = `
+"Usage: better-supabase dev <command> [options]
+
+Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine
+
+Commands
+  env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines
+  run    Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files
+  keys   Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones
+  stack  Lists the Supabase CLI's managed stacks and prunes the ones whose worktree or branch is gone
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Docs: https://bettersupabase.com/docs/cli/dev
+"
+`;
+
+exports[`help > documents dev env 1`] = `
+"Usage: better-supabase dev env [options]
+
+Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines
+
+Options
+  --write <file>, --out  Env file to write, or - to print the variables. Defaults to env.output, then .env.local
+  --prefix <prefix>      Browser variable prefix: next, vite, expo, nuxt, astro, sveltekit, a literal prefix, or "none". Defaults to env.prefix, then one detected from your framework
+  --status-file <file>   Read \`supabase status -o json\` output from a file
+  --dry-run              Print what would change, with a diff, and write nothing
+  --check                Write nothing; exit 1 with a diff when a file would change
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Write the URL, keys and JWKS URL, plain and with NEXT_PUBLIC_
+  $ better-supabase dev env --write .env.supabase.local --prefix next
+
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/dev#env
+"
+`;
+
+exports[`help > documents dev keys 1`] = `
+"Usage: better-supabase dev keys [options]
+
+Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones
+
+Options
+  --out <file>  Defaults to keys.output, then supabase/signing_keys.json
+  --rotate      Put a new key first (it signs) and keep the old ones (they still verify)
+  --force       Replace the file
+  --dry-run     Print what would change and write nothing
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/dev#keys
+"
+`;
+
+exports[`help > documents dev run 1`] = `
+"Usage: better-supabase dev run [options]
+
+Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files
+
+Options
+  --prefix <prefix>     Browser variable prefix: next, vite, expo, nuxt, astro, sveltekit, a literal prefix, or "none". Defaults to env.prefix, then one detected from your framework
+  --status-file <file>  Read \`supabase status -o json\` output from a file
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Start Next.js against this worktree's stack
+  $ better-supabase dev run -- next dev
+
+Side effects: Runs the command you pass.
+Docs: https://bettersupabase.com/docs/cli/dev#run
+"
+`;
+
+exports[`help > documents dev stack 1`] = `
+"Usage: better-supabase dev stack <command> [options]
+
+Lists the Supabase CLI's managed stacks and prunes the ones whose worktree or branch is gone
+
+Commands
+  ls     Lists every managed stack with its branch, worktree, running state and shared memory segments
+  prune  Destroys stacks whose worktree or branch is gone; --stop-idle also stops other branches' running stacks
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Docs: https://bettersupabase.com/docs/cli/dev#stack
+"
+`;
+
+exports[`help > documents dev stack ls 1`] = `
+"Usage: better-supabase dev stack ls [options]
+
+Lists every managed stack with its branch, worktree, running state and shared memory segments
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Side effects: Reads the local stacks.
+Docs: https://bettersupabase.com/docs/cli/dev#ls
+"
+`;
+
+exports[`help > documents dev stack prune 1`] = `
+"Usage: better-supabase dev stack prune [options]
+
+Destroys stacks whose worktree or branch is gone; --stop-idle also stops other branches' running stacks
+
+Options
+  --stop-idle  Also stop running stacks of other branches and checkouts (their data stays)
+  --dry-run    Print the stacks it would destroy or stop, and change nothing
+
+Global options
+  --cwd <dir>            Project directory
+  --config <file>        Config file, relative to --cwd
+  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
+  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --confirm <token>      The token from a consent_required result, passed once the user agreed
+  -y, --yes              Ask nothing; use the flags and the defaults
+  --no-color             Print no colors, like $NO_COLOR
+  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help             Show help
+
+Examples
+  # Print what it would destroy and stop
+  $ better-supabase dev stack prune --stop-idle --dry-run
+
+Side effects: Stops or destroys local stacks.
+Docs: https://bettersupabase.com/docs/cli/dev#prune
+"
+`;
+
 exports[`help > documents doctor 1`] = `
 "Usage: better-supabase doctor [options]
 
@@ -603,57 +792,27 @@ Docs: https://bettersupabase.com/docs/cli/doctor
 "
 `;
 
-exports[`help > documents env 1`] = `
-"Usage: better-supabase env [options]
-
-Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines
-
-Options
-  --write <file>, --out  Env file to write, or - to print the variables. Defaults to env.output, then .env.local
-  --prefix <prefix>      Browser variable prefix: next, vite, expo, nuxt, astro, sveltekit, a literal prefix, or "none". Defaults to env.prefix, then one detected from your framework
-  --status-file <file>   Read \`supabase status -o json\` output from a file
-  --dry-run              Print what would change, with a diff, and write nothing
-  --check                Write nothing; exit 1 with a diff when a file would change
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Examples
-  # Write the URL, keys and JWKS URL, plain and with NEXT_PUBLIC_
-  $ better-supabase env --write .env.supabase.local --prefix next
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/local#env
-"
-`;
-
 exports[`help > documents gen 1`] = `
 "Usage: better-supabase gen [options]
 
 Writes the typed client from the database, then every other generated file the config sets up
 
 Options
-  --metadata <path|->  Read a GeneratorMetadata document (- for stdin) and print one file on stdout
-  --emit <file>        With --metadata, the file to print: schema, types, zod, valibot, json-schema, standard-schema. Defaults to schema
-  --out-dir <dir>      With --metadata, write every generated file into this directory instead of printing one
-  --only <list,...>    Tasks to run: types, sql, spec, seed, scaffold, env. Defaults to gen.tasks, or every task the config sets up
-  --check              Fail when a generated file is out of date
-  --dry-run            Print what would change and write nothing
-  --force              Overwrite a file at a generated path that the CLI did not write
-  --watch              Run again whenever the schema, the config file or a task's input changes
-  --interval <ms>      Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000
-  --snapshot <file>    Read a saved snapshot instead of the database
-  --db-url-stdin       Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --project-ref <ref>  Read a hosted project through the Management API
+  --metadata <path|->                   Read a GeneratorMetadata document (- for stdin) and print one file on stdout
+  --emit <file>                         With --metadata, the file to print: schema, types, zod, valibot, json-schema, standard-schema. Defaults to schema
+  --out-dir <dir>                       With --metadata, write every generated file into this directory instead of printing one
+  --only <list,...>                     Tasks to run: types, sql, spec, seed, scaffold, env. Defaults to gen.tasks, or every task the config sets up
+  --check                               Fail when a generated file is out of date
+  --dry-run                             Print what would change and write nothing
+  --force                               Overwrite a file at a generated path that the CLI did not write
+  --watch                               Run again whenever the schema, the config file or a task's input changes
+  --interval <ms>                       Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000
+  --save-snapshot                       Read the database and save the schema as a snapshot file instead of generating
+  --out <file>                          With --save-snapshot: defaults to database.source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json
+  --kind <snapshot|generator-metadata>  With --save-snapshot: snapshot (the default) or generator-metadata (postgrest-typegen's input)
+  --snapshot <file>                     Read a saved snapshot instead of the database
+  --db-url-stdin                        Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --project-ref <ref>                   Read a hosted project through the Management API
 
 Global options
   --cwd <dir>            Project directory
@@ -672,6 +831,8 @@ Examples
   $ better-supabase gen
   # Exits 1 when a generated file is out of date
   $ better-supabase gen --check
+  # Saves the database schema as a snapshot for offline gen
+  $ better-supabase gen --save-snapshot
 
 Side effects: Writes files, reads the database, calls the Supabase Management API with --project-ref.
 Docs: https://bettersupabase.com/docs/cli/gen
@@ -722,65 +883,6 @@ Docs: https://bettersupabase.com/docs/cli/init
 "
 `;
 
-exports[`help > documents introspect 1`] = `
-"Usage: better-supabase introspect [options]
-
-Saves the database schema as a snapshot for offline gen
-
-Options
-  --out <file>                          Defaults to database.source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json
-  --kind <snapshot|generator-metadata>  snapshot (the default) or generator-metadata (postgrest-typegen's input)
-  --check                               Write nothing; exit 1 with a diff when a file would change
-  --dry-run                             Print what would change, with a diff, and write nothing
-  --snapshot <file>                     Read a saved snapshot instead of the database
-  --db-url-stdin                        Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --project-ref <ref>                   Read a hosted project through the Management API
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files, reads the database, calls the Supabase Management API with --project-ref.
-Docs: https://bettersupabase.com/docs/cli/introspect
-"
-`;
-
-exports[`help > documents keys 1`] = `
-"Usage: better-supabase keys [options]
-
-Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones
-
-Options
-  --out <file>  Defaults to keys.output, then supabase/signing_keys.json
-  --rotate      Put a new key first (it signs) and keep the old ones (they still verify)
-  --force       Replace the file
-  --dry-run     Print what would change and write nothing
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/local#keys
-"
-`;
-
 exports[`help > documents mcp 1`] = `
 "Usage: better-supabase mcp [options]
 
@@ -804,7 +906,7 @@ Global options
 Examples
   # Starts the read-only server; add it to the agent's MCP config
   $ better-supabase mcp
-  # Adds gen, sql_sync, apply and add, each behind a consent token
+  # Adds gen, upgrade, add and remove, each behind a consent token
   $ better-supabase mcp --allow-writes
 
 Side effects: Reads the database, writes files with --allow-writes.
@@ -812,86 +914,17 @@ Docs: https://bettersupabase.com/docs/cli/mcp
 "
 `;
 
-exports[`help > documents preset 1`] = `
-"Usage: better-supabase preset <command> [options]
+exports[`help > documents remove 1`] = `
+"Usage: better-supabase remove [options] [block...]
 
-Decodes a preset code, or shows the config's preset and how the config differs from it
-
-Commands
-  decode  Prints the blocks, auth and settings a preset code or Create URL holds
-  info    Shows the config's preset and how the config differs from it
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Docs: https://bettersupabase.com/docs/cli/presets#preset
-"
-`;
-
-exports[`help > documents preset decode 1`] = `
-"Usage: better-supabase preset decode [options] <preset>
-
-Prints the blocks, auth and settings a preset code or Create URL holds
+Removes blocks: their config entries, their clients in lib/blocks.ts and the SQL files no other block needs
 
 Arguments
-  <preset>  A preset name, a preset code or a /create URL
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: None.
-Docs: https://bettersupabase.com/docs/cli/presets#preset
-"
-`;
-
-exports[`help > documents preset info 1`] = `
-"Usage: better-supabase preset info [options]
-
-Shows the config's preset and how the config differs from it
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: None.
-Docs: https://bettersupabase.com/docs/cli/presets#preset
-"
-`;
-
-exports[`help > documents run 1`] = `
-"Usage: better-supabase run [options]
-
-Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files
+  [block...]  Blocks to remove: their config entries, their clients in lib/blocks.ts, and the schema files no other block needs
 
 Options
-  --prefix <prefix>     Browser variable prefix: next, vite, expo, nuxt, astro, sveltekit, a literal prefix, or "none". Defaults to env.prefix, then one detected from your framework
-  --status-file <file>  Read \`supabase status -o json\` output from a file
+  --dry-run  Print what would change, with a diff, and write nothing
+  --check    Write nothing; exit 1 with a diff when a file would change
 
 Global options
   --cwd <dir>            Project directory
@@ -906,11 +939,11 @@ Global options
   -h, --help             Show help
 
 Examples
-  # Start Next.js against this worktree's stack
-  $ better-supabase run -- next dev
+  # Removes the block, then names the db diff that drops its tables
+  $ better-supabase remove comments
 
-Side effects: Runs the command you pass.
-Docs: https://bettersupabase.com/docs/cli/local#run
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/init#remove
 "
 `;
 
@@ -999,39 +1032,6 @@ Global options
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/scaffold#screens
-"
-`;
-
-exports[`help > documents seed 1`] = `
-"Usage: better-supabase seed [options]
-
-Renders the fixtures from defineSeed() (better-supabase/testing) to SQL
-
-Options
-  --apply          Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)
-  --entry <file>   Defaults to database.seed.entry (supabase/seed.ts)
-  --out <file>     Defaults to database.seed.output (supabase/seeds/000_better_supabase.sql)
-  --tenant <slug>  Insert database.seed.perTenant (supabase/seed.tenant.ts) for this organization slug or id, or '*' for every organization
-  --db-url-stdin   Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
-  --stack <name>   Use the stack in supabase/stacks/<name>/config.toml (default $BSB_STACK) instead of the default local stack
-  --dry-run        Print what would change, with a diff, and write nothing
-  --check          Write nothing; exit 1 with a diff when a file would change
-  --force          Overwrite files the CLI did not generate
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files, writes to the database with --apply, writes to the database with --tenant.
-Docs: https://bettersupabase.com/docs/cli/local#seed
 "
 `;
 
@@ -1216,253 +1216,15 @@ Docs: https://bettersupabase.com/docs/cli/spec
 "
 `;
 
-exports[`help > documents sql 1`] = `
-"Usage: better-supabase sql <command> [options]
+exports[`help > documents upgrade 1`] = `
+"Usage: better-supabase upgrade [options]
 
-Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files without touching app code, and writes their data migration
-
-Commands
-  list     Lists the SQL modules and which ones the project has
-  add      Writes module files and their pgTAP tests, and adds the modules to the config
-  sync     Writes the files for the modules the config lists and removes the ones it no longer lists
-  upgrade  Rewrites module files to this version's SQL, or exits 1 when one is behind with --check
-  data     Writes the data migration for blocks in adopt mode
-  print    Prints a module's SQL on stdout
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Docs: https://bettersupabase.com/docs/blocks/sql
-"
-`;
-
-exports[`help > documents sql add 1`] = `
-"Usage: better-supabase sql add [options] <module...>
-
-Writes module files and their pgTAP tests, and adds the modules to the config
-
-Arguments
-  <module...>  SQL modules (\`better-supabase sql list\`)
+Brings the blocks' SQL up to the config and this release: upgrade steps for blocks behind, then every block's files
 
 Options
-  --tests-dir <dir>     Where the pgtap module goes. Defaults to database.sql.testsDir
-  --dry-run             Show what would be written
-  --allow-hook-overlap  Write modules whose claim the authorization provider's hook already writes
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/blocks/sql
-"
-`;
-
-exports[`help > documents sql data 1`] = `
-"Usage: better-supabase sql data [options]
-
-Writes the data migration for blocks in adopt mode
-
-Options
+  --check            Write nothing; exit 1 when a block is behind its current version or a schema file is stale
   --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
   --dry-run          Show what would be written
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/blocks/sql
-"
-`;
-
-exports[`help > documents sql list 1`] = `
-"Usage: better-supabase sql list [options]
-
-Lists the SQL modules and which ones the project has
-
-Options
-  --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: None.
-Docs: https://bettersupabase.com/docs/blocks/sql
-"
-`;
-
-exports[`help > documents sql print 1`] = `
-"Usage: better-supabase sql print [options] <module>
-
-Prints a module's SQL on stdout
-
-Arguments
-  <module>  The SQL module to print
-
-Options
-  --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: None.
-Docs: https://bettersupabase.com/docs/blocks/sql
-"
-`;
-
-exports[`help > documents sql sync 1`] = `
-"Usage: better-supabase sql sync [options]
-
-Writes the files for the modules the config lists and removes the ones it no longer lists
-
-Options
-  --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
-  --check            With sync: fail when a file is stale. With upgrade: fail when a module is behind
-  --dry-run          Show what would be written
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/blocks/sql
-"
-`;
-
-exports[`help > documents sql upgrade 1`] = `
-"Usage: better-supabase sql upgrade [options]
-
-Rewrites module files to this version's SQL, or exits 1 when one is behind with --check
-
-Options
-  --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
-  --check            With sync: fail when a file is stale. With upgrade: fail when a module is behind
-  --dry-run          Show what would be written
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/blocks/sql
-"
-`;
-
-exports[`help > documents stack 1`] = `
-"Usage: better-supabase stack <command> [options]
-
-Lists the Supabase CLI's managed stacks and prunes the ones whose worktree or branch is gone
-
-Commands
-  ls     Lists every managed stack with its branch, worktree, running state and shared memory segments
-  prune  Destroys stacks whose worktree or branch is gone; --stop-idle also stops other branches' running stacks
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Docs: https://bettersupabase.com/docs/cli/stack
-"
-`;
-
-exports[`help > documents stack ls 1`] = `
-"Usage: better-supabase stack ls [options]
-
-Lists every managed stack with its branch, worktree, running state and shared memory segments
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Reads the local stacks.
-Docs: https://bettersupabase.com/docs/cli/stack#ls
-"
-`;
-
-exports[`help > documents stack prune 1`] = `
-"Usage: better-supabase stack prune [options]
-
-Destroys stacks whose worktree or branch is gone; --stop-idle also stops other branches' running stacks
-
-Options
-  --stop-idle  Also stop running stacks of other branches and checkouts (their data stays)
-  --dry-run    Print the stacks it would destroy or stop, and change nothing
 
 Global options
   --cwd <dir>            Project directory
@@ -1477,11 +1239,13 @@ Global options
   -h, --help             Show help
 
 Examples
-  # Print what it would destroy and stop
-  $ better-supabase stack prune --stop-idle --dry-run
+  # Writes the upgrade steps and the blocks' SQL files
+  $ better-supabase upgrade
+  # Exits 1 when a block is behind or a SQL file is out of date
+  $ better-supabase upgrade --check
 
-Side effects: Stops or destroys local stacks.
-Docs: https://bettersupabase.com/docs/cli/stack#prune
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/init#upgrade
 "
 `;
 
@@ -1493,35 +1257,28 @@ Usage: better-supabase <command> [options]
 
 Set up
   init        Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the frameworks in package.json
-  add         Adds blocks with what they require, or glue for an integration with --integration
-  apply       Applies a preset to an existing project: edits the config, shows the diff and writes the blocks' modules
-  adopt       Maps a block onto tables the app already has: proposes blocks.<block> in adopt mode and reports what can't map
-  preset      Decodes a preset code, or shows the config's preset and how the config differs from it
-  blocks      Lists, shows and searches the blocks you can add
+  add         Adds blocks with what they require, a preset with --preset, existing tables with --adopt, or glue for an integration with --integration
+  remove      Removes blocks: their config entries, their clients in lib/blocks.ts and the SQL files no other block needs
+  upgrade     Brings the blocks' SQL up to the config and this release: upgrade steps for blocks behind, then every block's files
+  blocks      Lists, shows and searches the blocks you can add, and decodes presets
   skills      Installs the Agent Skills that ship with this version of better-supabase
   completion  Prints the shell completion script for bash, zsh or fish, for both better-supabase and bsb
 
 Generate
-  gen         Writes the typed client from the database, then every other generated file the config sets up
-  introspect  Saves the database schema as a snapshot for offline gen
-  spec        Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders
-  scaffold    Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table
+  gen       Writes the typed client from the database, then every other generated file the config sets up
+  spec      Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders
+  scaffold  Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table
 
 Local stack
-  env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines
-  run    Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files
-  keys   Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones
-  stack  Lists the Supabase CLI's managed stacks and prunes the ones whose worktree or branch is gone
-  seed   Renders the fixtures from defineSeed() (better-supabase/testing) to SQL
-  db     Runs SQL files against the database: the local stack by default, or the one in the connection string
+  dev  Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine
+  db   Runs SQL files and seeds against the database, and diffs the declarative schema: the local stack by default, or the one in the connection string
 
 Inspect
   doctor  Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --fail-on warning
-  config  Prints the resolved config: the file it came from, the active environment and every option with its default
+  config  Prints the resolved config: the file it came from, the active environment and every option with its default, or the preset it names with --preset
   mcp     Serves the CLI to coding agents as an MCP server on stdio: read-only tools, and file writes with --allow-writes and the user's consent
 
 Maintain
-  sql      Low-level SQL module commands: lists, adds, syncs, upgrades and prints module files without touching app code, and writes their data migration
   codemod  Rewrites imports, calls and config keys for renamed better-supabase APIs
 
 Global options

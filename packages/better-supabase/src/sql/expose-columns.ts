@@ -5,7 +5,7 @@ import { declaredTableColumns } from "./schema-scan.ts";
 const keyOf = (name: string): string =>
   name.includes(".") ? name : `public.${name}`;
 
-/** Whether a privilege is the `select(*, -col)` form `sql sync` resolves. */
+/** Whether a privilege is the `select(*, -col)` form `upgrade` resolves. */
 export const hasColumnExclusions = (privilege: string): boolean =>
   /\(\s*\*/.test(privilege);
 

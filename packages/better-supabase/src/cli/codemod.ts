@@ -498,7 +498,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.15": {
     name: "0.15",
     description:
-      "Regroups better-supabase.config.* into database, auth, gen, api and tooling (subjects to records, appTables to tables, integrations to adapters, a block's mode, scope, entities and hooks to ownership, owner, names and callbacks, claims.tenant and the tenant plugin's column to auth.organization); renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; cache tags, query keys and the debug header and route that start with bs are listed for review",
+      "Regroups better-supabase.config.* into database, auth, gen, api and tooling (subjects to records, appTables to tables, integrations to adapters, a block's mode, scope, entities and hooks to ownership, owner, names and callbacks, claims.tenant and the tenant plugin's column to auth.organization); renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; rewrites CLI calls in package.json scripts and GitHub workflows to the 0.15 commands (apply and adopt to add, sql sync and sql upgrade to upgrade, introspect to gen --save-snapshot, seed to db seed, env, run, keys and stack to dev); cache tags, query keys and the debug header and route that start with bs are listed for review",
     bindings: {
       bs: "bsb",
       SqlModule: "BlockSql",
@@ -531,6 +531,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     members: [{ from: "bs", to: "bsb" }],
     configFile: (source, json) =>
       json ? groupConfigJson(source) : groupConfigSource(source),
+    cliCalls: migrateCliCall,
     review: [
       {
         pattern: /["'`]bs[:.]|\[\s*["']bs["']/,

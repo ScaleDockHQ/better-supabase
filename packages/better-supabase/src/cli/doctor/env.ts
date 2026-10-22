@@ -177,13 +177,13 @@ export const ENV_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Exported Supabase variable differs from the running stack",
     description:
-      "A SUPABASE_* variable exported in the shell has another value than the local stack, so the app talks to a stale stack (often another worktree's port). Values are redacted: host and port for URLs, a SHA-256 fingerprint for keys. Unset the variable, or start the app with `better-supabase run -- <cmd>`, which overrides it.",
+      "A SUPABASE_* variable exported in the shell has another value than the local stack, so the app talks to a stale stack (often another worktree's port). Values are redacted: host and port for URLs, a SHA-256 fingerprint for keys. Unset the variable, or start the app with `better-supabase dev run -- <cmd>`, which overrides it.",
     check: ({ stackEnv }) =>
       stackEnv === undefined || "skipped" in stackEnv
         ? []
         : staleVariables(stackEnv.shell, stackEnv.values).map((stale) => ({
             target: stale.variable,
-            message: `${stale.message} Unset it or start the app with better-supabase run -- <cmd>.`,
+            message: `${stale.message} Unset it or start the app with better-supabase dev run -- <cmd>.`,
           })),
   },
 ];

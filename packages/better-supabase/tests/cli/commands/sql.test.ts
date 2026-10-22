@@ -138,7 +138,7 @@ describe("runSql", () => {
       });
 
     expect((await run(["add", "updated-at"])).output).toContain(
-      'Add them to blocks in better-supabase.config.ts so `sql sync --check` keeps them current:\n  "updated-at": {},',
+      'Add them to blocks in better-supabase.config.ts so `upgrade --check` keeps them current:\n  "updated-at": {},',
     );
 
     const file = join(root, "better-supabase.config.ts");
@@ -543,9 +543,12 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(synced.output).toContain(
       "Created supabase/better-supabase-data/900_better_supabase_04_tenant.sql (tenant)",
     );
-    expect(synced.output).toContain("run `better-supabase sql data`");
+    expect(synced.output).toContain("run `better-supabase add --adopt`");
     expect((await sql(["sync"], config)).output).not.toContain("sql data");
 
+    expect((await sql(["data", "--check"], config)).error).toMatch(
+      /^No data migration holds/,
+    );
     expect((await sql(["data", "--dry-run"], config)).output).toMatch(
       /^Would create supabase\/migrations\/\d{14}_better_supabase_module_data\.sql$/,
     );
@@ -566,6 +569,20 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       data: { file: path, wrote: false },
       output: `${path} already has these rows; nothing to write.`,
     });
+
+    await writeFile(
+      join(root, path),
+      `-- A reworded comment.\n${migration.replace(/^-- .*\n/m, "")}`,
+    );
+    expect((await sql(["data", "--check"], config)).code).toBe(0);
+
+    await writeFile(join(root, path), "select 1;\n");
+    expect(await sql(["data", "--check"], config)).toEqual({
+      code: 1,
+      data: { wrote: false },
+      error: `${path} doesn't hold the current rows and settings of the blocks. Run \`better-supabase add --adopt\` after the schema migration.`,
+    });
+    expect(await readFile(join(root, path), "utf-8")).toBe("select 1;\n");
   });
 
   it("writes a pgTAP file per audited table and removes the ones it no longer writes", async () => {
@@ -942,7 +959,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(await sql(["data"], config)).toEqual({
       code: 1,
       error:
-        "No migration before the data migration creates pg_jsonschema, and the schema migration needs it while it applies.\nRun `better-supabase sql sync` to write the extensions migration, then create the schema migration again after it.",
+        "No migration before the data migration creates pg_jsonschema, and the schema migration needs it while it applies.\nRun `better-supabase upgrade` to write the extensions migration, then create the schema migration again after it.",
     });
     await writeFile(
       join(migrations, "20200101000001_extensions.sql"),
@@ -1064,7 +1081,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(check.error).toContain(
       "tenant is at version 1; the current version is 2",
     );
-    expect(check.error).toContain("Run `better-supabase sql upgrade`.");
+    expect(check.error).toContain("Run `better-supabase upgrade`.");
 
     const dry = await sql(["upgrade", "--dry-run"], config);
     expect(dry.output).toContain("tenant: version 1 to 2");
@@ -1205,7 +1222,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       const check = await sql(["sync", "--check"], more);
       expect(check.code).toBe(1);
       expect(check.error).toBe(
-        `Out of date: supabase/migrations/${name!}. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
+        `Out of date: supabase/migrations/${name!}. Run \`better-supabase upgrade\`, then \`supabase migration up\`.`,
       );
       await sql(["sync"], more);
       expect(await moduleMigrations()).toHaveLength(2);

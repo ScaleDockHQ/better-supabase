@@ -69,8 +69,8 @@ export async function moduleFiles(
       }),
     );
   } catch {
-    // A config `sql sync` refuses (such as api-keys scopes "catalog" without
-    // a catalog) has no files to compare; `sql sync` reports why.
+    // A config `upgrade` refuses (such as api-keys scopes "catalog" without
+    // a catalog) has no files to compare; `upgrade` reports why.
     return [];
   }
 

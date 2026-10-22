@@ -56,8 +56,9 @@ describe("run", () => {
     );
 
     const missing = await run([
-      "sql",
+      "blocks",
       "list",
+      "--installed",
       "--config",
       "gone.json",
       "--cwd",
@@ -95,7 +96,7 @@ describe("run", () => {
       "export default {\n  sql: {\n    modules: { tenant: true },\n  },\n};\n",
     );
 
-    const before = await run(["sql", "list", "--cwd", dir]);
+    const before = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(before.code).toBe(2);
     expect(before.stderr).toContain("better-supabase codemod 0.9");
 
@@ -114,11 +115,11 @@ describe("run", () => {
   it("prints the usage to stderr without a command and to stdout for help", async () => {
     expect(await run([])).toMatchObject({ code: 2, stdout: "" });
     expect((await run(["help"])).code).toBe(0);
-    expect((await run(["sql", "--help"])).stdout).toContain(
-      "Usage: better-supabase sql <command> [options]",
+    expect((await run(["dev", "--help"])).stdout).toContain(
+      "Usage: better-supabase dev <command> [options]",
     );
-    expect((await run(["help", "sql"])).stdout).toContain(
-      "Usage: better-supabase sql",
+    expect((await run(["help", "dev"])).stdout).toContain(
+      "Usage: better-supabase dev",
     );
   });
 
@@ -193,7 +194,7 @@ describe("run", () => {
       ),
     });
     expect(
-      await run(["introspect", "--kind", "xml", "--cwd", dir]),
+      await run(["gen", "--save-snapshot", "--kind", "xml", "--cwd", dir]),
     ).toMatchObject({
       code: 2,
       stderr: expect.stringMatching(
@@ -248,10 +249,18 @@ describe("run", () => {
     vi.stubGlobal("fetch", api.fetch);
 
     const introspect = (...argv: string[]) =>
-      run(["introspect", "--project-ref", "abc", ...argv, "--cwd", dir], {
-        env: ENV,
-        io: io(),
-      });
+      run(
+        [
+          "gen",
+          "--save-snapshot",
+          "--project-ref",
+          "abc",
+          ...argv,
+          "--cwd",
+          dir,
+        ],
+        { env: ENV, io: io() },
+      );
 
     expect((await introspect()).stdout).toBe(
       "Created supabase/snapshot.json (0 tables)\n",
@@ -272,7 +281,7 @@ describe("run", () => {
     expect(await introspect("--check")).toMatchObject({
       code: 1,
       stderr:
-        "supabase/snapshot.json is out of date. Run `better-supabase introspect`.\n",
+        "supabase/snapshot.json is out of date. Run `better-supabase gen --save-snapshot`.\n",
     });
   });
 
@@ -281,7 +290,8 @@ describe("run", () => {
 
     const result = await run(
       [
-        "introspect",
+        "gen",
+        "--save-snapshot",
         "--project-ref",
         "abc",
         "--kind",
@@ -307,16 +317,17 @@ describe("run", () => {
     const api = emptyProject();
     vi.stubGlobal("fetch", api.fetch);
 
-    await run(["introspect", "--project-ref", "abc", "--cwd", dir], {
-      env: ENV,
-      io: io(),
-    });
+    await run(
+      ["gen", "--save-snapshot", "--project-ref", "abc", "--cwd", dir],
+      { env: ENV, io: io() },
+    );
 
     const calls = api.calls.length;
 
     const converted = await run(
       [
-        "introspect",
+        "gen",
+        "--save-snapshot",
         "--snapshot",
         "supabase/snapshot.json",
         "--kind",
@@ -333,7 +344,14 @@ describe("run", () => {
     expect(api.calls).toHaveLength(calls);
 
     const both = await run(
-      ["introspect", "--snapshot", "s.json", "--project-ref", "abc"],
+      [
+        "gen",
+        "--save-snapshot",
+        "--snapshot",
+        "s.json",
+        "--project-ref",
+        "abc",
+      ],
       { cwd: dir, env: ENV, io: io() },
     );
 
@@ -663,8 +681,9 @@ describe("run", () => {
     });
 
     const missing = await run([
-      "sql",
+      "blocks",
       "list",
+      "--installed",
       "--config",
       "gone.json",
       "--cwd",
@@ -679,7 +698,7 @@ describe("run", () => {
   });
 
   it("rejects an invalid environment and an invalid config", async () => {
-    const env = await run(["sql", "list", "--cwd", dir], {
+    const env = await run(["blocks", "list", "--installed", "--cwd", dir], {
       env: { DATABASE_URL: "not a url" },
     });
 
@@ -692,7 +711,16 @@ describe("run", () => {
       join(dir, "better-supabase.config.json"),
       JSON.stringify({ gen: { casing: "pascal" } }),
     );
-    const config = await run(["sql", "list", "--cwd", dir, "--json"]);
+
+    const config = await run([
+      "blocks",
+      "list",
+      "--installed",
+      "--cwd",
+      dir,
+      "--json",
+    ]);
+
     expect(config.code).toBe(2);
     expect(JSON.parse(config.stdout)).toMatchObject({
       error: {
@@ -717,7 +745,7 @@ describe("run", () => {
         blocks: ["grants"],
       }),
     );
-    const synced = await run(["sql", "sync", "--cwd", dir]);
+    const synced = await run(["upgrade", "--cwd", dir]);
     expect(synced).toMatchObject({ code: 0, stderr: "" });
     const path = /Created (\S+) \(grants\)/.exec(synced.stdout)?.[1];
     const grants = await readFile(join(dir, path!), "utf-8");
@@ -764,7 +792,7 @@ describe("run", () => {
   });
 
   it("reads the connection string from stdin and refuses an empty pipe", async () => {
-    const empty = await run(["seed", "--db-url-stdin", "--cwd", dir], {
+    const empty = await run(["db", "seed", "--db-url-stdin", "--cwd", dir], {
       io: io({ stdin: () => Promise.resolve("  \n") }),
     });
 
@@ -776,7 +804,7 @@ describe("run", () => {
     const stdin = vi.fn(() => Promise.resolve("postgresql://u@h/db"));
 
     const result = await run(
-      ["seed", "--db-url-stdin", "--cwd", dir, "--json"],
+      ["db", "seed", "--db-url-stdin", "--cwd", dir, "--json"],
       { io: io({ stdin, stdinIsTty: true }) },
     );
 
@@ -917,10 +945,10 @@ describe("run", () => {
   });
 
   it("prints stack traces and the child commands under --debug", async () => {
-    const result = await run(["env", "--out", "-", "--debug", "--cwd", dir], {
-      env: { SUPABASE_BIN: join(dir, "missing-supabase") },
-      io: io(),
-    });
+    const result = await run(
+      ["dev", "env", "--out", "-", "--debug", "--cwd", dir],
+      { env: { SUPABASE_BIN: join(dir, "missing-supabase") }, io: io() },
+    );
 
     expect(result.code).not.toBe(0);
     expect(result.stderr).toContain(
@@ -928,7 +956,7 @@ describe("run", () => {
     );
     expect(result.stderr).toMatch(/debug CliError: .+\n\s+at /);
 
-    const quiet = await run(["env", "--out", "-", "--cwd", dir], {
+    const quiet = await run(["dev", "env", "--out", "-", "--cwd", dir], {
       env: { SUPABASE_BIN: join(dir, "missing-supabase") },
       io: io(),
     });

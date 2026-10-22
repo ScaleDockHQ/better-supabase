@@ -10,15 +10,26 @@ import { COMMANDS } from "./core/manifest.ts";
 const LOADERS: readonly (readonly [string, Loader])[] = [
   ["init", () => import("./commands/init.ts").then((m) => m.initCommand)],
   ["add", () => import("./commands/add.ts").then((m) => m.addCommand)],
-  ["apply", () => import("./commands/apply.ts").then((m) => m.applyCommand)],
-  ["adopt", () => import("./commands/adopt.ts").then((m) => m.adoptCommand)],
+  ["remove", () => import("./commands/remove.ts").then((m) => m.removeCommand)],
   [
-    "preset decode",
-    () => import("./commands/preset.ts").then((m) => m.presetDecodeCommand),
+    "upgrade",
+    () => import("./commands/upgrade.ts").then((m) => m.upgradeCommand),
+  ],
+  ["gen", () => import("./commands/gen.ts").then((m) => m.genCommand)],
+  ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
+  ["db query", () => import("./commands/db.ts").then((m) => m.dbQueryCommand)],
+  ["db diff", () => import("./commands/db.ts").then((m) => m.dbDiffCommand)],
+  ["db seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
+  ["dev env", () => import("./commands/env.ts").then((m) => m.envCommand)],
+  ["dev run", () => import("./commands/run.ts").then((m) => m.runCommand)],
+  ["dev keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],
+  [
+    "dev stack ls",
+    () => import("./commands/stack.ts").then((m) => m.stackLsCommand),
   ],
   [
-    "preset info",
-    () => import("./commands/preset.ts").then((m) => m.presetInfoCommand),
+    "dev stack prune",
+    () => import("./commands/stack.ts").then((m) => m.stackPruneCommand),
   ],
   [
     "blocks list",
@@ -31,26 +42,6 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
   [
     "blocks search",
     () => import("./commands/blocks.ts").then((m) => m.blocksSearchCommand),
-  ],
-  [
-    "skills list",
-    () => import("./commands/skills.ts").then((m) => m.skillsListCommand),
-  ],
-  [
-    "skills install",
-    () => import("./commands/skills.ts").then((m) => m.skillsInstallCommand),
-  ],
-  [
-    "completion",
-    () => import("./commands/completion.ts").then((m) => m.completionCommand),
-  ],
-  ["env", () => import("./commands/env.ts").then((m) => m.envCommand)],
-  ["run", () => import("./commands/run.ts").then((m) => m.runCommand)],
-  ["keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],
-  ["gen", () => import("./commands/gen.ts").then((m) => m.genCommand)],
-  [
-    "introspect",
-    () => import("./commands/introspect.ts").then((m) => m.introspectCommand),
   ],
   [
     "spec emit",
@@ -69,31 +60,14 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () =>
       import("./commands/scaffold.ts").then((m) => m.scaffoldScreensCommand),
   ],
-  ["seed", () => import("./commands/seed.ts").then((m) => m.seedCommand)],
-  ["db query", () => import("./commands/db.ts").then((m) => m.dbQueryCommand)],
-  ["db diff", () => import("./commands/db.ts").then((m) => m.dbDiffCommand)],
-  [
-    "stack ls",
-    () => import("./commands/stack.ts").then((m) => m.stackLsCommand),
-  ],
-  [
-    "stack prune",
-    () => import("./commands/stack.ts").then((m) => m.stackPruneCommand),
-  ],
-  ["doctor", () => import("./commands/doctor.ts").then((m) => m.doctorCommand)],
-  ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
   ["mcp", () => import("./commands/mcp.ts").then((m) => m.mcpCommand)],
-  ["sql list", () => import("./commands/sql.ts").then((m) => m.sqlListCommand)],
-  ["sql add", () => import("./commands/sql.ts").then((m) => m.sqlAddCommand)],
-  ["sql sync", () => import("./commands/sql.ts").then((m) => m.sqlSyncCommand)],
   [
-    "sql upgrade",
-    () => import("./commands/sql.ts").then((m) => m.sqlUpgradeCommand),
+    "skills list",
+    () => import("./commands/skills.ts").then((m) => m.skillsListCommand),
   ],
-  ["sql data", () => import("./commands/sql.ts").then((m) => m.sqlDataCommand)],
   [
-    "sql print",
-    () => import("./commands/sql.ts").then((m) => m.sqlPrintCommand),
+    "skills install",
+    () => import("./commands/skills.ts").then((m) => m.skillsInstallCommand),
   ],
   [
     "codemod 0.4",
@@ -119,6 +93,11 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "codemod 0.15",
     () => import("./commands/codemod.ts").then((m) => m.codemodCommand("0.15")),
   ],
+  [
+    "completion",
+    () => import("./commands/completion.ts").then((m) => m.completionCommand),
+  ],
+  ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
 ];
 
 /** The built-in commands, for `createCli`. */

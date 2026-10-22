@@ -162,8 +162,8 @@ export interface FlatConfig {
   readonly blocks?: readonly string[] | BlocksConfig;
   /**
    * Tables the app owns, keyed by name, created in `public` by `better-supabase
-   * sql sync` with an `id`, the scope column, timestamps, row level security
-   * and policies for the scope. Columns reference each other, `auth.users` or a
+   * upgrade` with an `id`, the scope column, timestamps, row level security and
+   * policies for the scope. Columns reference each other, `auth.users` or a
    * block's logical table. ADR 0040.
    */
   readonly appTables?: AppTablesConfig;

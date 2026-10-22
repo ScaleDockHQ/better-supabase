@@ -207,5 +207,5 @@ export function presetInstallCommand(resolved: ResolvedPreset): string {
 
 /** The command that applies the preset to an existing project. */
 export function presetApplyCommand(resolved: ResolvedPreset): string {
-  return `npx better-supabase apply --preset ${encodePreset(resolved.preset)}`;
+  return `npx better-supabase add --preset ${encodePreset(resolved.preset)}`;
 }

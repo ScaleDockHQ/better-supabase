@@ -99,7 +99,7 @@ export const STACK_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Shared memory segments almost used up",
     description:
-      "Every running Postgres holds one System V shared memory segment, even with shared_memory_type = mmap. When the segment limit (32 on macOS) is reached, the next stack or shadow database fails with `could not create shared memory segment: No space left on device`. Prune stacks you no longer need with `better-supabase stack prune --stop-idle`, or raise the limit (`kern.sysv.shmmni` on macOS, `kernel.shmmni` on Linux).",
+      "Every running Postgres holds one System V shared memory segment, even with shared_memory_type = mmap. When the segment limit (32 on macOS) is reached, the next stack or shadow database fails with `could not create shared memory segment: No space left on device`. Prune stacks you no longer need with `better-supabase dev stack prune --stop-idle`, or raise the limit (`kern.sysv.shmmni` on macOS, `kernel.shmmni` on Linux).",
     check: ({ localStacks }) => {
       if (
         localStacks === undefined ||
@@ -119,13 +119,13 @@ export const STACK_RULES: readonly Rule[] = [
 
       const more =
         holders.length > NAMED_STACKS
-          ? ` and ${String(holders.length - NAMED_STACKS)} more (better-supabase stack ls lists them)`
+          ? ` and ${String(holders.length - NAMED_STACKS)} more (better-supabase dev stack ls lists them)`
           : "";
 
       return [
         {
           target: "kern.sysv.shmmni",
-          message: `${String(memory.segments.length)} of ${String(memory.limit)} shared memory segments are in use${holders.length === 0 ? "" : `, ${String(holders.length)} of them by managed stacks: ${named}${more}`}. Run better-supabase stack prune --stop-idle to free them.`,
+          message: `${String(memory.segments.length)} of ${String(memory.limit)} shared memory segments are in use${holders.length === 0 ? "" : `, ${String(holders.length)} of them by managed stacks: ${named}${more}`}. Run better-supabase dev stack prune --stop-idle to free them.`,
         },
       ];
     },

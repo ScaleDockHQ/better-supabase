@@ -51,9 +51,9 @@ const DEPLOY_ID = /^[\w-]{1,64}$/u;
 
 /**
  * The SQL of one migration for the rendered files: every schema file, then
- * every data file, each in render order, which is the order `sql sync` and `sql
- * data` apply them. pgTAP tests stay out. Throws a `TypeError` when `id` holds
- * anything but letters, digits, `_` and `-`.
+ * every data file, each in render order, which is the order `upgrade` and `add
+ * --adopt` apply them. pgTAP tests stay out. Throws a `TypeError` when `id`
+ * holds anything but letters, digits, `_` and `-`.
  */
 export function deployQuery(
   files: readonly PresetMigrationFile[],

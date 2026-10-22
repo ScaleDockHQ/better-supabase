@@ -66,12 +66,12 @@ export type GenTask = (typeof GEN_TASKS)[number];
 export interface GenConfig {
   /**
    * The steps `better-supabase gen` runs, in this order: `types` (the generated
-   * modules and `generators`), `sql` (`sql sync`), `spec` (`spec emit`),
-   * `seed`, `scaffold` (`scaffold api`, its generated file only) and `env`.
-   * Without a list, `types` runs, plus `sql` when `blocks` or
-   * `realtime.policies` is set, `spec` and `seed` when their entry file exists,
-   * and `scaffold` when `scaffold.api` is set. `env` runs only when listed,
-   * because it needs the local stack. A listed step always runs.
+   * modules and `generators`), `sql` (`upgrade`), `spec` (`spec emit`), `seed`,
+   * `scaffold` (`scaffold api`, its generated file only) and `env`. Without a
+   * list, `types` runs, plus `sql` when `blocks` or `realtime.policies` is set,
+   * `spec` and `seed` when their entry file exists, and `scaffold` when
+   * `scaffold.api` is set. `env` runs only when listed, because it needs the
+   * local stack. A listed step always runs.
    */
   readonly tasks?: readonly GenTask[];
   /** Milliseconds between checks in `gen --watch` and `spec emit --watch`. */
@@ -82,7 +82,7 @@ export interface GenConfig {
 export type IntegrationName = (typeof INTEGRATION_NAMES)[number];
 
 export interface EnvFileConfig {
-  /** Env file `better-supabase env` writes. Defaults to `.env.local`. */
+  /** Env file `better-supabase dev env` writes. Defaults to `.env.local`. */
   readonly output?: string;
   /**
    * Prefix for the browser variables, such as `NEXT_PUBLIC_`; `'none'` for no
@@ -123,7 +123,7 @@ export interface SkillsConfig {
 
 export interface KeysConfig {
   /**
-   * Signing key file `better-supabase keys` writes. Defaults to
+   * Signing key file `better-supabase dev keys` writes. Defaults to
    * `supabase/signing_keys.json`.
    */
   readonly output?: string;
@@ -168,7 +168,7 @@ export interface MigrationSafetyConfig {
    * The newest migration that is already applied everywhere, by file name
    * (`20260101000000_init.sql`) or version (`20260101000000`). Offline, doctor
    * checks only the migrations after it; with `--db-url` it checks the ones the
-   * database hasn't applied. `init` and `adopt` set it to the latest
+   * database hasn't applied. `init` and `add --adopt` set it to the latest
    * migration.
    */
   readonly since?: string;

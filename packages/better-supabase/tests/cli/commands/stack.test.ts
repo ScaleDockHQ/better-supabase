@@ -253,12 +253,15 @@ describe("stack commands through the CLI", () => {
   it("lists the stacks and destroys the one whose worktree is gone", async () => {
     const env = { SUPABASE_BIN: await fakeSupabase(), BSB_AGENT: "no" };
 
-    const ls = await run(["stack", "ls", "--json", "--cwd", dir], { env, io });
+    const ls = await run(["dev", "stack", "ls", "--json", "--cwd", dir], {
+      env,
+      io,
+    });
 
     expect(ls.code).toBe(0);
     expect(ls.stdout).toContain('"worktreeExists": false');
 
-    const prune = await run(["stack", "prune", "--json", "--cwd", dir], {
+    const prune = await run(["dev", "stack", "prune", "--json", "--cwd", dir], {
       env,
       io,
     });

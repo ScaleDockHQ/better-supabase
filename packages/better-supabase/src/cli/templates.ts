@@ -219,7 +219,7 @@ export function baseFiles(
 export default defineConfig({${
       preset === undefined
         ? ""
-        : `\n  // Expands into blocks and conventions; \`better-supabase preset info\` shows what it holds.\n  preset: '${preset}',`
+        : `\n  // Expands into blocks and conventions; \`better-supabase config --preset\` shows what it holds.\n  preset: '${preset}',`
     }
   gen: { casing: '${casing}', output: '${context.generated}' },${
     grouped["database"] === undefined

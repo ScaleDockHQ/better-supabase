@@ -1,4 +1,4 @@
-/** The `@bsb-block` line: module, version and mode, read by `sql upgrade`. */
+/** The `@bsb-block` line: module, version and mode, read by `upgrade`. */
 const MODULE_MARKER: RegExp =
   /^-- @(?:bsb-block|bs-module) ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
 

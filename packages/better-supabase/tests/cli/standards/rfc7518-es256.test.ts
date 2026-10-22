@@ -39,11 +39,11 @@ const dir = await mkdtemp(join(tmpdir(), "bsb-es256-"));
 afterAll(() => rm(dir, { recursive: true, force: true }));
 
 describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
-  it("better-supabase keys writes a P-256 private JWK for ES256 with a kid", async () => {
+  it("better-supabase dev keys writes a P-256 private JWK for ES256 with a kid", async () => {
     await mkdir(join(dir, "supabase"), { recursive: true });
     await writeFile(join(dir, "supabase/config.toml"), "[auth]\n");
     await writeFile(join(dir, "package.json"), "{}");
-    expect((await run(["keys", "--cwd", dir])).code).toBe(0);
+    expect((await run(["dev", "keys", "--cwd", dir])).code).toBe(0);
 
     const [key] = JSON.parse(
       await readFile(join(dir, "supabase/signing_keys.json"), "utf-8"),

@@ -18,7 +18,7 @@ export const snapshotPath: URL = new URL(
   import.meta.url,
 );
 
-// SAFETY: supabase/snapshot.json is written by `better-supabase introspect`.
+// SAFETY: supabase/snapshot.json is written by `better-supabase gen --save-snapshot`.
 export const snapshotFixture = JSON.parse(
   readFileSync(snapshotPath, "utf-8"),
 ) as Snapshot;
@@ -27,7 +27,7 @@ export const snapshotFixture = JSON.parse(
  * A snapshot with the SQL module tables in `better_supabase` (memberships,
  * invitations), for doctor rules the fixture database has no tables for.
  */
-// SAFETY: module-snapshot.json is written by `better-supabase introspect`.
+// SAFETY: module-snapshot.json is written by `better-supabase gen --save-snapshot`.
 export const moduleSnapshotFixture = JSON.parse(
   readFileSync(new URL("module-snapshot.json", import.meta.url), "utf-8"),
 ) as Snapshot;

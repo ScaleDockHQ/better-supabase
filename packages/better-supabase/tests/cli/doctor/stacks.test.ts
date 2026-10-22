@@ -59,7 +59,7 @@ describe("BS700", () => {
       {
         target: "kern.sysv.shmmni",
         message:
-          "26 of 32 shared memory segments are in use, 1 of them by managed stacks: aed6a8a0a5c3 (feat/rebuild in /code/cloud). Run better-supabase stack prune --stop-idle to free them.",
+          "26 of 32 shared memory segments are in use, 1 of them by managed stacks: aed6a8a0a5c3 (feat/rebuild in /code/cloud). Run better-supabase dev stack prune --stop-idle to free them.",
       },
     ]);
   });
@@ -90,7 +90,7 @@ describe("BS700", () => {
       {
         target: "kern.sysv.shmmni",
         message:
-          "30 of 32 shared memory segments are in use. Run better-supabase stack prune --stop-idle to free them.",
+          "30 of 32 shared memory segments are in use. Run better-supabase dev stack prune --stop-idle to free them.",
       },
     ]);
   });

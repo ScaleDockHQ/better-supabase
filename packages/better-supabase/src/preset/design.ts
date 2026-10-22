@@ -1003,5 +1003,5 @@ export function designApplyCommand(
 ): string {
   return designCode === ""
     ? presetApplyCommand(resolved)
-    : `npx better-supabase apply --preset "${createUrl(resolved, designCode)}"`;
+    : `npx better-supabase add --preset "${createUrl(resolved, designCode)}"`;
 }

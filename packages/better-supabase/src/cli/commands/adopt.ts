@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { AnyCommand, CliOptions } from "../core/command.ts";
+import type { CliOptions } from "../core/command.ts";
 import type { FilePlan } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
@@ -11,11 +11,10 @@ import type { Paint } from "../style.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
 import { blockEntrySource } from "../../config/index.ts";
-import { defineCliCommand, list } from "../core/command.ts";
+import { list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { applyPlan, planResult } from "../core/files.ts";
 import { display } from "../core/io.ts";
-import { commandMeta } from "../core/manifest.ts";
 import { latestMigrationVersion } from "../doctor/migration-safety.ts";
 import { toCatalog } from "../introspect/index.ts";
 import {
@@ -30,11 +29,9 @@ import {
   setPathInJson,
 } from "../sql/config-edit.ts";
 import { plain } from "../style.ts";
-import { blockNames } from "./blocks.ts";
 import { loadSnapshot } from "./snapshot.ts";
-import { SOURCE_ARGS, sourceArgs } from "./source-args.ts";
 
-const ADOPT_ARGS = {
+export const ADOPT_ARGS = {
   block: {
     type: "positional",
     required: false,
@@ -58,7 +55,7 @@ const ADOPT_ARGS = {
   },
 } as const;
 
-type AdoptOptions = CliOptions<typeof ADOPT_ARGS>;
+export type AdoptOptions = CliOptions<typeof ADOPT_ARGS>;
 
 /** What `runAdopt` reads from outside. */
 export interface AdoptDeps {
@@ -141,7 +138,7 @@ export async function runAdopt(
   if (block === undefined) {
     throw new CliError(
       "usage",
-      "Name the block to adopt, e.g. `better-supabase adopt teams --tables public.teams`.",
+      "Name the block to adopt, e.g. `better-supabase add --adopt teams --tables public.teams`.",
     );
   }
 
@@ -209,7 +206,7 @@ export async function runAdopt(
 
   const plan: FilePlan = {
     root: config.root,
-    regenerate: "better-supabase adopt",
+    regenerate: "better-supabase add --adopt",
     files: [{ path: file, contents: edit.text, policy: "edit" }],
   };
 
@@ -240,7 +237,7 @@ export async function runAdopt(
 
   lines.push(
     "",
-    `Updated ${shown}. Run \`better-supabase sql sync\` to write the block's module over these tables.`,
+    `Updated ${shown}. Run \`better-supabase upgrade\` to write the block's module over these tables.`,
   );
 
   return {
@@ -249,22 +246,3 @@ export async function runAdopt(
     data: { ...data, written: true },
   };
 }
-
-export const adoptCommand: AnyCommand = defineCliCommand({
-  meta: commandMeta("adopt"),
-  args: { ...ADOPT_ARGS, ...SOURCE_ARGS },
-  lists: ["tables"],
-  completions: { block: blockNames },
-  run: async (args, { config, configFile, env, io, log, paint, signal }) => {
-    const tables = snapshotTables(config, env, {
-      ...(await sourceArgs(args, io)),
-      ...(signal ? { signal } : {}),
-    });
-
-    return runAdopt(config, args, {
-      paint,
-      tables: () => log.progress("Reading the schema", tables),
-      ...(configFile === undefined ? {} : { configFile }),
-    });
-  },
-});

@@ -88,7 +88,7 @@ describe("adopt", () => {
     );
 
     expect(written.code).toBe(0);
-    expect(written.output).toContain("Run `better-supabase sql sync`");
+    expect(written.output).toContain("Run `better-supabase upgrade`");
     expect(written.data).toMatchObject({ block: "teams", written: true });
     expect(await readConfig()).toEqual({
       blocks: {
@@ -176,7 +176,8 @@ describe("adopt", () => {
     await writeFile(configPath(), json({}));
 
     const result = await run([
-      "adopt",
+      "add",
+      "--adopt",
       "teams",
       "--snapshot",
       "missing.json",

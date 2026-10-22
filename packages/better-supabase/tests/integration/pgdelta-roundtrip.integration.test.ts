@@ -150,7 +150,7 @@ declarative_schema_path = "./schemas"
 
     it("plans every module and ships the rows in the data migration", async () => {
       const synced = (await sql(["sync"])).output;
-      expect(synced).toContain("run `better-supabase sql data`");
+      expect(synced).toContain("run `better-supabase add --adopt`");
       expect(synced).toMatch(
         /^Created supabase\/migrations\/\d{14}_better_supabase_extensions\.sql$/m,
       );
