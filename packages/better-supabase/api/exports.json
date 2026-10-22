@@ -6257,20 +6257,24 @@
       "calendarEventInputSchema",
       "calendarEventOf",
       "calendarEvents",
+      "commonFreeTime",
       "createCalendar",
       "createCalendarController",
       "expandOccurrences",
+      "freeBusyOf",
       "fromEventCalendarUpdate",
       "parseIcs",
       "seriesOf",
       "splitRule",
       "toEventCalendarEvents",
       "toEventCalendarResources",
-      "toIcs"
+      "toIcs",
+      "workingHoursOf"
     ],
     "types": [
       "AttendeeResponse",
       "AttendeeRole",
+      "BusyRange",
       "Calendar",
       "CalendarActions",
       "CalendarAttendee",
@@ -6278,6 +6282,7 @@
       "CalendarControllerOptions",
       "CalendarEvent",
       "CalendarEventInput",
+      "CalendarEventKind",
       "CalendarEvents",
       "CalendarEventStatus",
       "CalendarImport",
@@ -6285,9 +6290,12 @@
       "CalendarOccurrence",
       "CalendarOptions",
       "CalendarSnapshot",
+      "CalendarTransparency",
+      "CommonFreeTimeOptions",
       "EventCalendarEvent",
       "EventCalendarOptions",
       "EventCalendarResource",
+      "FreeBusy",
       "IcsEvent",
       "IcsSource",
       "OccurrenceMove",
@@ -6296,7 +6304,10 @@
       "ParsedIcs",
       "SavedCalendarEvent",
       "SplitRules",
-      "ToIcsOptions"
+      "ToIcsOptions",
+      "WeeklyHours",
+      "WorkingHours",
+      "WorkingHoursInput"
     ]
   },
   "./blocks/calendar/react": {
