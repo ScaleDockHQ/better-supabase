@@ -69,6 +69,37 @@ Dependencies between items are [relations](/docs/blocks/relations): `link(design
 
 `saveProject(organizationId, { key, name, status, startOn, targetOn })` keeps a project (`PAY`) with the share of its items that are completed. `saveIteration(organizationId, { name, teamId, startsOn, endsOn })` keeps a cycle or a sprint. Turn either table off with `tables: { projects: null }` or `tables: { iterations: null }`.
 
+## Checklists, files, repeat rules and watchers
+
+```ts
+const draft = await items
+  .saveChecklistItem(task.id, { title: "Draft the copy" })
+  .orThrow();
+await items.saveChecklistItem(task.id, { done: true }, draft.id).orThrow();
+const steps = await items.checklist(task.id).orThrow();
+```
+
+`saveChecklistItem(workItemId, input, checklistItemId?)` adds a step at the end, or edits the one you name: its `title`, `done` (which stamps `doneAt` and `doneBy`) or `rank`. `removeChecklistItem(id)` deletes one, and `checklist(workItemId)` lists them in rank order. Every item a read returns carries `checklist: { total, done }`, and `get(id)` reads one item. A checklist change records `work_item.updated` with `fields: ["checklist"]`.
+
+With the [attachments](/docs/blocks/attachments) block installed, `create` takes `attachmentIds` and `update` takes an `attachments` change with a list of ids. Upload the files first without a subject, then link them: the block links only files the caller uploaded that have no subject yet (`WORK_ITEM_ATTACHMENTS_INVALID`). A bucket whose path template uses `{subject_type}` or `{subject_id}` can't move a file after upload, so link through `attachments.upload` with the item as the subject instead (`WORK_ITEM_ATTACHMENTS_PATH`).
+
+With the [reminders](/docs/blocks/reminders) block installed, `setRecurrence(id, { rrule, tzid })` gives an item a repeat rule, such as `FREQ=MONTHLY;BYMONTHDAY=1`, and `setRecurrence(id, null)` removes it. Items carry the rule as `recurrence`. A repeating item makes its next copy when it is completed, like Asana and Todoist: relay the block's events to `workItemRecurrenceSink`, built on a service transport.
+
+```ts
+import {
+  createWorkItems,
+  workItemRecurrenceSink,
+} from "better-supabase/blocks/work-items";
+
+const serviceItems = createWorkItems({ transport: serviceTransport });
+
+outbox.relay("work-items", workItemRecurrenceSink(serviceItems));
+```
+
+The sink calls `repeat(id, dueAt)` with the rule's first occurrence after the completed item's due date. `repeat` copies the title, body, parent, team, project, priority, estimate, assignees, extra columns and an unchecked checklist, shifts the start and end dates by the same amount, and moves the rule to the copy, so a `COUNT` keeps counting. The copy's `recursFromId` names the item it repeats, and a second `repeat` of the same item returns the same copy, so a redelivered event changes nothing. After `entities: { work_item: "task" }`, pass `{ type: "task.closed" }`.
+
+With the [notifications](/docs/blocks/notifications) block installed, `watch(id, "all")` follows an item, `watch(id, "ignore")` mutes it, `watch(id, null)` goes back to the default, and `watchers(id)` lists who follows it. Assignees already watch their items.
+
 ## Extra columns
 
 `options.extraColumns` adds columns to `work_items`, such as CentraKit's `customer_id`. Every item a read returns carries them in `fields`.
@@ -102,6 +133,12 @@ The ReUI Kanban blocks commit a drag through `onValueCommit`: call `rank.move("w
 | `WORK_ITEM_LOCKED`                             | a locked item's dates don't change                  |
 | `WORK_ITEM_ASSIGNEES_LIMIT`                    | more assignees than `maxAssignees`                  |
 | `WORK_ITEM_PROJECT_*`, `WORK_ITEM_ITERATION_*` | a project or iteration is missing, taken or invalid |
+| `WORK_ITEM_CHECKLIST_ITEM_INVALID`             | a checklist step has no title or an invalid rank    |
+| `WORK_ITEM_CHECKLIST_ITEM_NOT_FOUND`           | no such step on this item                           |
+| `WORK_ITEM_ATTACHMENTS_INVALID`                | a file isn't the caller's or already has a subject  |
+| `WORK_ITEM_ATTACHMENTS_UNAVAILABLE`            | the attachments block isn't installed               |
+| `WORK_ITEM_ATTACHMENTS_PATH`                   | the bucket's paths name the subject                 |
+| `WORK_ITEM_RECURRENCE_INVALID`                 | the rule isn't an RRULE or the time zone is unknown |
 
 ## Your own columns
 

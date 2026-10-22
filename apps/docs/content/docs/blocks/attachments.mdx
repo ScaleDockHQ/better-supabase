@@ -199,8 +199,10 @@ exists, takes its size and type from Storage and writes
 `not_found` with the hint `ATTACHMENT_NOT_UPLOADED` until the object exists.
 
 `upload` takes `metadata`, a JSON object kept with the record in the
-`metadata` column (a caption, where the file came from, a page count), and
-every attachment returns it as `metadata` (`{}` without any).
+`metadata` column (a caption, where the file came from), and every
+attachment returns it as `metadata` (`{}` without any). It also takes
+`width` and `height` in pixels for an image and `pages` for a document, so a
+list can lay out previews and show a page count before any file loads.
 
 `download(id)` returns a signed URL (300 seconds by default, `downloadTtl`
 changes it; `{ as: "plan.pdf" }` sets the download name). Until the scan
@@ -248,6 +250,143 @@ const text = await extractText(await file.arrayBuffer());
 Pass the caller's Supabase client so the table and bucket policies apply;
 `createAttachments` never needs the service role. A service-role client works
 too, for jobs that act for no user.
+
+### Upload from the browser
+
+`useAttachmentUpload` from `better-supabase/blocks/attachments/react` runs
+the three steps for each file, side by side, and reports progress. It
+watches each file until the scan answers, so an upload ends as `done` or
+`blocked`. The same hook is in `/vue`, `/svelte` and `/solid`, and
+`createAttachmentUploadController` is the framework-free controller under
+them.
+
+```tsx title="app/projects/[id]/files.tsx"
+"use client";
+
+import { useAttachmentUpload } from "better-supabase/blocks/attachments/react";
+
+export function ProjectFiles({ projectId }: { projectId: string }) {
+  const { uploads, add, retry, dismiss } = useAttachmentUpload({
+    subject: { type: "project", id: projectId },
+  });
+
+  return (
+    <input
+      type="file"
+      multiple
+      onChange={(event) =>
+        add(
+          [...(event.target.files ?? [])].map((file) => ({
+            file,
+            name: file.name,
+          })),
+        )
+      }
+    />
+  );
+}
+```
+
+Each upload has a `status` (`uploading`, `confirming`, `scanning`, `done`,
+`blocked` for an infected file, or `error`), a `progress` from 0 to 1, the
+attachment `id` once created and the `error`. `retry(key)` starts a failed
+upload again, `dismiss(key)` stops one and drops it, `clear()` drops the
+uploads that ended, and `busy` says whether any is still running. Pass
+`start` and `confirm` server actions to create the record on the server,
+`onUploaded` to refresh the list, and `send` to replace the default
+`XMLHttpRequest` upload (in React Native, for example).
+
+In Vue, Svelte and Solid, `useAttachmentUpload` takes the controller's
+options, so pass `start` and `confirm` yourself, and `refresh` to wait for
+the scan. Vue returns `state` as a shallow ref with the actions on
+`actions`:
+
+```vue title="ProjectFiles.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { useAttachmentUpload } from "better-supabase/blocks/attachments/vue";
+import {
+  createAttachments,
+  rpcTransport,
+} from "better-supabase/blocks/attachments";
+
+const { projectId } = defineProps<{ projectId: string }>();
+const supabase = useSupabase();
+const attachments = createAttachments({
+  transport: rpcTransport(supabase),
+  storage: supabase.storage,
+});
+const status = (id: string) =>
+  attachments.get(id).map((file) => ({ status: file.status }));
+
+const { state, actions } = useAttachmentUpload({
+  start: (file) =>
+    attachments
+      .upload({ type: "project", id: projectId }, file)
+      .map((upload) => ({
+        id: upload.attachment.id,
+        signedUrl: upload.signedUrl,
+      })),
+  confirm: (id) =>
+    attachments.confirm(id).map((file) => ({ status: file.status })),
+  refresh: status,
+});
+</script>
+```
+
+Svelte imports the same hook from
+`better-supabase/blocks/attachments/svelte` and returns a readable store
+(`$uploads.uploads`, with the actions on `.actions`), and Solid imports it
+from `better-supabase/blocks/attachments/solid` and reads the snapshot with
+`state()`:
+
+```ts
+import { useAttachmentUpload } from "better-supabase/blocks/attachments/svelte";
+import { useAttachmentUpload as useSolidUpload } from "better-supabase/blocks/attachments/solid";
+```
+
+## Versions
+
+`replace(id, file)` starts a new version of a file and returns a signed
+upload URL, like `upload`: the current file becomes an earlier version, and
+the new one goes through the upload, `confirm` and the scan before it can be
+downloaded. Only the uploader (with `attachments.upload`) or someone with
+`attachments.manage` can replace a file. `versions(id)` lists the earlier
+versions newest first, `download(id, { version })` signs one of them, and
+`restore(id, version)` makes one current again, keeping the current file as
+an earlier version. `remove(id)` deletes every version's file.
+
+```ts
+const next = await attachments
+  .replace(attachmentId, {
+    name: "plan-v2.pdf",
+    mimeType: "application/pdf",
+    size: file.size,
+  })
+  .orThrow();
+// Upload to next.signedUrl, then confirm(attachmentId).
+const [previous] = await attachments.versions(attachmentId).orThrow();
+await attachments.restore(attachmentId, previous.version).orThrow();
+```
+
+## Image previews
+
+`attachments.images(variants)` signs resized URLs of image files, in the shape
+`useImage` from `better-supabase/react` takes. Name the sizes once, and pass
+an attachment or its id. The URLs stay behind the scan gate
+(`ATTACHMENT_NOT_SCANNED`), and a file that isn't `image/*` returns
+`ATTACHMENT_NOT_IMAGE`.
+
+```tsx
+const images = attachments.images({
+  thumb: { width: 160, height: 160, resize: "cover" },
+});
+
+const { src, srcSet, width, height } = useImage(images, attachment, "thumb");
+```
+
+The variants use Supabase image transformations, so the project needs them
+turned on (see [image transformations](/docs/platform/storage#image-transformations)).
 
 ## Scanning
 
@@ -325,6 +464,8 @@ the partition key and `attachments/<id>` as the subject:
 | --------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
 | `attachment.uploaded` | `confirm` saw the object                               | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `mimeType`, `size` |
 | `attachment.scanned`  | a scan result was recorded                             | `attachmentId`, `status`, `uploadedBy`                                       |
+| `attachment.replaced` | `replace` started a new version                        | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `version`          |
+| `attachment.restored` | `restore` made an earlier version current              | `attachmentId`, `subjectType`, `subjectId`, `version`                        |
 | `object.uploaded`     | an object landed in a `scanBuckets` bucket (no tenant) | `bucket`, `path`                                                             |
 
 ## Your own fields

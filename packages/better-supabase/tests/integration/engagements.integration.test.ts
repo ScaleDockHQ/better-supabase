@@ -4,6 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
+import { createAttachments } from "../../src/blocks/attachments/index.ts";
 import { createEngagements } from "../../src/blocks/engagements/index.ts";
 import { createParties } from "../../src/blocks/parties/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
@@ -152,6 +153,81 @@ describe.skipIf(!live)("engagements", () => {
       expect(hint(await engagements.update(call.id, { title: "mine" }))).toBe(
         "ENGAGEMENT_NOT_FOUND",
       );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("keeps files on an engagement task", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const rep = await s.user("rep");
+      const stranger = await s.user("stranger");
+      await s.install([...MODULES, "attachments"], {
+        subjects: withBlockSubjects({}, ["parties", "engagements"], {}),
+      });
+      const org = await s.organization(owner, { member: rep });
+      await s.organization(stranger);
+      const transport = sqlTransport(s.sql);
+      const parties = createParties({ transport });
+      const engagements = createEngagements({ transport });
+
+      const files = (tenant: string) =>
+        createAttachments({
+          transport,
+          tenant,
+          storage: {
+            from: () => ({
+              createSignedUploadUrl: (path) =>
+                Promise.resolve({
+                  data: {
+                    signedUrl: `https://storage.test/${path}`,
+                    token: "t",
+                  },
+                  error: null,
+                }),
+              createSignedUrl: (path) =>
+                Promise.resolve({
+                  data: { signedUrl: `https://storage.test/${path}` },
+                  error: null,
+                }),
+              download: () =>
+                Promise.resolve({ data: new Blob([]), error: null }),
+              remove: () => Promise.resolve({ data: [], error: null }),
+            }),
+          },
+        });
+
+      await s.asRole(rep);
+
+      const acme = await parties.saveCompany(org, { name: "Acme" }).orThrow();
+
+      const task = await engagements
+        .log(org, { type: "task", title: "Send the signed contract" }, [
+          { type: "company", id: acme.id },
+        ])
+        .orThrow();
+
+      const subject = { type: "engagement", id: task.id };
+
+      const file = {
+        name: "contract.pdf",
+        mimeType: "application/pdf",
+        size: 10,
+      };
+
+      const { attachment } = await files(org).upload(subject, file).orThrow();
+
+      expect(attachment.subject).toEqual(subject);
+      expect(
+        (await files(org).list(subject).orThrow()).map((item) => item.id),
+      ).toEqual([attachment.id]);
+
+      await s.asRole(stranger);
+
+      expect((await files(org).upload(subject, file)).ok).toBe(false);
     } finally {
       await s.close();
     }
