@@ -358,15 +358,15 @@ grant select on ${n.table("recipients")} to authenticated;
 grant update (${c("recipients", "readAt")}, ${c("recipients", "dismissedAt")}) on ${n.table("recipients")} to authenticated;
 grant all on ${n.table("recipients")} to service_role;${policy(
     "recipients",
-    "bs_notification_recipients_read",
+    "bsb_notification_recipients_read",
     `for select to authenticated using (${own(n, "recipients", "user")})`,
   )}${policy(
     "recipients",
-    "bs_notification_recipients_update",
+    "bsb_notification_recipients_update",
     `for update to authenticated using (${own(n, "recipients", "user")}) with check (${own(n, "recipients", "user")})`,
   )}${policy(
     "events",
-    "bs_notification_events_read",
+    "bsb_notification_events_read",
     `for select to authenticated using (
   exists (
     select 1 from ${n.table("recipients")} r
@@ -403,7 +403,7 @@ ${revokeTable(n.table("deliveries"))}
 grant select on ${n.table("deliveries")} to authenticated;
 grant all on ${n.table("deliveries")} to service_role;${policy(
       "deliveries",
-      "bs_notification_deliveries_read",
+      "bsb_notification_deliveries_read",
       `for select to authenticated using (
   exists (
     select 1 from ${n.table("recipients")} r
@@ -473,8 +473,8 @@ grant select, insert, update, delete on ${n.table(table)} to authenticated;
 grant all on ${n.table(table)} to service_role;
 ${ownRowPolicies({
   table: n.table(table),
-  legacy: `bs_notification_${table}_own`,
-  name: (command) => `bs_notification_${table}_own_${command}`,
+  legacy: `bsb_notification_${table}_own`,
+  name: (command) => `bsb_notification_${table}_own_${command}`,
   using: mine,
   check: `${mine}${
     n.has(table, "tenant") && ctx.installed("access")

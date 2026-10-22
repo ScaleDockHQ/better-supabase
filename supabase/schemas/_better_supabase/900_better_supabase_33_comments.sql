@@ -465,13 +465,13 @@ end;
 $$;
 revoke execute on function "better_supabase"."comments_subject_deleted"() from public, anon, authenticated;
 
-drop trigger if exists "bs_comments_product_cascade" on "better_supabase"."products";
-create trigger "bs_comments_product_cascade"
+drop trigger if exists "bsb_comments_product_cascade" on "better_supabase"."products";
+create trigger "bsb_comments_product_cascade"
   after delete on "better_supabase"."products"
   for each row execute function "better_supabase"."comments_subject_deleted"('product', 'id', 'tenant_id');
 
-drop trigger if exists "bs_comments_product_variant_cascade" on "better_supabase"."product_variants";
-create trigger "bs_comments_product_variant_cascade"
+drop trigger if exists "bsb_comments_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bsb_comments_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."comments_subject_deleted"('product_variant', 'id', 'tenant_id');
 

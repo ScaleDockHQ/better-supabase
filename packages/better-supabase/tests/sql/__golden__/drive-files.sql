@@ -76,8 +76,8 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
-alter table "better_supabase"."drive_nodes" drop constraint if exists bs_drive_nodes_attachment;
-alter table "better_supabase"."drive_nodes" add constraint bs_drive_nodes_attachment foreign key ("attachment_id") references "better_supabase"."attachments" ("id") on delete set null;
+alter table "better_supabase"."drive_nodes" drop constraint if exists bsb_drive_nodes_attachment;
+alter table "better_supabase"."drive_nodes" add constraint bsb_drive_nodes_attachment foreign key ("attachment_id") references "better_supabase"."attachments" ("id") on delete set null;
 
 create or replace function "better_supabase"."drive_node_json"(node "better_supabase"."drive_nodes")
 returns jsonb
@@ -122,8 +122,8 @@ begin
   return old;
 end;
 $$;
-drop trigger if exists "bs_drive_node_purging" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_purging"
+drop trigger if exists "bsb_drive_node_purging" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_purging"
   before delete on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_purging"();
 
@@ -142,8 +142,8 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bs_drive_node_purged" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_purged"
+drop trigger if exists "bsb_drive_node_purged" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_purged"
   after delete on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_purged"();
 
@@ -299,26 +299,26 @@ grant execute on function "better_supabase"."drive_attachment_allowed"(text, tex
 
 -- Restrictive policies: the attachments policies still apply, and a node's
 -- files also need its grants.
-drop policy if exists "bs_drive_attachments_read" on "better_supabase"."attachments";
-create policy "bs_drive_attachments_read" on "better_supabase"."attachments" as restrictive for select to authenticated
+drop policy if exists "bsb_drive_attachments_read" on "better_supabase"."attachments";
+create policy "bsb_drive_attachments_read" on "better_supabase"."attachments" as restrictive for select to authenticated
   using ("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", false));
-drop policy if exists "bs_drive_attachments_insert" on "better_supabase"."attachments";
-create policy "bs_drive_attachments_insert" on "better_supabase"."attachments" as restrictive for insert to authenticated
+drop policy if exists "bsb_drive_attachments_insert" on "better_supabase"."attachments";
+create policy "bsb_drive_attachments_insert" on "better_supabase"."attachments" as restrictive for insert to authenticated
   with check (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
-drop policy if exists "bs_drive_attachments_delete" on "better_supabase"."attachments";
-create policy "bs_drive_attachments_delete" on "better_supabase"."attachments" as restrictive for delete to authenticated
+drop policy if exists "bsb_drive_attachments_delete" on "better_supabase"."attachments";
+create policy "bsb_drive_attachments_delete" on "better_supabase"."attachments" as restrictive for delete to authenticated
   using (("better_supabase"."drive_attachment_allowed"("subject_type", "subject_id", true)) and (select better_supabase.actor_may_write()));
-drop policy if exists "bs_drive_objects_read" on storage.objects;
-create policy "bs_drive_objects_read" on storage.objects as restrictive for select to authenticated
+drop policy if exists "bsb_drive_objects_read" on storage.objects;
+create policy "bsb_drive_objects_read" on storage.objects as restrictive for select to authenticated
   using ("better_supabase"."drive_object_allowed"(bucket_id, name, 'select'));
-drop policy if exists "bs_drive_objects_insert" on storage.objects;
-create policy "bs_drive_objects_insert" on storage.objects as restrictive for insert to authenticated
+drop policy if exists "bsb_drive_objects_insert" on storage.objects;
+create policy "bsb_drive_objects_insert" on storage.objects as restrictive for insert to authenticated
   with check (("better_supabase"."drive_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
-drop policy if exists "bs_drive_objects_update" on storage.objects;
-create policy "bs_drive_objects_update" on storage.objects as restrictive for update to authenticated
+drop policy if exists "bsb_drive_objects_update" on storage.objects;
+create policy "bsb_drive_objects_update" on storage.objects as restrictive for update to authenticated
   using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'update')) and (select better_supabase.actor_may_write()));
-drop policy if exists "bs_drive_objects_delete" on storage.objects;
-create policy "bs_drive_objects_delete" on storage.objects as restrictive for delete to authenticated
+drop policy if exists "bsb_drive_objects_delete" on storage.objects;
+create policy "bsb_drive_objects_delete" on storage.objects as restrictive for delete to authenticated
   using (("better_supabase"."drive_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
 
 -- Attachments of nodes that are not the current content and not a saved

@@ -1126,7 +1126,7 @@ export function createModuleContext(
       config.permissions[action] ?? entityNaming.rename(fallback),
     permission: (action, fallback) =>
       sqlString(config.permissions[action] ?? entityNaming.rename(fallback)),
-    trigger: (name) => sqlIdent(`bs_${naming.rename(name)}`),
+    trigger: (name) => sqlIdent(`bsb_${naming.rename(name)}`),
     installed(name) {
       declares(name);
 

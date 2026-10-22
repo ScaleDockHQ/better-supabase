@@ -193,7 +193,7 @@ const publisher = { publisher: "p1", permissions: ["invoice.approve"] };
 const asPublisher = {
   actor: { id: "p1", kind: "user" as const },
   tenant: "t1",
-  claims: { bs_permission_cap: ["invoice.approve"] },
+  claims: { bsb_permission_cap: ["invoice.approve"] },
 };
 
 describe("workflowStarter", () => {

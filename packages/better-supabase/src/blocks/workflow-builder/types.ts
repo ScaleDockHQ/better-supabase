@@ -523,7 +523,7 @@ export interface WorkflowBuilder<F extends object = Record<never, never>> {
      * The claims a step of `version` runs with (through `service`): the
      * publisher's (a user, or the tenant's default service principal), narrowed
      * to the stored permissions, from `authorization.automation.runAs` or
-     * capped by `bs_permission_cap` without it. A publisher who is gone or no
+     * capped by `bsb_permission_cap` without it. A publisher who is gone or no
      * longer holds a stored permission, a `runAs` that returns `null`, and an
      * organization-owned version with no service principal and no `runAs` are a
      * `forbidden` error (`WORKFLOW_PUBLISHER_REVOKED`); there is no fallback to

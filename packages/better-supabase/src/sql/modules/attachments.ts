@@ -485,10 +485,10 @@ end;`;
 
   const mimeCheck =
     mimeRules.length === 0
-      ? `alter table ${t} drop constraint if exists bs_attachments_mime_type;`
+      ? `alter table ${t} drop constraint if exists bsb_attachments_mime_type;`
       : ensureCheck(
           t,
-          "bs_attachments_mime_type",
+          "bsb_attachments_mime_type",
           mimeRules.map((rule) => `(${rule})`).join(" and "),
         );
 
@@ -558,7 +558,7 @@ end;`;
     mayVersion: `(v_row.${c("uploadedBy")} = auth.uid() and ${inTenant("v_row", "upload")}) or ${canManage("v_row")} or (${SERVICE_CALLER})`,
   });
 
-  const policy = (name: string): string => sqlIdent(`bs_attachments_${name}`);
+  const policy = (name: string): string => sqlIdent(`bsb_attachments_${name}`);
 
   return `${schemaPreamble(ctx)}
 -- Files linked to records. Each object lives at options.path (default
@@ -618,12 +618,12 @@ ${
   tenantless.length === 0
     ? ""
     : `alter table ${t} alter column ${c("tenant")} drop not null;
-${ensureCheck(t, "bs_attachments_tenant", `${c("tenant")} is not null or coalesce(${c("subjectType")} in (${tenantless.map(sqlString).join(", ")}), false)`)}
+${ensureCheck(t, "bsb_attachments_tenant", `${c("tenant")} is not null or coalesce(${c("subjectType")} in (${tenantless.map(sqlString).join(", ")}), false)`)}
 `
 }comment on column ${t}.${c("path")} is ${sqlString(pathComment)};
 alter table ${t} alter column ${c("bucket")} set default ${bucketLiteral};
-${ensureCheck(t, "bs_attachments_bucket", `${c("bucket")} in (${bucketList})`, { notValid: true })}
-${ensureCheck(t, "bs_attachments_size", `${c("size")} between 0 and ${String(maxSize)}`)}
+${ensureCheck(t, "bsb_attachments_bucket", `${c("bucket")} in (${bucketList})`, { notValid: true })}
+${ensureCheck(t, "bsb_attachments_size", `${c("size")} between 0 and ${String(maxSize)}`)}
 ${mimeCheck}
 create unique index if not exists ${ctx.naming.rename("attachments_object_idx")} on ${t} (${c("bucket")}, ${c("path")});
 create index if not exists ${ctx.naming.rename("attachments_subject_idx")} on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
@@ -965,7 +965,7 @@ end;
 $$;
 ${
   scanBuckets.length === 0
-    ? `drop trigger if exists bs_object_scan_pending on storage.objects;`
+    ? `drop trigger if exists bsb_object_scan_pending on storage.objects;`
     : `
 create or replace function ${fn("object_scan_pending")}()
 returns trigger
@@ -982,8 +982,8 @@ begin
 end;
 $$;
 revoke execute on function ${fn("object_scan_pending")}() from public, anon, authenticated;
-drop trigger if exists bs_object_scan_pending on storage.objects;
-create trigger bs_object_scan_pending
+drop trigger if exists bsb_object_scan_pending on storage.objects;
+create trigger bsb_object_scan_pending
   after insert or update of version on storage.objects
   for each row when (new.bucket_id in (${scanBuckets.map(sqlString).join(", ")}))
   execute function ${fn("object_scan_pending")}();`

@@ -22,7 +22,7 @@ export function suppressionsTable(ctx: ModuleContext, n: NotifyNames): string {
 
   const t = n.table("suppressions");
   const c = (logical: string) => n.col("suppressions", logical);
-  const policy = sqlIdent("bs_notification_suppressions_read");
+  const policy = sqlIdent("bsb_notification_suppressions_read");
 
   return `
 create table if not exists ${t} (

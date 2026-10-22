@@ -82,11 +82,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bs_drive_grants_role'
+    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
   ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "better_supabase"."drive_grants" drop constraint if exists "bs_drive_grants_role";
-    alter table "better_supabase"."drive_grants" add constraint "bs_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bs_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
+    alter table "better_supabase"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
+    alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
+    comment on constraint "bsb_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
   end if;
 end;
 $$;
@@ -219,8 +219,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_drive_node_path" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_path"
+drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
@@ -235,8 +235,8 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bs_drive_node_moved" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_moved"
+drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
   execute function "better_supabase"."drive_node_moved"();
@@ -953,11 +953,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bs_drive_grants_role'
+    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
   ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "better_supabase"."drive_grants" drop constraint if exists "bs_drive_grants_role";
-    alter table "better_supabase"."drive_grants" add constraint "bs_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bs_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
+    alter table "better_supabase"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
+    alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
+    comment on constraint "bsb_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
   end if;
 end;
 $$;
@@ -1090,8 +1090,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_drive_node_path" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_path"
+drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
@@ -1106,8 +1106,8 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bs_drive_node_moved" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_moved"
+drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
   execute function "better_supabase"."drive_node_moved"();
@@ -1876,11 +1876,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"app_private"."drive_grants"'::regclass and c.conname = 'bs_drive_grants_role'
+    where c.conrelid = '"app_private"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
   ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "app_private"."drive_grants" drop constraint if exists "bs_drive_grants_role";
-    alter table "app_private"."drive_grants" add constraint "bs_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bs_drive_grants_role" on "app_private"."drive_grants" is 'better-supabase check d20245e0';
+    alter table "app_private"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
+    alter table "app_private"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
+    comment on constraint "bsb_drive_grants_role" on "app_private"."drive_grants" is 'better-supabase check d20245e0';
   end if;
 end;
 $$;
@@ -2013,8 +2013,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_drive_node_path" on "app_private"."drive_nodes";
-create trigger "bs_drive_node_path"
+drop trigger if exists "bsb_drive_node_path" on "app_private"."drive_nodes";
+create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "app_private"."drive_nodes"
   for each row execute function "app_private"."drive_node_path"();
 
@@ -2029,8 +2029,8 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bs_drive_node_moved" on "app_private"."drive_nodes";
-create trigger "bs_drive_node_moved"
+drop trigger if exists "bsb_drive_node_moved" on "app_private"."drive_nodes";
+create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "app_private"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
   execute function "app_private"."drive_node_moved"();
@@ -2747,11 +2747,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bs_drive_grants_role'
+    where c.conrelid = '"better_supabase"."drive_grants"'::regclass and c.conname = 'bsb_drive_grants_role'
   ), 'pg_constraint'), '') <> 'better-supabase check d20245e0' then
-    alter table "better_supabase"."drive_grants" drop constraint if exists "bs_drive_grants_role";
-    alter table "better_supabase"."drive_grants" add constraint "bs_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
-    comment on constraint "bs_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
+    alter table "better_supabase"."drive_grants" drop constraint if exists "bsb_drive_grants_role";
+    alter table "better_supabase"."drive_grants" add constraint "bsb_drive_grants_role" check ("role" = any (array['viewer', 'editor', 'owner']::text[]));
+    comment on constraint "bsb_drive_grants_role" on "better_supabase"."drive_grants" is 'better-supabase check d20245e0';
   end if;
 end;
 $$;
@@ -2884,8 +2884,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_drive_node_path" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_path"
+drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
@@ -2900,8 +2900,8 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bs_drive_node_moved" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_moved"
+drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
   execute function "better_supabase"."drive_node_moved"();
@@ -3838,8 +3838,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_drive_node_path" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_path"
+drop trigger if exists "bsb_drive_node_path" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_path"
   before insert or update of "parent_id" on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."drive_node_path"();
 
@@ -3854,8 +3854,8 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bs_drive_node_moved" on "better_supabase"."drive_nodes";
-create trigger "bs_drive_node_moved"
+drop trigger if exists "bsb_drive_node_moved" on "better_supabase"."drive_nodes";
+create trigger "bsb_drive_node_moved"
   after update of "parent_id" on "better_supabase"."drive_nodes"
   for each row when (old."parent_id" is distinct from new."parent_id")
   execute function "better_supabase"."drive_node_moved"();

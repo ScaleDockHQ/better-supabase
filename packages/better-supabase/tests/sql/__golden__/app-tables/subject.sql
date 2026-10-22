@@ -31,12 +31,12 @@ drop policy if exists "projects_delete" on "public"."projects";
 create policy "projects_delete" on "public"."projects" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "projects_organization_id_idx" on "public"."projects" ("organization_id");
 create index if not exists "projects_stage_rank_idx" on "public"."projects" ("stage", "rank");
-drop trigger if exists "bs_updated_at" on "public"."projects";
-create trigger "bs_updated_at" before update on "public"."projects"
+drop trigger if exists "bsb_updated_at" on "public"."projects";
+create trigger "bsb_updated_at" before update on "public"."projects"
   for each row execute function better_supabase.set_updated_at();
 
-drop trigger if exists "bs_search_project_index" on "public"."projects";
-create trigger "bs_search_project_index"
+drop trigger if exists "bsb_search_project_index" on "public"."projects";
+create trigger "bsb_search_project_index"
   after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
   for each row execute function "better_supabase"."search_index_row"('project', 'id');
 

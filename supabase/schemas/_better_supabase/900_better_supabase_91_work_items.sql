@@ -170,7 +170,7 @@ drop policy if exists work_item_checklist_items_read on "better_supabase"."work_
 create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
 
-create or replace function better_supabase.bs_work_item_guard()
+create or replace function better_supabase.bsb_work_item_guard()
 returns trigger
 language plpgsql
 security definer
@@ -221,10 +221,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_work_item_guard() from public, anon, authenticated;
-drop trigger if exists bs_work_item_guard on "better_supabase"."work_items";
-create trigger bs_work_item_guard before insert or update on "better_supabase"."work_items"
-for each row execute function better_supabase.bs_work_item_guard();
+revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
+drop trigger if exists bsb_work_item_guard on "better_supabase"."work_items";
+create trigger bsb_work_item_guard before insert or update on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,

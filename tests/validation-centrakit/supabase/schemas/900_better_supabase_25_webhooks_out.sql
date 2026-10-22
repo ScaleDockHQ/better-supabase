@@ -40,8 +40,8 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
-drop trigger if exists "bs_webhook_endpoint_reenable" on "centrakit"."webhook_destinations";
-drop trigger if exists "bs_webhook_secret_vault" on "centrakit"."webhook_destination_secrets";
+drop trigger if exists "bsb_webhook_endpoint_reenable" on "centrakit"."webhook_destinations";
+drop trigger if exists "bsb_webhook_secret_vault" on "centrakit"."webhook_destination_secrets";
 
 drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);
 -- Queues the event for every enabled endpoint subscribed to its type:

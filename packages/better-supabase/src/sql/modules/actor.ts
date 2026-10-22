@@ -68,9 +68,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_actor on %s', target);
+  execute format('drop trigger if exists bsb_actor on %s', target);
   execute format(
-    'create trigger bs_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
+    'create trigger bsb_actor before insert or update on %s for each row execute function better_supabase.set_actor(%L, %L, %L)',
     target,
     coalesce(created_by, ''),
     coalesce(updated_by, ''),

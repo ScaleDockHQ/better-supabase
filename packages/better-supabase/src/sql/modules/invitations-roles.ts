@@ -146,7 +146,7 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
 }
 
 /**
- * The `bs_role_scope` trigger on `platformRoles.table` under the `provider`
+ * The `bsb_role_scope` trigger on `platformRoles.table` under the `provider`
  * model: with `platformRoles.through.where`, every write (the service role's
  * too) stores a role that the condition names. Removed when `where` is unset.
  */

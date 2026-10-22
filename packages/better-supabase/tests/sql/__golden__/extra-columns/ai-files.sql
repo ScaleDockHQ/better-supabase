@@ -184,14 +184,14 @@ $$;
 revoke execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."ai_file_object_allowed"(text, text, text) to authenticated, service_role;
 
-drop policy if exists bs_ai_files_insert on storage.objects;
-drop policy if exists bs_ai_files_select on storage.objects;
-drop policy if exists bs_ai_files_delete on storage.objects;
-create policy bs_ai_files_insert on storage.objects for insert to authenticated
+drop policy if exists bsb_ai_files_insert on storage.objects;
+drop policy if exists bsb_ai_files_select on storage.objects;
+drop policy if exists bsb_ai_files_delete on storage.objects;
+create policy bsb_ai_files_insert on storage.objects for insert to authenticated
   with check ((bucket_id = 'ai-files' and "better_supabase"."ai_file_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
-create policy bs_ai_files_select on storage.objects for select to authenticated
+create policy bsb_ai_files_select on storage.objects for select to authenticated
   using (bucket_id = 'ai-files' and "better_supabase"."ai_file_object_allowed"(bucket_id, name, 'select'));
-create policy bs_ai_files_delete on storage.objects for delete to authenticated
+create policy bsb_ai_files_delete on storage.objects for delete to authenticated
   using ((bucket_id = 'ai-files' and "better_supabase"."ai_file_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
 
 -- Reserves a file for the caller, who then uploads to its path (a signed

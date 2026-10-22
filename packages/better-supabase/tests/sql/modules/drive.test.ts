@@ -91,7 +91,7 @@ describe("drive module", () => {
     expect(core).toContain("drive_subtree");
     expect(core).toContain("DRIVE_NAME_CONFLICT");
     const files = sqlOf(["drive"], "drive-files");
-    expect(files).toContain("bs_drive_nodes_attachment");
+    expect(files).toContain("bsb_drive_nodes_attachment");
     expect(files).toContain("drive_create_file");
     expect(files).toContain("drive_commit");
     expect(files).toContain("as restrictive");

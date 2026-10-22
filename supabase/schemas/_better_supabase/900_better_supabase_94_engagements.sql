@@ -851,7 +851,7 @@ grant execute on function "better_supabase"."engagement_notes"(uuid) to authenti
 -- A meeting engagement for each confirmed booking (options.bookings), with
 -- the external ref booking:<id>: moved when the booking moves, and closed
 -- with the outcome cancelled when it is cancelled.
-create or replace function "better_supabase"."bs_booking_engagement"()
+create or replace function "better_supabase"."bsb_booking_engagement"()
 returns trigger
 language plpgsql
 security definer
@@ -927,11 +927,11 @@ begin
   return null;
 end;
 $$;
-revoke all on function "better_supabase"."bs_booking_engagement"() from public, anon, authenticated;
+revoke all on function "better_supabase"."bsb_booking_engagement"() from public, anon, authenticated;
 drop trigger if exists bookings_engagement on "better_supabase"."bookings";
 create trigger bookings_engagement
 after insert or update of "status", "during" on "better_supabase"."bookings"
-for each row execute function "better_supabase"."bs_booking_engagement"();
+for each row execute function "better_supabase"."bsb_booking_engagement"();
 
 -- blocks.engagements.api: entry points for the Data API.
 create schema if not exists "api";

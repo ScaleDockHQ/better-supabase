@@ -289,7 +289,7 @@ using (${ctx.scope.check(v("tenant"), read)} or (select auth.uid()) = any (${v("
 ${tables}
 -- A rejected, withdrawn or hired application records its event and its
 -- time; reopening clears them.
-create or replace function better_supabase.bs_application_guard()
+create or replace function better_supabase.bsb_application_guard()
 returns trigger
 language plpgsql
 security definer
@@ -314,10 +314,10 @@ begin
   return new;
 end;
 $$;
-${triggerGrant("better_supabase.bs_application_guard()")}
-drop trigger if exists bs_application_guard on ${t("applications")};
-create trigger bs_application_guard before update of ${a("state")} on ${t("applications")}
-for each row execute function better_supabase.bs_application_guard();
+${triggerGrant("better_supabase.bsb_application_guard()")}
+drop trigger if exists bsb_application_guard on ${t("applications")};
+create trigger bsb_application_guard before update of ${a("state")} on ${t("applications")}
+for each row execute function better_supabase.bsb_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and

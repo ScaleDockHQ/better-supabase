@@ -437,7 +437,7 @@ with `ORGANIZATION_ROLE_UNKNOWN`. When the table is
 also `platformRoles.through`'s, `where` is required on both, and
 [doctor BS324](/docs/cli/doctor#bs324) reports the side that lacks it.
 
-With `where` set, the tenant module also puts a `bs_role_scope` trigger on
+With `where` set, the tenant module also puts a `bsb_role_scope` trigger on
 the memberships table, so a direct write can't store a role outside it
 either: an insert or a role update through a client policy, the service role
 or an admin connection fails with `MEMBERSHIP_ROLE_SCOPE` (SQLSTATE `23514`).
@@ -457,7 +457,7 @@ A foreign key checks that a referenced row exists, not that it belongs to
 the same tenant, so a task could point at another organization's project.
 `blocks.tenant.options.sameTenant` lists the references that must stay
 inside the row's tenant, and the tenant module puts a
-`bs_same_tenant_<column>` trigger on each table. Every insert, and every
+`bsb_same_tenant_<column>` trigger on each table. Every insert, and every
 update of the column or the tenant column, then needs a referenced row with
 the same tenant, whoever writes it (a client policy, the service role or an
 admin connection); otherwise it fails with `TENANT_MISMATCH` (SQLSTATE
@@ -576,7 +576,7 @@ sameTenant: {
 ```
 
 A derived entry renders the same trigger as the same entry listed by hand.
-`doctor` reports each such foreign key that has no `bs_same_tenant_<column>`
+`doctor` reports each such foreign key that has no `bsb_same_tenant_<column>`
 trigger ([BS340](/docs/cli/doctor#bs340)).
 
 Composite foreign keys are the trigger-free alternative: a unique
@@ -614,7 +614,7 @@ blocks: {
 },
 ```
 
-`cap_allows` also reads the `bs_permission_cap` claim that
+`cap_allows` also reads the `bsb_permission_cap` claim that
 `forContext(context, { permissions })` sets, and refuses every key outside
 it. A check about another user (an inviter, the holders of a permission) is
 not narrowed by the caller's token, and the service role is never narrowed.

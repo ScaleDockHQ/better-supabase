@@ -887,9 +887,9 @@ describe("module upgrades (BS309, BS310)", () => {
 
     const snap = snapshot((tables) => {
       table(tables, "notes").triggers = [
-        trigger("bs_updated_at", "better_supabase.set_updated_at"),
+        trigger("bsb_updated_at", "better_supabase.set_updated_at"),
         trigger("handle_updated_at", "extensions.moddatetime"),
-        trigger("bs_audit", "better_supabase.audit_trigger"),
+        trigger("bsb_audit", "better_supabase.audit_trigger"),
         trigger("notify", "public.notify_change"),
       ];
       table(tables, "tags").triggers = [trigger("touch", "public.touch_row")];
@@ -1899,15 +1899,15 @@ describe("module event triggers (BS323)", () => {
   it("reports the module event triggers the database lacks", async () => {
     const findings = await run(
       "BS323",
-      context(base, { database: live([{ name: "bs_ensure_rls" }]) }, modules),
+      context(base, { database: live([{ name: "bsb_ensure_rls" }]) }, modules),
     );
 
     expect(findings).toEqual([
       expect.objectContaining({
         severity: "warning",
-        target: "bs_audit_forget_dropped",
+        target: "bsb_audit_forget_dropped",
         message: expect.stringContaining(
-          "The database has no event trigger bs_audit_forget_dropped, which the audit module creates.",
+          "The database has no event trigger bsb_audit_forget_dropped, which the audit module creates.",
         ),
       }),
     ]);
@@ -1919,8 +1919,8 @@ describe("module event triggers (BS323)", () => {
           base,
           {
             database: live([
-              { name: "bs_ensure_rls" },
-              { name: "bs_audit_forget_dropped" },
+              { name: "bsb_ensure_rls" },
+              { name: "bsb_audit_forget_dropped" },
             ]),
           },
           modules,
@@ -1950,10 +1950,10 @@ describe("module event triggers (BS323)", () => {
           sqlFiles: [
             {
               path: "supabase/schemas/audit.sql",
-              text: "create event trigger bs_audit_forget_dropped on sql_drop execute function f();",
+              text: "create event trigger bsb_audit_forget_dropped on sql_drop execute function f();",
             },
             migration(
-              'create event trigger "bs_ensure_rls" on ddl_command_end execute function g();',
+              'create event trigger "bsb_ensure_rls" on ddl_command_end execute function g();',
             ),
           ],
         },
@@ -1962,7 +1962,7 @@ describe("module event triggers (BS323)", () => {
     );
 
     expect(findings.map((finding) => finding.target)).toEqual([
-      "bs_audit_forget_dropped",
+      "bsb_audit_forget_dropped",
     ]);
     expect(findings[0]!.message).toContain("No migration creates");
     expect(
@@ -2104,11 +2104,11 @@ describe("tables without an audit trigger (BS315)", () => {
     )
     .map((entry) => `public.${entry.name}`);
 
-  it("lists tables in schemas without the bs_audit trigger", async () => {
+  it("lists tables in schemas without the bsb_audit trigger", async () => {
     const audited = snapshot((tables) => {
       table(tables, "customers").triggers = [
         {
-          name: "bs_audit",
+          name: "bsb_audit",
           timing: "after",
           events: ["insert", "update", "delete"],
           level: "row",
@@ -2308,7 +2308,7 @@ describe("tables without the session policy (BS320)", () => {
       // The repo's stack turns blocks.sessions.options.policies on.
       for (const entry of tables) {
         entry.policies = entry.policies.filter(
-          (policy) => policy.name !== "bs_session_active",
+          (policy) => policy.name !== "bsb_session_active",
         );
       }
 
@@ -2316,7 +2316,7 @@ describe("tables without the session policy (BS320)", () => {
       customers.policies = [
         ...customers.policies,
         {
-          name: "bs_session_active",
+          name: "bsb_session_active",
           command: "all",
           roles: ["authenticated"],
           permissive: false,
@@ -2514,7 +2514,7 @@ describe("tenant foreign keys without a same-tenant trigger (BS340)", () => {
       notes.triggers = trigger
         ? [
             {
-              name: "bs_same_tenant_tag_id",
+              name: "bsb_same_tenant_tag_id",
               timing: "before",
               events: ["insert", "update"],
               level: "row",
@@ -2639,11 +2639,11 @@ describe("secret columns in data exports (BS341)", () => {
 
 describe("whole-row broadcast triggers (BS337)", () => {
   const trigger = (source: string, comment?: string) => ({
-    name: "bs_broadcast_org",
+    name: "bsb_broadcast_org",
     timing: "after" as const,
     events: ["insert" as const],
     level: "row" as const,
-    function: "better_supabase.bs_broadcast_org_public_notes",
+    function: "better_supabase.bsb_broadcast_org_public_notes",
     source,
     ...(comment === undefined ? {} : { comment }),
   });
@@ -2660,17 +2660,17 @@ describe("whole-row broadcast triggers (BS337)", () => {
           ...trigger(
             "begin perform realtime.send(jsonb_build_object('old_record', old, 'record', new), tg_op, 't', true); end;",
           ),
-          name: "bs_broadcast_tags",
+          name: "bsb_broadcast_tags",
         },
       ];
     });
 
     expect(await run("BS337", context(snap))).toMatchObject([
       {
-        target: "public.notes.bs_broadcast_org",
+        target: "public.notes.bsb_broadcast_org",
         message: expect.stringContaining('pass `payload: "row"`'),
       },
-      { target: "public.tags.bs_broadcast_tags" },
+      { target: "public.tags.bsb_broadcast_tags" },
     ]);
   });
 
@@ -2688,7 +2688,7 @@ describe("whole-row broadcast triggers (BS337)", () => {
           "begin\n-- realtime.broadcast_changes(topic, tg_op, tg_op, t, s, new, old)\nreturn null; end;",
         ),
         {
-          name: "bs_broadcast_topic",
+          name: "bsb_broadcast_topic",
           timing: "after",
           events: ["insert"],
           level: "row",
@@ -2707,7 +2707,7 @@ describe("realtime and auth.users (BS305, BS306, BS406)", () => {
     const snap = snapshot((tables, catalog) => {
       table(tables, "notes").triggers = [
         {
-          name: "bs_realtime_notes",
+          name: "bsb_realtime_notes",
           timing: "after",
           events: ["insert"],
           level: "statement",

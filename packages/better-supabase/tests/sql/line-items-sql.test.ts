@@ -15,7 +15,7 @@ describe("line item totals", () => {
     ["deals", "deal_lines"],
   ])("recounts each %s record once per statement", (module, lines) => {
     const sql = body(module);
-    const trigger = `bs_${lines}_totals`;
+    const trigger = `bsb_${lines}_totals`;
     const table = `"better_supabase"."${lines}"`;
 
     expect(sql).toContain(

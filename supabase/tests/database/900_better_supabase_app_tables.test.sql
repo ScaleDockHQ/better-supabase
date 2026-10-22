@@ -9,7 +9,7 @@ select extensions.plan(70);
 
 select extensions.has_table('public', 'projects', 'public.projects exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."projects"'::regclass), 'public.projects has row level security on');
-select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bs_session_active'], 'public.projects has the policies for its scope');
+select extensions.policies_are('public', 'projects', array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bsb_session_active'], 'public.projects has the policies for its scope');
 select extensions.table_privs_are('public', 'projects', 'anon', array[]::text[], 'anon has no privileges on public.projects');
 select extensions.table_privs_are('public', 'projects', 'authenticated', array['DELETE'], 'authenticated has the privileges for its scope on public.projects');
 select extensions.ok(not has_column_privilege('authenticated', '"public"."projects"', 'internal_notes', 'SELECT'), 'authenticated may not select public.projects.internal_notes');
@@ -26,7 +26,7 @@ with o as (
   returning "id" as id
 )
 insert into "public"."projects" ("organization_id", "name") select o.id, repeat('x', 1) from o;
-select extensions.has_trigger('public'::name, 'projects'::name, 'bs_versions_project_auto'::name, 'public.projects snapshots a version on each change');
+select extensions.has_trigger('public'::name, 'projects'::name, 'bsb_versions_project_auto'::name, 'public.projects snapshots a version on each change');
 select extensions.ok(exists (select 1 from "better_supabase"."versions" v where v."subject_type" = 'project'), 'an insert into public.projects snapshots a project version');
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
@@ -42,7 +42,7 @@ reset role;
 
 select extensions.has_table('public', 'tasks', 'public.tasks exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."tasks"'::regclass), 'public.tasks has row level security on');
-select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete', 'bs_session_active'], 'public.tasks has the policies for its scope');
+select extensions.policies_are('public', 'tasks', array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete', 'bsb_session_active'], 'public.tasks has the policies for its scope');
 select extensions.col_has_check('public'::name, 'tasks'::name, 'title'::name, 'public.tasks.title has its check');
 select extensions.col_has_check('public'::name, 'tasks'::name, 'status'::name, 'public.tasks.status has its check');
 select extensions.col_is_unique('public'::name, 'tasks'::name, array['project_id', 'title']::name[], 'public.tasks is unique on project_id, title');
@@ -53,7 +53,7 @@ select extensions.has_view('public', 'tasks_view', 'public.tasks_view exists');
 select extensions.ok((select coalesce('security_invoker=true' = any(c.reloptions), false) from pg_catalog.pg_class c where c.oid = '"public"."tasks_view"'::regclass), 'public.tasks_view runs with the caller''s row level security');
 select extensions.table_privs_are('public', 'tasks_view', 'anon', array[]::text[], 'anon has no privileges on public.tasks_view');
 select extensions.table_privs_are('public', 'tasks_view', 'authenticated', array['SELECT'], 'authenticated only reads public.tasks_view');
-select extensions.has_trigger('public'::name, 'tasks'::name, 'bs_emit_event'::name, 'public.tasks emits outbox events');
+select extensions.has_trigger('public'::name, 'tasks'::name, 'bsb_emit_event'::name, 'public.tasks emits outbox events');
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
@@ -66,7 +66,7 @@ reset role;
 
 select extensions.has_table('public', 'client_notes', 'public.client_notes exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."client_notes"'::regclass), 'public.client_notes has row level security on');
-select extensions.policies_are('public', 'client_notes', array['client_notes_select', 'client_notes_insert', 'client_notes_update', 'client_notes_delete', 'bs_session_active'], 'public.client_notes has the policies for its scope');
+select extensions.policies_are('public', 'client_notes', array['client_notes_select', 'client_notes_insert', 'client_notes_update', 'client_notes_delete', 'bsb_session_active'], 'public.client_notes has the policies for its scope');
 select extensions.table_privs_are('public', 'client_notes', 'anon', array[]::text[], 'anon has no privileges on public.client_notes');
 select extensions.table_privs_are('public', 'client_notes', 'authenticated', array['DELETE'], 'authenticated has the privileges for its scope on public.client_notes');
 select extensions.ok(not has_column_privilege('authenticated', '"public"."client_notes"', 'diagnosis', 'SELECT'), 'authenticated may not select public.client_notes.diagnosis');
@@ -75,7 +75,7 @@ select extensions.ok(has_column_privilege('authenticated', '"public"."client_not
 select extensions.ok(not has_column_privilege('authenticated', '"public"."client_notes"', 'birth_date', 'SELECT'), 'authenticated may not select public.client_notes.birth_date');
 select extensions.ok(has_column_privilege('authenticated', '"public"."client_notes"', 'birth_date', 'INSERT'), 'authenticated may insert public.client_notes.birth_date');
 select extensions.ok(has_column_privilege('authenticated', '"public"."client_notes"', 'birth_date', 'UPDATE'), 'authenticated may update public.client_notes.birth_date');
-select extensions.has_trigger('public'::name, 'client_notes'::name, 'bs_seal_fields'::name, 'public.client_notes encrypts its encrypted columns');
+select extensions.has_trigger('public'::name, 'client_notes'::name, 'bsb_seal_fields'::name, 'public.client_notes encrypts its encrypted columns');
 select extensions.has_function('public'::name, 'client_notes_reveal'::name, array['uuid[]']::name[], 'public.client_notes has a reveal function');
 select extensions.ok(not has_function_privilege('anon', '"public"."client_notes_reveal"(uuid[])', 'execute'), 'anon cannot reveal public.client_notes');
 
@@ -104,7 +104,7 @@ reset role;
 
 select extensions.has_table('public', 'saved_views', 'public.saved_views exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."saved_views"'::regclass), 'public.saved_views has row level security on');
-select extensions.policies_are('public', 'saved_views', array['saved_views_select', 'saved_views_insert', 'saved_views_update', 'saved_views_delete', 'bs_session_active'], 'public.saved_views has the policies for its scope');
+select extensions.policies_are('public', 'saved_views', array['saved_views_select', 'saved_views_insert', 'saved_views_update', 'saved_views_delete', 'bsb_session_active'], 'public.saved_views has the policies for its scope');
 select extensions.table_privs_are('public', 'saved_views', 'anon', array[]::text[], 'anon has no privileges on public.saved_views');
 select extensions.table_privs_are('public', 'saved_views', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.saved_views');
 

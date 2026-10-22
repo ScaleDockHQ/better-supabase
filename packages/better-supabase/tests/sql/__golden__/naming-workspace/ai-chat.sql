@@ -2283,16 +2283,16 @@ grant execute on function "better_supabase"."unlock_ai_harness_session"(uuid, te
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_ai_chat_receive" on realtime.messages;
-    create policy "bs_ai_chat_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_ai_chat_receive" on realtime.messages;
+    create policy "bsb_ai_chat_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'ai-chat:%'
         and substr((select realtime.topic()), 9) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         and "better_supabase"."ai_chat_can_read"(substr((select realtime.topic()), 9)::uuid)
       );
-    drop policy if exists "bs_ai_chats_receive" on realtime.messages;
-    create policy "bs_ai_chats_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_ai_chats_receive" on realtime.messages;
+    create policy "bsb_ai_chats_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) = 'ai-chats:' || (select auth.uid())::text

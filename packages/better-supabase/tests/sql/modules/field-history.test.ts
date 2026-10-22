@@ -21,7 +21,7 @@ describe("field-history module", () => {
     const sql = sqlOf({ deal: ["amount", "stage_id", "amount"] });
 
     expect(sql).toContain(
-      'create trigger bs_field_history_deal after update of "amount", "stage_id" on "public"."deals"',
+      'create trigger bsb_field_history_deal after update of "amount", "stage_id" on "public"."deals"',
     );
     expect(sql).toContain(
       `('amount', to_jsonb(old."amount"), to_jsonb(new."amount"))`,

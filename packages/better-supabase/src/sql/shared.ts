@@ -327,8 +327,8 @@ $$;`;
  */
 export function updatedAt(table: string, column: string): string {
   return `alter table ${table} add column if not exists ${column} timestamptz not null default now();
-drop trigger if exists bs_updated_at on ${table};
-create trigger bs_updated_at before update on ${table}
+drop trigger if exists bsb_updated_at on ${table};
+create trigger bsb_updated_at before update on ${table}
   for each row execute function better_supabase.set_updated_at(${sqlString(column.replaceAll('"', ""))});`;
 }
 
@@ -749,7 +749,7 @@ $$;`;
  * check.
  */
 function jsonCheckName(check: JsonSchemaCheck): string {
-  const base = `bs_json_${check.column}`;
+  const base = `bsb_json_${check.column}`;
 
   if (!check.where) {
     return base.slice(0, 63);

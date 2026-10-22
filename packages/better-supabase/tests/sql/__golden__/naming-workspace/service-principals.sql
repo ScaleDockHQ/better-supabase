@@ -8,7 +8,7 @@
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Non-human members of a tenant. Each row is an auth.users row that can't
--- sign in (no password, banned, app_metadata.bs_service_principal),
+-- sign in (no password, banned, app_metadata.bsb_service_principal),
 -- created through the Auth admin API, and holds its role through a tenant
 -- membership like any member. Organization-owned workflow versions and
 -- service webhook endpoints run as the tenant's default principal.
@@ -38,7 +38,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principal
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
--- app_metadata.bs_service_principal and be banned, so a real account
+-- app_metadata.bsb_service_principal and be banned, so a real account
 -- never becomes one. With created_by, that member needs the manage
 -- permission and may assign role. Service role only.
 drop function if exists "better_supabase"."register_service_principal"(uuid, uuid, text, text, boolean, uuid, jsonb);
@@ -62,7 +62,7 @@ begin
   if not exists (
     select 1 from auth.users u
     where u.id = register_service_principal.principal
-      and coalesce((u.raw_app_meta_data ->> 'bs_service_principal')::boolean, false)
+      and coalesce((u.raw_app_meta_data ->> 'bsb_service_principal')::boolean, false)
       and u.banned_until > now() + interval '50 years'
   ) then
     raise exception 'The user is not a service principal: create it with createServicePrincipals().create' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_USER';

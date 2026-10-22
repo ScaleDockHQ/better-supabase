@@ -195,7 +195,7 @@ export const notATopic = { template: "x" };
     expect(written.indexOf("topic board:{boardId}")).toBeLessThan(
       written.indexOf("topic room:{roomId}"),
     );
-    expect(written).toContain('create policy "bs_topic_room_send"');
+    expect(written).toContain('create policy "bsb_topic_room_send"');
     expect((await sql(["sync", "--check"], config)).code).toBe(0);
     await writeFile(
       join(root, "supabase/schemas/905_topics.sql"),
@@ -811,7 +811,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
 
     expect(tenant).toContain(
-      `create trigger "bs_same_tenant_customer_id" before insert or update of "customer_id", "organization_id" on "public"."tasks"`,
+      `create trigger "bsb_same_tenant_customer_id" before insert or update of "customer_id", "organization_id" on "public"."tasks"`,
     );
   });
 
@@ -834,7 +834,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
 
     expect(file).toContain(
-      'create policy bs_session_active on "public"."notes"',
+      'create policy bsb_session_active on "public"."notes"',
     );
     expect(file).not.toContain("audit_log");
   });

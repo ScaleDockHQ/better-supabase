@@ -279,8 +279,8 @@ using (${ctx.scope.check(k("tenant"), n.sensitive)} or exists (
 function triggersSql(ctx: ModuleContext, n: EmployeeNames): string {
   const { t } = n;
   const e = (column: string): string => n.c("employees", column);
-  const mirrorName = ctx.naming.rename("bs_employee_user_mirror");
-  const guardName = ctx.naming.rename("bs_employee_manager_guard");
+  const mirrorName = ctx.naming.rename("bsb_employee_user_mirror");
+  const guardName = ctx.naming.rename("bsb_employee_manager_guard");
 
   const mirror =
     ctx.hasTable("privateDetails") && ctx.has("privateDetails", "user")

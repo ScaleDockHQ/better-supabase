@@ -67,8 +67,8 @@ create index if not exists "contacts_organization_id_idx" on "public"."contacts"
 create index if not exists "contacts_stage_created_at_idx" on "public"."contacts" ("stage", "created_at");
 comment on table "public"."contacts" is 'People the team talks to.';
 comment on column "public"."contacts"."code" is 'The short code, unique per tenant.';
-drop trigger if exists "bs_updated_at" on "public"."contacts";
-create trigger "bs_updated_at" before update on "public"."contacts"
+drop trigger if exists "bsb_updated_at" on "public"."contacts";
+create trigger "bsb_updated_at" before update on "public"."contacts"
   for each row execute function better_supabase.set_updated_at();
 
 alter table "public"."notes" enable row level security;
@@ -85,8 +85,8 @@ drop policy if exists "notes_delete" on "public"."notes";
 create policy "notes_delete" on "public"."notes" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "notes_organization_id_idx" on "public"."notes" ("organization_id");
 create index if not exists "notes_contact_id_idx" on "public"."notes" ("contact_id");
-drop trigger if exists "bs_updated_at" on "public"."notes";
-create trigger "bs_updated_at" before update on "public"."notes"
+drop trigger if exists "bsb_updated_at" on "public"."notes";
+create trigger "bsb_updated_at" before update on "public"."notes"
   for each row execute function better_supabase.set_updated_at();
 
 create unique index if not exists "contacts_organization_id_id_key" on "public"."contacts" ("organization_id", id);

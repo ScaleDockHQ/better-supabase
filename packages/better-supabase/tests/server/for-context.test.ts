@@ -155,7 +155,7 @@ describe("forContext delegation", () => {
       clientId: "c",
       scopes: ["posts:read"],
     });
-    expect(claims.map((entry) => entry["bs_permission_cap"])).toEqual([
+    expect(claims.map((entry) => entry["bsb_permission_cap"])).toEqual([
       ["posts.read", "posts.list"],
       ["posts.read"],
       undefined,
@@ -182,7 +182,7 @@ describe("forContext delegation", () => {
     await server
       .forContext({ actor: user, claims: { client_id: "c" } })
       .orThrow();
-    expect(claims[0]?.["bs_permission_cap"]).toEqual([]);
+    expect(claims[0]?.["bsb_permission_cap"]).toEqual([]);
   });
 });
 

@@ -298,7 +298,7 @@ better-supabase add jsonb-schemas settings
 ```
 
 The checks need the `jsonb-schemas` module, which installs `pg_jsonschema`.
-Each one is named `bs_json_value_<key>` and applies only to rows with that
+Each one is named `bsb_json_value_<key>` and applies only to rows with that
 key. `options.schemas` also takes plain `{ user, organization }` maps of key to
 JSON Schema. Keys whose schema has no JSON Schema (`digest` above) are
 validated in TypeScript only.

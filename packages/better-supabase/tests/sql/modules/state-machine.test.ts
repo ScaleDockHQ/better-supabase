@@ -131,7 +131,7 @@ describe("state machine", () => {
     expect(transition).not.toContain("security definer");
     expect(transition).toContain("STATE_SUBJECT_NOT_FOUND");
     expect(transition).toContain("v_found := found;");
-    expect(sql).toMatch(/bs_transition_quote\(\)[\s\S]*?security definer/);
+    expect(sql).toMatch(/bsb_transition_quote\(\)[\s\S]*?security definer/);
   });
 
   it("clears and numbers stages within the record's tenant and machine", () => {
@@ -185,7 +185,7 @@ describe("state machine", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain("create trigger bs_transition_deal");
+    expect(sql).toContain("create trigger bsb_transition_deal");
     expect(sql).toContain(`on "crm"."deals"`);
     expect(sql).toContain(`new."org_id"`);
     expect(sql).toContain(`s."id" = (transition.subject_id)::uuid`);

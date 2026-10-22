@@ -73,7 +73,7 @@ interface AppTable {
   readonly scope: ScopeColumn | undefined;
   /** Whether `expose` sets the table's grants instead. */
   readonly exposed: boolean;
-  /** Whether `blocks.sessions.options.policies` adds `bs_session_active`. */
+  /** Whether `blocks.sessions.options.policies` adds `bsb_session_active`. */
   readonly sessionPolicy: boolean;
   /** The columns whose reference checks the tenant too, by column name. */
   readonly tenantReferences: ReadonlyMap<string, TenantReference>;
@@ -958,7 +958,7 @@ function testSql(table: AppTable): string {
     ...(table.scope ? COMMANDS : (["select"] as const)).map(
       (command) => `${table.name}_${command}`,
     ),
-    ...(table.sessionPolicy ? ["bs_session_active"] : []),
+    ...(table.sessionPolicy ? ["bsb_session_active"] : []),
   ];
 
   const checks = [

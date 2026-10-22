@@ -63,7 +63,7 @@ describe("createModuleContext", () => {
     expect(ctx.table("items")).toBe('"better_supabase"."items"');
     expect(ctx.col("items", "tenant")).toBe('"org_id"');
     expect(ctx.fn("can")).toBe('"better_supabase"."can"');
-    expect(ctx.trigger("audit")).toBe('"bs_audit"');
+    expect(ctx.trigger("audit")).toBe('"bsb_audit"');
     expect(ctx.idType).toBe("uuid");
     expect(ctx.hasTable("extras")).toBe(true);
   });
@@ -93,7 +93,7 @@ describe("createModuleContext", () => {
     expect(() => ctx.col("items", "label")).toThrow(/maps to null/);
     expect(ctx.schema).toBe('"app"');
     expect(ctx.idType).toBe("bigint");
-    expect(ctx.trigger("audit")).toBe('"bs_audit"');
+    expect(ctx.trigger("audit")).toBe('"bsb_audit"');
     expect(ctx.permission("invite", "members.invite")).toBe(
       "'organization.members.invite'",
     );
@@ -424,7 +424,7 @@ describe("module modes", () => {
     })!;
 
     expect(sql).not.toMatch(/create table/);
-    expect(sql).not.toContain("bs_memberships_read");
+    expect(sql).not.toContain("bsb_memberships_read");
     expect(sql).toContain('from "public"."organization_users" m');
     expect(sql).toContain(
       'm."organization_id" = has_organization_role.organization',

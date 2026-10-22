@@ -741,8 +741,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_credential_vault_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_credential_vault" on "better_supabase"."credentials";
-create trigger "bs_credential_vault" after delete or update of "vault_id" on "better_supabase"."credentials"
+drop trigger if exists "bsb_credential_vault" on "better_supabase"."credentials";
+create trigger "bsb_credential_vault" after delete or update of "vault_id" on "better_supabase"."credentials"
   for each row execute function "better_supabase"."drop_credential_vault_secret"();
 
 create schema if not exists better_supabase;

@@ -18,8 +18,8 @@ create table if not exists "better_supabase"."memberships" (
 );
 create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
 alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."memberships";
-create trigger bs_updated_at before update on "better_supabase"."memberships"
+drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create trigger bsb_updated_at before update on "better_supabase"."memberships"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
 alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
@@ -128,8 +128,8 @@ as $$
   select m."role" from "better_supabase"."memberships" m where m."workspace_id" = workspace_member_role.organization and m."user_id" = workspace_member_role.member
 $$;
 
-drop policy if exists bs_memberships_read on "better_supabase"."memberships";
-create policy bs_memberships_read on "better_supabase"."memberships"
+drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
+create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.member_workspace_ids()));
 

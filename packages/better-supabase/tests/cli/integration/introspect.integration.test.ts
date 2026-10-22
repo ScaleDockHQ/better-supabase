@@ -9,7 +9,7 @@ import { stackDbUrl } from "../../integration/stack-env.ts";
 
 const dbUrl = stackDbUrl();
 
-const SCHEMA = `bs_caps_${Date.now()}`;
+const SCHEMA = `bsb_caps_${Date.now()}`;
 
 async function open(): Promise<IntrospectionSource | undefined> {
   try {

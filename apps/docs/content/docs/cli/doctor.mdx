@@ -778,7 +778,7 @@ doctor skips that file instead of reporting it.
 ### BS305
 
 **Warning: live query table without change broadcasts.** A table in
-`realtime.tables` has no `bs_realtime` trigger, so
+`realtime.tables` has no `bsb_realtime` trigger, so
 [live queries](/docs/frontend/live-queries) never hear about its changes. Run
 `better-supabase add realtime-tables`, then
 `supabase db schema declarative sync`.
@@ -826,9 +826,9 @@ never reported.
 
 ### BS310
 
-**Warning: duplicate block trigger.** A table has `bs_updated_at` and another
+**Warning: duplicate block trigger.** A table has `bsb_updated_at` and another
 trigger whose function looks like `updated_at`, `moddatetime` or `touch`, or
-`bs_audit` and another audit trigger, so both run on every write. Drop the
+`bsb_audit` and another audit trigger, so both run on every write. Drop the
 older trigger, or call `track_updated_at()` or `audit()` with
 `replace_trigger => true` in a migration.
 
@@ -879,7 +879,7 @@ the secrets into Vault), then remove the option.
 ### BS315
 
 **Warning: table without an audit trigger.** The `audit` module is in
-`blocks`, and a table in `schemas` has no `bs_audit` trigger, nor another
+`blocks`, and a table in `schemas` has no `bsb_audit` trigger, nor another
 trigger that calls `better_supabase.audit_row_change()`, so its inserts,
 updates and deletes are not in the audit log. Register it with
 `select better_supabase.audit('public.customers')` in a schema file. Doctor
@@ -1006,7 +1006,7 @@ one that uses it. The rule stays quiet until the project has a migration.
 **Warning: audit registration of a dropped table.** The `audit` module is in
 `blocks`, and `better_supabase.audited_tables` on the live database has
 a row whose table no longer exists. Since the module installs the
-`bs_audit_forget_dropped` event trigger, dropping a table deletes its row,
+`bsb_audit_forget_dropped` event trigger, dropping a table deletes its row,
 but a table dropped before that keeps it. Run `better-supabase sql sync`
 and apply the migration `better-supabase sql data` writes: the module's data
 file deletes registrations whose table is gone. Doctor checks this only
@@ -1015,8 +1015,8 @@ against a database.
 ### BS323
 
 **Warning: module event trigger missing.** A module in `blocks`
-creates an event trigger (`bs_audit_forget_dropped` for `audit`,
-`bs_ensure_rls` for `ensure-rls`) that the live database lacks, or, without
+creates an event trigger (`bsb_audit_forget_dropped` for `audit`,
+`bsb_ensure_rls` for `ensure-rls`) that the live database lacks, or, without
 a database, that no migration in `supabase/migrations` creates. Event
 triggers belong to no schema, so a schema diff limited to some schemas
 (`supabase db schema declarative sync -s ...`) leaves them out of the
@@ -1200,7 +1200,7 @@ Remove the exclusion, or exclude the column's new name. See
 **Info: a tenant foreign key has no same-tenant trigger.** With the `tenant`
 block, doctor lists each single-column foreign key between two tables that
 both have the tenant column, when the key doesn't include that column and
-the table has no `bs_same_tenant_<column>` trigger. The foreign key checks
+the table has no `bsb_same_tenant_<column>` trigger. The foreign key checks
 that the referenced row exists, not that it belongs to the same tenant. Add
 the reference to `blocks.tenant.options.sameTenant`, or set
 `sameTenant: { auto: true }`. See

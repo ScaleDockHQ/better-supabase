@@ -17,9 +17,9 @@ describe("employees module", () => {
     const sql = body(["employees"]);
     expect(sql).toContain("EMPLOYEE_MANAGER_CYCLE");
     expect(sql).toContain(
-      'create trigger bs_employee_manager_guard before insert or update of "manager_id"',
+      'create trigger bsb_employee_manager_guard before insert or update of "manager_id"',
     );
-    expect(sql).toContain("create trigger bs_employee_user_mirror");
+    expect(sql).toContain("create trigger bsb_employee_user_mirror");
     expect(sql).toContain("'employees.view_sensitive'");
     expect(sql).toContain(
       "array['employee', 'contractor', 'intern', 'temporary']::text[]",

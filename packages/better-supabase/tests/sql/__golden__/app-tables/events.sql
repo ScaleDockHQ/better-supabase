@@ -39,8 +39,8 @@ create policy "tasks_delete" on "public"."tasks" for delete to authenticated usi
 alter table "public"."tasks" drop constraint if exists "tasks_status_check";
 alter table "public"."tasks" add constraint "tasks_status_check" check ("status" in ('todo', 'done'));
 create index if not exists "tasks_organization_id_idx" on "public"."tasks" ("organization_id");
-drop trigger if exists "bs_updated_at" on "public"."tasks";
-create trigger "bs_updated_at" before update on "public"."tasks"
+drop trigger if exists "bsb_updated_at" on "public"."tasks";
+create trigger "bsb_updated_at" before update on "public"."tasks"
   for each row execute function better_supabase.set_updated_at();
 create or replace function "better_supabase"."tasks_emit_event"()
 returns trigger
@@ -74,8 +74,8 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."tasks_emit_event"() from public, anon, authenticated;
-drop trigger if exists "bs_emit_event" on "public"."tasks";
-create trigger "bs_emit_event" after insert or update or delete on "public"."tasks"
+drop trigger if exists "bsb_emit_event" on "public"."tasks";
+create trigger "bsb_emit_event" after insert or update or delete on "public"."tasks"
   for each row execute function "better_supabase"."tasks_emit_event"();
 
 alter table "public"."notes" enable row level security;
@@ -91,8 +91,8 @@ create policy "notes_update" on "public"."notes" for update to authenticated usi
 drop policy if exists "notes_delete" on "public"."notes";
 create policy "notes_delete" on "public"."notes" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "notes_organization_id_idx" on "public"."notes" ("organization_id");
-drop trigger if exists "bs_updated_at" on "public"."notes";
-create trigger "bs_updated_at" before update on "public"."notes"
+drop trigger if exists "bsb_updated_at" on "public"."notes";
+create trigger "bsb_updated_at" before update on "public"."notes"
   for each row execute function better_supabase.set_updated_at();
 create or replace function "better_supabase"."notes_emit_event"()
 returns trigger
@@ -112,8 +112,8 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."notes_emit_event"() from public, anon, authenticated;
-drop trigger if exists "bs_emit_event" on "public"."notes";
-create trigger "bs_emit_event" after delete on "public"."notes"
+drop trigger if exists "bsb_emit_event" on "public"."notes";
+create trigger "bsb_emit_event" after delete on "public"."notes"
   for each row execute function "better_supabase"."notes_emit_event"();
 
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
@@ -139,7 +139,7 @@ with o as (
   returning "id" as id
 )
 insert into "public"."tasks" ("organization_id", "title") select o.id, repeat('x', 1) from o;
-select extensions.has_trigger('public'::name, 'tasks'::name, 'bs_emit_event'::name, 'public.tasks emits outbox events');
+select extensions.has_trigger('public'::name, 'tasks'::name, 'bsb_emit_event'::name, 'public.tasks emits outbox events');
 select extensions.ok(exists (select 1 from "better_supabase"."outbox_events" e where e."type" = 'task.created'), 'an insert into public.tasks emits task.created');
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
@@ -160,7 +160,7 @@ with o as (
   returning "id" as id
 )
 insert into "public"."notes" ("organization_id") select o.id from o;
-select extensions.has_trigger('public'::name, 'notes'::name, 'bs_emit_event'::name, 'public.notes emits outbox events');
+select extensions.has_trigger('public'::name, 'notes'::name, 'bsb_emit_event'::name, 'public.notes emits outbox events');
 
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;

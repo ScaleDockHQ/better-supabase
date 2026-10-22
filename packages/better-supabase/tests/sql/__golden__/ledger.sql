@@ -204,11 +204,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_append_only" on "better_supabase"."ledger_entries";
-create trigger "bs_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
+create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
   for each row execute function "better_supabase"."ledger_append_only"();
-drop trigger if exists "bs_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
-create trigger "bs_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
+drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
+create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
   for each row execute function "better_supabase"."ledger_append_only"();
 
 -- Keeps the account's balance and refuses to take an account that doesn't
@@ -235,8 +235,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_apply_entry"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_apply" on "better_supabase"."ledger_entries";
-create trigger "bs_ledger_entries_apply" after insert on "better_supabase"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_apply" on "better_supabase"."ledger_entries";
+create trigger "bsb_ledger_entries_apply" after insert on "better_supabase"."ledger_entries"
   for each row execute function "better_supabase"."ledger_apply_entry"();
 
 -- At commit, the entries of each transaction sum to zero per unit.
@@ -257,8 +257,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_check_balanced"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_balanced" on "better_supabase"."ledger_entries";
-create constraint trigger "bs_ledger_entries_balanced" after insert on "better_supabase"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_balanced" on "better_supabase"."ledger_entries";
+create constraint trigger "bsb_ledger_entries_balanced" after insert on "better_supabase"."ledger_entries"
   deferrable initially deferred
   for each row execute function "better_supabase"."ledger_check_balanced"();
 
@@ -1083,11 +1083,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_append_only" on "better_supabase"."ledger_entries";
-create trigger "bs_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
+create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
   for each row execute function "better_supabase"."ledger_append_only"();
-drop trigger if exists "bs_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
-create trigger "bs_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
+drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
+create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
   for each row execute function "better_supabase"."ledger_append_only"();
 
 -- Keeps the account's balance and refuses to take an account that doesn't
@@ -1114,8 +1114,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_apply_entry"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_apply" on "better_supabase"."ledger_entries";
-create trigger "bs_ledger_entries_apply" after insert on "better_supabase"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_apply" on "better_supabase"."ledger_entries";
+create trigger "bsb_ledger_entries_apply" after insert on "better_supabase"."ledger_entries"
   for each row execute function "better_supabase"."ledger_apply_entry"();
 
 -- At commit, the entries of each transaction sum to zero per unit.
@@ -1136,8 +1136,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_check_balanced"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_balanced" on "better_supabase"."ledger_entries";
-create constraint trigger "bs_ledger_entries_balanced" after insert on "better_supabase"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_balanced" on "better_supabase"."ledger_entries";
+create constraint trigger "bsb_ledger_entries_balanced" after insert on "better_supabase"."ledger_entries"
   deferrable initially deferred
   for each row execute function "better_supabase"."ledger_check_balanced"();
 
@@ -1993,11 +1993,11 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."ledger_append_only"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_append_only" on "app_private"."ledger_entries";
-create trigger "bs_ledger_entries_append_only" before update or delete on "app_private"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_append_only" on "app_private"."ledger_entries";
+create trigger "bsb_ledger_entries_append_only" before update or delete on "app_private"."ledger_entries"
   for each row execute function "app_private"."ledger_append_only"();
-drop trigger if exists "bs_ledger_transactions_append_only" on "app_private"."ledger_transactions";
-create trigger "bs_ledger_transactions_append_only" before update or delete on "app_private"."ledger_transactions"
+drop trigger if exists "bsb_ledger_transactions_append_only" on "app_private"."ledger_transactions";
+create trigger "bsb_ledger_transactions_append_only" before update or delete on "app_private"."ledger_transactions"
   for each row execute function "app_private"."ledger_append_only"();
 
 -- Keeps the account's balance and refuses to take an account that doesn't
@@ -2024,8 +2024,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."ledger_apply_entry"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_apply" on "app_private"."ledger_entries";
-create trigger "bs_ledger_entries_apply" after insert on "app_private"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_apply" on "app_private"."ledger_entries";
+create trigger "bsb_ledger_entries_apply" after insert on "app_private"."ledger_entries"
   for each row execute function "app_private"."ledger_apply_entry"();
 
 -- At commit, the entries of each transaction sum to zero per unit.
@@ -2046,8 +2046,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."ledger_check_balanced"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_balanced" on "app_private"."ledger_entries";
-create constraint trigger "bs_ledger_entries_balanced" after insert on "app_private"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_balanced" on "app_private"."ledger_entries";
+create constraint trigger "bsb_ledger_entries_balanced" after insert on "app_private"."ledger_entries"
   deferrable initially deferred
   for each row execute function "app_private"."ledger_check_balanced"();
 
@@ -2872,11 +2872,11 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_append_only" on "better_supabase"."ledger_entries";
-create trigger "bs_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
+create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
   for each row execute function "better_supabase"."ledger_append_only"();
-drop trigger if exists "bs_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
-create trigger "bs_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
+drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
+create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
   for each row execute function "better_supabase"."ledger_append_only"();
 
 -- Keeps the account's balance and refuses to take an account that doesn't
@@ -2903,8 +2903,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_apply_entry"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_apply" on "better_supabase"."ledger_entries";
-create trigger "bs_ledger_entries_apply" after insert on "better_supabase"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_apply" on "better_supabase"."ledger_entries";
+create trigger "bsb_ledger_entries_apply" after insert on "better_supabase"."ledger_entries"
   for each row execute function "better_supabase"."ledger_apply_entry"();
 
 -- At commit, the entries of each transaction sum to zero per unit.
@@ -2925,8 +2925,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_check_balanced"() from public, anon, authenticated;
-drop trigger if exists "bs_ledger_entries_balanced" on "better_supabase"."ledger_entries";
-create constraint trigger "bs_ledger_entries_balanced" after insert on "better_supabase"."ledger_entries"
+drop trigger if exists "bsb_ledger_entries_balanced" on "better_supabase"."ledger_entries";
+create constraint trigger "bsb_ledger_entries_balanced" after insert on "better_supabase"."ledger_entries"
   deferrable initially deferred
   for each row execute function "better_supabase"."ledger_check_balanced"();
 

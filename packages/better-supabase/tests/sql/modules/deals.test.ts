@@ -22,7 +22,7 @@ describe("deals module", () => {
     expect(modules.indexOf("deals")).toBeLessThan(modules.indexOf("pipelines"));
     const pipelines = body("pipelines", render());
     expect(pipelines).toContain(
-      'create trigger bs_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"',
+      'create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"',
     );
     expect(pipelines).toContain(
       "('closed_won', 'Closed won', 'won', 'success', 100::smallint",
@@ -52,7 +52,7 @@ describe("deals module", () => {
 
     expect(pipelines).toContain("('lead', 'Lead', 'open', 'open'");
     expect(pipelines).not.toContain("'qualified'");
-    expect(pipelines).toContain("bs_pipeline_status_deal");
+    expect(pipelines).toContain("bsb_pipeline_status_deal");
   });
 
   it("scopes reads to the team without readAll and uses number-sequences when configured", () => {

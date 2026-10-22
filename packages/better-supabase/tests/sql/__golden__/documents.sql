@@ -531,14 +531,14 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_documents_receive" on realtime.messages;
-    create policy "bs_documents_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_documents_receive" on realtime.messages;
+    create policy "bsb_documents_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false)
       );
-    drop policy if exists "bs_documents_send" on realtime.messages;
-    create policy "bs_documents_send" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_documents_send" on realtime.messages;
+    create policy "bsb_documents_send" on realtime.messages for insert to authenticated
       with check ((
         (realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))
@@ -1250,14 +1250,14 @@ grant execute on function "better_supabase"."name_document_version"(uuid, uuid, 
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_documents_receive" on realtime.messages;
-    create policy "bs_documents_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_documents_receive" on realtime.messages;
+    create policy "bsb_documents_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false)
       );
-    drop policy if exists "bs_documents_send" on realtime.messages;
-    create policy "bs_documents_send" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_documents_send" on realtime.messages;
+    create policy "bsb_documents_send" on realtime.messages for insert to authenticated
       with check ((
         (realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))
@@ -1826,14 +1826,14 @@ grant execute on function "app_private"."documents_to_compact"(integer, integer)
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_documents_receive" on realtime.messages;
-    create policy "bs_documents_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_documents_receive" on realtime.messages;
+    create policy "bsb_documents_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and "app_private"."document_topic_access"((select realtime.topic()), false)
       );
-    drop policy if exists "bs_documents_send" on realtime.messages;
-    create policy "bs_documents_send" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_documents_send" on realtime.messages;
+    create policy "bsb_documents_send" on realtime.messages for insert to authenticated
       with check ((
         (realtime.messages.extension = 'broadcast' and "app_private"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "app_private"."document_topic_access"((select realtime.topic()), false))
@@ -2400,14 +2400,14 @@ grant execute on function "better_supabase"."documents_to_compact"(integer, inte
 do $do$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_documents_receive" on realtime.messages;
-    create policy "bs_documents_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_documents_receive" on realtime.messages;
+    create policy "bsb_documents_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and "better_supabase"."document_topic_access"((select realtime.topic()), false)
       );
-    drop policy if exists "bs_documents_send" on realtime.messages;
-    create policy "bs_documents_send" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_documents_send" on realtime.messages;
+    create policy "bsb_documents_send" on realtime.messages for insert to authenticated
       with check ((
         (realtime.messages.extension = 'broadcast' and "better_supabase"."document_topic_access"((select realtime.topic()), true))
         or (realtime.messages.extension = 'presence' and "better_supabase"."document_topic_access"((select realtime.topic()), false))

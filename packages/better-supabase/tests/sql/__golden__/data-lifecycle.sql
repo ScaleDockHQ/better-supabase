@@ -445,8 +445,8 @@ $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."data_export_object_allowed"(text) to authenticated, service_role;
 
-drop policy if exists "bs_data_exports_select" on storage.objects;
-create policy "bs_data_exports_select" on storage.objects for select to authenticated
+drop policy if exists "bsb_data_exports_select" on storage.objects;
+create policy "bsb_data_exports_select" on storage.objects for select to authenticated
   using (bucket_id = 'data-exports' and "better_supabase"."data_export_object_allowed"(name));
 
 -- The caller's own data (subject 'user') or a tenant's (needs the export
@@ -1847,8 +1847,8 @@ $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."data_export_object_allowed"(text) to authenticated, service_role;
 
-drop policy if exists "bs_data_exports_select" on storage.objects;
-create policy "bs_data_exports_select" on storage.objects for select to authenticated
+drop policy if exists "bsb_data_exports_select" on storage.objects;
+create policy "bsb_data_exports_select" on storage.objects for select to authenticated
   using (bucket_id = 'data-exports' and "better_supabase"."data_export_object_allowed"(name));
 
 -- The caller's own data (subject 'user') or a tenant's (needs the export
@@ -2851,8 +2851,8 @@ $$;
 revoke execute on function "app_private"."data_export_object_allowed"(text) from public, anon;
 grant execute on function "app_private"."data_export_object_allowed"(text) to authenticated, service_role;
 
-drop policy if exists "bs_data_exports_select" on storage.objects;
-create policy "bs_data_exports_select" on storage.objects for select to authenticated
+drop policy if exists "bsb_data_exports_select" on storage.objects;
+create policy "bsb_data_exports_select" on storage.objects for select to authenticated
   using (bucket_id = 'data-exports' and "app_private"."data_export_object_allowed"(name));
 
 -- The caller's own data (subject 'user') or a tenant's (needs the export
@@ -3786,8 +3786,8 @@ $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
 grant execute on function "better_supabase"."data_export_object_allowed"(text) to authenticated, service_role;
 
-drop policy if exists "bs_data_exports_select" on storage.objects;
-create policy "bs_data_exports_select" on storage.objects for select to authenticated
+drop policy if exists "bsb_data_exports_select" on storage.objects;
+create policy "bsb_data_exports_select" on storage.objects for select to authenticated
   using (bucket_id = 'data-exports' and "better_supabase"."data_export_object_allowed"(name));
 
 -- The caller's own data (subject 'user') or a tenant's (needs the export

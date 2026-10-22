@@ -196,7 +196,7 @@ describe("appTables SQL", () => {
       },
     }).find((file) => file.module === "search" && file.kind === "schema");
 
-    expect(search?.contents).not.toContain("bs_search_project_index");
+    expect(search?.contents).not.toContain("bsb_search_project_index");
     await expect(golden(files)).toMatchFileSnapshot(
       "__golden__/app-tables/subject.sql",
     );
@@ -288,7 +288,7 @@ describe("appTables SQL", () => {
     });
 
     expect(test?.contents).toContain(
-      `array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bs_session_active']`,
+      `array['projects_select', 'projects_insert', 'projects_update', 'projects_delete', 'bsb_session_active']`,
     );
     expect(test?.contents).toContain(
       `array['tasks_select', 'tasks_insert', 'tasks_update', 'tasks_delete']`,
@@ -542,7 +542,7 @@ describe("appTables SQL errors", () => {
     }).find((file) => file.kind === "test");
 
     expect(test?.contents).toContain(
-      "select extensions.has_trigger('public'::name, 'tasks'::name, 'bs_versions_task_auto'::name, 'public.tasks snapshots a version on each change');",
+      "select extensions.has_trigger('public'::name, 'tasks'::name, 'bsb_versions_task_auto'::name, 'public.tasks snapshots a version on each change');",
     );
   });
 

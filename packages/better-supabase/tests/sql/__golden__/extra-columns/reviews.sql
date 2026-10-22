@@ -149,8 +149,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reviews_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_reviews_changed" on "better_supabase"."reviews";
-create trigger "bs_reviews_changed"
+drop trigger if exists "bsb_reviews_changed" on "better_supabase"."reviews";
+create trigger "bsb_reviews_changed"
   after insert or update of "rating", "status" or delete on "better_supabase"."reviews"
   for each row execute function "better_supabase"."reviews_changed"();
 
@@ -288,8 +288,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reviews_moderated"() from public, anon, authenticated;
-drop trigger if exists "bs_reviews_moderated" on "better_supabase"."moderation_items";
-create trigger "bs_reviews_moderated"
+drop trigger if exists "bsb_reviews_moderated" on "better_supabase"."moderation_items";
+create trigger "bsb_reviews_moderated"
   after update of "status", "decided_at" on "better_supabase"."moderation_items"
   for each row when (new."subject_type" = 'review')
   execute function "better_supabase"."reviews_moderated"();

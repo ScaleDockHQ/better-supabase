@@ -67,8 +67,8 @@ create table if not exists "better_supabase"."inboxes" (
 create index if not exists inboxes_tenant_idx on "better_supabase"."inboxes" ("tenant_id");
 create unique index if not exists inboxes_address_idx on "better_supabase"."inboxes" ("channel", "channel_address") where "channel_address" is not null and "archived_at" is null;
 alter table "better_supabase"."inboxes" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."inboxes";
-create trigger bs_updated_at before update on "better_supabase"."inboxes"
+drop trigger if exists bsb_updated_at on "better_supabase"."inboxes";
+create trigger bsb_updated_at before update on "better_supabase"."inboxes"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inboxes" enable row level security;
 revoke all on "better_supabase"."inboxes" from anon, authenticated;
@@ -113,8 +113,8 @@ create unique index if not exists contacts_user_idx on "better_supabase"."contac
 create index if not exists contacts_email_idx on "better_supabase"."contacts" ("tenant_id", lower("email"));
 create index if not exists contacts_user_id_idx on "better_supabase"."contacts" ("user_id");
 alter table "better_supabase"."contacts" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."contacts";
-create trigger bs_updated_at before update on "better_supabase"."contacts"
+drop trigger if exists bsb_updated_at on "better_supabase"."contacts";
+create trigger bsb_updated_at before update on "better_supabase"."contacts"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."contacts" enable row level security;
 revoke all on "better_supabase"."contacts" from anon, authenticated;
@@ -174,8 +174,8 @@ create index if not exists conversations_contact_idx on "better_supabase"."inbox
 create index if not exists conversations_inbox_idx on "better_supabase"."inbox_conversations" ("inbox_id");
 create index if not exists conversations_team_idx on "better_supabase"."inbox_conversations" ("team_id") where "team_id" is not null;
 alter table "better_supabase"."inbox_conversations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."inbox_conversations";
-create trigger bs_updated_at before update on "better_supabase"."inbox_conversations"
+drop trigger if exists bsb_updated_at on "better_supabase"."inbox_conversations";
+create trigger bsb_updated_at before update on "better_supabase"."inbox_conversations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."inbox_conversations" enable row level security;
 revoke all on "better_supabase"."inbox_conversations" from anon, authenticated;
@@ -240,8 +240,8 @@ create table if not exists "better_supabase"."message_deliveries" (
 );
 create index if not exists message_deliveries_external_idx on "better_supabase"."message_deliveries" ("channel", "external_id") where "external_id" is not null;
 alter table "better_supabase"."message_deliveries" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."message_deliveries";
-create trigger bs_updated_at before update on "better_supabase"."message_deliveries"
+drop trigger if exists bsb_updated_at on "better_supabase"."message_deliveries";
+create trigger bsb_updated_at before update on "better_supabase"."message_deliveries"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_deliveries" enable row level security;
 revoke all on "better_supabase"."message_deliveries" from anon, authenticated;
@@ -291,8 +291,8 @@ create table if not exists "better_supabase"."message_templates" (
 );
 create index if not exists message_templates_inbox_idx on "better_supabase"."message_templates" ("inbox_id");
 alter table "better_supabase"."message_templates" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."message_templates";
-create trigger bs_updated_at before update on "better_supabase"."message_templates"
+drop trigger if exists bsb_updated_at on "better_supabase"."message_templates";
+create trigger bsb_updated_at before update on "better_supabase"."message_templates"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."message_templates" enable row level security;
 revoke all on "better_supabase"."message_templates" from anon, authenticated;
@@ -318,8 +318,8 @@ create index if not exists scheduled_inbox_messages_due_idx on "better_supabase"
 create index if not exists scheduled_inbox_messages_conversation_idx on "better_supabase"."scheduled_inbox_messages" ("conversation_id");
 create index if not exists scheduled_inbox_messages_author_idx on "better_supabase"."scheduled_inbox_messages" ("author_id", "scheduled_for");
 alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."scheduled_inbox_messages";
-create trigger bs_updated_at before update on "better_supabase"."scheduled_inbox_messages"
+drop trigger if exists bsb_updated_at on "better_supabase"."scheduled_inbox_messages";
+create trigger bsb_updated_at before update on "better_supabase"."scheduled_inbox_messages"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."scheduled_inbox_messages" enable row level security;
 revoke all on "better_supabase"."scheduled_inbox_messages" from anon, authenticated;
@@ -1973,14 +1973,14 @@ create trigger message_deliveries_broadcast after insert or update of "status" o
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_inbox_receive" on realtime.messages;
-    create policy "bs_inbox_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_inbox_receive" on realtime.messages;
+    create policy "bsb_inbox_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'inbox:org:%'
         and substr((select realtime.topic()), 11) in (select x::text from better_supabase.tenant_ids_with('inbox.read') x)
       );
-    drop policy if exists "bs_inbox_broadcast" on realtime.messages;
+    drop policy if exists "bsb_inbox_broadcast" on realtime.messages;
   end if;
 end;
 $$;
@@ -2011,10 +2011,10 @@ grant execute on function "better_supabase"."inbox_file_allowed"(text, text) to 
 do $$
 begin
   if to_regclass('storage.objects') is not null then
-    drop policy if exists "bs_inbox_files_read" on storage.objects;
-    create policy "bs_inbox_files_read" on storage.objects for select to authenticated
+    drop policy if exists "bsb_inbox_files_read" on storage.objects;
+    create policy "bsb_inbox_files_read" on storage.objects for select to authenticated
       using ("better_supabase"."inbox_file_allowed"(bucket_id, name));
-    drop policy if exists "bs_inbox_files_write" on storage.objects;
+    drop policy if exists "bsb_inbox_files_write" on storage.objects;
   end if;
 end;
 $$;

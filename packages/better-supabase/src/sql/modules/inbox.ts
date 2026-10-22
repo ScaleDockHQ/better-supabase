@@ -127,7 +127,7 @@ const TO_MESSAGING: ModuleUpgrade = {
       const c = (column: string): string => r.col("reactions", column);
 
       return `  update ${table} x set ${c("subjectType")} = ${core.message} where x.${c("subjectType")} = 'inbox_message';
-  perform set_config('better_supabase.bs_reactions_backfill', 'on', true);
+  perform set_config('better_supabase.bsb_reactions_backfill', 'on', true);
   insert into ${table} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("actor")}, ${c("user")}, ${c("emoji")})
   select x.tenant_id, ${core.message}, x.id::text, w.actor,
     case when w.actor ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then w.actor::uuid end,
@@ -137,7 +137,7 @@ const TO_MESSAGING: ModuleUpgrade = {
   cross join lateral jsonb_array_elements_text(e.value) w(actor)
   where jsonb_typeof(e.value) = 'array' and length(e.key) between 1 and 64 and e.key !~ '\\s' and e.key !~ '^:[a-z0-9_+-]{1,32}:$'
   on conflict do nothing;
-  perform set_config('better_supabase.bs_reactions_backfill', '', true);`;
+  perform set_config('better_supabase.bsb_reactions_backfill', '', true);`;
     })();
 
     return `-- The messaging tables and the inbox details, so the messages can move before the module files run.

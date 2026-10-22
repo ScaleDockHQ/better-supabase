@@ -260,7 +260,7 @@ function parseEntries(
  * bytes.
  */
 export function sameTenantTrigger(column: string): string {
-  return `bs_same_tenant_${column}`.slice(0, 63);
+  return `bsb_same_tenant_${column}`.slice(0, 63);
 }
 
 function triggerName(column: string): string {

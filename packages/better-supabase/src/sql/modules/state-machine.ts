@@ -671,7 +671,7 @@ function trigger(ctx: ModuleContext, item: Machine): string {
     : "";
 
   return `
-create or replace function better_supabase.bs_transition_${item.name}()
+create or replace function better_supabase.bsb_transition_${item.name}()
 returns trigger
 language plpgsql
 security definer
@@ -704,9 +704,9 @@ ${declare}begin
   return new;
 end;
 $$;
-drop trigger if exists bs_transition_${item.name} on ${target};
-create trigger bs_transition_${item.name} before insert or update of ${sqlIdent(item.column)} on ${target}
-for each row execute function better_supabase.bs_transition_${item.name}();`;
+drop trigger if exists bsb_transition_${item.name} on ${target};
+create trigger bsb_transition_${item.name} before insert or update of ${sqlIdent(item.column)} on ${target}
+for each row execute function better_supabase.bsb_transition_${item.name}();`;
 }
 
 /** A `case subject_type` over the machines, with `unknown` for any other name. */

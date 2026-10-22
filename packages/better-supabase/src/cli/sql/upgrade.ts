@@ -26,6 +26,7 @@ import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
+import { legacyPrefixNames, legacyPrefixSql } from "./legacy-prefix.ts";
 import { migrationStamp } from "./migrations.ts";
 import {
   latestMigration,
@@ -82,12 +83,21 @@ export async function upgrade(
 
   const plan = upgradePlan(installed, sqlLayout);
   const renamed = [...new Set(renames.steps.map((step) => step.module))];
+  const legacy = legacyPrefixNames(text);
+  const prefixed = legacy.length > 0;
 
   const data = {
     upgrades: plan.map(({ module, from, to }) => ({ module, from, to })),
     ...(renamed.length > 0 ? { renames: renamed } : {}),
+    ...(prefixed ? { prefix: "bsb" } : {}),
     stale,
   };
+
+  const current =
+    plan.length === 0 &&
+    stale.length === 0 &&
+    renamed.length === 0 &&
+    !prefixed;
 
   const behind = plan.map(
     (entry) =>
@@ -95,7 +105,7 @@ export async function upgrade(
   );
 
   if (args.check === true) {
-    if (plan.length === 0 && stale.length === 0 && renamed.length === 0) {
+    if (current) {
       return {
         code: 0,
         output: "SQL modules are at their current versions.",
@@ -113,13 +123,16 @@ export async function upgrade(
         ...renamed.map(
           (module) => `${module} has entity renames to apply to its tables`,
         ),
+        ...(prefixed
+          ? ["The installed objects still use the bs_ prefix of 0.14 and older"]
+          : []),
         ...(stale.length > 0 ? [`Out of date: ${stale.join(", ")}.`] : []),
         "Run `better-supabase sql upgrade`.",
       ].join("\n"),
     };
   }
 
-  if (plan.length === 0 && stale.length === 0 && renamed.length === 0) {
+  if (current) {
     return {
       code: 0,
       output: "SQL modules are at their current versions.",
@@ -136,7 +149,14 @@ export async function upgrade(
           `-- Entity renames (blocks.<name>.entities) of ${renamed.join(", ")}.\n${renames.steps.map((step) => step.sql).join("\n")}`,
         ];
 
+  const prefixSteps = prefixed
+    ? [
+        `-- Renames the bs_ triggers, policies, constraints, indexes and functions to bsb_ (0.15).\n${legacyPrefixSql(legacy)}`,
+      ]
+    : [];
+
   const steps = [
+    ...prefixSteps,
     ...renameSteps,
     ...plan.flatMap((entry) =>
       entry.steps
@@ -163,6 +183,10 @@ export async function upgrade(
     );
 
     lines.push(...changeLines(applied));
+  }
+
+  if (prefixed) {
+    lines.push(`Renamed ${String(legacy.length)} bs_ names to bsb_`);
   }
 
   for (const module of renamed) {

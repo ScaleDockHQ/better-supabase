@@ -31,8 +31,8 @@ create index if not exists ssf_streams_receiver_idx on "better_supabase"."ssf_st
 create index if not exists ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
 create index if not exists ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 alter table "better_supabase"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."ssf_streams";
-create trigger bs_updated_at before update on "better_supabase"."ssf_streams"
+drop trigger if exists bsb_updated_at on "better_supabase"."ssf_streams";
+create trigger bsb_updated_at before update on "better_supabase"."ssf_streams"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."ssf_streams" enable row level security;
 revoke all on "better_supabase"."ssf_streams" from anon, authenticated;
@@ -544,8 +544,8 @@ create index if not exists ssf_streams_receiver_idx on "better_supabase"."ssf_st
 create index if not exists ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
 create index if not exists ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 alter table "better_supabase"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."ssf_streams";
-create trigger bs_updated_at before update on "better_supabase"."ssf_streams"
+drop trigger if exists bsb_updated_at on "better_supabase"."ssf_streams";
+create trigger bsb_updated_at before update on "better_supabase"."ssf_streams"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."ssf_streams" enable row level security;
 revoke all on "better_supabase"."ssf_streams" from anon, authenticated;
@@ -1097,8 +1097,8 @@ create index if not exists ssf_streams_receiver_idx on "app_private"."ssf_stream
 create index if not exists ssf_streams_events_idx on "app_private"."ssf_streams" using gin ("events_delivered");
 create index if not exists ssf_streams_endpoint_idx on "app_private"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 alter table "app_private"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."ssf_streams";
-create trigger bs_updated_at before update on "app_private"."ssf_streams"
+drop trigger if exists bsb_updated_at on "app_private"."ssf_streams";
+create trigger bsb_updated_at before update on "app_private"."ssf_streams"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."ssf_streams" enable row level security;
 revoke all on "app_private"."ssf_streams" from anon, authenticated;
@@ -1610,8 +1610,8 @@ create index if not exists ssf_streams_receiver_idx on "better_supabase"."ssf_st
 create index if not exists ssf_streams_events_idx on "better_supabase"."ssf_streams" using gin ("events_delivered");
 create index if not exists ssf_streams_endpoint_idx on "better_supabase"."ssf_streams" ("endpoint_id") where "endpoint_id" is not null;
 alter table "better_supabase"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."ssf_streams";
-create trigger bs_updated_at before update on "better_supabase"."ssf_streams"
+drop trigger if exists bsb_updated_at on "better_supabase"."ssf_streams";
+create trigger bsb_updated_at before update on "better_supabase"."ssf_streams"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."ssf_streams" enable row level security;
 revoke all on "better_supabase"."ssf_streams" from anon, authenticated;

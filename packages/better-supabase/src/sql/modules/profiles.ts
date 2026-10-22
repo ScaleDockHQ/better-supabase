@@ -511,11 +511,11 @@ create table if not exists ${t} (
 );${hasAvatarPath(ctx) ? `\nalter table ${t} add column if not exists ${c("avatarPath")} text;` : ""}${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
 ${username}
 alter table ${t} enable row level security;
-drop policy if exists bs_profiles_read on ${t};
-create policy bs_profiles_read on ${t} for select to authenticated
+drop policy if exists bsb_profiles_read on ${t};
+create policy bsb_profiles_read on ${t} for select to authenticated
   using (${read});
-drop policy if exists bs_profiles_update on ${t};
-create policy bs_profiles_update on ${t} for update to authenticated
+drop policy if exists bsb_profiles_update on ${t};
+create policy bsb_profiles_update on ${t} for update to authenticated
   using (${c("key")} = (select auth.uid()))
   with check (${c("key")} = (select auth.uid()));
 ${selectGrant}
@@ -581,8 +581,8 @@ end;
 $$;
 revoke execute on function ${ctx.fn("profiles_platform_readable")}() from public, anon;
 grant execute on function ${ctx.fn("profiles_platform_readable")}() to authenticated, service_role;
-drop policy if exists bs_profiles_platform_read on ${t};
-create policy bs_profiles_platform_read on ${t} for select to authenticated
+drop policy if exists bsb_profiles_platform_read on ${t};
+create policy bsb_profiles_platform_read on ${t} for select to authenticated
   using ((select ${ctx.fn("profiles_platform_readable")}()));
 `;
 }

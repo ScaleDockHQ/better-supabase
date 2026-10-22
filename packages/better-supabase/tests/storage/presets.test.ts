@@ -82,8 +82,8 @@ describe("organizationLogoBucket", () => {
     expect(sql).toContain(
       "split_part(name, '/', 1) in (select t::text from better_supabase.tenant_ids_with('organization.update') t)",
     );
-    expect(sql).toContain('create policy "bs_organization_logos_insert"');
-    expect(sql).toContain('create policy "bs_organization_logos_delete"');
+    expect(sql).toContain('create policy "bsb_organization_logos_insert"');
+    expect(sql).toContain('create policy "bsb_organization_logos_delete"');
   });
 
   it("takes another permission, no tenant guard or a policy of its own", () => {
@@ -116,7 +116,7 @@ describe("access bucket policies", () => {
     const sql = docs.sql();
     expect(sql).toContain("tenant_ids_with('docs.list')");
     expect(sql).toContain("tenant_ids_with('docs.delete')");
-    expect(sql).toContain('create policy "bs_docs_list"');
+    expect(sql).toContain('create policy "bsb_docs_list"');
 
     const shared = defineBucket({
       id: "shared",

@@ -449,8 +449,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."contract_signature_settled"() from public, anon, authenticated;
-drop trigger if exists "bs_contracts_signature_settled" on "better_supabase"."signature_requests";
-create trigger "bs_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
+drop trigger if exists "bsb_contracts_signature_settled" on "better_supabase"."signature_requests";
+create trigger "bsb_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
   for each row when (old."status" = 'pending' and new."status" <> 'pending')
   execute function "better_supabase"."contract_signature_settled"();
 
@@ -1179,8 +1179,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."contract_signature_settled"() from public, anon, authenticated;
-drop trigger if exists "bs_contracts_signature_settled" on "better_supabase"."signature_requests";
-create trigger "bs_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
+drop trigger if exists "bsb_contracts_signature_settled" on "better_supabase"."signature_requests";
+create trigger "bsb_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
   for each row when (old."status" = 'pending' and new."status" <> 'pending')
   execute function "better_supabase"."contract_signature_settled"();
 
@@ -1911,8 +1911,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."contract_signature_settled"() from public, anon, authenticated;
-drop trigger if exists "bs_contracts_signature_settled" on "better_supabase"."signature_requests";
-create trigger "bs_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
+drop trigger if exists "bsb_contracts_signature_settled" on "better_supabase"."signature_requests";
+create trigger "bsb_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
   for each row when (old."status" = 'pending' and new."status" <> 'pending')
   execute function "app_private"."contract_signature_settled"();
 
@@ -2614,8 +2614,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."contract_signature_settled"() from public, anon, authenticated;
-drop trigger if exists "bs_contracts_signature_settled" on "better_supabase"."signature_requests";
-create trigger "bs_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
+drop trigger if exists "bsb_contracts_signature_settled" on "better_supabase"."signature_requests";
+create trigger "bsb_contracts_signature_settled" after update of "status" on "better_supabase"."signature_requests"
   for each row when (old."status" = 'pending' and new."status" <> 'pending')
   execute function "better_supabase"."contract_signature_settled"();
 

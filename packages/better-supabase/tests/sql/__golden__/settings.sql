@@ -263,9 +263,9 @@ grant execute on function "better_supabase"."reset_organization_setting"(uuid, t
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bs_record_organization_setting" on "better_supabase"."organization_settings";
+drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
 drop function if exists "better_supabase"."record_organization_setting"();
-drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
+drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
 
 create schema if not exists better_supabase;
@@ -594,8 +594,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."record_organization_setting"() from public, anon, authenticated;
-drop trigger if exists "bs_record_organization_setting" on "better_supabase"."organization_settings";
-create trigger "bs_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
+drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
+create trigger "bsb_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
   for each row execute function "better_supabase"."record_organization_setting"();
 create or replace function "better_supabase"."record_platform_setting"()
 returns trigger
@@ -631,8 +631,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."record_platform_setting"() from public, anon, authenticated;
-drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
-create trigger "bs_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
+drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
+create trigger "bsb_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
   for each row execute function "better_supabase"."record_platform_setting"();
 
 create schema if not exists better_supabase;
@@ -927,9 +927,9 @@ grant execute on function "app_private"."reset_organization_setting"(uuid, text)
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bs_record_organization_setting" on "app_private"."organization_settings";
+drop trigger if exists "bsb_record_organization_setting" on "app_private"."organization_settings";
 drop function if exists "app_private"."record_organization_setting"();
-drop trigger if exists "bs_record_platform_setting" on "app_private"."platform_settings";
+drop trigger if exists "bsb_record_platform_setting" on "app_private"."platform_settings";
 drop function if exists "app_private"."record_platform_setting"();
 
 create schema if not exists better_supabase;
@@ -1222,9 +1222,9 @@ grant execute on function "better_supabase"."reset_organization_setting"(uuid, t
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bs_record_organization_setting" on "better_supabase"."organization_settings";
+drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
 drop function if exists "better_supabase"."record_organization_setting"();
-drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
+drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
 
 -- blocks.settings.api: entry points for the Data API.

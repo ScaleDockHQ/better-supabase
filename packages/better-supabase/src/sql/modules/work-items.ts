@@ -287,7 +287,7 @@ ${checklistTable(ctx, n)}`;
 function guard(ctx: ModuleContext, n: WorkItemNames): string {
   const { t, c } = n;
   const w = (column: string): string => c("items", column);
-  const guardName = ctx.naming.rename("bs_work_item_guard");
+  const guardName = ctx.naming.rename("bsb_work_item_guard");
 
   const payload = (extra: string): string =>
     `jsonb_build_object('organizationId', new.${w("tenant")}, 'workItemId', new.${w("id")}, 'subjectType', ${sqlString(n.e("work_item"))}, 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;

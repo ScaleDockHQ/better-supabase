@@ -536,8 +536,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_moderated"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_moderated" on "better_supabase"."moderation_items";
-create trigger "bs_posts_moderated"
+drop trigger if exists "bsb_posts_moderated" on "better_supabase"."moderation_items";
+create trigger "bsb_posts_moderated"
   after update of "status", "decided_at" on "better_supabase"."moderation_items"
   for each row when (new."subject_type" = 'post')
   execute function "better_supabase"."posts_moderated"();
@@ -556,8 +556,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_removed"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_removed" on "better_supabase"."posts";
-create trigger "bs_posts_removed"
+drop trigger if exists "bsb_posts_removed" on "better_supabase"."posts";
+create trigger "bsb_posts_removed"
   after delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."posts_removed"();
 
@@ -587,8 +587,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_reply_guard"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_reply_guard" on "better_supabase"."messages";
-create trigger "bs_posts_reply_guard"
+drop trigger if exists "bsb_posts_reply_guard" on "better_supabase"."messages";
+create trigger "bsb_posts_reply_guard"
   before insert on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_reply_guard"();
 
@@ -614,8 +614,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_replied" on "better_supabase"."messages";
-create trigger "bs_posts_replied"
+drop trigger if exists "bsb_posts_replied" on "better_supabase"."messages";
+create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
@@ -1232,8 +1232,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_moderated"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_moderated" on "better_supabase"."moderation_items";
-create trigger "bs_posts_moderated"
+drop trigger if exists "bsb_posts_moderated" on "better_supabase"."moderation_items";
+create trigger "bsb_posts_moderated"
   after update of "status", "decided_at" on "better_supabase"."moderation_items"
   for each row when (new."subject_type" = 'post')
   execute function "better_supabase"."posts_moderated"();
@@ -1252,8 +1252,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_removed"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_removed" on "better_supabase"."posts";
-create trigger "bs_posts_removed"
+drop trigger if exists "bsb_posts_removed" on "better_supabase"."posts";
+create trigger "bsb_posts_removed"
   after delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."posts_removed"();
 
@@ -1283,8 +1283,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_reply_guard"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_reply_guard" on "better_supabase"."messages";
-create trigger "bs_posts_reply_guard"
+drop trigger if exists "bsb_posts_reply_guard" on "better_supabase"."messages";
+create trigger "bsb_posts_reply_guard"
   before insert on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_reply_guard"();
 
@@ -1310,8 +1310,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_replied" on "better_supabase"."messages";
-create trigger "bs_posts_replied"
+drop trigger if exists "bsb_posts_replied" on "better_supabase"."messages";
+create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
@@ -1880,8 +1880,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."posts_moderated"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_moderated" on "better_supabase"."moderation_items";
-create trigger "bs_posts_moderated"
+drop trigger if exists "bsb_posts_moderated" on "better_supabase"."moderation_items";
+create trigger "bsb_posts_moderated"
   after update of "status", "decided_at" on "better_supabase"."moderation_items"
   for each row when (new."subject_type" = 'post')
   execute function "app_private"."posts_moderated"();
@@ -1900,8 +1900,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."posts_removed"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_removed" on "app_private"."posts";
-create trigger "bs_posts_removed"
+drop trigger if exists "bsb_posts_removed" on "app_private"."posts";
+create trigger "bsb_posts_removed"
   after delete on "app_private"."posts"
   for each row execute function "app_private"."posts_removed"();
 
@@ -1931,8 +1931,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."posts_reply_guard"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_reply_guard" on "better_supabase"."messages";
-create trigger "bs_posts_reply_guard"
+drop trigger if exists "bsb_posts_reply_guard" on "better_supabase"."messages";
+create trigger "bsb_posts_reply_guard"
   before insert on "better_supabase"."messages"
   for each row execute function "app_private"."posts_reply_guard"();
 
@@ -1958,8 +1958,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."posts_replied"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_replied" on "better_supabase"."messages";
-create trigger "bs_posts_replied"
+drop trigger if exists "bsb_posts_replied" on "better_supabase"."messages";
+create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "app_private"."posts_replied"();
 
@@ -2526,8 +2526,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_moderated"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_moderated" on "better_supabase"."moderation_items";
-create trigger "bs_posts_moderated"
+drop trigger if exists "bsb_posts_moderated" on "better_supabase"."moderation_items";
+create trigger "bsb_posts_moderated"
   after update of "status", "decided_at" on "better_supabase"."moderation_items"
   for each row when (new."subject_type" = 'post')
   execute function "better_supabase"."posts_moderated"();
@@ -2546,8 +2546,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_removed"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_removed" on "better_supabase"."posts";
-create trigger "bs_posts_removed"
+drop trigger if exists "bsb_posts_removed" on "better_supabase"."posts";
+create trigger "bsb_posts_removed"
   after delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."posts_removed"();
 
@@ -2577,8 +2577,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_reply_guard"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_reply_guard" on "better_supabase"."messages";
-create trigger "bs_posts_reply_guard"
+drop trigger if exists "bsb_posts_reply_guard" on "better_supabase"."messages";
+create trigger "bsb_posts_reply_guard"
   before insert on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_reply_guard"();
 
@@ -2604,8 +2604,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
-drop trigger if exists "bs_posts_replied" on "better_supabase"."messages";
-create trigger "bs_posts_replied"
+drop trigger if exists "bsb_posts_replied" on "better_supabase"."messages";
+create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 

@@ -140,7 +140,7 @@ function isAppTable(ctx: ModuleContext, subject: RegisteredSubject): boolean {
 
 /** The trigger that re-indexes a subject's row; `fn` is `search_index_row`. */
 function triggerSql(fn: string, subject: RegisteredSubject): string {
-  const trigger = sqlIdent(`bs_search_${subject.type}_index`.slice(0, 63));
+  const trigger = sqlIdent(`bsb_search_${subject.type}_index`.slice(0, 63));
   const columns = watchedColumns(subject).map(sqlIdent).join(", ");
 
   return `drop trigger if exists ${trigger} on ${subject.qualified};

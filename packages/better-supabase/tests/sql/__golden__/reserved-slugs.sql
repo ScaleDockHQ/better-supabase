@@ -15,8 +15,8 @@ create table if not exists better_supabase.reserved_slugs (
 alter table better_supabase.reserved_slugs enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
-drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on better_supabase.reserved_slugs;
+create policy bsb_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -60,9 +60,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_slug on %s', target);
+  execute format('drop trigger if exists bsb_slug on %s', target);
   execute format(
-    'create trigger bs_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
+    'create trigger bsb_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
     column_name,
     target,
     column_name
@@ -128,8 +128,8 @@ create table if not exists better_supabase.reserved_slugs (
 alter table better_supabase.reserved_slugs enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
-drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on better_supabase.reserved_slugs;
+create policy bsb_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -173,9 +173,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_slug on %s', target);
+  execute format('drop trigger if exists bsb_slug on %s', target);
   execute format(
-    'create trigger bs_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
+    'create trigger bsb_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
     column_name,
     target,
     column_name
@@ -241,8 +241,8 @@ create table if not exists better_supabase.reserved_slugs (
 alter table better_supabase.reserved_slugs enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
-drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on better_supabase.reserved_slugs;
+create policy bsb_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -286,9 +286,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_slug on %s', target);
+  execute format('drop trigger if exists bsb_slug on %s', target);
   execute format(
-    'create trigger bs_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
+    'create trigger bsb_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
     column_name,
     target,
     column_name
@@ -354,8 +354,8 @@ create table if not exists better_supabase.reserved_slugs (
 alter table better_supabase.reserved_slugs enable row level security;
 -- enforce_slug runs as the writer, service_role included, and reads this list.
 grant select on better_supabase.reserved_slugs to anon, authenticated, service_role;
-drop policy if exists bs_reserved_slugs_read on better_supabase.reserved_slugs;
-create policy bs_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
+drop policy if exists bsb_reserved_slugs_read on better_supabase.reserved_slugs;
+create policy bsb_reserved_slugs_read on better_supabase.reserved_slugs for select to anon, authenticated, service_role using (true);
 
 -- 'invalid' for a malformed slug or one outside 1 to 63 characters
 -- (blocks.reserved-slugs.options.minLength and maxLength), 'reserved', or null.
@@ -399,9 +399,9 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_slug on %s', target);
+  execute format('drop trigger if exists bsb_slug on %s', target);
   execute format(
-    'create trigger bs_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
+    'create trigger bsb_slug before insert or update of %I on %s for each row execute function better_supabase.enforce_slug(%L)',
     column_name,
     target,
     column_name

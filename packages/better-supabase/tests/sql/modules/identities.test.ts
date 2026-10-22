@@ -85,7 +85,7 @@ describe("identities module", () => {
     });
 
     expect(off).toContain(
-      'drop trigger if exists "bs_identity_email" on auth.users;',
+      'drop trigger if exists "bsb_identity_email" on auth.users;',
     );
     expect(off).not.toContain("create trigger");
   });

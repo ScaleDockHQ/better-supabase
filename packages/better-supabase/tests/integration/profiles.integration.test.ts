@@ -40,7 +40,7 @@ const USERS = {
 
 type Who = keyof typeof USERS;
 
-const SCHEMA = `bs_profiles_${USERS.ada.slice(0, 8)}`;
+const SCHEMA = `bsb_profiles_${USERS.ada.slice(0, 8)}`;
 const PROFILES = `${SCHEMA}.profiles`;
 
 /** Runs `sql` as `who` through the authenticated role, inside a savepoint. */

@@ -59,9 +59,9 @@ describe("audit module", () => {
       "create or replace function better_supabase.audit_event(",
     );
     expect(sql).toContain("coalesce(source, 'app')");
-    expect(sql).toContain('drop trigger if exists "bs_audit_append_only"');
+    expect(sql).toContain('drop trigger if exists "bsb_audit_append_only"');
     expect(sql).toContain(
-      'drop policy if exists bs_audit_read on "better_supabase"."audit_events";',
+      'drop policy if exists bsb_audit_read on "better_supabase"."audit_events";',
     );
     expect(sql).not.toContain("audit_events_restricted");
     expect(sql).toContain(
@@ -93,7 +93,7 @@ describe("audit module", () => {
     expect(sql).toContain("coalesce(source, 'saas')");
     expect(sql).not.toContain("audit_event got restricted details");
     expect(sql).not.toContain("old_record");
-    expect(sql).not.toContain("drop policy if exists bs_audit_read");
+    expect(sql).not.toContain("drop policy if exists bsb_audit_read");
   });
 
   it("guards, scopes and splits entries by option", () => {
@@ -109,7 +109,7 @@ describe("audit module", () => {
     });
 
     expect(sql).toContain(
-      'create trigger "bs_audit_append_only" before update or delete',
+      'create trigger "bsb_audit_append_only" before update or delete',
     );
     expect(sql).toContain("better_supabase.tenant_ids_with('audit.read')");
     expect(sql).toContain("better_supabase.is_platform('platform.audit.read')");
@@ -242,7 +242,7 @@ describe("audit module", () => {
       'alter table "better_supabase"."audit_events" add column if not exists row_hash bytea;',
     );
     expect(sql).toContain(
-      'create trigger "bs_audit_chain" before insert on "better_supabase"."audit_events"',
+      'create trigger "bsb_audit_chain" before insert on "better_supabase"."audit_events"',
     );
     expect(sql).toContain(
       "create or replace function better_supabase.verify_audit_chain(",
@@ -251,7 +251,7 @@ describe("audit module", () => {
       "create table if not exists better_supabase.audit_checkpoints (",
     );
     expect(audit()).toContain(
-      'drop trigger if exists "bs_audit_chain" on "better_supabase"."audit_events";',
+      'drop trigger if exists "bsb_audit_chain" on "better_supabase"."audit_events";',
     );
     expect(audit()).not.toContain("verify_audit_chain");
     expect(audit({ ...CENTRAKIT, options: { chain: true } })).not.toContain(

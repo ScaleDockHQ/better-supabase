@@ -582,8 +582,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_sso_auth_user" on auth.users;
-create trigger "bs_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_sso_auth_user" on auth.users;
+create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."sso_on_auth_user"();
 
 -- SCIM storage for the SCIM handler (service role). Rows come back as

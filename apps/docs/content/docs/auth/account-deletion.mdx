@@ -111,7 +111,7 @@ const lastSeen = signIns.orThrow().get(userId)?.lastSignInAt;
 To put that policy on every table, set `options.policies`. `sql sync` reads
 the `create table` and `drop table` statements in your declarative schema
 files (your migrations only when the project has none) and writes
-one `bs_session_active` policy per table in `schemas`, except the
+one `bsb_session_active` policy per table in `schemas`, except the
 `exclude` globs. Run it again after adding a table:
 
 ```ts title="better-supabase.config.ts"

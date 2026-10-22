@@ -169,7 +169,7 @@ describe("billing module", () => {
       `alter table ${table} alter column "stripe_customer_id" drop not null;`,
     );
     expect(sql).toContain(
-      `add constraint bs_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);`,
+      `add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);`,
     );
     expect(sql).toContain(
       `on conflict ("organization_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"\n    where b."stripe_customer_id" is null;`,

@@ -298,8 +298,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."record_organization_setting"() from public, anon, authenticated;
-drop trigger if exists "bs_record_organization_setting" on "better_supabase"."organization_settings";
-create trigger "bs_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
+drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
+create trigger "bsb_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
   for each row execute function "better_supabase"."record_organization_setting"();
 create or replace function "better_supabase"."record_platform_setting"()
 returns trigger
@@ -335,8 +335,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."record_platform_setting"() from public, anon, authenticated;
-drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
-create trigger "bs_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
+drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
+create trigger "bsb_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
   for each row execute function "better_supabase"."record_platform_setting"();
 
 -- config.json schemas
@@ -344,28 +344,28 @@ create trigger "bs_record_platform_setting" after insert or update or delete on 
 -- move the validate statements to a later migration: adding a not valid check
 -- blocks writes only briefly, and validating takes a lock that lets writes
 -- continue. The trigger of the same name reports which part of the schema failed.
-alter table "better_supabase"."user_settings" drop constraint if exists "bs_json_value_theme";
-alter table "better_supabase"."user_settings" add constraint "bs_json_value_theme"
+alter table "better_supabase"."user_settings" drop constraint if exists "bsb_json_value_theme";
+alter table "better_supabase"."user_settings" add constraint "bsb_json_value_theme"
   check ("key" <> 'theme' or extensions.jsonb_matches_schema('{"type":"string","enum":["light","dark","system"]}'::json, "value")) not valid;
-alter table "better_supabase"."user_settings" validate constraint "bs_json_value_theme";
-drop trigger if exists "bs_json_value_theme" on "better_supabase"."user_settings";
-create trigger "bs_json_value_theme" before insert or update of "value", "key" on "better_supabase"."user_settings"
+alter table "better_supabase"."user_settings" validate constraint "bsb_json_value_theme";
+drop trigger if exists "bsb_json_value_theme" on "better_supabase"."user_settings";
+create trigger "bsb_json_value_theme" before insert or update of "value", "key" on "better_supabase"."user_settings"
   for each row execute function better_supabase.check_json_schema('value', '{"type":"string","enum":["light","dark","system"]}', 'key', 'theme');
 
-alter table "better_supabase"."organization_settings" drop constraint if exists "bs_json_value_fiscal_year_start";
-alter table "better_supabase"."organization_settings" add constraint "bs_json_value_fiscal_year_start"
+alter table "better_supabase"."organization_settings" drop constraint if exists "bsb_json_value_fiscal_year_start";
+alter table "better_supabase"."organization_settings" add constraint "bsb_json_value_fiscal_year_start"
   check ("key" <> 'fiscal_year_start' or extensions.jsonb_matches_schema('{"type":"integer","minimum":1,"maximum":12}'::json, "value")) not valid;
-alter table "better_supabase"."organization_settings" validate constraint "bs_json_value_fiscal_year_start";
-drop trigger if exists "bs_json_value_fiscal_year_start" on "better_supabase"."organization_settings";
-create trigger "bs_json_value_fiscal_year_start" before insert or update of "value", "key" on "better_supabase"."organization_settings"
+alter table "better_supabase"."organization_settings" validate constraint "bsb_json_value_fiscal_year_start";
+drop trigger if exists "bsb_json_value_fiscal_year_start" on "better_supabase"."organization_settings";
+create trigger "bsb_json_value_fiscal_year_start" before insert or update of "value", "key" on "better_supabase"."organization_settings"
   for each row execute function better_supabase.check_json_schema('value', '{"type":"integer","minimum":1,"maximum":12}', 'key', 'fiscal_year_start');
 
-alter table "better_supabase"."organization_settings" drop constraint if exists "bs_json_value_default_currency";
-alter table "better_supabase"."organization_settings" add constraint "bs_json_value_default_currency"
+alter table "better_supabase"."organization_settings" drop constraint if exists "bsb_json_value_default_currency";
+alter table "better_supabase"."organization_settings" add constraint "bsb_json_value_default_currency"
   check ("key" <> 'default_currency' or extensions.jsonb_matches_schema('{"type":"string","pattern":"^[A-Z]{3}$"}'::json, "value")) not valid;
-alter table "better_supabase"."organization_settings" validate constraint "bs_json_value_default_currency";
-drop trigger if exists "bs_json_value_default_currency" on "better_supabase"."organization_settings";
-create trigger "bs_json_value_default_currency" before insert or update of "value", "key" on "better_supabase"."organization_settings"
+alter table "better_supabase"."organization_settings" validate constraint "bsb_json_value_default_currency";
+drop trigger if exists "bsb_json_value_default_currency" on "better_supabase"."organization_settings";
+create trigger "bsb_json_value_default_currency" before insert or update of "value", "key" on "better_supabase"."organization_settings"
   for each row execute function better_supabase.check_json_schema('value', '{"type":"string","pattern":"^[A-Z]{3}$"}', 'key', 'default_currency');
 
 create schema if not exists better_supabase;

@@ -120,7 +120,7 @@ select is(
 );
 
 select ok(
-  not has_function_privilege('authenticated', 'better_supabase.bs_booking_engagement()', 'execute'),
+  not has_function_privilege('authenticated', 'better_supabase.bsb_booking_engagement()', 'execute'),
   'the trigger function is not callable by users'
 );
 

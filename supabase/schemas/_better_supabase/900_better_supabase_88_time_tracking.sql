@@ -186,8 +186,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."time_entry_guard"() from public, anon, authenticated;
-drop trigger if exists bs_time_entry_guard on "better_supabase"."time_entries";
-create trigger bs_time_entry_guard
+drop trigger if exists bsb_time_entry_guard on "better_supabase"."time_entries";
+create trigger bsb_time_entry_guard
   before insert or update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."time_entry_guard"();
 

@@ -262,8 +262,8 @@ begin
 end;
 $$;
 revoke execute on function ${fn("billable_time_guard")}() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_guard on ${entries};
-create trigger bs_billable_time_guard
+drop trigger if exists bsb_billable_time_guard on ${entries};
+create trigger bsb_billable_time_guard
   before update or delete on ${entries}
   for each row execute function ${fn("billable_time_guard")}();
 
@@ -280,8 +280,8 @@ begin
 end;
 $$;
 revoke execute on function ${fn("billable_time_release")}() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_release on ${invoices.table("invoices")};
-create trigger bs_billable_time_release
+drop trigger if exists bsb_billable_time_release on ${invoices.table("invoices")};
+create trigger bsb_billable_time_release
   after update of ${iv("status")} on ${invoices.table("invoices")}
   for each row when (new.${iv("status")} = 'void' and old.${iv("status")} <> 'void')
   execute function ${fn("billable_time_release")}();

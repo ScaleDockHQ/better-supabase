@@ -179,7 +179,7 @@ interface ProviderPolicy {
 }
 
 /**
- * Policies better-supabase generates (`bs_` names) on `storage.objects` and
+ * Policies better-supabase generates (`bsb_` names) on `storage.objects` and
  * `realtime.messages` that call the provider's templates, with the keys they
  * pass. The first file that declares a policy wins, matching the `sqlFiles`
  * order (declarative schemas, then the newest migration).
@@ -200,7 +200,7 @@ function providerPolicies(
         .map((part) => unquote(part.trim()))
         .join(".");
 
-      if (!POLICY_TABLES.has(table) || !name.startsWith("bs_")) {
+      if (!POLICY_TABLES.has(table) || !/^bsb?_/.test(name)) {
         continue;
       }
 
@@ -402,7 +402,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     title:
       "Permission the provider's SQL functions don't fully answer in a Storage or Realtime policy",
     description:
-      "An access policy on a bucket or topic that reaches the authorization provider's functions (through `sql` templates, or through the access contract under the `provider` model) decides by role and scope only. A permission whose `authorization.permissions` entry isn't `sqlComplete: true` would grant every object or topic in the scope, so it is reported, and so is a key the provider doesn't list or every key when it lists no permissions. A scope the provider doesn't declare, and a key checked at another scope than its entry's `scopes`, are reported too. Doctor reads the keys from `buckets` in the config and from the generated `bs_` policies on `storage.objects` and `realtime.messages`. It also warns when a bucket's `sql` templates differ from the provider's `idsWith` and `isPlatform`, since a copy goes stale when the provider changes; `sql: \"provider\"` renders them at `gen` time instead.",
+      "An access policy on a bucket or topic that reaches the authorization provider's functions (through `sql` templates, or through the access contract under the `provider` model) decides by role and scope only. A permission whose `authorization.permissions` entry isn't `sqlComplete: true` would grant every object or topic in the scope, so it is reported, and so is a key the provider doesn't list or every key when it lists no permissions. A scope the provider doesn't declare, and a key checked at another scope than its entry's `scopes`, are reported too. Doctor reads the keys from `buckets` in the config and from the generated `bsb_` policies on `storage.objects` and `realtime.messages`. It also warns when a bucket's `sql` templates differ from the provider's `idsWith` and `isPlatform`, since a copy goes stale when the provider changes; `sql: \"provider\"` renders them at `gen` time instead.",
     check: (context) => {
       const provider = context.config.authorization;
 
@@ -832,7 +832,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
         }
 
         for (const policy of table.policies) {
-          if (policy.name.startsWith("bs_")) {
+          if (/^bsb?_/.test(policy.name)) {
             continue;
           }
 

@@ -115,8 +115,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_guard on "better_supabase"."time_entries";
-create trigger bs_billable_time_guard
+drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
+create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."billable_time_guard"();
 
@@ -133,8 +133,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_release on "better_supabase"."invoices";
-create trigger bs_billable_time_release
+drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
+create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
   execute function "better_supabase"."billable_time_release"();
@@ -724,8 +724,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_guard on "better_supabase"."time_entries";
-create trigger bs_billable_time_guard
+drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
+create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."billable_time_guard"();
 
@@ -742,8 +742,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_release on "better_supabase"."invoices";
-create trigger bs_billable_time_release
+drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
+create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
   execute function "better_supabase"."billable_time_release"();
@@ -1344,8 +1344,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_guard on "better_supabase"."time_entries";
-create trigger bs_billable_time_guard
+drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
+create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "app_private"."billable_time_guard"();
 
@@ -1362,8 +1362,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_release on "better_supabase"."invoices";
-create trigger bs_billable_time_release
+drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
+create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
   execute function "app_private"."billable_time_release"();
@@ -1953,8 +1953,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_guard"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_guard on "better_supabase"."time_entries";
-create trigger bs_billable_time_guard
+drop trigger if exists bsb_billable_time_guard on "better_supabase"."time_entries";
+create trigger bsb_billable_time_guard
   before update or delete on "better_supabase"."time_entries"
   for each row execute function "better_supabase"."billable_time_guard"();
 
@@ -1971,8 +1971,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."billable_time_release"() from public, anon, authenticated;
-drop trigger if exists bs_billable_time_release on "better_supabase"."invoices";
-create trigger bs_billable_time_release
+drop trigger if exists bsb_billable_time_release on "better_supabase"."invoices";
+create trigger bsb_billable_time_release
   after update of "status" on "better_supabase"."invoices"
   for each row when (new."status" = 'void' and old."status" <> 'void')
   execute function "better_supabase"."billable_time_release"();

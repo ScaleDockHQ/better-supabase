@@ -31,8 +31,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bs_profile_guard" on "centrakit"."profiles";
-create trigger "bs_profile_guard" before update on "centrakit"."profiles"
+drop trigger if exists "bsb_profile_guard" on "centrakit"."profiles";
+create trigger "bsb_profile_guard" before update on "centrakit"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
 
 -- A free username from base: lowercased, stripped to [a-z0-9_], starting
@@ -190,7 +190,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."update_my_profile"(jsonb) from public, anon;
 grant execute on function "better_supabase"."update_my_profile"(jsonb) to authenticated, service_role;
-drop trigger if exists "bs_profile_sync" on auth.users;
+drop trigger if exists "bsb_profile_sync" on auth.users;
 
 -- Keeps the profile's email equal to the confirmed address in auth.users.
 create or replace function "better_supabase"."mirror_profile_email"()
@@ -205,8 +205,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bs_profile_email" on auth.users;
-create trigger "bs_profile_email" after update of email on auth.users
+drop trigger if exists "bsb_profile_email" on auth.users;
+create trigger "bsb_profile_email" after update of email on auth.users
   for each row execute function "better_supabase"."mirror_profile_email"();
 
 create schema if not exists better_supabase;

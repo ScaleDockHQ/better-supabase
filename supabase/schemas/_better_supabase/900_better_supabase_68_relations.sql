@@ -642,13 +642,13 @@ end;
 $$;
 revoke execute on function "better_supabase"."relations_subject_deleted"() from public, anon, authenticated;
 
-drop trigger if exists "bs_relations_product_cascade" on "better_supabase"."products";
-create trigger "bs_relations_product_cascade"
+drop trigger if exists "bsb_relations_product_cascade" on "better_supabase"."products";
+create trigger "bsb_relations_product_cascade"
   after delete on "better_supabase"."products"
   for each row execute function "better_supabase"."relations_subject_deleted"('product', 'id');
 
-drop trigger if exists "bs_relations_product_variant_cascade" on "better_supabase"."product_variants";
-create trigger "bs_relations_product_variant_cascade"
+drop trigger if exists "bsb_relations_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bsb_relations_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."relations_subject_deleted"('product_variant', 'id');
 

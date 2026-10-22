@@ -138,7 +138,7 @@ export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
 }
 
 /**
- * The `bs_role_scope` trigger on the memberships table: with
+ * The `bsb_role_scope` trigger on the memberships table: with
  * `roleThrough.where`, every write (the service role's too) stores a role that
  * the condition names. Removed when `where` is unset.
  */
@@ -448,8 +448,8 @@ grant all on ${m} to service_role;
 
   const policy = ctx.manages
     ? `
-drop policy if exists bs_memberships_read on ${m};
-create policy bs_memberships_read on ${m}
+drop policy if exists bsb_memberships_read on ${m};
+create policy bsb_memberships_read on ${m}
   for select to authenticated
   using (${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()}));
 `

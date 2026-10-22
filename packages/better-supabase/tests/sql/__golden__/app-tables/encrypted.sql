@@ -50,8 +50,8 @@ create policy "patients_update" on "public"."patients" for update to authenticat
 drop policy if exists "patients_delete" on "public"."patients";
 create policy "patients_delete" on "public"."patients" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "patients_organization_id_idx" on "public"."patients" ("organization_id");
-drop trigger if exists "bs_updated_at" on "public"."patients";
-create trigger "bs_updated_at" before update on "public"."patients"
+drop trigger if exists "bsb_updated_at" on "public"."patients";
+create trigger "bsb_updated_at" before update on "public"."patients"
   for each row execute function better_supabase.set_updated_at();
 -- Encrypts ssn, email, born_on, diagnosis with the row's data key before the row is written.
 create or replace function "better_supabase"."patients_seal"()
@@ -111,8 +111,8 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."patients_seal"() from public, anon, authenticated;
-drop trigger if exists "bs_seal_fields" on "public"."patients";
-create trigger "bs_seal_fields" before insert or update of "organization_id", "ssn", "email", "born_on", "diagnosis" on "public"."patients"
+drop trigger if exists "bsb_seal_fields" on "public"."patients";
+create trigger "bsb_seal_fields" before insert or update of "organization_id", "ssn", "email", "born_on", "diagnosis" on "public"."patients"
   for each row execute function "better_supabase"."patients_seal"();
 -- Decrypts ssn, email, born_on, diagnosis for the rows the caller reaches, as the table's policies do.
 create or replace function "better_supabase"."patients_reveal"(ids uuid[])
@@ -150,16 +150,16 @@ begin
   end loop;
   return query
     with r as materialized (
-      select t.id, 'tenant:' || (t."organization_id")::text as bs_owner, t."ssn", t."email", t."born_on", t."diagnosis"
+      select t.id, 'tenant:' || (t."organization_id")::text as bsb_owner, t."ssn", t."email", t."born_on", t."diagnosis"
       from "public"."patients" t
       where t.id = any (patients_reveal.ids) and (v_service or ("organization_id" in (select better_supabase.member_organization_ids())))
     ),
     k as materialized (
-      select o.bs_owner, "better_supabase"."field_key"(o.bs_owner, false) as bs_key
-      from (select distinct r.bs_owner from r) o
+      select o.bsb_owner, "better_supabase"."field_key"(o.bsb_owner, false) as bsb_key
+      from (select distinct r.bsb_owner from r) o
     )
-    select r.id, ("better_supabase"."field_open"(k.bs_key, r."ssn"))::text, ("better_supabase"."field_open"(k.bs_key, r."email"))::text, ("better_supabase"."field_open"(k.bs_key, r."born_on"))::date, case when v_service then ("better_supabase"."field_open"(k.bs_key, r."diagnosis"))::text end
-    from r join k on k.bs_owner = r.bs_owner;
+    select r.id, ("better_supabase"."field_open"(k.bsb_key, r."ssn"))::text, ("better_supabase"."field_open"(k.bsb_key, r."email"))::text, ("better_supabase"."field_open"(k.bsb_key, r."born_on"))::date, case when v_service then ("better_supabase"."field_open"(k.bsb_key, r."diagnosis"))::text end
+    from r join k on k.bsb_owner = r.bsb_owner;
 end;
 $$;
 revoke execute on function "better_supabase"."patients_reveal"(uuid[]) from public, anon;
@@ -191,8 +191,8 @@ create policy "notes_update" on "public"."notes" for update to authenticated usi
 drop policy if exists "notes_delete" on "public"."notes";
 create policy "notes_delete" on "public"."notes" for delete to authenticated using ("user_id" = (select auth.uid()));
 create index if not exists "notes_user_id_idx" on "public"."notes" ("user_id");
-drop trigger if exists "bs_updated_at" on "public"."notes";
-create trigger "bs_updated_at" before update on "public"."notes"
+drop trigger if exists "bsb_updated_at" on "public"."notes";
+create trigger "bsb_updated_at" before update on "public"."notes"
   for each row execute function better_supabase.set_updated_at();
 -- Encrypts body with the row's data key before the row is written.
 create or replace function "better_supabase"."notes_seal"()
@@ -222,8 +222,8 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."notes_seal"() from public, anon, authenticated;
-drop trigger if exists "bs_seal_fields" on "public"."notes";
-create trigger "bs_seal_fields" before insert or update of "user_id", "body" on "public"."notes"
+drop trigger if exists "bsb_seal_fields" on "public"."notes";
+create trigger "bsb_seal_fields" before insert or update of "user_id", "body" on "public"."notes"
   for each row execute function "better_supabase"."notes_seal"();
 -- Decrypts body for the rows the caller reaches, as the table's policies do.
 create or replace function "better_supabase"."notes_reveal"(ids uuid[])
@@ -244,16 +244,16 @@ begin
   end if;
   return query
     with r as materialized (
-      select t.id, 'user:' || (t."user_id")::text as bs_owner, t."body"
+      select t.id, 'user:' || (t."user_id")::text as bsb_owner, t."body"
       from "public"."notes" t
       where t.id = any (notes_reveal.ids) and (v_service or ("user_id" = (select auth.uid())))
     ),
     k as materialized (
-      select o.bs_owner, "better_supabase"."field_key"(o.bs_owner, false) as bs_key
-      from (select distinct r.bs_owner from r) o
+      select o.bsb_owner, "better_supabase"."field_key"(o.bsb_owner, false) as bsb_key
+      from (select distinct r.bsb_owner from r) o
     )
-    select r.id, ("better_supabase"."field_open"(k.bs_key, r."body"))::text
-    from r join k on k.bs_owner = r.bs_owner;
+    select r.id, ("better_supabase"."field_open"(k.bsb_key, r."body"))::text
+    from r join k on k.bsb_owner = r.bsb_owner;
 end;
 $$;
 revoke execute on function "better_supabase"."notes_reveal"(uuid[]) from public, anon;
@@ -276,8 +276,8 @@ grant select ("id", "created_at", "updated_at") on "public"."keys" to authentica
 grant all on "public"."keys" to service_role;
 drop policy if exists "keys_select" on "public"."keys";
 create policy "keys_select" on "public"."keys" for select to authenticated using (((select auth.uid()) is not null));
-drop trigger if exists "bs_updated_at" on "public"."keys";
-create trigger "bs_updated_at" before update on "public"."keys"
+drop trigger if exists "bsb_updated_at" on "public"."keys";
+create trigger "bsb_updated_at" before update on "public"."keys"
   for each row execute function better_supabase.set_updated_at();
 -- Encrypts secret with the row's data key before the row is written.
 create or replace function "better_supabase"."keys_seal"()
@@ -308,8 +308,8 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."keys_seal"() from public, anon, authenticated;
-drop trigger if exists "bs_seal_fields" on "public"."keys";
-create trigger "bs_seal_fields" before insert or update of "secret" on "public"."keys"
+drop trigger if exists "bsb_seal_fields" on "public"."keys";
+create trigger "bsb_seal_fields" before insert or update of "secret" on "public"."keys"
   for each row execute function "better_supabase"."keys_seal"();
 -- Decrypts secret for the rows the caller reaches, as the table's policies do.
 create or replace function "better_supabase"."keys_reveal"(ids bigint[])
@@ -330,16 +330,16 @@ begin
   end if;
   return query
     with r as materialized (
-      select t.id, 'app' as bs_owner, t."secret"
+      select t.id, 'app' as bsb_owner, t."secret"
       from "public"."keys" t
       where t.id = any (keys_reveal.ids) and (v_service or (((select auth.uid()) is not null)))
     ),
     k as materialized (
-      select o.bs_owner, "better_supabase"."field_key"(o.bs_owner, false) as bs_key
-      from (select distinct r.bs_owner from r) o
+      select o.bsb_owner, "better_supabase"."field_key"(o.bsb_owner, false) as bsb_key
+      from (select distinct r.bsb_owner from r) o
     )
-    select r.id, ("better_supabase"."field_open"(k.bs_key, r."secret"))::jsonb
-    from r join k on k.bs_owner = r.bs_owner;
+    select r.id, ("better_supabase"."field_open"(k.bsb_key, r."secret"))::jsonb
+    from r join k on k.bsb_owner = r.bsb_owner;
 end;
 $$;
 revoke execute on function "better_supabase"."keys_reveal"(bigint[]) from public, anon;
@@ -383,7 +383,7 @@ select extensions.ok(has_column_privilege('authenticated', '"public"."patients"'
 select extensions.ok(not has_column_privilege('authenticated', '"public"."patients"', 'born_on', 'SELECT'), 'authenticated may not select public.patients.born_on');
 select extensions.ok(has_column_privilege('authenticated', '"public"."patients"', 'born_on', 'INSERT'), 'authenticated may insert public.patients.born_on');
 select extensions.ok(has_column_privilege('authenticated', '"public"."patients"', 'born_on', 'UPDATE'), 'authenticated may update public.patients.born_on');
-select extensions.has_trigger('public'::name, 'patients'::name, 'bs_seal_fields'::name, 'public.patients encrypts its encrypted columns');
+select extensions.has_trigger('public'::name, 'patients'::name, 'bsb_seal_fields'::name, 'public.patients encrypts its encrypted columns');
 select extensions.has_function('public'::name, 'patients_reveal'::name, array['uuid[]']::name[], 'public.patients has a reveal function');
 select extensions.ok(not has_function_privilege('anon', '"public"."patients_reveal"(uuid[])', 'execute'), 'anon cannot reveal public.patients');
 
@@ -425,7 +425,7 @@ select extensions.table_privs_are('public', 'notes', 'authenticated', array['DEL
 select extensions.ok(not has_column_privilege('authenticated', '"public"."notes"', 'body', 'SELECT'), 'authenticated may not select public.notes.body');
 select extensions.ok(has_column_privilege('authenticated', '"public"."notes"', 'body', 'INSERT'), 'authenticated may insert public.notes.body');
 select extensions.ok(has_column_privilege('authenticated', '"public"."notes"', 'body', 'UPDATE'), 'authenticated may update public.notes.body');
-select extensions.has_trigger('public'::name, 'notes'::name, 'bs_seal_fields'::name, 'public.notes encrypts its encrypted columns');
+select extensions.has_trigger('public'::name, 'notes'::name, 'bsb_seal_fields'::name, 'public.notes encrypts its encrypted columns');
 select extensions.has_function('public'::name, 'notes_reveal'::name, array['uuid[]']::name[], 'public.notes has a reveal function');
 select extensions.ok(not has_function_privilege('anon', '"public"."notes_reveal"(uuid[])', 'execute'), 'anon cannot reveal public.notes');
 
@@ -457,7 +457,7 @@ select extensions.table_privs_are('public', 'keys', 'authenticated', array[]::te
 select extensions.ok(not has_column_privilege('authenticated', '"public"."keys"', 'secret', 'SELECT'), 'authenticated may not select public.keys.secret');
 select extensions.ok(not has_column_privilege('authenticated', '"public"."keys"', 'secret', 'INSERT'), 'authenticated may not insert public.keys.secret');
 select extensions.ok(not has_column_privilege('authenticated', '"public"."keys"', 'secret', 'UPDATE'), 'authenticated may not update public.keys.secret');
-select extensions.has_trigger('public'::name, 'keys'::name, 'bs_seal_fields'::name, 'public.keys encrypts its encrypted columns');
+select extensions.has_trigger('public'::name, 'keys'::name, 'bsb_seal_fields'::name, 'public.keys encrypts its encrypted columns');
 select extensions.has_function('public'::name, 'keys_reveal'::name, array['bigint[]']::name[], 'public.keys has a reveal function');
 select extensions.ok(not has_function_privilege('anon', '"public"."keys_reveal"(bigint[])', 'execute'), 'anon cannot reveal public.keys');
 

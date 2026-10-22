@@ -169,7 +169,7 @@ describe("organizations module", () => {
       'insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")\n  values (organization, owner, \'owner\');',
     );
     expect(sql).toContain(
-      'create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete',
+      'create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete',
     );
     expect(sql).toMatch(
       /perform 1 from "better_supabase"\."organizations" o .* for update;/,
@@ -219,7 +219,7 @@ describe("organizations module", () => {
     });
 
     expect(soft).toContain('set "deleted_at" = now()');
-    expect(soft).not.toContain("bs_organization_owner");
+    expect(soft).not.toContain("bsb_organization_owner");
     expect(soft).toContain("guard_membership");
     expect(() =>
       body({ organizations: { options: { assignmentCeiling: false } } }),
@@ -295,9 +295,9 @@ describe("organizations module", () => {
       'create or replace function "better_supabase"."guard_membership"',
     );
     expect(external).toContain(
-      'drop trigger if exists "bs_organization_role_guard" on "public"."team_members";',
+      'drop trigger if exists "bsb_organization_role_guard" on "public"."team_members";',
     );
-    expect(external).toContain("bs_organization_owner");
+    expect(external).toContain("bsb_organization_owner");
     expect(external).toContain("better_supabase.can_assign(organization,");
     expect(() =>
       body({ organizations: { options: { assignmentGuard: "external" } } }),

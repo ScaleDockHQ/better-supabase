@@ -135,8 +135,8 @@ describe("actor write guard", () => {
 
     for (const name of [
       "user_settings_own_update",
-      "bs_notification_subscriptions_own_insert",
-      "bs_notification_preferences_own_delete",
+      "bsb_notification_subscriptions_own_insert",
+      "bsb_notification_preferences_own_delete",
     ]) {
       const statement = new RegExp(`create policy "?${name}"?[^;]*;`, "i").exec(
         sql,

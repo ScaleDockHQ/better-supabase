@@ -293,8 +293,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_written" on "better_supabase"."messages";
-create trigger "bs_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+drop trigger if exists "bsb_messaging_message_written" on "better_supabase"."messages";
+create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
 
@@ -1492,22 +1492,22 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_broadcast"() from public, anon, authenticated;
-drop trigger if exists "bs_messaging_message_broadcast" on "better_supabase"."messages";
-create trigger "bs_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
+drop trigger if exists "bsb_messaging_message_broadcast" on "better_supabase"."messages";
+create trigger "bsb_messaging_message_broadcast" after insert or update on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_broadcast"();
 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_messaging_receive" on realtime.messages;
-    create policy "bs_messaging_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_messaging_receive" on realtime.messages;
+    create policy "bsb_messaging_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'
         and "better_supabase"."conversation_topic_allowed"(substr((select realtime.topic()), 10))
       );
-    drop policy if exists "bs_messaging_broadcast" on realtime.messages;
-    create policy "bs_messaging_broadcast" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_messaging_broadcast" on realtime.messages;
+    create policy "bsb_messaging_broadcast" on realtime.messages for insert to authenticated
       with check ((
         realtime.messages.extension in ('broadcast', 'presence')
         and (select realtime.topic()) like 'messages:' || '%'

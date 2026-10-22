@@ -635,25 +635,29 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
 /** Module triggers and the equivalent triggers they replace. */
 const EQUIVALENT_TRIGGERS = [
   {
-    trigger: "bs_updated_at",
+    trigger: "bsb_updated_at",
     call: "track_updated_at",
     pattern: /updated_at|moddatetime|touch/i,
   },
-  { trigger: "bs_audit", call: "audit", pattern: /audit/i },
+  { trigger: "bsb_audit", call: "audit", pattern: /audit/i },
 ] as const;
 
 /** Tables where a module trigger and an older trigger do the same work. */
 function duplicateTriggers(context: DoctorContext): FindingInput[] {
   return catalogOf(context).tables.flatMap((table) =>
     EQUIVALENT_TRIGGERS.flatMap(({ trigger, call, pattern }) => {
-      if (!table.triggers.some((entry) => entry.name === trigger)) {
+      if (
+        !table.triggers.some(
+          (entry) => entry.name.replace(/^bs_/, "bsb_") === trigger,
+        )
+      ) {
         return [];
       }
 
       return table.triggers
         .filter(
           (entry) =>
-            entry.name !== trigger &&
+            entry.name.replace(/^bs_/, "bsb_") !== trigger &&
             pattern.test(entry.function.split(".").at(-1) ?? ""),
         )
         .map((entry) => ({
@@ -809,7 +813,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Duplicate module trigger",
     description:
-      "A table has a module trigger (`bs_updated_at`, `bs_audit`) and another trigger that does the same work, so both run on every write.",
+      "A table has a module trigger (`bsb_updated_at`, `bsb_audit`) and another trigger that does the same work, so both run on every write.",
     check: duplicateTriggers,
   },
   {
@@ -841,7 +845,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table without an audit trigger",
     description:
-      "The `audit` module is in `blocks`, and a table in `schemas` has no `bs_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `{ table, reason }` entries where `table` is a `schema.table` glob such as `public.*_archive`; a bare glob string still works but gets a finding that asks for the reason. Partitions are covered by their parent.",
+      "The `audit` module is in `blocks`, and a table in `schemas` has no `bsb_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `{ table, reason }` entries where `table` is a `schema.table` glob such as `public.*_archive`; a bare glob string still works but gets a finding that asks for the reason. Partitions are covered by their parent.",
     check: unauditedTables,
   },
   {
@@ -873,7 +877,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Module event trigger missing",
     description:
-      "A module in `blocks` creates an event trigger (`bs_audit_forget_dropped` for `audit`, `bs_ensure_rls` for `ensure-rls`) that the live database lacks, or, without a database, that no migration creates. Event triggers belong to no schema, so a schema diff limited to some schemas leaves them out; the module's data migration creates them.",
+      "A module in `blocks` creates an event trigger (`bsb_audit_forget_dropped` for `audit`, `bsb_ensure_rls` for `ensure-rls`) that the live database lacks, or, without a database, that no migration creates. Event triggers belong to no schema, so a schema diff limited to some schemas leaves them out; the module's data migration creates them.",
     check: missingEventTriggers,
   },
   {

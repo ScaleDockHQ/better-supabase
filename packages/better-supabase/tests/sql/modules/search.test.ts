@@ -34,9 +34,9 @@ describe("search module", () => {
     expect(sql).toContain(
       `execute function "better_supabase"."search_index_row"('task', 'id')`,
     );
-    expect(sql).toContain(`create trigger "bs_search_doc_index"`);
-    expect(sql).not.toContain("bs_search_label_index");
-    expect(sql).not.toContain("bs_search_plain_index");
+    expect(sql).toContain(`create trigger "bsb_search_doc_index"`);
+    expect(sql).not.toContain("bsb_search_label_index");
+    expect(sql).not.toContain("bsb_search_plain_index");
     expect(sql).toContain(
       `nullif(concat_ws(E'\\n', s."description"::text, s."notes"::text), '')`,
     );

@@ -307,7 +307,7 @@ as $$
 declare
   v_row ${reactions}%rowtype;
 begin
-  if current_setting('better_supabase.bs_reactions_backfill', true) = 'on' then
+  if current_setting('better_supabase.bsb_reactions_backfill', true) = 'on' then
     return null;
   end if;
   if tg_op = 'INSERT' then

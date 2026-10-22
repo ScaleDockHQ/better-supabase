@@ -160,8 +160,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bs_asset_locations_parent" on "better_supabase"."asset_locations";
-create trigger "bs_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
+drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
+create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
 
 
@@ -932,8 +932,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bs_asset_locations_parent" on "better_supabase"."asset_locations";
-create trigger "bs_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
+drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
+create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
 alter table "better_supabase"."booking_resources" add column if not exists asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
 create index if not exists "booking_resources_asset_idx" on "better_supabase"."booking_resources" (asset_id) where asset_id is not null;
@@ -1807,8 +1807,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bs_asset_locations_parent" on "app_private"."asset_locations";
-create trigger "bs_asset_locations_parent" before insert or update of "parent_id" on "app_private"."asset_locations"
+drop trigger if exists "bsb_asset_locations_parent" on "app_private"."asset_locations";
+create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "app_private"."asset_locations"
   for each row execute function "app_private"."asset_location_check_parent"();
 
 
@@ -2579,8 +2579,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."asset_location_check_parent"() from public, anon, authenticated;
-drop trigger if exists "bs_asset_locations_parent" on "better_supabase"."asset_locations";
-create trigger "bs_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
+drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
+create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
 
 

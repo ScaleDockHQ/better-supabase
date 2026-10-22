@@ -618,7 +618,7 @@ describe.skipIf(!live)("notifications", () => {
       }
 
       await client.query(
-        `create table public.bs_test_time_off_requests (
+        `create table public.bsb_test_time_off_requests (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null
          )`,
@@ -630,7 +630,7 @@ describe.skipIf(!live)("notifications", () => {
             options: {
               subjects: {
                 "time-off-request": {
-                  table: "bs_test_time_off_requests",
+                  table: "bsb_test_time_off_requests",
                   cascade: true,
                 },
               },
@@ -654,7 +654,7 @@ describe.skipIf(!live)("notifications", () => {
       );
 
       const { rows } = await client.query<{ id: string }>(
-        "insert into public.bs_test_time_off_requests (organization_id) values ($1), ($1) returning id",
+        "insert into public.bsb_test_time_off_requests (organization_id) values ($1), ($1) returning id",
         [organization],
       );
 
@@ -681,7 +681,7 @@ describe.skipIf(!live)("notifications", () => {
 
       await s.as("service");
       await client.query(
-        "delete from public.bs_test_time_off_requests where id = $1",
+        "delete from public.bsb_test_time_off_requests where id = $1",
         [deleted],
       );
 

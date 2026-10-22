@@ -122,7 +122,7 @@ describe("audit pgTAP files", () => {
     }).find((entry) => entry.kind === "test");
 
     expect(bare!.contents).toContain("select extensions.plan(4);");
-    expect(bare!.contents).not.toContain("bs_audit_probe");
+    expect(bare!.contents).not.toContain("bsb_audit_probe");
   });
 
   it("writes no test files without audited tables", () => {
@@ -133,17 +133,17 @@ describe("audit pgTAP files", () => {
 });
 
 describe("auditRegistrations of static triggers", () => {
-  it("reads bs_audit triggers that pass their settings to audit_row_change", () => {
+  it("reads bsb_audit triggers that pass their settings to audit_row_change", () => {
     expect(
       auditRegistrations([
         {
-          text: `create trigger bs_audit after insert or update or delete on public.invoices
+          text: `create trigger bsb_audit after insert or update or delete on public.invoices
   for each row execute function better_supabase.audit_row_change('{"ignore": ["updated_at"], "redact": ["iban"], "event_prefix": "invoice"}');
-create trigger bs_audit after insert or update or delete on "Billing"."Plans"
+create trigger bsb_audit after insert or update or delete on "Billing"."Plans"
   for each row execute function better_supabase.audit_row_change();
 create trigger other after insert on public.skipped
   for each row execute function better_supabase.audit_row_change();
-create trigger bs_audit after insert on public.broken
+create trigger bsb_audit after insert on public.broken
   for each row execute function better_supabase.audit_row_change('not json');`,
         },
         { text: "select better_supabase.unaudit('Billing.\"Plans\"');" },

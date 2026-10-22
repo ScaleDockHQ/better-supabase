@@ -246,8 +246,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "public"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id" or delete on "public"."memberships"
+drop trigger if exists "bsb_organization_owner" on "public"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id" or delete on "public"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -299,8 +299,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "public"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "public"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "public"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "public"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 

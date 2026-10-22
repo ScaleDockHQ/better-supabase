@@ -67,8 +67,8 @@ begin
   return old;
 end;
 $$;
-drop trigger if exists "bs_drive_node_purging" on "centrakit"."file_node";
-create trigger "bs_drive_node_purging"
+drop trigger if exists "bsb_drive_node_purging" on "centrakit"."file_node";
+create trigger "bsb_drive_node_purging"
   before delete on "centrakit"."file_node"
   for each row execute function "better_supabase"."drive_node_purging"();
 
@@ -84,8 +84,8 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists "bs_drive_node_purged" on "centrakit"."file_node";
-create trigger "bs_drive_node_purged"
+drop trigger if exists "bsb_drive_node_purged" on "centrakit"."file_node";
+create trigger "bsb_drive_node_purged"
   after delete on "centrakit"."file_node"
   for each row execute function "better_supabase"."drive_node_purged"();
 

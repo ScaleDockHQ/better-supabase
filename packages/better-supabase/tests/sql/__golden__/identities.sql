@@ -297,8 +297,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bs_identity_email" on auth.users;
-create trigger "bs_identity_email" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_identity_email" on auth.users;
+create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 
 create schema if not exists better_supabase;
@@ -625,8 +625,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bs_identity_email" on auth.users;
-create trigger "bs_identity_email" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_identity_email" on auth.users;
+create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 
 create schema if not exists better_supabase;
@@ -955,8 +955,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bs_identity_email" on auth.users;
-create trigger "bs_identity_email" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_identity_email" on auth.users;
+create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "app_private"."on_auth_user_email"();
 
 create schema if not exists better_supabase;
@@ -1283,8 +1283,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-drop trigger if exists "bs_identity_email" on auth.users;
-create trigger "bs_identity_email" after insert or update of email, email_confirmed_at on auth.users
+drop trigger if exists "bsb_identity_email" on auth.users;
+create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
   for each row execute function "better_supabase"."on_auth_user_email"();
 
 -- blocks.identities.api: entry points for the Data API.

@@ -321,18 +321,18 @@ describe("module event triggers", () => {
       )!.contents;
 
     expect(data("audit")).toContain(
-      "drop event trigger if exists bs_audit_forget_dropped;\ncreate event trigger bs_audit_forget_dropped on sql_drop\n  when tag in ('DROP TABLE', 'DROP SCHEMA')\n  execute function better_supabase.audit_forget_dropped();",
+      "drop event trigger if exists bsb_audit_forget_dropped;\ncreate event trigger bsb_audit_forget_dropped on sql_drop\n  when tag in ('DROP TABLE', 'DROP SCHEMA')\n  execute function better_supabase.audit_forget_dropped();",
     );
     expect(data("ensure-rls")).toContain(
-      "drop event trigger if exists bs_ensure_rls;\ncreate event trigger bs_ensure_rls on ddl_command_end",
+      "drop event trigger if exists bsb_ensure_rls;\ncreate event trigger bsb_ensure_rls on ddl_command_end",
     );
     expect(data("tenant")).not.toContain("event trigger");
   });
 
   it("names the event triggers of the installed modules", () => {
     expect(moduleEventTriggers(["audit", "ensure-rls", "tenant"])).toEqual([
-      { module: "audit", name: "bs_audit_forget_dropped" },
-      { module: "ensure-rls", name: "bs_ensure_rls" },
+      { module: "audit", name: "bsb_audit_forget_dropped" },
+      { module: "ensure-rls", name: "bsb_ensure_rls" },
     ]);
     expect(
       moduleEventTriggers(["broken", "missing"], {
@@ -366,10 +366,10 @@ describe("ensure-rls", () => {
     const [file] = renderModules(["ensure-rls"]);
     expect(file!.path).toMatch(/_ensure_rls\.sql$/);
     expect(file!.contents).toContain(
-      "drop event trigger if exists bs_ensure_rls;",
+      "drop event trigger if exists bsb_ensure_rls;",
     );
     expect(file!.contents).toContain(
-      "create event trigger bs_ensure_rls on ddl_command_end",
+      "create event trigger bsb_ensure_rls on ddl_command_end",
     );
     expect(file!.contents).toContain(
       "when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')",
@@ -471,10 +471,10 @@ describe("sameModuleFile", () => {
       "create extension if not exists pg_jsonschema with schema extensions;",
     );
     expect(file!.contents).toContain(
-      `alter table "public"."customers" add constraint "bs_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata")) not valid;\nalter table "public"."customers" validate constraint "bs_json_metadata";`,
+      `alter table "public"."customers" add constraint "bsb_json_metadata"\n  check (extensions.jsonb_matches_schema('{"type":"object"}'::json, "metadata")) not valid;\nalter table "public"."customers" validate constraint "bsb_json_metadata";`,
     );
     expect(file!.contents).toContain(
-      'alter table "billing"."invoices" drop constraint if exists "bs_json_lines";',
+      'alter table "billing"."invoices" drop constraint if exists "bsb_json_lines";',
     );
   });
 
@@ -579,8 +579,8 @@ describe("sameModuleFile", () => {
     const [file] = renderModules(["sessions"], layout);
     expect(file!.contents).toContain(
       [
-        'drop policy if exists bs_session_active on "public"."invoices";',
-        'create policy bs_session_active on "public"."invoices" as restrictive',
+        'drop policy if exists bsb_session_active on "public"."invoices";',
+        'create policy bsb_session_active on "public"."invoices" as restrictive',
         "  for all to authenticated",
         "  using ((select better_supabase.session_active()))",
         "  with check ((select better_supabase.session_active()));",
@@ -590,7 +590,7 @@ describe("sameModuleFile", () => {
     expect(
       renderModules(["sessions"], { declaredTables: ["public.invoices"] })[0]!
         .contents,
-    ).not.toContain("bs_session_active");
+    ).not.toContain("bsb_session_active");
   });
 
   it("writes a service-only last_sign_ins in the sessions module", () => {

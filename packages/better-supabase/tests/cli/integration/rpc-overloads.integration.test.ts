@@ -18,7 +18,7 @@ import { libraryFixture } from "../fixtures/library.ts";
 
 const dbUrl = stackDbUrl();
 
-const SCHEMA = `bs_overloads_${Date.now()}`;
+const SCHEMA = `bsb_overloads_${Date.now()}`;
 
 async function open(): Promise<IntrospectionSource | undefined> {
   try {

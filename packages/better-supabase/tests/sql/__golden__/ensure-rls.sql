@@ -33,8 +33,8 @@ $$;
 
 revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
 
-drop event trigger if exists bs_ensure_rls;
-create event trigger bs_ensure_rls on ddl_command_end
+drop event trigger if exists bsb_ensure_rls;
+create event trigger bsb_ensure_rls on ddl_command_end
   when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   execute function better_supabase.enable_rls_on_new_table();
 
@@ -58,8 +58,8 @@ grant select on better_supabase.modules to service_role;
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-drop event trigger if exists bs_ensure_rls;
-create event trigger bs_ensure_rls on ddl_command_end
+drop event trigger if exists bsb_ensure_rls;
+create event trigger bsb_ensure_rls on ddl_command_end
   when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   execute function better_supabase.enable_rls_on_new_table();
 
@@ -103,8 +103,8 @@ $$;
 
 revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
 
-drop event trigger if exists bs_ensure_rls;
-create event trigger bs_ensure_rls on ddl_command_end
+drop event trigger if exists bsb_ensure_rls;
+create event trigger bsb_ensure_rls on ddl_command_end
   when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   execute function better_supabase.enable_rls_on_new_table();
 
@@ -128,8 +128,8 @@ grant select on better_supabase.modules to service_role;
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-drop event trigger if exists bs_ensure_rls;
-create event trigger bs_ensure_rls on ddl_command_end
+drop event trigger if exists bsb_ensure_rls;
+create event trigger bsb_ensure_rls on ddl_command_end
   when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   execute function better_supabase.enable_rls_on_new_table();
 
@@ -173,8 +173,8 @@ $$;
 
 revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
 
-drop event trigger if exists bs_ensure_rls;
-create event trigger bs_ensure_rls on ddl_command_end
+drop event trigger if exists bsb_ensure_rls;
+create event trigger bsb_ensure_rls on ddl_command_end
   when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   execute function better_supabase.enable_rls_on_new_table();
 
@@ -198,8 +198,8 @@ grant select on better_supabase.modules to service_role;
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-drop event trigger if exists bs_ensure_rls;
-create event trigger bs_ensure_rls on ddl_command_end
+drop event trigger if exists bsb_ensure_rls;
+create event trigger bsb_ensure_rls on ddl_command_end
   when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   execute function better_supabase.enable_rls_on_new_table();
 
@@ -243,8 +243,8 @@ $$;
 
 revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
 
-drop event trigger if exists bs_ensure_rls;
-create event trigger bs_ensure_rls on ddl_command_end
+drop event trigger if exists bsb_ensure_rls;
+create event trigger bsb_ensure_rls on ddl_command_end
   when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   execute function better_supabase.enable_rls_on_new_table();
 
@@ -268,8 +268,8 @@ grant select on better_supabase.modules to service_role;
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-drop event trigger if exists bs_ensure_rls;
-create event trigger bs_ensure_rls on ddl_command_end
+drop event trigger if exists bsb_ensure_rls;
+create event trigger bsb_ensure_rls on ddl_command_end
   when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
   execute function better_supabase.enable_rls_on_new_table();
 

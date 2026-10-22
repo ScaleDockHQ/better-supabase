@@ -321,8 +321,8 @@ $$;
 revoke execute on function ${fn("data_export_object_allowed")}(text) from public, anon;
 grant execute on function ${fn("data_export_object_allowed")}(text) to authenticated, service_role;
 
-drop policy if exists ${sqlIdent("bs_data_exports_select")} on storage.objects;
-create policy ${sqlIdent("bs_data_exports_select")} on storage.objects for select to authenticated
+drop policy if exists ${sqlIdent("bsb_data_exports_select")} on storage.objects;
+create policy ${sqlIdent("bsb_data_exports_select")} on storage.objects for select to authenticated
   using (bucket_id = ${bucket} and ${fn("data_export_object_allowed")}(name));
 
 -- The caller's own data (subject 'user') or a tenant's (needs the export

@@ -421,7 +421,7 @@ function typeCheck(ctx: ModuleContext, definitions: string): string {
   const legacy = `${ctx.tableName("definitions").name}_${column}_check`;
 
   return `alter table ${definitions} drop constraint if exists ${sqlIdent(legacy)};
-${ensureCheck(definitions, "bs_field_definitions_type", `${sqlIdent(column)} in (${CUSTOM_FIELD_TYPES.map(sqlString).join(", ")})`)}`;
+${ensureCheck(definitions, "bsb_field_definitions_type", `${sqlIdent(column)} in (${CUSTOM_FIELD_TYPES.map(sqlString).join(", ")})`)}`;
 }
 
 function listDefinitions(

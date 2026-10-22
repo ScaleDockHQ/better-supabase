@@ -217,11 +217,11 @@ declarative_schema_path = "./schemas"
         );
 
         expect(triggers.map((row) => row.tgname)).toEqual([
-          "bs_identity_email",
-          "bs_profile_email",
-          "bs_profile_sync",
-          "bs_sso_auth_user",
-          "bs_waitlist_auth_user",
+          "bsb_identity_email",
+          "bsb_profile_email",
+          "bsb_profile_sync",
+          "bsb_sso_auth_user",
+          "bsb_waitlist_auth_user",
         ]);
       } finally {
         await client.end();

@@ -180,7 +180,7 @@ describe("subjectsOption with the registry", () => {
       `coalesce("better_supabase"."can_subject"(v_parts[1], v_parts[2], 'read'), false)`,
     );
     expect(sql).toContain("realtime.messages.extension = 'presence'");
-    expect(sql).toContain("bs_subject_presence_receive");
-    expect(sql).toContain("bs_subject_presence_send");
+    expect(sql).toContain("bsb_subject_presence_receive");
+    expect(sql).toContain("bsb_subject_presence_send");
   });
 });

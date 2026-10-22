@@ -81,8 +81,8 @@ export function moduleOwned(context: DoctorContext): {
 }
 
 /**
- * Tables in `config.schemas` without the `bs_audit` trigger, when `audit` is in
- * `blocks`, and exemptions that give no reason.
+ * Tables in `config.schemas` without the `bsb_audit` trigger, when `audit` is
+ * in `blocks`, and exemptions that give no reason.
  */
 export function unauditedTables(context: DoctorContext): FindingInput[] {
   if (!context.config.blockNames.includes("audit")) {
@@ -107,7 +107,7 @@ export function unauditedTables(context: DoctorContext): FindingInput[] {
         !exempt.some((pattern) => pattern.test(qualified(table))) &&
         !table.triggers.some(
           (trigger) =>
-            trigger.name.startsWith("bs_audit") ||
+            /^bsb?_audit/.test(trigger.name) ||
             trigger.function.split(".").at(-1) === "audit_row_change",
         ),
     )

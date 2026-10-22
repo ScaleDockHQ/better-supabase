@@ -61,7 +61,7 @@ as $$
 $$;
 
 -- False when the token is narrower than the permission: a permission cap
--- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- (bsb_permission_cap) without the key, or a delegated token whose scopes
 -- don't map to it. True for every other token, the service role included.
 create or replace function better_supabase.cap_allows(permission text)
 returns boolean
@@ -72,9 +72,9 @@ set search_path = ''
 as $$
   select case
     when jwt is null then true
-    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+    when jsonb_typeof(jwt -> 'bsb_permission_cap') = 'array'
       and not exists (
-        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        select 1 from jsonb_array_elements_text(jwt -> 'bsb_permission_cap') c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
     when coalesce(jwt ->> 'client_id', '') = ''
@@ -477,7 +477,7 @@ as $$
 $$;
 
 -- False when the token is narrower than the permission: a permission cap
--- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- (bsb_permission_cap) without the key, or a delegated token whose scopes
 -- don't map to it. True for every other token, the service role included.
 create or replace function better_supabase.cap_allows(permission text)
 returns boolean
@@ -488,9 +488,9 @@ set search_path = ''
 as $$
   select case
     when jwt is null then true
-    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+    when jsonb_typeof(jwt -> 'bsb_permission_cap') = 'array'
       and not exists (
-        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        select 1 from jsonb_array_elements_text(jwt -> 'bsb_permission_cap') c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
     when coalesce(jwt ->> 'client_id', '') = ''
@@ -1182,7 +1182,7 @@ as $$
 $$;
 
 -- False when the token is narrower than the permission: a permission cap
--- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- (bsb_permission_cap) without the key, or a delegated token whose scopes
 -- don't map to it. True for every other token, the service role included.
 create or replace function better_supabase.cap_allows(permission text)
 returns boolean
@@ -1193,9 +1193,9 @@ set search_path = ''
 as $$
   select case
     when jwt is null then true
-    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+    when jsonb_typeof(jwt -> 'bsb_permission_cap') = 'array'
       and not exists (
-        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        select 1 from jsonb_array_elements_text(jwt -> 'bsb_permission_cap') c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
     when coalesce(jwt ->> 'client_id', '') = ''
@@ -1597,7 +1597,7 @@ as $$
 $$;
 
 -- False when the token is narrower than the permission: a permission cap
--- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- (bsb_permission_cap) without the key, or a delegated token whose scopes
 -- don't map to it. True for every other token, the service role included.
 create or replace function better_supabase.cap_allows(permission text)
 returns boolean
@@ -1608,9 +1608,9 @@ set search_path = ''
 as $$
   select case
     when jwt is null then true
-    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+    when jsonb_typeof(jwt -> 'bsb_permission_cap') = 'array'
       and not exists (
-        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        select 1 from jsonb_array_elements_text(jwt -> 'bsb_permission_cap') c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
     when coalesce(jwt ->> 'client_id', '') = ''
@@ -2196,7 +2196,7 @@ as $$
 $$;
 
 -- False when the token is narrower than the permission: a permission cap
--- (bs_permission_cap) without the key, or a delegated token whose scopes
+-- (bsb_permission_cap) without the key, or a delegated token whose scopes
 -- don't map to it. True for every other token, the service role included.
 create or replace function better_supabase.cap_allows(permission text)
 returns boolean
@@ -2207,9 +2207,9 @@ set search_path = ''
 as $$
   select case
     when jwt is null then true
-    when jsonb_typeof(jwt -> 'bs_permission_cap') = 'array'
+    when jsonb_typeof(jwt -> 'bsb_permission_cap') = 'array'
       and not exists (
-        select 1 from jsonb_array_elements_text(jwt -> 'bs_permission_cap') c(key)
+        select 1 from jsonb_array_elements_text(jwt -> 'bsb_permission_cap') c(key)
         where better_supabase.permission_matches(c.key, cap_allows.permission)
       ) then false
     when coalesce(jwt ->> 'client_id', '') = ''

@@ -87,7 +87,7 @@ export function trackingTables(ctx: ModuleContext, n: NotifyNames): string {
       .join(", ")}) where ${d("providerMessageId")} is not null;`,
   ].filter((line) => line !== "");
 
-  const policy = sqlIdent("bs_notification_delivery_events_read");
+  const policy = sqlIdent("bsb_notification_delivery_events_read");
   const partitioned = eventsPartitioned(ctx);
 
   return `

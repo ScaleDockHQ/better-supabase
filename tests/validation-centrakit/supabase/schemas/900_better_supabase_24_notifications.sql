@@ -840,18 +840,18 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_notification"() from public, anon, authenticated;
-drop trigger if exists "bs_notification_broadcast" on "centrakit"."notification_recipients";
-drop trigger if exists "bs_notification_broadcast_update" on "centrakit"."notification_recipients";
-create trigger "bs_notification_broadcast" after insert on "centrakit"."notification_recipients"
+drop trigger if exists "bsb_notification_broadcast" on "centrakit"."notification_recipients";
+drop trigger if exists "bsb_notification_broadcast_update" on "centrakit"."notification_recipients";
+create trigger "bsb_notification_broadcast" after insert on "centrakit"."notification_recipients"
   for each row execute function "better_supabase"."broadcast_notification"();
-create trigger "bs_notification_broadcast_update" after update of "read_at", "dismissed_at", "resolved_at" on "centrakit"."notification_recipients"
+create trigger "bsb_notification_broadcast_update" after update of "read_at", "dismissed_at", "resolved_at" on "centrakit"."notification_recipients"
   for each row when (old."read_at" is distinct from new."read_at" or old."dismissed_at" is distinct from new."dismissed_at" or old."resolved_at" is distinct from new."resolved_at")
   execute function "better_supabase"."broadcast_notification"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_notifications_receive" on realtime.messages;
-    create policy "bs_notifications_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_notifications_receive" on realtime.messages;
+    create policy "bsb_notifications_receive" on realtime.messages for select to authenticated
       using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) ~ ('^' || 'organization:' || '[^:]+' || ':notifications:' || (select auth.uid())::text || '$'));
   end if;
 end;

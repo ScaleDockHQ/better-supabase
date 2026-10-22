@@ -345,7 +345,7 @@ function guard(ctx: ModuleContext, n: DealNames): string {
     .map((column) => `new.${column} is distinct from old.${column}`)
     .join("\n      or ");
 
-  const guardName = ctx.naming.rename("bs_deal_guard");
+  const guardName = ctx.naming.rename("bsb_deal_guard");
 
   return `
 create or replace function better_supabase.${guardName}()

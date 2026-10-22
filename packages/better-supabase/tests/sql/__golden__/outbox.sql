@@ -473,15 +473,15 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists "bs_outbox_events" on %s', target);
-  execute format('drop trigger if exists "bs_outbox_events_update" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events_update" on %s', target);
   execute format(
-    'create trigger "bs_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
   -- jsonb, not the row: a row comparison fails on columns without equality (json).
   execute format(
-    'create trigger "bs_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
 end;
@@ -992,15 +992,15 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists "bs_outbox_events" on %s', target);
-  execute format('drop trigger if exists "bs_outbox_events_update" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events_update" on %s', target);
   execute format(
-    'create trigger "bs_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
   -- jsonb, not the row: a row comparison fails on columns without equality (json).
   execute format(
-    'create trigger "bs_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
 end;
@@ -1509,15 +1509,15 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists "bs_outbox_events" on %s', target);
-  execute format('drop trigger if exists "bs_outbox_events_update" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events_update" on %s', target);
   execute format(
-    'create trigger "bs_outbox_events" after insert or delete on %s for each row execute function "app_private"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events" after insert or delete on %s for each row execute function "app_private"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
   -- jsonb, not the row: a row comparison fails on columns without equality (json).
   execute format(
-    'create trigger "bs_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "app_private"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "app_private"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
 end;
@@ -2024,15 +2024,15 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists "bs_outbox_events" on %s', target);
-  execute format('drop trigger if exists "bs_outbox_events_update" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events_update" on %s', target);
   execute format(
-    'create trigger "bs_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
   -- jsonb, not the row: a row comparison fails on columns without equality (json).
   execute format(
-    'create trigger "bs_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
 end;
@@ -2608,15 +2608,15 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists "bs_outbox_events" on %s', target);
-  execute format('drop trigger if exists "bs_outbox_events_update" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events" on %s', target);
+  execute format('drop trigger if exists "bsb_outbox_events_update" on %s', target);
   execute format(
-    'create trigger "bs_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events" after insert or delete on %s for each row execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
   -- jsonb, not the row: a row comparison fails on columns without equality (json).
   execute format(
-    'create trigger "bs_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
+    'create trigger "bsb_outbox_events_update" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function "better_supabase"."outbox_row_event"(%L, %L)',
     target, coalesce(type_prefix, ''), coalesce(tenant_column, '')
   );
 end;

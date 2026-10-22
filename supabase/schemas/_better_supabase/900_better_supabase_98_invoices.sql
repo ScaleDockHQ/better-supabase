@@ -292,7 +292,7 @@ revoke execute on function "better_supabase"."set_invoice_lines_recount"(uuid) f
 -- trigger per event, so there are three triggers on one function. The
 -- transition tables are read through execute because plpgsql_check (db lint)
 -- doesn't know them.
-create or replace function better_supabase.bs_invoice_lines_totals()
+create or replace function better_supabase.bsb_invoice_lines_totals()
 returns trigger
 language plpgsql
 security definer
@@ -311,20 +311,20 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_invoice_lines_totals() from public, anon, authenticated;
-drop trigger if exists bs_invoice_lines_totals on "better_supabase"."invoice_lines";
-drop trigger if exists bs_invoice_lines_totals_insert on "better_supabase"."invoice_lines";
-drop trigger if exists bs_invoice_lines_totals_update on "better_supabase"."invoice_lines";
-drop trigger if exists bs_invoice_lines_totals_delete on "better_supabase"."invoice_lines";
-create trigger bs_invoice_lines_totals_insert after insert on "better_supabase"."invoice_lines"
+revoke execute on function better_supabase.bsb_invoice_lines_totals() from public, anon, authenticated;
+drop trigger if exists bsb_invoice_lines_totals on "better_supabase"."invoice_lines";
+drop trigger if exists bsb_invoice_lines_totals_insert on "better_supabase"."invoice_lines";
+drop trigger if exists bsb_invoice_lines_totals_update on "better_supabase"."invoice_lines";
+drop trigger if exists bsb_invoice_lines_totals_delete on "better_supabase"."invoice_lines";
+create trigger bsb_invoice_lines_totals_insert after insert on "better_supabase"."invoice_lines"
 referencing new table as new_rows
-for each statement execute function better_supabase.bs_invoice_lines_totals();
-create trigger bs_invoice_lines_totals_update after update on "better_supabase"."invoice_lines"
+for each statement execute function better_supabase.bsb_invoice_lines_totals();
+create trigger bsb_invoice_lines_totals_update after update on "better_supabase"."invoice_lines"
 referencing old table as old_rows new table as new_rows
-for each statement execute function better_supabase.bs_invoice_lines_totals();
-create trigger bs_invoice_lines_totals_delete after delete on "better_supabase"."invoice_lines"
+for each statement execute function better_supabase.bsb_invoice_lines_totals();
+create trigger bsb_invoice_lines_totals_delete after delete on "better_supabase"."invoice_lines"
 referencing old table as old_rows
-for each statement execute function better_supabase.bs_invoice_lines_totals();
+for each statement execute function better_supabase.bsb_invoice_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,

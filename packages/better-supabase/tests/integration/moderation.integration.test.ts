@@ -22,16 +22,16 @@ interface Review {
   readonly rejectionReason: string | null;
 }
 
-const PROJECTS = `create table if not exists public.bs_mod_projects (
+const PROJECTS = `create table if not exists public.bsb_mod_projects (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null
 );
-alter table public.bs_mod_projects enable row level security;
-grant select on public.bs_mod_projects to authenticated;
-drop policy if exists "read" on public.bs_mod_projects;
-create policy "read" on public.bs_mod_projects for select to authenticated
+alter table public.bsb_mod_projects enable row level security;
+grant select on public.bsb_mod_projects to authenticated;
+drop policy if exists "read" on public.bsb_mod_projects;
+create policy "read" on public.bsb_mod_projects for select to authenticated
   using (better_supabase.has_organization_role(organization_id));
-create table if not exists public.bs_mod_tickets (
+create table if not exists public.bsb_mod_tickets (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null
 );`;
@@ -40,7 +40,7 @@ async function project(s: BlockSession, tenant: string): Promise<string> {
   await s.service();
 
   const [row] = await s.rows<{ id: string }>(
-    "insert into public.bs_mod_projects (organization_id) values ($1) returning id",
+    "insert into public.bsb_mod_projects (organization_id) values ($1) returning id",
     [tenant],
   );
 
@@ -103,7 +103,7 @@ describe.skipIf(!live)("moderation", () => {
           "moderation",
         ],
         {
-          subjects: { project: { table: "public.bs_mod_projects" } },
+          subjects: { project: { table: "public.bsb_mod_projects" } },
           modules: {
             moderation: {
               options: { autoHideThreshold: 2, reasons: ["spam", "rude"] },
@@ -280,7 +280,7 @@ describe.skipIf(!live)("moderation", () => {
         modules: {
           reviews: {
             options: {
-              subjects: { ticket: { table: "public.bs_mod_tickets" } },
+              subjects: { ticket: { table: "public.bsb_mod_tickets" } },
             },
           },
         },
@@ -292,7 +292,7 @@ describe.skipIf(!live)("moderation", () => {
       await s.service();
 
       const [ticket] = await s.rows<{ id: string }>(
-        "insert into public.bs_mod_tickets (organization_id) values ($1) returning id",
+        "insert into public.bsb_mod_tickets (organization_id) values ($1) returning id",
         [tenant],
       );
 

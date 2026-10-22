@@ -150,8 +150,8 @@ create table if not exists ${a} (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table ${a} drop constraint if exists bs_announcements_audience;
-alter table ${a} add constraint bs_announcements_audience check (${ca("audience")} in (${audiences.map(sqlString).join(", ")}));
+alter table ${a} drop constraint if exists bsb_announcements_audience;
+alter table ${a} add constraint bsb_announcements_audience check (${ca("audience")} in (${audiences.map(sqlString).join(", ")}));
 create index if not exists announcements_window_idx on ${a} (${ca("startsAt")}, ${ca("endsAt")});
 create index if not exists announcements_created_by_idx on ${a} (${ca("createdBy")});${addExtraColumns(a, extras)}
 ${lockTable(a)}

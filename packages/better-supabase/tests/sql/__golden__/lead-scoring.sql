@@ -204,8 +204,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_person_changed" on "better_supabase"."people";
-create trigger "bs_person_changed"
+drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
+create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "better_supabase"."lead_person_changed"();
 
@@ -457,8 +457,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_person_changed" on "better_supabase"."people";
-create trigger "bs_person_changed"
+drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
+create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "better_supabase"."lead_person_changed"();
 
@@ -486,8 +486,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_segment_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_segment_changed" on "better_supabase"."segment_members";
-create trigger "bs_segment_changed"
+drop trigger if exists "bsb_segment_changed" on "better_supabase"."segment_members";
+create trigger "bsb_segment_changed"
   after insert or delete on "better_supabase"."segment_members"
   for each row execute function "better_supabase"."lead_segment_changed"();
 
@@ -507,8 +507,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_mail_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_mail_changed" on "better_supabase"."mail_messages";
-create trigger "bs_mail_changed"
+drop trigger if exists "bsb_mail_changed" on "better_supabase"."mail_messages";
+create trigger "bsb_mail_changed"
   after insert or update of "opened_at", "clicked_at" on "better_supabase"."mail_messages"
   for each row execute function "better_supabase"."lead_mail_changed"();
 
@@ -528,8 +528,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_mail_linked"() from public, anon, authenticated;
-drop trigger if exists "bs_mail_linked" on "better_supabase"."mail_thread_subjects";
-create trigger "bs_mail_linked"
+drop trigger if exists "bsb_mail_linked" on "better_supabase"."mail_thread_subjects";
+create trigger "bsb_mail_linked"
   after insert on "better_supabase"."mail_thread_subjects"
   for each row execute function "better_supabase"."lead_mail_linked"();
 
@@ -766,8 +766,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_person_changed" on "better_supabase"."people";
-create trigger "bs_person_changed"
+drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
+create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "app_private"."lead_person_changed"();
 
@@ -1002,8 +1002,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."lead_person_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_person_changed" on "better_supabase"."people";
-create trigger "bs_person_changed"
+drop trigger if exists "bsb_person_changed" on "better_supabase"."people";
+create trigger "bsb_person_changed"
   after insert or update on "better_supabase"."people"
   for each row execute function "better_supabase"."lead_person_changed"();
 

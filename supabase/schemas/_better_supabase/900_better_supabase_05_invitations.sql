@@ -63,8 +63,8 @@ create unique index if not exists invitations_open_email_idx
   on "better_supabase"."invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
 create index if not exists invitations_tenant_created_idx on "better_supabase"."invitations" ("organization_id", "created_at");
 alter table "better_supabase"."invitations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."invitations";
-create trigger bs_updated_at before update on "better_supabase"."invitations"
+drop trigger if exists bsb_updated_at on "better_supabase"."invitations";
+create trigger bsb_updated_at before update on "better_supabase"."invitations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 create index if not exists invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
 create index if not exists invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
@@ -93,8 +93,8 @@ end;
 $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
-drop policy if exists bs_invitations_read on "better_supabase"."invitations";
-create policy bs_invitations_read on "better_supabase"."invitations" for select to authenticated
+drop policy if exists bsb_invitations_read on "better_supabase"."invitations";
+create policy bsb_invitations_read on "better_supabase"."invitations" for select to authenticated
   using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an

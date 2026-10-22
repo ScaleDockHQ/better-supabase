@@ -178,7 +178,7 @@ describe("compileGraph", () => {
     expect(noMeta.log).toContain("approval :ok ok");
   });
 
-  it("files the approval through steps.bs_approval when it is passed", async () => {
+  it("files the approval through steps.bsb_approval when it is passed", async () => {
     const compiled = compileGraph(GRAPH);
     const runtime = fakeRuntime("pro", { approved: true });
     const requests: unknown[] = [];
@@ -190,7 +190,7 @@ describe("compileGraph", () => {
           (call: GraphStepCall) => runtime.step(call),
         ]),
       ),
-      bs_approval: async (call: unknown) => {
+      bsb_approval: async (call: unknown) => {
         requests.push(call);
 
         return "req-123";
@@ -440,7 +440,7 @@ describe("graphStarter", () => {
     ]);
   });
 
-  it("binds the approval step as steps.bs_approval", async () => {
+  it("binds the approval step as steps.bsb_approval", async () => {
     const approval = { stepId: "approval" };
     await graphStarter({ steps, approval, dynamic: true })(CALL);
     const [, , options] = start.mock.calls[0] ?? [];
@@ -449,7 +449,7 @@ describe("graphStarter", () => {
       options as { experimental_dynamic: { steps: Record<string, unknown> } }
     ).experimental_dynamic.steps;
 
-    expect(bound["bs_approval"]).toBe(approval);
+    expect(bound["bsb_approval"]).toBe(approval);
   });
 
   it("never runs a stored compiled form, and refuses steps it wasn't given", async () => {

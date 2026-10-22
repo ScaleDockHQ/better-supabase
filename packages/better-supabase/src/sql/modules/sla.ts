@@ -225,7 +225,7 @@ function bindingTrigger(
   fn: (name: string) => string,
 ): string {
   const type = binding.subject.type;
-  const name = `bs_sla_${type}`;
+  const name = `bsb_sla_${type}`;
   const status = sqlIdent(binding.status);
 
   const priority =

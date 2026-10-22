@@ -854,7 +854,7 @@ revoke execute on function "better_supabase"."default_pipeline"(uuid, text, text
 grant execute on function "better_supabase"."default_pipeline"(uuid, text, text) to service_role;
 
 
-create or replace function better_supabase.bs_pipeline_deal()
+create or replace function better_supabase.bsb_pipeline_deal()
 returns trigger
 language plpgsql
 security definer
@@ -960,11 +960,11 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bs_pipeline_deal on "better_supabase"."deals";
-create trigger bs_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"
-for each row execute function better_supabase.bs_pipeline_deal();
+drop trigger if exists bsb_pipeline_deal on "better_supabase"."deals";
+create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_pipeline_deal();
 
-create or replace function better_supabase.bs_pipeline_status_deal()
+create or replace function better_supabase.bsb_pipeline_status_deal()
 returns trigger
 language plpgsql
 security definer
@@ -982,11 +982,11 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bs_pipeline_status_deal on "better_supabase"."deals";
-create trigger bs_pipeline_status_deal after insert or update of "stage_id" on "better_supabase"."deals"
-for each row execute function better_supabase.bs_pipeline_status_deal();
+drop trigger if exists bsb_pipeline_status_deal on "better_supabase"."deals";
+create trigger bsb_pipeline_status_deal after insert or update of "stage_id" on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_pipeline_status_deal();
 
-create or replace function better_supabase.bs_pipeline_work_item()
+create or replace function better_supabase.bsb_pipeline_work_item()
 returns trigger
 language plpgsql
 security definer
@@ -1080,11 +1080,11 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bs_pipeline_work_item on "better_supabase"."work_items";
-create trigger bs_pipeline_work_item before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"
-for each row execute function better_supabase.bs_pipeline_work_item();
+drop trigger if exists bsb_pipeline_work_item on "better_supabase"."work_items";
+create trigger bsb_pipeline_work_item before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_pipeline_work_item();
 
-create or replace function better_supabase.bs_pipeline_status_work_item()
+create or replace function better_supabase.bsb_pipeline_status_work_item()
 returns trigger
 language plpgsql
 security definer
@@ -1102,11 +1102,11 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bs_pipeline_status_work_item on "better_supabase"."work_items";
-create trigger bs_pipeline_status_work_item after insert or update of "stage_id" on "better_supabase"."work_items"
-for each row execute function better_supabase.bs_pipeline_status_work_item();
+drop trigger if exists bsb_pipeline_status_work_item on "better_supabase"."work_items";
+create trigger bsb_pipeline_status_work_item after insert or update of "stage_id" on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_pipeline_status_work_item();
 
-create or replace function better_supabase.bs_pipeline_application()
+create or replace function better_supabase.bsb_pipeline_application()
 returns trigger
 language plpgsql
 security definer
@@ -1212,11 +1212,11 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bs_pipeline_application on "better_supabase"."applications";
-create trigger bs_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"
-for each row execute function better_supabase.bs_pipeline_application();
+drop trigger if exists bsb_pipeline_application on "better_supabase"."applications";
+create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"
+for each row execute function better_supabase.bsb_pipeline_application();
 
-create or replace function better_supabase.bs_pipeline_status_application()
+create or replace function better_supabase.bsb_pipeline_status_application()
 returns trigger
 language plpgsql
 security definer
@@ -1234,9 +1234,9 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bs_pipeline_status_application on "better_supabase"."applications";
-create trigger bs_pipeline_status_application after insert or update of "stage_id" on "better_supabase"."applications"
-for each row execute function better_supabase.bs_pipeline_status_application();
+drop trigger if exists bsb_pipeline_status_application on "better_supabase"."applications";
+create trigger bsb_pipeline_status_application after insert or update of "stage_id" on "better_supabase"."applications"
+for each row execute function better_supabase.bsb_pipeline_status_application();
 
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.

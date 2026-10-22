@@ -213,7 +213,7 @@ export function revealSql(table: SealTable): string {
 
   const decrypted = columns.map((name) => {
     const column = table.config.columns?.[name] ?? { type: "text" };
-    const plain = `(${encryption.fn("field_open")}(k.bs_key, r.${sqlIdent(name)}))::${column.type}`;
+    const plain = `(${encryption.fn("field_open")}(k.bsb_key, r.${sqlIdent(name)}))::${column.type}`;
 
     return column.access === "server"
       ? `case when v_service then ${plain} end`
@@ -239,16 +239,16 @@ begin
   end if;${auditSql(table, columns, filter)}
   return query
     with r as materialized (
-      select t.id, ${ownerOf(table, "t")} as bs_owner, ${columns.map((name) => `t.${sqlIdent(name)}`).join(", ")}
+      select t.id, ${ownerOf(table, "t")} as bsb_owner, ${columns.map((name) => `t.${sqlIdent(name)}`).join(", ")}
       from ${target} t
       where ${filter}
     ),
     k as materialized (
-      select o.bs_owner, ${encryption.fn("field_key")}(o.bs_owner, false) as bs_key
-      from (select distinct r.bs_owner from r) o
+      select o.bsb_owner, ${encryption.fn("field_key")}(o.bsb_owner, false) as bsb_key
+      from (select distinct r.bsb_owner from r) o
     )
     select r.id, ${decrypted.join(", ")}
-    from r join k on k.bs_owner = r.bs_owner;
+    from r join k on k.bsb_owner = r.bsb_owner;
 end;
 $$;
 revoke execute on function ${fn}(${id}[]) from public, anon;

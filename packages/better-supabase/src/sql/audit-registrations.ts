@@ -206,7 +206,7 @@ const CALL = /\bbetter_supabase\s*\.\s*(un)?audit\s*\(/gi;
 const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
 
 const TRIGGER = /* @__PURE__ */ new RegExp(
-  String.raw`\bcreate\s+(?:or\s+replace\s+)?trigger\s+"?bs_audit"?\s+after\s+[\s\S]*?\bon\s+(${IDENT}(?:\s*\.\s*${IDENT})?)\s+for\s+each\s+row\s+execute\s+(?:function|procedure)\s+better_supabase\s*\.\s*audit_row_change\s*\(`,
+  String.raw`\bcreate\s+(?:or\s+replace\s+)?trigger\s+"?bsb?_audit"?\s+after\s+[\s\S]*?\bon\s+(${IDENT}(?:\s*\.\s*${IDENT})?)\s+for\s+each\s+row\s+execute\s+(?:function|procedure)\s+better_supabase\s*\.\s*audit_row_change\s*\(`,
   "gi",
 );
 
@@ -253,7 +253,7 @@ function triggerRegistration(
 
 /**
  * The tables `files` register with `better_supabase.audit(...)` or a static
- * `create trigger bs_audit ... execute function
+ * `create trigger bsb_audit ... execute function
  * better_supabase.audit_row_change('{...}')`, in file order: a later
  * registration for the same table replaces the earlier one, and `unaudit(...)`
  * or a `drop table` removes it. Calls with non-literal arguments are skipped.

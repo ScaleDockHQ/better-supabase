@@ -382,8 +382,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_sdk_mirror_run"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_sdk_runs_mirror" on workflow.workflow_runs;
-create trigger "bs_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
+drop trigger if exists "bsb_workflow_sdk_runs_mirror" on workflow.workflow_runs;
+create trigger "bsb_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
   for each row execute function "better_supabase"."workflow_sdk_mirror_run"();
 
 -- pg_net delivery: posts up to batch due messages to the flow route in the
@@ -844,8 +844,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_sdk_mirror_run"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_sdk_runs_mirror" on workflow.workflow_runs;
-create trigger "bs_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
+drop trigger if exists "bsb_workflow_sdk_runs_mirror" on workflow.workflow_runs;
+create trigger "bsb_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
   for each row execute function "better_supabase"."workflow_sdk_mirror_run"();
 
 -- pg_net delivery: posts up to batch due messages to the flow route in the
@@ -1308,8 +1308,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."workflow_sdk_mirror_run"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_sdk_runs_mirror" on workflow.workflow_runs;
-create trigger "bs_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
+drop trigger if exists "bsb_workflow_sdk_runs_mirror" on workflow.workflow_runs;
+create trigger "bsb_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
   for each row execute function "app_private"."workflow_sdk_mirror_run"();
 
 -- pg_net delivery: posts up to batch due messages to the flow route in the
@@ -1770,8 +1770,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_sdk_mirror_run"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_sdk_runs_mirror" on workflow.workflow_runs;
-create trigger "bs_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
+drop trigger if exists "bsb_workflow_sdk_runs_mirror" on workflow.workflow_runs;
+create trigger "bsb_workflow_sdk_runs_mirror" after insert or update of status, attributes, error on workflow.workflow_runs
   for each row execute function "better_supabase"."workflow_sdk_mirror_run"();
 
 -- pg_net delivery: posts up to batch due messages to the flow route in the

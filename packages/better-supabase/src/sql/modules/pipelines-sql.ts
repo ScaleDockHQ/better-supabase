@@ -138,7 +138,7 @@ export function stageTrigger(
       ? ""
       : `\n    new.${col(binding.enteredAt)} := now();`;
 
-  const name = `bs_pipeline_${binding.type}`;
+  const name = `bsb_pipeline_${binding.type}`;
 
   const transitions = ctx.hasTable("transitions")
     ? `
@@ -281,7 +281,7 @@ ${statusTrigger(names, binding)}`;
  * separate update so a state-machine trigger on the status column runs.
  */
 function statusTrigger(names: Names, binding: PipelineBinding): string {
-  const name = `bs_pipeline_status_${binding.type}`;
+  const name = `bsb_pipeline_status_${binding.type}`;
   const subject = binding.subject;
 
   if (binding.status === undefined) {

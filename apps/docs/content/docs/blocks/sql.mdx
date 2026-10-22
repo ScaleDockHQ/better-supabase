@@ -57,7 +57,7 @@ migration already has them. `sql add` and `sql sync` say when to run it.
 Event triggers belong to no schema, so a diff limited to some schemas
 (`supabase db schema declarative sync -s public,better_supabase`) leaves
 them out of its migration. Run the sync without `-s` when you use `audit`
-(`bs_audit_forget_dropped`) or `ensure-rls` (`bs_ensure_rls`). Their data
+(`bsb_audit_forget_dropped`) or `ensure-rls` (`bsb_ensure_rls`). Their data
 files repeat the event triggers (`drop event trigger if exists`, then
 `create event trigger`), so the `sql data` migration creates them even when
 the schema migration lacks them, and
@@ -620,7 +620,7 @@ select better_supabase.audit(
 );
 ```
 
-`audit()` keeps these settings on the table's `bs_audit` trigger, as the
+`audit()` keeps these settings on the table's `bsb_audit` trigger, as the
 JSON argument of `audit_row_change`, and writes no rows. So a call in a
 schema file leaves nothing a schema diff refuses (pg-delta rejects a table
 that has rows after loading the schema), and the generated migration carries
@@ -628,7 +628,7 @@ the trigger with its settings; no data migration is needed. You can also
 write the trigger yourself, which pg-delta orders after the table:
 
 ```sql title="supabase/schemas/020_customers.sql"
-create trigger bs_audit after insert or update or delete on public.customers
+create trigger bsb_audit after insert or update or delete on public.customers
   for each row execute function better_supabase.audit_row_change(
     '{"ignore": ["updated_at"], "redact": ["tax_id"], "event_prefix": "customer"}'
   );
@@ -660,11 +660,11 @@ hop through a single-column foreign key and fails when a hop has none.
 function that receives the row as `jsonb` and returns the tenant. The trigger
 tries the row's own tenant column first, then the path, then the function.
 
-When `ignore` is not empty, `audit()` installs two triggers: `bs_audit` for
-inserts and deletes, and `bs_audit_update` with a `WHEN` clause that skips an
+When `ignore` is not empty, `audit()` installs two triggers: `bsb_audit` for
+inserts and deletes, and `bsb_audit_update` with a `WHEN` clause that skips an
 update where only ignored columns changed, so a write such as `last_run_at`
 never starts the trigger. Calling `audit()` again without `ignore`, or
-`unaudit()`, removes `bs_audit_update`.
+`unaudit()`, removes `bsb_audit_update`.
 
 Each `audit()` call replaces every setting on the trigger: the last call
 wins, and arguments it leaves out go back to their defaults. A second
@@ -789,10 +789,10 @@ The module options (`blocks.audit.options`):
 | `requestIdHeader`     | `x-request-id`           | the Data API header `request_id` is read from when the `better_supabase.request_id` setting is empty                                                                                                                                                                                                |
 | `correlationIdHeader` | `x-correlation-id`       | the Data API header `correlation_id` is read from when the `better_supabase.correlation_id` setting is empty                                                                                                                                                                                        |
 
-`sql add` and `sql sync` read the `audit(...)` calls and `bs_audit` triggers in
+`sql add` and `sql sync` read the `audit(...)` calls and `bsb_audit` triggers in
 your schema files and migrations, and write a pgTAP file per audited table to `sql.testsDir`
 (`supabase/tests/900_better_supabase_audit_public_customers.test.sql`). It
-checks that the table has the `bs_audit` trigger and is registered with the
+checks that the table has the `bsb_audit` trigger and is registered with the
 same `ignore` and `redact` lists, then runs an insert, an update and a delete
 on a copy of the table and checks the entries: one per change, without the
 ignored columns, with the redacted values masked. `supabase test db` runs it
@@ -802,7 +802,7 @@ the table's file on the next `sql sync`. Calls with computed arguments, such
 as `audit(format(...))`, are skipped.
 
 Dropping an audited table also drops its registration: the module installs
-a `sql_drop` event trigger (`bs_audit_forget_dropped`) that deletes the
+a `sql_drop` event trigger (`bsb_audit_forget_dropped`) that deletes the
 table's row from `better_supabase.audited_tables`, so install the module as
 `postgres`, which supautils lets create event triggers. `unaudit` takes the
 table name as text, so a migration can still call

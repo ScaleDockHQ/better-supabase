@@ -336,7 +336,7 @@ describe("support sessions on the server", () => {
     const { server, pg } = setup({}, [
       ["pg_catalog.pg_proc", [{ returns_set: false, returns_void: false }]],
       [
-        "bs_call",
+        "bsb_call",
         () => ({
           throws: pgError("42501", "Not a member", {
             hint: "ORGANIZATION_FORBIDDEN",

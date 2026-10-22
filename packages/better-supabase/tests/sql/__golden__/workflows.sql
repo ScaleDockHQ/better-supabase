@@ -202,8 +202,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_runs_status" on "better_supabase"."workflow_runs";
-create trigger "bs_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
+drop trigger if exists "bsb_workflow_runs_status" on "better_supabase"."workflow_runs";
+create trigger "bsb_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
@@ -828,8 +828,8 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_workflow_runs_receive" on realtime.messages;
-    create policy "bs_workflow_runs_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
+    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (
@@ -1093,8 +1093,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_runs_status" on "better_supabase"."workflow_runs";
-create trigger "bs_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
+drop trigger if exists "bsb_workflow_runs_status" on "better_supabase"."workflow_runs";
+create trigger "bsb_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
@@ -1721,8 +1721,8 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_workflow_runs_receive" on realtime.messages;
-    create policy "bs_workflow_runs_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
+    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (
@@ -1976,8 +1976,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_runs_status" on "app_private"."workflow_runs";
-create trigger "bs_workflow_runs_status" after insert or update of "status" on "app_private"."workflow_runs"
+drop trigger if exists "bsb_workflow_runs_status" on "app_private"."workflow_runs";
+create trigger "bsb_workflow_runs_status" after insert or update of "status" on "app_private"."workflow_runs"
   for each row execute function "app_private"."workflow_runs_changed"();
 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
@@ -2602,8 +2602,8 @@ grant execute on function "app_private"."mark_workflow_start_request"(uuid, text
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_workflow_runs_receive" on realtime.messages;
-    create policy "bs_workflow_runs_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
+    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (
@@ -2855,8 +2855,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_runs_status" on "better_supabase"."workflow_runs";
-create trigger "bs_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
+drop trigger if exists "bsb_workflow_runs_status" on "better_supabase"."workflow_runs";
+create trigger "bsb_workflow_runs_status" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_changed"();
 
 -- Creates or updates the run an engine reports. tenant, actor, the subject,
@@ -3481,8 +3481,8 @@ grant execute on function "better_supabase"."mark_workflow_start_request"(uuid, 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_workflow_runs_receive" on realtime.messages;
-    create policy "bs_workflow_runs_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_workflow_runs_receive" on realtime.messages;
+    create policy "bsb_workflow_runs_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (

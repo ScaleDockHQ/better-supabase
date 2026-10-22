@@ -22,7 +22,7 @@ describe("attachments module", () => {
     );
     expect(sql).toContain(`a."status" = 'clean'`);
     expect(sql).toContain(
-      `create policy "bs_attachments_insert" on storage.objects`,
+      `create policy "bsb_attachments_insert" on storage.objects`,
     );
     expect(sql).toContain("'attachments.upload'");
     expect(sql).toContain("'attachments.manage'");
@@ -266,11 +266,11 @@ describe("attachments module", () => {
     expect(sql).toContain(
       `"subject_type" is distinct from 'receipt' or "mime_type" like 'image/%'`,
     );
-    expect(sql).toContain("create trigger bs_object_scan_pending");
+    expect(sql).toContain("create trigger bsb_object_scan_pending");
     expect(sql).toContain("when (new.bucket_id in ('files'))");
-    expect(sql).toContain("bs_attachments_receipt_cascade");
+    expect(sql).toContain("bsb_attachments_receipt_cascade");
     expect(sqlOf(["attachments"])).toContain(
-      "drop trigger if exists bs_object_scan_pending on storage.objects;",
+      "drop trigger if exists bsb_object_scan_pending on storage.objects;",
     );
 
     for (const [options, message] of [

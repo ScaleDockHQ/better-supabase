@@ -261,15 +261,15 @@ grant execute on function "better_supabase"."subject_presence_allowed"(text) to 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_subject_presence_receive" on realtime.messages;
-    create policy "bs_subject_presence_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_subject_presence_receive" on realtime.messages;
+    create policy "bsb_subject_presence_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
         and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
       );
-    drop policy if exists "bs_subject_presence_send" on realtime.messages;
-    create policy "bs_subject_presence_send" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_subject_presence_send" on realtime.messages;
+    create policy "bsb_subject_presence_send" on realtime.messages for insert to authenticated
       with check ((
         realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
@@ -672,15 +672,15 @@ grant execute on function "better_supabase"."subject_presence_allowed"(text) to 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_subject_presence_receive" on realtime.messages;
-    create policy "bs_subject_presence_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_subject_presence_receive" on realtime.messages;
+    create policy "bsb_subject_presence_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
         and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
       );
-    drop policy if exists "bs_subject_presence_send" on realtime.messages;
-    create policy "bs_subject_presence_send" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_subject_presence_send" on realtime.messages;
+    create policy "bsb_subject_presence_send" on realtime.messages for insert to authenticated
       with check ((
         realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
@@ -980,15 +980,15 @@ grant execute on function "app_private"."subject_presence_allowed"(text) to auth
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_subject_presence_receive" on realtime.messages;
-    create policy "bs_subject_presence_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_subject_presence_receive" on realtime.messages;
+    create policy "bsb_subject_presence_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
         and "app_private"."subject_presence_allowed"((select realtime.topic()))
       );
-    drop policy if exists "bs_subject_presence_send" on realtime.messages;
-    create policy "bs_subject_presence_send" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_subject_presence_send" on realtime.messages;
+    create policy "bsb_subject_presence_send" on realtime.messages for insert to authenticated
       with check ((
         realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
@@ -1286,15 +1286,15 @@ grant execute on function "better_supabase"."subject_presence_allowed"(text) to 
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_subject_presence_receive" on realtime.messages;
-    create policy "bs_subject_presence_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_subject_presence_receive" on realtime.messages;
+    create policy "bsb_subject_presence_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'
         and "better_supabase"."subject_presence_allowed"((select realtime.topic()))
       );
-    drop policy if exists "bs_subject_presence_send" on realtime.messages;
-    create policy "bs_subject_presence_send" on realtime.messages for insert to authenticated
+    drop policy if exists "bsb_subject_presence_send" on realtime.messages;
+    create policy "bsb_subject_presence_send" on realtime.messages for insert to authenticated
       with check ((
         realtime.messages.extension = 'presence'
         and (select realtime.topic()) like 'presence:' || '%'

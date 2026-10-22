@@ -200,7 +200,7 @@ type PlainModels = {
 describe.skipIf(!live)("SQL modules against the local database", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 4 });
   const postgres = createPostgres({ connectionString: dbUrl, max: 4 });
-  const table = `public.bs_block_${RUN}`;
+  const table = `public.bsb_block_${RUN}`;
 
   beforeAll(async () => {
     await installSchemaModules(pool);
@@ -337,10 +337,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query(file!.contents);
       await client.query(file!.contents);
       await client.query(`
-        create table public.bs_rls_plain_${RUN} (id int);
-        create table public.bs_rls_as_${RUN} as select 1 as id;
-        select 1 as id into public.bs_rls_into_${RUN};
-        create table extensions.bs_rls_skipped_${RUN} (id int);
+        create table public.bsb_rls_plain_${RUN} (id int);
+        create table public.bsb_rls_as_${RUN} as select 1 as id;
+        select 1 as id into public.bsb_rls_into_${RUN};
+        create table extensions.bsb_rls_skipped_${RUN} (id int);
       `);
 
       const { rows } = await client.query<{
@@ -349,14 +349,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }>(
         `select relname, relrowsecurity from pg_class
          where relname like $1 order by relname`,
-        [`bs_rls_%_${RUN}`],
+        [`bsb_rls_%_${RUN}`],
       );
 
       expect(rows).toEqual([
-        { relname: `bs_rls_as_${RUN}`, relrowsecurity: true },
-        { relname: `bs_rls_into_${RUN}`, relrowsecurity: true },
-        { relname: `bs_rls_plain_${RUN}`, relrowsecurity: true },
-        { relname: `bs_rls_skipped_${RUN}`, relrowsecurity: false },
+        { relname: `bsb_rls_as_${RUN}`, relrowsecurity: true },
+        { relname: `bsb_rls_into_${RUN}`, relrowsecurity: true },
+        { relname: `bsb_rls_plain_${RUN}`, relrowsecurity: true },
+        { relname: `bsb_rls_skipped_${RUN}`, relrowsecurity: false },
       ]);
     } finally {
       await client.query("rollback");
@@ -417,7 +417,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("warns about equivalent triggers and replaces them on request", async () => {
-    const name = `public.bs_dup_${RUN}`;
+    const name = `public.bsb_dup_${RUN}`;
     const notices: string[] = [];
     const client = await pool.connect();
     client.on("notice", (notice) => notices.push(notice.message ?? ""));
@@ -441,11 +441,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           )
         ).rows.map((row) => row.tgname);
 
-      expect(await triggers()).toEqual(["bs_updated_at", "touch_row"]);
+      expect(await triggers()).toEqual(["bsb_updated_at", "touch_row"]);
       await client.query(
         `select better_supabase.track_updated_at('${name}', replace_trigger => true)`,
       );
-      expect(await triggers()).toEqual(["bs_updated_at"]);
+      expect(await triggers()).toEqual(["bsb_updated_at"]);
     } finally {
       await client.query(`drop table if exists ${name}`);
       await client.query(`drop function if exists public.touch_${RUN}()`);
@@ -454,7 +454,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("writes the complete grants of the tables and functions in expose", async () => {
-    const name = `bs_grants_${RUN}`;
+    const name = `bsb_grants_${RUN}`;
 
     const read = async (): Promise<Response> => {
       for (let attempt = 0; ; attempt += 1) {
@@ -673,7 +673,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("actor() stamps the same actor columns as track_actor", async () => {
-    const plain = `bs_block_plain_${RUN}`;
+    const plain = `bsb_block_plain_${RUN}`;
     const uuid = { type: "uuid", nullable: true, hasDefault: false } as const;
 
     const stamped = defineSupabase(
@@ -783,7 +783,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("keys audit entries by the table's primary key, composite ones too", async () => {
-    const composite = `public.bs_block_pk_${RUN}`;
+    const composite = `public.bsb_block_pk_${RUN}`;
 
     try {
       await pool.query(`
@@ -940,7 +940,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     );
 
     const sub = user.rows[0]!.id;
-    const secrets = `public.bs_mfa_${RUN}`;
+    const secrets = `public.bsb_mfa_${RUN}`;
 
     const satisfied = async (aal: "aal1" | "aal2"): Promise<boolean> => {
       const [row] = await postgres
@@ -1089,7 +1089,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("writes the session policy on every declared table with options.policies", async () => {
-    const name = `bs_sessions_${RUN}`;
+    const name = `bsb_sessions_${RUN}`;
 
     const user = await pool.query<{ id: string }>(
       `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
@@ -1141,8 +1141,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("puts memberships and Stripe features in separate claims and RLS", async () => {
-    const billing = `bs_billing_${RUN}`;
-    const hook = `public.bs_hook_${RUN}`;
+    const billing = `bsb_billing_${RUN}`;
+    const hook = `public.bsb_hook_${RUN}`;
     const organization = crypto.randomUUID();
     const customer = `cus_${RUN}`;
 
@@ -1315,11 +1315,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [member, `plans-${RUN}@example.com`],
       );
       await client.query(`
-        create table public.bs_subs_${RUN} (team_id uuid, plan_key text, status text);
-        create table public.bs_plan_features_${RUN} (plan_key text, feature_key text, included boolean);
-        insert into public.bs_subs_${RUN} values
+        create table public.bsb_subs_${RUN} (team_id uuid, plan_key text, status text);
+        create table public.bsb_plan_features_${RUN} (plan_key text, feature_key text, included boolean);
+        insert into public.bsb_subs_${RUN} values
           ('${organization}', 'pro', 'active'), ('${organization}', 'old', 'canceled');
-        insert into public.bs_plan_features_${RUN} values
+        insert into public.bsb_plan_features_${RUN} values
           ('pro', 'exports', true), ('pro', 'sso', false), ('old', 'audit', true);
         insert into better_supabase.organizations (id, name, slug) values ('${organization}', 'Plans', 'plans-${organization.slice(0, 8)}');
         insert into better_supabase.memberships (organization_id, user_id, role) values ('${organization}', '${member}', 'member');
@@ -1331,13 +1331,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           source: {
             plans: {
               subscriptions: {
-                table: `public.bs_subs_${RUN}`,
+                table: `public.bsb_subs_${RUN}`,
                 tenant: "team_id",
                 plan: "plan_key",
                 status: "status",
               },
               features: {
-                table: `public.bs_plan_features_${RUN}`,
+                table: `public.bsb_plan_features_${RUN}`,
                 plan: "plan_key",
                 feature: "feature_key",
                 included: "included",
@@ -1357,13 +1357,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           source: {
             plans: {
               subscriptions: {
-                table: `public.bs_subs_${RUN}`,
+                table: `public.bsb_subs_${RUN}`,
                 tenant: "team_id",
                 plan: "plan_key",
                 status: "status",
               },
               features: {
-                table: `public.bs_plan_features_${RUN}`,
+                table: `public.bsb_plan_features_${RUN}`,
                 plan: "plan_key",
                 feature: "feature_key",
               },
@@ -1456,12 +1456,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [member, `values-${RUN}@example.com`],
       );
       await client.query(`
-        create table public.bs_value_subs_${RUN} (team_id uuid, plan_key text, status text);
-        create table public.bs_value_features_${RUN} (plan_key text, feature_key text, included boolean, value jsonb);
-        insert into public.bs_value_subs_${RUN} values
+        create table public.bsb_value_subs_${RUN} (team_id uuid, plan_key text, status text);
+        create table public.bsb_value_features_${RUN} (plan_key text, feature_key text, included boolean, value jsonb);
+        insert into public.bsb_value_subs_${RUN} values
           ('${organization}', 'pro', 'active'), ('${organization}', 'archive', 'active'),
           ('${organization}', 'max', 'canceled');
-        insert into public.bs_value_features_${RUN} values
+        insert into public.bsb_value_features_${RUN} values
           ('pro', 'file_history_days', true, '90'), ('archive', 'file_history_days', true, '365'),
           ('max', 'file_history_days', true, '3650'), ('pro', 'support', true, '"email"'),
           ('pro', 'exports', true, null), ('pro', 'sso', false, 'true');
@@ -1472,13 +1472,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       const source = {
         plans: {
           subscriptions: {
-            table: `public.bs_value_subs_${RUN}`,
+            table: `public.bsb_value_subs_${RUN}`,
             tenant: "team_id",
             plan: "plan_key",
             status: "status",
           },
           features: {
-            table: `public.bs_value_features_${RUN}`,
+            table: `public.bsb_value_features_${RUN}`,
             plan: "plan_key",
             feature: "feature_key",
             included: "included",
@@ -1546,8 +1546,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("reads the provider's member functions under provider memberships", async () => {
-    const pd = `bs_authz_${RUN}`;
-    const billing = `bs_billing_pd_${RUN}`;
+    const pd = `bsb_authz_${RUN}`;
+    const billing = `bsb_billing_pd_${RUN}`;
     const organization = crypto.randomUUID();
     const customer = `cus_pd_${RUN}`;
 
@@ -2173,7 +2173,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("runs jobs, idempotency and leases through the api wrappers over rpcTransport", async () => {
-    const api = `bs_api_${RUN}`;
+    const api = `bsb_api_${RUN}`;
     await pool.query(
       ["jobs", "idempotency"]
         .map((module) =>
@@ -2702,7 +2702,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         return null;
       end;
       $$;
-      create trigger bs_schedule after insert or update on ${table}
+      create trigger bsb_schedule after insert or update on ${table}
         for each row execute function ${fn}();
     `);
     const client = await pool.connect();
@@ -3496,7 +3496,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("passes the pgTAP file it writes for an audited table", async () => {
-    const name = `public.bs_audit_tap_${RUN}`;
+    const name = `public.bsb_audit_tap_${RUN}`;
     const register = `select better_supabase.audit('${name}', ignore => '{updated_at}', redact => '{api_key}');`;
     await pool.query(`
       create table ${name} (
@@ -3561,7 +3561,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("redacts columns, names events and records idempotent semantic events", async () => {
-    const name = `public.bs_audit_${RUN}`;
+    const name = `public.bsb_audit_${RUN}`;
     await pool.query(`
       create table ${name} (id int primary key, organization_id uuid, api_key text, note text);
       select better_supabase.audit('${name}', redact => '{api_key}', event_prefix => 'secret',
@@ -3634,17 +3634,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("keeps audit settings on the trigger, so registrations leave no rows", async () => {
-    const called = `public.bs_audit_call_${RUN}`;
-    const declared = `public.bs_audit_static_${RUN}`;
-    const legacy = `public.bs_audit_legacy_${RUN}`;
+    const called = `public.bsb_audit_call_${RUN}`;
+    const declared = `public.bsb_audit_static_${RUN}`;
+    const legacy = `public.bsb_audit_legacy_${RUN}`;
     await pool.query(`
       create table ${called} (code text primary key, organization_id uuid, secret text, note text, seen_at timestamptz);
       create table ${declared} (id int primary key, organization_id uuid, note text);
       create table ${legacy} (id int primary key, organization_id uuid, note text, noise text);
       select better_supabase.audit('${called}', ignore => '{seen_at}', redact => '{secret}', event_prefix => 'vault');
-      create trigger bs_audit after insert or update or delete on ${declared}
+      create trigger bsb_audit after insert or update or delete on ${declared}
         for each row execute function better_supabase.audit_row_change('{"event_prefix": "memo", "category": "notes"}');
-      create trigger bs_audit after insert or update or delete on ${legacy}
+      create trigger bsb_audit after insert or update or delete on ${legacy}
         for each row execute function better_supabase.audit_row_change();
       insert into better_supabase.audited_tables (target, ignore, event_prefix)
         values ('${legacy}', '{noise}', 'old');
@@ -3731,14 +3731,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     try {
       await client.query("begin");
-      await client.query("drop event trigger bs_audit_forget_dropped");
+      await client.query("drop event trigger bsb_audit_forget_dropped");
 
       const data = renderModules(["audit"]).find(
         (file) => file.kind === "data",
       )!.contents;
 
       const statements =
-        /^drop event trigger if exists bs_audit_forget_dropped;\n[^;]*;/m.exec(
+        /^drop event trigger if exists bsb_audit_forget_dropped;\n[^;]*;/m.exec(
           data,
         )![0];
 
@@ -3746,7 +3746,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query(statements);
 
       const { rows } = await client.query<{ event: string }>(
-        "select evtevent as event from pg_catalog.pg_event_trigger where evtname = 'bs_audit_forget_dropped'",
+        "select evtevent as event from pg_catalog.pg_event_trigger where evtname = 'bsb_audit_forget_dropped'",
       );
 
       expect(rows).toEqual([{ event: "sql_drop" }]);
@@ -3757,8 +3757,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("forgets a dropped table's registration and unaudits a table that is gone", async () => {
-    const legacy = `public.bs_audit_dropped_${RUN}`;
-    const stray = `public.bs_audit_stray_${RUN}`;
+    const legacy = `public.bsb_audit_dropped_${RUN}`;
+    const stray = `public.bsb_audit_stray_${RUN}`;
     await pool.query(`
       create table ${legacy} (id int primary key, organization_id uuid);
       create table ${stray} (id int primary key, organization_id uuid);
@@ -3778,9 +3778,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(await registered()).toBe(0);
       await pool.query(`select better_supabase.unaudit('${legacy}')`);
       await pool.query(`
-        alter event trigger bs_audit_forget_dropped disable;
+        alter event trigger bsb_audit_forget_dropped disable;
         drop table ${stray};
-        alter event trigger bs_audit_forget_dropped enable;
+        alter event trigger bsb_audit_forget_dropped enable;
       `);
       expect(await registered()).toBe(1);
       await pool.query(`select better_supabase.unaudit('${stray}')`);
@@ -3788,9 +3788,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(`
         create table ${stray} (id int primary key, organization_id uuid);
         insert into better_supabase.audited_tables (target) values ('${stray}');
-        alter event trigger bs_audit_forget_dropped disable;
+        alter event trigger bsb_audit_forget_dropped disable;
         drop table ${stray};
-        alter event trigger bs_audit_forget_dropped enable;
+        alter event trigger bsb_audit_forget_dropped enable;
       `);
       expect(await registered()).toBe(1);
 
@@ -3803,7 +3803,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
       expect(await registered()).toBe(0);
     } finally {
-      await pool.query("alter event trigger bs_audit_forget_dropped enable");
+      await pool.query("alter event trigger bsb_audit_forget_dropped enable");
       await pool.query(`
         drop table if exists ${legacy};
         drop table if exists ${stray};
@@ -3942,7 +3942,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("records actor, labels, request ids and per-column changes", async () => {
     const client = await pool.connect();
-    const name = `bs_audit_ctx_${RUN}`;
+    const name = `bsb_audit_ctx_${RUN}`;
     const actor = crypto.randomUUID();
 
     try {
@@ -4035,7 +4035,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         correlation_id: "job-9",
         scope: "platform",
       });
-      await client.query(`drop trigger bs_audit on public.${name}`);
+      await client.query(`drop trigger bsb_audit on public.${name}`);
       await client.query(
         `delete from better_supabase.audited_tables where target = 'public.${name}'::regclass`,
       );
@@ -4064,7 +4064,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("groups row changes and events by the request's correlation id", async () => {
     const client = await pool.connect();
-    const name = `bs_audit_ids_${RUN}`;
+    const name = `bsb_audit_ids_${RUN}`;
 
     try {
       await client.query("begin");
@@ -4166,7 +4166,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("lists and reveals audit entries through the audit functions", async () => {
     const client = await pool.connect();
-    const name = `bs_audit_api_${RUN}`;
+    const name = `bsb_audit_api_${RUN}`;
     const admin = crypto.randomUUID();
     const outsider = crypto.randomUUID();
     let claims: object = { role: "service_role" };
@@ -4323,7 +4323,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("guards, scopes, splits and retains audit entries by option", async () => {
-    const name = `public.bs_audit_opt_${RUN}`;
+    const name = `public.bsb_audit_opt_${RUN}`;
     const other = "00000000-0000-4000-8000-0000000000aa";
     const hook = "public.audit_retention";
     await pool.query(
@@ -4412,7 +4412,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ]);
 
       const policy = await pool.query(
-        "select 1 from pg_policies where schemaname = 'better_supabase' and tablename = 'audit_events' and policyname = 'bs_audit_read'",
+        "select 1 from pg_policies where schemaname = 'better_supabase' and tablename = 'audit_events' and policyname = 'bsb_audit_read'",
       );
 
       expect(policy.rowCount).toBe(1);
@@ -4469,7 +4469,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(SQL_MODULES["audit"]!.sql);
       await pool.query(deleteAudit("table_name like $1"), [`${name}%`]);
       await pool.query(
-        "drop policy if exists bs_audit_read on better_supabase.audit_events",
+        "drop policy if exists bsb_audit_read on better_supabase.audit_events",
       );
       await pool.query(
         "revoke all on better_supabase.audit_events from authenticated",
@@ -4512,7 +4512,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
 
       expect(rls.rows[0]!.result).toMatch(/^not ok/);
-      expect(rls.rows[0]!.result).toContain(`bs_block_${RUN}`);
+      expect(rls.rows[0]!.result).toContain(`bsb_block_${RUN}`);
       await client.query(`alter table ${table} enable row level security`);
 
       const fixed = await client.query<{ result: string }>(
@@ -4749,7 +4749,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("creates and runs vector search in sessions that haven't loaded pgvector", async () => {
-    const name = `bs_fresh_vectors_${RUN}`;
+    const name = `bsb_fresh_vectors_${RUN}`;
     await pool.query(`
       create extension if not exists vector with schema extensions;
       create table public.${name} (id int primary key, embedding extensions.vector(3));
@@ -4823,7 +4823,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("searches the nearest rows the caller can read", async () => {
-    const name = `bs_chunks_${RUN}`;
+    const name = `bsb_chunks_${RUN}`;
     const mine = crypto.randomUUID();
     const theirs = crypto.randomUUID();
 
@@ -4856,7 +4856,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         casing: "camel",
         tables: {
           chunks: table("chunks", name),
-          unsearched: table("unsearched", `bs_unsearched_${RUN}`),
+          unsearched: table("unsearched", `bsb_unsearched_${RUN}`),
         },
         enums: {},
         functions: {},
@@ -4956,7 +4956,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("fuses full-text and halfvec rankings with prefilters and a boost", async () => {
-    const name = `bs_hybrid_${RUN}`;
+    const name = `bsb_hybrid_${RUN}`;
 
     const column = (db: string, type: string) => ({
       db,
@@ -5071,8 +5071,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("searches by text alone, with a predicate, an additive boost and tie-breaks", async () => {
-    const name = `bs_pred_${RUN}`;
-    const folders = `bs_pred_folders_${RUN}`;
+    const name = `bsb_pred_${RUN}`;
+    const folders = `bsb_pred_folders_${RUN}`;
 
     const [module] = renderModules(["vector-search"], {
       vectorSearch: [
@@ -5214,7 +5214,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("answers writes over the limit with 429 and Retry-After", async () => {
-    const probe = `bs_rate_probe_${RUN}`;
+    const probe = `bsb_rate_probe_${RUN}`;
     const scope = `/rpc/${probe}`;
     const token = await signLocalJwt({ sub: crypto.randomUUID() });
 

@@ -1897,14 +1897,14 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."order_line_preparations_changed"() from public, anon, authenticated;
-drop trigger if exists "bs_order_line_preparations_broadcast" on "better_supabase"."order_line_preparations";
-create trigger "bs_order_line_preparations_broadcast" after insert or update on "better_supabase"."order_line_preparations"
+drop trigger if exists "bsb_order_line_preparations_broadcast" on "better_supabase"."order_line_preparations";
+create trigger "bsb_order_line_preparations_broadcast" after insert or update on "better_supabase"."order_line_preparations"
   for each row execute function "better_supabase"."order_line_preparations_changed"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_kitchen_receive" on realtime.messages;
-    create policy "bs_kitchen_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_kitchen_receive" on realtime.messages;
+    create policy "bsb_kitchen_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'kitchen:%'

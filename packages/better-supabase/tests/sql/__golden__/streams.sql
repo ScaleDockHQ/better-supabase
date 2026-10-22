@@ -301,8 +301,8 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_streams_receive" on realtime.messages;
-    create policy "bs_streams_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_streams_receive" on realtime.messages;
+    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -644,8 +644,8 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_streams_receive" on realtime.messages;
-    create policy "bs_streams_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_streams_receive" on realtime.messages;
+    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -989,8 +989,8 @@ grant execute on function "app_private"."purge_streams"(interval, integer) to se
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_streams_receive" on realtime.messages;
-    create policy "bs_streams_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_streams_receive" on realtime.messages;
+    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'
@@ -1332,8 +1332,8 @@ grant execute on function "better_supabase"."purge_streams"(interval, integer) t
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_streams_receive" on realtime.messages;
-    create policy "bs_streams_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_streams_receive" on realtime.messages;
+    create policy "bsb_streams_receive" on realtime.messages for select to authenticated
       using (
         realtime.messages.extension = 'broadcast'
         and (select realtime.topic()) like 'stream:%'

@@ -62,11 +62,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bs_field_definitions_type'
+    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
   ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
-    alter table "better_supabase"."field_definitions" drop constraint if exists "bs_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bs_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bs_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
+    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
+    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
   end if;
 end;
 $$;
@@ -355,11 +355,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bs_field_definitions_type'
+    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
   ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
-    alter table "better_supabase"."field_definitions" drop constraint if exists "bs_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bs_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bs_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
+    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
+    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
   end if;
 end;
 $$;
@@ -689,11 +689,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"app_private"."field_definitions"'::regclass and c.conname = 'bs_field_definitions_type'
+    where c.conrelid = '"app_private"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
   ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
-    alter table "app_private"."field_definitions" drop constraint if exists "bs_field_definitions_type";
-    alter table "app_private"."field_definitions" add constraint "bs_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bs_field_definitions_type" on "app_private"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "app_private"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
+    alter table "app_private"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
+    comment on constraint "bsb_field_definitions_type" on "app_private"."field_definitions" is 'better-supabase check 41e34c72';
   end if;
 end;
 $$;
@@ -982,11 +982,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bs_field_definitions_type'
+    where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
   ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
-    alter table "better_supabase"."field_definitions" drop constraint if exists "bs_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bs_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bs_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
+    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
+    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
   end if;
 end;
 $$;

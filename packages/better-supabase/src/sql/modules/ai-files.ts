@@ -230,7 +230,7 @@ function build(ctx: ModuleContext): string {
     ${raise("media type % is not allowed", "22023", "AI_FILE_TYPE", "media_type")}
   end if;`;
 
-  const policy = (name: string): string => `bs_ai_files_${name}`;
+  const policy = (name: string): string => `bsb_ai_files_${name}`;
   const extras = ctx.extraColumns("files", FILE_KEYS);
 
   const fileJson = (row: string): string =>

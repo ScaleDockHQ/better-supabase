@@ -852,7 +852,7 @@ export function defineBucket<
       }
 
       for (const [suffix, command, roles, using, withCheck] of policies) {
-        const policyName = sqlIdent(`bs_${name}_${suffix}`);
+        const policyName = sqlIdent(`bsb_${name}_${suffix}`);
         lines.push(
           "",
           `drop policy if exists ${policyName} on storage.objects;`,
@@ -865,7 +865,7 @@ export function defineBucket<
       if (permission && !permission.list) {
         lines.push(
           "",
-          `drop policy if exists ${sqlIdent(`bs_${name}_list`)} on storage.objects;`,
+          `drop policy if exists ${sqlIdent(`bsb_${name}_list`)} on storage.objects;`,
         );
       }
 

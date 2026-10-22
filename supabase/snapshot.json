@@ -87939,7 +87939,7 @@
         "is_one_to_one": false
       },
       {
-        "foreign_key_name": "bs_drive_nodes_attachment",
+        "foreign_key_name": "bsb_drive_nodes_attachment",
         "schema": "better_supabase",
         "relation": "drive_nodes",
         "columns": [
@@ -96442,8 +96442,8 @@
         "schema": "better_supabase",
         "name": "audit",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  keys text[];\n  path_steps jsonb := '[]';\n  path_column text;\n  parts text[];\n  cur_rel regclass := target;\n  cur_col text;\n  ref_rel regclass;\n  ref_col text;\n  segment text;\n  seg_table text;\n  seg_read text;\n  base_settings jsonb;\nbegin\n  if audit.tenant_path is not null then\n    parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');\n    if coalesce(array_length(parts, 1), 0) < 2 then\n      raise exception 'tenant_path % needs a column and at least one table.column hop', audit.tenant_path;\n    end if;\n    path_column := parts[1];\n    cur_col := path_column;\n    for i in 2..array_length(parts, 1) loop\n      segment := parts[i];\n      seg_read := substring(segment from '[^.]+$');\n      seg_table := substring(segment from '^(.*)\\.[^.]+$');\n      if seg_read is null or seg_table is null then\n        raise exception 'tenant_path hop % must be table.column', segment;\n      end if;\n      select con.confrelid::regclass, a.attname::text into ref_rel, ref_col\n      from pg_catalog.pg_constraint con\n      join pg_catalog.pg_attribute a on a.attrelid = con.confrelid and a.attnum = con.confkey[1]\n      where con.contype = 'f' and con.conrelid = cur_rel and array_length(con.conkey, 1) = 1\n        and con.conkey[1] = (\n          select c.attnum from pg_catalog.pg_attribute c\n          where c.attrelid = cur_rel and c.attname = cur_col and not c.attisdropped\n        );\n      if ref_rel is null then\n        raise exception 'tenant_path: % has no foreign key on column %', cur_rel, cur_col;\n      end if;\n      if pg_catalog.to_regclass(case when position('.' in seg_table) > 0 then seg_table else (select n.nspname from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.oid = audit.target) || '.' || seg_table end) is distinct from ref_rel then\n        raise exception 'tenant_path: % does not reference %', cur_col, seg_table;\n      end if;\n      path_steps := path_steps || jsonb_build_array(jsonb_build_object('table', ref_rel::text, 'ref', ref_col, 'read', seg_read));\n      cur_rel := ref_rel;\n      cur_col := seg_read;\n    end loop;\n  end if;\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bs_audit', 'audit', replace_trigger\n  );\n  select array_agg(c.attname::text order by k.ord) into keys\n  from pg_catalog.pg_index i\n  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)\n  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum\n  where i.indrelid = audit.target and i.indisprimary;\n  delete from better_supabase.audited_tables a where a.target = audit.target;\n  base_settings := jsonb_strip_nulls(jsonb_build_object(\n    'ignore', to_jsonb(coalesce(audit.ignore, '{}')),\n    'redact', to_jsonb(coalesce(audit.redact, '{}')),\n    'key_columns', to_jsonb(keys),\n    'category', audit.category,\n    'event_prefix', audit.event_prefix,\n    'target_type', audit.target_type,\n    'tenant_column', audit.tenant_column,\n    'label_column', audit.label_column,\n    'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,\n    'tenant_function', audit.tenant_function::text\n  ));\n  execute format('drop trigger if exists bs_audit on %s', target);\n  execute format('drop trigger if exists bs_audit_update on %s', target);\n  if cardinality(coalesce(audit.ignore, '{}')) > 0 then\n    execute format(\n      'create trigger bs_audit after insert or delete on %s for each row execute function better_supabase.audit_row_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bs_audit_update after update on %s for each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',\n      target, audit.ignore, audit.ignore, base_settings::text\n    );\n  else\n    execute format(\n      'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change(%L)',\n      target, base_settings::text\n    );\n  end if;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.audit(target regclass, ignore text[] DEFAULT '{}'::text[], replace_trigger boolean DEFAULT false, redact text[] DEFAULT '{}'::text[], category text DEFAULT NULL::text, event_prefix text DEFAULT NULL::text, target_type text DEFAULT NULL::text, tenant_column text DEFAULT NULL::text, label_column text DEFAULT NULL::text, tenant_path text DEFAULT NULL::text, tenant_function regprocedure DEFAULT NULL::regprocedure)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  keys text[];\n  path_steps jsonb := '[]';\n  path_column text;\n  parts text[];\n  cur_rel regclass := target;\n  cur_col text;\n  ref_rel regclass;\n  ref_col text;\n  segment text;\n  seg_table text;\n  seg_read text;\n  base_settings jsonb;\nbegin\n  if audit.tenant_path is not null then\n    parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');\n    if coalesce(array_length(parts, 1), 0) < 2 then\n      raise exception 'tenant_path % needs a column and at least one table.column hop', audit.tenant_path;\n    end if;\n    path_column := parts[1];\n    cur_col := path_column;\n    for i in 2..array_length(parts, 1) loop\n      segment := parts[i];\n      seg_read := substring(segment from '[^.]+$');\n      seg_table := substring(segment from '^(.*)\\.[^.]+$');\n      if seg_read is null or seg_table is null then\n        raise exception 'tenant_path hop % must be table.column', segment;\n      end if;\n      select con.confrelid::regclass, a.attname::text into ref_rel, ref_col\n      from pg_catalog.pg_constraint con\n      join pg_catalog.pg_attribute a on a.attrelid = con.confrelid and a.attnum = con.confkey[1]\n      where con.contype = 'f' and con.conrelid = cur_rel and array_length(con.conkey, 1) = 1\n        and con.conkey[1] = (\n          select c.attnum from pg_catalog.pg_attribute c\n          where c.attrelid = cur_rel and c.attname = cur_col and not c.attisdropped\n        );\n      if ref_rel is null then\n        raise exception 'tenant_path: % has no foreign key on column %', cur_rel, cur_col;\n      end if;\n      if pg_catalog.to_regclass(case when position('.' in seg_table) > 0 then seg_table else (select n.nspname from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.oid = audit.target) || '.' || seg_table end) is distinct from ref_rel then\n        raise exception 'tenant_path: % does not reference %', cur_col, seg_table;\n      end if;\n      path_steps := path_steps || jsonb_build_array(jsonb_build_object('table', ref_rel::text, 'ref', ref_col, 'read', seg_read));\n      cur_rel := ref_rel;\n      cur_col := seg_read;\n    end loop;\n  end if;\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bs_audit', 'audit', replace_trigger\n  );\n  select array_agg(c.attname::text order by k.ord) into keys\n  from pg_catalog.pg_index i\n  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)\n  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum\n  where i.indrelid = audit.target and i.indisprimary;\n  delete from better_supabase.audited_tables a where a.target = audit.target;\n  base_settings := jsonb_strip_nulls(jsonb_build_object(\n    'ignore', to_jsonb(coalesce(audit.ignore, '{}')),\n    'redact', to_jsonb(coalesce(audit.redact, '{}')),\n    'key_columns', to_jsonb(keys),\n    'category', audit.category,\n    'event_prefix', audit.event_prefix,\n    'target_type', audit.target_type,\n    'tenant_column', audit.tenant_column,\n    'label_column', audit.label_column,\n    'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,\n    'tenant_function', audit.tenant_function::text\n  ));\n  execute format('drop trigger if exists bs_audit on %s', target);\n  execute format('drop trigger if exists bs_audit_update on %s', target);\n  if cardinality(coalesce(audit.ignore, '{}')) > 0 then\n    execute format(\n      'create trigger bs_audit after insert or delete on %s for each row execute function better_supabase.audit_row_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bs_audit_update after update on %s for each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',\n      target, audit.ignore, audit.ignore, base_settings::text\n    );\n  else\n    execute format(\n      'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change(%L)',\n      target, base_settings::text\n    );\n  end if;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  keys text[];\n  path_steps jsonb := '[]';\n  path_column text;\n  parts text[];\n  cur_rel regclass := target;\n  cur_col text;\n  ref_rel regclass;\n  ref_col text;\n  segment text;\n  seg_table text;\n  seg_read text;\n  base_settings jsonb;\nbegin\n  if audit.tenant_path is not null then\n    parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');\n    if coalesce(array_length(parts, 1), 0) < 2 then\n      raise exception 'tenant_path % needs a column and at least one table.column hop', audit.tenant_path;\n    end if;\n    path_column := parts[1];\n    cur_col := path_column;\n    for i in 2..array_length(parts, 1) loop\n      segment := parts[i];\n      seg_read := substring(segment from '[^.]+$');\n      seg_table := substring(segment from '^(.*)\\.[^.]+$');\n      if seg_read is null or seg_table is null then\n        raise exception 'tenant_path hop % must be table.column', segment;\n      end if;\n      select con.confrelid::regclass, a.attname::text into ref_rel, ref_col\n      from pg_catalog.pg_constraint con\n      join pg_catalog.pg_attribute a on a.attrelid = con.confrelid and a.attnum = con.confkey[1]\n      where con.contype = 'f' and con.conrelid = cur_rel and array_length(con.conkey, 1) = 1\n        and con.conkey[1] = (\n          select c.attnum from pg_catalog.pg_attribute c\n          where c.attrelid = cur_rel and c.attname = cur_col and not c.attisdropped\n        );\n      if ref_rel is null then\n        raise exception 'tenant_path: % has no foreign key on column %', cur_rel, cur_col;\n      end if;\n      if pg_catalog.to_regclass(case when position('.' in seg_table) > 0 then seg_table else (select n.nspname from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.oid = audit.target) || '.' || seg_table end) is distinct from ref_rel then\n        raise exception 'tenant_path: % does not reference %', cur_col, seg_table;\n      end if;\n      path_steps := path_steps || jsonb_build_array(jsonb_build_object('table', ref_rel::text, 'ref', ref_col, 'read', seg_read));\n      cur_rel := ref_rel;\n      cur_col := seg_read;\n    end loop;\n  end if;\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bsb_audit', 'audit', replace_trigger\n  );\n  select array_agg(c.attname::text order by k.ord) into keys\n  from pg_catalog.pg_index i\n  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)\n  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum\n  where i.indrelid = audit.target and i.indisprimary;\n  delete from better_supabase.audited_tables a where a.target = audit.target;\n  base_settings := jsonb_strip_nulls(jsonb_build_object(\n    'ignore', to_jsonb(coalesce(audit.ignore, '{}')),\n    'redact', to_jsonb(coalesce(audit.redact, '{}')),\n    'key_columns', to_jsonb(keys),\n    'category', audit.category,\n    'event_prefix', audit.event_prefix,\n    'target_type', audit.target_type,\n    'tenant_column', audit.tenant_column,\n    'label_column', audit.label_column,\n    'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,\n    'tenant_function', audit.tenant_function::text\n  ));\n  execute format('drop trigger if exists bsb_audit on %s', target);\n  execute format('drop trigger if exists bsb_audit_update on %s', target);\n  if cardinality(coalesce(audit.ignore, '{}')) > 0 then\n    execute format(\n      'create trigger bsb_audit after insert or delete on %s for each row execute function better_supabase.audit_row_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_update after update on %s for each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',\n      target, audit.ignore, audit.ignore, base_settings::text\n    );\n  else\n    execute format(\n      'create trigger bsb_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change(%L)',\n      target, base_settings::text\n    );\n  end if;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.audit(target regclass, ignore text[] DEFAULT '{}'::text[], replace_trigger boolean DEFAULT false, redact text[] DEFAULT '{}'::text[], category text DEFAULT NULL::text, event_prefix text DEFAULT NULL::text, target_type text DEFAULT NULL::text, tenant_column text DEFAULT NULL::text, label_column text DEFAULT NULL::text, tenant_path text DEFAULT NULL::text, tenant_function regprocedure DEFAULT NULL::regprocedure)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  keys text[];\n  path_steps jsonb := '[]';\n  path_column text;\n  parts text[];\n  cur_rel regclass := target;\n  cur_col text;\n  ref_rel regclass;\n  ref_col text;\n  segment text;\n  seg_table text;\n  seg_read text;\n  base_settings jsonb;\nbegin\n  if audit.tenant_path is not null then\n    parts := regexp_split_to_array(btrim(audit.tenant_path), '\\s*->\\s*');\n    if coalesce(array_length(parts, 1), 0) < 2 then\n      raise exception 'tenant_path % needs a column and at least one table.column hop', audit.tenant_path;\n    end if;\n    path_column := parts[1];\n    cur_col := path_column;\n    for i in 2..array_length(parts, 1) loop\n      segment := parts[i];\n      seg_read := substring(segment from '[^.]+$');\n      seg_table := substring(segment from '^(.*)\\.[^.]+$');\n      if seg_read is null or seg_table is null then\n        raise exception 'tenant_path hop % must be table.column', segment;\n      end if;\n      select con.confrelid::regclass, a.attname::text into ref_rel, ref_col\n      from pg_catalog.pg_constraint con\n      join pg_catalog.pg_attribute a on a.attrelid = con.confrelid and a.attnum = con.confkey[1]\n      where con.contype = 'f' and con.conrelid = cur_rel and array_length(con.conkey, 1) = 1\n        and con.conkey[1] = (\n          select c.attnum from pg_catalog.pg_attribute c\n          where c.attrelid = cur_rel and c.attname = cur_col and not c.attisdropped\n        );\n      if ref_rel is null then\n        raise exception 'tenant_path: % has no foreign key on column %', cur_rel, cur_col;\n      end if;\n      if pg_catalog.to_regclass(case when position('.' in seg_table) > 0 then seg_table else (select n.nspname from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.oid = audit.target) || '.' || seg_table end) is distinct from ref_rel then\n        raise exception 'tenant_path: % does not reference %', cur_col, seg_table;\n      end if;\n      path_steps := path_steps || jsonb_build_array(jsonb_build_object('table', ref_rel::text, 'ref', ref_col, 'read', seg_read));\n      cur_rel := ref_rel;\n      cur_col := seg_read;\n    end loop;\n  end if;\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bsb_audit', 'audit', replace_trigger\n  );\n  select array_agg(c.attname::text order by k.ord) into keys\n  from pg_catalog.pg_index i\n  cross join lateral unnest(i.indkey) with ordinality k(attnum, ord)\n  join pg_catalog.pg_attribute c on c.attrelid = i.indrelid and c.attnum = k.attnum\n  where i.indrelid = audit.target and i.indisprimary;\n  delete from better_supabase.audited_tables a where a.target = audit.target;\n  base_settings := jsonb_strip_nulls(jsonb_build_object(\n    'ignore', to_jsonb(coalesce(audit.ignore, '{}')),\n    'redact', to_jsonb(coalesce(audit.redact, '{}')),\n    'key_columns', to_jsonb(keys),\n    'category', audit.category,\n    'event_prefix', audit.event_prefix,\n    'target_type', audit.target_type,\n    'tenant_column', audit.tenant_column,\n    'label_column', audit.label_column,\n    'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,\n    'tenant_function', audit.tenant_function::text\n  ));\n  execute format('drop trigger if exists bsb_audit on %s', target);\n  execute format('drop trigger if exists bsb_audit_update on %s', target);\n  if cardinality(coalesce(audit.ignore, '{}')) > 0 then\n    execute format(\n      'create trigger bsb_audit after insert or delete on %s for each row execute function better_supabase.audit_row_change(%L)',\n      target, base_settings::text\n    );\n    execute format(\n      'create trigger bsb_audit_update after update on %s for each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',\n      target, audit.ignore, audit.ignore, base_settings::text\n    );\n  else\n    execute format(\n      'create trigger bsb_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change(%L)',\n      target, base_settings::text\n    );\n  end if;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -97016,8 +97016,8 @@
         "schema": "better_supabase",
         "name": "audit_schema",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  registered integer := 0;\n  target regclass;\nbegin\n  for target in\n    select format('%I.%I', n.nspname, c.relname)::regclass\n    from pg_catalog.pg_class c\n    join pg_catalog.pg_namespace n on n.oid = c.relnamespace\n    where n.nspname = schema_name\n      and c.relkind in ('r', 'p')\n      and not c.relispartition\n      and exists (\n        select 1 from pg_catalog.pg_attribute a\n        where a.attrelid = c.oid and a.attname = audit_schema.tenant_column and a.attnum > 0 and not a.attisdropped\n      )\n      and not exists (select 1 from unnest(exempt) e where c.relname like e)\n      and not exists (\n        select 1 from pg_catalog.pg_trigger t where t.tgrelid = c.oid and t.tgname = 'bs_audit'\n      )\n    order by c.relname\n  loop\n    perform better_supabase.audit(target);\n    registered := registered + 1;\n  end loop;\n  return registered;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.audit_schema(schema_name text, tenant_column text, exempt text[] DEFAULT '{}'::text[])\n RETURNS integer\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  registered integer := 0;\n  target regclass;\nbegin\n  for target in\n    select format('%I.%I', n.nspname, c.relname)::regclass\n    from pg_catalog.pg_class c\n    join pg_catalog.pg_namespace n on n.oid = c.relnamespace\n    where n.nspname = schema_name\n      and c.relkind in ('r', 'p')\n      and not c.relispartition\n      and exists (\n        select 1 from pg_catalog.pg_attribute a\n        where a.attrelid = c.oid and a.attname = audit_schema.tenant_column and a.attnum > 0 and not a.attisdropped\n      )\n      and not exists (select 1 from unnest(exempt) e where c.relname like e)\n      and not exists (\n        select 1 from pg_catalog.pg_trigger t where t.tgrelid = c.oid and t.tgname = 'bs_audit'\n      )\n    order by c.relname\n  loop\n    perform better_supabase.audit(target);\n    registered := registered + 1;\n  end loop;\n  return registered;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  registered integer := 0;\n  target regclass;\nbegin\n  for target in\n    select format('%I.%I', n.nspname, c.relname)::regclass\n    from pg_catalog.pg_class c\n    join pg_catalog.pg_namespace n on n.oid = c.relnamespace\n    where n.nspname = schema_name\n      and c.relkind in ('r', 'p')\n      and not c.relispartition\n      and exists (\n        select 1 from pg_catalog.pg_attribute a\n        where a.attrelid = c.oid and a.attname = audit_schema.tenant_column and a.attnum > 0 and not a.attisdropped\n      )\n      and not exists (select 1 from unnest(exempt) e where c.relname like e)\n      and not exists (\n        select 1 from pg_catalog.pg_trigger t where t.tgrelid = c.oid and t.tgname = 'bsb_audit'\n      )\n    order by c.relname\n  loop\n    perform better_supabase.audit(target);\n    registered := registered + 1;\n  end loop;\n  return registered;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.audit_schema(schema_name text, tenant_column text, exempt text[] DEFAULT '{}'::text[])\n RETURNS integer\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  registered integer := 0;\n  target regclass;\nbegin\n  for target in\n    select format('%I.%I', n.nspname, c.relname)::regclass\n    from pg_catalog.pg_class c\n    join pg_catalog.pg_namespace n on n.oid = c.relnamespace\n    where n.nspname = schema_name\n      and c.relkind in ('r', 'p')\n      and not c.relispartition\n      and exists (\n        select 1 from pg_catalog.pg_attribute a\n        where a.attrelid = c.oid and a.attname = audit_schema.tenant_column and a.attnum > 0 and not a.attisdropped\n      )\n      and not exists (select 1 from unnest(exempt) e where c.relname like e)\n      and not exists (\n        select 1 from pg_catalog.pg_trigger t where t.tgrelid = c.oid and t.tgname = 'bsb_audit'\n      )\n    order by c.relname\n  loop\n    perform better_supabase.audit(target);\n    registered := registered + 1;\n  end loop;\n  return registered;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -97096,8 +97096,8 @@
         "schema": "better_supabase",
         "name": "audit_settings",
         "language": "sql",
-        "definition": "\n  select coalesce(\n    (select convert_from(substring(t.tgargs from 1 for position('\\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb\n     from pg_catalog.pg_trigger t\n     where t.tgrelid = audit_settings.target and t.tgname = 'bs_audit' and t.tgnargs > 0),\n    (select jsonb_strip_nulls(jsonb_build_object(\n       'ignore', to_jsonb(a.ignore), 'redact', to_jsonb(a.redact), 'key_columns', to_jsonb(a.key_columns),\n       'category', a.category, 'event_prefix', a.event_prefix, 'target_type', a.target_type,\n       'tenant_column', a.tenant_column, 'label_column', a.label_column))\n     from better_supabase.audited_tables a where a.target = audit_settings.target)\n  )\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.audit_settings(target regclass)\n RETURNS jsonb\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select coalesce(\n    (select convert_from(substring(t.tgargs from 1 for position('\\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb\n     from pg_catalog.pg_trigger t\n     where t.tgrelid = audit_settings.target and t.tgname = 'bs_audit' and t.tgnargs > 0),\n    (select jsonb_strip_nulls(jsonb_build_object(\n       'ignore', to_jsonb(a.ignore), 'redact', to_jsonb(a.redact), 'key_columns', to_jsonb(a.key_columns),\n       'category', a.category, 'event_prefix', a.event_prefix, 'target_type', a.target_type,\n       'tenant_column', a.tenant_column, 'label_column', a.label_column))\n     from better_supabase.audited_tables a where a.target = audit_settings.target)\n  )\n$function$\n",
+        "definition": "\n  select coalesce(\n    (select convert_from(substring(t.tgargs from 1 for position('\\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb\n     from pg_catalog.pg_trigger t\n     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),\n    (select jsonb_strip_nulls(jsonb_build_object(\n       'ignore', to_jsonb(a.ignore), 'redact', to_jsonb(a.redact), 'key_columns', to_jsonb(a.key_columns),\n       'category', a.category, 'event_prefix', a.event_prefix, 'target_type', a.target_type,\n       'tenant_column', a.tenant_column, 'label_column', a.label_column))\n     from better_supabase.audited_tables a where a.target = audit_settings.target)\n  )\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.audit_settings(target regclass)\n RETURNS jsonb\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select coalesce(\n    (select convert_from(substring(t.tgargs from 1 for position('\\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb\n     from pg_catalog.pg_trigger t\n     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),\n    (select jsonb_strip_nulls(jsonb_build_object(\n       'ignore', to_jsonb(a.ignore), 'redact', to_jsonb(a.redact), 'key_columns', to_jsonb(a.key_columns),\n       'category', a.category, 'event_prefix', a.event_prefix, 'target_type', a.target_type,\n       'tenant_column', a.tenant_column, 'label_column', a.label_column))\n     from better_supabase.audited_tables a where a.target = audit_settings.target)\n  )\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -100315,8 +100315,8 @@
         "schema": "better_supabase",
         "name": "client_notes_reveal",
         "language": "plpgsql",
-        "definition": "\n#variable_conflict use_column\ndeclare\n  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');\n  v_read record;\nbegin\n  if (select auth.uid()) is null and not v_service then\n    raise exception 'only signed-in users and the service role reveal client_notes' using errcode = '42501', hint = 'APP_REVEAL_FORBIDDEN';\n  end if;\n  if coalesce(cardinality(client_notes_reveal.ids), 0) > 500 then\n    raise exception 'reveal at most 500 rows of client_notes per call' using errcode = '22023', hint = 'APP_REVEAL_TOO_MANY';\n  end if;\n  for v_read in\n    select t.\"organization_id\" as tenant, jsonb_agg(t.id order by t.id) as ids\n    from \"public\".\"client_notes\" t\n    where t.id = any (client_notes_reveal.ids) and (v_service or (\"organization_id\" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))\n    group by 1\n  loop\n    perform better_supabase.audit_event(\n    event_type => 'client_notes.viewed',\n    category => 'read',\n    target_type => 'client_notes',\n    record_id => case when jsonb_array_length(v_read.ids) = 1 then v_read.ids ->> 0 end,\n    summary => 'Revealed ' || jsonb_array_length(v_read.ids)::text || ' ' || 'client_notes' || ' record(s)',\n    tenant => (v_read.tenant)::uuid,\n    metadata => jsonb_build_object('ids', v_read.ids, 'columns', '[\"diagnosis\",\"birth_date\"]'::jsonb)\n  );\n  end loop;\n  return query\n    with r as materialized (\n      select t.id, 'tenant:' || (t.\"organization_id\")::text as bs_owner, t.\"diagnosis\", t.\"birth_date\"\n      from \"public\".\"client_notes\" t\n      where t.id = any (client_notes_reveal.ids) and (v_service or (\"organization_id\" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))\n    ),\n    k as materialized (\n      select o.bs_owner, \"better_supabase\".\"field_key\"(o.bs_owner, false) as bs_key\n      from (select distinct r.bs_owner from r) o\n    )\n    select r.id, (\"better_supabase\".\"field_open\"(k.bs_key, r.\"diagnosis\"))::text, (\"better_supabase\".\"field_open\"(k.bs_key, r.\"birth_date\"))::date\n    from r join k on k.bs_owner = r.bs_owner;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.client_notes_reveal(ids uuid[])\n RETURNS TABLE(id uuid, diagnosis text, birth_date date)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\ndeclare\n  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');\n  v_read record;\nbegin\n  if (select auth.uid()) is null and not v_service then\n    raise exception 'only signed-in users and the service role reveal client_notes' using errcode = '42501', hint = 'APP_REVEAL_FORBIDDEN';\n  end if;\n  if coalesce(cardinality(client_notes_reveal.ids), 0) > 500 then\n    raise exception 'reveal at most 500 rows of client_notes per call' using errcode = '22023', hint = 'APP_REVEAL_TOO_MANY';\n  end if;\n  for v_read in\n    select t.\"organization_id\" as tenant, jsonb_agg(t.id order by t.id) as ids\n    from \"public\".\"client_notes\" t\n    where t.id = any (client_notes_reveal.ids) and (v_service or (\"organization_id\" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))\n    group by 1\n  loop\n    perform better_supabase.audit_event(\n    event_type => 'client_notes.viewed',\n    category => 'read',\n    target_type => 'client_notes',\n    record_id => case when jsonb_array_length(v_read.ids) = 1 then v_read.ids ->> 0 end,\n    summary => 'Revealed ' || jsonb_array_length(v_read.ids)::text || ' ' || 'client_notes' || ' record(s)',\n    tenant => (v_read.tenant)::uuid,\n    metadata => jsonb_build_object('ids', v_read.ids, 'columns', '[\"diagnosis\",\"birth_date\"]'::jsonb)\n  );\n  end loop;\n  return query\n    with r as materialized (\n      select t.id, 'tenant:' || (t.\"organization_id\")::text as bs_owner, t.\"diagnosis\", t.\"birth_date\"\n      from \"public\".\"client_notes\" t\n      where t.id = any (client_notes_reveal.ids) and (v_service or (\"organization_id\" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))\n    ),\n    k as materialized (\n      select o.bs_owner, \"better_supabase\".\"field_key\"(o.bs_owner, false) as bs_key\n      from (select distinct r.bs_owner from r) o\n    )\n    select r.id, (\"better_supabase\".\"field_open\"(k.bs_key, r.\"diagnosis\"))::text, (\"better_supabase\".\"field_open\"(k.bs_key, r.\"birth_date\"))::date\n    from r join k on k.bs_owner = r.bs_owner;\nend;\n$function$\n",
+        "definition": "\n#variable_conflict use_column\ndeclare\n  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');\n  v_read record;\nbegin\n  if (select auth.uid()) is null and not v_service then\n    raise exception 'only signed-in users and the service role reveal client_notes' using errcode = '42501', hint = 'APP_REVEAL_FORBIDDEN';\n  end if;\n  if coalesce(cardinality(client_notes_reveal.ids), 0) > 500 then\n    raise exception 'reveal at most 500 rows of client_notes per call' using errcode = '22023', hint = 'APP_REVEAL_TOO_MANY';\n  end if;\n  for v_read in\n    select t.\"organization_id\" as tenant, jsonb_agg(t.id order by t.id) as ids\n    from \"public\".\"client_notes\" t\n    where t.id = any (client_notes_reveal.ids) and (v_service or (\"organization_id\" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))\n    group by 1\n  loop\n    perform better_supabase.audit_event(\n    event_type => 'client_notes.viewed',\n    category => 'read',\n    target_type => 'client_notes',\n    record_id => case when jsonb_array_length(v_read.ids) = 1 then v_read.ids ->> 0 end,\n    summary => 'Revealed ' || jsonb_array_length(v_read.ids)::text || ' ' || 'client_notes' || ' record(s)',\n    tenant => (v_read.tenant)::uuid,\n    metadata => jsonb_build_object('ids', v_read.ids, 'columns', '[\"diagnosis\",\"birth_date\"]'::jsonb)\n  );\n  end loop;\n  return query\n    with r as materialized (\n      select t.id, 'tenant:' || (t.\"organization_id\")::text as bsb_owner, t.\"diagnosis\", t.\"birth_date\"\n      from \"public\".\"client_notes\" t\n      where t.id = any (client_notes_reveal.ids) and (v_service or (\"organization_id\" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))\n    ),\n    k as materialized (\n      select o.bsb_owner, \"better_supabase\".\"field_key\"(o.bsb_owner, false) as bsb_key\n      from (select distinct r.bsb_owner from r) o\n    )\n    select r.id, (\"better_supabase\".\"field_open\"(k.bsb_key, r.\"diagnosis\"))::text, (\"better_supabase\".\"field_open\"(k.bsb_key, r.\"birth_date\"))::date\n    from r join k on k.bsb_owner = r.bsb_owner;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.client_notes_reveal(ids uuid[])\n RETURNS TABLE(id uuid, diagnosis text, birth_date date)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_column\ndeclare\n  v_service boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin');\n  v_read record;\nbegin\n  if (select auth.uid()) is null and not v_service then\n    raise exception 'only signed-in users and the service role reveal client_notes' using errcode = '42501', hint = 'APP_REVEAL_FORBIDDEN';\n  end if;\n  if coalesce(cardinality(client_notes_reveal.ids), 0) > 500 then\n    raise exception 'reveal at most 500 rows of client_notes per call' using errcode = '22023', hint = 'APP_REVEAL_TOO_MANY';\n  end if;\n  for v_read in\n    select t.\"organization_id\" as tenant, jsonb_agg(t.id order by t.id) as ids\n    from \"public\".\"client_notes\" t\n    where t.id = any (client_notes_reveal.ids) and (v_service or (\"organization_id\" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))\n    group by 1\n  loop\n    perform better_supabase.audit_event(\n    event_type => 'client_notes.viewed',\n    category => 'read',\n    target_type => 'client_notes',\n    record_id => case when jsonb_array_length(v_read.ids) = 1 then v_read.ids ->> 0 end,\n    summary => 'Revealed ' || jsonb_array_length(v_read.ids)::text || ' ' || 'client_notes' || ' record(s)',\n    tenant => (v_read.tenant)::uuid,\n    metadata => jsonb_build_object('ids', v_read.ids, 'columns', '[\"diagnosis\",\"birth_date\"]'::jsonb)\n  );\n  end loop;\n  return query\n    with r as materialized (\n      select t.id, 'tenant:' || (t.\"organization_id\")::text as bsb_owner, t.\"diagnosis\", t.\"birth_date\"\n      from \"public\".\"client_notes\" t\n      where t.id = any (client_notes_reveal.ids) and (v_service or (\"organization_id\" in (select better_supabase.member_organization_ids()) and (select better_supabase.session_active())))\n    ),\n    k as materialized (\n      select o.bsb_owner, \"better_supabase\".\"field_key\"(o.bsb_owner, false) as bsb_key\n      from (select distinct r.bsb_owner from r) o\n    )\n    select r.id, (\"better_supabase\".\"field_open\"(k.bsb_key, r.\"diagnosis\"))::text, (\"better_supabase\".\"field_open\"(k.bsb_key, r.\"birth_date\"))::date\n    from r join k on k.bsb_owner = r.bsb_owner;\nend;\n$function$\n",
         "args": [
           {
             "mode": "table",
@@ -131707,8 +131707,8 @@
         "schema": "better_supabase",
         "name": "register_service_principal",
         "language": "plpgsql",
-        "definition": "\n#variable_conflict use_variable\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then\n    raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';\n  end if;\n  if register_service_principal.created_by is not null and not (\n    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)\n    and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)\n  ) then\n    raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';\n  end if;\n  if not exists (\n    select 1 from auth.users u\n    where u.id = register_service_principal.principal\n      and coalesce((u.raw_app_meta_data ->> 'bs_service_principal')::boolean, false)\n      and u.banned_until > now() + interval '50 years'\n  ) then\n    raise exception 'The user is not a service principal: create it with createServicePrincipals().create' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_USER';\n  end if;\n  if not (register_service_principal.role = any (array['owner', 'admin', 'member']::text[])) then\n    raise exception 'Unknown role %', register_service_principal.role using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';\n  end if;\n  if register_service_principal.is_default then\n    update \"better_supabase\".\"service_principals\" set \"is_default\" = false\n    where \"tenant_id\" = register_service_principal.tenant and \"is_default\";\n  end if;\n  insert into \"better_supabase\".\"service_principals\" (\"id\", \"tenant_id\", \"name\", \"role\", \"is_default\", \"created_by\")\n  values (register_service_principal.principal, register_service_principal.tenant, register_service_principal.name,\n    register_service_principal.role, coalesce(register_service_principal.is_default, false), register_service_principal.created_by);\n  perform \"better_supabase\".emit_event('service_principal.created', jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role), 'service-principals/' || register_service_principal.principal::text, (register_service_principal.tenant)::text, null, 'better-supabase/service-principals');\n  perform better_supabase.audit_event(\n    event_type => 'service_principal.created',\n    category => 'access',\n    target_type => 'service_principal',\n    record_id => register_service_principal.principal::text,\n    target_label => register_service_principal.name,\n    tenant => (register_service_principal.tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role),\n    actor_id => coalesce(register_service_principal.created_by, auth.uid())\n  );\n  return jsonb_build_object('id', register_service_principal.principal, 'tenant', register_service_principal.tenant,\n    'name', register_service_principal.name, 'role', register_service_principal.role,\n    'isDefault', coalesce(register_service_principal.is_default, false));\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.register_service_principal(principal uuid, tenant uuid, name text, role text, is_default boolean DEFAULT false, created_by uuid DEFAULT NULL::uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_variable\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then\n    raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';\n  end if;\n  if register_service_principal.created_by is not null and not (\n    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)\n    and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)\n  ) then\n    raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';\n  end if;\n  if not exists (\n    select 1 from auth.users u\n    where u.id = register_service_principal.principal\n      and coalesce((u.raw_app_meta_data ->> 'bs_service_principal')::boolean, false)\n      and u.banned_until > now() + interval '50 years'\n  ) then\n    raise exception 'The user is not a service principal: create it with createServicePrincipals().create' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_USER';\n  end if;\n  if not (register_service_principal.role = any (array['owner', 'admin', 'member']::text[])) then\n    raise exception 'Unknown role %', register_service_principal.role using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';\n  end if;\n  if register_service_principal.is_default then\n    update \"better_supabase\".\"service_principals\" set \"is_default\" = false\n    where \"tenant_id\" = register_service_principal.tenant and \"is_default\";\n  end if;\n  insert into \"better_supabase\".\"service_principals\" (\"id\", \"tenant_id\", \"name\", \"role\", \"is_default\", \"created_by\")\n  values (register_service_principal.principal, register_service_principal.tenant, register_service_principal.name,\n    register_service_principal.role, coalesce(register_service_principal.is_default, false), register_service_principal.created_by);\n  perform \"better_supabase\".emit_event('service_principal.created', jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role), 'service-principals/' || register_service_principal.principal::text, (register_service_principal.tenant)::text, null, 'better-supabase/service-principals');\n  perform better_supabase.audit_event(\n    event_type => 'service_principal.created',\n    category => 'access',\n    target_type => 'service_principal',\n    record_id => register_service_principal.principal::text,\n    target_label => register_service_principal.name,\n    tenant => (register_service_principal.tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role),\n    actor_id => coalesce(register_service_principal.created_by, auth.uid())\n  );\n  return jsonb_build_object('id', register_service_principal.principal, 'tenant', register_service_principal.tenant,\n    'name', register_service_principal.name, 'role', register_service_principal.role,\n    'isDefault', coalesce(register_service_principal.is_default, false));\nend;\n$function$\n",
+        "definition": "\n#variable_conflict use_variable\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then\n    raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';\n  end if;\n  if register_service_principal.created_by is not null and not (\n    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)\n    and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)\n  ) then\n    raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';\n  end if;\n  if not exists (\n    select 1 from auth.users u\n    where u.id = register_service_principal.principal\n      and coalesce((u.raw_app_meta_data ->> 'bsb_service_principal')::boolean, false)\n      and u.banned_until > now() + interval '50 years'\n  ) then\n    raise exception 'The user is not a service principal: create it with createServicePrincipals().create' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_USER';\n  end if;\n  if not (register_service_principal.role = any (array['owner', 'admin', 'member']::text[])) then\n    raise exception 'Unknown role %', register_service_principal.role using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';\n  end if;\n  if register_service_principal.is_default then\n    update \"better_supabase\".\"service_principals\" set \"is_default\" = false\n    where \"tenant_id\" = register_service_principal.tenant and \"is_default\";\n  end if;\n  insert into \"better_supabase\".\"service_principals\" (\"id\", \"tenant_id\", \"name\", \"role\", \"is_default\", \"created_by\")\n  values (register_service_principal.principal, register_service_principal.tenant, register_service_principal.name,\n    register_service_principal.role, coalesce(register_service_principal.is_default, false), register_service_principal.created_by);\n  perform \"better_supabase\".emit_event('service_principal.created', jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role), 'service-principals/' || register_service_principal.principal::text, (register_service_principal.tenant)::text, null, 'better-supabase/service-principals');\n  perform better_supabase.audit_event(\n    event_type => 'service_principal.created',\n    category => 'access',\n    target_type => 'service_principal',\n    record_id => register_service_principal.principal::text,\n    target_label => register_service_principal.name,\n    tenant => (register_service_principal.tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role),\n    actor_id => coalesce(register_service_principal.created_by, auth.uid())\n  );\n  return jsonb_build_object('id', register_service_principal.principal, 'tenant', register_service_principal.tenant,\n    'name', register_service_principal.name, 'role', register_service_principal.role,\n    'isDefault', coalesce(register_service_principal.is_default, false));\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.register_service_principal(principal uuid, tenant uuid, name text, role text, is_default boolean DEFAULT false, created_by uuid DEFAULT NULL::uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_variable\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then\n    raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';\n  end if;\n  if register_service_principal.created_by is not null and not (\n    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)\n    and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)\n  ) then\n    raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';\n  end if;\n  if not exists (\n    select 1 from auth.users u\n    where u.id = register_service_principal.principal\n      and coalesce((u.raw_app_meta_data ->> 'bsb_service_principal')::boolean, false)\n      and u.banned_until > now() + interval '50 years'\n  ) then\n    raise exception 'The user is not a service principal: create it with createServicePrincipals().create' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_USER';\n  end if;\n  if not (register_service_principal.role = any (array['owner', 'admin', 'member']::text[])) then\n    raise exception 'Unknown role %', register_service_principal.role using errcode = '22023', hint = 'ORGANIZATION_ROLE_UNKNOWN';\n  end if;\n  if register_service_principal.is_default then\n    update \"better_supabase\".\"service_principals\" set \"is_default\" = false\n    where \"tenant_id\" = register_service_principal.tenant and \"is_default\";\n  end if;\n  insert into \"better_supabase\".\"service_principals\" (\"id\", \"tenant_id\", \"name\", \"role\", \"is_default\", \"created_by\")\n  values (register_service_principal.principal, register_service_principal.tenant, register_service_principal.name,\n    register_service_principal.role, coalesce(register_service_principal.is_default, false), register_service_principal.created_by);\n  perform \"better_supabase\".emit_event('service_principal.created', jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role), 'service-principals/' || register_service_principal.principal::text, (register_service_principal.tenant)::text, null, 'better-supabase/service-principals');\n  perform better_supabase.audit_event(\n    event_type => 'service_principal.created',\n    category => 'access',\n    target_type => 'service_principal',\n    record_id => register_service_principal.principal::text,\n    target_label => register_service_principal.name,\n    tenant => (register_service_principal.tenant)::uuid,\n    metadata => jsonb_build_object('organizationId', register_service_principal.tenant::text, 'id', register_service_principal.principal, 'name', register_service_principal.name, 'role', register_service_principal.role),\n    actor_id => coalesce(register_service_principal.created_by, auth.uid())\n  );\n  return jsonb_build_object('id', register_service_principal.principal, 'tenant', register_service_principal.tenant,\n    'name', register_service_principal.name, 'role', register_service_principal.role,\n    'isDefault', coalesce(register_service_principal.is_default, false));\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -147458,8 +147458,8 @@
         "schema": "better_supabase",
         "name": "track_events",
         "language": "plpgsql",
-        "definition": "\nbegin\n  execute format('drop trigger if exists \"bs_outbox_events\" on %s', target);\n  execute format('drop trigger if exists \"bs_outbox_events_update\" on %s', target);\n  execute format(\n    'create trigger \"bs_outbox_events\" after insert or delete on %s for each row execute function \"better_supabase\".\"outbox_row_event\"(%L, %L)',\n    target, coalesce(type_prefix, ''), coalesce(tenant_column, '')\n  );\n  -- jsonb, not the row: a row comparison fails on columns without equality (json).\n  execute format(\n    'create trigger \"bs_outbox_events_update\" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function \"better_supabase\".\"outbox_row_event\"(%L, %L)',\n    target, coalesce(type_prefix, ''), coalesce(tenant_column, '')\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.track_events(target regclass, type_prefix text DEFAULT NULL::text, tenant_column text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  execute format('drop trigger if exists \"bs_outbox_events\" on %s', target);\n  execute format('drop trigger if exists \"bs_outbox_events_update\" on %s', target);\n  execute format(\n    'create trigger \"bs_outbox_events\" after insert or delete on %s for each row execute function \"better_supabase\".\"outbox_row_event\"(%L, %L)',\n    target, coalesce(type_prefix, ''), coalesce(tenant_column, '')\n  );\n  -- jsonb, not the row: a row comparison fails on columns without equality (json).\n  execute format(\n    'create trigger \"bs_outbox_events_update\" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function \"better_supabase\".\"outbox_row_event\"(%L, %L)',\n    target, coalesce(type_prefix, ''), coalesce(tenant_column, '')\n  );\nend;\n$function$\n",
+        "definition": "\nbegin\n  execute format('drop trigger if exists \"bsb_outbox_events\" on %s', target);\n  execute format('drop trigger if exists \"bsb_outbox_events_update\" on %s', target);\n  execute format(\n    'create trigger \"bsb_outbox_events\" after insert or delete on %s for each row execute function \"better_supabase\".\"outbox_row_event\"(%L, %L)',\n    target, coalesce(type_prefix, ''), coalesce(tenant_column, '')\n  );\n  -- jsonb, not the row: a row comparison fails on columns without equality (json).\n  execute format(\n    'create trigger \"bsb_outbox_events_update\" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function \"better_supabase\".\"outbox_row_event\"(%L, %L)',\n    target, coalesce(type_prefix, ''), coalesce(tenant_column, '')\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.track_events(target regclass, type_prefix text DEFAULT NULL::text, tenant_column text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  execute format('drop trigger if exists \"bsb_outbox_events\" on %s', target);\n  execute format('drop trigger if exists \"bsb_outbox_events_update\" on %s', target);\n  execute format(\n    'create trigger \"bsb_outbox_events\" after insert or delete on %s for each row execute function \"better_supabase\".\"outbox_row_event\"(%L, %L)',\n    target, coalesce(type_prefix, ''), coalesce(tenant_column, '')\n  );\n  -- jsonb, not the row: a row comparison fails on columns without equality (json).\n  execute format(\n    'create trigger \"bsb_outbox_events_update\" after update on %s for each row when (to_jsonb(old) is distinct from to_jsonb(new)) execute function \"better_supabase\".\"outbox_row_event\"(%L, %L)',\n    target, coalesce(type_prefix, ''), coalesce(tenant_column, '')\n  );\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -147544,8 +147544,8 @@
         "schema": "better_supabase",
         "name": "track_realtime",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  scope_column text := coalesce(user_column, tenant_column);\n  scope_kind text := case when user_column is null then 'tenant' else 'user' end;\nbegin\n  if scope_column is not null and not exists (\n    select 1 from pg_catalog.pg_attribute a\n    where a.attrelid = target and a.attname = scope_column and a.attnum > 0 and not a.attisdropped\n  ) then\n    raise exception '% has no column %', target, scope_column\n      using errcode = '42703',\n        hint = case when user_column is null\n          then 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user'\n          else 'Check the column in realtime.users' end;\n  end if;\n  execute format('drop trigger if exists bs_realtime on %s', target);\n  execute format('drop trigger if exists bs_realtime_insert on %s', target);\n  execute format('drop trigger if exists bs_realtime_update on %s', target);\n  execute format('drop trigger if exists bs_realtime_delete on %s', target);\n  if scope_column is null then\n    execute format(\n      'create trigger bs_realtime after insert or update or delete on %s for each statement execute function better_supabase.broadcast_changes()',\n      target\n    );\n    return;\n  end if;\n  execute format(\n    'create trigger bs_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\n  execute format(\n    'create trigger bs_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\n  execute format(\n    'create trigger bs_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.track_realtime(target regclass, tenant_column text DEFAULT NULL::text, user_column text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  scope_column text := coalesce(user_column, tenant_column);\n  scope_kind text := case when user_column is null then 'tenant' else 'user' end;\nbegin\n  if scope_column is not null and not exists (\n    select 1 from pg_catalog.pg_attribute a\n    where a.attrelid = target and a.attname = scope_column and a.attnum > 0 and not a.attisdropped\n  ) then\n    raise exception '% has no column %', target, scope_column\n      using errcode = '42703',\n        hint = case when user_column is null\n          then 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user'\n          else 'Check the column in realtime.users' end;\n  end if;\n  execute format('drop trigger if exists bs_realtime on %s', target);\n  execute format('drop trigger if exists bs_realtime_insert on %s', target);\n  execute format('drop trigger if exists bs_realtime_update on %s', target);\n  execute format('drop trigger if exists bs_realtime_delete on %s', target);\n  if scope_column is null then\n    execute format(\n      'create trigger bs_realtime after insert or update or delete on %s for each statement execute function better_supabase.broadcast_changes()',\n      target\n    );\n    return;\n  end if;\n  execute format(\n    'create trigger bs_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\n  execute format(\n    'create trigger bs_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\n  execute format(\n    'create trigger bs_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\nend;\n$function$\n",
+        "definition": "\ndeclare\n  scope_column text := coalesce(user_column, tenant_column);\n  scope_kind text := case when user_column is null then 'tenant' else 'user' end;\nbegin\n  if scope_column is not null and not exists (\n    select 1 from pg_catalog.pg_attribute a\n    where a.attrelid = target and a.attname = scope_column and a.attnum > 0 and not a.attisdropped\n  ) then\n    raise exception '% has no column %', target, scope_column\n      using errcode = '42703',\n        hint = case when user_column is null\n          then 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user'\n          else 'Check the column in realtime.users' end;\n  end if;\n  execute format('drop trigger if exists bsb_realtime on %s', target);\n  execute format('drop trigger if exists bsb_realtime_insert on %s', target);\n  execute format('drop trigger if exists bsb_realtime_update on %s', target);\n  execute format('drop trigger if exists bsb_realtime_delete on %s', target);\n  if scope_column is null then\n    execute format(\n      'create trigger bsb_realtime after insert or update or delete on %s for each statement execute function better_supabase.broadcast_changes()',\n      target\n    );\n    return;\n  end if;\n  execute format(\n    'create trigger bsb_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\n  execute format(\n    'create trigger bsb_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\n  execute format(\n    'create trigger bsb_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.track_realtime(target regclass, tenant_column text DEFAULT NULL::text, user_column text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  scope_column text := coalesce(user_column, tenant_column);\n  scope_kind text := case when user_column is null then 'tenant' else 'user' end;\nbegin\n  if scope_column is not null and not exists (\n    select 1 from pg_catalog.pg_attribute a\n    where a.attrelid = target and a.attname = scope_column and a.attnum > 0 and not a.attisdropped\n  ) then\n    raise exception '% has no column %', target, scope_column\n      using errcode = '42703',\n        hint = case when user_column is null\n          then 'Add the tenant column, or list the table in realtime.global to broadcast it to every signed-in user'\n          else 'Check the column in realtime.users' end;\n  end if;\n  execute format('drop trigger if exists bsb_realtime on %s', target);\n  execute format('drop trigger if exists bsb_realtime_insert on %s', target);\n  execute format('drop trigger if exists bsb_realtime_update on %s', target);\n  execute format('drop trigger if exists bsb_realtime_delete on %s', target);\n  if scope_column is null then\n    execute format(\n      'create trigger bsb_realtime after insert or update or delete on %s for each statement execute function better_supabase.broadcast_changes()',\n      target\n    );\n    return;\n  end if;\n  execute format(\n    'create trigger bsb_realtime_insert after insert on %s referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\n  execute format(\n    'create trigger bsb_realtime_update after update on %s referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\n  execute format(\n    'create trigger bsb_realtime_delete after delete on %s referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes(%L, %L)',\n    target, scope_column, scope_kind\n  );\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -147584,8 +147584,8 @@
         "schema": "better_supabase",
         "name": "track_updated_at",
         "language": "plpgsql",
-        "definition": "\nbegin\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bs_updated_at', 'updated_at|moddatetime|touch', replace_trigger\n  );\n  execute format('drop trigger if exists bs_updated_at on %s', target);\n  execute format(\n    'create trigger bs_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',\n    target,\n    column_name\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.track_updated_at(target regclass, column_name text DEFAULT 'updated_at'::text, replace_trigger boolean DEFAULT false)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bs_updated_at', 'updated_at|moddatetime|touch', replace_trigger\n  );\n  execute format('drop trigger if exists bs_updated_at on %s', target);\n  execute format(\n    'create trigger bs_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',\n    target,\n    column_name\n  );\nend;\n$function$\n",
+        "definition": "\nbegin\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bsb_updated_at', 'updated_at|moddatetime|touch', replace_trigger\n  );\n  execute format('drop trigger if exists bsb_updated_at on %s', target);\n  execute format(\n    'create trigger bsb_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',\n    target,\n    column_name\n  );\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.track_updated_at(target regclass, column_name text DEFAULT 'updated_at'::text, replace_trigger boolean DEFAULT false)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  perform better_supabase.replace_equivalent_triggers(\n    target, 'bsb_updated_at', 'updated_at|moddatetime|touch', replace_trigger\n  );\n  execute format('drop trigger if exists bsb_updated_at on %s', target);\n  execute format(\n    'create trigger bsb_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',\n    target,\n    column_name\n  );\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -147904,8 +147904,8 @@
         "schema": "better_supabase",
         "name": "unaudit",
         "language": "plpgsql",
-        "definition": "\nbegin\n  execute format('drop trigger if exists bs_audit on %s', target);\n  execute format('drop trigger if exists bs_audit_update on %s', target);\n  delete from better_supabase.audited_tables a where a.target = unaudit.target;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.unaudit(target regclass)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  execute format('drop trigger if exists bs_audit on %s', target);\n  execute format('drop trigger if exists bs_audit_update on %s', target);\n  delete from better_supabase.audited_tables a where a.target = unaudit.target;\nend;\n$function$\n",
+        "definition": "\nbegin\n  execute format('drop trigger if exists bsb_audit on %s', target);\n  execute format('drop trigger if exists bsb_audit_update on %s', target);\n  delete from better_supabase.audited_tables a where a.target = unaudit.target;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.unaudit(target regclass)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  execute format('drop trigger if exists bsb_audit on %s', target);\n  execute format('drop trigger if exists bsb_audit_update on %s', target);\n  delete from better_supabase.audited_tables a where a.target = unaudit.target;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -148522,8 +148522,8 @@
         "schema": "better_supabase",
         "name": "untrack_realtime",
         "language": "plpgsql",
-        "definition": "\nbegin\n  execute format('drop trigger if exists bs_realtime on %s', target);\n  execute format('drop trigger if exists bs_realtime_insert on %s', target);\n  execute format('drop trigger if exists bs_realtime_update on %s', target);\n  execute format('drop trigger if exists bs_realtime_delete on %s', target);\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.untrack_realtime(target regclass)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  execute format('drop trigger if exists bs_realtime on %s', target);\n  execute format('drop trigger if exists bs_realtime_insert on %s', target);\n  execute format('drop trigger if exists bs_realtime_update on %s', target);\n  execute format('drop trigger if exists bs_realtime_delete on %s', target);\nend;\n$function$\n",
+        "definition": "\nbegin\n  execute format('drop trigger if exists bsb_realtime on %s', target);\n  execute format('drop trigger if exists bsb_realtime_insert on %s', target);\n  execute format('drop trigger if exists bsb_realtime_update on %s', target);\n  execute format('drop trigger if exists bsb_realtime_delete on %s', target);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.untrack_realtime(target regclass)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  execute format('drop trigger if exists bsb_realtime on %s', target);\n  execute format('drop trigger if exists bsb_realtime_insert on %s', target);\n  execute format('drop trigger if exists bsb_realtime_update on %s', target);\n  execute format('drop trigger if exists bsb_realtime_delete on %s', target);\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -163484,7 +163484,7 @@
             "definition": "CHECK (((length(title) >= 1) AND (length(title) <= 200)))"
           },
           {
-            "name": "bs_announcements_audience",
+            "name": "bsb_announcements_audience",
             "definition": "CHECK ((audience = ANY (ARRAY['all'::text, 'tenant'::text, 'role'::text, 'plan'::text])))"
           }
         ],
@@ -163527,7 +163527,7 @@
         "policies": [],
         "triggers": [
           {
-            "name": "bs_announcements_broadcast",
+            "name": "bsb_announcements_broadcast",
             "timing": "after",
             "events": [
               "insert",
@@ -163906,33 +163906,33 @@
         ],
         "triggers": [
           {
-            "name": "bs_application_guard",
+            "name": "bsb_application_guard",
             "timing": "before",
             "events": [
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_application_guard"
+            "function": "better_supabase.bsb_application_guard"
           },
           {
-            "name": "bs_pipeline_application",
+            "name": "bsb_pipeline_application",
             "timing": "before",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_pipeline_application"
+            "function": "better_supabase.bsb_pipeline_application"
           },
           {
-            "name": "bs_pipeline_status_application",
+            "name": "bsb_pipeline_status_application",
             "timing": "after",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_pipeline_status_application"
+            "function": "better_supabase.bsb_pipeline_status_application"
           }
         ],
         "grants": [
@@ -164410,7 +164410,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_asset_locations_parent",
+            "name": "bsb_asset_locations_parent",
             "timing": "before",
             "events": [
               "insert",
@@ -165144,11 +165144,11 @@
             "definition": "CHECK ((width > 0))"
           },
           {
-            "name": "bs_attachments_bucket",
+            "name": "bsb_attachments_bucket",
             "definition": "CHECK ((bucket = 'attachments'::text)) NOT VALID"
           },
           {
-            "name": "bs_attachments_size",
+            "name": "bsb_attachments_size",
             "definition": "CHECK (((size >= 0) AND (size <= 52428800)))"
           }
         ],
@@ -165250,7 +165250,7 @@
             ]
           },
           {
-            "name": "bs_drive_attachments_delete",
+            "name": "bsb_drive_attachments_delete",
             "command": "delete",
             "roles": [
               "authenticated"
@@ -165264,7 +165264,7 @@
             ]
           },
           {
-            "name": "bs_drive_attachments_insert",
+            "name": "bsb_drive_attachments_insert",
             "command": "insert",
             "roles": [
               "authenticated"
@@ -165278,7 +165278,7 @@
             ]
           },
           {
-            "name": "bs_drive_attachments_read",
+            "name": "bsb_drive_attachments_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -165404,7 +165404,7 @@
         "foreignKeys": [],
         "checks": [
           {
-            "name": "bs_audit_op_check",
+            "name": "bsb_audit_op_check",
             "definition": "CHECK ((op = ANY (ARRAY['insert'::text, 'update'::text, 'delete'::text, 'event'::text])))"
           }
         ],
@@ -165482,7 +165482,7 @@
         ],
         "policies": [
           {
-            "name": "bs_audit_read",
+            "name": "bsb_audit_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -165498,7 +165498,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_audit_append_only",
+            "name": "bsb_audit_append_only",
             "timing": "before",
             "events": [
               "update",
@@ -165508,7 +165508,7 @@
             "function": "better_supabase.audit_append_only"
           },
           {
-            "name": "bs_audit_no_truncate",
+            "name": "bsb_audit_no_truncate",
             "timing": "before",
             "events": [
               "truncate"
@@ -166229,7 +166229,7 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_booking_engagement"
+            "function": "better_supabase.bsb_booking_engagement"
           },
           {
             "name": "pass_credit_entries_refund",
@@ -166577,7 +166577,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_search_calendar_event_index",
+            "name": "bsb_search_calendar_event_index",
             "timing": "after",
             "events": [
               "insert",
@@ -167345,7 +167345,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_search_channel_index",
+            "name": "bsb_search_channel_index",
             "timing": "after",
             "events": [
               "insert",
@@ -168162,16 +168162,16 @@
         ],
         "triggers": [
           {
-            "name": "bs_field_history_company",
+            "name": "bsb_field_history_company",
             "timing": "after",
             "events": [
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_field_history_company"
+            "function": "better_supabase.bsb_field_history_company"
           },
           {
-            "name": "bs_search_company_index",
+            "name": "bsb_search_company_index",
             "timing": "after",
             "events": [
               "insert",
@@ -168930,7 +168930,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -170510,7 +170510,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_search_course_index",
+            "name": "bsb_search_course_index",
             "timing": "after",
             "events": [
               "insert",
@@ -170946,31 +170946,31 @@
         ],
         "triggers": [
           {
-            "name": "bs_deal_lines_totals_delete",
+            "name": "bsb_deal_lines_totals_delete",
             "timing": "after",
             "events": [
               "delete"
             ],
             "level": "statement",
-            "function": "better_supabase.bs_deal_lines_totals"
+            "function": "better_supabase.bsb_deal_lines_totals"
           },
           {
-            "name": "bs_deal_lines_totals_insert",
+            "name": "bsb_deal_lines_totals_insert",
             "timing": "after",
             "events": [
               "insert"
             ],
             "level": "statement",
-            "function": "better_supabase.bs_deal_lines_totals"
+            "function": "better_supabase.bsb_deal_lines_totals"
           },
           {
-            "name": "bs_deal_lines_totals_update",
+            "name": "bsb_deal_lines_totals_update",
             "timing": "after",
             "events": [
               "update"
             ],
             "level": "statement",
-            "function": "better_supabase.bs_deal_lines_totals"
+            "function": "better_supabase.bsb_deal_lines_totals"
           }
         ],
         "grants": [
@@ -171229,46 +171229,46 @@
         ],
         "triggers": [
           {
-            "name": "bs_deal_guard",
+            "name": "bsb_deal_guard",
             "timing": "before",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_deal_guard"
+            "function": "better_supabase.bsb_deal_guard"
           },
           {
-            "name": "bs_field_history_deal",
+            "name": "bsb_field_history_deal",
             "timing": "after",
             "events": [
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_field_history_deal"
+            "function": "better_supabase.bsb_field_history_deal"
           },
           {
-            "name": "bs_pipeline_deal",
+            "name": "bsb_pipeline_deal",
             "timing": "before",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_pipeline_deal"
+            "function": "better_supabase.bsb_pipeline_deal"
           },
           {
-            "name": "bs_pipeline_status_deal",
+            "name": "bsb_pipeline_status_deal",
             "timing": "after",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_pipeline_status_deal"
+            "function": "better_supabase.bsb_pipeline_status_deal"
           },
           {
-            "name": "bs_search_deal_index",
+            "name": "bsb_search_deal_index",
             "timing": "after",
             "events": [
               "insert",
@@ -172292,7 +172292,7 @@
         ],
         "checks": [
           {
-            "name": "bs_drive_grants_role",
+            "name": "bsb_drive_grants_role",
             "definition": "CHECK ((role = ANY (ARRAY['viewer'::text, 'editor'::text, 'owner'::text])))"
           },
           {
@@ -172366,7 +172366,7 @@
         "uniques": [],
         "foreignKeys": [
           {
-            "name": "bs_drive_nodes_attachment",
+            "name": "bsb_drive_nodes_attachment",
             "onDelete": "set null",
             "onUpdate": "no action"
           },
@@ -172477,7 +172477,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_drive_node_moved",
+            "name": "bsb_drive_node_moved",
             "timing": "after",
             "events": [
               "update"
@@ -172486,7 +172486,7 @@
             "function": "better_supabase.drive_node_moved"
           },
           {
-            "name": "bs_drive_node_path",
+            "name": "bsb_drive_node_path",
             "timing": "before",
             "events": [
               "insert",
@@ -172496,7 +172496,7 @@
             "function": "better_supabase.drive_node_path"
           },
           {
-            "name": "bs_drive_node_purged",
+            "name": "bsb_drive_node_purged",
             "timing": "after",
             "events": [
               "delete"
@@ -172505,7 +172505,7 @@
             "function": "better_supabase.drive_node_purged"
           },
           {
-            "name": "bs_drive_node_purging",
+            "name": "bsb_drive_node_purging",
             "timing": "before",
             "events": [
               "delete"
@@ -172514,7 +172514,7 @@
             "function": "better_supabase.drive_node_purging"
           },
           {
-            "name": "bs_search_drive_node_index",
+            "name": "bsb_search_drive_node_index",
             "timing": "after",
             "events": [
               "insert",
@@ -172900,26 +172900,26 @@
         ],
         "triggers": [
           {
-            "name": "bs_employee_manager_guard",
+            "name": "bsb_employee_manager_guard",
             "timing": "before",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_employee_manager_guard"
+            "function": "better_supabase.bsb_employee_manager_guard"
           },
           {
-            "name": "bs_employee_user_mirror",
+            "name": "bsb_employee_user_mirror",
             "timing": "after",
             "events": [
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_employee_user_mirror"
+            "function": "better_supabase.bsb_employee_user_mirror"
           },
           {
-            "name": "bs_search_employee_index",
+            "name": "bsb_search_employee_index",
             "timing": "after",
             "events": [
               "insert",
@@ -173410,7 +173410,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_search_engagement_index",
+            "name": "bsb_search_engagement_index",
             "timing": "after",
             "events": [
               "insert",
@@ -174541,7 +174541,7 @@
         "foreignKeys": [],
         "checks": [
           {
-            "name": "bs_field_definitions_type",
+            "name": "bsb_field_definitions_type",
             "definition": "CHECK ((type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'bool'::text, 'option'::text, 'json'::text, 'email'::text, 'url'::text, 'multi_option'::text, 'user'::text, 'rating'::text, 'currency'::text])))"
           }
         ],
@@ -176182,7 +176182,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -176516,7 +176516,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -177280,7 +177280,7 @@
         ],
         "policies": [
           {
-            "name": "bs_invitations_read",
+            "name": "bsb_invitations_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -177295,7 +177295,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -177571,31 +177571,31 @@
         ],
         "triggers": [
           {
-            "name": "bs_invoice_lines_totals_delete",
+            "name": "bsb_invoice_lines_totals_delete",
             "timing": "after",
             "events": [
               "delete"
             ],
             "level": "statement",
-            "function": "better_supabase.bs_invoice_lines_totals"
+            "function": "better_supabase.bsb_invoice_lines_totals"
           },
           {
-            "name": "bs_invoice_lines_totals_insert",
+            "name": "bsb_invoice_lines_totals_insert",
             "timing": "after",
             "events": [
               "insert"
             ],
             "level": "statement",
-            "function": "better_supabase.bs_invoice_lines_totals"
+            "function": "better_supabase.bsb_invoice_lines_totals"
           },
           {
-            "name": "bs_invoice_lines_totals_update",
+            "name": "bsb_invoice_lines_totals_update",
             "timing": "after",
             "events": [
               "update"
             ],
             "level": "statement",
-            "function": "better_supabase.bs_invoice_lines_totals"
+            "function": "better_supabase.bsb_invoice_lines_totals"
           }
         ],
         "grants": [
@@ -177779,7 +177779,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_billable_time_release",
+            "name": "bsb_billable_time_release",
             "timing": "after",
             "events": [
               "update"
@@ -179076,7 +179076,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_ledger_entries_append_only",
+            "name": "bsb_ledger_entries_append_only",
             "timing": "before",
             "events": [
               "update",
@@ -179086,7 +179086,7 @@
             "function": "better_supabase.ledger_append_only"
           },
           {
-            "name": "bs_ledger_entries_apply",
+            "name": "bsb_ledger_entries_apply",
             "timing": "after",
             "events": [
               "insert"
@@ -179095,7 +179095,7 @@
             "function": "better_supabase.ledger_apply_entry"
           },
           {
-            "name": "bs_ledger_entries_balanced",
+            "name": "bsb_ledger_entries_balanced",
             "timing": "after",
             "events": [
               "insert"
@@ -179342,7 +179342,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_ledger_transactions_append_only",
+            "name": "bsb_ledger_transactions_append_only",
             "timing": "before",
             "events": [
               "update",
@@ -179729,7 +179729,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_mail_changed",
+            "name": "bsb_mail_changed",
             "timing": "after",
             "events": [
               "insert",
@@ -179739,7 +179739,7 @@
             "function": "better_supabase.lead_mail_changed"
           },
           {
-            "name": "bs_replied",
+            "name": "bsb_replied",
             "timing": "after",
             "events": [
               "insert"
@@ -179837,7 +179837,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_mail_linked",
+            "name": "bsb_mail_linked",
             "timing": "after",
             "events": [
               "insert"
@@ -180639,7 +180639,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -180950,7 +180950,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -181153,7 +181153,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_messages_moderation_guard",
+            "name": "bsb_messages_moderation_guard",
             "timing": "before",
             "events": [
               "insert"
@@ -181162,7 +181162,7 @@
             "function": "better_supabase.messages_moderation_guard"
           },
           {
-            "name": "bs_messaging_inbox_broadcast",
+            "name": "bsb_messaging_inbox_broadcast",
             "timing": "after",
             "events": [
               "insert",
@@ -181173,7 +181173,7 @@
             "source": "\ndeclare\n  v_tenant text;\nbegin\n  if not to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null or new.\"sent_at\" is null then\n    return null;\n  end if;\n  select v.\"tenant_id\"::text into v_tenant from \"better_supabase\".\"inbox_conversations\" v where v.\"id\" = new.\"conversation_id\";\n  if v_tenant is not null then\n    perform realtime.send(jsonb_build_object('conversation_id', new.\"conversation_id\", 'message_id', new.\"id\", 'kind', new.\"kind\"), case when tg_op = 'INSERT' or old.\"sent_at\" is null then 'message' else 'message_updated' end, 'inbox:org:' || v_tenant::text, true);\n  end if;\n  return null;\nend;\n"
           },
           {
-            "name": "bs_messaging_message_broadcast",
+            "name": "bsb_messaging_message_broadcast",
             "timing": "after",
             "events": [
               "insert",
@@ -181184,7 +181184,7 @@
             "source": "\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null and new.\"sent_at\" is not null then\n    perform realtime.send(\n      jsonb_build_object('conversationId', new.\"conversation_id\", 'messageId', new.\"id\", 'threadId', new.\"thread_id\"),\n      case when tg_op = 'INSERT' or old.\"sent_at\" is null then 'message' when new.\"deleted_at\" is not null then 'message_deleted' else 'message_updated' end,\n      'messages:' || new.\"conversation_id\"::text,\n      true\n    );\n  end if;\n  return null;\nend;\n"
           },
           {
-            "name": "bs_messaging_message_written",
+            "name": "bsb_messaging_message_written",
             "timing": "after",
             "events": [
               "insert",
@@ -181194,7 +181194,7 @@
             "function": "better_supabase.messaging_message_written"
           },
           {
-            "name": "bs_posts_replied",
+            "name": "bsb_posts_replied",
             "timing": "after",
             "events": [
               "insert",
@@ -181204,7 +181204,7 @@
             "function": "better_supabase.posts_replied"
           },
           {
-            "name": "bs_posts_reply_guard",
+            "name": "bsb_posts_reply_guard",
             "timing": "before",
             "events": [
               "insert"
@@ -181213,7 +181213,7 @@
             "function": "better_supabase.posts_reply_guard"
           },
           {
-            "name": "bs_search_message_index",
+            "name": "bsb_search_message_index",
             "timing": "after",
             "events": [
               "insert",
@@ -181622,7 +181622,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_posts_moderated",
+            "name": "bsb_posts_moderated",
             "timing": "after",
             "events": [
               "update"
@@ -181905,7 +181905,7 @@
         ],
         "policies": [
           {
-            "name": "bs_notification_deliveries_read",
+            "name": "bsb_notification_deliveries_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -182007,7 +182007,7 @@
         ],
         "policies": [
           {
-            "name": "bs_notification_delivery_events_read",
+            "name": "bsb_notification_delivery_events_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -182141,7 +182141,7 @@
         ],
         "policies": [
           {
-            "name": "bs_notification_events_read",
+            "name": "bsb_notification_events_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -182232,7 +182232,7 @@
         ],
         "policies": [
           {
-            "name": "bs_notification_preferences_own_delete",
+            "name": "bsb_notification_preferences_own_delete",
             "command": "delete",
             "roles": [
               "authenticated"
@@ -182246,7 +182246,7 @@
             ]
           },
           {
-            "name": "bs_notification_preferences_own_insert",
+            "name": "bsb_notification_preferences_own_insert",
             "command": "insert",
             "roles": [
               "authenticated"
@@ -182261,7 +182261,7 @@
             ]
           },
           {
-            "name": "bs_notification_preferences_own_read",
+            "name": "bsb_notification_preferences_own_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -182274,7 +182274,7 @@
             ]
           },
           {
-            "name": "bs_notification_preferences_own_update",
+            "name": "bsb_notification_preferences_own_update",
             "command": "update",
             "roles": [
               "authenticated"
@@ -182291,7 +182291,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -182418,7 +182418,7 @@
         ],
         "policies": [
           {
-            "name": "bs_notification_recipients_read",
+            "name": "bsb_notification_recipients_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -182431,7 +182431,7 @@
             ]
           },
           {
-            "name": "bs_notification_recipients_update",
+            "name": "bsb_notification_recipients_update",
             "command": "update",
             "roles": [
               "authenticated"
@@ -182447,7 +182447,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_notification_broadcast",
+            "name": "bsb_notification_broadcast",
             "timing": "after",
             "events": [
               "insert"
@@ -182457,7 +182457,7 @@
             "source": "\nbegin\n  perform realtime.send(\n    jsonb_build_object('id', new.\"id\", 'event_id', new.\"event_id\", 'operation', lower(tg_op), 'tenant', new.\"organization_id\"),\n    case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,\n    'notifications:' || new.\"user_id\"::text,\n    true\n  );\n  return null;\nend;\n"
           },
           {
-            "name": "bs_notification_broadcast_update",
+            "name": "bsb_notification_broadcast_update",
             "timing": "after",
             "events": [
               "update"
@@ -182588,7 +182588,7 @@
         ],
         "policies": [
           {
-            "name": "bs_notification_subscriptions_own_delete",
+            "name": "bsb_notification_subscriptions_own_delete",
             "command": "delete",
             "roles": [
               "authenticated"
@@ -182602,7 +182602,7 @@
             ]
           },
           {
-            "name": "bs_notification_subscriptions_own_insert",
+            "name": "bsb_notification_subscriptions_own_insert",
             "command": "insert",
             "roles": [
               "authenticated"
@@ -182617,7 +182617,7 @@
             ]
           },
           {
-            "name": "bs_notification_subscriptions_own_read",
+            "name": "bsb_notification_subscriptions_own_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -182630,7 +182630,7 @@
             ]
           },
           {
-            "name": "bs_notification_subscriptions_own_update",
+            "name": "bsb_notification_subscriptions_own_update",
             "command": "update",
             "roles": [
               "authenticated"
@@ -182647,7 +182647,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -182755,7 +182755,7 @@
         ],
         "policies": [
           {
-            "name": "bs_notification_suppressions_read",
+            "name": "bsb_notification_suppressions_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -182890,7 +182890,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_order_line_preparations_broadcast",
+            "name": "bsb_order_line_preparations_broadcast",
             "timing": "after",
             "events": [
               "insert",
@@ -183963,7 +183963,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_record_organization_setting",
+            "name": "bsb_record_organization_setting",
             "timing": "after",
             "events": [
               "insert",
@@ -184761,7 +184761,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_person_changed",
+            "name": "bsb_person_changed",
             "timing": "after",
             "events": [
               "insert",
@@ -184771,7 +184771,7 @@
             "function": "better_supabase.lead_person_changed"
           },
           {
-            "name": "bs_search_person_index",
+            "name": "bsb_search_person_index",
             "timing": "after",
             "events": [
               "insert",
@@ -185443,7 +185443,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_record_platform_setting",
+            "name": "bsb_record_platform_setting",
             "timing": "after",
             "events": [
               "insert",
@@ -186093,7 +186093,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_posts_removed",
+            "name": "bsb_posts_removed",
             "timing": "after",
             "events": [
               "delete"
@@ -186102,7 +186102,7 @@
             "function": "better_supabase.posts_removed"
           },
           {
-            "name": "bs_search_post_index",
+            "name": "bsb_search_post_index",
             "timing": "after",
             "events": [
               "insert",
@@ -186777,7 +186777,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_approvals_product_variant_cascade",
+            "name": "bsb_approvals_product_variant_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -186790,7 +186790,7 @@
             ]
           },
           {
-            "name": "bs_attachments_product_variant_cascade",
+            "name": "bsb_attachments_product_variant_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -186803,7 +186803,7 @@
             ]
           },
           {
-            "name": "bs_comments_product_variant_cascade",
+            "name": "bsb_comments_product_variant_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -186817,7 +186817,7 @@
             ]
           },
           {
-            "name": "bs_documents_product_variant_cascade",
+            "name": "bsb_documents_product_variant_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -186830,7 +186830,7 @@
             ]
           },
           {
-            "name": "bs_notifications_product_variant_cascade",
+            "name": "bsb_notifications_product_variant_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -186844,7 +186844,7 @@
             ]
           },
           {
-            "name": "bs_reactions_product_variant_cascade",
+            "name": "bsb_reactions_product_variant_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -186857,7 +186857,7 @@
             ]
           },
           {
-            "name": "bs_relations_product_variant_cascade",
+            "name": "bsb_relations_product_variant_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -186870,7 +186870,7 @@
             ]
           },
           {
-            "name": "bs_search_product_variant_index",
+            "name": "bsb_search_product_variant_index",
             "timing": "after",
             "events": [
               "insert",
@@ -186992,7 +186992,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_approvals_product_cascade",
+            "name": "bsb_approvals_product_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -187005,7 +187005,7 @@
             ]
           },
           {
-            "name": "bs_attachments_product_cascade",
+            "name": "bsb_attachments_product_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -187018,7 +187018,7 @@
             ]
           },
           {
-            "name": "bs_comments_product_cascade",
+            "name": "bsb_comments_product_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -187032,7 +187032,7 @@
             ]
           },
           {
-            "name": "bs_documents_product_cascade",
+            "name": "bsb_documents_product_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -187045,7 +187045,7 @@
             ]
           },
           {
-            "name": "bs_notifications_product_cascade",
+            "name": "bsb_notifications_product_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -187059,7 +187059,7 @@
             ]
           },
           {
-            "name": "bs_reactions_product_cascade",
+            "name": "bsb_reactions_product_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -187072,7 +187072,7 @@
             ]
           },
           {
-            "name": "bs_relations_product_cascade",
+            "name": "bsb_relations_product_cascade",
             "timing": "after",
             "events": [
               "delete"
@@ -187085,7 +187085,7 @@
             ]
           },
           {
-            "name": "bs_search_product_index",
+            "name": "bsb_search_product_index",
             "timing": "after",
             "events": [
               "insert",
@@ -187167,7 +187167,7 @@
         ],
         "policies": [
           {
-            "name": "bs_profiles_read",
+            "name": "bsb_profiles_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -187180,7 +187180,7 @@
             ]
           },
           {
-            "name": "bs_profiles_update",
+            "name": "bsb_profiles_update",
             "command": "update",
             "roles": [
               "authenticated"
@@ -187196,7 +187196,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_profile_guard",
+            "name": "bsb_profile_guard",
             "timing": "before",
             "events": [
               "update"
@@ -188108,31 +188108,31 @@
         ],
         "triggers": [
           {
-            "name": "bs_quote_lines_totals_delete",
+            "name": "bsb_quote_lines_totals_delete",
             "timing": "after",
             "events": [
               "delete"
             ],
             "level": "statement",
-            "function": "better_supabase.bs_quote_lines_totals"
+            "function": "better_supabase.bsb_quote_lines_totals"
           },
           {
-            "name": "bs_quote_lines_totals_insert",
+            "name": "bsb_quote_lines_totals_insert",
             "timing": "after",
             "events": [
               "insert"
             ],
             "level": "statement",
-            "function": "better_supabase.bs_quote_lines_totals"
+            "function": "better_supabase.bsb_quote_lines_totals"
           },
           {
-            "name": "bs_quote_lines_totals_update",
+            "name": "bsb_quote_lines_totals_update",
             "timing": "after",
             "events": [
               "update"
             ],
             "level": "statement",
-            "function": "better_supabase.bs_quote_lines_totals"
+            "function": "better_supabase.bsb_quote_lines_totals"
           }
         ],
         "grants": [
@@ -188613,7 +188613,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_reactions_changed",
+            "name": "bsb_reactions_changed",
             "timing": "after",
             "events": [
               "insert",
@@ -188621,10 +188621,10 @@
             ],
             "level": "row",
             "function": "better_supabase.reactions_changed",
-            "source": "\ndeclare\n  v_row \"better_supabase\".\"reactions\"%rowtype;\nbegin\n  if current_setting('better_supabase.bs_reactions_backfill', true) = 'on' then\n    return null;\n  end if;\n  if tg_op = 'INSERT' then\n    v_row := new;\n    perform \"better_supabase\".emit_event('reaction.added', jsonb_build_object('organizationId', v_row.\"tenant_id\", 'subjectType', v_row.\"subject_type\", 'subjectId', v_row.\"subject_id\", 'emoji', v_row.\"emoji\", 'actor', v_row.\"actor\", 'kind', v_row.\"kind\", 'value', v_row.\"value\"), 'reactions/' || v_row.\"id\"::text, (v_row.\"tenant_id\")::text, null, 'better-supabase/reactions');\n  else\n    v_row := old;\n    perform \"better_supabase\".emit_event('reaction.removed', jsonb_build_object('organizationId', v_row.\"tenant_id\", 'subjectType', v_row.\"subject_type\", 'subjectId', v_row.\"subject_id\", 'emoji', v_row.\"emoji\", 'actor', v_row.\"actor\", 'kind', v_row.\"kind\", 'value', v_row.\"value\"), 'reactions/' || v_row.\"id\"::text, (v_row.\"tenant_id\")::text, null, 'better-supabase/reactions');\n  end if;\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('subjectType', v_row.\"subject_type\", 'subjectId', v_row.\"subject_id\"), 'changed', 'reactions:' || v_row.\"tenant_id\"::text, true);\n  end if;\n  return null;\nend;\n"
+            "source": "\ndeclare\n  v_row \"better_supabase\".\"reactions\"%rowtype;\nbegin\n  if current_setting('better_supabase.bsb_reactions_backfill', true) = 'on' then\n    return null;\n  end if;\n  if tg_op = 'INSERT' then\n    v_row := new;\n    perform \"better_supabase\".emit_event('reaction.added', jsonb_build_object('organizationId', v_row.\"tenant_id\", 'subjectType', v_row.\"subject_type\", 'subjectId', v_row.\"subject_id\", 'emoji', v_row.\"emoji\", 'actor', v_row.\"actor\", 'kind', v_row.\"kind\", 'value', v_row.\"value\"), 'reactions/' || v_row.\"id\"::text, (v_row.\"tenant_id\")::text, null, 'better-supabase/reactions');\n  else\n    v_row := old;\n    perform \"better_supabase\".emit_event('reaction.removed', jsonb_build_object('organizationId', v_row.\"tenant_id\", 'subjectType', v_row.\"subject_type\", 'subjectId', v_row.\"subject_id\", 'emoji', v_row.\"emoji\", 'actor', v_row.\"actor\", 'kind', v_row.\"kind\", 'value', v_row.\"value\"), 'reactions/' || v_row.\"id\"::text, (v_row.\"tenant_id\")::text, null, 'better-supabase/reactions');\n  end if;\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('subjectType', v_row.\"subject_type\", 'subjectId', v_row.\"subject_id\"), 'changed', 'reactions:' || v_row.\"tenant_id\"::text, true);\n  end if;\n  return null;\nend;\n"
           },
           {
-            "name": "bs_reactions_check",
+            "name": "bsb_reactions_check",
             "timing": "before",
             "events": [
               "insert"
@@ -188633,7 +188633,7 @@
             "function": "better_supabase.reactions_check"
           },
           {
-            "name": "bs_reactions_tally",
+            "name": "bsb_reactions_tally",
             "timing": "after",
             "events": [
               "insert",
@@ -189629,7 +189629,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -190396,7 +190396,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_segment_changed",
+            "name": "bsb_segment_changed",
             "timing": "after",
             "events": [
               "insert",
@@ -191844,7 +191844,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_contracts_signature_settled",
+            "name": "bsb_contracts_signature_settled",
             "timing": "after",
             "events": [
               "update"
@@ -192082,7 +192082,7 @@
         "policies": [],
         "triggers": [
           {
-            "name": "bs_signing_key_vault",
+            "name": "bsb_signing_key_vault",
             "timing": "after",
             "events": [
               "delete"
@@ -194954,7 +194954,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_billable_time_guard",
+            "name": "bsb_billable_time_guard",
             "timing": "before",
             "events": [
               "update",
@@ -194964,7 +194964,7 @@
             "function": "better_supabase.billable_time_guard"
           },
           {
-            "name": "bs_time_entry_guard",
+            "name": "bsb_time_entry_guard",
             "timing": "before",
             "events": [
               "insert",
@@ -196159,7 +196159,7 @@
         ],
         "policies": [
           {
-            "name": "bs_webhook_deliveries_read",
+            "name": "bsb_webhook_deliveries_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -196238,7 +196238,7 @@
         "policies": [],
         "triggers": [
           {
-            "name": "bs_webhook_secret_vault",
+            "name": "bsb_webhook_secret_vault",
             "timing": "after",
             "events": [
               "delete"
@@ -196348,7 +196348,7 @@
         ],
         "policies": [
           {
-            "name": "bs_webhook_endpoints_delete",
+            "name": "bsb_webhook_endpoints_delete",
             "command": "delete",
             "roles": [
               "authenticated"
@@ -196362,7 +196362,7 @@
             ]
           },
           {
-            "name": "bs_webhook_endpoints_insert",
+            "name": "bsb_webhook_endpoints_insert",
             "command": "insert",
             "roles": [
               "authenticated"
@@ -196376,7 +196376,7 @@
             ]
           },
           {
-            "name": "bs_webhook_endpoints_read",
+            "name": "bsb_webhook_endpoints_read",
             "command": "select",
             "roles": [
               "authenticated"
@@ -196389,7 +196389,7 @@
             ]
           },
           {
-            "name": "bs_webhook_endpoints_update",
+            "name": "bsb_webhook_endpoints_update",
             "command": "update",
             "roles": [
               "authenticated"
@@ -196405,7 +196405,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -196417,7 +196417,7 @@
             ]
           },
           {
-            "name": "bs_webhook_endpoint_reenable",
+            "name": "bsb_webhook_endpoint_reenable",
             "timing": "before",
             "events": [
               "update"
@@ -196820,27 +196820,27 @@
         ],
         "triggers": [
           {
-            "name": "bs_pipeline_status_work_item",
+            "name": "bsb_pipeline_status_work_item",
             "timing": "after",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_pipeline_status_work_item"
+            "function": "better_supabase.bsb_pipeline_status_work_item"
           },
           {
-            "name": "bs_pipeline_work_item",
+            "name": "bsb_pipeline_work_item",
             "timing": "before",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_pipeline_work_item"
+            "function": "better_supabase.bsb_pipeline_work_item"
           },
           {
-            "name": "bs_search_work_item_index",
+            "name": "bsb_search_work_item_index",
             "timing": "after",
             "events": [
               "insert",
@@ -196855,24 +196855,24 @@
             ]
           },
           {
-            "name": "bs_transition_work_item",
+            "name": "bsb_transition_work_item",
             "timing": "before",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_transition_work_item"
+            "function": "better_supabase.bsb_transition_work_item"
           },
           {
-            "name": "bs_work_item_guard",
+            "name": "bsb_work_item_guard",
             "timing": "before",
             "events": [
               "insert",
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bs_work_item_guard"
+            "function": "better_supabase.bsb_work_item_guard"
           }
         ],
         "grants": [
@@ -198249,7 +198249,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_workflow_runs_alert",
+            "name": "bsb_workflow_runs_alert",
             "timing": "after",
             "events": [
               "insert",
@@ -198259,7 +198259,7 @@
             "function": "better_supabase.workflow_runs_alert"
           },
           {
-            "name": "bs_workflow_runs_status",
+            "name": "bsb_workflow_runs_status",
             "timing": "after",
             "events": [
               "insert",
@@ -199001,7 +199001,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -199068,7 +199068,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_seal_fields",
+            "name": "bsb_seal_fields",
             "timing": "before",
             "events": [
               "insert",
@@ -199078,7 +199078,7 @@
             "function": "better_supabase.client_notes_seal"
           },
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -199245,7 +199245,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -199382,7 +199382,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -199579,7 +199579,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -199607,7 +199607,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_search_customer_index",
+            "name": "bsb_search_customer_index",
             "timing": "after",
             "events": [
               "insert",
@@ -199724,7 +199724,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -199837,7 +199837,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -199899,7 +199899,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_organization_owner",
+            "name": "bsb_organization_owner",
             "timing": "after",
             "events": [
               "update",
@@ -199909,7 +199909,7 @@
             "function": "better_supabase.ensure_organization_owner"
           },
           {
-            "name": "bs_organization_role_guard",
+            "name": "bsb_organization_role_guard",
             "timing": "before",
             "events": [
               "insert",
@@ -200022,7 +200022,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -200124,7 +200124,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -200213,7 +200213,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -200287,7 +200287,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -200425,7 +200425,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -200492,7 +200492,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_search_project_index",
+            "name": "bsb_search_project_index",
             "timing": "after",
             "events": [
               "insert",
@@ -200507,7 +200507,7 @@
             ]
           },
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -200516,7 +200516,7 @@
             "function": "better_supabase.set_updated_at"
           },
           {
-            "name": "bs_versions_project_auto",
+            "name": "bsb_versions_project_auto",
             "timing": "after",
             "events": [
               "insert",
@@ -200719,7 +200719,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -200786,7 +200786,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"
@@ -200872,7 +200872,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -201036,7 +201036,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -201210,7 +201210,7 @@
         ],
         "policies": [
           {
-            "name": "bs_session_active",
+            "name": "bsb_session_active",
             "command": "all",
             "roles": [
               "authenticated"
@@ -201277,7 +201277,7 @@
         ],
         "triggers": [
           {
-            "name": "bs_emit_event",
+            "name": "bsb_emit_event",
             "timing": "after",
             "events": [
               "insert",
@@ -201288,7 +201288,7 @@
             "function": "better_supabase.tasks_emit_event"
           },
           {
-            "name": "bs_updated_at",
+            "name": "bsb_updated_at",
             "timing": "before",
             "events": [
               "update"

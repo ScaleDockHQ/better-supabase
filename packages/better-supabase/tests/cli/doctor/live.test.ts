@@ -368,7 +368,7 @@ describe("BS212 --explain", () => {
     expect(texts.slice(0, 4)).toEqual([
       "begin",
       "set local statement_timeout = '30s'",
-      "savepoint bs_track",
+      "savepoint bsb_track",
       "set local track_functions = 'all'",
     ]);
     expect(texts).toContain('set local role "authenticated"');
@@ -405,7 +405,7 @@ describe("BS212 --explain", () => {
     expect(finding!.message).toBe(
       "public.tags as anon: 0.00 ms, 0 InitPlans. Plan: Seq Scan on tags 0.00 ms ×1. Function times need `track_functions`, which this role may not set; showing the plan only.",
     );
-    expect(db.texts()).toContain("rollback to savepoint bs_track");
+    expect(db.texts()).toContain("rollback to savepoint bsb_track");
     expect(
       db.texts().some((text) => text.includes("pg_stat_xact_user_functions")),
     ).toBe(false);

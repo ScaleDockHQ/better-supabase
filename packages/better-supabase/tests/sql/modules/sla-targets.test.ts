@@ -59,7 +59,7 @@ describe("sla module", () => {
     });
 
     expect(sql).toContain(
-      'create trigger bs_sla_ticket after insert or update of "status", "priority" on "public"."tickets"',
+      'create trigger bsb_sla_ticket after insert or update of "status", "priority" on "public"."tickets"',
     );
     expect(sql).toContain("'{\"waiting\"}'::text[]");
 

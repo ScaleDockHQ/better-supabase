@@ -78,7 +78,7 @@ create policy subject_lifecycles_read on "better_supabase"."subject_lifecycles" 
     end);
 
 
-create or replace function better_supabase.bs_transition_work_item()
+create or replace function better_supabase.bsb_transition_work_item()
 returns trigger
 language plpgsql
 security definer
@@ -106,9 +106,9 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bs_transition_work_item on "better_supabase"."work_items";
-create trigger bs_transition_work_item before insert or update of "state" on "better_supabase"."work_items"
-for each row execute function better_supabase.bs_transition_work_item();
+drop trigger if exists bsb_transition_work_item on "better_supabase"."work_items";
+create trigger bsb_transition_work_item before insert or update of "state" on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_transition_work_item();
 
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge.

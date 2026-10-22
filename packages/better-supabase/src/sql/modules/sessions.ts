@@ -35,8 +35,8 @@ function sessionPolicies(ctx: ModuleContext, layout: ModuleLayout): string {
   const statements = tables.map((table) => {
     const target = qualifiedTable(table);
 
-    return `drop policy if exists bs_session_active on ${target};
-create policy bs_session_active on ${target} as restrictive
+    return `drop policy if exists bsb_session_active on ${target};
+create policy bsb_session_active on ${target} as restrictive
   for all to authenticated
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));`;

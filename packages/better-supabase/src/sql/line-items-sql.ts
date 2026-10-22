@@ -76,7 +76,7 @@ export function lineItemsSql(
   const pc = (column: string): string => ctx.col(items.parent, column);
   const fn = ctx.fn(options.setter);
   const recount = ctx.fn(`${options.setter}_recount`);
-  const trigger = `bs_${ctx.tableName(items.lines).name}_totals`;
+  const trigger = `bsb_${ctx.tableName(items.lines).name}_totals`;
   const list = `round(l.${c("quantity")} * l.${c("unitAmount")})`;
   const discount = `round(${list} * l.${c("discountBps")} / 10000.0)`;
   const tax = `round((${list} - ${discount}) * l.${c("taxRateBps")} / 10000.0)`;

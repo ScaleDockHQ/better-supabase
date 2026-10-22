@@ -1903,8 +1903,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."workflow_runs_alert"() from public, anon, authenticated;
-drop trigger if exists "bs_workflow_runs_alert" on "better_supabase"."workflow_runs";
-create trigger "bs_workflow_runs_alert" after insert or update of "status" on "better_supabase"."workflow_runs"
+drop trigger if exists "bsb_workflow_runs_alert" on "better_supabase"."workflow_runs";
+create trigger "bsb_workflow_runs_alert" after insert or update of "status" on "better_supabase"."workflow_runs"
   for each row execute function "better_supabase"."workflow_runs_alert"();
 
 -- Fires the slow alerts whose runs are still unfinished after their

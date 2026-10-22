@@ -96,11 +96,11 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bs_attachments_bucket'
+    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_bucket'
   ), 'pg_constraint'), '') <> 'better-supabase check 06ecf11d' then
-    alter table "better_supabase"."attachments" drop constraint if exists "bs_attachments_bucket";
-    alter table "better_supabase"."attachments" add constraint "bs_attachments_bucket" check ("bucket" in ('attachments')) not valid;
-    comment on constraint "bs_attachments_bucket" on "better_supabase"."attachments" is 'better-supabase check 06ecf11d';
+    alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_bucket";
+    alter table "better_supabase"."attachments" add constraint "bsb_attachments_bucket" check ("bucket" in ('attachments')) not valid;
+    comment on constraint "bsb_attachments_bucket" on "better_supabase"."attachments" is 'better-supabase check 06ecf11d';
   end if;
 end;
 $$;
@@ -108,15 +108,15 @@ do $$
 begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
-    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bs_attachments_size'
+    where c.conrelid = '"better_supabase"."attachments"'::regclass and c.conname = 'bsb_attachments_size'
   ), 'pg_constraint'), '') <> 'better-supabase check 65b1c9ef' then
-    alter table "better_supabase"."attachments" drop constraint if exists "bs_attachments_size";
-    alter table "better_supabase"."attachments" add constraint "bs_attachments_size" check ("size" between 0 and 52428800);
-    comment on constraint "bs_attachments_size" on "better_supabase"."attachments" is 'better-supabase check 65b1c9ef';
+    alter table "better_supabase"."attachments" drop constraint if exists "bsb_attachments_size";
+    alter table "better_supabase"."attachments" add constraint "bsb_attachments_size" check ("size" between 0 and 52428800);
+    comment on constraint "bsb_attachments_size" on "better_supabase"."attachments" is 'better-supabase check 65b1c9ef';
   end if;
 end;
 $$;
-alter table "better_supabase"."attachments" drop constraint if exists bs_attachments_mime_type;
+alter table "better_supabase"."attachments" drop constraint if exists bsb_attachments_mime_type;
 create unique index if not exists attachments_object_idx on "better_supabase"."attachments" ("bucket", "object_path");
 create index if not exists attachments_subject_idx on "better_supabase"."attachments" ("workspace_id", "subject_type", "subject_id");
 create index if not exists attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
@@ -196,9 +196,9 @@ create policy "attachment_versions_read" on "better_supabase"."attachment_versio
 -- read a clean file or the uploader or attachments.manage, a delete
 -- the uploader or attachments.manage. It reads the table as its owner, so
 -- the storage policies don't depend on the table's own policies.
-drop policy if exists "bs_attachments_insert" on storage.objects;
-drop policy if exists "bs_attachments_select" on storage.objects;
-drop policy if exists "bs_attachments_delete" on storage.objects;
+drop policy if exists "bsb_attachments_insert" on storage.objects;
+drop policy if exists "bsb_attachments_select" on storage.objects;
+drop policy if exists "bsb_attachments_delete" on storage.objects;
 drop function if exists "better_supabase"."attachment_object_allowed"(text, text);
 create or replace function "better_supabase"."attachment_object_allowed"(bucket text, path text, action text)
 returns boolean
@@ -254,11 +254,11 @@ $$;
 revoke execute on function "better_supabase"."attachment_object_visible"(text, text) from public, anon;
 grant execute on function "better_supabase"."attachment_object_visible"(text, text) to authenticated, service_role;
 
-create policy "bs_attachments_insert" on storage.objects for insert to authenticated
+create policy "bsb_attachments_insert" on storage.objects for insert to authenticated
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
-create policy "bs_attachments_select" on storage.objects for select to authenticated
+create policy "bsb_attachments_select" on storage.objects for select to authenticated
   using (bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'select'));
-create policy "bs_attachments_delete" on storage.objects for delete to authenticated
+create policy "bsb_attachments_delete" on storage.objects for delete to authenticated
   using ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
 
 -- The caller's new record, for a signed upload URL to its object_path.
@@ -605,7 +605,7 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-drop trigger if exists bs_object_scan_pending on storage.objects;
+drop trigger if exists bsb_object_scan_pending on storage.objects;
 
 revoke execute on function "better_supabase"."object_clean"(text, text) from public, anon;
 revoke execute on function "better_supabase"."object_scan"(text, text) from public, anon, authenticated;

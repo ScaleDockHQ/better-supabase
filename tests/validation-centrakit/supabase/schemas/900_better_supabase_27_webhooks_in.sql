@@ -55,8 +55,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_incoming_webhook_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_incoming_webhook_vault" on "centrakit"."inbound_webhooks";
-create trigger "bs_incoming_webhook_vault" after delete on "centrakit"."inbound_webhooks"
+drop trigger if exists "bsb_incoming_webhook_vault" on "centrakit"."inbound_webhooks";
+create trigger "bsb_incoming_webhook_vault" after delete on "centrakit"."inbound_webhooks"
   for each row when (old."vault_secret_id" is not null) execute function "better_supabase"."drop_incoming_webhook_secret"();
 
 create or replace function "better_supabase"."incoming_webhook_tenant_ids"()

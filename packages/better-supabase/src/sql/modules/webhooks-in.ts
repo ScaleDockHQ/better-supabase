@@ -293,8 +293,8 @@ grant all on ${t} to service_role;
 
   const readPolicy = ctx.manages
     ? `
-drop policy if exists bs_incoming_webhooks_read on ${t};
-create policy bs_incoming_webhooks_read on ${t} for select to authenticated
+drop policy if exists bsb_incoming_webhooks_read on ${t};
+create policy bsb_incoming_webhooks_read on ${t} for select to authenticated
   using (
     tenant in (select ${ctx.fn("incoming_webhook_tenant_ids")}())
     and ${ctx.fn("incoming_webhook_subject_readable")}(subject_type, subject_id, tenant)

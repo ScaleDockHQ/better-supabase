@@ -38,12 +38,12 @@ describe("settings module", () => {
     });
 
     const sql = sqlOf(["jsonb-schemas", "settings"], { schemas: settings });
-    expect(sql).toContain('add constraint "bs_json_value_theme"');
+    expect(sql).toContain('add constraint "bsb_json_value_theme"');
     expect(sql).toContain(
       `check ("key" <> 'theme' or extensions.jsonb_matches_schema(`,
     );
-    expect(sql).toContain("bs_json_value_plan");
-    expect(sql).not.toContain("bs_json_value_note");
+    expect(sql).toContain("bsb_json_value_plan");
+    expect(sql).not.toContain("bsb_json_value_note");
   });
 
   it("accepts plain { user, organization } maps", () => {
@@ -51,7 +51,7 @@ describe("settings module", () => {
       schemas: { user: { theme: { type: "string" } } },
     });
 
-    expect(sql).toContain("bs_json_value_theme");
+    expect(sql).toContain("bsb_json_value_theme");
   });
 
   it("needs jsonb-schemas for checks and rejects other shapes", () => {

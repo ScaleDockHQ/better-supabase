@@ -18,8 +18,8 @@ create table if not exists "better_supabase"."memberships" (
 );
 create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
 alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."memberships";
-create trigger bs_updated_at before update on "better_supabase"."memberships"
+drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create trigger bsb_updated_at before update on "better_supabase"."memberships"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
 alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
@@ -128,8 +128,8 @@ as $$
   select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member
 $$;
 
-drop policy if exists bs_memberships_read on "better_supabase"."memberships";
-create policy bs_memberships_read on "better_supabase"."memberships"
+drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
+create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
@@ -214,8 +214,8 @@ create table if not exists "better_supabase"."memberships" (
 );
 create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
 alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."memberships";
-create trigger bs_updated_at before update on "better_supabase"."memberships"
+drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create trigger bsb_updated_at before update on "better_supabase"."memberships"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
 alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
@@ -297,8 +297,8 @@ as $$
   select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member
 $$;
 
-drop policy if exists bs_memberships_read on "better_supabase"."memberships";
-create policy bs_memberships_read on "better_supabase"."memberships"
+drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
+create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
@@ -385,8 +385,8 @@ create table if not exists "app_private"."memberships" (
 );
 create index if not exists memberships_user_idx on "app_private"."memberships" ("user_id");
 alter table "app_private"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."memberships";
-create trigger bs_updated_at before update on "app_private"."memberships"
+drop trigger if exists bsb_updated_at on "app_private"."memberships";
+create trigger bsb_updated_at before update on "app_private"."memberships"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."memberships" add column if not exists "last_used_at" timestamptz;
 alter table "app_private"."memberships" add column if not exists "disabled_at" timestamptz;
@@ -495,8 +495,8 @@ as $$
   select m."role" from "app_private"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member
 $$;
 
-drop policy if exists bs_memberships_read on "app_private"."memberships";
-create policy bs_memberships_read on "app_private"."memberships"
+drop policy if exists bsb_memberships_read on "app_private"."memberships";
+create policy bsb_memberships_read on "app_private"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
@@ -580,8 +580,8 @@ create table if not exists "better_supabase"."memberships" (
 );
 create index if not exists memberships_user_idx on "better_supabase"."memberships" ("user_id");
 alter table "better_supabase"."memberships" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."memberships";
-create trigger bs_updated_at before update on "better_supabase"."memberships"
+drop trigger if exists bsb_updated_at on "better_supabase"."memberships";
+create trigger bsb_updated_at before update on "better_supabase"."memberships"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."memberships" add column if not exists "last_used_at" timestamptz;
 alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;
@@ -690,8 +690,8 @@ as $$
   select m."role" from "better_supabase"."memberships" m where m."organization_id" = organization_member_role.organization and m."user_id" = organization_member_role.member
 $$;
 
-drop policy if exists bs_memberships_read on "better_supabase"."memberships";
-create policy bs_memberships_read on "better_supabase"."memberships"
+drop policy if exists bsb_memberships_read on "better_supabase"."memberships";
+create policy bsb_memberships_read on "better_supabase"."memberships"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.member_organization_ids()));
 
@@ -835,7 +835,7 @@ grant usage on schema better_supabase to supabase_auth_admin;
 
 -- Adopted: "better_supabase"."memberships" belongs to the app (blocks.tenant.tables.memberships).
 
-drop trigger if exists "bs_role_scope" on "better_supabase"."memberships";
+drop trigger if exists "bsb_role_scope" on "better_supabase"."memberships";
 drop function if exists "better_supabase"."membership_role_scope"();
 
 -- Disabled tenants and users get no permissions and no membership claims

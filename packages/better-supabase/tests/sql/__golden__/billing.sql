@@ -19,8 +19,8 @@ create table if not exists "better_supabase"."billing_customers" (
 );
 alter table "better_supabase"."billing_customers" add column if not exists "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_');
 alter table "better_supabase"."billing_customers" alter column "stripe_customer_id" drop not null;
-alter table "better_supabase"."billing_customers" drop constraint if exists bs_billing_customers_party;
-alter table "better_supabase"."billing_customers" add constraint bs_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
+alter table "better_supabase"."billing_customers" drop constraint if exists bsb_billing_customers_party;
+alter table "better_supabase"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "better_supabase"."billing_customers" enable row level security;
 revoke all on "better_supabase"."billing_customers" from anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
@@ -678,8 +678,8 @@ create table if not exists "better_supabase"."billing_customers" (
 );
 alter table "better_supabase"."billing_customers" add column if not exists "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_');
 alter table "better_supabase"."billing_customers" alter column "stripe_customer_id" drop not null;
-alter table "better_supabase"."billing_customers" drop constraint if exists bs_billing_customers_party;
-alter table "better_supabase"."billing_customers" add constraint bs_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
+alter table "better_supabase"."billing_customers" drop constraint if exists bsb_billing_customers_party;
+alter table "better_supabase"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "better_supabase"."billing_customers" enable row level security;
 revoke all on "better_supabase"."billing_customers" from anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
@@ -1374,8 +1374,8 @@ create table if not exists "app_private"."billing_customers" (
 );
 alter table "app_private"."billing_customers" add column if not exists "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_');
 alter table "app_private"."billing_customers" alter column "stripe_customer_id" drop not null;
-alter table "app_private"."billing_customers" drop constraint if exists bs_billing_customers_party;
-alter table "app_private"."billing_customers" add constraint bs_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
+alter table "app_private"."billing_customers" drop constraint if exists bsb_billing_customers_party;
+alter table "app_private"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "app_private"."billing_customers" enable row level security;
 revoke all on "app_private"."billing_customers" from anon, authenticated;
 grant select on "app_private"."billing_customers" to authenticated;
@@ -2033,8 +2033,8 @@ create table if not exists "better_supabase"."billing_customers" (
 );
 alter table "better_supabase"."billing_customers" add column if not exists "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_');
 alter table "better_supabase"."billing_customers" alter column "stripe_customer_id" drop not null;
-alter table "better_supabase"."billing_customers" drop constraint if exists bs_billing_customers_party;
-alter table "better_supabase"."billing_customers" add constraint bs_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
+alter table "better_supabase"."billing_customers" drop constraint if exists bsb_billing_customers_party;
+alter table "better_supabase"."billing_customers" add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "better_supabase"."billing_customers" enable row level security;
 revoke all on "better_supabase"."billing_customers" from anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;

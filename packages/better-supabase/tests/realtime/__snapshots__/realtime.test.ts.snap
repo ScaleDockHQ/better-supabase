@@ -3,7 +3,7 @@
 exports[`trigger with betterSupabase > reads each lookup once per row, however many topics and payload keys use it 1`] = `
 "-- better-supabase: broadcast customer_tags changes to org:{organizationSlug}:tags, org:{organizationSlug}:customer:{customerId}, org:{organizationSlug}:tags
 create schema if not exists "better_supabase";
-create or replace function "better_supabase"."bs_broadcast_org_tags_public_customer_tags"()
+create or replace function "better_supabase"."bsb_broadcast_org_tags_public_customer_tags"()
 returns trigger
 language plpgsql
 security definer
@@ -66,10 +66,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function "better_supabase"."bs_broadcast_org_tags_public_customer_tags"() from public, anon, authenticated;
+revoke execute on function "better_supabase"."bsb_broadcast_org_tags_public_customer_tags"() from public, anon, authenticated;
 
-drop trigger if exists "bs_broadcast_org_tags" on "public"."customer_tags";
-create trigger "bs_broadcast_org_tags" after insert or update or delete on "public"."customer_tags"
-  for each row execute function "better_supabase"."bs_broadcast_org_tags_public_customer_tags"();
+drop trigger if exists "bsb_broadcast_org_tags" on "public"."customer_tags";
+create trigger "bsb_broadcast_org_tags" after insert or update or delete on "public"."customer_tags"
+  for each row execute function "better_supabase"."bsb_broadcast_org_tags_public_customer_tags"();
 "
 `;

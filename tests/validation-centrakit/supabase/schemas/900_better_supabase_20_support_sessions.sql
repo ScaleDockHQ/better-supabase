@@ -64,8 +64,8 @@ alter table "better_supabase"."support_sessions" enable row level security;
 revoke all on "better_supabase"."support_sessions" from anon, authenticated;
 grant select on "better_supabase"."support_sessions" to service_role;
 -- Platform staff read every session.
-drop policy if exists bs_support_read on "better_supabase"."support_sessions";
-create policy bs_support_read on "better_supabase"."support_sessions" for select to authenticated
+drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
+create policy bsb_support_read on "better_supabase"."support_sessions" for select to authenticated
   using ((select "better_supabase"."is_platform"('platform.users.manage')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
@@ -96,8 +96,8 @@ alter table "better_supabase"."support_requests" enable row level security;
 revoke all on "better_supabase"."support_requests" from anon, authenticated;
 grant select on "better_supabase"."support_requests" to service_role;
 -- The requester reads their own requests; platform staff read every one.
-drop policy if exists bs_support_requests_read on "better_supabase"."support_requests";
-create policy bs_support_requests_read on "better_supabase"."support_requests" for select to authenticated
+drop policy if exists bsb_support_requests_read on "better_supabase"."support_requests";
+create policy bsb_support_requests_read on "better_supabase"."support_requests" for select to authenticated
   using ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('platform.users.manage')));
 grant select on "better_supabase"."support_requests" to authenticated;

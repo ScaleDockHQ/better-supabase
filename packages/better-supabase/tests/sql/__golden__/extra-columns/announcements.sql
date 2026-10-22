@@ -63,8 +63,8 @@ create table if not exists "better_supabase"."announcements" (
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
-alter table "better_supabase"."announcements" drop constraint if exists bs_announcements_audience;
-alter table "better_supabase"."announcements" add constraint bs_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
+alter table "better_supabase"."announcements" drop constraint if exists bsb_announcements_audience;
+alter table "better_supabase"."announcements" add constraint bsb_announcements_audience check ("audience" in ('all', 'tenant', 'role'));
 create index if not exists announcements_window_idx on "better_supabase"."announcements" ("starts_at", "ends_at");
 create index if not exists announcements_created_by_idx on "better_supabase"."announcements" ("created_by");
 alter table "better_supabase"."announcements" add column if not exists "app_note" text;
@@ -266,14 +266,14 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."broadcast_announcement"() from public, anon, authenticated;
-drop trigger if exists "bs_announcements_broadcast" on "better_supabase"."announcements";
-create trigger "bs_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
+drop trigger if exists "bsb_announcements_broadcast" on "better_supabase"."announcements";
+create trigger "bsb_announcements_broadcast" after insert or update or delete on "better_supabase"."announcements"
   for each row execute function "better_supabase"."broadcast_announcement"();
 do $$
 begin
   if to_regclass('realtime.messages') is not null then
-    drop policy if exists "bs_announcements_receive" on realtime.messages;
-    create policy "bs_announcements_receive" on realtime.messages for select to authenticated
+    drop policy if exists "bsb_announcements_receive" on realtime.messages;
+    create policy "bsb_announcements_receive" on realtime.messages for select to authenticated
       using (realtime.messages.extension = 'broadcast' and (select realtime.topic()) = 'announcements');
   end if;
 end;

@@ -38,7 +38,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
 
   it("renames the 0.4.0 tables and columns and keeps rows and triggers, and drops the old view", async () => {
     const client = await pool.connect();
-    const table = `public.bs_upgrade_${crypto.randomUUID().slice(0, 8)}`;
+    const table = `public.bsb_upgrade_${crypto.randomUUID().slice(0, 8)}`;
     const organization = crypto.randomUUID();
 
     try {

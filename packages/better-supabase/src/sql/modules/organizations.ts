@@ -188,8 +188,8 @@ alter table ${n.organization} add column if not exists ${ORGANIZATION_CUSTOMER_C
 ${revokeTable(n.organization)}
 grant select on ${n.organization} to authenticated;
 grant all on ${n.organization} to service_role;
-drop policy if exists ${ctx.naming.rename("bs_organizations_read")} on ${n.organization};
-create policy ${ctx.naming.rename("bs_organizations_read")} on ${n.organization} for select to authenticated
+drop policy if exists ${ctx.naming.rename("bsb_organizations_read")} on ${n.organization};
+create policy ${ctx.naming.rename("bsb_organizations_read")} on ${n.organization} for select to authenticated
   using (${n.id} in (select ${ctx.of("tenant").fn("member_organization_ids")}()));
 `;
 }

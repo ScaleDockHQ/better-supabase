@@ -24,7 +24,7 @@ import { OPERATIONS } from "./access-model.ts";
 import { checkRole, roleValue } from "./organizations-roles.ts";
 
 /** The `app_metadata` key that marks an `auth.users` row as a service principal. */
-const SERVICE_PRINCIPAL_CLAIM = "bs_service_principal";
+const SERVICE_PRINCIPAL_CLAIM = "bsb_service_principal";
 
 const EVENTS: ModuleEvents<ServicePrincipalsEvents> = {
   "service_principal.created": {

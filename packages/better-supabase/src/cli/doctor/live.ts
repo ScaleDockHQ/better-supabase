@@ -198,14 +198,14 @@ async function explainTable(
   try {
     await db.query(`set local statement_timeout = '30s'`);
     let tracked = true;
-    await db.query("savepoint bs_track");
+    await db.query("savepoint bsb_track");
 
     try {
       await db.query(`set local track_functions = 'all'`);
-      await db.query("release savepoint bs_track");
+      await db.query("release savepoint bsb_track");
     } catch {
       tracked = false;
-      await db.query("rollback to savepoint bs_track");
+      await db.query("rollback to savepoint bsb_track");
     }
 
     await db.query(

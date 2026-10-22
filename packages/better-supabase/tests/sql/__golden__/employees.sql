@@ -138,7 +138,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_se
 
 -- A manager is an employee of the same organization and never one of the
 -- employee's own reports, so the org chart stays a tree.
-create or replace function better_supabase.bs_employee_manager_guard()
+create or replace function better_supabase.bsb_employee_manager_guard()
 returns trigger
 language plpgsql
 security definer
@@ -167,13 +167,13 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bs_employee_manager_guard on "better_supabase"."employees";
-create trigger bs_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_manager_guard();
+revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
+drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
+create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_manager_guard();
 
 -- The private details carry the employee's user, so the employee reads them.
-create or replace function better_supabase.bs_employee_user_mirror()
+create or replace function better_supabase.bsb_employee_user_mirror()
 returns trigger
 language plpgsql
 security definer
@@ -186,10 +186,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bs_employee_user_mirror on "better_supabase"."employees";
-create trigger bs_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_user_mirror();
+revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
+drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
+create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_user_mirror();
 
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin
@@ -847,7 +847,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_se
 
 -- A manager is an employee of the same organization and never one of the
 -- employee's own reports, so the org chart stays a tree.
-create or replace function better_supabase.bs_employee_manager_guard()
+create or replace function better_supabase.bsb_employee_manager_guard()
 returns trigger
 language plpgsql
 security definer
@@ -876,13 +876,13 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bs_employee_manager_guard on "better_supabase"."employees";
-create trigger bs_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_manager_guard();
+revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
+drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
+create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_manager_guard();
 
 -- The private details carry the employee's user, so the employee reads them.
-create or replace function better_supabase.bs_employee_user_mirror()
+create or replace function better_supabase.bsb_employee_user_mirror()
 returns trigger
 language plpgsql
 security definer
@@ -895,10 +895,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bs_employee_user_mirror on "better_supabase"."employees";
-create trigger bs_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_user_mirror();
+revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
+drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
+create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_user_mirror();
 
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin
@@ -1605,7 +1605,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_se
 
 -- A manager is an employee of the same organization and never one of the
 -- employee's own reports, so the org chart stays a tree.
-create or replace function better_supabase.bs_employee_manager_guard()
+create or replace function better_supabase.bsb_employee_manager_guard()
 returns trigger
 language plpgsql
 security definer
@@ -1634,13 +1634,13 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bs_employee_manager_guard on "app_private"."employees";
-create trigger bs_employee_manager_guard before insert or update of "manager_id" on "app_private"."employees"
-for each row execute function better_supabase.bs_employee_manager_guard();
+revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
+drop trigger if exists bsb_employee_manager_guard on "app_private"."employees";
+create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "app_private"."employees"
+for each row execute function better_supabase.bsb_employee_manager_guard();
 
 -- The private details carry the employee's user, so the employee reads them.
-create or replace function better_supabase.bs_employee_user_mirror()
+create or replace function better_supabase.bsb_employee_user_mirror()
 returns trigger
 language plpgsql
 security definer
@@ -1653,10 +1653,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bs_employee_user_mirror on "app_private"."employees";
-create trigger bs_employee_user_mirror after update of "user_id" on "app_private"."employees"
-for each row execute function better_supabase.bs_employee_user_mirror();
+revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
+drop trigger if exists bsb_employee_user_mirror on "app_private"."employees";
+create trigger bsb_employee_user_mirror after update of "user_id" on "app_private"."employees"
+for each row execute function better_supabase.bsb_employee_user_mirror();
 
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin
@@ -2314,7 +2314,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_se
 
 -- A manager is an employee of the same organization and never one of the
 -- employee's own reports, so the org chart stays a tree.
-create or replace function better_supabase.bs_employee_manager_guard()
+create or replace function better_supabase.bsb_employee_manager_guard()
 returns trigger
 language plpgsql
 security definer
@@ -2343,13 +2343,13 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bs_employee_manager_guard on "better_supabase"."employees";
-create trigger bs_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_manager_guard();
+revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
+drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
+create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_manager_guard();
 
 -- The private details carry the employee's user, so the employee reads them.
-create or replace function better_supabase.bs_employee_user_mirror()
+create or replace function better_supabase.bsb_employee_user_mirror()
 returns trigger
 language plpgsql
 security definer
@@ -2362,10 +2362,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bs_employee_user_mirror on "better_supabase"."employees";
-create trigger bs_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_user_mirror();
+revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
+drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
+create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_user_mirror();
 
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin
@@ -3035,7 +3035,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- A manager is an employee of the same organization and never one of the
 -- employee's own reports, so the org chart stays a tree.
-create or replace function better_supabase.bs_employee_manager_guard()
+create or replace function better_supabase.bsb_employee_manager_guard()
 returns trigger
 language plpgsql
 security definer
@@ -3064,13 +3064,13 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_manager_guard() from public, anon, authenticated;
-drop trigger if exists bs_employee_manager_guard on "better_supabase"."employees";
-create trigger bs_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_manager_guard();
+revoke execute on function better_supabase.bsb_employee_manager_guard() from public, anon, authenticated;
+drop trigger if exists bsb_employee_manager_guard on "better_supabase"."employees";
+create trigger bsb_employee_manager_guard before insert or update of "manager_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_manager_guard();
 
 -- The private details carry the employee's user, so the employee reads them.
-create or replace function better_supabase.bs_employee_user_mirror()
+create or replace function better_supabase.bsb_employee_user_mirror()
 returns trigger
 language plpgsql
 security definer
@@ -3083,10 +3083,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_employee_user_mirror() from public, anon, authenticated;
-drop trigger if exists bs_employee_user_mirror on "better_supabase"."employees";
-create trigger bs_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
-for each row execute function better_supabase.bs_employee_user_mirror();
+revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
+drop trigger if exists bsb_employee_user_mirror on "better_supabase"."employees";
+create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_employee_user_mirror();
 
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin

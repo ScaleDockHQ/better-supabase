@@ -70,8 +70,8 @@ create index if not exists webhook_endpoints_types_idx on "better_supabase"."web
 create index if not exists webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("workspace_id");
 create index if not exists webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");
 alter table "better_supabase"."webhook_endpoints" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."webhook_endpoints";
-create trigger bs_updated_at before update on "better_supabase"."webhook_endpoints"
+drop trigger if exists bsb_updated_at on "better_supabase"."webhook_endpoints";
+create trigger bsb_updated_at before update on "better_supabase"."webhook_endpoints"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."webhook_endpoints" enable row level security;
 revoke all on "better_supabase"."webhook_endpoints" from anon, authenticated;
@@ -137,8 +137,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."reset_webhook_endpoint"() from public, anon, authenticated;
-drop trigger if exists "bs_webhook_endpoint_reenable" on "better_supabase"."webhook_endpoints";
-create trigger "bs_webhook_endpoint_reenable" before update of "enabled" on "better_supabase"."webhook_endpoints"
+drop trigger if exists "bsb_webhook_endpoint_reenable" on "better_supabase"."webhook_endpoints";
+create trigger "bsb_webhook_endpoint_reenable" before update of "enabled" on "better_supabase"."webhook_endpoints"
   for each row execute function "better_supabase"."reset_webhook_endpoint"();
 
 create or replace function "better_supabase"."drop_webhook_vault_secret"()
@@ -153,8 +153,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_webhook_vault_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_webhook_secret_vault" on "better_supabase"."webhook_endpoint_secrets";
-create trigger "bs_webhook_secret_vault" after delete on "better_supabase"."webhook_endpoint_secrets"
+drop trigger if exists "bsb_webhook_secret_vault" on "better_supabase"."webhook_endpoint_secrets";
+create trigger "bsb_webhook_secret_vault" after delete on "better_supabase"."webhook_endpoint_secrets"
   for each row execute function "better_supabase"."drop_webhook_vault_secret"();
 
 drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, uuid, text);

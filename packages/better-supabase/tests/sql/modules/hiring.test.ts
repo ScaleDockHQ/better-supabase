@@ -25,7 +25,7 @@ describe("hiring module", () => {
       .join("\n");
 
     expect(pipelines).toContain(
-      'create trigger bs_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"',
+      'create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"',
     );
     expect(pipelines).toContain('new."job_id"::text');
   });

@@ -411,8 +411,8 @@ exception when others then
 end;
 $$;
 revoke execute on function "better_supabase"."waitlist_on_auth_user"() from public, anon, authenticated;
-drop trigger if exists "bs_waitlist_auth_user" on auth.users;
-create trigger "bs_waitlist_auth_user" after insert on auth.users
+drop trigger if exists "bsb_waitlist_auth_user" on auth.users;
+create trigger "bsb_waitlist_auth_user" after insert on auth.users
   for each row execute function "better_supabase"."waitlist_on_auth_user"();
 
 revoke execute on function "better_supabase"."join_waitlist"(text, text, jsonb) from public;
@@ -916,8 +916,8 @@ exception when others then
 end;
 $$;
 revoke execute on function "better_supabase"."waitlist_on_auth_user"() from public, anon, authenticated;
-drop trigger if exists "bs_waitlist_auth_user" on auth.users;
-create trigger "bs_waitlist_auth_user" after insert on auth.users
+drop trigger if exists "bsb_waitlist_auth_user" on auth.users;
+create trigger "bsb_waitlist_auth_user" after insert on auth.users
   for each row execute function "better_supabase"."waitlist_on_auth_user"();
 
 revoke execute on function "better_supabase"."join_waitlist"(text, text, jsonb) from public;
@@ -1381,8 +1381,8 @@ exception when others then
 end;
 $$;
 revoke execute on function "app_private"."waitlist_on_auth_user"() from public, anon, authenticated;
-drop trigger if exists "bs_waitlist_auth_user" on auth.users;
-create trigger "bs_waitlist_auth_user" after insert on auth.users
+drop trigger if exists "bsb_waitlist_auth_user" on auth.users;
+create trigger "bsb_waitlist_auth_user" after insert on auth.users
   for each row execute function "app_private"."waitlist_on_auth_user"();
 
 revoke execute on function "app_private"."join_waitlist"(text, text, jsonb) from public;
@@ -1844,8 +1844,8 @@ exception when others then
 end;
 $$;
 revoke execute on function "better_supabase"."waitlist_on_auth_user"() from public, anon, authenticated;
-drop trigger if exists "bs_waitlist_auth_user" on auth.users;
-create trigger "bs_waitlist_auth_user" after insert on auth.users
+drop trigger if exists "bsb_waitlist_auth_user" on auth.users;
+create trigger "bsb_waitlist_auth_user" after insert on auth.users
   for each row execute function "better_supabase"."waitlist_on_auth_user"();
 
 revoke execute on function "better_supabase"."join_waitlist"(text, text, jsonb) from public;

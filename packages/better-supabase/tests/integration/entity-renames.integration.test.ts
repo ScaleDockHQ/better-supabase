@@ -46,7 +46,7 @@ vi.mock(import("next/cache.js"), () => ({
  * A scratch schema for every module, since the stack's shared tables already
  * carry the default tenant column.
  */
-const SCRATCH = "bs_entity_rename";
+const SCRATCH = "bsb_entity_rename";
 
 const TENANT = "5f3c6a52-8d1e-4b7a-9c0f-2a4b6c8d0e1f";
 

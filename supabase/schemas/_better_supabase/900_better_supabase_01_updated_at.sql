@@ -73,11 +73,11 @@ set search_path = ''
 as $$
 begin
   perform better_supabase.replace_equivalent_triggers(
-    target, 'bs_updated_at', 'updated_at|moddatetime|touch', replace_trigger
+    target, 'bsb_updated_at', 'updated_at|moddatetime|touch', replace_trigger
   );
-  execute format('drop trigger if exists bs_updated_at on %s', target);
+  execute format('drop trigger if exists bsb_updated_at on %s', target);
   execute format(
-    'create trigger bs_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',
+    'create trigger bsb_updated_at before update on %s for each row execute function better_supabase.set_updated_at(%L)',
     target,
     column_name
   );

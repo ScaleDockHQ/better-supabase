@@ -224,7 +224,7 @@ for a token no client acts with, and for a delegated token only when its
 `scope` claim holds the scope.
 
 `forContext(context, { permissions })` caps the work further. The cap is the
-`bs_permission_cap` claim, a job queued under it keeps it, and a later
+`bsb_permission_cap` claim, a job queued under it keeps it, and a later
 `permissions` only narrows it:
 
 ```ts

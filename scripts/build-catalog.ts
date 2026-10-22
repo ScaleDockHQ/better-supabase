@@ -380,7 +380,7 @@ function entityTypesOf(
       .filter((entity) => entity.global !== true)
       .map((entity) => ({
         from: entityNoun(entity.singular, entity.plural),
-        to: entityNoun("bs_sentinel"),
+        to: entityNoun("bsb_sentinel"),
         cases: ["pascal" as const],
       })),
   );
@@ -558,7 +558,7 @@ function extraColumnsTable(module: SqlModule): string | undefined {
 
   const layout: ModuleLayout = {
     modules: {
-      [module.name]: { options: { extraColumns: { bs_probe: "text" } } },
+      [module.name]: { options: { extraColumns: { bsb_probe: "text" } } },
     },
   };
 

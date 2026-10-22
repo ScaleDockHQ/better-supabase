@@ -290,8 +290,8 @@ create table if not exists ${t} (
 );
 alter table ${t} add column if not exists ${c("account")} text unique check (${c("account")} ~ '^acct_');
 alter table ${t} alter column ${c("customer")} drop not null;
-alter table ${t} drop constraint if exists bs_billing_customers_party;
-alter table ${t} add constraint bs_billing_customers_party check (${c("customer")} is not null or ${c("account")} is not null);
+alter table ${t} drop constraint if exists bsb_billing_customers_party;
+alter table ${t} add constraint bsb_billing_customers_party check (${c("customer")} is not null or ${c("account")} is not null);
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select on ${t} to authenticated;

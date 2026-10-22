@@ -83,7 +83,7 @@ const EXPORT_NAME = "workflow";
  * The `steps` key the compiled source calls to file an approval request; never
  * a step alias.
  */
-const APPROVAL_ALIAS = "bs_approval";
+const APPROVAL_ALIAS = "bsb_approval";
 
 const literal = (value: unknown): string => JSON.stringify(value ?? null);
 
@@ -187,9 +187,9 @@ const guard = (edges: readonly WorkflowGraphEdge[]): string =>
  * Compiles a graph to Workflow SDK dynamic source: plain JavaScript that starts
  * at `meta.triggerNode` (or the only trigger), calls each step node through its
  * own alias, sleeps with `sleep` and waits on approvals with `createHook`: the
- * token is the id `steps.bs_approval` returns (graphStarter's `approval`), else
- * `<runKey>:<node>`. A `meta.mode` of `test` returns `meta.stubs` instead. It
- * runs the same way `executeGraph` does. Throws when the graph is invalid or
+ * token is the id `steps.bsb_approval` returns (graphStarter's `approval`),
+ * else `<runKey>:<node>`. A `meta.mode` of `test` returns `meta.stubs` instead.
+ * It runs the same way `executeGraph` does. Throws when the graph is invalid or
  * the source is over 128 KiB. Pass it as `compile` to `createWorkflowBuilder`.
  */
 export function compileGraph(graph: WorkflowGraph): CompiledGraph {

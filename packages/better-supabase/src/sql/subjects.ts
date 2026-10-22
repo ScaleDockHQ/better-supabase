@@ -494,7 +494,7 @@ export function subjectCascades(
 
   const triggers = cascading.map(([type, subject]) => {
     const trigger = sqlIdent(
-      `bs_${ctx.module.replaceAll("-", "_")}_${type}_cascade`.slice(0, 63),
+      `bsb_${ctx.module.replaceAll("-", "_")}_${type}_cascade`.slice(0, 63),
     );
 
     const table = qualifiedTable(subject.table);

@@ -144,7 +144,7 @@ describe("engagements module, bookings", () => {
       .join("\n");
 
   it("logs no bookings unless the option is on", () => {
-    expect(withBookings({})).not.toContain("bs_booking_engagement");
+    expect(withBookings({})).not.toContain("bsb_booking_engagement");
   });
 
   it("needs the bookings block and the meeting type", () => {

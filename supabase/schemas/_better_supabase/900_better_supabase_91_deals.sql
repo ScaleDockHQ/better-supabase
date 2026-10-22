@@ -144,7 +144,7 @@ drop policy if exists deal_members_read on "better_supabase"."deal_members";
 create policy deal_members_read on "better_supabase"."deal_members" for select to authenticated
 using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
-create or replace function better_supabase.bs_deal_guard()
+create or replace function better_supabase.bsb_deal_guard()
 returns trigger
 language plpgsql
 security definer
@@ -230,10 +230,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_guard() from public, anon, authenticated;
-drop trigger if exists bs_deal_guard on "better_supabase"."deals";
-create trigger bs_deal_guard before insert or update on "better_supabase"."deals"
-for each row execute function better_supabase.bs_deal_guard();
+revoke execute on function better_supabase.bsb_deal_guard() from public, anon, authenticated;
+drop trigger if exists bsb_deal_guard on "better_supabase"."deals";
+create trigger bsb_deal_guard before insert or update on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_deal_guard();
 
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
@@ -789,7 +789,7 @@ revoke execute on function "better_supabase"."set_deal_lines_recount"(uuid) from
 -- trigger per event, so there are three triggers on one function. The
 -- transition tables are read through execute because plpgsql_check (db lint)
 -- doesn't know them.
-create or replace function better_supabase.bs_deal_lines_totals()
+create or replace function better_supabase.bsb_deal_lines_totals()
 returns trigger
 language plpgsql
 security definer
@@ -808,20 +808,20 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_deal_lines_totals() from public, anon, authenticated;
-drop trigger if exists bs_deal_lines_totals on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_insert on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_update on "better_supabase"."deal_lines";
-drop trigger if exists bs_deal_lines_totals_delete on "better_supabase"."deal_lines";
-create trigger bs_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
+revoke execute on function better_supabase.bsb_deal_lines_totals() from public, anon, authenticated;
+drop trigger if exists bsb_deal_lines_totals on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_insert on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_update on "better_supabase"."deal_lines";
+drop trigger if exists bsb_deal_lines_totals_delete on "better_supabase"."deal_lines";
+create trigger bsb_deal_lines_totals_insert after insert on "better_supabase"."deal_lines"
 referencing new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_update after update on "better_supabase"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_update after update on "better_supabase"."deal_lines"
 referencing old table as old_rows new table as new_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
-create trigger bs_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
+for each statement execute function better_supabase.bsb_deal_lines_totals();
+create trigger bsb_deal_lines_totals_delete after delete on "better_supabase"."deal_lines"
 referencing old table as old_rows
-for each statement execute function better_supabase.bs_deal_lines_totals();
+for each statement execute function better_supabase.bsb_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,

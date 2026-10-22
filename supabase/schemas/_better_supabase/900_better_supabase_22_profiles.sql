@@ -76,11 +76,11 @@ exception when check_violation then
 end;
 $$;
 alter table "better_supabase"."profiles" enable row level security;
-drop policy if exists bs_profiles_read on "better_supabase"."profiles";
-create policy bs_profiles_read on "better_supabase"."profiles" for select to authenticated
+drop policy if exists bsb_profiles_read on "better_supabase"."profiles";
+create policy bsb_profiles_read on "better_supabase"."profiles" for select to authenticated
   using ("id" = (select auth.uid()));
-drop policy if exists bs_profiles_update on "better_supabase"."profiles";
-create policy bs_profiles_update on "better_supabase"."profiles" for update to authenticated
+drop policy if exists bsb_profiles_update on "better_supabase"."profiles";
+create policy bsb_profiles_update on "better_supabase"."profiles" for update to authenticated
   using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 grant select on "better_supabase"."profiles" to authenticated;
@@ -115,8 +115,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
-drop trigger if exists "bs_profile_guard" on "better_supabase"."profiles";
-create trigger "bs_profile_guard" before update on "better_supabase"."profiles"
+drop trigger if exists "bsb_profile_guard" on "better_supabase"."profiles";
+create trigger "bsb_profile_guard" before update on "better_supabase"."profiles"
   for each row execute function "better_supabase"."guard_profile"();
 
 -- A free username from base: lowercased, stripped to [a-z0-9_], starting
@@ -330,8 +330,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
-drop trigger if exists "bs_profile_sync" on auth.users;
-create trigger "bs_profile_sync" after insert on auth.users
+drop trigger if exists "bsb_profile_sync" on auth.users;
+create trigger "bsb_profile_sync" after insert on auth.users
   for each row execute function "better_supabase"."on_auth_user_created"();
 
 -- Keeps the profile's email equal to the confirmed address in auth.users.
@@ -347,8 +347,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-drop trigger if exists "bs_profile_email" on auth.users;
-create trigger "bs_profile_email" after update of email on auth.users
+drop trigger if exists "bsb_profile_email" on auth.users;
+create trigger "bsb_profile_email" after update of email on auth.users
   for each row execute function "better_supabase"."mirror_profile_email"();
 
 -- blocks.profiles.api: entry points for the Data API.

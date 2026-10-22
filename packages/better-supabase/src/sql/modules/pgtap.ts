@@ -166,7 +166,7 @@ as $$
           from pg_catalog.pg_trigger t
           join pg_catalog.pg_proc f on f.oid = t.tgfoid
           where t.tgrelid = c.oid and not t.tgisinternal
-            and (left(t.tgname, 8) = 'bs_audit' or f.proname = 'audit_row_change')
+            and (left(t.tgname, 8) = 'bsb_audit' or f.proname = 'audit_row_change')
         )
     ),
     '{}'::text[],

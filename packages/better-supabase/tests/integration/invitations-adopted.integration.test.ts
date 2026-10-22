@@ -18,7 +18,7 @@ async function providerSchema(
   organization: string,
   members: Readonly<Record<string, TestUser>>,
 ): Promise<string> {
-  const schema = `bs_authz_${crypto.randomUUID().slice(0, 8)}`;
+  const schema = `bsb_authz_${crypto.randomUUID().slice(0, 8)}`;
   await s.client.query(`
     create schema ${schema};
     create table ${schema}.team_members (
@@ -508,7 +508,7 @@ async function sharedSchema(
   owner: TestUser,
   staff: TestUser,
 ): Promise<string> {
-  const schema = `bs_shared_${crypto.randomUUID().slice(0, 8)}`;
+  const schema = `bsb_shared_${crypto.randomUUID().slice(0, 8)}`;
   await s.client.query(`
     create schema ${schema};
     create table ${schema}.roles (

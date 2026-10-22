@@ -24,7 +24,7 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
     await session.service();
 
     const [row] = await session.rows<{ id: string }>(
-      "insert into public.bs_test_docs (organization_id, name) values ($1, $2) returning id::text as id",
+      "insert into public.bsb_test_docs (organization_id, name) values ($1, $2) returning id::text as id",
       [org, name],
     );
 
@@ -34,17 +34,17 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
   beforeAll(async () => {
     session = await BlockSession.open(pool);
     await session.rows(
-      `create table if not exists public.bs_test_docs (
+      `create table if not exists public.bsb_test_docs (
          id uuid primary key default gen_random_uuid(),
          organization_id uuid not null,
          name text not null
        );
-       alter table public.bs_test_docs enable row level security;`,
+       alter table public.bsb_test_docs enable row level security;`,
     );
     await session.install(["organizations", "share-links"], {
       modules: {
         "share-links": {
-          options: { subjects: { doc: { table: "bs_test_docs" } } },
+          options: { subjects: { doc: { table: "bsb_test_docs" } } },
         },
       },
     });

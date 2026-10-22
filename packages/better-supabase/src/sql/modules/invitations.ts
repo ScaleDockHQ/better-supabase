@@ -198,8 +198,8 @@ end;
 $$;
 revoke execute on function ${ctx.fn("invitation_tenant_ids")}() from public, anon;
 grant execute on function ${ctx.fn("invitation_tenant_ids")}() to authenticated, service_role;
-drop policy if exists bs_invitations_read on ${t.table};
-create policy bs_invitations_read on ${t.table} for select to authenticated
+drop policy if exists bsb_invitations_read on ${t.table};
+create policy bsb_invitations_read on ${t.table} for select to authenticated
   using (${c("tenant")} in (select ${ctx.fn("invitation_tenant_ids")}()));
 `;
 }
@@ -250,8 +250,8 @@ end;
 $$;
 revoke execute on function ${ctx.fn("platform_invitations_readable")}() from public, anon;
 grant execute on function ${ctx.fn("platform_invitations_readable")}() to authenticated, service_role;
-drop policy if exists bs_platform_invitations_read on ${p.table};
-create policy bs_platform_invitations_read on ${p.table} for select to authenticated
+drop policy if exists bsb_platform_invitations_read on ${p.table};
+create policy bsb_platform_invitations_read on ${p.table} for select to authenticated
   using ((select ${ctx.fn("platform_invitations_readable")}()));
 `;
 }

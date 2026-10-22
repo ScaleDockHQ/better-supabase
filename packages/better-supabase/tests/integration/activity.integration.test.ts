@@ -18,7 +18,7 @@ const live = await reachable();
  * one with an owner only that owner.
  */
 async function ownedTable(s: BlockSession, name: string): Promise<string> {
-  const table = `public.bs_test_${name}_${crypto.randomUUID().slice(0, 8)}`;
+  const table = `public.bsb_test_${name}_${crypto.randomUUID().slice(0, 8)}`;
   await s.rows(
     `create table ${table} (
        id uuid primary key default gen_random_uuid(),

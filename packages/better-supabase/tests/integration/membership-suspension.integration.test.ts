@@ -9,7 +9,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 async function teamSchema(s: BlockSession): Promise<string> {
-  const schema = `bs_suspend_${crypto.randomUUID().slice(0, 8)}`;
+  const schema = `bsb_suspend_${crypto.randomUUID().slice(0, 8)}`;
   await s.client.query(`
     create schema ${schema};
     create table ${schema}.team_members (

@@ -272,20 +272,20 @@ ${n.has("endpoints", "tenant") ? `create index if not exists webhook_endpoints_t
       ? `
 grant select, insert, update, delete on ${n.table("endpoints")} to authenticated;${policy(
           "endpoints",
-          "bs_webhook_endpoints_read",
+          "bsb_webhook_endpoints_read",
           `for select to authenticated using (${n.member(d("tenant"), "view")})`,
         )}
-drop policy if exists bs_webhook_endpoints_write on ${n.table("endpoints")};${policy(
+drop policy if exists bsb_webhook_endpoints_write on ${n.table("endpoints")};${policy(
           "endpoints",
-          "bs_webhook_endpoints_insert",
+          "bsb_webhook_endpoints_insert",
           `for insert to authenticated with check (${n.member(d("tenant"), "manage")})`,
         )}${policy(
           "endpoints",
-          "bs_webhook_endpoints_update",
+          "bsb_webhook_endpoints_update",
           `for update to authenticated using (${n.member(d("tenant"), "manage")}) with check (${n.member(d("tenant"), "manage")})`,
         )}${policy(
           "endpoints",
-          "bs_webhook_endpoints_delete",
+          "bsb_webhook_endpoints_delete",
           `for delete to authenticated using (${n.member(d("tenant"), "manage")})`,
         )}`
       : ""
@@ -355,7 +355,7 @@ ${lockTable(n.table("deliveries"))}${
       ? `
 grant select on ${n.table("deliveries")} to authenticated;${policy(
           "deliveries",
-          "bs_webhook_deliveries_read",
+          "bsb_webhook_deliveries_read",
           `for select to authenticated using (${n.member(v("tenant"), "view")})`,
         )}`
       : ""

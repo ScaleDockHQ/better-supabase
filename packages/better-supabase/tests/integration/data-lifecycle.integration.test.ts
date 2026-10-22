@@ -82,7 +82,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
     try {
       await s.rows(
-        `create table if not exists public.bs_test_lifecycle (
+        `create table if not exists public.bsb_test_lifecycle (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null,
            owner_id uuid,
@@ -96,7 +96,7 @@ describe.skipIf(!live)("data lifecycle", () => {
             "data-lifecycle": {
               options: {
                 tables: {
-                  "public.bs_test_lifecycle": {
+                  "public.bsb_test_lifecycle": {
                     tenant: "organization_id",
                     user: "owner_id",
                   },
@@ -110,7 +110,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
       await s.rows(
-        "insert into public.bs_test_lifecycle (organization_id, owner_id, name) select $1, $2, 'p' || g from generate_series(1, 3) g",
+        "insert into public.bsb_test_lifecycle (organization_id, owner_id, name) select $1, $2, 'p' || g from generate_series(1, 3) g",
         [organization, member.id],
       );
       const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
@@ -156,11 +156,11 @@ describe.skipIf(!live)("data lifecycle", () => {
       expect(ready.status).toBe("ready");
       expect(ready.expiresAt).toBeDefined();
       expect(ready.files).toContain(
-        `${mine.id}/public.bs_test_lifecycle.ndjson`,
+        `${mine.id}/public.bsb_test_lifecycle.ndjson`,
       );
 
       const lines = memory.files
-        .get(`${mine.id}/public.bs_test_lifecycle.ndjson`)!
+        .get(`${mine.id}/public.bsb_test_lifecycle.ndjson`)!
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line) as { name: string });
@@ -230,7 +230,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         .orThrow();
 
       expect(download.files.map((file) => file.table)).toContain(
-        "public.bs_test_lifecycle",
+        "public.bsb_test_lifecycle",
       );
       await s.asRole(owner);
       expect(await visible()).toBe(0);
@@ -372,7 +372,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("anonymizes rows once their time is up, unless the condition holds", async () => {
     const s = await BlockSession.open(pool);
-    const table = `public.bs_candidates_${crypto.randomUUID().slice(0, 8)}`;
+    const table = `public.bsb_candidates_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       await s.client.query(`
@@ -460,15 +460,15 @@ describe.skipIf(!live)("data lifecycle", () => {
 
     try {
       await s.rows(
-        `create table public.bs_test_teams (id uuid primary key);
-         create table public.bs_test_projects (
+        `create table public.bsb_test_teams (id uuid primary key);
+         create table public.bsb_test_projects (
            id uuid primary key default gen_random_uuid(),
-           organization_id uuid not null references public.bs_test_teams (id) on delete restrict
+           organization_id uuid not null references public.bsb_test_teams (id) on delete restrict
          );
-         create table public.bs_test_tasks (
+         create table public.bsb_test_tasks (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null,
-           project_id uuid references public.bs_test_projects (id) on delete set null,
+           project_id uuid references public.bsb_test_projects (id) on delete set null,
            check (project_id is not null)
          );`,
       );
@@ -476,10 +476,10 @@ describe.skipIf(!live)("data lifecycle", () => {
         modules: {
           "data-lifecycle": {
             options: {
-              tenantRow: "public.bs_test_teams.id",
+              tenantRow: "public.bsb_test_teams.id",
               tables: {
-                bs_test_tasks: { tenant: "organization_id" },
-                bs_test_projects: { tenant: "organization_id" },
+                bsb_test_tasks: { tenant: "organization_id" },
+                bsb_test_projects: { tenant: "organization_id" },
               },
             },
           },
@@ -487,9 +487,9 @@ describe.skipIf(!live)("data lifecycle", () => {
       });
       const team = crypto.randomUUID();
       await s.rows(
-        `insert into public.bs_test_teams values ($1);
-         with p as (insert into public.bs_test_projects (organization_id) values ($1) returning id)
-         insert into public.bs_test_tasks (organization_id, project_id) select $1, id from p;
+        `insert into public.bsb_test_teams values ($1);
+         with p as (insert into public.bsb_test_projects (organization_id) values ($1) returning id)
+         insert into public.bsb_test_tasks (organization_id, project_id) select $1, id from p;
          insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute');`.replaceAll(
           "$1",
           `'${team}'`,
@@ -503,12 +503,12 @@ describe.skipIf(!live)("data lifecycle", () => {
       );
 
       expect(result.deleted).toMatchObject({
-        "public.bs_test_tasks": 1,
-        "public.bs_test_projects": 1,
+        "public.bsb_test_tasks": 1,
+        "public.bsb_test_projects": 1,
       });
       expect(
         await s.value<number>(
-          "(select count(*)::int from public.bs_test_teams where id = $1)",
+          "(select count(*)::int from public.bsb_test_teams where id = $1)",
           [team],
         ),
       ).toBe(0);
@@ -567,15 +567,15 @@ describe.skipIf(!live)("data lifecycle", () => {
 
     try {
       await s.rows(
-        `create table if not exists public.bs_test_lifecycle (
+        `create table if not exists public.bsb_test_lifecycle (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null,
            owner_id uuid,
            name text not null
          );
-         create table if not exists public.bs_test_purges (organization_id uuid);
+         create table if not exists public.bsb_test_purges (organization_id uuid);
          create or replace function public.on_organization_purge(tenant uuid)
-         returns void language sql as $$ insert into public.bs_test_purges values (tenant) $$;`,
+         returns void language sql as $$ insert into public.bsb_test_purges values (tenant) $$;`,
       );
       await s.install(
         ["organizations", "outbox", "settings", "usage", "data-lifecycle"],
@@ -584,7 +584,7 @@ describe.skipIf(!live)("data lifecycle", () => {
             usage: { options: { history: true } },
             "data-lifecycle": {
               options: {
-                tables: { bs_test_lifecycle: { tenant: "organization_id" } },
+                tables: { bsb_test_lifecycle: { tenant: "organization_id" } },
               },
             },
           },
@@ -596,7 +596,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       const outsider = await s.user("outsider");
       const organization = await s.organization(owner, { admin, member });
       await s.rows(
-        "insert into public.bs_test_lifecycle (organization_id, name) values ($1, 'a'), ($1, 'b')",
+        "insert into public.bsb_test_lifecycle (organization_id, name) values ($1, 'a'), ($1, 'b')",
         [organization],
       );
       await s.service();
@@ -717,7 +717,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         organizationId: organization,
         removed: { attachments: 2 },
         deleted: {
-          "public.bs_test_lifecycle": 2,
+          "public.bsb_test_lifecycle": 2,
           "better_supabase.memberships": 3,
           "better_supabase.usage_counters": 1,
           "better_supabase.usage_history": 1,
@@ -733,7 +733,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       ).toBe(0);
       expect(
         await s.value<number>(
-          "(select count(*)::int from public.bs_test_purges where organization_id = $1)",
+          "(select count(*)::int from public.bsb_test_purges where organization_id = $1)",
           [organization],
         ),
       ).toBe(1);
@@ -763,7 +763,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("finds tenant tables by column, purges past restricting keys and lets platform staff delete", async () => {
     const s = await BlockSession.open(pool);
-    const schema = `bs_auto_${crypto.randomUUID().slice(0, 8)}`;
+    const schema = `bsb_auto_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       await s.rows(

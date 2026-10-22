@@ -1880,8 +1880,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."sequence_mail_replied"() from public, anon, authenticated;
-drop trigger if exists "bs_replied" on "better_supabase"."mail_messages";
-create trigger "bs_replied"
+drop trigger if exists "bsb_replied" on "better_supabase"."mail_messages";
+create trigger "bsb_replied"
   after insert on "better_supabase"."mail_messages"
   for each row when (new."direction" = 'inbound')
   execute function "better_supabase"."sequence_mail_replied"();

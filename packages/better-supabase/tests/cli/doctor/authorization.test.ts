@@ -255,8 +255,8 @@ describe("BS214", () => {
       {
         path: "supabase/schemas/900_policies.sql",
         text: [
-          `create policy "bs_docs_read" on "storage"."objects" for select using (bucket_id = 'docs' and (storage.foldername(name))[1] in (select t.id::text from authz.ids_organization('documents.own') as t(id)));`,
-          `create policy bs_topic on realtime.messages for select using (authz.is_platform('platform.admin') or authz.ids_project( 'documents.write' ) is not null);`,
+          `create policy "bsb_docs_read" on "storage"."objects" for select using (bucket_id = 'docs' and (storage.foldername(name))[1] in (select t.id::text from authz.ids_organization('documents.own') as t(id)));`,
+          `create policy bsb_topic on realtime.messages for select using (authz.is_platform('platform.admin') or authz.ids_project( 'documents.write' ) is not null);`,
           `create policy "app_docs" on "storage"."objects" for select using (authz.ids_organization('billing.read') is not null);`,
         ].join("\n"),
       },
@@ -267,14 +267,14 @@ describe("BS214", () => {
     ).toEqual([
       {
         severity: "error",
-        target: "storage.objects.bs_docs_read:documents.own",
+        target: "storage.objects.bsb_docs_read:documents.own",
         message: expect.stringContaining(
-          'Policy "bs_docs_read" on storage.objects passes "documents.own"',
+          'Policy "bsb_docs_read" on storage.objects passes "documents.own"',
         ),
       },
       {
         severity: "error",
-        target: "realtime.messages.bs_topic:documents.write",
+        target: "realtime.messages.bsb_topic:documents.write",
         message: expect.stringContaining('at scope "project"'),
       },
     ]);
@@ -783,7 +783,7 @@ describe("BS334", () => {
             "organization_id in (select better_supabase.member_organization_ids('{owner,admin}'))",
           ),
           policy(
-            "bs_module_read",
+            "bsb_module_read",
             "organization_id in (select better_supabase.member_organization_ids())",
           ),
           policy(

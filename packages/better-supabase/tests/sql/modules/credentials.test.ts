@@ -86,7 +86,7 @@ describe("credentials module", () => {
         'jsonb_populate_record(null::"public"."integration_secrets"',
       );
       expect(sql).toContain(
-        `create trigger "bs_credential_vault" after delete or update of "vault_id" on "public"."integration_secrets"`,
+        `create trigger "bsb_credential_vault" after delete or update of "vault_id" on "public"."integration_secrets"`,
       );
       expect(sql.match(/security definer/g)).toHaveLength(4);
     });
@@ -104,7 +104,7 @@ describe("credentials module", () => {
       expect(sql).not.toContain("vault.create_secret");
       expect(sql).not.toContain('"updated_at"');
       expect(sql).toContain(
-        'drop trigger if exists "bs_credential_vault" on "public"."integration_secrets";',
+        'drop trigger if exists "bsb_credential_vault" on "public"."integration_secrets";',
       );
     });
 

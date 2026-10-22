@@ -32,7 +32,7 @@ describe("notifications module", () => {
   it("broadcasts an update only when a read, dismissed or resolved time changes", () => {
     const sql = body();
     expect(sql).toContain(
-      'create trigger "bs_notification_broadcast" after insert on "better_supabase"."notification_recipients"',
+      'create trigger "bsb_notification_broadcast" after insert on "better_supabase"."notification_recipients"',
     );
     expect(sql).toContain(
       'after update of "read_at", "dismissed_at", "resolved_at" on "better_supabase"."notification_recipients"\n  for each row when (old."read_at" is distinct from new."read_at" or old."dismissed_at" is distinct from new."dismissed_at" or old."resolved_at" is distinct from new."resolved_at")',
@@ -380,7 +380,7 @@ describe("notification subjects", () => {
   end if;`,
     );
     expect(sql).toContain(
-      `create trigger "bs_notifications_time-off-request_cascade"
+      `create trigger "bsb_notifications_time-off-request_cascade"
   after delete on "app"."time_off_requests"
   for each row execute function "better_supabase"."notifications_subject_deleted"('time-off-request', 'id', 'organization_id');`,
     );
@@ -388,7 +388,7 @@ describe("notification subjects", () => {
       `after delete on "public"."expenses"
   for each row execute function "better_supabase"."notifications_subject_deleted"('expense', 'id');`,
     );
-    expect(sql).not.toContain("bs_notifications_invoice_cascade");
+    expect(sql).not.toContain("bsb_notifications_invoice_cascade");
     expect(body()).not.toContain("notifications_subject_deleted");
   });
 

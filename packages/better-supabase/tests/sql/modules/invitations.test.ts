@@ -340,7 +340,7 @@ describe("platform invitations under the provider model", () => {
     ).toContain(tenantOnly);
   });
 
-  it("checks every write to the roles tables against where with bs_role_scope", () => {
+  it("checks every write to the roles tables against where with bsb_role_scope", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
 
     const modules = (where: boolean): AnyBlocksConfig => ({
@@ -377,7 +377,7 @@ describe("platform invitations under the provider model", () => {
     );
     expect(tenant).toContain("hint = 'MEMBERSHIP_ROLE_SCOPE'");
     expect(tenant).toContain(
-      `create trigger "bs_role_scope" before insert or update of "role_id" on "public"."team_members"`,
+      `create trigger "bsb_role_scope" before insert or update of "role_id" on "public"."team_members"`,
     );
     const platform = body(modules(true));
     expect(platform).toContain(
@@ -385,20 +385,20 @@ describe("platform invitations under the provider model", () => {
     );
     expect(platform).toContain("hint = 'PLATFORM_ROLE_SCOPE'");
     expect(platform).toContain(
-      `create trigger "bs_role_scope" before insert or update of "role_id" on "public"."user_roles"`,
+      `create trigger "bsb_role_scope" before insert or update of "role_id" on "public"."user_roles"`,
     );
     const unscoped = moduleBody("tenant", { modules: modules(false) })!;
     expect(unscoped).toContain(
-      `drop trigger if exists "bs_role_scope" on "public"."team_members";`,
+      `drop trigger if exists "bsb_role_scope" on "public"."team_members";`,
     );
-    expect(unscoped).not.toContain('create trigger "bs_role_scope"');
+    expect(unscoped).not.toContain('create trigger "bsb_role_scope"');
     const unscopedPlatform = body(modules(false));
     expect(unscopedPlatform).toContain(
-      `drop trigger if exists "bs_role_scope" on "public"."user_roles";`,
+      `drop trigger if exists "bsb_role_scope" on "public"."user_roles";`,
     );
     expect(unscopedPlatform).not.toContain("PLATFORM_ROLE_SCOPE");
     expect(moduleBody("tenant", { modules: {} })).not.toContain(
-      "bs_role_scope",
+      "bsb_role_scope",
     );
   });
 

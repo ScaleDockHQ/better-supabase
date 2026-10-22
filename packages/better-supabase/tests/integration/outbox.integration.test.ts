@@ -29,7 +29,7 @@ async function reachable(): Promise<boolean> {
 }
 
 const live = await reachable();
-const SCHEMA = `bs_outbox_${crypto.randomUUID().slice(0, 8)}`;
+const SCHEMA = `bsb_outbox_${crypto.randomUUID().slice(0, 8)}`;
 
 describe.skipIf(!live)("outbox", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 3 });

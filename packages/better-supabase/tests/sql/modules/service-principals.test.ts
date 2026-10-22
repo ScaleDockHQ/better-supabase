@@ -22,7 +22,7 @@ describe("service-principals module", () => {
   it("registers only banned, marked users, as the service", () => {
     const sql = sqlOf("service-principals", BASE);
     expect(sql).toContain(
-      "coalesce((u.raw_app_meta_data ->> 'bs_service_principal')::boolean, false)",
+      "coalesce((u.raw_app_meta_data ->> 'bsb_service_principal')::boolean, false)",
     );
     expect(sql).toContain("u.banned_until > now() + interval '50 years'");
     expect(sql).toContain(

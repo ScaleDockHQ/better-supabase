@@ -860,7 +860,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Live query table without change broadcasts",
     description:
-      "A table in `realtime.tables` has no `bs_realtime` trigger, so live queries never hear about its changes.",
+      "A table in `realtime.tables` has no `bsb_realtime` trigger, so live queries never hear about its changes.",
     check: (context) => {
       const tables = catalogOf(context).tables;
 
@@ -879,9 +879,7 @@ const OWN_RULES: readonly Rule[] = [
         }
 
         if (
-          table.triggers.some((trigger) =>
-            trigger.name.startsWith("bs_realtime"),
-          )
+          table.triggers.some((trigger) => /^bsb?_realtime/.test(trigger.name))
         ) {
           return [];
         }

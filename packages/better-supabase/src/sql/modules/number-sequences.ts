@@ -659,7 +659,7 @@ function periodTriggers(ctx: ModuleContext, item: SequenceEntity): string {
         ctx,
         item,
         from,
-        `bs_sync_number_period_${item.name}${index === 0 ? "" : "_format"}`,
+        `bsb_sync_number_period_${item.name}${index === 0 ? "" : "_format"}`,
       ),
     )
     .join("\n");
@@ -875,7 +875,7 @@ function trigger(ctx: ModuleContext, item: SequenceEntity): string {
       ? undefined
       : sqlIdent(item.sequenceColumn);
 
-  const fn = sqlIdent(`bs_assign_number_${item.name}`);
+  const fn = sqlIdent(`bsb_assign_number_${item.name}`);
 
   const manual = fail(
     "NUMBER_MANUAL",

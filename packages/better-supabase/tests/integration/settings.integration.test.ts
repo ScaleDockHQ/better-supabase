@@ -41,14 +41,14 @@ describe.skipIf(!live)("settings", () => {
 
     try {
       await s.install(["organizations", "settings"], {
-        modules: { settings: { api: "bs_settings_api" } },
+        modules: { settings: { api: "bsb_settings_api" } },
       });
       const member = await s.user("member");
 
       const client = createSettings({
         settings,
         transport: sqlTransport(s.sql),
-        schema: "bs_settings_api",
+        schema: "bsb_settings_api",
       });
 
       await s.asRole(member);
@@ -56,12 +56,12 @@ describe.skipIf(!live)("settings", () => {
       expect(await client.getUser("theme").orThrow()).toBe("dark");
       expect(
         await s.value<string>(
-          "(select prosecdef::text from pg_proc where proname = 'set_user_setting' and pronamespace = 'bs_settings_api'::regnamespace)",
+          "(select prosecdef::text from pg_proc where proname = 'set_user_setting' and pronamespace = 'bsb_settings_api'::regnamespace)",
         ),
       ).toBe("false");
       await s.asRole("anon");
       expect(
-        await s.hint("select bs_settings_api.get_user_settings()"),
+        await s.hint("select bsb_settings_api.get_user_settings()"),
       ).toContain("permission denied");
     } finally {
       await s.close();
@@ -139,7 +139,7 @@ describe.skipIf(!live)("settings", () => {
       // The check constraint stays, for rows written with triggers off.
       await s.client.query("savepoint json");
       await s.client.query("set local session_replication_role = replica");
-      expect(await s.hint(insert)).toMatch(/bs_json_value_seats/);
+      expect(await s.hint(insert)).toMatch(/bsb_json_value_seats/);
       await s.client.query("rollback to savepoint json");
 
       await s.asRole(owner);

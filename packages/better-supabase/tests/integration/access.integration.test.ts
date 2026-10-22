@@ -169,7 +169,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
           own: await answers({}),
           delegated: await answers({ client_id: "c", scope: "members:write" }),
           unmapped: await answers({ client_id: "c", scope: "audit.read" }),
-          capped: await answers({ bs_permission_cap: ["members.invite"] }),
+          capped: await answers({ bsb_permission_cap: ["members.invite"] }),
           support: await answers({ act: { kind: "support", sub: "a" } }),
         };
       },
@@ -189,27 +189,27 @@ describe.skipIf(!live)("access contract against the local database", () => {
 
   it("adopts a CentraKit-shaped catalog: deny overrides, platform roles, disabled tenants and a resolved tenant", async () => {
     const setup = `
-      create table public.bs_access_organizations (id uuid primary key, disabled_at timestamptz);
-      create table public.bs_access_roles (id uuid primary key, key text not null);
-      create table public.bs_access_permissions (id uuid primary key, key text not null unique);
-      create table public.bs_access_role_permissions (role_id uuid, permission_id uuid, primary key (role_id, permission_id));
-      create table public.bs_access_overrides (organization_id uuid, role_id uuid, permission_id uuid, granted boolean not null, primary key (organization_id, role_id, permission_id));
-      create table public.bs_access_user_roles (user_id uuid, role_id uuid, primary key (user_id, role_id));
-      create table public.bs_access_organization_users (user_id uuid, organization_id uuid, role_id uuid, created_at timestamptz default now(), unique (user_id, organization_id));
-      insert into public.bs_access_organizations values ('${ORG}', null);
-      insert into public.bs_access_roles values ('${ADMIN_ROLE}', 'admin'), ('${SUPPORT_ROLE}', 'system-support');
-      insert into public.bs_access_permissions values ('${INVITE}', 'organization.members.invite'), ('${BILLING}', 'organization.billing.manage'), ('${USERS_MANAGE}', 'system.users.manage');
-      insert into public.bs_access_role_permissions values ('${ADMIN_ROLE}', '${INVITE}'), ('${ADMIN_ROLE}', '${BILLING}'), ('${SUPPORT_ROLE}', '${USERS_MANAGE}');
-      insert into public.bs_access_overrides values ('${ORG}', '${ADMIN_ROLE}', '${BILLING}', false);
-      insert into public.bs_access_user_roles values ('${USER}', '${SUPPORT_ROLE}');
-      insert into public.bs_access_organization_users (user_id, organization_id, role_id) values ('${USER}', '${ORG}', '${ADMIN_ROLE}');
+      create table public.bsb_access_organizations (id uuid primary key, disabled_at timestamptz);
+      create table public.bsb_access_roles (id uuid primary key, key text not null);
+      create table public.bsb_access_permissions (id uuid primary key, key text not null unique);
+      create table public.bsb_access_role_permissions (role_id uuid, permission_id uuid, primary key (role_id, permission_id));
+      create table public.bsb_access_overrides (organization_id uuid, role_id uuid, permission_id uuid, granted boolean not null, primary key (organization_id, role_id, permission_id));
+      create table public.bsb_access_user_roles (user_id uuid, role_id uuid, primary key (user_id, role_id));
+      create table public.bsb_access_organization_users (user_id uuid, organization_id uuid, role_id uuid, created_at timestamptz default now(), unique (user_id, organization_id));
+      insert into public.bsb_access_organizations values ('${ORG}', null);
+      insert into public.bsb_access_roles values ('${ADMIN_ROLE}', 'admin'), ('${SUPPORT_ROLE}', 'system-support');
+      insert into public.bsb_access_permissions values ('${INVITE}', 'organization.members.invite'), ('${BILLING}', 'organization.billing.manage'), ('${USERS_MANAGE}', 'system.users.manage');
+      insert into public.bsb_access_role_permissions values ('${ADMIN_ROLE}', '${INVITE}'), ('${ADMIN_ROLE}', '${BILLING}'), ('${SUPPORT_ROLE}', '${USERS_MANAGE}');
+      insert into public.bsb_access_overrides values ('${ORG}', '${ADMIN_ROLE}', '${BILLING}', false);
+      insert into public.bsb_access_user_roles values ('${USER}', '${SUPPORT_ROLE}');
+      insert into public.bsb_access_organization_users (user_id, organization_id, role_id) values ('${USER}', '${ORG}', '${ADMIN_ROLE}');
     `;
 
     const layout: ModuleLayout = {
       modules: {
         tenant: {
           mode: "adopt",
-          tables: { memberships: "public.bs_access_organization_users" },
+          tables: { memberships: "public.bsb_access_organization_users" },
           columns: {
             memberships: {
               tenant: "organization_id",
@@ -222,14 +222,14 @@ describe.skipIf(!live)("access contract against the local database", () => {
           mode: "adopt",
           model: "catalog",
           tables: {
-            roles: "public.bs_access_roles",
-            permissions: "public.bs_access_permissions",
-            rolePermissions: "public.bs_access_role_permissions",
-            overrides: "public.bs_access_overrides",
-            platformAssignments: "public.bs_access_user_roles",
+            roles: "public.bsb_access_roles",
+            permissions: "public.bsb_access_permissions",
+            rolePermissions: "public.bsb_access_role_permissions",
+            overrides: "public.bsb_access_overrides",
+            platformAssignments: "public.bsb_access_user_roles",
           },
           columns: { overrides: { tenant: "organization_id" } },
-          disabled: { tenant: "public.bs_access_organizations.disabled_at" },
+          disabled: { tenant: "public.bsb_access_organizations.disabled_at" },
           activeTenant: "resolver",
         },
       },
@@ -261,7 +261,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
         ]);
 
         await client.query(
-          "update public.bs_access_organizations set disabled_at = now() where id = $1",
+          "update public.bsb_access_organizations set disabled_at = now() where id = $1",
           [ORG],
         );
 
@@ -321,23 +321,23 @@ describe.skipIf(!live)("access contract against the local database", () => {
 
     const row = await inTransaction(
       pool,
-      `create table public.bs_active_tenants (id uuid primary key, state text not null);
-       create table public.bs_active_users (id uuid primary key, banned_at timestamptz);
-       insert into public.bs_active_tenants values ('${ORG}', 'active'), ('${SUSPENDED}', 'closed');
-       insert into public.bs_active_users values ('${USER}', null);`,
+      `create table public.bsb_active_tenants (id uuid primary key, state text not null);
+       create table public.bsb_active_users (id uuid primary key, banned_at timestamptz);
+       insert into public.bsb_active_tenants values ('${ORG}', 'active'), ('${SUSPENDED}', 'closed');
+       insert into public.bsb_active_users values ('${USER}', null);`,
       ["access"],
       {
         modules: {
           access: {
             disabled: {
               tenant: {
-                table: "public.bs_active_tenants",
+                table: "public.bsb_active_tenants",
                 id: "id",
                 status: "state",
                 active: ["active", "trial"],
               },
               user: {
-                table: "public.bs_active_users",
+                table: "public.bsb_active_users",
                 id: "id",
                 disabledAt: "banned_at",
               },
@@ -359,7 +359,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
 
         const before = await read();
         await client.query(
-          "update public.bs_active_users set banned_at = now() where id = $1",
+          "update public.bsb_active_users set banned_at = now() where id = $1",
           [USER],
         );
 
@@ -379,18 +379,18 @@ describe.skipIf(!live)("access contract against the local database", () => {
   it("wraps the app's own functions in the custom model", async () => {
     const row = await inTransaction(
       pool,
-      `create function public.bs_access_can(scope text, id uuid, perm text) returns boolean language sql as $$ select perm = 'ok' $$;
-       create function public.bs_access_ids(perm text) returns setof uuid language sql as $$ select '${ORG}'::uuid where perm = 'ok' $$;
-       create function public.bs_access_platform(perm text) returns boolean language sql as $$ select perm = 'ok' $$;`,
+      `create function public.bsb_access_can(scope text, id uuid, perm text) returns boolean language sql as $$ select perm = 'ok' $$;
+       create function public.bsb_access_ids(perm text) returns setof uuid language sql as $$ select '${ORG}'::uuid where perm = 'ok' $$;
+       create function public.bsb_access_platform(perm text) returns boolean language sql as $$ select perm = 'ok' $$;`,
       ["access"],
       {
         modules: {
           access: {
             model: "custom",
             functions: {
-              can: "public.bs_access_can({scope}, {id}, {permission})",
-              tenantIdsWith: "public.bs_access_ids({permission})",
-              isPlatform: "public.bs_access_platform({permission})",
+              can: "public.bsb_access_can({scope}, {id}, {permission})",
+              tenantIdsWith: "public.bsb_access_ids({permission})",
+              isPlatform: "public.bsb_access_platform({permission})",
               canAssign: "{role} <> 'owner'",
             },
           },

@@ -453,7 +453,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("stores catalog role ids and resolves role keys", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_catalog_${USERS.owner.slice(0, 8)}`;
+    const schema = `bsb_catalog_${USERS.owner.slice(0, 8)}`;
     const module = { schema };
 
     try {
@@ -554,7 +554,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("reads role names through a roles table with roleThrough", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_through_${USERS.owner.slice(0, 8)}`;
+    const schema = `bsb_through_${USERS.owner.slice(0, 8)}`;
 
     const ids = {
       owner: "00000000-0000-4000-8000-00000000e001",
@@ -679,7 +679,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("leaves the memberships table to an external guard", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_guard_${USERS.owner.slice(0, 8)}`;
+    const schema = `bsb_guard_${USERS.owner.slice(0, 8)}`;
 
     try {
       await client.query("begin");
@@ -722,7 +722,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       expect(
         await s.value(
-          `(select count(*)::int from pg_trigger where tgrelid = '${schema}.team_members'::regclass and tgname = 'bs_organization_role_guard')`,
+          `(select count(*)::int from pg_trigger where tgrelid = '${schema}.team_members'::regclass and tgname = 'bsb_organization_role_guard')`,
         ),
       ).toBe(0);
       await s.as("owner");
@@ -752,7 +752,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("invites to platform roles under the provider model", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_authzplat_${USERS.owner.slice(0, 8)}`;
+    const schema = `bsb_authzplat_${USERS.owner.slice(0, 8)}`;
     const support = "00000000-0000-4000-8000-00000000d001";
 
     try {
@@ -867,7 +867,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("checks a platform invitation's inviter, not the invitee, and accepts or declines by id", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_authzbyid_${USERS.owner.slice(0, 8)}`;
+    const schema = `bsb_authzbyid_${USERS.owner.slice(0, 8)}`;
     const support = "00000000-0000-4000-8000-00000000e001";
     const organization = crypto.randomUUID();
 
@@ -1060,7 +1060,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("checks the inviter again at accept through the provider's _for templates", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_authzfor_${USERS.owner.slice(0, 8)}`;
+    const schema = `bsb_authzfor_${USERS.owner.slice(0, 8)}`;
     const organization = crypto.randomUUID();
 
     try {
@@ -1164,7 +1164,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("writes api entry points for the functions only, not the guard helper", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const api = `bs_api_${USERS.owner.slice(0, 8)}`;
+    const api = `bsb_api_${USERS.owner.slice(0, 8)}`;
 
     try {
       await client.query("begin");
@@ -1352,7 +1352,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("merges the preview hook, reserves the app's slugs and lets platform staff delete", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_extra_${USERS.owner.slice(0, 8)}`;
+    const schema = `bsb_extra_${USERS.owner.slice(0, 8)}`;
 
     try {
       await client.query("begin");
@@ -1493,7 +1493,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("caps platform and tenant invitations at the inviter's authority, then and at accept", async () => {
     const client = await pool.connect();
     const s = new Session(client);
-    const schema = `bs_platform_${USERS.owner.slice(0, 8)}`;
+    const schema = `bsb_platform_${USERS.owner.slice(0, 8)}`;
     const module = { schema };
     const role = (n: number) => `00000000-0000-4000-8000-00000000f00${n}`;
     const permission = (n: number) => `00000000-0000-4000-8000-00000000f10${n}`;

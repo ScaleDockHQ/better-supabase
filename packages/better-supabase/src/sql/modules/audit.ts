@@ -278,7 +278,7 @@ function managedTables(ctx: ModuleContext, restricted: boolean): string {
   const op = ctx.has("log", "op")
     ? `
 alter table ${log} drop constraint if exists audit_log_op_check;
-${ensureCheck(log, "bs_audit_op_check", `${c("op")} in ('insert', 'update', 'delete', 'event')`)}`
+${ensureCheck(log, "bsb_audit_op_check", `${c("op")} in ('insert', 'update', 'delete', 'event')`)}`
     : "";
 
   const table = ctx.has("log", "table")
@@ -850,7 +850,7 @@ function readPolicy(ctx: ModuleContext): string {
 
   if (!ctx.flag("readPolicy", false)) {
     return ctx.manages
-      ? `drop policy if exists bs_audit_read on ${log};
+      ? `drop policy if exists bsb_audit_read on ${log};
 drop function if exists ${ctx.fn("audit_read_tenants")}();
 drop function if exists ${ctx.fn("audit_reads_all")}();`
       : "";
@@ -902,8 +902,8 @@ revoke execute on function ${ctx.fn("audit_read_tenants")}() from public, anon;
 revoke execute on function ${ctx.fn("audit_reads_all")}() from public, anon;
 grant execute on function ${ctx.fn("audit_read_tenants")}() to authenticated, service_role;
 grant execute on function ${ctx.fn("audit_reads_all")}() to authenticated, service_role;
-drop policy if exists bs_audit_read on ${log};
-create policy bs_audit_read on ${log} for select to authenticated
+drop policy if exists bsb_audit_read on ${log};
+create policy bsb_audit_read on ${log} for select to authenticated
   using (
     ${c("tenant")} in (select ${ctx.fn("audit_read_tenants")}())
     or (select ${ctx.fn("audit_reads_all")}())
@@ -1032,7 +1032,7 @@ export const AUDIT: ModuleDefinition = {
     },
   ],
   build: auditSql,
-  data: () => `-- Registrations of tables dropped before bs_audit_forget_dropped existed.
+  data: () => `-- Registrations of tables dropped before bsb_audit_forget_dropped existed.
 delete from better_supabase.audited_tables a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);`,
   tests: (ctx, layout) =>

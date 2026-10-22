@@ -321,7 +321,7 @@ begin
     end loop;
   end if;
   perform better_supabase.replace_equivalent_triggers(
-    target, 'bs_audit', 'audit', replace_trigger
+    target, 'bsb_audit', 'audit', replace_trigger
   );
   select array_agg(c.attname::text order by k.ord) into keys
   from pg_catalog.pg_index i
@@ -341,20 +341,20 @@ begin
     'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,
     'tenant_function', audit.tenant_function::text
   ));
-  execute format('drop trigger if exists bs_audit on %s', target);
-  execute format('drop trigger if exists bs_audit_update on %s', target);
+  execute format('drop trigger if exists bsb_audit on %s', target);
+  execute format('drop trigger if exists bsb_audit_update on %s', target);
   if cardinality(coalesce(audit.ignore, '{}')) > 0 then
     execute format(
-      'create trigger bs_audit after insert or delete on %s for each row execute function better_supabase.audit_row_change(%L)',
+      'create trigger bsb_audit after insert or delete on %s for each row execute function better_supabase.audit_row_change(%L)',
       target, base_settings::text
     );
     execute format(
-      'create trigger bs_audit_update after update on %s for each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
+      'create trigger bsb_audit_update after update on %s for each row when ((to_jsonb(old) - %L::text[]) is distinct from (to_jsonb(new) - %L::text[])) execute function better_supabase.audit_row_change(%L)',
       target, audit.ignore, audit.ignore, base_settings::text
     );
   else
     execute format(
-      'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change(%L)',
+      'create trigger bsb_audit after insert or update or delete on %s for each row execute function better_supabase.audit_row_change(%L)',
       target, base_settings::text
     );
   end if;
@@ -370,7 +370,7 @@ as $$
   select coalesce(
     (select convert_from(substring(t.tgargs from 1 for position('\x00'::bytea in t.tgargs) - 1), 'utf8')::jsonb
      from pg_catalog.pg_trigger t
-     where t.tgrelid = audit_settings.target and t.tgname = 'bs_audit' and t.tgnargs > 0),
+     where t.tgrelid = audit_settings.target and t.tgname = 'bsb_audit' and t.tgnargs > 0),
     (select jsonb_strip_nulls(jsonb_build_object(
        'ignore', to_jsonb(a.ignore), 'redact', to_jsonb(a.redact), 'key_columns', to_jsonb(a.key_columns),
        'category', a.category, 'event_prefix', a.event_prefix, 'target_type', a.target_type,
@@ -385,8 +385,8 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_audit on %s', target);
-  execute format('drop trigger if exists bs_audit_update on %s', target);
+  execute format('drop trigger if exists bsb_audit on %s', target);
+  execute format('drop trigger if exists bsb_audit_update on %s', target);
   delete from better_supabase.audited_tables a where a.target = unaudit.target;
 end;
 $$;
@@ -421,8 +421,8 @@ begin
 end;
 $$;
 
-drop event trigger if exists bs_audit_forget_dropped;
-create event trigger bs_audit_forget_dropped on sql_drop
+drop event trigger if exists bsb_audit_forget_dropped;
+create event trigger bsb_audit_forget_dropped on sql_drop
   when tag in ('DROP TABLE', 'DROP SCHEMA')
   execute function better_supabase.audit_forget_dropped();
 
@@ -483,7 +483,7 @@ begin
       )
       and not exists (select 1 from unnest(exempt) e where c.relname like e)
       and not exists (
-        select 1 from pg_catalog.pg_trigger t where t.tgrelid = c.oid and t.tgname = 'bs_audit'
+        select 1 from pg_catalog.pg_trigger t where t.tgrelid = c.oid and t.tgname = 'bsb_audit'
       )
     order by c.relname
   loop
@@ -754,8 +754,8 @@ $$;
 revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
 grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
 
-drop trigger if exists "bs_audit_append_only" on "centrakit"."audit_logs";
-drop trigger if exists "bs_audit_no_truncate" on "centrakit"."audit_logs";
+drop trigger if exists "bsb_audit_append_only" on "centrakit"."audit_logs";
+drop trigger if exists "bsb_audit_no_truncate" on "centrakit"."audit_logs";
 
 -- Members read their tenant's entries with the audit.view permission;
 -- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
@@ -784,8 +784,8 @@ revoke execute on function "better_supabase"."audit_read_tenants"() from public,
 revoke execute on function "better_supabase"."audit_reads_all"() from public, anon;
 grant execute on function "better_supabase"."audit_read_tenants"() to authenticated, service_role;
 grant execute on function "better_supabase"."audit_reads_all"() to authenticated, service_role;
-drop policy if exists bs_audit_read on "centrakit"."audit_logs";
-create policy bs_audit_read on "centrakit"."audit_logs" for select to authenticated
+drop policy if exists bsb_audit_read on "centrakit"."audit_logs";
+create policy bsb_audit_read on "centrakit"."audit_logs" for select to authenticated
   using (
     "organization_id" in (select "better_supabase"."audit_read_tenants"())
     or (select "better_supabase"."audit_reads_all"())

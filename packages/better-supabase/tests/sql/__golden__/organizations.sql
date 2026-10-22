@@ -54,15 +54,15 @@ create table if not exists "better_supabase"."organizations" (
 create unique index if not exists organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
 alter table "better_supabase"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."organizations";
-create trigger bs_updated_at before update on "better_supabase"."organizations"
+drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
+create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
 revoke all on "better_supabase"."organizations" from anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
-drop policy if exists bs_organizations_read on "better_supabase"."organizations";
-create policy bs_organizations_read on "better_supabase"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
+create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -262,8 +262,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -315,8 +315,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 
@@ -808,8 +808,8 @@ create table if not exists "better_supabase"."organizations" (
 create unique index if not exists organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
 alter table "better_supabase"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."organizations";
-create trigger bs_updated_at before update on "better_supabase"."organizations"
+drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
+create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- The Stripe customer the entitlements module reads (config.entitlements.customer).
 alter table "better_supabase"."organizations" add column if not exists stripe_customer_id text unique;
@@ -817,8 +817,8 @@ alter table "better_supabase"."organizations" enable row level security;
 revoke all on "better_supabase"."organizations" from anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
-drop policy if exists bs_organizations_read on "better_supabase"."organizations";
-create policy bs_organizations_read on "better_supabase"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
+create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -1059,8 +1059,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -1112,8 +1112,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 
@@ -1681,15 +1681,15 @@ create table if not exists "app_private"."organizations" (
 create unique index if not exists organizations_slug_idx on "app_private"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists organizations_created_by_idx on "app_private"."organizations" ("created_by");
 alter table "app_private"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."organizations";
-create trigger bs_updated_at before update on "app_private"."organizations"
+drop trigger if exists bsb_updated_at on "app_private"."organizations";
+create trigger bsb_updated_at before update on "app_private"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."organizations" enable row level security;
 revoke all on "app_private"."organizations" from anon, authenticated;
 grant select on "app_private"."organizations" to authenticated;
 grant all on "app_private"."organizations" to service_role;
-drop policy if exists bs_organizations_read on "app_private"."organizations";
-create policy bs_organizations_read on "app_private"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_read on "app_private"."organizations";
+create policy bsb_organizations_read on "app_private"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -1889,8 +1889,8 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "app_private"."ensure_organization_owner"();
 
@@ -1942,8 +1942,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "app_private"."guard_membership"();
 revoke execute on function "app_private"."guard_membership"() from public, anon, authenticated;
 
@@ -2435,15 +2435,15 @@ create table if not exists "better_supabase"."organizations" (
 create unique index if not exists organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
 alter table "better_supabase"."organizations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."organizations";
-create trigger bs_updated_at before update on "better_supabase"."organizations"
+drop trigger if exists bsb_updated_at on "better_supabase"."organizations";
+create trigger bsb_updated_at before update on "better_supabase"."organizations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."organizations" enable row level security;
 revoke all on "better_supabase"."organizations" from anon, authenticated;
 grant select on "better_supabase"."organizations" to authenticated;
 grant all on "better_supabase"."organizations" to service_role;
-drop policy if exists bs_organizations_read on "better_supabase"."organizations";
-create policy bs_organizations_read on "better_supabase"."organizations" for select to authenticated
+drop policy if exists bsb_organizations_read on "better_supabase"."organizations";
+create policy bsb_organizations_read on "better_supabase"."organizations" for select to authenticated
   using ("id" in (select better_supabase.member_organization_ids()));
 
 do $$
@@ -2643,8 +2643,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -2696,8 +2696,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 
@@ -3518,8 +3518,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_organization_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_organization_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_organization_owner" after update of "role", "organization_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_organization_owner"();
 
@@ -3571,8 +3571,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_organization_role_guard" on "better_supabase"."memberships";
-create trigger "bs_organization_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_organization_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_organization_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 

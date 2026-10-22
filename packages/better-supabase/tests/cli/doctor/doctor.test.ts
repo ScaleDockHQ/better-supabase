@@ -119,7 +119,7 @@ describe("doctor rules", () => {
     catalog.realtime = ["public.tags", "public.customers"];
     table(catalog.tables as CatalogTable[], "tags").replicaIdentity = "NOTHING";
     edit(table(catalog.tables as CatalogTable[], "notes").triggers).push({
-      name: "bs_realtime",
+      name: "bsb_realtime",
       timing: "after",
       events: ["insert", "update", "delete"],
       level: "statement",
@@ -367,7 +367,7 @@ describe("doctor rules", () => {
     };
 
     const updatePolicy = {
-      name: "bs_memberships_update_own",
+      name: "bsb_memberships_update_own",
       command: "update" as const,
       roles: ["authenticated"],
       permissive: true,

@@ -96,9 +96,9 @@ as $$
 begin
   insert into better_supabase.audited_tables as a (target, ignore) values (audit.target, audit.ignore)
   on conflict on constraint audited_tables_pkey do update set ignore = excluded.ignore;
-  execute format('drop trigger if exists bs_audit on %s', target);
+  execute format('drop trigger if exists bsb_audit on %s', target);
   execute format(
-    'create trigger bs_audit after insert or update or delete on %s for each row execute function better_supabase.audit_trigger()',
+    'create trigger bsb_audit after insert or update or delete on %s for each row execute function better_supabase.audit_trigger()',
     target
   );
 end;
@@ -110,7 +110,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  execute format('drop trigger if exists bs_audit on %s', target);
+  execute format('drop trigger if exists bsb_audit on %s', target);
   delete from better_supabase.audited_tables a where a.target = unaudit.target;
 end;
 $$;

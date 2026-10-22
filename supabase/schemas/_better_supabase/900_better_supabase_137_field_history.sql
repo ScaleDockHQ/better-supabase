@@ -31,7 +31,7 @@ create policy field_changes_read on "better_supabase"."field_changes" for select
 using ("tenant_id" in (select better_supabase.tenant_ids_with('history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
 -- Keeps the old and new value of each watched column of a deal on update.
-create or replace function better_supabase.bs_field_history_deal()
+create or replace function better_supabase.bsb_field_history_deal()
 returns trigger
 language plpgsql
 security definer
@@ -50,13 +50,13 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_field_history_deal() from public, anon, authenticated;
-drop trigger if exists bs_field_history_deal on "better_supabase"."deals";
-create trigger bs_field_history_deal after update of "amount", "stage_id", "owner_user_id", "expected_close_on" on "better_supabase"."deals"
-for each row execute function better_supabase.bs_field_history_deal();
+revoke execute on function better_supabase.bsb_field_history_deal() from public, anon, authenticated;
+drop trigger if exists bsb_field_history_deal on "better_supabase"."deals";
+create trigger bsb_field_history_deal after update of "amount", "stage_id", "owner_user_id", "expected_close_on" on "better_supabase"."deals"
+for each row execute function better_supabase.bsb_field_history_deal();
 
 -- Keeps the old and new value of each watched column of a company on update.
-create or replace function better_supabase.bs_field_history_company()
+create or replace function better_supabase.bsb_field_history_company()
 returns trigger
 language plpgsql
 security definer
@@ -73,10 +73,10 @@ begin
   return null;
 end;
 $$;
-revoke execute on function better_supabase.bs_field_history_company() from public, anon, authenticated;
-drop trigger if exists bs_field_history_company on "better_supabase"."companies";
-create trigger bs_field_history_company after update of "owner_user_id", "lifecycle" on "better_supabase"."companies"
-for each row execute function better_supabase.bs_field_history_company();
+revoke execute on function better_supabase.bsb_field_history_company() from public, anon, authenticated;
+drop trigger if exists bsb_field_history_company on "better_supabase"."companies";
+create trigger bsb_field_history_company after update of "owner_user_id", "lifecycle" on "better_supabase"."companies"
+for each row execute function better_supabase.bsb_field_history_company();
 
 -- A record's changes, newest first, optionally of one field. before is the id
 -- of the last change of the previous page. Needs history.read and read access

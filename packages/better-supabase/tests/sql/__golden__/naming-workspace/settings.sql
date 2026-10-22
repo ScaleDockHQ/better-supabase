@@ -263,9 +263,9 @@ grant execute on function "better_supabase"."reset_workspace_setting"(uuid, text
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
-drop trigger if exists "bs_record_workspace_setting" on "better_supabase"."workspace_settings";
+drop trigger if exists "bsb_record_workspace_setting" on "better_supabase"."workspace_settings";
 drop function if exists "better_supabase"."record_workspace_setting"();
-drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
+drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
 drop function if exists "better_supabase"."record_platform_setting"();
 
 create schema if not exists better_supabase;

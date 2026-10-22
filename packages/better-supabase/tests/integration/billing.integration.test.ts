@@ -206,12 +206,12 @@ describe.skipIf(!live)("billing", () => {
 
     try {
       await s.rows(
-        `create table public.bs_test_plan_prices (
+        `create table public.bsb_test_plan_prices (
            plan_key text not null, billing_interval text not null,
            price_id text not null, live boolean not null default true,
            pack text
          );
-         insert into public.bs_test_plan_prices values
+         insert into public.bsb_test_plan_prices values
            ('pro', 'month', 'price_pro_m', true, null),
            ('pro', 'year', 'price_pro_y', true, null),
            ('old', 'month', 'price_old', false, null),
@@ -224,7 +224,7 @@ describe.skipIf(!live)("billing", () => {
           billing: {
             options: {
               plans: {
-                table: "bs_test_plan_prices",
+                table: "bsb_test_plan_prices",
                 key: "plan_key",
                 price: "price_id",
                 interval: "billing_interval",
@@ -484,7 +484,7 @@ describe.skipIf(!live)("billing", () => {
 
   it("reads a tenant's subscription for the app's definer functions only", async () => {
     const s = await BlockSession.open(pool);
-    const fn = `public.bs_plan_of_${crypto.randomUUID().slice(0, 8)}`;
+    const fn = `public.bsb_plan_of_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       await s.install(["organizations", "billing"]);
@@ -724,7 +724,7 @@ describe.skipIf(!live)("billing", () => {
         await refused(
           "insert into better_supabase.billing_customers (organization_id) values ($1)",
         ),
-      ).toMatch(/bs_billing_customers_party/);
+      ).toMatch(/bsb_billing_customers_party/);
       expect(
         await refused(
           "select better_supabase.link_billing_account($1, 'cus_not_an_account')",

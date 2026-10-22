@@ -4,10 +4,10 @@ import type { ModuleTestFile } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 
-const PROBE = "pg_temp.bs_audit_probe";
+const PROBE = "pg_temp.bsb_audit_probe";
 
 const PROBE_NAME =
-  "(select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bs_audit_probe'";
+  "(select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bsb_audit_probe'";
 
 const textArray = (names: readonly string[]): string =>
   `${sqlString(`{${names.map((name) => `"${name.replaceAll('"', '\\"')}"`).join(",")}}`)}::text[]`;
@@ -29,7 +29,7 @@ const quotedTarget = (target: string): string => {
  */
 const probe = (
   table: AuditedTable,
-): string => `create temp table bs_audit_probe (like ${quotedTarget(table.target)} including defaults including identity including generated) on commit drop;
+): string => `create temp table bsb_audit_probe (like ${quotedTarget(table.target)} including defaults including identity including generated) on commit drop;
 do $$
 declare
   col record;
@@ -89,8 +89,8 @@ function auditTableTest(
   const c = (logical: string) => ctx.col("log", logical);
 
   const checks: string[] = [
-    `select extensions.has_trigger(${schema}, ${name}, 'bs_audit', ${sqlString(`${table.target} has the bs_audit trigger`)});`,
-    `select extensions.trigger_is(${schema}, ${name}, 'bs_audit', 'better_supabase', 'audit_row_change', ${sqlString(`bs_audit on ${table.target} calls audit_row_change()`)});`,
+    `select extensions.has_trigger(${schema}, ${name}, 'bsb_audit', ${sqlString(`${table.target} has the bsb_audit trigger`)});`,
+    `select extensions.trigger_is(${schema}, ${name}, 'bsb_audit', 'better_supabase', 'audit_row_change', ${sqlString(`bsb_audit on ${table.target} calls audit_row_change()`)});`,
     `select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings(${regclass}) -> 'ignore', '[]'))), ${textArray(table.ignore)}, ${sqlString(`${table.target} is registered with its ignored columns`)});`,
     `select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings(${regclass}) -> 'redact', '[]'))), ${textArray(table.redact)}, ${sqlString(`${table.target} is registered with its redacted columns`)});`,
   ];

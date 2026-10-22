@@ -174,8 +174,8 @@ alter table ${sessions} enable row level security;
 ${revokeTable(sessions)}
 grant select on ${sessions} to service_role;
 -- Platform staff read every session.
-drop policy if exists bs_support_read on ${sessions};
-create policy bs_support_read on ${sessions} for select to authenticated
+drop policy if exists bsb_support_read on ${sessions};
+create policy bsb_support_read on ${sessions} for select to authenticated
   using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
 grant select on ${sessions} to authenticated;
 `;
@@ -256,8 +256,8 @@ alter table ${requests} enable row level security;
 ${revokeTable(requests)}
 grant select on ${requests} to service_role;
 -- The requester reads their own requests; platform staff read every one.
-drop policy if exists bs_support_requests_read on ${requests};
-create policy bs_support_requests_read on ${requests} for select to authenticated
+drop policy if exists bsb_support_requests_read on ${requests};
+create policy bsb_support_requests_read on ${requests} for select to authenticated
   using (${c("admin")} = (select auth.uid())
     or (select ${isPlatform}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
 grant select on ${requests} to authenticated;

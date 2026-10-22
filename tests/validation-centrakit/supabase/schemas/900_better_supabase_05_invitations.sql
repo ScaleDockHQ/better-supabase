@@ -64,8 +64,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."platform_role_scope"() from public, anon, authenticated;
-drop trigger if exists "bs_role_scope" on "centrakit"."user_roles";
-create trigger "bs_role_scope" before insert or update of "role_id" on "centrakit"."user_roles"
+drop trigger if exists "bsb_role_scope" on "centrakit"."user_roles";
+create trigger "bsb_role_scope" before insert or update of "role_id" on "centrakit"."user_roles"
   for each row execute function "better_supabase"."platform_role_scope"();
 
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an

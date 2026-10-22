@@ -766,7 +766,7 @@ export function defineTopic<
       : splitTable(table);
 
     const target = `${sqlIdent(schema)}.${sqlIdent(relation)}`;
-    const triggerName = `bs_broadcast_${name}`;
+    const triggerName = `bsb_broadcast_${name}`;
     const extra = trigger.topics ?? [];
     const { payload } = trigger;
 
@@ -921,7 +921,7 @@ export function defineTopic<
     return triggerFunctionSql({
       subject: meta ? meta.name : `${schema}.${relation}`,
       functionSchema: trigger.functionSchema ?? "better_supabase",
-      functionName: `bs_broadcast_${name}_${slug(schema)}_${slug(relation)}`,
+      functionName: `bsb_broadcast_${name}_${slug(schema)}_${slug(relation)}`,
       triggerName,
       target,
       events,
@@ -992,7 +992,7 @@ export function defineTopic<
       }
 
       for (const [suffix, command, clause, check] of policies) {
-        const policy = sqlIdent(`bs_topic_${name}_${suffix}`);
+        const policy = sqlIdent(`bsb_topic_${name}_${suffix}`);
         lines.push(
           `drop policy if exists ${policy} on realtime.messages;`,
           `create policy ${policy} on realtime.messages for ${command} to authenticated\n  ${clause} (\n    ${check}\n  );`,

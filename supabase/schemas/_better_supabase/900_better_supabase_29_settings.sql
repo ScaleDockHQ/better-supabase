@@ -298,8 +298,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."record_organization_setting"() from public, anon, authenticated;
-drop trigger if exists "bs_record_organization_setting" on "better_supabase"."organization_settings";
-create trigger "bs_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
+drop trigger if exists "bsb_record_organization_setting" on "better_supabase"."organization_settings";
+create trigger "bsb_record_organization_setting" after insert or update or delete on "better_supabase"."organization_settings"
   for each row execute function "better_supabase"."record_organization_setting"();
 create or replace function "better_supabase"."record_platform_setting"()
 returns trigger
@@ -335,8 +335,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."record_platform_setting"() from public, anon, authenticated;
-drop trigger if exists "bs_record_platform_setting" on "better_supabase"."platform_settings";
-create trigger "bs_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
+drop trigger if exists "bsb_record_platform_setting" on "better_supabase"."platform_settings";
+create trigger "bsb_record_platform_setting" after insert or update or delete on "better_supabase"."platform_settings"
   for each row execute function "better_supabase"."record_platform_setting"();
 
 -- blocks.settings.api: entry points for the Data API.

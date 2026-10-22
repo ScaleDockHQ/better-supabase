@@ -28,7 +28,7 @@ const MODULES = [
  * a private one only its owner.
  */
 async function recordTable(s: BlockSession, name: string): Promise<string> {
-  const table = `public.bs_test_${name}_${crypto.randomUUID().slice(0, 8)}`;
+  const table = `public.bsb_test_${name}_${crypto.randomUUID().slice(0, 8)}`;
   await s.rows(
     `create table ${table} (
        id uuid primary key default gen_random_uuid(),
@@ -61,10 +61,10 @@ describe.skipIf(!live)("comments", () => {
     try {
       await client.query("begin");
       await client.query(
-        "create temporary table bs_probe (x int) on commit drop",
+        "create temporary table bsb_probe (x int) on commit drop",
       );
       await client.query("savepoint probe");
-      await expect(client.query("delete from bs_probe")).rejects.toThrow(
+      await expect(client.query("delete from bsb_probe")).rejects.toThrow(
         /DELETE requires a WHERE clause/,
       );
       await client.query("rollback to savepoint probe");
@@ -328,7 +328,7 @@ describe.skipIf(!live)("comments", () => {
 
   it("expands group mentions and keeps them to members who read comments", async () => {
     const s = await BlockSession.open(pool);
-    const teams = `public.bs_test_team_members_${crypto.randomUUID().slice(0, 8)}`;
+    const teams = `public.bsb_test_team_members_${crypto.randomUUID().slice(0, 8)}`;
 
     try {
       const table = await recordTable(s, "projects");

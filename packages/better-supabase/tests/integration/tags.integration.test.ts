@@ -17,21 +17,21 @@ describe.skipIf(!live)("tags", () => {
 
     try {
       await s.rows(
-        `create table if not exists public.bs_test_projects (
+        `create table if not exists public.bsb_test_projects (
            id uuid primary key default gen_random_uuid(),
            organization_id uuid not null,
            name text not null
          );
-         alter table public.bs_test_projects enable row level security;
-         grant select on public.bs_test_projects to authenticated;
-         drop policy if exists "read" on public.bs_test_projects;
-         create policy "read" on public.bs_test_projects for select to authenticated
+         alter table public.bsb_test_projects enable row level security;
+         grant select on public.bsb_test_projects to authenticated;
+         drop policy if exists "read" on public.bsb_test_projects;
+         create policy "read" on public.bsb_test_projects for select to authenticated
            using (better_supabase.has_organization_role(organization_id));`,
       );
       await s.install(["organizations", "tags"], {
         modules: {
           tags: {
-            options: { subjects: { project: { table: "bs_test_projects" } } },
+            options: { subjects: { project: { table: "bsb_test_projects" } } },
           },
         },
       });
@@ -41,7 +41,7 @@ describe.skipIf(!live)("tags", () => {
       const org = await s.organization(owner, { member });
 
       const [inserted] = await s.rows<{ id: string }>(
-        "insert into public.bs_test_projects (organization_id, name) values ($1, 'Apollo') returning id",
+        "insert into public.bsb_test_projects (organization_id, name) values ($1, 'Apollo') returning id",
         [org],
       );
 

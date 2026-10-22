@@ -48,8 +48,8 @@ describe("collections module", () => {
 
   it("cascades entries and stars of a deleted record when the registry asks", () => {
     const sql = sqlOf();
-    expect(sql).toContain("bs_collections_company_cascade");
-    expect(sql).not.toContain("bs_collections_deal_cascade");
+    expect(sql).toContain("bsb_collections_company_cascade");
+    expect(sql).not.toContain("bsb_collections_deal_cascade");
     expect(sql).toContain(
       `delete from "better_supabase"."favorites" where "subject_type" = v_type`,
     );

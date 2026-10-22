@@ -248,8 +248,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."drop_signing_key_vault_secret"() from public, anon, authenticated;
-drop trigger if exists "bs_signing_key_vault" on "better_supabase"."signing_keys";
-create trigger "bs_signing_key_vault" after delete on "better_supabase"."signing_keys"
+drop trigger if exists "bsb_signing_key_vault" on "better_supabase"."signing_keys";
+create trigger "bsb_signing_key_vault" after delete on "better_supabase"."signing_keys"
   for each row execute function "better_supabase"."drop_signing_key_vault_secret"();
 
 -- blocks.signing-keys.api: entry points for the Data API.

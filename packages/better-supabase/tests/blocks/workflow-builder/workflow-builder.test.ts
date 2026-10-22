@@ -552,7 +552,7 @@ describe("createWorkflowBuilder", () => {
       role: "authenticated",
       sub: "sp1",
       tenant_id: "t1",
-      bs_permission_cap: ["crm.read"],
+      bsb_permission_cap: ["crm.read"],
     });
   });
 

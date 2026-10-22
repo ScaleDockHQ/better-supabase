@@ -21,8 +21,8 @@ export const SUPABASE_API: string = "https://api.supabase.com";
 
 /** Where the session and the in-flight authorization live. */
 export const COOKIE_PATH: string = "/create/supabase";
-export const SESSION_COOKIE = "bs_supabase";
-export const FLOW_COOKIE = "bs_supabase_flow";
+export const SESSION_COOKIE = "bsb_supabase";
+export const FLOW_COOKIE = "bsb_supabase_flow";
 
 /** A flow cookie older than this is ignored, so a stale tab can't finish one. */
 export const FLOW_MAX_AGE = 600;

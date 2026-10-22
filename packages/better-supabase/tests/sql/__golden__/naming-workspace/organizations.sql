@@ -54,15 +54,15 @@ create table if not exists "better_supabase"."workspaces" (
 create unique index if not exists workspaces_slug_idx on "better_supabase"."workspaces" (lower("slug"::text)) where "deleted_at" is null;
 create index if not exists workspaces_created_by_idx on "better_supabase"."workspaces" ("created_by");
 alter table "better_supabase"."workspaces" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."workspaces";
-create trigger bs_updated_at before update on "better_supabase"."workspaces"
+drop trigger if exists bsb_updated_at on "better_supabase"."workspaces";
+create trigger bsb_updated_at before update on "better_supabase"."workspaces"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."workspaces" enable row level security;
 revoke all on "better_supabase"."workspaces" from anon, authenticated;
 grant select on "better_supabase"."workspaces" to authenticated;
 grant all on "better_supabase"."workspaces" to service_role;
-drop policy if exists bs_workspaces_read on "better_supabase"."workspaces";
-create policy bs_workspaces_read on "better_supabase"."workspaces" for select to authenticated
+drop policy if exists bsb_workspaces_read on "better_supabase"."workspaces";
+create policy bsb_workspaces_read on "better_supabase"."workspaces" for select to authenticated
   using ("id" in (select better_supabase.member_workspace_ids()));
 
 do $$
@@ -262,8 +262,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."ensure_workspace_owner"() from public, anon, authenticated;
-drop trigger if exists "bs_workspace_owner" on "better_supabase"."memberships";
-create constraint trigger "bs_workspace_owner" after update of "role", "workspace_id", "disabled_at" or delete on "better_supabase"."memberships"
+drop trigger if exists "bsb_workspace_owner" on "better_supabase"."memberships";
+create constraint trigger "bsb_workspace_owner" after update of "role", "workspace_id", "disabled_at" or delete on "better_supabase"."memberships"
   deferrable initially deferred
   for each row execute function "better_supabase"."ensure_workspace_owner"();
 
@@ -315,8 +315,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists "bs_workspace_role_guard" on "better_supabase"."memberships";
-create trigger "bs_workspace_role_guard" before insert or update on "better_supabase"."memberships"
+drop trigger if exists "bsb_workspace_role_guard" on "better_supabase"."memberships";
+create trigger "bsb_workspace_role_guard" before insert or update on "better_supabase"."memberships"
   for each row execute function "better_supabase"."guard_membership"();
 revoke execute on function "better_supabase"."guard_membership"() from public, anon, authenticated;
 

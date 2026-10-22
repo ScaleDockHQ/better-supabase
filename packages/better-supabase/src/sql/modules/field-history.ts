@@ -87,7 +87,7 @@ function bindingTrigger(
   c: (column: string) => string,
 ): string {
   const type = binding.subject.type;
-  const name = `bs_field_history_${type}`;
+  const name = `bsb_field_history_${type}`;
   const watched = binding.fields.map(sqlIdent).join(", ");
 
   const values = binding.fields

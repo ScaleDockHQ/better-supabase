@@ -141,7 +141,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or
 
 -- A rejected, withdrawn or hired application records its event and its
 -- time; reopening clears them.
-create or replace function better_supabase.bs_application_guard()
+create or replace function better_supabase.bsb_application_guard()
 returns trigger
 language plpgsql
 security definer
@@ -166,10 +166,10 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bs_application_guard() from public, anon, authenticated;
-drop trigger if exists bs_application_guard on "better_supabase"."applications";
-create trigger bs_application_guard before update of "state" on "better_supabase"."applications"
-for each row execute function better_supabase.bs_application_guard();
+revoke execute on function better_supabase.bsb_application_guard() from public, anon, authenticated;
+drop trigger if exists bsb_application_guard on "better_supabase"."applications";
+create trigger bsb_application_guard before update of "state" on "better_supabase"."applications"
+for each row execute function better_supabase.bsb_application_guard();
 
 -- Creates or changes a job: title, teamId, location, employmentType,
 -- description, hiringManagerId, fields (the extra columns by name); and

@@ -521,8 +521,8 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."versions_capture"() from public, anon, authenticated;
-drop trigger if exists "bs_versions_project_auto" on "public"."projects";
-create trigger "bs_versions_project_auto"
+drop trigger if exists "bsb_versions_project_auto" on "public"."projects";
+create trigger "bsb_versions_project_auto"
   after insert or update of "name", "budget_minor", "currency" on "public"."projects"
   for each row execute function "better_supabase"."versions_capture"('project', 'id', 'organization_id', 'name,budget_minor,currency', '', '');
 

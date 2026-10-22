@@ -33,8 +33,8 @@ revoke all on better_supabase.invitations from anon, authenticated;
 grant select on better_supabase.invitations to authenticated;
 grant all on better_supabase.invitations to service_role;
 
-drop policy if exists bs_invitations_read on better_supabase.invitations;
-create policy bs_invitations_read on better_supabase.invitations
+drop policy if exists bsb_invitations_read on better_supabase.invitations;
+create policy bsb_invitations_read on better_supabase.invitations
   for select to authenticated
   using (org_id in (select better_supabase.member_org_ids('{owner,admin}')));
 

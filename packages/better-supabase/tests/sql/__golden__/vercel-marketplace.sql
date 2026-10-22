@@ -23,8 +23,8 @@ create table if not exists "better_supabase"."marketplace_installations" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_installations";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_installations"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_installations";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_installations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
@@ -44,8 +44,8 @@ create table if not exists "better_supabase"."marketplace_plans" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_plans";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_plans"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_plans";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_plans"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_plans" enable row level security;
 revoke all on "better_supabase"."marketplace_plans" from anon, authenticated;
@@ -63,8 +63,8 @@ create table if not exists "better_supabase"."marketplace_resources" (
   unique ("installation_id", "external_id")
 );
 alter table "better_supabase"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_resources";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_resources"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_resources";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_resources"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
@@ -92,8 +92,8 @@ create table if not exists "better_supabase"."marketplace_invoices" (
   unique ("installation_id", "external_id")
 );
 alter table "better_supabase"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_invoices";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_invoices"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_invoices";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_invoices"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_invoices" enable row level security;
 revoke all on "better_supabase"."marketplace_invoices" from anon, authenticated;
@@ -634,8 +634,8 @@ create table if not exists "better_supabase"."marketplace_installations" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_installations";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_installations"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_installations";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_installations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
@@ -655,8 +655,8 @@ create table if not exists "better_supabase"."marketplace_plans" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_plans";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_plans"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_plans";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_plans"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_plans" enable row level security;
 revoke all on "better_supabase"."marketplace_plans" from anon, authenticated;
@@ -674,8 +674,8 @@ create table if not exists "better_supabase"."marketplace_resources" (
   unique ("installation_id", "external_id")
 );
 alter table "better_supabase"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_resources";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_resources"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_resources";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_resources"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
@@ -703,8 +703,8 @@ create table if not exists "better_supabase"."marketplace_invoices" (
   unique ("installation_id", "external_id")
 );
 alter table "better_supabase"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_invoices";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_invoices"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_invoices";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_invoices"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_invoices" enable row level security;
 revoke all on "better_supabase"."marketplace_invoices" from anon, authenticated;
@@ -1268,8 +1268,8 @@ create table if not exists "app_private"."marketplace_installations" (
   "created_at" timestamptz not null default now()
 );
 alter table "app_private"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."marketplace_installations";
-create trigger bs_updated_at before update on "app_private"."marketplace_installations"
+drop trigger if exists bsb_updated_at on "app_private"."marketplace_installations";
+create trigger bsb_updated_at before update on "app_private"."marketplace_installations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
@@ -1289,8 +1289,8 @@ create table if not exists "app_private"."marketplace_plans" (
   "created_at" timestamptz not null default now()
 );
 alter table "app_private"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."marketplace_plans";
-create trigger bs_updated_at before update on "app_private"."marketplace_plans"
+drop trigger if exists bsb_updated_at on "app_private"."marketplace_plans";
+create trigger bsb_updated_at before update on "app_private"."marketplace_plans"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."marketplace_plans" enable row level security;
 revoke all on "app_private"."marketplace_plans" from anon, authenticated;
@@ -1308,8 +1308,8 @@ create table if not exists "app_private"."marketplace_resources" (
   unique ("installation_id", "external_id")
 );
 alter table "app_private"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."marketplace_resources";
-create trigger bs_updated_at before update on "app_private"."marketplace_resources"
+drop trigger if exists bsb_updated_at on "app_private"."marketplace_resources";
+create trigger bsb_updated_at before update on "app_private"."marketplace_resources"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
@@ -1337,8 +1337,8 @@ create table if not exists "app_private"."marketplace_invoices" (
   unique ("installation_id", "external_id")
 );
 alter table "app_private"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "app_private"."marketplace_invoices";
-create trigger bs_updated_at before update on "app_private"."marketplace_invoices"
+drop trigger if exists bsb_updated_at on "app_private"."marketplace_invoices";
+create trigger bsb_updated_at before update on "app_private"."marketplace_invoices"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "app_private"."marketplace_invoices" enable row level security;
 revoke all on "app_private"."marketplace_invoices" from anon, authenticated;
@@ -1879,8 +1879,8 @@ create table if not exists "better_supabase"."marketplace_installations" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."marketplace_installations" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_installations";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_installations"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_installations";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_installations"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- tenant_created: the installation created its tenant, so removing the
 -- installation may delete it. access_token_secret_id: the Vault secret with
@@ -1900,8 +1900,8 @@ create table if not exists "better_supabase"."marketplace_plans" (
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_plans";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_plans"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_plans";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_plans"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_plans" enable row level security;
 revoke all on "better_supabase"."marketplace_plans" from anon, authenticated;
@@ -1919,8 +1919,8 @@ create table if not exists "better_supabase"."marketplace_resources" (
   unique ("installation_id", "external_id")
 );
 alter table "better_supabase"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_resources";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_resources"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_resources";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_resources"
   for each row execute function better_supabase.set_updated_at('updated_at');
 -- tenant: the app's tenant the provision hook created or chose for the
 -- resource. secret_refs: the app's handles for the secrets it handed out
@@ -1948,8 +1948,8 @@ create table if not exists "better_supabase"."marketplace_invoices" (
   unique ("installation_id", "external_id")
 );
 alter table "better_supabase"."marketplace_invoices" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bs_updated_at on "better_supabase"."marketplace_invoices";
-create trigger bs_updated_at before update on "better_supabase"."marketplace_invoices"
+drop trigger if exists bsb_updated_at on "better_supabase"."marketplace_invoices";
+create trigger bsb_updated_at before update on "better_supabase"."marketplace_invoices"
   for each row execute function better_supabase.set_updated_at('updated_at');
 alter table "better_supabase"."marketplace_invoices" enable row level security;
 revoke all on "better_supabase"."marketplace_invoices" from anon, authenticated;

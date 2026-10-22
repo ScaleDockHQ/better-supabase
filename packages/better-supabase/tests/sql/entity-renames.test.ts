@@ -184,10 +184,10 @@ describe("blocks.<name>.entities in the SQL", () => {
             .replaceAll(`'${name}'`, "")
             .replaceAll(`'${name}.`, "'")
             .replaceAll(/'[^']*\s[^']*'/g, "")
-            // Block-scoped names (`bs_attachments_bucket`, storage policies) and
+            // Block-scoped names (`bsb_attachments_bucket`, storage policies) and
             // storage paths keep the block name, so existing objects match.
             .replaceAll(
-              new RegExp(String.raw`bs_${name}_\w+|/${name}/`, "g"),
+              new RegExp(String.raw`bsb_${name}_\w+|/${name}/`, "g"),
               "",
             )
             // Supabase owns `realtime.messages`.

@@ -223,7 +223,7 @@ describe.skipIf(!live)("service principals", () => {
         role: "authenticated",
         sub: principal.id,
         tenant_id: tenant,
-        bs_permission_cap: ["crm.read"],
+        bsb_permission_cap: ["crm.read"],
       });
       expect(
         await s.value<boolean>(

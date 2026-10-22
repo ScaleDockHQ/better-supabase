@@ -13,8 +13,8 @@ describe.skipIf(!live)("tenant sameTenant", () => {
   it("refuses a reference to another tenant's row for every writer", async () => {
     const s = await BlockSession.open(pool);
     const suffix = crypto.randomUUID().slice(0, 8);
-    const projects = `public.bs_projects_${suffix}`;
-    const tasks = `public.bs_tasks_${suffix}`;
+    const projects = `public.bsb_projects_${suffix}`;
+    const tasks = `public.bsb_tasks_${suffix}`;
 
     try {
       await s.client.query(`
@@ -118,8 +118,8 @@ describe.skipIf(!live)("tenant sameTenant", () => {
   it("also requires the referenced row to match the row's columns", async () => {
     const s = await BlockSession.open(pool);
     const suffix = crypto.randomUUID().slice(0, 8);
-    const assets = `public.bs_assets_${suffix}`;
-    const jobs = `public.bs_jobs_${suffix}`;
+    const assets = `public.bsb_assets_${suffix}`;
+    const jobs = `public.bsb_jobs_${suffix}`;
 
     try {
       await s.client.query(`
@@ -210,9 +210,9 @@ describe.skipIf(!live)("tenant sameTenant", () => {
   it("matches a column reached through another reference", async () => {
     const s = await BlockSession.open(pool);
     const suffix = crypto.randomUUID().slice(0, 8);
-    const quotes = `public.bs_quotes_${suffix}`;
-    const assets = `public.bs_assets_${suffix}`;
-    const lines = `public.bs_quote_assets_${suffix}`;
+    const quotes = `public.bsb_quotes_${suffix}`;
+    const assets = `public.bsb_assets_${suffix}`;
+    const lines = `public.bsb_quote_assets_${suffix}`;
 
     try {
       await s.client.query(`
