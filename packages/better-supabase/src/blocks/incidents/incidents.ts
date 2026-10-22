@@ -39,9 +39,8 @@ export interface IncidentsOptions<
   readonly schema?: string;
   /**
    * A Standard Schema for the incident's extra columns
-   * (`blocks.incidents.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `open` and
-   * `update`.
+   * (`blocks.incidents.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `open` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -159,8 +158,9 @@ export interface Postmortem {
 }
 
 /** An incident with its timeline, oldest first, and its postmortem. */
-export interface IncidentDetail<F extends object = Record<never, never>>
-  extends Incident<F> {
+export interface IncidentDetail<
+  F extends object = Record<never, never>,
+> extends Incident<F> {
   readonly updates: readonly IncidentUpdate[];
   readonly postmortem?: Postmortem;
 }
@@ -299,7 +299,10 @@ export interface Incidents<F extends object = Record<never, never>> {
   deleteComponent(componentId: string): AsyncResult<{ readonly id: string }>;
   components(organizationId: string): AsyncResult<readonly StatusComponent[]>;
   /** Needs `incidents.write`. */
-  open(organizationId: string, input: IncidentInput<F>): AsyncResult<Incident<F>>;
+  open(
+    organizationId: string,
+    input: IncidentInput<F>,
+  ): AsyncResult<Incident<F>>;
   /** Needs `incidents.write`. */
   update(
     incidentId: string,
@@ -348,7 +351,12 @@ export interface Incidents<F extends object = Record<never, never>> {
   ): AsyncResult<PublicStatusPage | undefined>;
 }
 
-const SEVERITIES: readonly IncidentSeverity[] = ["sev1", "sev2", "sev3", "sev4"];
+const SEVERITIES: readonly IncidentSeverity[] = [
+  "sev1",
+  "sev2",
+  "sev3",
+  "sev4",
+];
 
 const STATUSES: readonly IncidentStatus[] = [
   "investigating",
@@ -470,6 +478,7 @@ function detailOf(value: unknown, fn: string): IncidentDetail | undefined {
   if (value === null || value === undefined) {
     return undefined;
   }
+
   const row = recordOf(value, fn);
   const postmortem = row["postmortem"];
 
@@ -500,7 +509,10 @@ function pageOf(value: unknown, fn: string): StatusPage {
   };
 }
 
-function publicIncidentOf(row: Record<string, unknown>, fn: string): PublicIncident {
+function publicIncidentOf(
+  row: Record<string, unknown>,
+  fn: string,
+): PublicIncident {
   const postmortem = row["postmortem"];
 
   return {
@@ -546,7 +558,11 @@ function publicComponentOf(
     uptimePercent: numberOf(row["uptimePercent"] ?? 100),
     uptime: recordsOf(row["uptime"] ?? [], fn).map((day) => ({
       date: temporal().PlainDate.from(textOf(day["date"])),
-      status: enumOrThrow(day["status"], COMPONENT_STATUSES, "component status"),
+      status: enumOrThrow(
+        day["status"],
+        COMPONENT_STATUSES,
+        "component status",
+      ),
       downMinutes: numberOf(day["downMinutes"]),
     })),
     ...optional("description", optionalText(row["description"])),
@@ -554,10 +570,14 @@ function publicComponentOf(
   };
 }
 
-function publicPageOf(value: unknown, fn: string): PublicStatusPage | undefined {
+function publicPageOf(
+  value: unknown,
+  fn: string,
+): PublicStatusPage | undefined {
   if (value === null || value === undefined) {
     return undefined;
   }
+
   const row = recordOf(value, fn);
 
   return {
@@ -596,10 +616,7 @@ export function createIncidents<
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
-  const fields: BlockFields<F> = blockFields(
-    options.fields,
-    "incident fields",
-  );
+  const fields: BlockFields<F> = blockFields(options.fields, "incident fields");
 
   const incident = (fn: string) => (value: unknown) => incidentOf(value, fn);
 
@@ -636,29 +653,33 @@ export function createIncidents<
         ),
       ),
     open: (organizationId, input) =>
-      fields.args(input.fields).andThen((checked) =>
-        call(
-          "open_incident",
-          {
-            tenant: organizationId,
-            attrs: attrsOf(input),
-            ...(checked === undefined ? {} : { fields: checked }),
-          },
-          incident("open_incident"),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          call(
+            "open_incident",
+            {
+              tenant: organizationId,
+              attrs: attrsOf(input),
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+            incident("open_incident"),
+          ).andThen(fields.row),
+        ),
     update: (incidentId, changes) =>
-      fields.args(changes.fields).andThen((checked) =>
-        call(
-          "update_incident",
-          {
-            incident_id: incidentId,
-            attrs: attrsOf(changes),
-            ...(checked === undefined ? {} : { fields: checked }),
-          },
-          incident("update_incident"),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(changes.fields)
+        .andThen((checked) =>
+          call(
+            "update_incident",
+            {
+              incident_id: incidentId,
+              attrs: attrsOf(changes),
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+            incident("update_incident"),
+          ).andThen(fields.row),
+        ),
     postUpdate: (incidentId, input) =>
       call(
         "post_incident_update",
@@ -679,7 +700,9 @@ export function createIncidents<
     get: (incidentId) =>
       call("get_incident", { incident_id: incidentId }, (value) =>
         detailOf(value, "get_incident"),
-      ).andThen((row) => (row === undefined ? AsyncResult.ok(undefined) : fields.row(row))),
+      ).andThen((row) =>
+        row === undefined ? AsyncResult.ok(undefined) : fields.row(row),
+      ),
     list: (organizationId, list = {}) =>
       call(
         "list_incidents",

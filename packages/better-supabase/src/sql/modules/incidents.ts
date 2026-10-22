@@ -16,6 +16,12 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { incidentsFunctions } from "./incidents-functions.ts";
+import {
+  INCIDENT_RESERVED,
+  INCIDENT_SEVERITIES,
+  INCIDENT_STATUSES,
+  COMPONENT_STATUSES,
+} from "./incidents-shared.ts";
 import { statusPageFunctions } from "./incidents-status-page.ts";
 
 const EVENTS: ModuleEvents<IncidentsEvents> = {
@@ -44,7 +50,12 @@ const EVENTS: ModuleEvents<IncidentsEvents> = {
   },
   "status_component.changed": {
     subject: "status-components",
-    payload: ["organizationId", "statusComponentId", "status", "previousStatus"],
+    payload: [
+      "organizationId",
+      "statusComponentId",
+      "status",
+      "previousStatus",
+    ],
   },
 };
 
@@ -173,40 +184,10 @@ const NAMES: ModuleNames = {
   },
 };
 
-/** The keys the incident reads return next to the extra columns. */
-export const INCIDENT_RESERVED = [
-  "fields",
-  "updates",
-  "impacts",
-  "postmortem",
-] as const;
-
-export const INCIDENT_SEVERITIES = ["sev1", "sev2", "sev3", "sev4"] as const;
-
-export const INCIDENT_STATUSES = [
-  "investigating",
-  "identified",
-  "monitoring",
-  "resolved",
-] as const;
-
-/** Component statuses, least to most severe. */
-export const COMPONENT_STATUSES = [
-  "operational",
-  "maintenance",
-  "degraded",
-  "partial_outage",
-  "major_outage",
-] as const;
-
 const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
 function tables(ctx: ModuleContext): string {
-  if (!ctx.manages) {
-    return "";
-  }
-
   const components = ctx.table("components");
   const history = ctx.table("history");
   const incidents = ctx.table("incidents");
@@ -402,11 +383,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       args: ["uuid", "text", "text", "boolean"],
       returns: "jsonb",
     },
-    {
-      name: "set_incident_impacts",
-      args: ["uuid", "jsonb"],
-      returns: "jsonb",
-    },
+    { name: "set_incident_impacts", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "get_incident", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_incidents",
@@ -421,11 +398,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "get_status_page", args: ["{id}"], returns: "jsonb" },
-    {
-      name: "public_status_page",
-      args: ["text", "integer"],
-      returns: "jsonb",
-    },
+    { name: "public_status_page", args: ["text", "integer"], returns: "jsonb" },
   ];
 }
 

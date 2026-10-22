@@ -12,7 +12,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { CONTROL_RESERVED, evidenceAttachments } from "./controls.ts";
+import { CONTROL_RESERVED, evidenceAttachments } from "./controls-shared.ts";
 
 /** The framework, control, evidence and evidence task functions. */
 export function controlsFunctions(ctx: ModuleContext): string {
@@ -98,14 +98,14 @@ export function controlsFunctions(ctx: ModuleContext): string {
     ? `if coalesce(v_task.${t("assignee")}, v_owner) is not null then
       ${ctx.notify(
         `jsonb_build_object(
-        'type', 'evidence_task.overdue',
+        'type', 'evidence_task.missed',
         'tenant', v_task.${t("tenant")},
         'actor', null,
         'subject_type', ${controlType},
         'subject_id', v_task.${t("control")}::text,
         'summary', v_task.${t("title")},
         'recipients', to_jsonb(array[coalesce(v_task.${t("assignee")}, v_owner)]),
-        'key', 'evidence_task.overdue:' || v_task.${t("id")}::text || ':' || v_task.${t("dueOn")}::text,
+        'key', 'evidence_task.missed:' || v_task.${t("id")}::text || ':' || v_task.${t("dueOn")}::text,
         'data', jsonb_build_object('evidenceTaskId', v_task.${t("id")}, 'dueOn', v_task.${t("dueOn")})
       )`,
         { indent: "      " },
@@ -443,7 +443,7 @@ $$;
 ${userGrant(`${fn("control_posture")}(${idType}, uuid)`)}
 
 -- Reports each active evidence task past its due date once per lapse: an
--- evidence_task.overdue event and, with notifications, a notification to the
+-- evidence_task.missed event and, with notifications, a notification to the
 -- assignee (or the control's owner). Run it daily from a job.
 create or replace function ${fn("notify_overdue_evidence_tasks")}()
 returns integer
@@ -464,7 +464,7 @@ begin
   loop
     select y.${k("owner")} into v_owner from ${controls} y where y.${k("id")} = v_task.${t("control")};
     ${ctx.record({
-      type: "evidence_task.overdue",
+      type: "evidence_task.missed",
       payload: `jsonb_build_object('organizationId', v_task.${t("tenant")}, 'evidenceTaskId', v_task.${t("id")}, 'controlId', v_task.${t("control")}, 'assigneeId', v_task.${t("assignee")}, 'dueOn', v_task.${t("dueOn")})`,
       subject: `'evidence-tasks/' || v_task.${t("id")}::text`,
       tenant: `v_task.${t("tenant")}`,

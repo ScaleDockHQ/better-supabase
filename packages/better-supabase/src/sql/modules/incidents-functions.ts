@@ -17,7 +17,7 @@ import {
   INCIDENT_RESERVED,
   INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
-} from "./incidents.ts";
+} from "./incidents-shared.ts";
 
 const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");

@@ -17,6 +17,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 import { controlsFunctions } from "./controls-functions.ts";
 import { policyFunctions } from "./controls-policies.ts";
+import { CONTROL_RESERVED, evidenceAttachments } from "./controls-shared.ts";
 
 const EVENTS: ModuleEvents<ControlsEvents> = {
   "control.saved": {
@@ -27,7 +28,7 @@ const EVENTS: ModuleEvents<ControlsEvents> = {
     subject: "controls",
     payload: ["organizationId", "controlId", "evidenceId", "evidenceTaskId"],
   },
-  "evidence_task.overdue": {
+  "evidence_task.missed": {
     subject: "evidence-tasks",
     payload: [
       "organizationId",
@@ -169,23 +170,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-/** The keys the control reads return next to the extra columns. */
-export const CONTROL_RESERVED = ["fields", "status"] as const;
-
-/** The attachments module, when its table is there to reference. */
-export function evidenceAttachments(
-  ctx: ModuleContext,
-): ModuleContext | undefined {
-  return ctx.installed("attachments") && ctx.of("attachments").manages
-    ? ctx.of("attachments")
-    : undefined;
-}
-
 function tables(ctx: ModuleContext): string {
-  if (!ctx.manages) {
-    return "";
-  }
-
   const frameworks = ctx.table("frameworks");
   const controls = ctx.table("controls");
   const evidence = ctx.table("evidence");

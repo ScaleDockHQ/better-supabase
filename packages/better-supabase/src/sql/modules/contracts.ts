@@ -18,6 +18,7 @@ import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { moduleOperations } from "./access-model.ts";
 import { contractsFunctions } from "./contracts-functions.ts";
+import { CONTRACT_RESERVED, CONTRACT_STATUSES } from "./contracts-shared.ts";
 
 const CONTRACT_PAYLOAD = [
   "organizationId",
@@ -117,23 +118,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-/** The keys the contract reads return next to the extra columns. */
-export const CONTRACT_RESERVED = ["fields"] as const;
-
-export const CONTRACT_STATUSES = [
-  "draft",
-  "in_review",
-  "out_for_signature",
-  "active",
-  "expired",
-  "terminated",
-] as const;
-
 function tables(ctx: ModuleContext): string {
-  if (!ctx.manages) {
-    return "";
-  }
-
   const contracts = ctx.table("contracts");
   const obligations = ctx.table("obligations");
   const c = (column: string): string => ctx.col("contracts", column);
@@ -304,11 +289,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       args: ["uuid", "text", "date", "uuid", "text", "uuid"],
       returns: "jsonb",
     },
-    {
-      name: "set_obligation_status",
-      args: ["uuid", "text"],
-      returns: "jsonb",
-    },
+    { name: "set_obligation_status", args: ["uuid", "text"], returns: "jsonb" },
     { name: "delete_obligation", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_obligations",

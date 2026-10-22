@@ -14,9 +14,12 @@ import {
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
-import { CONTRACT_RESERVED } from "./contracts.ts";
+import { CONTRACT_RESERVED } from "./contracts-shared.ts";
 
-/** `options.reminderDays`: how many days before the notice deadline the owner hears. */
+/**
+ * `options.reminderDays`: how many days before the notice deadline the owner
+ * hears.
+ */
 function reminderDays(ctx: ModuleContext): number {
   const days = ctx.number("reminderDays", 14);
 
@@ -662,4 +665,3 @@ $$;
 ${userGrant(`${fn("list_obligations")}(${idType}, uuid, uuid, boolean, date, integer)`)}
 `;
 }
-

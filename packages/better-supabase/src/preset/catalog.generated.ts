@@ -6056,6 +6056,69 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Contract",
+          "fields": true
+        },
+        {
+          "name": "ContractAction"
+        },
+        {
+          "name": "ContractChanges",
+          "fields": true
+        },
+        {
+          "name": "ContractEventData"
+        },
+        {
+          "name": "ContractInput",
+          "fields": true
+        },
+        {
+          "name": "ContractListOptions"
+        },
+        {
+          "name": "ContractObligation"
+        },
+        {
+          "name": "ContractRenewals"
+        },
+        {
+          "name": "ContractRenewedEventData"
+        },
+        {
+          "name": "Contracts",
+          "fields": true
+        },
+        {
+          "name": "ContractsEvents"
+        },
+        {
+          "name": "ContractSignatureInput"
+        },
+        {
+          "name": "ContractsOptions"
+        },
+        {
+          "name": "ContractStatus"
+        },
+        {
+          "name": "ContractStatusChangedEventData"
+        },
+        {
+          "name": "ObligationEventData"
+        },
+        {
+          "name": "ObligationInput"
+        },
+        {
+          "name": "ObligationListOptions"
+        },
+        {
+          "name": "ObligationStatus"
+        }
+      ],
       "entitySchemas": {
         "contract": {
           "input": {
@@ -6379,6 +6442,17 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "sections": {
         "contracts": []
+      },
+      "events": {
+        "type": "ContractsEvents",
+        "types": [
+          "contract.created",
+          "contract.updated",
+          "contract.status_changed",
+          "contract.renewed",
+          "obligation.saved",
+          "obligation.status_changed"
+        ]
       }
     },
     {
@@ -6393,6 +6467,87 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Control",
+          "fields": true
+        },
+        {
+          "name": "ControlDetail",
+          "fields": true
+        },
+        {
+          "name": "ControlEvidence"
+        },
+        {
+          "name": "ControlEvidenceAddedEventData"
+        },
+        {
+          "name": "ControlEvidenceInput"
+        },
+        {
+          "name": "ControlFramework"
+        },
+        {
+          "name": "ControlFrameworkInput"
+        },
+        {
+          "name": "ControlInput",
+          "fields": true
+        },
+        {
+          "name": "ControlListOptions"
+        },
+        {
+          "name": "ControlPosture"
+        },
+        {
+          "name": "Controls",
+          "fields": true
+        },
+        {
+          "name": "ControlSavedEventData"
+        },
+        {
+          "name": "ControlsEvents"
+        },
+        {
+          "name": "ControlsOptions"
+        },
+        {
+          "name": "ControlStatus"
+        },
+        {
+          "name": "EvidenceTask"
+        },
+        {
+          "name": "EvidenceTaskInput"
+        },
+        {
+          "name": "EvidenceTaskListOptions"
+        },
+        {
+          "name": "EvidenceTaskMissedEventData"
+        },
+        {
+          "name": "Policy"
+        },
+        {
+          "name": "PolicyAcknowledgedEventData"
+        },
+        {
+          "name": "PolicyAcknowledgements"
+        },
+        {
+          "name": "PolicyInput"
+        },
+        {
+          "name": "PolicyListOptions"
+        },
+        {
+          "name": "PolicyPublishedEventData"
+        }
+      ],
       "entitySchemas": {
         "control_framework": {
           "input": {
@@ -6670,6 +6825,16 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "events": {
+        "type": "ControlsEvents",
+        "types": [
+          "control.saved",
+          "control.evidence_added",
+          "evidence_task.missed",
+          "policy.published",
+          "policy.acknowledged"
+        ]
       }
     },
     {
@@ -6684,6 +6849,100 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Incident",
+          "fields": true
+        },
+        {
+          "name": "IncidentChanges",
+          "fields": true
+        },
+        {
+          "name": "IncidentDetail",
+          "fields": true
+        },
+        {
+          "name": "IncidentImpact"
+        },
+        {
+          "name": "IncidentImpactInput"
+        },
+        {
+          "name": "IncidentInput",
+          "fields": true
+        },
+        {
+          "name": "IncidentListOptions"
+        },
+        {
+          "name": "IncidentOpenedEventData"
+        },
+        {
+          "name": "IncidentResolvedEventData"
+        },
+        {
+          "name": "Incidents",
+          "fields": true
+        },
+        {
+          "name": "IncidentsEvents"
+        },
+        {
+          "name": "IncidentSeverity"
+        },
+        {
+          "name": "IncidentsOptions"
+        },
+        {
+          "name": "IncidentStatus"
+        },
+        {
+          "name": "IncidentUpdate"
+        },
+        {
+          "name": "IncidentUpdatedEventData"
+        },
+        {
+          "name": "IncidentUpdateInput"
+        },
+        {
+          "name": "Postmortem"
+        },
+        {
+          "name": "PostmortemInput"
+        },
+        {
+          "name": "PostmortemPublishedEventData"
+        },
+        {
+          "name": "PostmortemStatus"
+        },
+        {
+          "name": "PublicIncident"
+        },
+        {
+          "name": "PublicStatusComponent"
+        },
+        {
+          "name": "PublicStatusPage"
+        },
+        {
+          "name": "StatusComponent"
+        },
+        {
+          "name": "StatusComponentChangedEventData"
+        },
+        {
+          "name": "StatusComponentInput"
+        },
+        {
+          "name": "StatusPage"
+        },
+        {
+          "name": "StatusPageInput"
+        }
+      ],
       "entitySchemas": {
         "incident": {
           "input": {
@@ -7042,6 +7301,16 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "events": {
+        "type": "IncidentsEvents",
+        "types": [
+          "incident.opened",
+          "incident.updated",
+          "incident.resolved",
+          "postmortem.published",
+          "status_component.changed"
+        ]
       }
     },
     {

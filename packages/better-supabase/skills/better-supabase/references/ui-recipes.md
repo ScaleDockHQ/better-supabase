@@ -17978,24 +17978,12 @@ type Translate = Awaited<ReturnType<typeof getExtracted>>;
 
 const SOON_DAYS = 30;
 
-function daysUntil(date: string, today: string): number {
-  return Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000);
-}
+function RenewalBadge({ row, t }: { row: RenewalRow; t: Translate }) {
+  const days = row.noticeInDays;
 
-function RenewalBadge({
-  row,
-  today,
-  t,
-}: {
-  row: RenewalRow;
-  today: string;
-  t: Translate;
-}) {
-  if (!row.noticeDeadline) {
+  if (days === null) {
     return <Badge variant="secondary">{t("No end date")}</Badge>;
   }
-
-  const days = daysUntil(row.noticeDeadline, today);
 
   if (days < 0) {
     return (
@@ -18008,7 +17996,7 @@ function RenewalBadge({
   if (days <= SOON_DAYS) {
     return (
       <Badge variant="warning-light">
-        {t("Notice in {days} days", { days })}
+        {t("Notice in {days, number} days", { days })}
       </Badge>
     );
   }
@@ -18037,7 +18025,6 @@ export async function ContractRenewals() {
     return null;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
   const day = (date: string) =>
     format.dateTime(new Date(date), { dateStyle: "medium", timeZone: "UTC" });
 
@@ -18111,7 +18098,7 @@ export async function ContractRenewals() {
                     {row.noticeDeadline ? day(row.noticeDeadline) : "–"}
                   </TableCell>
                   <TableCell>
-                    <RenewalBadge row={row} today={today} t={t} />
+                    <RenewalBadge row={row} t={t} />
                   </TableCell>
                 </TableRow>
               ))}
@@ -18213,6 +18200,7 @@ export async function ControlPosture() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {frameworks.map((framework) => {
           const applicable = framework.total - framework.notApplicable;
+
           const percent =
             applicable === 0
               ? 100
@@ -18223,33 +18211,35 @@ export async function ControlPosture() {
               <CardHeader>
                 <CardTitle>{framework.name}</CardTitle>
                 <CardDescription>
-                  {t("{passing} of {applicable} controls passing", {
-                    passing: framework.passing,
-                    applicable,
-                  })}
+                  {t(
+                    "{passing, number} of {applicable, number} controls passing",
+                    { passing: framework.passing, applicable },
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 <Progress value={percent} aria-label={t("Controls passing")} />
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="success-light">
-                    {t("{count} passing", { count: framework.passing })}
+                    {t("{count, number} passing", { count: framework.passing })}
                   </Badge>
                   {framework.failing > 0 ? (
                     <Badge variant="destructive-light">
-                      {t("{count} failing", { count: framework.failing })}
+                      {t("{count, number} failing", {
+                        count: framework.failing,
+                      })}
                     </Badge>
                   ) : null}
                   {framework.notStarted > 0 ? (
                     <Badge variant="secondary">
-                      {t("{count} not started", {
+                      {t("{count, number} not started", {
                         count: framework.notStarted,
                       })}
                     </Badge>
                   ) : null}
                   {framework.overdueTasks > 0 ? (
                     <Badge variant="warning-light">
-                      {t("{count} overdue tasks", {
+                      {t("{count, number} overdue tasks", {
                         count: framework.overdueTasks,
                       })}
                     </Badge>
@@ -18342,13 +18332,21 @@ type BadgeVariant =
   | "warning-light"
   | "destructive-light";
 
-function statusLook(
-  status: ComponentStatus,
-  t: Translate,
-): { label: string; badge: BadgeVariant; cell: string } {
+interface StatusLook {
+  readonly label: string;
+  readonly badge: BadgeVariant;
+  /** The background of an uptime cell. */
+  readonly cell: string;
+}
+
+function statusLook(status: ComponentStatus, t: Translate): StatusLook {
   switch (status) {
     case "operational": {
-      return { label: t("Operational"), badge: "success-light", cell: "bg-success" };
+      return {
+        label: t("Operational"),
+        badge: "success-light",
+        cell: "bg-success",
+      };
     }
 
     case "maintenance": {
@@ -18506,11 +18504,13 @@ export async function StatusPage({
   }
 
   const { data } = page;
+
   const day = (date: string) =>
     format.dateTime(new Date(`${date}T12:00:00Z`), {
       dateStyle: "medium",
       timeZone: "UTC",
     });
+
   const when = (iso: string) =>
     format.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" });
 
@@ -18527,7 +18527,9 @@ export async function StatusPage({
         <CardHeader>
           <CardTitle>{t("Components")}</CardTitle>
           <CardDescription>
-            {t("Uptime over the last {days} days.", { days: UPTIME_DAYS })}
+            {t("Uptime over the last {days, number} days.", {
+              days: UPTIME_DAYS,
+            })}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -18558,13 +18560,7 @@ export async function StatusPage({
                       </span>
                       <Badge variant={look.badge}>{look.label}</Badge>
                     </div>
-                    <div
-                      className="flex h-8 gap-px"
-                      role="img"
-                      aria-label={t("{percent}% uptime", {
-                        percent: component.uptimePercent,
-                      })}
-                    >
+                    <div className="flex h-8 gap-px" aria-hidden="true">
                       {component.uptime.map((entry) => (
                         <span
                           key={entry.date}
@@ -18574,7 +18570,7 @@ export async function StatusPage({
                       ))}
                     </div>
                     <span className="text-xs text-muted-foreground tabular-nums">
-                      {t("{percent}% uptime", {
+                      {t("{percent, number}% uptime", {
                         percent: component.uptimePercent,
                       })}
                     </span>
@@ -18589,9 +18585,10 @@ export async function StatusPage({
         <CardHeader>
           <CardTitle>{t("Incidents")}</CardTitle>
           <CardDescription>
-            {t("Open incidents and those resolved in the last {days} days.", {
-              days: UPTIME_DAYS,
-            })}
+            {t(
+              "Open incidents and those resolved in the last {days, number} days.",
+              { days: UPTIME_DAYS },
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -18628,7 +18625,10 @@ export async function StatusPage({
                   ) : null}
                   <ol className="flex flex-col gap-3 border-l pl-4">
                     {incident.updates.map((update) => (
-                      <li key={update.createdAt} className="flex flex-col gap-1">
+                      <li
+                        key={update.createdAt}
+                        className="flex flex-col gap-1"
+                      >
                         <span className="text-xs text-muted-foreground">
                           {updateLabel(update.status, t)}
                           {" · "}

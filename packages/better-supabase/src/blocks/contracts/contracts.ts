@@ -42,9 +42,8 @@ export interface ContractsOptions<
   readonly schema?: string;
   /**
    * A Standard Schema for the contract's extra columns
-   * (`blocks.contracts.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `create` and
-   * `update`.
+   * (`blocks.contracts.options.extraColumns`), keyed by database name. It types
+   * and parses them on reads, and validates them on `create` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -231,8 +230,8 @@ export interface Contracts<F extends object = Record<never, never>> {
     options?: Omit<ContractListOptions, "counterparty">,
   ): AsyncResult<readonly Contract<F>[]>;
   /**
-   * Renews the auto-renewing active contracts past their end date and
-   * expires the rest. Service role only; run it daily.
+   * Renews the auto-renewing active contracts past their end date and expires
+   * the rest. Service role only; run it daily.
    */
   runRenewals(asOf?: Temporal.PlainDate): AsyncResult<ContractRenewals>;
   /** Needs `contracts.write`. */
@@ -313,10 +312,7 @@ function contractOf(value: unknown, fn: string): Contract {
     ...optional("startsOn", optionalDate(row["startsOn"])),
     ...optional("endsOn", optionalDate(row["endsOn"])),
     ...optional("noticeDeadline", optionalDate(row["noticeDeadline"])),
-    ...optional(
-      "signatureRequestId",
-      optionalText(row["signatureRequestId"]),
-    ),
+    ...optional("signatureRequestId", optionalText(row["signatureRequestId"])),
     ...optional("signedAt", optionalInstant(row["signedAt"])),
     ...optional("terminatedAt", optionalInstant(row["terminatedAt"])),
     ...optional("terminationReason", optionalText(row["terminationReason"])),
@@ -352,6 +348,7 @@ function obligationOf(value: unknown, fn: string): ContractObligation {
 /** The attrs object create_contract and update_contract read. */
 function attrsOf(input: ContractChanges<object>): Record<string, unknown> {
   const attrs: Record<string, unknown> = {};
+
   const set = (key: string, value: unknown): void => {
     if (value !== undefined) {
       attrs[key] = value;
@@ -383,10 +380,7 @@ export function createContracts<
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
-  const fields: BlockFields<F> = blockFields(
-    options.fields,
-    "contract fields",
-  );
+  const fields: BlockFields<F> = blockFields(options.fields, "contract fields");
 
   const one = (fn: string) => (value: unknown) => contractOf(value, fn);
 
@@ -417,29 +411,33 @@ export function createContracts<
 
   const client: Contracts<F> = {
     create: (organizationId, input) =>
-      fields.args(input.fields).andThen((checked) =>
-        call(
-          "create_contract",
-          {
-            tenant: organizationId,
-            attrs: attrsOf(input),
-            ...(checked === undefined ? {} : { fields: checked }),
-          },
-          one("create_contract"),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(input.fields)
+        .andThen((checked) =>
+          call(
+            "create_contract",
+            {
+              tenant: organizationId,
+              attrs: attrsOf(input),
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+            one("create_contract"),
+          ).andThen(fields.row),
+        ),
     update: (contractId, changes) =>
-      fields.args(changes.fields).andThen((checked) =>
-        call(
-          "update_contract",
-          {
-            contract_id: contractId,
-            attrs: attrsOf(changes),
-            ...(checked === undefined ? {} : { fields: checked }),
-          },
-          one("update_contract"),
-        ).andThen(fields.row),
-      ),
+      fields
+        .args(changes.fields)
+        .andThen((checked) =>
+          call(
+            "update_contract",
+            {
+              contract_id: contractId,
+              attrs: attrsOf(changes),
+              ...(checked === undefined ? {} : { fields: checked }),
+            },
+            one("update_contract"),
+          ).andThen(fields.row),
+        ),
     transition: (contractId, action, reason) =>
       call(
         "transition_contract",

@@ -32,8 +32,18 @@ export const contractInputSchema: EntitySchema<ContractInput> =
       startsOn: { kind: "plainDate", optional: true },
       endsOn: { kind: "plainDate", optional: true },
       autoRenew: { kind: "boolean", optional: true },
-      renewalMonths: { kind: "integer", optional: true, minimum: 1, maximum: 120 },
-      noticeDays: { kind: "integer", optional: true, minimum: 0, maximum: 3650 },
+      renewalMonths: {
+        kind: "integer",
+        optional: true,
+        minimum: 1,
+        maximum: 120,
+      },
+      noticeDays: {
+        kind: "integer",
+        optional: true,
+        minimum: 0,
+        maximum: 3650,
+      },
       fields,
     },
   });
@@ -51,8 +61,18 @@ export const contractChangesSchema: EntitySchema<ContractChanges> =
       startsOn: { kind: "plainDate", optional: true },
       endsOn: { kind: "plainDate", optional: true },
       autoRenew: { kind: "boolean", optional: true },
-      renewalMonths: { kind: "integer", optional: true, minimum: 1, maximum: 120 },
-      noticeDays: { kind: "integer", optional: true, minimum: 0, maximum: 3650 },
+      renewalMonths: {
+        kind: "integer",
+        optional: true,
+        minimum: 1,
+        maximum: 120,
+      },
+      noticeDays: {
+        kind: "integer",
+        optional: true,
+        minimum: 0,
+        maximum: 3650,
+      },
       fields,
     },
   });

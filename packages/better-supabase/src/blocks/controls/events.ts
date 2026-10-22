@@ -19,8 +19,8 @@ export interface ControlEvidenceAddedEventData {
   readonly evidenceTaskId: string | null;
 }
 
-/** `evidence_task.overdue`: a recurring evidence task passed its due date. */
-export interface EvidenceTaskOverdueEventData {
+/** `evidence_task.missed`: a recurring evidence task passed its due date. */
+export interface EvidenceTaskMissedEventData {
   readonly organizationId: string;
   readonly evidenceTaskId: string;
   readonly controlId: string;
@@ -49,7 +49,7 @@ export interface PolicyAcknowledgedEventData {
 export type ControlsEvents = {
   readonly "control.saved": ControlSavedEventData;
   readonly "control.evidence_added": ControlEvidenceAddedEventData;
-  readonly "evidence_task.overdue": EvidenceTaskOverdueEventData;
+  readonly "evidence_task.missed": EvidenceTaskMissedEventData;
   readonly "policy.published": PolicyPublishedEventData;
   readonly "policy.acknowledged": PolicyAcknowledgedEventData;
 };
@@ -58,7 +58,7 @@ export type ControlsEvents = {
 export const controlsEvents: Events<ControlsEvents> = defineEvents({
   "control.saved": event<ControlSavedEventData>(),
   "control.evidence_added": event<ControlEvidenceAddedEventData>(),
-  "evidence_task.overdue": event<EvidenceTaskOverdueEventData>(),
+  "evidence_task.missed": event<EvidenceTaskMissedEventData>(),
   "policy.published": event<PolicyPublishedEventData>(),
   "policy.acknowledged": event<PolicyAcknowledgedEventData>(),
 });

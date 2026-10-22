@@ -2,15 +2,15 @@ import type { ModuleContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
-import { COMPONENT_STATUSES } from "./incidents.ts";
+import { COMPONENT_STATUSES } from "./incidents-shared.ts";
 
 const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
 /**
- * The status page functions. public_status_page is the only incidents
- * function anon may call (ADR 00XX): it returns the fields named below and
- * nothing else, for published pages only.
+ * The status page functions. public_status_page is the only incidents function
+ * anon may call (ADR 00XX): it returns the fields named below and nothing else,
+ * for published pages only.
  */
 export function statusPageFunctions(ctx: ModuleContext): string {
   const components = ctx.table("components");
@@ -29,10 +29,9 @@ export function statusPageFunctions(ctx: ModuleContext): string {
   const g = (column: string): string => ctx.col("pages", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
-  const manage = ctx.permission(
-    "manage",
-    moduleOperations("incidents").manage,
-  );
+
+  const manage = ctx.permission("manage", moduleOperations("incidents").manage);
+
   const ranks = `array[${list(COMPONENT_STATUSES)}]`;
 
   const pageJson = (row: string): string =>

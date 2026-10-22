@@ -56,7 +56,7 @@ export type {
   ControlEvidenceAddedEventData,
   ControlSavedEventData,
   ControlsEvents,
-  EvidenceTaskOverdueEventData,
+  EvidenceTaskMissedEventData,
   PolicyAcknowledgedEventData,
   PolicyPublishedEventData,
 } from "./events.ts";

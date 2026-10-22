@@ -52,3 +52,6 @@ employees
 collections
 reviews
 leave
+contracts
+controls
+incidents
