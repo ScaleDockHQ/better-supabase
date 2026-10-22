@@ -63,7 +63,9 @@ as $$
       'rules.read', 'rules.edit', 'rules.publish', 'rules.admin',
       'messages.read', 'messages.send', 'messages.moderate',
       'channels.create', 'channels.manage',
-      'mail.read', 'mail.connect', 'mail.send', 'mail.manage'
+      'mail.read', 'mail.connect', 'mail.send', 'mail.manage',
+      'segments.read', 'segments.edit',
+      'assignment.read', 'assignment.manage', 'assignment.assign'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
@@ -86,7 +88,7 @@ as $$
       'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read',
       'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'hiring.read',
       'employees.read', 'rules.read', 'messages.read', 'messages.send', 'channels.create',
-      'mail.read', 'mail.connect', 'mail.send'
+      'mail.read', 'mail.connect', 'mail.send', 'segments.read', 'assignment.read'
     ]
     else array[]::text[]
   end
