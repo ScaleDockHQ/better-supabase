@@ -984,6 +984,7 @@ export const permissions = {
   orders: {
     manage: "orders.manage",
     read: "orders.read",
+    prepare: "orders.prepare",
   },
   organizations: {
     update: "organization.update",
@@ -1190,7 +1191,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "collections.read" | "collections.share" | "collections.write" | "comments.create" | "comments.moderate" | "comments.read" | "contracts.manage" | "contracts.read" | "contracts.write" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.write" | "domains.manage" | "domains.read" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "flags.manage" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "leases.maintain" | "leases.manage" | "leases.read" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "reviews.manage" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "support.read" | "support.revoke" | "support.start" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
+export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "billing.manage" | "billing.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "collections.read" | "collections.share" | "collections.write" | "comments.create" | "comments.moderate" | "comments.read" | "contracts.manage" | "contracts.read" | "contracts.write" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.write" | "domains.manage" | "domains.read" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "flags.manage" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "leases.maintain" | "leases.manage" | "leases.read" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "reviews.manage" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "support.read" | "support.revoke" | "support.start" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -1254,6 +1255,7 @@ export const blockEvents: Events<BlockEvents> = {
     "booking.cancelled",
     "booking.confirmed",
     "booking.expired",
+    "booking.rescheduled",
     "booking.reserved",
     "bulk_run.completed",
     "calendar.created",
@@ -1324,6 +1326,9 @@ export const blockEvents: Events<BlockEvents> = {
     "engagement.completed",
     "engagement.deleted",
     "engagement.logged",
+    "engagement.recorded",
+    "engagement.summarized",
+    "engagement.transcribed",
     "engagement.updated",
     "enrollment.cancelled",
     "enrollment.completed",
@@ -1436,7 +1441,9 @@ export const blockEvents: Events<BlockEvents> = {
     "order.fulfilled",
     "order.paid",
     "order.placed",
+    "order.prepared",
     "order.refunded",
+    "order.served",
     "organization.created",
     "organization.deleted",
     "organization.deletion_cancelled",
@@ -1458,6 +1465,8 @@ export const blockEvents: Events<BlockEvents> = {
     "organization_setting.reset",
     "organization_setting.updated",
     "pass.admitted",
+    "pass.credit_refunded",
+    "pass.credit_used",
     "pass.issued",
     "pass.rejected",
     "pass.revoked",
@@ -1675,6 +1684,7 @@ export const blockEventSchemas = {
   "booking.cancelled": true,
   "booking.confirmed": true,
   "booking.expired": true,
+  "booking.rescheduled": true,
   "booking.reserved": true,
   "bulk_run.completed": true,
   "calendar.created": true,
@@ -1745,6 +1755,9 @@ export const blockEventSchemas = {
   "engagement.completed": true,
   "engagement.deleted": true,
   "engagement.logged": true,
+  "engagement.recorded": true,
+  "engagement.summarized": true,
+  "engagement.transcribed": true,
   "engagement.updated": true,
   "enrollment.cancelled": true,
   "enrollment.completed": true,
@@ -1857,7 +1870,9 @@ export const blockEventSchemas = {
   "order.fulfilled": true,
   "order.paid": true,
   "order.placed": true,
+  "order.prepared": true,
   "order.refunded": true,
+  "order.served": true,
   "organization.created": true,
   "organization.deleted": true,
   "organization.deletion_cancelled": true,
@@ -1879,6 +1894,8 @@ export const blockEventSchemas = {
   "organization_setting.reset": true,
   "organization_setting.updated": true,
   "pass.admitted": true,
+  "pass.credit_refunded": true,
+  "pass.credit_used": true,
   "pass.issued": true,
   "pass.rejected": true,
   "pass.revoked": true,

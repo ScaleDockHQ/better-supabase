@@ -3644,7 +3644,11 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {},
+              "recurring": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -4061,7 +4065,11 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "recordings": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -4655,7 +4663,11 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "kitchen": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -4789,6 +4801,14 @@
               "dropInLength": {
                 "type": "string",
                 "default": "2 hours"
+              },
+              "credits": {
+                "type": "boolean",
+                "default": false
+              },
+              "creditRefundBefore": {
+                "type": "string",
+                "default": "12 hours"
               }
             }
           }

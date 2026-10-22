@@ -1,6 +1,6 @@
 -- better-supabase module: passes
 -- @bs-module passes@1 managed
--- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, and drop-ins counted against the resource's capacity with its bookings.
+-- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -525,6 +525,164 @@ $$;
 revoke execute on function "better_supabase"."passes_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."passes_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
+-- The class-credit ledger: -1 when a pass pays for a booking, +1 when the
+-- booking is cancelled before the refund window closes. One of each per
+-- booking at most.
+create table if not exists "better_supabase"."pass_credit_entries" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "pass_id" uuid not null references "better_supabase"."passes" ("id") on delete cascade,
+  "booking_id" uuid references "better_supabase"."bookings" ("id") on delete set null,
+  "delta" integer not null check ("delta" in (-1, 1)),
+  "reason" text not null check ("reason" in ('booking', 'refund')),
+  "created_by" uuid,
+  "created_at" timestamptz not null default clock_timestamp(),
+  check (("reason" = 'booking') = ("delta" = -1))
+);
+create index if not exists "pass_credit_entries_pass_idx" on "better_supabase"."pass_credit_entries" ("pass_id", "created_at" desc);
+create index if not exists "pass_credit_entries_booking_idx" on "better_supabase"."pass_credit_entries" ("booking_id");
+create unique index if not exists "pass_credit_entries_once_idx" on "better_supabase"."pass_credit_entries" ("booking_id", "reason");
+alter table "better_supabase"."pass_credit_entries" enable row level security;
+revoke all on "better_supabase"."pass_credit_entries" from anon, authenticated;
+grant all on "better_supabase"."pass_credit_entries" to service_role;
+
+-- Books a class with one credit of a pass: the holder, or a passes manager
+-- for the holder. The pass must be active, valid when the class starts, for
+-- that resource (or any) and have a use left. The booking is confirmed.
+create or replace function "better_supabase"."book_with_credit"(pass_id uuid, service uuid, resource uuid, starts_at timestamptz, customer jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_pass "better_supabase"."passes"%rowtype;
+  v_tenant uuid;
+  v_booking jsonb;
+  v_entry "better_supabase"."pass_credit_entries"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_pass from "better_supabase"."passes" x where x."id" = book_with_credit.pass_id for update;
+  if not found or not (v_pass."holder_user_id" = auth.uid() or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_pass."tenant_id", 'passes.manage'), false))) then
+    raise exception 'pass not found' using errcode = 'P0002', hint = 'PASS_NOT_FOUND';
+  end if;
+  if v_pass."status" <> 'active' then
+    raise exception 'the pass is revoked' using errcode = '55000', hint = 'PASS_REVOKED';
+  end if;
+  if v_pass."uses_allowed" is null or v_pass."booking_id" is not null then
+    raise exception 'only a pass with a number of uses and no booking of its own pays for bookings' using errcode = '22023', hint = 'PASS_NOT_CREDITS';
+  end if;
+  if v_pass."resource_id" is not null and v_pass."resource_id" <> book_with_credit.resource then
+    raise exception 'the pass is for another resource' using errcode = '22023', hint = 'PASS_WRONG_RESOURCE';
+  end if;
+  if book_with_credit.starts_at < v_pass."valid_from" or (v_pass."valid_until" is not null and book_with_credit.starts_at >= v_pass."valid_until") then
+    raise exception 'the pass is not valid when the class starts' using errcode = '22023', hint = 'PASS_NOT_VALID';
+  end if;
+  if v_pass."uses" >= v_pass."uses_allowed" then
+    raise exception 'the pass has no credits left' using errcode = '55000', hint = 'PASS_CREDITS_USED_UP';
+  end if;
+  select sv."tenant_id" into v_tenant from "better_supabase"."booking_services" sv where sv."id" = book_with_credit.service;
+  if v_tenant is distinct from v_pass."tenant_id" then
+    raise exception 'the service does not exist in the pass''s organization' using errcode = 'P0002', hint = 'PASS_BOOKING_NOT_FOUND';
+  end if;
+  v_booking := "better_supabase"."hold_booking"(book_with_credit.service, book_with_credit.resource, book_with_credit.starts_at,
+    coalesce(book_with_credit.customer, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object('userId', v_pass."holder_user_id", 'name', v_pass."holder_name", 'email', v_pass."holder_email")), true);
+  insert into "better_supabase"."pass_credit_entries" ("tenant_id", "pass_id", "booking_id", "delta", "reason", "created_by")
+  values (v_pass."tenant_id", v_pass."id", (v_booking ->> 'id')::uuid, -1, 'booking', auth.uid())
+  returning * into v_entry;
+  update "better_supabase"."passes" x set "uses" = x."uses" + 1, "updated_at" = now()
+  where x."id" = v_pass."id";
+  perform "better_supabase".emit_event('pass.credit_used', jsonb_build_object('organizationId', v_entry."tenant_id"::text, 'id', v_entry."pass_id", 'entryId', v_entry."id", 'bookingId', v_entry."booking_id"), 'passes/' || v_entry."pass_id"::text, (v_entry."tenant_id")::text, null, 'better-supabase/passes');
+  perform better_supabase.audit_event(
+    event_type => 'pass.credit_used',
+    category => 'access',
+    target_type => 'pass',
+    record_id => v_entry."pass_id"::text,
+    summary => 'booked with a credit of pass',
+    tenant => (v_entry."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_entry."tenant_id"::text, 'id', v_entry."pass_id", 'entryId', v_entry."id", 'bookingId', v_entry."booking_id")
+  );
+  return (v_booking - 'accessToken') || jsonb_build_object('passId', v_pass."id", 'creditsLeft', v_pass."uses_allowed" - v_pass."uses" - 1);
+end;
+$$;
+revoke execute on function "better_supabase"."book_with_credit"(uuid, uuid, uuid, timestamptz, jsonb) from public, anon;
+grant execute on function "better_supabase"."book_with_credit"(uuid, uuid, uuid, timestamptz, jsonb) to authenticated, service_role;
+
+-- Gives the credit back when a credit booking is cancelled at least
+-- 12 hours before it starts; later, the credit is spent. A booking
+-- that moves (cancel reason bs:moving) keeps its credit.
+create or replace function "better_supabase"."refund_pass_credit"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_entry "better_supabase"."pass_credit_entries"%rowtype;
+begin
+  if new."status" <> 'cancelled' or old."status" = 'cancelled'
+    or new."cancel_reason" is not distinct from 'bs:moving'
+    or now() > lower(new."during") - '12 hours'::interval then
+    return null;
+  end if;
+  for v_entry in
+    insert into "better_supabase"."pass_credit_entries" ("tenant_id", "pass_id", "booking_id", "delta", "reason", "created_by")
+    select spent."tenant_id", spent."pass_id", spent."booking_id", 1, 'refund', auth.uid()
+    from "better_supabase"."pass_credit_entries" spent
+    where spent."booking_id" = new."id" and spent."reason" = 'booking'
+    on conflict ("booking_id", "reason") do nothing
+    returning *
+  loop
+    update "better_supabase"."passes" x set "uses" = greatest(x."uses" - 1, 0), "updated_at" = now()
+    where x."id" = v_entry."pass_id";
+    perform "better_supabase".emit_event('pass.credit_refunded', jsonb_build_object('organizationId', v_entry."tenant_id"::text, 'id', v_entry."pass_id", 'entryId', v_entry."id", 'bookingId', v_entry."booking_id"), 'passes/' || v_entry."pass_id"::text, (v_entry."tenant_id")::text, null, 'better-supabase/passes');
+  perform better_supabase.audit_event(
+    event_type => 'pass.credit_refunded',
+    category => 'access',
+    target_type => 'pass',
+    record_id => v_entry."pass_id"::text,
+    summary => 'refunded a credit to pass',
+    tenant => (v_entry."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_entry."tenant_id"::text, 'id', v_entry."pass_id", 'entryId', v_entry."id", 'bookingId', v_entry."booking_id")
+  );
+  end loop;
+  return null;
+end;
+$$;
+revoke all on function "better_supabase"."refund_pass_credit"() from public, anon, authenticated;
+drop trigger if exists "pass_credit_entries_refund" on "better_supabase"."bookings";
+create trigger "pass_credit_entries_refund"
+after update of "status" on "better_supabase"."bookings"
+for each row execute function "better_supabase"."refund_pass_credit"();
+
+-- A pass's credit ledger, newest first: its holder, or a passes reader.
+create or replace function "better_supabase"."list_pass_credits"(pass_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_pass "better_supabase"."passes"%rowtype;
+begin
+  select * into v_pass from "better_supabase"."passes" x where x."id" = list_pass_credits.pass_id;
+  if not found or not (v_pass."holder_user_id" = auth.uid() or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_pass."tenant_id", 'passes.read'), false))) then
+    raise exception 'pass not found' using errcode = 'P0002', hint = 'PASS_NOT_FOUND';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', e."id", 'organizationId', e."tenant_id"::text, 'passId', e."pass_id", 'bookingId', e."booking_id", 'delta', e."delta", 'reason', e."reason", 'createdBy', e."created_by", 'createdAt', e."created_at") order by e."created_at" desc, e."id")
+    from "better_supabase"."pass_credit_entries" e where e."pass_id" = v_pass."id"
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."list_pass_credits"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_pass_credits"(uuid) to authenticated, service_role;
+
 -- blocks.passes.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -618,6 +776,24 @@ set search_path = ''
 as $$ select "better_supabase"."pass_occupancy"($1) $$;
 revoke execute on function "api"."pass_occupancy"(uuid) from public, anon;
 grant execute on function "api"."pass_occupancy"(uuid) to authenticated, service_role;
+
+create or replace function "api"."book_with_credit"(pass_id uuid, service uuid, resource uuid, starts_at timestamptz, customer jsonb default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."book_with_credit"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."book_with_credit"(uuid, uuid, uuid, timestamptz, jsonb) from public, anon;
+grant execute on function "api"."book_with_credit"(uuid, uuid, uuid, timestamptz, jsonb) to authenticated, service_role;
+
+create or replace function "api"."list_pass_credits"(pass_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_pass_credits"($1) $$;
+revoke execute on function "api"."list_pass_credits"(uuid) from public, anon;
+grant execute on function "api"."list_pass_credits"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

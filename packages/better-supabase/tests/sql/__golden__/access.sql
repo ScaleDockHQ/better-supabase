@@ -681,6 +681,7 @@ as $$
     when 'onboarding.complete' then 'onboarding.complete'
     when 'onboarding.read' then 'onboarding.read'
     when 'orders.manage' then 'orders.manage'
+    when 'orders.prepare' then 'orders.prepare'
     when 'orders.read' then 'orders.read'
     when 'organizations.delete' then 'organization.delete'
     when 'organizations.removeMember' then 'members.remove'

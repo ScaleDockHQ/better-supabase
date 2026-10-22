@@ -6445,6 +6445,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "PassCheckInOptions"
         },
         {
+          "name": "PassCreditBooking"
+        },
+        {
+          "name": "PassCreditBookingInput"
+        },
+        {
+          "name": "PassCreditEntry"
+        },
+        {
+          "name": "PassCreditEventData"
+        },
+        {
           "name": "Passes"
         },
         {
@@ -10171,8 +10183,23 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "EngagementActionItem"
+        },
+        {
           "name": "EngagementInput",
           "fields": true
+        },
+        {
+          "name": "EngagementNotes"
+        },
+        {
+          "name": "EngagementNotesInput"
+        },
+        {
+          "name": "EngagementRecording"
+        },
+        {
+          "name": "EngagementRecordingStatus"
         },
         {
           "name": "Engagements",

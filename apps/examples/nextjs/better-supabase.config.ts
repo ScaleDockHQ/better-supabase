@@ -405,11 +405,12 @@ export default defineConfig({
     orders: { options: { kitchen: true } },
     promotions: {},
     calendar: {},
-    // Recurring series, and classes paid for with pass credits.
+    // Weekly or daily rules book a series one occurrence at a time.
     bookings: { options: { recurring: true } },
     // Points and areas use PostGIS geography columns (ADR 0066).
     assets: { options: { postgis: true } },
     guests: {},
+    // Class bookings paid for with pass credits.
     passes: { options: { credits: true } },
     "billable-time": {},
     leases: {},
