@@ -25,6 +25,31 @@ type FeaturesConfig = Pick<
   | "subjects"
 >;
 
+/** `names` and every block they require, from the catalog. */
+function withRequired(names: readonly string[]): readonly string[] {
+  const requires = new Map(
+    PRESET_CATALOG.blocks.map((block) => [block.name, block.requires]),
+  );
+
+  const found = new Set<string>();
+
+  const add = (name: string): void => {
+    if (!found.has(name)) {
+      found.add(name);
+
+      for (const required of requires.get(name) ?? []) {
+        add(required);
+      }
+    }
+  };
+
+  for (const name of names) {
+    add(name);
+  }
+
+  return [...found];
+}
+
 /** One installed block that adds record sections. */
 interface SectionBlock {
   readonly name: string;
@@ -382,8 +407,9 @@ function queriesFile(
 /**
  * `features/` next to the main module: one record feature per subject with a
  * section for each installed block that serves it, and the bindings for the
- * project's frameworks. Subjects the section blocks register themselves (a
- * comment, an attachment) get none. Empty with `generateFeatures: false`.
+ * project's frameworks. Subjects the section blocks and the blocks they require
+ * register themselves (a comment's message, an attachment) get none. Empty with
+ * `generateFeatures: false`.
  */
 export function emitFeatures(
   config: FeaturesConfig,
@@ -425,7 +451,9 @@ export function emitFeatures(
   const features: [string, string][] = [];
 
   const inner = new Set(
-    blocks.flatMap((block) => blockSubjectTypes(block.name, config.blocks)),
+    withRequired(blocks.map((block) => block.name)).flatMap((name) =>
+      blockSubjectTypes(name, config.blocks),
+    ),
   );
 
   for (const type of Object.keys(config.subjects).toSorted()) {
