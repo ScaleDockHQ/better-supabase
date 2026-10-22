@@ -270,6 +270,11 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  "field-encryption": {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   flags: {
     schema: "better_supabase",
     api: "api",
@@ -1152,6 +1157,7 @@ export const blockEvents: Events<BlockEvents> = {
     "enrollment_program.deleted",
     "enrollment_program.saved",
     "field_value.set",
+    "field_value.viewed",
     "flag.deleted",
     "flag.override_set",
     "flag.saved",
@@ -1477,6 +1483,7 @@ export const blockEventSchemas = {
   "enrollment_program.deleted": true,
   "enrollment_program.saved": true,
   "field_value.set": true,
+  "field_value.viewed": true,
   "flag.deleted": true,
   "flag.override_set": true,
   "flag.saved": true,

@@ -40,7 +40,9 @@ describe("sampleValue", () => {
 
   it("has no literal for a reference", () => {
     expect(
-      sampleValue(required({ type: "uuid", references: "contacts" })),
+      sampleValue(
+        required({ type: "uuid", references: { table: "contacts" } }),
+      ),
     ).toBeUndefined();
   });
 
