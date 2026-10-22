@@ -4428,9 +4428,24 @@ msgid "You can read this document. Ask an admin for edit access."
 msgstr "Je kunt dit document lezen. Vraag een beheerder om bewerkrechten."
 
 #: src/features/documents/components/document-editor.tsx
+msgctxt "documents.UziXES"
+msgid "Your edits become a suggestion that an editor accepts."
+msgstr "Je wijzigingen worden een voorstel dat een redacteur accepteert."
+
+#: src/features/documents/components/document-editor.tsx
 msgctxt "documents.pfzLED"
 msgid "Changes save as you type and show up for everyone editing."
 msgstr "Wijzigingen worden opgeslagen terwijl je typt en zijn zichtbaar voor iedereen die bewerkt."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.pBQ5bd"
+msgid "Editing"
+msgstr "Bewerken"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.N-xlF3"
+msgid "Suggesting"
+msgstr "Voorstellen"
 
 #: src/features/documents/components/document-editor.tsx
 msgctxt "documents.9a9-ww"
@@ -4456,6 +4471,51 @@ msgstr "Schrijf hier de notities."
 msgctxt "documents.moUq9i"
 msgid "Plain text. Everyone who can read the customer can read it."
 msgstr "Platte tekst. Iedereen die de klant kan lezen, kan dit lezen."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.y5bka7"
+msgid "Submit suggestion"
+msgstr "Voorstel indienen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.mkAc9X"
+msgid "The suggestions didn't load"
+msgstr "De voorstellen zijn niet geladen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.O359cZ"
+msgid "No open suggestions"
+msgstr "Geen open voorstellen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.gQ-Wnb"
+msgid "Suggested edits wait here until an editor accepts them."
+msgstr "Voorgestelde wijzigingen wachten hier tot een redacteur ze accepteert."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.FN-iLO"
+msgid "Suggest a change"
+msgstr "Wijziging voorstellen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.Hv0XJn"
+msgid "Suggestions"
+msgstr "Voorstellen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.-CvNGk"
+msgid "Suggested edit"
+msgstr "Voorgestelde wijziging"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.VzIOKf"
+msgid "Reject"
+msgstr "Afwijzen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.sjzLbX"
+msgid "Accept"
+msgstr "Accepteren"
 
 #: src/features/documents/components/document-list.tsx
 msgctxt "documents.JZAFzY"

@@ -626,7 +626,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     blocks: ["documents"],
     kind: "screen",
     description:
-      "A rich text editor for a document with autosave and collaborators.",
+      "A rich text editor for a document with autosave, collaborators and a suggestion mode that editors accept or reject.",
     web: {
       file: `${WEB_APP}/src/features/documents/components/document-editor.tsx`,
       components: [
@@ -634,9 +634,11 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
         "badge",
         "button",
         "card",
+        "empty",
         "field",
         "input",
         "skeleton",
+        "tabs",
         "textarea",
       ],
       glue: [],

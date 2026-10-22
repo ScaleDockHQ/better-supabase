@@ -4428,9 +4428,24 @@ msgid "You can read this document. Ask an admin for edit access."
 msgstr "You can read this document. Ask an admin for edit access."
 
 #: src/features/documents/components/document-editor.tsx
+msgctxt "documents.UziXES"
+msgid "Your edits become a suggestion that an editor accepts."
+msgstr "Your edits become a suggestion that an editor accepts."
+
+#: src/features/documents/components/document-editor.tsx
 msgctxt "documents.pfzLED"
 msgid "Changes save as you type and show up for everyone editing."
 msgstr "Changes save as you type and show up for everyone editing."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.pBQ5bd"
+msgid "Editing"
+msgstr "Editing"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.N-xlF3"
+msgid "Suggesting"
+msgstr "Suggesting"
 
 #: src/features/documents/components/document-editor.tsx
 msgctxt "documents.9a9-ww"
@@ -4456,6 +4471,51 @@ msgstr "Write the notes here."
 msgctxt "documents.moUq9i"
 msgid "Plain text. Everyone who can read the customer can read it."
 msgstr "Plain text. Everyone who can read the customer can read it."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.y5bka7"
+msgid "Submit suggestion"
+msgstr "Submit suggestion"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.mkAc9X"
+msgid "The suggestions didn't load"
+msgstr "The suggestions didn't load"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.O359cZ"
+msgid "No open suggestions"
+msgstr "No open suggestions"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.gQ-Wnb"
+msgid "Suggested edits wait here until an editor accepts them."
+msgstr "Suggested edits wait here until an editor accepts them."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.FN-iLO"
+msgid "Suggest a change"
+msgstr "Suggest a change"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.Hv0XJn"
+msgid "Suggestions"
+msgstr "Suggestions"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.-CvNGk"
+msgid "Suggested edit"
+msgstr "Suggested edit"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.VzIOKf"
+msgid "Reject"
+msgstr "Reject"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.sjzLbX"
+msgid "Accept"
+msgstr "Accept"
 
 #: src/features/documents/components/document-list.tsx
 msgctxt "documents.JZAFzY"
