@@ -13,7 +13,12 @@ same functions; see [Inbox](/docs/blocks/inbox#realtime) for their options.
 
 import { useInboxWidget } from "better-supabase/chat-sdk/react";
 
-import { askForHelp, loadMessages, sendHelp } from "./help-actions";
+import {
+  askForHelp,
+  loadMessage,
+  loadMessages,
+  sendHelp,
+} from "./help-actions";
 
 export function HelpChat({ userId }: { userId: string }) {
   const widget = useInboxWidget({
@@ -21,6 +26,7 @@ export function HelpChat({ userId }: { userId: string }) {
     open: (message) => askForHelp({ message }),
     send: (conversationId, message) => sendHelp({ conversationId, message }),
     load: (conversationId) => loadMessages({ conversationId }),
+    get: (messageId) => loadMessage({ messageId }),
   });
 
   return (
@@ -40,9 +46,10 @@ export function HelpChat({ userId }: { userId: string }) {
 `useInboxWidget` returns the thread state of `useConversation` (`items`,
 `typing`, `setTyping`) plus `conversationId`, `submit` and `reset`.
 
-Each hook loads through a server action you pass as `load`, and reloads
-when a broadcast arrives on the private inbox topics, so the browser never
-needs the tables in the Data API. A bot's replies arrive the same way as a
+Each hook loads through a server action you pass as `load`. When a
+broadcast on the conversation's private messaging topic names a message, it
+fetches only that message through `get`, so the browser never needs the
+tables in the Data API. A bot's replies arrive the same way as a
 person's.
 
 Cards and modals from Chat SDK aren't rendered here; the

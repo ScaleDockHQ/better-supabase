@@ -197,6 +197,78 @@ before the old table goes:
 Review the generated migration before you apply it: the step runs once, and
 the old table is gone afterwards.
 
+## The inbox on the messaging core
+
+Inbox conversations are now core conversations of kind `inbox` on the
+[messaging](/docs/blocks/messaging) core, and their messages and internal
+notes are core messages; notes have `kind: "note"` and only staff read them.
+The inbox keeps its own tables for inboxes, members, contacts, deliveries,
+inbound events and templates, plus `inbox_conversations` and
+`inbox_message_details` for the fields messaging doesn't have. The inbox
+block now requires `messaging` and `attachments`, and reactions on inbox
+messages need the `reactions` block. See [Inbox](/docs/blocks/inbox) for
+the new API.
+
+| Before                                                                     | After                                                                                                          |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `inbox_messages`                                                           | `messages` (kind `message` or `note`) with `inbox_message_details`                                             |
+| `conversation_participants`, `conversation_reads`                          | `conversation_members`, with the read marker in `last_read_at`                                                 |
+| `inbox_mentions`                                                           | the message's mentions in messaging                                                                            |
+| the `inbox-files` bucket and the jsonb `attachments` array                 | attachment rows of the attachments block, scanned before anyone reads them                                     |
+| `set_inbox_typing(conversation, typing, actor)`                            | `set_typing(conversation, typing, actor)` from messaging                                                       |
+| `react_to_message`, reactions on `{ type: "inbox_message", id }`           | `react_to_inbox_message`, reactions on `{ type: "message", id }`                                               |
+| `messages.react` returns `{ [emoji]: actors }`                             | an array of `{ emoji, count, reacted, actors }`                                                                |
+| `InboxMessage.reactions` as `{ [emoji]: actors }`                          | the same array as `messages.react`                                                                             |
+| `InboxMessage.mentions`                                                    | `mentionIds`                                                                                                   |
+| `InboxMessage.authorId`, `editedAt`, `deletedAt` as `null`                 | `undefined`; a contact's messages have no `authorId`, read `conversation.contactId`                            |
+| `InboxMessage.attachments` as `MessageAttachment[]`                        | the core `MessageFile[]` (`id`, `name`, `mimeType`, `size`, `status`)                                          |
+| `MessageAttachment`, `MessageInput.attachments` with paths or URLs         | `MessageInput.attachments` with ids from `messages.createUpload`; channel files in `files` (`InboxFileSource`) |
+| `PurgedContact.attachments` as paths                                       | `{ bucket, path }` records                                                                                     |
+| the topic `inbox:<conversationId>`                                         | the messaging topic `messages:<conversationId>`; `inbox:org:<organizationId>` stays                            |
+| `useConversation`, `useInboxWidget` and their controllers reload on a ping | they take `get(messageId)` and fetch only the pinged message                                                   |
+| `copyFile` copies into `inbox-files`                                       | `copyFile` returns an `InboxFileSource`; `importFiles` fetches, writes and confirms each file                  |
+
+To upgrade:
+
+1. Add `messaging: {}` and `attachments: {}` to `blocks`, and `reactions: {}`
+   if your inbox uses reactions.
+2. Pass `get` to `useConversation` and `useInboxWidget`, such as a server
+   action that returns `inbox.messages.get(messageId)`.
+3. Read `mentionIds` and the reaction array, compare `deletedAt` with
+   `undefined`, and take a contact's id from the conversation.
+4. Upload files with `messages.createUpload`, then `confirmUpload`, and
+   pass the ids in `attachments`. Run the chat-sdk `importFiles` (or a loop
+   over `files.pending`) from a cron route for channel files.
+5. Run `better-supabase sql upgrade`, then `better-supabase sql sync`, and
+   generate a migration.
+
+### The inbox data migration
+
+The inbox module goes from version 3 to 4. Its upgrade step, which
+`better-supabase sql upgrade` writes before the schema files, moves the data
+before the old tables go:
+
+- Each conversation becomes a core conversation of kind `inbox` with the
+  same id, and its inbox fields stay in `inbox_conversations`.
+- Each message and note becomes a core message with the same id, body,
+  mentions and times, and its direction, author type, format, external id,
+  reply and metadata move to `inbox_message_details`.
+- Participants and read markers become conversation members with
+  `last_read_at`.
+- Each file in a message's `attachments` array becomes a pending
+  attachment whose source is its old path in `inbox-files` (or its URL);
+  `importFiles` with a `read` that downloads from `inbox-files` copies them.
+  The step stops when messages have files and the attachments table is
+  missing.
+- With the reactions block, the reactions kept on each message move to the
+  `message` subject, and rows on `inbox_message` are renamed. Without it the
+  step warns and drops them.
+- The old tables and `set_inbox_typing`, `react_to_message` and the other
+  replaced functions are dropped. The `inbox-files` bucket stays until you
+  have imported its files.
+
+Review the generated migration before you apply it: the step runs once.
+
 ## Signatures get their own block
 
 The signatures client, its manifest and its events moved out of

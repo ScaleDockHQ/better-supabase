@@ -120,9 +120,38 @@ reaching Chat SDK; pass `parsers` to add more. `mirror` finds or opens the
 conversation for the thread, upserts the contact from the message's author
 and skips bot messages and the echoes of replies `deliver` posted.
 
-Platform file URLs usually need the bot's token. Pass `copyFile` to copy
-each file into the `inbox-files` bucket; without it only files with a
-public URL are kept.
+Each file on a channel message becomes a pending attachment on the
+message. Platform file URLs usually need the bot's token, so pass
+`copyFile` to return a source the service can read (a signed URL, or a
+Storage path you already wrote); without it only files with a public URL
+are kept.
+
+`importFiles({ write, read, limit })` fetches the pending files, oldest
+first, writes each with `write` to the bucket and path the attachments
+block chose, and confirms it so the scan can mark it clean. A file that
+can't be read or written is marked failed. Run it from a cron route or a
+job after `drain`:
+
+```ts title="app/api/cron/inbox-files/route.ts"
+export async function GET() {
+  return Response.json(
+    await handler.importFiles({
+      write: async (file, data) => {
+        const { error } = await admin.storage
+          .from(file.bucket)
+          .upload(file.path, data, { contentType: file.mimeType });
+
+        if (error) {
+          throw error;
+        }
+      },
+    }),
+  );
+}
+```
+
+`read` defaults to fetching `file.source.url`; pass it for sources with
+only a `path`, such as the files the upgrade moved from `inbox-files`.
 
 ## Delivering staff replies
 
