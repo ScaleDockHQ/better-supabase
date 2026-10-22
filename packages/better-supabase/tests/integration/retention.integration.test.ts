@@ -183,7 +183,7 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
         "outbox",
         "webhooks-out",
         "webhook-inbox",
-        "jobs",
+        "queue",
         "usage",
         "notifications",
         "workflows",

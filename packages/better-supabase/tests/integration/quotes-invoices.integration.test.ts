@@ -31,7 +31,7 @@ const MODULES = [
 
 const layout: BlockSqlLayout = {
   subjects: {
-    ...withBlockSubjects({}, ["parties", "deals"], {}),
+    ...withBlockSubjects({}, ["contacts", "deals"], {}),
     quote: {
       table: "better_supabase.quotes",
       idType: "uuid",

@@ -10,7 +10,7 @@ const ACTION_MODULES = [
   "organizations",
   "invitations",
   "settings",
-  "flags",
+  "feature-flags",
   "billing",
   "credentials",
   "connectors",
@@ -24,7 +24,7 @@ const ACTION_MODULES = [
   "waitlist",
   "sso",
   "domains",
-  "rules",
+  "automations",
 ] as const;
 
 /** The event types `actions` records, each once. */

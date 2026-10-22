@@ -24,7 +24,7 @@ describe.skipIf(!live)("passes", () => {
         "outbox",
         "bookings",
         "signing-keys",
-        "passes",
+        "admission-passes",
       ]);
       const owner = await s.user("owner");
       const holder = await s.user("holder");

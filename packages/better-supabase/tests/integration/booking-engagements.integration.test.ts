@@ -23,7 +23,7 @@ const MODULES = [
 ];
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties"], {}),
+  subjects: withBlockSubjects({}, ["contacts"], {}),
   modules: { activities: { options: { bookings: true } } },
 };
 

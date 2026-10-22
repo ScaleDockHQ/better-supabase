@@ -163,7 +163,7 @@ describe.skipIf(!live)("parties merge", () => {
     try {
       const owner = await s.user("owner");
       await s.install([...MODULES, "comments"], {
-        subjects: withBlockSubjects({}, ["parties", "comments"], {}),
+        subjects: withBlockSubjects({}, ["contacts", "comments"], {}),
       });
       const org = await s.organization(owner);
       const parties = createContacts({ transport: sqlTransport(s.sql) });
@@ -211,7 +211,7 @@ describe.skipIf(!live)("parties and the inbox", () => {
     try {
       const owner = await s.user("owner");
       await s.install(
-        ["organizations", "jobs", "streams", "inbox", "parties"],
+        ["organizations", "queue", "streams", "inbox", "contacts"],
         {},
       );
       const org = await s.organization(owner);
