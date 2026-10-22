@@ -3,11 +3,11 @@ import type {
   MetricGrain,
 } from "../../core/metric-definition.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   METRIC_GRAINS,
@@ -26,7 +26,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   hooks: ["before_metric_rollup", "after_metric_rollup"],
   options: ["metrics", "window"],
   tables: {
@@ -53,7 +53,7 @@ const METRIC_MAX_BUCKETS = 1000;
 const WINDOW = /^[1-9][0-9]{0,3} (?:minute|hour|day|week)s?$/;
 
 /** How far back a periodic `metrics_rollup()` re-aggregates, for late rows. */
-function windowOf(ctx: ModuleContext): string {
+function windowOf(ctx: BlockSqlContext): string {
   const window = ctx.text("window", "3 days");
 
   if (!WINDOW.test(window)) {
@@ -73,7 +73,7 @@ const qualified = (table: string): string =>
  * `deletedAt` skips soft-deleted rows unless `where` names that column or the
  * metric sets `includeDeleted`.
  */
-function declaredMetrics(ctx: ModuleContext): readonly MetricDefinition[] {
+function declaredMetrics(ctx: BlockSqlContext): readonly MetricDefinition[] {
   return metricsOf(ctx.option("metrics")).map((metric) => {
     if (metric.includeDeleted === true) {
       return metric;
@@ -172,7 +172,7 @@ interface Names {
 }
 
 function rollupBranch(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   metric: MetricDefinition,
   names: Names,
 ): string {
@@ -280,7 +280,7 @@ function sourceGrainCase(
   return `case p_grain ${branches.join(" ")} end`;
 }
 
-function readChecks(ctx: ModuleContext, metric: MetricDefinition): string {
+function readChecks(ctx: BlockSqlContext, metric: MetricDefinition): string {
   const permission = sqlString(
     metric.permission ?? ctx.permissionKey("read", OPERATIONS["metrics.read"]),
   );
@@ -299,7 +299,7 @@ function readChecks(ctx: ModuleContext, metric: MetricDefinition): string {
 }
 
 function seriesBranch(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   metric: MetricDefinition,
   names: Names,
 ): string {
@@ -348,7 +348,7 @@ ${readChecks(ctx, metric)}
 }
 
 function valueBranch(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   metric: MetricDefinition,
   names: Names,
 ): string {
@@ -382,7 +382,7 @@ function definitionsJson(metrics: readonly MetricDefinition[]): string {
   return `${sqlString(JSON.stringify(json))}::jsonb`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -539,7 +539,7 @@ ${userGrant(`${fn("metric_definitions")}()`)}
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "metrics_rollup",
@@ -568,7 +568,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const METRICS: ModuleDefinition = {
+export const METRICS: BlockSqlDefinition = {
   name: "metrics",
   scopes: ["tenant"],
   title: "Metrics",

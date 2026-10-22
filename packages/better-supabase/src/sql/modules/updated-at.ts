@@ -1,8 +1,8 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { EQUIVALENT_TRIGGERS, SCHEMA } from "../shared.ts";
 
-export const UPDATED_AT: ModuleDefinition = {
+export const UPDATED_AT: BlockSqlDefinition = {
   name: "updated-at",
   title: "Update timestamps",
   description: "Keeps an updated_at column current on every update.",

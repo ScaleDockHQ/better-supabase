@@ -3,9 +3,9 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type {
-  InstalledModule,
-  ModuleFile,
-  ModuleLayout,
+  InstalledBlock,
+  BlockSqlFile,
+  BlockSqlLayout,
 } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
@@ -16,8 +16,8 @@ import {
   entityRenamePlan,
   moduleFileVersion,
   moduleTopics,
-  renderModules,
-  sameModuleFile,
+  renderBlocks,
+  sameBlockFile,
   SQL_MODULES,
   upgradePlan,
 } from "../../sql/index.ts";
@@ -26,7 +26,11 @@ import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
-import { legacyPrefixNames, legacyPrefixSql } from "./legacy-prefix.ts";
+import {
+  legacyBlocksTableSql,
+  legacyPrefixNames,
+  legacyPrefixSql,
+} from "./legacy-prefix.ts";
 import { migrationStamp } from "./migrations.ts";
 import {
   latestMigration,
@@ -59,7 +63,7 @@ export async function upgrade(
   }
 
   const sqlLayout = await layoutFor(config, args, config.blockNames);
-  const files = renderModules(config.blockNames, sqlLayout);
+  const files = renderBlocks(config.blockNames, sqlLayout);
   const migrations = await writesMigrations(config);
 
   const { installed, stale, diffs, text } = migrations
@@ -85,11 +89,13 @@ export async function upgrade(
   const renamed = [...new Set(renames.steps.map((step) => step.module))];
   const legacy = legacyPrefixNames(text);
   const prefixed = legacy.length > 0;
+  const modulesTable = text.includes("better_supabase.modules");
 
   const data = {
     upgrades: plan.map(({ module, from, to }) => ({ module, from, to })),
     ...(renamed.length > 0 ? { renames: renamed } : {}),
     ...(prefixed ? { prefix: "bsb" } : {}),
+    ...(modulesTable ? { table: "better_supabase.blocks" } : {}),
     stale,
   };
 
@@ -97,7 +103,8 @@ export async function upgrade(
     plan.length === 0 &&
     stale.length === 0 &&
     renamed.length === 0 &&
-    !prefixed;
+    !prefixed &&
+    !modulesTable;
 
   const behind = plan.map(
     (entry) =>
@@ -125,6 +132,11 @@ export async function upgrade(
         ),
         ...(prefixed
           ? ["The installed objects still use the bs_ prefix of 0.14 and older"]
+          : []),
+        ...(modulesTable
+          ? [
+              "The installed versions are in better_supabase.modules, which 0.15 names better_supabase.blocks",
+            ]
           : []),
         ...(stale.length > 0 ? [`Out of date: ${stale.join(", ")}.`] : []),
         "Run `better-supabase sql upgrade`.",
@@ -155,7 +167,14 @@ export async function upgrade(
       ]
     : [];
 
+  const tableSteps = modulesTable
+    ? [
+        `-- Copies better_supabase.modules into better_supabase.blocks (0.15).\n${legacyBlocksTableSql}`,
+      ]
+    : [];
+
   const steps = [
+    ...tableSteps,
     ...prefixSteps,
     ...renameSteps,
     ...plan.flatMap((entry) =>
@@ -183,6 +202,10 @@ export async function upgrade(
     );
 
     lines.push(...changeLines(applied));
+  }
+
+  if (modulesTable) {
+    lines.push("Copied better_supabase.modules into better_supabase.blocks");
   }
 
   if (prefixed) {
@@ -221,21 +244,21 @@ export async function upgrade(
 }
 
 interface Installed {
-  readonly installed: InstalledModule[];
+  readonly installed: InstalledBlock[];
   /** Paths that differ from what this release writes. */
   readonly stale: string[];
   readonly diffs: string[];
-  /** The installed files or migration, for their `@bs-entities` lines. */
+  /** The installed files or migration, for their `@bsb-names` lines. */
   readonly text: string;
 }
 
 /** The installed versions from the module files in `sql.dir`. */
 async function installedFromFiles(
   config: ResolvedConfig,
-  files: readonly ModuleFile[],
+  files: readonly BlockSqlFile[],
   paint: Paint,
 ): Promise<Installed> {
-  const installed: InstalledModule[] = [];
+  const installed: InstalledBlock[] = [];
   const stale: string[] = [];
   const diffs: string[] = [];
   const texts: string[] = [];
@@ -264,7 +287,7 @@ async function installedFromFiles(
       version: moduleFileVersion(current)?.version ?? 1,
     });
 
-    if (!sameModuleFile(current, file.contents)) {
+    if (!sameBlockFile(current, file.contents)) {
       const shown = display(config.root, file.path);
       stale.push(shown);
       diffs.push(fileDiff(shown, current, file.contents, paint));
@@ -275,13 +298,13 @@ async function installedFromFiles(
 }
 
 /**
- * The installed versions from the `@bs-module` lines of the newest module
+ * The installed versions from the `@bsb-block` lines of the newest module
  * migration.
  */
 async function installedFromMigration(
   config: ResolvedConfig,
-  sqlLayout: ModuleLayout,
-  files: readonly ModuleFile[],
+  sqlLayout: BlockSqlLayout,
+  files: readonly BlockSqlFile[],
   paint: Paint,
 ): Promise<Installed> {
   const latest = await latestMigration(config, MODULES_SUFFIX);

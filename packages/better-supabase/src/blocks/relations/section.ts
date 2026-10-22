@@ -1,4 +1,4 @@
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { EntitySchema } from "../entity-schema.ts";
 import type { Section, SectionWrite } from "../sections.ts";
 import type {
@@ -13,7 +13,7 @@ import { defineSection } from "../sections.ts";
 
 /** What linking a record to another one takes. */
 export interface RelationInput {
-  readonly target: SubjectRef;
+  readonly target: RecordRef;
   /** A kind, or its inverse name. */
   readonly kind: string;
   readonly data?: Readonly<Record<string, unknown>>;
@@ -21,12 +21,12 @@ export interface RelationInput {
 
 /** What unlinking a record from another one takes. */
 export interface UnlinkRelationInput {
-  readonly target: SubjectRef;
+  readonly target: RecordRef;
   readonly kind: string;
 }
 
-const TARGET = entitySchema<SubjectRef>({
-  title: "SubjectRef",
+const TARGET = entitySchema<RecordRef>({
+  title: "RecordRef",
   fields: { type: { kind: "string", minLength: 1 }, id: { kind: "string" } },
 });
 

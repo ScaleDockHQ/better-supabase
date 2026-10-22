@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createDeals } from "../../src/blocks/deals/index.ts";
 import { createFieldHistory } from "../../src/blocks/field-history/index.ts";
@@ -26,7 +26,7 @@ const MODULES = [
   "field-history",
 ];
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: withBlockSubjects({}, ["parties", "deals"], {}),
   modules: {
     "field-history": {

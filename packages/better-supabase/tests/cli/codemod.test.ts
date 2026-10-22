@@ -446,6 +446,23 @@ describe("sql add hint", () => {
 describe("codemod 0.15", () => {
   const v015 = CODEMODS["0.15"]!;
 
+  it("renames the module, subject, carrier and backend exports", () => {
+    const source = `import type { SqlModule, ModuleContext, SubjectRef } from "better-supabase/sql";
+import type { ShipmentCarrier } from "better-supabase/blocks/shipments";
+import { sqlQueueBackend, type QueueBackend } from "better-supabase/jobs";
+
+const ref: SubjectRef = { type: "customer", id };
+`;
+
+    expect(applyCodemod(v015, source).text)
+      .toBe(`import type { BlockSql, BlockSqlContext, RecordRef } from "better-supabase/sql";
+import type { ShippingProvider } from "better-supabase/blocks/shipments";
+import { sqlQueueProvider, type QueueProvider } from "better-supabase/jobs";
+
+const ref: RecordRef = { type: "customer", id };
+`);
+  });
+
   it("renames the bs instance where a file creates or imports it", () => {
     const created = `import { createNext } from "better-supabase/next";
 import { betterSupabase } from "@/lib/supabase";

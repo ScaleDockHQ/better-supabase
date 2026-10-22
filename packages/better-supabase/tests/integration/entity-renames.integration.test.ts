@@ -23,7 +23,7 @@ import {
   blockQueries,
   invalidateOnBlockEvents,
 } from "../../src/query/blocks.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl } from "./stack-env.ts";
@@ -146,7 +146,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     await client.query("begin");
     await client.query(`create schema ${SCRATCH}`);
 
-    const files = renderModules(config.blockNames, {
+    const files = renderBlocks(config.blockNames, {
       modules: config.blocks,
       subjects: config.subjects,
     });

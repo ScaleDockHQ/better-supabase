@@ -78,7 +78,7 @@ export interface BlockDefinition<
   S extends SectionMap = Nothing,
 > {
   readonly name: Name;
-  /** The SQL modules (`SqlModule` keys) this block installs. */
+  /** The SQL modules (`BlockSql` keys) this block installs. */
   readonly sql?: readonly string[];
   /** The options of each SQL module, for `blocks.<module>.options`. */
   readonly options?: BlockOptionSchemas;

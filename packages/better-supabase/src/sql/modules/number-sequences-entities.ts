@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { columnRef } from "../shared.ts";
 
@@ -82,7 +82,7 @@ function tenantSource(where: string, value: unknown): TenantColumn | undefined {
   return { ...columnRef(`${where}.column`, column), key };
 }
 
-export function sequences(ctx: ModuleContext): readonly SequenceEntity[] {
+export function sequences(ctx: BlockSqlContext): readonly SequenceEntity[] {
   const raw = ctx.option("entities");
 
   if (raw === undefined) {

@@ -1,7 +1,7 @@
 import type { DbError } from "../../core/errors.ts";
 import type { SubscriptionStatus } from "../../realtime/index.ts";
 import type { TopicPort } from "../../realtime/watch-topic.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { ReactionCount, Reactions } from "./reactions.ts";
 
@@ -22,7 +22,7 @@ export interface ReactionsControllerOptions {
    * The subjects on screen, at most 200 of each type; `setSubjects` changes
    * them.
    */
-  readonly subjects: readonly SubjectRef[];
+  readonly subjects: readonly RecordRef[];
   /**
    * `blockConfig.reactions.options.topic` from `blocks.generated.ts`; `null`
    * loads without listening.
@@ -44,13 +44,13 @@ export interface ReactionsSnapshot {
 
 export interface ReactionsActions {
   /** Adds the emoji, or removes it when the user already reacted with it. */
-  readonly toggle: (subject: SubjectRef, emoji: string) => Promise<void>;
+  readonly toggle: (subject: RecordRef, emoji: string) => Promise<void>;
   readonly refresh: () => Promise<void>;
   /**
    * Watches other subjects, such as the rows on screen after a scroll, and
    * loads them.
    */
-  readonly setSubjects: (subjects: readonly SubjectRef[]) => void;
+  readonly setSubjects: (subjects: readonly RecordRef[]) => void;
 }
 
 export type ReactionsController = Controller<
@@ -59,8 +59,8 @@ export type ReactionsController = Controller<
 >;
 
 const sameSubjects = (
-  a: readonly SubjectRef[],
-  b: readonly SubjectRef[],
+  a: readonly RecordRef[],
+  b: readonly RecordRef[],
 ): boolean =>
   a.length === b.length &&
   a.every((subject, index) => {

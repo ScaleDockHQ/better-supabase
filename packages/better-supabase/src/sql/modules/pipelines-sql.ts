@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { Names, PipelineBinding } from "./pipelines-bindings.ts";
 
 import { rankKeys } from "../../core/rank-keys.ts";
@@ -31,7 +31,7 @@ const pipelineFields = (names: Names, alias: string): string =>
  * stage template the first time a record needs one.
  */
 export function defaultPipeline(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: Names,
   bindings: readonly PipelineBinding[],
 ): string {
@@ -109,7 +109,7 @@ grant execute on function ${self}(${ctx.idType}, text, text) to service_role;
  * history.
  */
 export function stageTrigger(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: Names,
   binding: PipelineBinding,
 ): string {
@@ -325,7 +325,7 @@ for each row execute function better_supabase.${name}();`;
 }
 
 export function manageFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: Names,
   bindings: readonly PipelineBinding[],
 ): string {

@@ -7,7 +7,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -69,7 +69,7 @@ export interface SlaPolicy<F extends object = Record<never, never>> {
 
 export interface SlaClock {
   readonly id: string;
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   readonly metric: SlaMetric;
   readonly state: SlaState;
   readonly startedAt: Temporal.Instant;
@@ -104,10 +104,10 @@ export interface Sla<F extends object = Record<never, never>> {
    * Starts a record's clocks, or recomputes them for a new priority. The tenant
    * comes from the record.
    */
-  start(subject: SubjectRef, priority?: string): AsyncResult<SlaClock[]>;
+  start(subject: RecordRef, priority?: string): AsyncResult<SlaClock[]>;
   /** Moves a record's clocks: a reply, a resolution, a pause. */
-  record(subject: SubjectRef, event: SlaEvent): AsyncResult<SlaClock[]>;
-  clocks(subject: SubjectRef): AsyncResult<SlaClock[]>;
+  record(subject: RecordRef, event: SlaEvent): AsyncResult<SlaClock[]>;
+  clocks(subject: RecordRef): AsyncResult<SlaClock[]>;
   /** Records warnings and breaches. Service role only; run it from a job. */
   check(): AsyncResult<number>;
   /** The time `minutes` of working time after `start`. */

@@ -1,11 +1,11 @@
 import type { SlaEvents } from "../../blocks/sla/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -33,13 +33,13 @@ const CLOCK = [
   "dueAt",
 ] as const;
 
-const EVENTS: ModuleEvents<SlaEvents> = {
+const EVENTS: BlockSqlEvents<SlaEvents> = {
   "sla.warned": { subject: "sla-clocks", payload: [...CLOCK] },
   "sla.breached": { subject: "sla-clocks", payload: [...CLOCK] },
   "sla.completed": { subject: "sla-clocks", payload: [...CLOCK, "late"] },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [],
   options: ["businessHours", "subjects", "extraColumns"],
@@ -96,7 +96,7 @@ interface BusinessHours {
   readonly days: readonly number[];
 }
 
-function businessHours(ctx: ModuleContext): BusinessHours {
+function businessHours(ctx: BlockSqlContext): BusinessHours {
   const raw = ctx.option("businessHours") ?? {};
   const where = "blocks.sla.options.businessHours";
 
@@ -157,7 +157,7 @@ interface SlaBinding {
   readonly resolve: readonly string[];
 }
 
-function bindings(ctx: ModuleContext): readonly SlaBinding[] {
+function bindings(ctx: BlockSqlContext): readonly SlaBinding[] {
   const raw = ctx.option("subjects") ?? {};
 
   if (!isRecord(raw)) {
@@ -281,7 +281,7 @@ create trigger ${name} after insert or update of ${watched} on ${binding.subject
 for each row execute function better_supabase.${name}();`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -654,7 +654,7 @@ ${list.map((binding) => bindingTrigger(binding, fn)).join("\n")}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "sla_due_at",
@@ -681,7 +681,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SLA: ModuleDefinition = {
+export const SLA: BlockSqlDefinition = {
   name: "sla",
   scopes: ["tenant"],
   title: "Service levels",

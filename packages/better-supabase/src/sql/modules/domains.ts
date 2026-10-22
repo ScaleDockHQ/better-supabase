@@ -1,11 +1,11 @@
 import type { DomainsEvents } from "../../blocks/domains/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -17,7 +17,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<DomainsEvents> = {
+const EVENTS: BlockSqlEvents<DomainsEvents> = {
   "hostname.added": {
     subject: "hostnames",
     payload: ["organizationId", "hostnameId", "hostname"],
@@ -36,7 +36,7 @@ const EVENTS: ModuleEvents<DomainsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["platformDomain", "txtPrefix"],
   hooks: [],
@@ -63,7 +63,7 @@ const HOSTNAME = "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$";
 const PREFIX = /^_[a-z0-9-]{1,62}$/;
 
 /** `blocks.domains.options.platformDomain`, lowercased, or `undefined`. */
-function platformDomainOf(ctx: ModuleContext): string | undefined {
+function platformDomainOf(ctx: BlockSqlContext): string | undefined {
   const value = ctx.text("platformDomain", "").trim().toLowerCase();
 
   if (value === "") {
@@ -79,7 +79,7 @@ function platformDomainOf(ctx: ModuleContext): string | undefined {
   return value;
 }
 
-function prefixOf(ctx: ModuleContext): string {
+function prefixOf(ctx: BlockSqlContext): string {
   const prefix = ctx.text("txtPrefix", "_better-supabase");
 
   if (!PREFIX.test(prefix)) {
@@ -91,7 +91,7 @@ function prefixOf(ctx: ModuleContext): string {
   return prefix;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -384,7 +384,7 @@ grant execute on function ${fn("remove_hostname")}(uuid) to authenticated, servi
 grant execute on function ${fn("resolve_hostname")}(text) to anon, authenticated, service_role;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "add_hostname", args: ["{id}", "text"], returns: "jsonb" },
     { name: "list_hostnames", args: ["{id}"], returns: "jsonb" },
@@ -396,7 +396,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const DOMAINS: ModuleDefinition = {
+export const DOMAINS: BlockSqlDefinition = {
   name: "domains",
   scopes: ["tenant"],
   title: "Custom domains",

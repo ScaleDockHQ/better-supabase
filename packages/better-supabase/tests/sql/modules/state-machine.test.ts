@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   modules: AnyBlocksConfig = {},
   installed: readonly string[] = [],
 ): string =>
-  renderModules([...installed, "state-machine"], { modules })
+  renderBlocks([...installed, "state-machine"], { modules })
     .filter((file) => file.module === "state-machine")
     .map((file) => file.contents)
     .join("\n");
@@ -163,7 +163,7 @@ describe("state machine", () => {
   });
 
   it("falls back to config.subjects for a machine without a table", () => {
-    const sql = renderModules(["state-machine"], {
+    const sql = renderBlocks(["state-machine"], {
       subjects: {
         deal: { table: "crm.deals", idType: "uuid", tenant: "org_id" },
       },
@@ -333,7 +333,7 @@ describe("state machine", () => {
 
   it("rejects a registered subject without a tenant", () => {
     expect(() =>
-      renderModules(["state-machine"], {
+      renderBlocks(["state-machine"], {
         subjects: { note: { table: "public.notes", tenant: false } },
         modules: {
           "state-machine": {

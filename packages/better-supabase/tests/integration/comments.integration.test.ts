@@ -1,7 +1,7 @@
 import { Client, Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createAttachments } from "../../src/blocks/attachments/index.ts";
 import {
@@ -619,7 +619,7 @@ describe.skipIf(!live)("comments", () => {
 
     try {
       const table = await recordTable(s, "quotes");
-      const layout: ModuleLayout = { subjects: { quote: { table } } };
+      const layout: BlockSqlLayout = { subjects: { quote: { table } } };
       await s.install(MODULES, layout);
       const owner = await s.user("owner");
       const admin = await s.user("admin");
@@ -1070,7 +1070,7 @@ describe.skipIf(!live)("comments", () => {
       ];
 
       const table = await recordTable(s, "projects");
-      const layout: ModuleLayout = { subjects: { project: { table } } };
+      const layout: BlockSqlLayout = { subjects: { project: { table } } };
       await s.install(installed, layout);
       const owner = await s.user("owner");
       const member = await s.user("member");

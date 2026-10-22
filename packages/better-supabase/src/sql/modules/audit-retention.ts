@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { partitionedOn } from "./audit-chain.ts";
@@ -7,7 +7,7 @@ import { partitionedOn } from "./audit-chain.ts";
  * `purge_audit_log`, which honours an `audit_retention(tenant)` hook, and
  * `audit_events_tenants` for a retention callback in TypeScript.
  */
-export function retention(ctx: ModuleContext): string {
+export function retention(ctx: BlockSqlContext): string {
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
   const id = ctx.idType;

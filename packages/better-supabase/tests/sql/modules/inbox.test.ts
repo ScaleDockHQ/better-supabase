@@ -8,7 +8,7 @@ import { INBOX } from "../../../src/sql/modules/inbox.ts";
 import {
   moduleBody,
   moduleTopics,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
@@ -16,7 +16,7 @@ const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("inbox", { modules })!;
 
 const withJobs = (modules: AnyBlocksConfig = {}) =>
-  renderModules(["inbox", "jobs"], { modules })
+  renderBlocks(["inbox", "jobs"], { modules })
     .filter((file) => file.kind === "schema" && file.module === "inbox")
     .map((file) => file.contents)
     .join("\n");

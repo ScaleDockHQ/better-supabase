@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -9,13 +9,16 @@ import { fail, pageSize, revokeTable, serviceGrant } from "../shared.ts";
  * the table mapped explicitly, so an adopter that predates it keeps
  * installing.
  */
-export const suppressing = (ctx: ModuleContext): boolean =>
+export const suppressing = (ctx: BlockSqlContext): boolean =>
   ctx.hasTable("deliveries") &&
   ctx.hasTable("suppressions") &&
   (ctx.manages || ctx.config.tables["suppressions"] !== undefined);
 
 /** The table, its RLS (users read their own rows) and the service-only grants. */
-export function suppressionsTable(ctx: ModuleContext, n: NotifyNames): string {
+export function suppressionsTable(
+  ctx: BlockSqlContext,
+  n: NotifyNames,
+): string {
   if (!ctx.manages || !suppressing(ctx)) {
     return "";
   }
@@ -51,7 +54,7 @@ create policy ${policy} on ${t} for select to authenticated using (${c("user")} 
  * (auth.users).
  */
 export function claimSuppression(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: NotifyNames,
 ): { readonly join: string; readonly field: string } {
   if (!suppressing(ctx)) {
@@ -74,7 +77,7 @@ export function claimSuppression(
  * `list_notification_suppressions`, which reads through RLS.
  */
 export function suppressionFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: NotifyNames,
 ): string {
   if (!suppressing(ctx)) {
@@ -164,8 +167,8 @@ grant execute on function ${list}(integer) to authenticated, service_role;`;
 }
 
 export function suppressionContract(
-  ctx: ModuleContext,
-): readonly ModuleContractFunction[] {
+  ctx: BlockSqlContext,
+): readonly BlockSqlContractFunction[] {
   if (!suppressing(ctx)) {
     return [];
   }

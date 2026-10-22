@@ -18,7 +18,7 @@ import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import {
   modulePermissionKeys,
-  renderModules,
+  renderBlocks,
   SQL_MODULES,
   moduleLayout,
 } from "../../../src/sql/index.ts";
@@ -498,7 +498,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
         join(root, "supabase/tests/900_better_supabase_app_tables.test.sql"),
         "utf-8",
       ),
-    ).toContain("-- @bs-module-test app-tables");
+    ).toContain("-- @bsb-block-test app-tables");
     expect((await sql(["sync"], config)).output).toContain("Unchanged");
 
     await sql(["sync"], { blocks: ["updated-at"] });
@@ -1003,7 +1003,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     });
     await sql(["sync"], config);
 
-    const file = renderModules(
+    const file = renderBlocks(
       ["tenant"],
       moduleLayout(resolveConfig(config, root)),
     ).find((module) => module.module === "tenant" && module.kind === "schema");
@@ -1011,7 +1011,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     const path = join(root, file!.path);
 
     const legacy = (await readFile(path, "utf-8")).replace(
-      /^-- @bs-module .*\n/m,
+      /^-- @bsb-block .*\n/m,
       "",
     );
 
@@ -1035,7 +1035,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(done.next?.[0]?.when).toBe(
       "creates a migration from the module files",
     );
-    expect(await readFile(path, "utf-8")).toContain("-- @bs-module tenant@2");
+    expect(await readFile(path, "utf-8")).toContain("-- @bsb-block tenant@2");
     expect((await sql(["upgrade"], config)).output).toBe(
       "SQL modules are at their current versions.",
     );
@@ -1074,7 +1074,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     const config: BetterSupabaseConfig = { blocks: ["mfa"] };
     await sql(["sync"], config);
 
-    const [file] = renderModules(
+    const [file] = renderBlocks(
       ["mfa"],
       moduleLayout(resolveConfig(config, root)),
     );
@@ -1143,11 +1143,11 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       );
 
       expect(text).toMatch(/^-- better-supabase sql: the SQL modules /);
-      expect(text).toContain("-- @bs-module jobs@");
-      expect(text).toContain("-- @bs-module jsonb-schemas@");
+      expect(text).toContain("-- @bsb-block jobs@");
+      expect(text).toContain("-- @bsb-block jsonb-schemas@");
       expect(
         text.indexOf('create extension if not exists "pg_jsonschema"'),
-      ).toBeLessThan(text.indexOf("-- @bs-module jobs@"));
+      ).toBeLessThan(text.indexOf("-- @bsb-block jobs@"));
 
       expect((await sql(["sync"], config)).output).toContain(
         `Unchanged supabase/migrations/${name!} (it has these statements)`,
@@ -1223,7 +1223,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
         "utf-8",
       );
 
-      expect(text).toContain("-- @bs-module-data tenant");
+      expect(text).toContain("-- @bsb-block-data tenant");
       expect((await sql(["data"], config)).output).toContain(
         "already writes the rows into the module migration; nothing to write.",
       );
@@ -1244,8 +1244,8 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       await writeFile(
         path,
         (await readFile(path, "utf-8")).replace(
-          /^-- @bs-module tenant@2/m,
-          "-- @bs-module tenant@1",
+          /^-- @bsb-block tenant@2/m,
+          "-- @bsb-block tenant@1",
         ),
       );
       const check = await sql(["upgrade", "--check"], config);
@@ -1269,9 +1269,9 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
         "utf-8",
       );
 
-      expect(upgraded).toContain("-- @bs-upgrade-start");
-      expect(upgraded.indexOf("-- @bs-upgrade-end")).toBeLessThan(
-        upgraded.indexOf("-- @bs-module tenant@2"),
+      expect(upgraded).toContain("-- @bsb-upgrade-start");
+      expect(upgraded.indexOf("-- @bsb-upgrade-end")).toBeLessThan(
+        upgraded.indexOf("-- @bsb-block tenant@2"),
       );
       expect((await sql(["upgrade"], config)).output).toBe(
         "SQL modules are at their current versions.",

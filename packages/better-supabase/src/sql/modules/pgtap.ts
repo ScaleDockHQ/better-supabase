@@ -1,6 +1,6 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
-export const PGTAP: ModuleDefinition = {
+export const PGTAP: BlockSqlDefinition = {
   name: "pgtap",
   title: "pgTAP helpers",
   description:

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "./context.ts";
+import type { BlockSqlContext } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { registeredIdMatches, registeredSubjects } from "./subject-registry.ts";
@@ -10,7 +10,7 @@ import { registeredIdMatches, registeredSubjects } from "./subject-registry.ts";
  * module must require `subjects`.
  */
 export function subjectInTenant(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: string,
   id: string,
   tenant: string,
@@ -42,7 +42,7 @@ ${subjects
  * security definer code after checking the caller.
  */
 export function subjectTenant(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: string,
   id: string,
 ): string {
@@ -71,7 +71,7 @@ ${subjects
  * one. Reads the table directly, so check the caller first.
  */
 export function subjectTitle(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: string,
   id: string,
 ): string {

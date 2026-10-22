@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { OrganizationReadNames } from "./organizations-reads.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -14,7 +14,7 @@ export interface SuspensionHelpers {
 }
 
 export function memberSuspension(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: OrganizationReadNames,
   helpers: SuspensionHelpers,
 ): string {

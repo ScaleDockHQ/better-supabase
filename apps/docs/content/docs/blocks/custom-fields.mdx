@@ -27,7 +27,7 @@ const values = await fields.readValues(customer).orThrow();
 
 Definitions belong to an entity (`listDefinitions(entity)`,
 `saveDefinition(entity, key, label, type, sensitive?)`), and values to a
-subject, a `SubjectRef` (`{ type, id }`): `readValues(subject)` and
+subject, a `RecordRef` (`{ type, id }`): `readValues(subject)` and
 `setValue(subject, definitionId, value)`. Every call acts in the block's
 `tenant`, which `createBlocks` and `createBlockClient` pass from the request;
 a call without one fails with `invalid_request` and the hint

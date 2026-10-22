@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
@@ -15,7 +15,7 @@ const live = await reachable();
 
 // Each app renders its blocks into its own schema inside a transaction that
 // is rolled back, so the fixture's tenant-scoped blocks stay as they are.
-const userApp = (scope: "user" | "none"): ModuleLayout => ({
+const userApp = (scope: "user" | "none"): BlockSqlLayout => ({
   scope,
   modules: {
     tags: { schema: "scope_it" },
@@ -51,7 +51,7 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
     it("installs no tenant module or access contract", async () => {
       const modules = await s.rows<{ name: string }>(
-        "select name from better_supabase.modules where name in ('tags', 'activity', 'notifications') order by name",
+        "select name from better_supabase.blocks where name in ('tags', 'activity', 'notifications') order by name",
       );
 
       expect(modules.map((row) => row.name)).toEqual([
@@ -224,7 +224,7 @@ describe.skipIf(!live)("a workspace-named app", () => {
   // The tenant tables go to their own schema; the tenant helpers and the
   // access contract are written to better_supabase under their new names
   // until the rollback.
-  const layout: ModuleLayout = {
+  const layout: BlockSqlLayout = {
     modules: {
       tenant: { schema: "ws_it", entities: { organization: "workspace" } },
       access: { schema: "ws_it" },

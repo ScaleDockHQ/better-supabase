@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { SERVICE_CALLER, triggerGrant } from "../shared.ts";
 import { postsSql } from "./posts-sql.ts";
@@ -16,7 +16,7 @@ export const POST_TRIGGERS = [
  * status, the moderation item's removal, and the reply count and lock of the
  * post's comment thread.
  */
-export function postTriggers(ctx: ModuleContext): string {
+export function postTriggers(ctx: BlockSqlContext): string {
   const q = postsSql(ctx);
   const { fn, p, posts, subject, moderation, messaging } = q;
   const items = moderation.table("items");

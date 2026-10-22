@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ShipmentCarrier } from "../../../src/blocks/shipments/index.ts";
+import type { ShippingProvider } from "../../../src/blocks/shipments/index.ts";
 
 import {
   flatRateCarrier,
@@ -13,7 +13,7 @@ import { AsyncResult } from "../../../src/core/result.ts";
 import { signWebhook } from "../../../src/core/signatures.ts";
 import {
   ConformanceError,
-  testShipmentCarrier,
+  testShippingProvider,
 } from "../../../src/testing/index.ts";
 
 const SECRET = "whsec_Y2Fycmllci10ZXN0LXNlY3JldA==";
@@ -33,7 +33,7 @@ const request = {
 };
 
 describe("flatRateCarrier", () => {
-  it("passes the ShipmentCarrier conformance kit", async () => {
+  it("passes the ShippingProvider conformance kit", async () => {
     const carrier = flatRateCarrier({ services, webhookSecret: SECRET });
 
     const body = JSON.stringify({
@@ -41,7 +41,7 @@ describe("flatRateCarrier", () => {
       events: [{ id: "a", status: "in_transit", occurredAt: AT }],
     });
 
-    const report = await testShipmentCarrier(carrier, {
+    const report = await testShippingProvider(carrier, {
       from: FROM,
       to: TO,
       service: "standard",
@@ -62,7 +62,7 @@ describe("flatRateCarrier", () => {
   });
 
   it("passes the kit without webhooks", async () => {
-    const report = await testShipmentCarrier(flatRateCarrier({ services }), {
+    const report = await testShippingProvider(flatRateCarrier({ services }), {
       from: FROM,
       to: TO,
       service: "express",
@@ -74,7 +74,7 @@ describe("flatRateCarrier", () => {
   it("reports a carrier that breaks the contract", async () => {
     const good = flatRateCarrier({ services });
 
-    const broken: ShipmentCarrier = {
+    const broken: ShippingProvider = {
       ...good,
       rates: () => AsyncResult.ok([]),
       createLabel: (label, options) =>
@@ -83,7 +83,7 @@ describe("flatRateCarrier", () => {
           .map((found) => ({ ...found, labelId: crypto.randomUUID() })),
     };
 
-    const error = await testShipmentCarrier(broken, {
+    const error = await testShippingProvider(broken, {
       from: FROM,
       to: TO,
       service: "standard",

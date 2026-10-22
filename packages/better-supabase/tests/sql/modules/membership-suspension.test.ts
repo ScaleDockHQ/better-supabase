@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const render = (modules: AnyBlocksConfig, names = Object.keys(modules)) => {
-  const files = renderModules(names, {
+  const files = renderBlocks(names, {
     modules,
     accessProvider: moduleProvider,
   });

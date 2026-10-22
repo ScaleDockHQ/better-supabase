@@ -1,6 +1,10 @@
 import type { AiProvidersEvents } from "../../blocks/ai-providers/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -60,7 +64,7 @@ const ITEMS = {
   createdAt: "created_at",
 } as const;
 
-const EVENTS: ModuleEvents<AiProvidersEvents> = {
+const EVENTS: BlockSqlEvents<AiProvidersEvents> = {
   "ai_provider_key.saved": {
     subject: "organizations",
     payload: ["organizationId", "keyId", "provider", "name"],
@@ -71,7 +75,7 @@ const EVENTS: ModuleEvents<AiProvidersEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["pollEvery"],
   tables: {
@@ -95,7 +99,7 @@ const NAMES: ModuleNames = {
 
 const SLUG = "^[a-z0-9][a-z0-9._-]{0,63}$";
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const k = columnsOf(ctx, "keys", KEYS);
@@ -497,7 +501,7 @@ ${userGrant(`${fn("list_ai_batch_items")}(uuid, text, integer)`)}`;
 
 // Version 2 leaves ai_sandboxes to ai-chat. Without ai-chat the table would
 // go with this module's old file, so the upgrade stops while it holds rows.
-function upgradeSandboxes(ctx: ModuleContext): string {
+function upgradeSandboxes(ctx: BlockSqlContext): string {
   if (ctx.installed("ai-chat")) {
     return "";
   }
@@ -513,7 +517,7 @@ end;
 $$;`;
 }
 
-export const AI_PROVIDERS: ModuleDefinition = {
+export const AI_PROVIDERS: BlockSqlDefinition = {
   name: "ai-providers",
   scopes: ["tenant"],
   title: "AI providers",

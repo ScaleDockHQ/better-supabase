@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 describe("activity module", () => {
   const registry = {
@@ -12,7 +12,7 @@ describe("activity module", () => {
     names: readonly string[],
     audit: Readonly<Record<string, unknown>> = {},
   ): string =>
-    renderModules(names, {
+    renderBlocks(names, {
       subjects: registry,
       modules: { audit: { options: audit } },
     })

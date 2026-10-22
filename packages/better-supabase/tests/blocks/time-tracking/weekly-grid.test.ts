@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SubjectRef } from "../../../src/blocks/shared.ts";
+import type { RecordRef } from "../../../src/blocks/shared.ts";
 
 import { toWeeklyGrid } from "../../../src/blocks/time-tracking/index.ts";
 
@@ -10,7 +10,7 @@ const entry = (
   id: string,
   start: string,
   end: string | undefined,
-  extra: { subject?: SubjectRef; billable?: boolean } = {},
+  extra: { subject?: RecordRef; billable?: boolean } = {},
 ) => ({
   id,
   startedAt: at(start),

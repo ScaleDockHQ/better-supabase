@@ -1,5 +1,5 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -45,7 +45,7 @@ export interface NotifyNames {
 const ITEM_KEYS = ["event_id", "read_at", "actor_id", "resolved_at", "fields"];
 
 export function notifyNames(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   answersForOthers: boolean = accessModel(ctx) !== "provider",
 ): NotifyNames {
   return {
@@ -65,7 +65,7 @@ const NAME = /^[a-z][a-z0-9_]*$/;
  * The (member, channel) pairs that want this notification, in one query: each
  * pair's most specific preference, or the channel default.
  */
-function wanted(ctx: ModuleContext, n: NotifyNames): string {
+function wanted(ctx: BlockSqlContext, n: NotifyNames): string {
   const defaults = channelDefaults(ctx, "c");
 
   if (!ctx.hasTable("preferences")) {
@@ -93,7 +93,7 @@ function wanted(ctx: ModuleContext, n: NotifyNames): string {
     where w.enabled`;
 }
 
-function channels(ctx: ModuleContext): readonly string[] {
+function channels(ctx: BlockSqlContext): readonly string[] {
   const list = ctx.list("channels", ["in_app"]);
 
   for (const channel of list) {
@@ -108,7 +108,7 @@ function channels(ctx: ModuleContext): readonly string[] {
 }
 
 /** `notification_enabled`: the preference order, then the channel default. */
-function enabled(ctx: ModuleContext, n: NotifyNames): string {
+function enabled(ctx: BlockSqlContext, n: NotifyNames): string {
   const id = ctx.idType;
   const fn = ctx.fn("notification_enabled");
   const defaults = channelDefaults(ctx, "notification_enabled.channel");
@@ -148,9 +148,9 @@ grant execute on function ${fn}(uuid, ${id}, text, text) to service_role;`;
 }
 
 function notify(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: NotifyNames,
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
 ): string {
   const id = ctx.idType;
   const access = ctx.installed("access");
@@ -458,7 +458,7 @@ grant execute on function ${ctx.fn(name)}(jsonb) to ${access ? "authenticated, "
   .join("\n")}`;
 }
 
-function inbox(ctx: ModuleContext, n: NotifyNames): string {
+function inbox(ctx: BlockSqlContext, n: NotifyNames): string {
   const id = ctx.idType;
   const e = (logical: string) => n.col("events", logical);
   const r = (logical: string) => n.col("recipients", logical);
@@ -803,7 +803,7 @@ grant execute on function ${ctx.schema}.${signature} to authenticated, service_r
 }
 
 /** `set_notification_subscription` and `set_notification_preference`. */
-function settings(ctx: ModuleContext, n: NotifyNames): string {
+function settings(ctx: BlockSqlContext, n: NotifyNames): string {
   const id = ctx.idType;
   const parts: string[] = [];
 
@@ -916,9 +916,9 @@ grant execute on function ${ctx.fn(fn)}(text, text, boolean, ${id}) to authentic
 }
 
 export function functions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: NotifyNames,
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
 ): string {
   return [
     enabled(ctx, n),

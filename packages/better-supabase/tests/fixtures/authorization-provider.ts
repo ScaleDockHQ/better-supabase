@@ -1,5 +1,5 @@
 import type { AuthorizationProvider } from "../../src/config/index.ts";
-import type { ModuleAccessProvider } from "../../src/sql/module-types.ts";
+import type { BlockSqlAccessProvider } from "../../src/sql/module-types.ts";
 
 type StubProvider = AuthorizationProvider & {
   readonly functions: Required<
@@ -141,7 +141,7 @@ export function withProvider(patch: {
 }
 
 /** `stubProvider` as the `provider` access model sees it in a module layout. */
-export const moduleProvider: ModuleAccessProvider = {
+export const moduleProvider: BlockSqlAccessProvider = {
   name: "stub",
   scope: "organization",
   scopes: ["organization", "project"],
@@ -153,7 +153,7 @@ export const moduleProvider: ModuleAccessProvider = {
  * `moduleProvider` with only the caller's templates: no `_for` and no
  * assignment rule.
  */
-export const callerOnlyProvider: ModuleAccessProvider = {
+export const callerOnlyProvider: BlockSqlAccessProvider = {
   ...moduleProvider,
   functions: {
     idsWith: stubProvider.functions.idsWith,

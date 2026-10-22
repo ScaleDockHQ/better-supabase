@@ -4,7 +4,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -36,7 +36,7 @@ export interface Channel {
   readonly topic: string | undefined;
   readonly purpose: string | undefined;
   /** The record the channel is linked to. */
-  readonly subject: SubjectRef | undefined;
+  readonly subject: RecordRef | undefined;
   readonly createdBy: string | undefined;
   /** The caller's role, or `undefined` when they haven't joined. */
   readonly role: "owner" | "member" | undefined;
@@ -54,7 +54,7 @@ export interface NewChannel {
   readonly topic?: string | undefined;
   readonly purpose?: string | undefined;
   /** A record to link the channel to; the caller must read it. */
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   /** Members besides the caller, who owns the channel. */
   readonly memberIds?: readonly string[];
 }
@@ -90,7 +90,7 @@ export interface Channels {
   /** A channel by name in the tenant. */
   find(name: string): AsyncResult<Channel | undefined>;
   /** The channels linked to a record that the caller can see. */
-  forSubject(subject: SubjectRef): AsyncResult<Channel[]>;
+  forSubject(subject: RecordRef): AsyncResult<Channel[]>;
 }
 
 export interface ChannelsOptions

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, pageSize, userGrant, raise } from "../shared.ts";
@@ -43,7 +43,7 @@ const ENTRY_KEYS: readonly (readonly [string, string])[] = [
  * read (security invoker, so the read policy decides), newest first.
  */
 export function listEntries(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   restricted: boolean,
   extra: readonly (readonly [column: string, key: string])[] = [],
 ): string {
@@ -262,7 +262,7 @@ ${revokeUsers(ctx.fn("count_audit_events"), filterTypes)}grant execute on functi
  * member who may reveal them in its tenant (or platform staff), and an
  * `audit.revealed` entry that records who looked.
  */
-export function reveal(ctx: ModuleContext, restricted: boolean): string {
+export function reveal(ctx: BlockSqlContext, restricted: boolean): string {
   if (!restricted || !ctx.installed("access")) {
     return "";
   }

@@ -1,11 +1,11 @@
 import type { ScoresEvents } from "../../blocks/scores/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
@@ -19,7 +19,7 @@ const MODEL_PAYLOAD = [
   "version",
 ] as const;
 
-const EVENTS: ModuleEvents<ScoresEvents> = {
+const EVENTS: BlockSqlEvents<ScoresEvents> = {
   "score_model.saved": { subject: "score-models", payload: MODEL_PAYLOAD },
   "score_model.deleted": { subject: "score-models", payload: MODEL_PAYLOAD },
   "score.changed": {
@@ -38,7 +38,7 @@ const EVENTS: ModuleEvents<ScoresEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     score_model: { table: "models", singular: "score_model", primary: true },
   },
@@ -102,7 +102,7 @@ const NAMES: ModuleNames = {
 const jsonArray = (column: string): string =>
   `${column} jsonb not null default '[]'::jsonb check (jsonb_typeof(${column}) = 'array')`;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -194,7 +194,7 @@ ${tables}
 ${scoresFunctions(ctx)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_score_model", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
@@ -210,7 +210,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SCORES: ModuleDefinition = {
+export const SCORES: BlockSqlDefinition = {
   name: "scores",
   scopes: ["tenant"],
   title: "Scores",

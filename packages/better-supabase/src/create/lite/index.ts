@@ -17,7 +17,7 @@ export interface DesignIssue {
  * A module PGlite can't run, such as one that needs an extension it doesn't
  * ship.
  */
-export interface SkippedModule {
+export interface SkippedBlock {
   readonly module: string;
   readonly reason: string;
 }
@@ -26,7 +26,7 @@ export interface DesignValidation {
   /** `true` when every file that could run applied cleanly. */
   readonly ok: boolean;
   readonly issues: readonly DesignIssue[];
-  readonly skipped: readonly SkippedModule[];
+  readonly skipped: readonly SkippedBlock[];
   /** Tables in `public` after the files applied. */
   readonly tables: number;
 }

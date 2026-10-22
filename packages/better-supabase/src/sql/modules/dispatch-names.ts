@@ -1,16 +1,16 @@
 import type { DispatchEvents } from "../../blocks/dispatch/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
 
 import { extraFieldsArg } from "../shared.ts";
 
 const WORK_ORDER_PAYLOAD = ["organizationId", "id"] as const;
 
-const EVENTS: ModuleEvents<DispatchEvents> = {
+const EVENTS: BlockSqlEvents<DispatchEvents> = {
   "work_order.created": {
     subject: "work-orders",
     payload: [
@@ -51,7 +51,7 @@ const EVENTS: ModuleEvents<DispatchEvents> = {
 };
 
 /** The dispatch module's tables, entities and events. */
-export const DISPATCH_NAMES: ModuleNames = {
+export const DISPATCH_NAMES: BlockSqlNames = {
   entities: {
     work_order: {
       table: "workOrders",
@@ -144,8 +144,8 @@ export const DISPATCH_NAMES: ModuleNames = {
 
 /** The dispatch module's function signatures. */
 export function dispatchContract(
-  ctx: ModuleContext,
-): readonly ModuleContractFunction[] {
+  ctx: BlockSqlContext,
+): readonly BlockSqlContractFunction[] {
   const fields = extraFieldsArg(
     ctx.extraColumns("workOrders", ["fields", "day"]),
   );

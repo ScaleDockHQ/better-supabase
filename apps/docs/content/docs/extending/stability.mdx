@@ -84,8 +84,8 @@ columns and triggers each module creates, the claim names its functions read
 `is_platform()`). Apps call them from policies and their own functions, so a
 rename breaks the database, not the build. They follow these rules:
 
-1. Each module has a version, recorded in its file's `@bs-module` line and in
-   `better_supabase.modules`. A change the schema diff can't follow (a
+1. Each module has a version, recorded in its file's `@bsb-block` line and in
+   `better_supabase.blocks`. A change the schema diff can't follow (a
    renamed column, a backfill) raises the version and ships a forward step
    for `better-supabase sql upgrade`.
 2. A renamed function keeps a wrapper under the old name for at least one

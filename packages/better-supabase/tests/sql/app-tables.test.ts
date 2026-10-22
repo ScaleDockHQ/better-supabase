@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { AppTablesConfig } from "../../src/config/types/app-tables.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { APP_TABLES_MODULE } from "../../src/sql/modules/app-tables.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 // The SQL `appTables` renders (ADR 0040): per tenant, per user, in the
 // shared space and with the tenant renamed.
@@ -113,14 +113,14 @@ const BLOCKS = ["tenant", "organizations", "updated-at"];
 
 function render(
   names: readonly string[],
-  layout: ModuleLayout,
-): ReturnType<typeof renderModules> {
-  return renderModules(names, layout).filter(
+  layout: BlockSqlLayout,
+): ReturnType<typeof renderBlocks> {
+  return renderBlocks(names, layout).filter(
     (file) => file.module === APP_TABLES_MODULE,
   );
 }
 
-const golden = (files: ReturnType<typeof renderModules>): string =>
+const golden = (files: ReturnType<typeof renderBlocks>): string =>
   files
     .map((file) => `-- ==== ${file.kind} ${file.path}\n${file.contents}`)
     .join("\n");
@@ -189,7 +189,7 @@ describe("appTables SQL", () => {
       },
     });
 
-    const search = renderModules([...BLOCKS, "subjects", "search"], {
+    const search = renderBlocks([...BLOCKS, "subjects", "search"], {
       appTables,
       subjects: {
         project: { table: "public.projects", title: "name", search: {} },

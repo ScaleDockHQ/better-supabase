@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
 import { ISO_4217_MINOR_UNITS } from "../../../src/commerce/index.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
-const sqlOf = (layout: ModuleLayout = {}, names = ["catalog"]): string =>
-  renderModules(names, layout)
+const sqlOf = (layout: BlockSqlLayout = {}, names = ["catalog"]): string =>
+  renderBlocks(names, layout)
     .filter((file) => file.module === "catalog")
     .map((file) => file.contents)
     .join("\n");

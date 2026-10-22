@@ -3,17 +3,17 @@ import type {
   BlockMode,
   AnyBlocksConfig,
   BlockScope,
-  ResolvedModule,
+  ResolvedBlock,
 } from "../config/blocks.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
-import type { ModuleScope } from "./scope.ts";
+import type { BlockSqlScope } from "./scope.ts";
 
 import { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
-import { resolveModule } from "../config/blocks.ts";
+import { resolveBlock } from "../config/blocks.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
@@ -26,12 +26,12 @@ export { NOTHING };
 /** The scope id types SQL modules render. */
 export const MODULE_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
 
-export type ModuleIdType = (typeof MODULE_ID_TYPES)[number];
+export type BlockSqlIdType = (typeof MODULE_ID_TYPES)[number];
 
-export const isModuleIdType = (value: string): value is ModuleIdType =>
+export const isBlockSqlIdType = (value: string): value is BlockSqlIdType =>
   MODULE_ID_TYPES.some((type) => type === value);
 
-const ID_TYPE_ALIASES: Readonly<Record<string, ModuleIdType>> = {
+const ID_TYPE_ALIASES: Readonly<Record<string, BlockSqlIdType>> = {
   int8: "bigint",
   int4: "integer",
   int: "integer",
@@ -44,14 +44,14 @@ const ID_TYPE_ALIASES: Readonly<Record<string, ModuleIdType>> = {
  * normalised and aliases such as `int8` resolved. `undefined` for any other
  * type, so callers refuse it instead of guessing.
  */
-export function moduleIdType(value: string): ModuleIdType | undefined {
+export function moduleIdType(value: string): BlockSqlIdType | undefined {
   const name = value.trim().toLowerCase().replaceAll(/\s+/g, " ");
 
-  return isModuleIdType(name) ? name : ID_TYPE_ALIASES[name];
+  return isBlockSqlIdType(name) ? name : ID_TYPE_ALIASES[name];
 }
 
 /** One logical table of a module: its default name and logical columns. */
-export interface ModuleTableSpec {
+export interface BlockSqlTableSpec {
   /** Default name, in the module's schema. */
   readonly name: string;
   /** Logical column to default column name. */
@@ -64,7 +64,7 @@ export interface ModuleTableSpec {
   /** The app may lack the whole table (`blocks.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
   readonly adoptOnlyWhenMapped?: boolean;
-  readonly lifecycle?: ModuleTableLifecycle;
+  readonly lifecycle?: BlockSqlTableLifecycle;
   /**
    * Text columns an adopted table may declare with another type, such as an
    * enum: the module writes and compares them through `ctx.cast`.
@@ -72,7 +72,7 @@ export interface ModuleTableSpec {
   readonly typed?: readonly string[];
 }
 
-export interface ModuleTableLifecycle {
+export interface BlockSqlTableLifecycle {
   readonly user?: string;
   readonly tenant?: string;
   readonly purge?: boolean;
@@ -92,7 +92,7 @@ export interface ModuleTableLifecycle {
  * What makes an entity a `config.subjects` entry when the block is installed.
  * Columns are the table's logical columns; permissions are module actions.
  */
-export interface ModuleEntitySubject {
+export interface BlockSqlEntitySubject {
   readonly title: string;
   readonly deletedAt?: string;
   readonly permissions: {
@@ -118,7 +118,7 @@ export interface ModuleEntitySubject {
  * A noun the module names its tables, functions, events, permissions and hooks
  * after (`work_item`), renamed through `blocks.<name>.entities`.
  */
-export interface ModuleEntitySpec {
+export interface BlockSqlEntitySpec {
   /** The logical table that holds the entity; global entities may have none. */
   readonly table?: string;
   readonly singular: string;
@@ -128,12 +128,12 @@ export interface ModuleEntitySpec {
   readonly primary?: boolean;
   /** Renamed in every module, not only this one (the tenant). */
   readonly global?: boolean;
-  readonly subject?: ModuleEntitySubject;
+  readonly subject?: BlockSqlEntitySubject;
 }
 
-export interface ModuleNames {
-  readonly tables: Readonly<Record<string, ModuleTableSpec>>;
-  readonly entities?: Readonly<Record<string, ModuleEntitySpec>>;
+export interface BlockSqlNames {
+  readonly tables: Readonly<Record<string, BlockSqlTableSpec>>;
+  readonly entities?: Readonly<Record<string, BlockSqlEntitySpec>>;
   /**
    * The `before_*` and `after_*` hooks the module calls, so
    * `blocks.<name>.hooks.functions` is checked.
@@ -146,7 +146,7 @@ export interface ModuleNames {
   readonly options?: readonly string[];
   /**
    * The events the module records, typed against its block's event map
-   * (`ModuleEvents<MessagingEvents>`); `record` rejects any other type.
+   * (`BlockSqlEvents<MessagingEvents>`); `record` rejects any other type.
    */
   readonly events?: Readonly<Record<string, CheckedEventSpec | undefined>>;
   /**
@@ -154,7 +154,7 @@ export interface ModuleNames {
    * renames them on installs below `from + 1`, after the config's entity and
    * table renames, so a declared move needs no hand-written upgrade step.
    */
-  readonly migrations?: readonly ModuleNameMigration[];
+  readonly migrations?: readonly BlockSqlNameMigration[];
 }
 
 /**
@@ -162,7 +162,7 @@ export interface ModuleNames {
  * names before the move; they go through the entity renames like every other
  * name.
  */
-export interface ModuleNameMigration {
+export interface BlockSqlNameMigration {
   /** The installed version this move upgrades from. */
   readonly from: number;
   readonly description: string;
@@ -175,7 +175,7 @@ export interface ModuleNameMigration {
 }
 
 /** An event in a module's catalog, checked against what `record` renders. */
-export interface ModuleEventSpec<
+export interface BlockSqlEventSpec<
   M extends EventMap = EventMap,
   K extends BlockEventType<M> = BlockEventType<M>,
 > {
@@ -194,8 +194,8 @@ type PayloadKey<M extends EventMap, K extends BlockEventType<M>> =
   K extends BlockEventType<M> ? keyof M[K] & string : never;
 
 /** The events a module records, typed by its block's event map `M`. */
-export type ModuleEvents<M extends EventMap = EventMap> = {
-  readonly [K in BlockEventType<M>]?: ModuleEventSpec<M, K>;
+export type BlockSqlEvents<M extends EventMap = EventMap> = {
+  readonly [K in BlockEventType<M>]?: BlockSqlEventSpec<M, K>;
 };
 
 interface CheckedEventSpec {
@@ -207,7 +207,7 @@ interface CheckedEventSpec {
 const SUBJECT_COLLECTION = /^[a-z]+(-[a-z]+)*s$/;
 
 /** An event a module writes to the outbox, as SQL expressions. */
-export interface ModuleEmit {
+export interface BlockSqlEmit {
   /** The event type, e.g. `organization.created`. */
   readonly type: string;
   /** A `jsonb` expression. */
@@ -239,7 +239,7 @@ export const AUDIT_CATEGORIES = [
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
 
 /** How `record` writes an action to the audit log, as SQL expressions. */
-export interface ModuleAudit {
+export interface BlockSqlAudit {
   /** The audit category, mapped through `blocks.audit.options.values`. */
   readonly category: AuditCategory;
   /** What the action changed, e.g. `user` or `api_key`. */
@@ -275,12 +275,12 @@ export interface ModuleAudit {
  * An action a module records once: the outbox gets it as an event and the audit
  * log as an entry, each when its module is installed.
  */
-export interface ModuleAction extends ModuleEmit {
+export interface BlockSqlAction extends BlockSqlEmit {
   /**
    * How the action is audited, or `false` for an event that is not an audited
    * action, such as a chat message or a run status.
    */
-  readonly audit: ModuleAudit | false;
+  readonly audit: BlockSqlAudit | false;
 }
 
 const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
@@ -309,7 +309,7 @@ const FIXED_FUNCTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
  * A function of a module's contract: what other modules and the TypeScript side
  * call.
  */
-export interface ModuleContractFunction {
+export interface BlockSqlContractFunction {
   readonly name: string;
   /** Argument types; `{id}` stands for the module's id type. */
   readonly args: readonly string[];
@@ -317,14 +317,14 @@ export interface ModuleContractFunction {
 }
 
 /** What a module's `build` reads: resolved names for one layout. */
-export interface ModuleContext {
+export interface BlockSqlContext {
   readonly module: string;
   readonly mode: BlockMode;
-  readonly config: ResolvedModule;
+  readonly config: ResolvedBlock;
   /** The quoted schema of the module's functions and managed tables. */
   readonly schema: string;
   readonly schemaName: string;
-  readonly idType: ModuleIdType;
+  readonly idType: BlockSqlIdType;
   readonly claims: ClaimsMeta;
   readonly modules: AnyBlocksConfig;
   /** The app-wide subject registry (`config.subjects`). */
@@ -338,7 +338,7 @@ export interface ModuleContext {
    * Who the module's rows belong to, and the checks for it: the port every
    * tenant, user or shared-space check goes through.
    */
-  readonly scope: ModuleScope;
+  readonly scope: BlockSqlScope;
   /**
    * The module's final names: its entities as `blocks.<name>.entities` and
    * `blocks.tenant.entities.organization` rename them.
@@ -386,7 +386,7 @@ export interface ModuleContext {
   hasTable(table: string): boolean;
   /** Whether the module owns `table` (managed mode). */
   readonly manages: boolean;
-  readonly names: ModuleNames;
+  readonly names: BlockSqlNames;
   readonly installedModules: readonly string[];
   /** The permission key for a module action, as a SQL literal. */
   permission(action: string, fallback: string): string;
@@ -397,7 +397,7 @@ export interface ModuleContext {
   /** Whether `module` is installed alongside this one. */
   installed(module: string): boolean;
   /** The context of another module in the same layout. */
-  of(module: string): ModuleContext;
+  of(module: string): BlockSqlContext;
   /** A string module option (`blocks.<name>.options`). */
   text(name: string, fallback: string): string;
   number(name: string, fallback: number): number;
@@ -431,20 +431,20 @@ export interface ModuleContext {
    * `outbox` module is installed and `blocks.<name>.events` isn't false;
    * otherwise an empty string. `record` without the audit entry.
    */
-  emit(event: ModuleEmit): string;
+  emit(event: BlockSqlEmit): string;
   /**
    * PL/pgSQL that writes the action to the outbox (as `emit` does) and, when it
    * carries `audit` and the `audit` module is installed, to the audit log
    * (`audit_event`), with `key` as the idempotency key of both. `null;` when
    * neither applies, so it is always a valid statement.
    */
-  record(action: ModuleAction): string;
+  record(action: BlockSqlAction): string;
   /**
    * PL/pgSQL that writes the action to the audit log only, with no outbox
    * event, for reads that leave no change behind. `null;` without the `audit`
    * module or when `audit` is `false`.
    */
-  audit(action: ModuleAction): string;
+  audit(action: BlockSqlAction): string;
   /**
    * PL/pgSQL that calls `notify(fields)` as the service role, which `notify()`
    * requires, then restores the caller's claims. The function declares
@@ -533,7 +533,7 @@ export interface ExtraColumn {
 const EXTRA_COLUMN = /^[a-z_][a-z0-9_]*$/;
 const SQL_TYPE = /^[a-z][a-z0-9_ (),.'[\]-]*$/i;
 
-export interface ModuleContextSource {
+export interface BlockSqlContextSource {
   readonly modules?: AnyBlocksConfig;
   /** `config.subjects`, which `subjectsOption` falls back to. */
   readonly subjects?: SubjectsConfig;
@@ -543,7 +543,7 @@ export interface ModuleContextSource {
   /** The modules being installed together. */
   readonly installed?: readonly string[];
   /** The id type the authorization provider gives, when the layout has one. */
-  readonly providerIdType?: ModuleIdType;
+  readonly providerIdType?: BlockSqlIdType;
   /**
    * Whether the authorization provider answers for guests
    * (`functions.portalSubjects` or `portalParties`) under the `provider`
@@ -586,11 +586,11 @@ function checkIdent(where: string, value: string): string {
  */
 export function createModuleContext(
   module: string,
-  namesOf: (name: string) => ModuleNames | undefined,
-  source: ModuleContextSource = {},
-): ModuleContext {
+  namesOf: (name: string) => BlockSqlNames | undefined,
+  source: BlockSqlContextSource = {},
+): BlockSqlContext {
   const modules = source.modules ?? {};
-  const config = resolveModule(modules[module]);
+  const config = resolveBlock(modules[module]);
   const where = `blocks.${module}`;
   const names = namesOf(module) ?? { tables: {} };
   checkIdent(`${where}.schema`, config.schema);
@@ -850,7 +850,7 @@ export function createModuleContext(
     }
   };
 
-  const checkEvent = (event: ModuleEmit): void => {
+  const checkEvent = (event: BlockSqlEmit): void => {
     if (!names.events) {
       return;
     }
@@ -900,7 +900,7 @@ export function createModuleContext(
 
   // The written event: its type, subject collection and payload keys follow
   // the module's entity renames.
-  const renamed = <E extends ModuleEmit>(event: E): E => {
+  const renamed = <E extends BlockSqlEmit>(event: E): E => {
     if (!entityNaming.renamed) {
       return event;
     }
@@ -927,7 +927,7 @@ export function createModuleContext(
     };
   };
 
-  const outbox = (checked: ModuleEmit): string => {
+  const outbox = (checked: BlockSqlEmit): string => {
     checkEvent(checked);
     const event = renamed(checked);
 
@@ -935,7 +935,7 @@ export function createModuleContext(
       return "";
     }
 
-    const outboxConfig = resolveModule(modules["outbox"]);
+    const outboxConfig = resolveBlock(modules["outbox"]);
 
     const template =
       outboxConfig.options["blockSource"] ?? "better-supabase/{module}";
@@ -954,7 +954,7 @@ export function createModuleContext(
     ].join(", ")});`;
   };
 
-  const auditEntry = (checked: ModuleAction): string => {
+  const auditEntry = (checked: BlockSqlAction): string => {
     const action = renamed(checked);
     const audit = action.audit;
 
@@ -1315,7 +1315,7 @@ ${indent}end if;`;
 
 /** The contract's argument list with `{id}` resolved, as Postgres prints it. */
 export function contractSignature(
-  fn: ModuleContractFunction,
+  fn: BlockSqlContractFunction,
   idType: string,
 ): string {
   return fn.args.map((arg) => arg.replaceAll("{id}", idType)).join(", ");

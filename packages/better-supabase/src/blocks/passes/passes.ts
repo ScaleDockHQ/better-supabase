@@ -4,7 +4,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Jwks } from "../../core/jws.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { Booking } from "../bookings/bookings.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { Signer } from "../signing-keys/signing-keys.ts";
@@ -94,7 +94,7 @@ export interface Pass {
   readonly holderName?: string;
   readonly holderEmail?: string;
   /** The record the pass is for, such as an event or a membership. */
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly bookingId?: string;
   readonly resourceId?: string;
   /** How many check-ins it admits; missing means no limit. */
@@ -151,7 +151,7 @@ export interface PassInput {
   readonly holderUserId?: string;
   readonly holderName?: string;
   readonly holderEmail?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   /**
    * A ticket for this booking: valid until the booking ends and good for one
    * check-in unless the other fields say otherwise.
@@ -166,7 +166,7 @@ export interface PassInput {
 
 export interface PassListOptions {
   readonly holderUserId?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly status?: PassStatus;
   /** Pages back from a pass's `createdAt`. */
   readonly before?: Temporal.Instant;
@@ -324,7 +324,7 @@ function optionalCount(value: unknown, field: string): number | undefined {
     : countOf(value, field);
 }
 
-function subjectOf(row: Record<string, unknown>): SubjectRef | undefined {
+function subjectOf(row: Record<string, unknown>): RecordRef | undefined {
   const type = optionalText(row["subjectType"]);
   const id = optionalText(row["subjectId"]);
 

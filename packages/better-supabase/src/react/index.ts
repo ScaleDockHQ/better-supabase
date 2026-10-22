@@ -28,9 +28,9 @@ export { createRecordProvider } from "./record.ts";
 
 export { useRecordListState } from "./record-list.ts";
 
-export { useEntityForm } from "./entity-form.ts";
+export { useRecordForm } from "./record-form.ts";
 
-export type { EntityFormState, UseEntityFormOptions } from "./entity-form.ts";
+export type { RecordFormState, UseRecordFormOptions } from "./record-form.ts";
 
 export type {
   RecordListQueryStates,

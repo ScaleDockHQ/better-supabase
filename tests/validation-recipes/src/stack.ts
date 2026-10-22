@@ -2,7 +2,7 @@ import type { SqlClient } from "better-supabase/postgres";
 import type { PoolClient, QueryResultRow } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
-import { moduleLayout, renderModules } from "better-supabase/sql";
+import { moduleLayout, renderBlocks } from "better-supabase/sql";
 import { DatabaseError, Pool } from "pg";
 
 import type { Recipe } from "./recipes.ts";
@@ -36,7 +36,7 @@ export async function reachable(): Promise<boolean> {
 /** The module files `sql add` writes for the recipe, schema files first. */
 export function moduleFiles(recipe: Recipe) {
   const config = resolveConfig(recipe.config, process.cwd());
-  const files = renderModules(config.blockNames, moduleLayout(config));
+  const files = renderBlocks(config.blockNames, moduleLayout(config));
 
   return [
     ...files.filter((file) => file.kind === "schema"),

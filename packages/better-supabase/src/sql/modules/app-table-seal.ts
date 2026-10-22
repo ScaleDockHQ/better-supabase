@@ -2,7 +2,7 @@ import type {
   AppColumnConfig,
   AppTableConfig,
 } from "../../config/types/app-tables.ts";
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { encryptedColumns } from "../../config/app-access.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -18,7 +18,7 @@ const APP_REVEAL_LIMIT = 500;
 export interface SealTable {
   readonly name: string;
   readonly config: AppTableConfig;
-  readonly ctx: ModuleContext;
+  readonly ctx: BlockSqlContext;
   /** The scope column, or `undefined` in `none` scope. */
   readonly scope: { readonly name: string } | undefined;
   /** The rows a caller reaches, as the select policy checks them. */

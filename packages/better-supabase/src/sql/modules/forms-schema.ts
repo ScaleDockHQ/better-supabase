@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import {
   CUSTOM_FIELD_FORM_TYPES,
@@ -42,7 +42,7 @@ function formBoundsOf(type: string): string {
   return `case when ${type} = 'rating' then jsonb_build_object('min', ${String(min)}, 'max', ${String(max)}) else '{}'::jsonb end`;
 }
 
-function customFieldResolve(ctx: ModuleContext): string {
+function customFieldResolve(ctx: BlockSqlContext): string {
   const problem = (message: string): string => `v_problem := ${message};
         exit;`;
 
@@ -85,7 +85,7 @@ function customFieldResolve(ctx: ModuleContext): string {
  * definition checks in `core/contracts/form-definition.ts`. The integration
  * test asserts both produce the same schema.
  */
-export function formSchemaFunctions(ctx: ModuleContext): string {
+export function formSchemaFunctions(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
 
   return `-- The schema of one field's answer. Mirrors fieldSchema in
@@ -298,7 +298,7 @@ revoke execute on function ${fn("form_resolve")}(${ctx.idType}, jsonb) from publ
  * answer check in `formDefinitionProblems`. `form_score` grades answers against
  * a version's answer key, so the client never sends a score.
  */
-export function formScoringFunctions(ctx: ModuleContext): string {
+export function formScoringFunctions(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
 
   return `-- Whether a field's correct answer is one it takes. Mirrors correctFits in

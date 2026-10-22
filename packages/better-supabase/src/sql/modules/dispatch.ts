@@ -1,5 +1,5 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   WORK_ORDER_PRIORITIES,
@@ -35,20 +35,20 @@ const list = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");
 
 interface Linked {
-  readonly assets: ModuleContext | undefined;
-  readonly bookings: ModuleContext | undefined;
-  readonly catalog: ModuleContext | undefined;
-  readonly inventory: ModuleContext | undefined;
+  readonly assets: BlockSqlContext | undefined;
+  readonly bookings: BlockSqlContext | undefined;
+  readonly catalog: BlockSqlContext | undefined;
+  readonly inventory: BlockSqlContext | undefined;
 }
 
-const linked = (ctx: ModuleContext): Linked => ({
+const linked = (ctx: BlockSqlContext): Linked => ({
   assets: ctx.installed("assets") ? ctx.of("assets") : undefined,
   bookings: ctx.installed("bookings") ? ctx.of("bookings") : undefined,
   catalog: ctx.installed("catalog") ? ctx.of("catalog") : undefined,
   inventory: ctx.installed("inventory") ? ctx.of("inventory") : undefined,
 });
 
-function tables(ctx: ModuleContext, extras: readonly ExtraColumn[]): string {
+function tables(ctx: BlockSqlContext, extras: readonly ExtraColumn[]): string {
   if (!ctx.manages) {
     return "";
   }
@@ -240,7 +240,10 @@ ${keys}
 `;
 }
 
-function functions(ctx: ModuleContext, extras: readonly ExtraColumn[]): string {
+function functions(
+  ctx: BlockSqlContext,
+  extras: readonly ExtraColumn[],
+): string {
   const orders = ctx.table("workOrders");
   const routes = ctx.table("routes");
   const stops = ctx.table("stops");
@@ -999,7 +1002,7 @@ ${userGrant(`${fn("remove_work_order_part")}(uuid)`)}
  * Moves the work orders on a merged registered subject to the record it merged
  * into.
  */
-function workOrderMerges(ctx: ModuleContext): string {
+function workOrderMerges(ctx: BlockSqlContext): string {
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [
@@ -1022,7 +1025,7 @@ function workOrderMerges(ctx: ModuleContext): string {
   );
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -1036,7 +1039,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, extras)}${functions(ctx, extras)}${workOrderMerges(ctx)}`;
 }
 
-export const DISPATCH: ModuleDefinition = {
+export const DISPATCH: BlockSqlDefinition = {
   name: "dispatch",
   scopes: ["tenant"],
   title: "Dispatch",

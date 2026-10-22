@@ -1,13 +1,13 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createWorkItems } from "../../src/blocks/work-items/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { entityRenamePlan } from "../../src/sql/entity-upgrade.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -24,7 +24,7 @@ const MODULES = [
   "comments",
 ];
 
-const layout = (entities?: Record<string, string>): ModuleLayout => {
+const layout = (entities?: Record<string, string>): BlockSqlLayout => {
   const blocks = entities ? { "work-items": { entities } } : {};
 
   return {
@@ -36,8 +36,8 @@ const layout = (entities?: Record<string, string>): ModuleLayout => {
 // The subjects, messaging and comments modules read block tables that install after
 // them, and the tenant module resets check_function_bodies, so each file
 // turns it off again.
-async function install(s: BlockSession, at: ModuleLayout): Promise<void> {
-  for (const file of renderModules(MODULES, at)) {
+async function install(s: BlockSession, at: BlockSqlLayout): Promise<void> {
+  for (const file of renderBlocks(MODULES, at)) {
     if (file.kind !== "test") {
       await s.client.query("set local check_function_bodies = off");
       await s.client.query(file.contents);
@@ -58,7 +58,7 @@ describe.skipIf(!live)(
       try {
         await s.client.query("drop schema if exists better_supabase cascade");
         const owner = await s.user("owner");
-        const installed = renderModules(MODULES, layout());
+        const installed = renderBlocks(MODULES, layout());
         await install(s, layout());
         const org = await s.organization(owner);
 

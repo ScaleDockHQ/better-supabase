@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleScope } from "../scope.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlScope } from "../scope.ts";
 
 import {
   columnsObject,
@@ -12,7 +12,7 @@ import { amountOf, columns } from "./orders-shared.ts";
 
 export interface PromotionsNames {
   /** The block's scope checks. */
-  readonly scope: ModuleScope;
+  readonly scope: BlockSqlScope;
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
@@ -35,14 +35,15 @@ function guard(names: PromotionsNames, tenant: string): string {
 
 /** `options.extraColumns`, added to the promotions table. */
 export const promotionExtras = (
-  ctx: ModuleContext,
-): ReturnType<ModuleContext["extraColumns"]> => ctx.extraColumns("promotions");
+  ctx: BlockSqlContext,
+): ReturnType<BlockSqlContext["extraColumns"]> =>
+  ctx.extraColumns("promotions");
 
 /** Normalizes a shopper-typed code: trimmed and upper case. */
 const normalized = (code: string): string => `upper(btrim(${code}))`;
 
 export function promotionFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: PromotionsNames,
 ): string {
   const { fn } = names;
@@ -261,7 +262,7 @@ ${userGrant(`${fn("delete_promotion")}(uuid)`)}
 }
 
 export function codeFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: PromotionsNames,
 ): string {
   const { fn } = names;
@@ -453,7 +454,7 @@ ${userGrant(`${fn("remove_promotion_code")}(uuid, text)`)}
  * The SQL condition that product `product` falls in promotion `v_promo`'s
  * scope.
  */
-function scopeCheck(ctx: ModuleContext, product: string): string {
+function scopeCheck(ctx: BlockSqlContext, product: string): string {
   const catalog = ctx.of("catalog");
 
   const parts = [
@@ -485,7 +486,7 @@ function scopeCheck(ctx: ModuleContext, product: string): string {
 }
 
 export function discountFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: PromotionsNames,
 ): string {
   const { fn } = names;

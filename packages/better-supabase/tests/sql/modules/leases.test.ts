@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const sqlOf = (modules: readonly string[], layout: Layout = {}): string =>
-  renderModules(modules, layout)
+  renderBlocks(modules, layout)
     .filter((file) => file.module === "leases")
     .map((file) => file.contents)
     .join("\n");
@@ -41,10 +41,10 @@ describe("leases module", () => {
 
   it("needs the managed assets and ledger tables", () => {
     expect(() =>
-      renderModules(["leases"], { modules: { ledger: { mode: "custom" } } }),
+      renderBlocks(["leases"], { modules: { ledger: { mode: "custom" } } }),
     ).toThrow(/ledger can't be in custom mode/);
     expect(() =>
-      renderModules(["leases"], { modules: { assets: { mode: "custom" } } }),
+      renderBlocks(["leases"], { modules: { assets: { mode: "custom" } } }),
     ).toThrow(/assets can't be in custom mode/);
   });
 

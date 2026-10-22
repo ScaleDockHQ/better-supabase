@@ -6,7 +6,7 @@ import type { SqlDeps } from "../commands/sql.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
-import { resolveModules, SQL_MODULES } from "../../sql/index.ts";
+import { resolveBlocks, SQL_MODULES } from "../../sql/index.ts";
 import { providerLabel } from "../authorization.ts";
 import { CliError } from "../core/errors.ts";
 import { applyPlan } from "../core/files.ts";
@@ -69,10 +69,10 @@ export async function addModules(
   ];
 
   const sqlLayout = await layoutFor(config, args, listed);
-  const added = resolveModules(names, sqlLayout).map((module) => module.name);
+  const added = resolveBlocks(names, sqlLayout).map((module) => module.name);
   const lines = await write(config, args, listed, sqlLayout, deps.now, added);
 
-  const pulledIn = resolveModules(names, sqlLayout)
+  const pulledIn = resolveBlocks(names, sqlLayout)
     .map((module) => module.name)
     .filter(
       (name) => MEMBERSHIP_CLAIM_MODULES.has(name) && !names.includes(name),
@@ -87,7 +87,7 @@ export async function addModules(
     );
   }
 
-  const untracked = resolveModules(names, sqlLayout)
+  const untracked = resolveBlocks(names, sqlLayout)
     .map((module) => module.name)
     .filter((name) => !config.blockNames.includes(name));
 

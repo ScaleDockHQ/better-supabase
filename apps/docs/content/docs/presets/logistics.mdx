@@ -37,7 +37,7 @@ whatever they require:
 
 A shipment is for a record, such as an order, and ships from an asset
 location to an address. Carriers plug in through the versioned
-`ShipmentCarrier` interface: you register one per carrier you use, and the
+`ShippingProvider` interface: you register one per carrier you use, and the
 block asks each for rates and buys the label from the one you pick. The
 status follows the latest tracking event, whether it came from a carrier
 poll, a signed webhook or a person, and a repeated webhook adds no duplicate

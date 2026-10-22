@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
   extra: Readonly<Record<string, unknown>> = {},
 ): string =>
-  renderModules(names, {
+  renderBlocks(names, {
     modules: { ...(options ? { sso: { options } } : {}), ...extra },
   })
     .filter((file) => file.module === "sso")
@@ -66,7 +66,7 @@ describe("sso module", () => {
   });
 
   it("renders nothing in custom mode", () => {
-    const sql = renderModules(["sso"], { modules: { sso: { mode: "custom" } } })
+    const sql = renderBlocks(["sso"], { modules: { sso: { mode: "custom" } } })
       .filter((file) => file.module === "sso")
       .map((file) => file.contents)
       .join("");

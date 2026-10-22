@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { BlockScope } from "../../src/config/blocks.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { BLOCK_SCOPES } from "../../src/config/blocks.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 // The SQL each module writes under a convention (`sql.scope`,
 // `blocks.tenant.entities`), next to the default output in render-golden.test.ts. A
@@ -16,7 +16,7 @@ const NAMES = Object.keys(SQL_MODULES);
 interface Convention {
   readonly name: string;
   readonly applies: (module: string) => boolean;
-  readonly layout: ModuleLayout;
+  readonly layout: BlockSqlLayout;
 }
 
 const runsIn = (module: string, scope: BlockScope): boolean =>
@@ -42,11 +42,11 @@ const CONVENTIONS: readonly Convention[] = [
   },
 ];
 
-function render(module: string, layout: ModuleLayout): string {
+function render(module: string, layout: BlockSqlLayout): string {
   let files;
 
   try {
-    files = renderModules([module], layout);
+    files = renderBlocks([module], layout);
   } catch (cause) {
     return `-- ==== throws\n-- ${cause instanceof Error ? cause.message : String(cause)}\n`;
   }

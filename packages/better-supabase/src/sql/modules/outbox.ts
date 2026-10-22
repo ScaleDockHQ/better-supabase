@@ -1,5 +1,5 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -17,7 +17,7 @@ import {
   triggerGrant,
 } from "../shared.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: [
     "defaultSource",
     "emitRoles",
@@ -90,7 +90,7 @@ interface Names {
   readonly partitioned: boolean;
 }
 
-function names(ctx: ModuleContext): Names {
+function names(ctx: BlockSqlContext): Names {
   return {
     t: ctx.table("events"),
     c: ctx.table("consumers"),
@@ -160,7 +160,7 @@ alter table ${n.t} add column if not exists ${n.e("xid")} xid8 not null default 
 create index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`;
 }
 
-function tables(ctx: ModuleContext, n: Names): string {
+function tables(ctx: BlockSqlContext, n: Names): string {
   if (!ctx.manages) {
     return `${adoptXid(n)}${consumersTable(n)}`;
   }
@@ -263,7 +263,7 @@ function eventJson(n: Names, row: string): string {
   )`;
 }
 
-function emit(ctx: ModuleContext, n: Names): string {
+function emit(ctx: BlockSqlContext, n: Names): string {
   const insert: [string, string][] = [
     [n.e("type"), "event_type"],
     [n.e("payload"), "coalesce(payload, '{}')"],
@@ -372,7 +372,7 @@ revoke execute on function ${signature} from public, anon, authenticated;
 grant execute on function ${signature} to ${[...new Set(["service_role", ...roles])].join(", ")};`;
 }
 
-function consumers(ctx: ModuleContext, n: Names): string {
+function consumers(ctx: BlockSqlContext, n: Names): string {
   const byXid = n.has("xid");
   const settle = ctx.text("settle", "5 seconds");
 
@@ -741,7 +741,7 @@ ${service("outbox_history", "text, text, bigint, integer")}
 ${service("purge_outbox", "interval, integer, interval")}`;
 }
 
-function tracking(ctx: ModuleContext): string {
+function tracking(ctx: BlockSqlContext): string {
   const trigger = ctx.trigger("outbox_events");
   const updateTrigger = ctx.trigger("outbox_events_update");
   const run = ctx.fn("outbox_row_event").replaceAll("%", "%%");
@@ -795,7 +795,7 @@ $$;
 revoke execute on function ${ctx.fn("track_events")}(regclass, text, text) from public, anon, authenticated;`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -810,7 +810,7 @@ function build(ctx: ModuleContext): string {
   ].join("\n");
 }
 
-export const OUTBOX: ModuleDefinition = {
+export const OUTBOX: BlockSqlDefinition = {
   name: "outbox",
   title: "Outbox",
   description:

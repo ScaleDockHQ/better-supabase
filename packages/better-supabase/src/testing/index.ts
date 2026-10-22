@@ -106,13 +106,13 @@ export { testPaymentProvider } from "./kits/payment-provider.ts";
 
 export { testTaxProvider } from "./kits/tax-provider.ts";
 
-export { testShipmentCarrier } from "./kits/shipment-carrier.ts";
+export { testShippingProvider } from "./kits/shipping-provider.ts";
 
 export { testIncomingDestination } from "./kits/incoming-destination.ts";
 
 export { testPlugin } from "./kits/plugin.ts";
 
-export { testQueueBackend } from "./kits/queue-backend.ts";
+export { testQueueProvider } from "./kits/queue-provider.ts";
 
 export { testSupportSessionStore } from "./kits/support-session-store.ts";
 
@@ -172,13 +172,13 @@ export type { TestPaymentProviderOptions } from "./kits/payment-provider.ts";
 
 export type { TestTaxProviderOptions } from "./kits/tax-provider.ts";
 
-export type { TestShipmentCarrierOptions } from "./kits/shipment-carrier.ts";
+export type { TestShippingProviderOptions } from "./kits/shipping-provider.ts";
 
 export type { TestIncomingDestinationOptions } from "./kits/incoming-destination.ts";
 
 export type { TestPluginOptions } from "./kits/plugin.ts";
 
-export type { TestQueueBackendOptions } from "./kits/queue-backend.ts";
+export type { TestQueueProviderOptions } from "./kits/queue-provider.ts";
 
 export type { TestSupportSessionStoreOptions } from "./kits/support-session-store.ts";
 

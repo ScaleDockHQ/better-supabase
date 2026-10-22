@@ -28,7 +28,7 @@ import type {
 } from "../records/list.ts";
 import type { SectionName, SectionNamed } from "../records/sections.ts";
 import type { Timeline } from "../records/timeline.ts";
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 import type { ActionResult } from "../server/kit.ts";
 
 import { createBlockClient } from "../blocks/create-blocks.ts";
@@ -89,7 +89,7 @@ export interface RecordView<
   N extends string,
   M extends N,
 > {
-  readonly subject: SubjectRef<T>;
+  readonly subject: RecordRef<T>;
   /** Each requested section settled: `ok`, `error` or `hidden`. */
   readonly sections: PlainSections<B, M>;
   /** What the caller may do on every section of the feature. */

@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("shared-signals", { modules })!;
 
 const withWebhooks = (modules: AnyBlocksConfig = {}): string =>
-  renderModules(["webhooks-out", "shared-signals"], { modules })
+  renderBlocks(["webhooks-out", "shared-signals"], { modules })
     .filter((file) => file.module === "shared-signals")
     .map((file) => file.contents)
     .join("\n");

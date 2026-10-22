@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import {
@@ -52,7 +52,7 @@ const serviceOnly = raise(
   "AI_CHAT_FORBIDDEN",
 );
 
-function runs(ctx: ModuleContext, names: AiChatNames): string {
+function runs(ctx: BlockSqlContext, names: AiChatNames): string {
   const fn = (name: string): string => ctx.fn(name);
   const { t } = names;
   const ch = names.c.chats;
@@ -229,7 +229,7 @@ $$;
 ${userGrant(`${fn("list_ai_run_steps")}(uuid)`)}`;
 }
 
-function harness(ctx: ModuleContext, names: AiChatNames): string {
+function harness(ctx: BlockSqlContext, names: AiChatNames): string {
   const fn = (name: string): string => ctx.fn(name);
   const { t } = names;
   const ch = names.c.chats;
@@ -379,7 +379,10 @@ ${serviceGrant(`${fn("unlock_ai_harness_session")}(uuid, text, text)`)}`;
  * The SQL behind durable chat runs: run lookups for stop and resume, run steps
  * for progress, the approval inbox and the experimental harness session store.
  */
-export function aiChatDurable(ctx: ModuleContext, names: AiChatNames): string {
+export function aiChatDurable(
+  ctx: BlockSqlContext,
+  names: AiChatNames,
+): string {
   return `${runs(ctx, names)}
 
 ${harness(ctx, names)}`;

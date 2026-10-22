@@ -5,7 +5,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -49,7 +49,7 @@ export interface TimeRate {
   readonly id: string;
   readonly organizationId: string;
   readonly userId?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   /** Per hour. */
   readonly rate: Money;
   readonly effectiveFrom: Temporal.PlainDate;
@@ -63,27 +63,27 @@ export interface TimeRateInput {
   /** The member the rate is for. */
   readonly userId?: string;
   /** The record the rate is for, such as a project. */
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   /** Default: today. The same key and day replaces the rate. */
   readonly effectiveFrom?: Temporal.PlainDate;
 }
 
 export interface TimeRateListOptions {
   readonly userId?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly pageSize?: number;
 }
 
 export interface TimeRateLookup {
   readonly userId?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   /** Default: today. */
   readonly on?: Temporal.PlainDate;
 }
 
 /** Which unbilled entries to bill. Every field narrows the selection. */
 export interface BillableTimeScope {
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly userId?: string;
   /** Entries that started at or after this. */
   readonly starts?: Temporal.Instant;
@@ -107,7 +107,7 @@ export interface BillableTimeLine {
   /** `quantity` times `unitAmount`, rounded to a minor unit. */
   readonly amount: Money;
   readonly entryIds: readonly string[];
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   /** Set when lines are grouped by member or entry. */
   readonly userId?: string;
 }
@@ -127,8 +127,8 @@ export interface InvoiceFromTimeInput extends BillableTimeQuery {
   /** Default `Time`. */
   readonly title?: string;
   /** The company billed, such as `{ type: "companies", id }`. */
-  readonly company?: SubjectRef;
-  readonly contact?: SubjectRef;
+  readonly company?: RecordRef;
+  readonly contact?: RecordRef;
   readonly termsDays?: number;
   readonly note?: string;
 }
@@ -146,7 +146,7 @@ export interface InvoicedTimeEntry {
   readonly entryId: string;
   readonly invoiceId: string;
   readonly userId: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly startedAt: Temporal.Instant;
   readonly seconds: number;
   /** The hourly rate it was billed at. */
@@ -192,7 +192,7 @@ function optional<K extends string, V>(
   };
 }
 
-function subjectOf(row: Record<string, unknown>): SubjectRef | undefined {
+function subjectOf(row: Record<string, unknown>): RecordRef | undefined {
   const type = optionalText(row["subjectType"]);
   const id = optionalText(row["subjectId"]);
 

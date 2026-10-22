@@ -3,13 +3,13 @@ import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
 import { defineSettings } from "../../../src/blocks/settings/index.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
 ): string =>
-  renderModules(names, { modules: options ? { settings: { options } } : {} })
+  renderBlocks(names, { modules: options ? { settings: { options } } : {} })
     .filter((file) => file.contents.includes("user_settings"))
     .map((file) => file.contents)
     .join("\n");

@@ -1,13 +1,13 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { schemaPreamble, serviceGrant, lockTable } from "../shared.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   tables: {
     subscriptions: {
       name: "chat_state_subscriptions",
@@ -82,7 +82,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -573,7 +573,7 @@ $$;
 ${serviceGrant(`${fn("chat_uninstall")}(text, text)`)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   const pair = ["text", "text"] as const;
 
   return [
@@ -637,7 +637,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const CHAT_SDK_STATE: ModuleDefinition = {
+export const CHAT_SDK_STATE: BlockSqlDefinition = {
   name: "chat-sdk-state",
   title: "Chat SDK state",
   description:

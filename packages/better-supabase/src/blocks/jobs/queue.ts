@@ -6,7 +6,7 @@ import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type {
-  QueueBackend,
+  QueueProvider,
   QueueMessageRow,
   QueueRpcClient,
   QueueStats,
@@ -51,8 +51,8 @@ import {
   millis,
   pgmqPublicBackend,
   sqlOnly,
-  sqlQueueBackend,
-  transportQueueBackend,
+  sqlQueueProvider,
+  transportQueueProvider,
 } from "./backends.ts";
 import { nextCronRun } from "./cron.ts";
 import { unwrap, wrapPayload } from "./envelope.ts";
@@ -97,7 +97,7 @@ export type JobsSource =
   | SqlClient
   | QueueRpcClient
   | BlockTransport
-  | QueueBackend;
+  | QueueProvider;
 
 /**
  * `transport` with every call made through `blockCall`, so a rejection is
@@ -130,17 +130,17 @@ function backendOf(
     "backend" | "sql" | "client" | "transport" | "schema" | "mappers"
   >,
   now: () => Temporal.Instant,
-): QueueBackend {
+): QueueProvider {
   if (options.backend) {
     return options.backend;
   }
 
   if (options.sql) {
-    return sqlQueueBackend(options.sql, now);
+    return sqlQueueProvider(options.sql, now);
   }
 
   if (options.client && options.schema) {
-    return transportQueueBackend(
+    return transportQueueProvider(
       mappedTransport(
         rpcTransport(options.client, { schema: options.schema }),
         options.mappers,
@@ -154,7 +154,7 @@ function backendOf(
   }
 
   if (options.transport) {
-    return transportQueueBackend(
+    return transportQueueProvider(
       mappedTransport(options.transport, options.mappers),
       { now, ...(options.schema ? { schema: options.schema } : {}) },
     );
@@ -176,7 +176,7 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
  * `blocks.jobs.api` writes for the same features over the Data API (or a
  * service-role Supabase client with `schema` set to that schema), a
  * service-role Supabase client to go through the `pgmq_public` RPCs, or any
- * `QueueBackend`. Queue names are lowercase letters, digits and underscores.
+ * `QueueProvider`. Queue names are lowercase letters, digits and underscores.
  */
 export function createJobs<const Q extends QueueSchemas>(
   options: JobsOptions<Q>,

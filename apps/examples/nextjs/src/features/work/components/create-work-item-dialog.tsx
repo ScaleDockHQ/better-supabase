@@ -2,11 +2,11 @@
 
 // #region recipe:entity-form
 import type { DbError } from "better-supabase";
-import type { EntityFormInput } from "better-supabase/records";
+import type { RecordFormInput } from "better-supabase/records";
 
 import { workItemInputSchema } from "better-supabase/blocks/work-items";
-import { useEntityForm } from "better-supabase/react";
-import { entityForm } from "better-supabase/records";
+import { useRecordForm } from "better-supabase/react";
+import { recordForm } from "better-supabase/records";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useMemo, useState } from "react";
@@ -50,7 +50,7 @@ import { createWorkItem } from "../work-actions";
 const NO_TEAM = "";
 
 /** The HTML input type for each form input; the rest are text inputs. */
-const INPUT_TYPES: Partial<Record<EntityFormInput, string>> = {
+const INPUT_TYPES: Partial<Record<RecordFormInput, string>> = {
   number: "number",
   integer: "number",
   date: "date",
@@ -61,7 +61,7 @@ const INPUT_TYPES: Partial<Record<EntityFormInput, string>> = {
 
 /**
  * A dialog that creates a work item with a title, a team, a priority and the
- * organization's custom fields for work items. `entityForm` turns the entity
+ * organization's custom fields for work items. `recordForm` turns the entity
  * schema and the field definitions into one list of inputs and validates them
  * together.
  */
@@ -83,7 +83,7 @@ export function CreateWorkItemDialog({
 
   const definition = useMemo(
     () =>
-      entityForm(workItemInputSchema, {
+      recordForm(workItemInputSchema, {
         fields: ["title", "priority"],
         customFields: customFields.map((field) => ({
           key: field.key,
@@ -98,7 +98,7 @@ export function CreateWorkItemDialog({
 
   const [failure, setFailure] = useState<DbError>();
 
-  const form = useEntityForm(definition, {
+  const form = useRecordForm(definition, {
     initial: { title: "", priority: "0" },
     onSubmit: async ({ input, custom }) => {
       const result = await createWorkItem({

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 export const BUCKET: RegExp = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
 
@@ -8,7 +8,7 @@ export interface BucketOptions {
   readonly mimeTypes: readonly string[];
 }
 
-export function bucketOptions(ctx: ModuleContext): BucketOptions {
+export function bucketOptions(ctx: BlockSqlContext): BucketOptions {
   const bucket = ctx.text("bucket", "attachments");
 
   if (!BUCKET.test(bucket)) {

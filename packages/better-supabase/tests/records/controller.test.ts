@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { RecordSummary } from "../../src/records/index.ts";
-import type { SubjectRef } from "../../src/schema/types.ts";
+import type { RecordRef } from "../../src/schema/types.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import {
@@ -22,8 +22,8 @@ import {
 const customer = { type: "customer", id: "7" };
 
 function setup() {
-  const notes = vi.fn((subject: SubjectRef) => resolved([subject.id]));
-  const files = vi.fn((_subject: SubjectRef) => resolved(2));
+  const notes = vi.fn((subject: RecordRef) => resolved([subject.id]));
+  const files = vi.fn((_subject: RecordRef) => resolved(2));
 
   const notesBlock = defineBlock({
     name: "notes",

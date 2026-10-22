@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createShareLinks } from "../../src/blocks/share-links/index.ts";
 import {
@@ -12,7 +12,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: {
     doc: { table: "versions_it.docs", idType: "uuid" },
     note: { table: "versions_it.notes", idType: "uuid" },

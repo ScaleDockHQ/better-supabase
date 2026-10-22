@@ -1,6 +1,6 @@
 import type { DbError } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { ResolvedSubject, Subjects } from "./subjects.ts";
 
@@ -11,7 +11,7 @@ import { defineController, whileSignedIn } from "../controller.ts";
 type Resolved = Readonly<Record<string, ResolvedSubject>>;
 
 interface Batch {
-  readonly refs: Map<string, SubjectRef>;
+  readonly refs: Map<string, RecordRef>;
   readonly waiters: ((result: Result<Resolved>) => void)[];
 }
 
@@ -84,7 +84,7 @@ export interface SubjectsControllerOptions {
   readonly client: Pick<Subjects, "resolve">;
   readonly auth: AuthPort;
   /** The subjects to resolve; nothing loads while empty. */
-  readonly refs: readonly SubjectRef[];
+  readonly refs: readonly RecordRef[];
 }
 
 export interface SubjectsSnapshot {

@@ -78,7 +78,7 @@ options (`blocks.messaging.options.maxBodyLength`, `extraColumns` and
 
 ## Comments
 
-Every method that names a record takes it as a `SubjectRef`, `{ type, id }`,
+Every method that names a record takes it as a `RecordRef`, `{ type, id }`,
 and acts in the block's tenant. On the server, `createBlockClient` builds the
 client for the request: it calls through `ctx.db` and reads the tenant from
 `db.$context.tenant`, so you pass no organization id (see

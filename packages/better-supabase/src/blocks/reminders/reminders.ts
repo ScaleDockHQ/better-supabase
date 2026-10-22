@@ -13,7 +13,7 @@ import type {
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { Notifier } from "../ports.ts";
 import type { DeliveryPayload } from "./schedule.ts";
@@ -25,7 +25,7 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError, isDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -129,7 +129,7 @@ export interface ReminderEntry {
 export interface Reminders<F extends object = Record<never, never>> {
   /** Sets a reminder on `subject`; `fields` fills the app's extra columns. */
   save(
-    subject: SubjectRef,
+    subject: RecordRef,
     offsetMinutes?: number,
     fields?: Partial<F> & Readonly<Record<string, unknown>>,
   ): AsyncResult<SavedReminder<F>>;
@@ -137,7 +137,7 @@ export interface Reminders<F extends object = Record<never, never>> {
    * The caller's reminders on `subject`, the earliest before the occurrence
    * first.
    */
-  list(subject: SubjectRef): AsyncResult<readonly ReminderEntry[]>;
+  list(subject: RecordRef): AsyncResult<readonly ReminderEntry[]>;
   /** Removes one of the caller's reminders; `false` when there was none. */
   remove(reminderId: string): AsyncResult<boolean>;
   /**
@@ -164,8 +164,8 @@ function deliveryOf(value: unknown): DeliveryPayload {
 
   // Jobs enqueued before `subject` replaced the flat keys still carry them.
   const subject = nested
-    ? optionalSubjectRefOf(nested["type"], nested["id"])
-    : optionalSubjectRefOf(value["subjectType"], value["subjectId"]);
+    ? optionalRecordRefOf(nested["type"], nested["id"])
+    : optionalRecordRefOf(value["subjectType"], value["subjectId"]);
 
   return {
     reminderId: textOf(value["reminderId"]),

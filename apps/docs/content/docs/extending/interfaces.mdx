@@ -16,7 +16,7 @@ has a [conformance kit](/docs/extending/conformance).
 | [`AuthResolver`](#authresolver)                         | Bearer and cookie resolution; `localAuth()` in `/testing`   | `createServer(betterSupabase, { auth: { resolvers } })`                            |
 | [`Generator`](#generator)                               | `zod()`, `valibot()`, `jsonSchema()`, `standardSchema()`    | `generators` in the config                                                         |
 | [`Logger`](#logger)                                     | `consoleLogger`, `silentLogger`                             | `defineSupabase(schema, { logger })`                                               |
-| [`QueueBackend`](#queuebackend)                         | `sqlQueueBackend(sql)`, `pgmqPublicBackend(client)`         | `createJobs({ backend, queues })`                                                  |
+| [`QueueProvider`](#queuebackend)                        | `sqlQueueProvider(sql)`, `pgmqPublicBackend(client)`        | `createJobs({ backend, queues })`                                                  |
 | [`SupportSessionStore`](#supportsessionstore)           | `sqlSupportStore(postgres)`                                 | `createServer(betterSupabase, { support: supportSessions({ store, authorize }) })` |
 | [`NotificationChannel`](#notificationchannel)           | none (bring your email or push provider)                    | `createNotifications({ channels })`                                                |
 | [`DeliveryTransport`](#deliverytransport)               | `resendTransport(options)`                                  | `emailChannel({ transport })`                                                      |
@@ -28,7 +28,7 @@ has a [conformance kit](/docs/extending/conformance).
 | [`CredentialProvider`](#credentialprovider)             | `vaultCredentials(options)`, `vercelConnectCredentials()`   | `createServer(betterSupabase, { credentials })`                                    |
 | [`PaymentProvider`](#paymentprovider)                   | `stripePayments(options)`                                   | the commerce blocks                                                                |
 | [`TaxProvider`](#taxprovider)                           | `fixedRates(options)`, `stripeTax(options)`                 | the commerce blocks                                                                |
-| [`ShipmentCarrier`](#shipmentcarrier)                   | `flatRateCarrier(options)`                                  | `createShipments(client, { carriers })`                                            |
+| [`ShippingProvider`](#shipmentcarrier)                  | `flatRateCarrier(options)`                                  | `createShipments(client, { carriers })`                                            |
 | [`AuthorizationProvider`](#authorizationprovider)       | none (built by your authorization system)                   | `authorization` in the config                                                      |
 | [`AuthorizationHooks`](#authorizationhooks)             | none (built by your authorization system)                   | `createServer(betterSupabase, { authorization })`                                  |
 | [`Authorizer`](#authorizer)                             | `staticAuthorizer()` in `/testing`                          | `createServer(betterSupabase, { authorizer })`                                     |
@@ -124,7 +124,7 @@ returned from the mutation.
 Receives CloudEvents batches. See [CloudEvents](/docs/standards/events) for
 `toCloudEvents` and `forwardMutations`.
 
-## QueueBackend
+## QueueProvider
 
 Stores and leases jobs for [`createJobs`](/docs/blocks/jobs). It has
 `apiVersion: 1`, sends and reads messages, completes, fails and extends them
@@ -227,14 +227,14 @@ cart line in cart order, then shipping, and a total that is their sum. A
 reversal has negative amounts and can't exceed the sale. `testTaxProvider`
 is its conformance kit.
 
-## ShipmentCarrier
+## ShippingProvider
 
 Buys labels and reads tracking for the [shipments block](/docs/blocks/shipments).
 It has `apiVersion: 1`, a `name`, `rates(request)`, `createLabel(request,
 { idempotencyKey })`, `track(trackingNumber)` and `cancel(trackingNumber)`,
 and an optional `parseWebhook(input)` that verifies a signed delivery and
 returns its tracking updates. Tracking events come oldest first, and each has
-an id that the block records once. `testShipmentCarrier` is its conformance
+an id that the block records once. `testShippingProvider` is its conformance
 kit.
 
 ## AuthorizationProvider

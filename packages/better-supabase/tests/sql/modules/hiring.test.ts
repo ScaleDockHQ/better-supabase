@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const body = (
   module: string,
-  layout: Parameters<typeof renderModules>[1] = {},
+  layout: Parameters<typeof renderBlocks>[1] = {},
 ): string =>
-  renderModules([module], layout)
+  renderBlocks([module], layout)
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
 
 describe("hiring module", () => {
   it("binds applications to a pipeline per job before pipelines renders", () => {
-    const files = renderModules(["hiring"]);
+    const files = renderBlocks(["hiring"]);
     const modules = files.map((file) => file.module);
     expect(modules.indexOf("hiring")).toBeLessThan(
       modules.indexOf("pipelines"),

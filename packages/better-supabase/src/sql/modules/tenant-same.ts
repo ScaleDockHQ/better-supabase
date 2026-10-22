@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -36,7 +36,7 @@ const WHERE = "blocks.tenant.options.sameTenant";
  * column. Keys over more than one column are left to explicit entries.
  */
 function autoEntries(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   tenant: string,
 ): readonly Record<string, unknown>[] {
   if (
@@ -84,8 +84,8 @@ function autoEntries(
  * entry names.
  */
 function entriesOf(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): readonly SameTenant[] {
   const value = ctx.option("sameTenant");
 
@@ -271,7 +271,7 @@ function triggerName(column: string): string {
  * The tenant column `sameTenant` entries default to: the memberships tenant
  * column.
  */
-export function sameTenantColumn(layout: ModuleLayout): string {
+export function sameTenantColumn(layout: BlockSqlLayout): string {
   return moduleContext("tenant", layout).colName("memberships", "tenant");
 }
 
@@ -281,8 +281,8 @@ export function sameTenantColumn(layout: ModuleLayout): string {
  * fails for every writer. Empty without entries.
  */
 export function sameTenantSql(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): string {
   const entries = entriesOf(ctx, layout);
 

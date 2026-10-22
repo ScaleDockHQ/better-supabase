@@ -1,11 +1,11 @@
 import type { SigningKeysEvents } from "../../blocks/signing-keys/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -16,7 +16,7 @@ import {
   serviceGrant,
 } from "../shared.ts";
 
-const EVENTS: ModuleEvents<SigningKeysEvents> = {
+const EVENTS: BlockSqlEvents<SigningKeysEvents> = {
   "signing_key.created": {
     subject: "signing-keys",
     payload: ["ownerType", "ownerId", "kid", "alg"],
@@ -27,7 +27,7 @@ const EVENTS: ModuleEvents<SigningKeysEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["jwksGrace"],
   tables: {
@@ -56,7 +56,7 @@ const guard = `
   end if;`;
 
 function keyEvent(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: "signing_key.created" | "signing_key.retired",
   row: string,
 ): string {
@@ -76,7 +76,7 @@ function keyEvent(
   });
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -286,7 +286,7 @@ create trigger ${ctx.trigger("signing_key_vault")} after delete on ${t}
   for each row execute function ${fn("drop_signing_key_vault_secret")}();`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "add_signing_key",
@@ -310,7 +310,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SIGNING_KEYS: ModuleDefinition = {
+export const SIGNING_KEYS: BlockSqlDefinition = {
   name: "signing-keys",
   title: "Signing keys",
   description:

@@ -1,5 +1,5 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
@@ -22,7 +22,7 @@ export const WORKFLOW_VAULT_SECRETS = {
 
 export const WORKFLOW_DELIVERY_QUEUE = "workflow_deliveries";
 
-function deliveryModeOf(ctx: ModuleContext): WorkflowDeliveryMode {
+function deliveryModeOf(ctx: BlockSqlContext): WorkflowDeliveryMode {
   const mode = ctx.text("delivery", "poll");
 
   if (mode !== "poll" && mode !== "pg_net") {
@@ -36,7 +36,7 @@ function deliveryModeOf(ctx: ModuleContext): WorkflowDeliveryMode {
 
 const IDENT = /^[a-z_][a-z0-9_]{0,40}$/;
 
-function deliveryQueueOf(ctx: ModuleContext): string {
+function deliveryQueueOf(ctx: BlockSqlContext): string {
   const queue = ctx.text("queue", WORKFLOW_DELIVERY_QUEUE);
 
   if (!IDENT.test(queue)) {
@@ -50,7 +50,7 @@ function deliveryQueueOf(ctx: ModuleContext): string {
 
 const PRINCIPAL_KINDS = "'user', 'service_principal', 'system', 'external'";
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -215,7 +215,7 @@ revoke execute on function ${fn("dispatch_workflow_deliveries")}(integer) from p
 grant execute on function ${fn("dispatch_workflow_deliveries")}(integer) to service_role;`;
 }
 
-function data(ctx: ModuleContext): string {
+function data(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom" || deliveryModeOf(ctx) !== "pg_net") {
     return "";
   }
@@ -234,7 +234,7 @@ end;
 $$;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "dispatch_workflow_deliveries",
@@ -244,7 +244,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const WORKFLOW_SDK_WORLD: ModuleDefinition = {
+export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
   name: "workflow-sdk-world",
   scopes: ["tenant"],
   title: "Workflow SDK World",

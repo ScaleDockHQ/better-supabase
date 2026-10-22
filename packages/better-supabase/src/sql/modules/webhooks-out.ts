@@ -1,11 +1,11 @@
 import type { WebhooksEvents } from "../../blocks/webhooks/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { HookNames } from "./webhooks-out-sql.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -25,7 +25,7 @@ import {
   WEBHOOK_STATUSES,
 } from "./webhooks-out-sql.ts";
 
-const EVENTS: ModuleEvents<WebhooksEvents> = {
+const EVENTS: BlockSqlEvents<WebhooksEvents> = {
   "webhook.disabled": {
     subject: "webhooks",
     payload: ["endpointId", "organizationId", "failingSince"],
@@ -37,7 +37,7 @@ const EVENTS: ModuleEvents<WebhooksEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: [
     "allowHttp",
@@ -146,7 +146,7 @@ const NAMES: ModuleNames = {
 const FORMAT = /^[a-z][a-z0-9-]{0,39}$/;
 
 /** `blocks.webhooks-out.options.defaultFormat`, checked before it reaches SQL. */
-function defaultFormat(ctx: ModuleContext): string {
+function defaultFormat(ctx: BlockSqlContext): string {
   const format = ctx.text("defaultFormat", "cloudevents");
 
   if (!FORMAT.test(format)) {
@@ -165,7 +165,7 @@ const formatColumn = (column: string, fallback: string): string =>
  * The column default follows `defaultFormat`; `add column` alone keeps the
  * default of the table that first had the column.
  */
-function formatDefault(ctx: ModuleContext, n: HookNames): string {
+function formatDefault(ctx: BlockSqlContext, n: HookNames): string {
   return n.has("endpoints", "format")
     ? `alter table ${n.table("endpoints")} alter column ${n.col("endpoints", "format")} set default '${defaultFormat(ctx)}';\n`
     : "";
@@ -179,7 +179,7 @@ export const ADOPTED_FORMAT_ERROR =
  * changed from the 0.8 body to `cloudevents` in 0.9, so an adopted table has to
  * choose it.
  */
-function requireAdoptedFormat(ctx: ModuleContext, n: HookNames): void {
+function requireAdoptedFormat(ctx: BlockSqlContext, n: HookNames): void {
   if (
     ctx.mode === "adopt" &&
     !n.has("endpoints", "format") &&
@@ -204,7 +204,7 @@ function added(
     .join("");
 }
 
-function tables(ctx: ModuleContext, n: HookNames): string {
+function tables(ctx: BlockSqlContext, n: HookNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -365,7 +365,7 @@ grant select on ${n.table("deliveries")} to authenticated;${policy(
 }
 
 /** Re-enabling an endpoint clears its failure streak. */
-function reenable(ctx: ModuleContext, n: HookNames): string {
+function reenable(ctx: BlockSqlContext, n: HookNames): string {
   const d = (logical: string) => n.col("endpoints", logical);
 
   const resets = [
@@ -404,7 +404,7 @@ create trigger ${trigger} before update of ${d("enabled")} on ${n.table("endpoin
 }
 
 /** Deleting a secret row (or its endpoint) deletes its Vault secret. */
-function vaultCleanup(ctx: ModuleContext, n: HookNames): string {
+function vaultCleanup(ctx: BlockSqlContext, n: HookNames): string {
   const t = n.table("secrets");
   const trigger = ctx.trigger("webhook_secret_vault");
 
@@ -430,7 +430,7 @@ create trigger ${trigger} after delete on ${t}
   for each row execute function ${ctx.fn("drop_webhook_vault_secret")}();`;
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -447,7 +447,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   ].join("\n");
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "publish_webhook_event",
@@ -485,7 +485,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const WEBHOOKS_OUT: ModuleDefinition = {
+export const WEBHOOKS_OUT: BlockSqlDefinition = {
   name: "webhooks-out",
   title: "Outgoing webhooks",
   description:

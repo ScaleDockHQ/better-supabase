@@ -1,8 +1,8 @@
 import type { EntitlementPlansSource } from "../../config/index.ts";
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type {
-  ModuleLayout,
-  ModuleEntitlementsProvider,
+  BlockSqlLayout,
+  BlockSqlEntitlementsProvider,
 } from "../module-types.ts";
 import type { FeatureClaimOption } from "./entitlements-checks.ts";
 
@@ -38,7 +38,7 @@ export interface EntitlementsSource {
  * membership tables.
  */
 function providerEntitlementMembers(
-  provider: ModuleEntitlementsProvider,
+  provider: BlockSqlEntitlementsProvider,
 ): string {
   const sources = provider.memberships.flatMap((source) => {
     const scoped =
@@ -73,8 +73,8 @@ function providerEntitlementMembers(
  * column and key come from the module's own (possibly renamed) names.
  */
 export function customerSource(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): Required<Omit<EntitlementsSource, "source" | "claim">> & {
   readonly deferred: boolean;
 } {
@@ -122,7 +122,7 @@ export function entitlementsSource(
   source: Required<Omit<EntitlementsSource, "source" | "claim">> & {
     readonly deferred: boolean;
   },
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): string {
   const provider = layout.entitlementsProvider;
   const m = memberships(layout);

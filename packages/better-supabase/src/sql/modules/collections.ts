@@ -1,11 +1,11 @@
 import type { CollectionsEvents } from "../../blocks/collections/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 import type { CollectionNames } from "./collections-functions.ts";
 
@@ -43,7 +43,7 @@ const ENTRY = [
   "subjectId",
 ] as const;
 
-const EVENTS: ModuleEvents<CollectionsEvents> = {
+const EVENTS: BlockSqlEvents<CollectionsEvents> = {
   "collection.created": {
     subject: "collections",
     payload: ["organizationId", "collectionId", "subjectType", "name", "scope"],
@@ -68,7 +68,7 @@ const EVENTS: ModuleEvents<CollectionsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_collection_create",
@@ -143,7 +143,7 @@ const NAMES: ModuleNames = {
 const textList = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");
 
-function tables(ctx: ModuleContext, names: CollectionNames): string {
+function tables(ctx: BlockSqlContext, names: CollectionNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -261,7 +261,7 @@ using (${sv("user")} = (select auth.uid())
 
 /** The registry types whose `cascade: true` deletes their entries and stars. */
 function cascading(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): readonly (readonly [string, Subject])[] {
   return registeredSubjects(ctx.subjects, ctx.naming)
     .filter((subject) => subject.config.cascade === true)
@@ -276,7 +276,7 @@ function cascading(
     ]);
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -324,7 +324,7 @@ ${tables(ctx, names)}${ctx.manages ? policies(names) : ""}${collectionFunctions(
   )}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(collectionExtras(ctx)).contract;
 
   return [
@@ -398,7 +398,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const COLLECTIONS: ModuleDefinition = {
+export const COLLECTIONS: BlockSqlDefinition = {
   name: "collections",
   scopes: ["tenant"],
   title: "Collections",

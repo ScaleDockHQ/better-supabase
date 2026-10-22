@@ -3,7 +3,7 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { DbError } from "../../src/core/errors.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
-import type { SubjectRef } from "../../src/schema/types.ts";
+import type { RecordRef } from "../../src/schema/types.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import { defineSupabase } from "../../src/core/define.ts";
@@ -35,14 +35,14 @@ interface Note {
 }
 
 interface Notes {
-  list(subject: SubjectRef): AsyncResult<readonly Note[]>;
+  list(subject: RecordRef): AsyncResult<readonly Note[]>;
   counts(
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ): AsyncResult<Readonly<Record<string, number>>>;
 }
 
 interface Labels {
-  of(subject: SubjectRef): AsyncResult<readonly string[]>;
+  of(subject: RecordRef): AsyncResult<readonly string[]>;
 }
 
 const at = (iso: string) => Temporal.Instant.from(iso);

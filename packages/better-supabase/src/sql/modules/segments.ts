@@ -1,11 +1,11 @@
 import type { SegmentsEvents } from "../../blocks/segments/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -35,7 +35,7 @@ const MEMBER_PAYLOAD = [
   "subjectId",
 ] as const;
 
-const EVENTS: ModuleEvents<SegmentsEvents> = {
+const EVENTS: BlockSqlEvents<SegmentsEvents> = {
   "segment.saved": { subject: "segments", payload: [...SEGMENT_PAYLOAD] },
   "segment.removed": { subject: "segments", payload: [...SEGMENT_PAYLOAD] },
   "segment.entered": {
@@ -50,7 +50,7 @@ const EVENTS: ModuleEvents<SegmentsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     segment: { table: "segments", singular: "segment", primary: true },
   },
@@ -104,7 +104,7 @@ interface SegmentNames {
   readonly subjects: readonly RegisteredSubject[];
 }
 
-function names(ctx: ModuleContext): SegmentNames {
+function names(ctx: BlockSqlContext): SegmentNames {
   const keys = moduleOperations("segments");
   const maxMembers = ctx.number("maxMembers", MAX_MEMBERS);
 
@@ -128,7 +128,7 @@ function names(ctx: ModuleContext): SegmentNames {
   };
 }
 
-function tables(ctx: ModuleContext, n: SegmentNames): string {
+function tables(ctx: BlockSqlContext, n: SegmentNames): string {
   const { t, s, m } = n;
   const policy = (table: string): string => `${ctx.tableName(table).name}_read`;
 
@@ -172,7 +172,7 @@ using (${ctx.scope.check(m("tenant"), n.read)});
  * read permission, when it has one, on top of `segments.read`.
  */
 function subjectPermission(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: SegmentNames,
   type: string,
   tenant: string,
@@ -197,7 +197,7 @@ ${guarded
 }
 
 /** The ids of the live records of each subject type that match the segment. */
-function matchingIds(ctx: ModuleContext, n: SegmentNames): string {
+function matchingIds(ctx: BlockSqlContext, n: SegmentNames): string {
   const matches = ctx.of("rules").fn("rule_matches");
 
   const branch = (subject: RegisteredSubject): string => {
@@ -231,7 +231,7 @@ function matchingIds(ctx: ModuleContext, n: SegmentNames): string {
   end if;`;
 }
 
-function functions(ctx: ModuleContext, n: SegmentNames): string {
+function functions(ctx: BlockSqlContext, n: SegmentNames): string {
   const { fn, t, s, m } = n;
   const fieldMap = ctx.of("rules").fn("rule_field_map");
   const check = ctx.of("rules").fn("rule_check");
@@ -564,7 +564,7 @@ ${serviceGrant(`${fn("refresh_due_segments")}(integer, interval)`)}
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const n = names(ctx);
 
   return `${schemaPreamble(ctx)}
@@ -573,7 +573,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, n)}${functions(ctx, n)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_segment", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "remove_segment", args: ["uuid"], returns: "boolean" },
@@ -594,7 +594,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SEGMENTS: ModuleDefinition = {
+export const SEGMENTS: BlockSqlDefinition = {
   name: "segments",
   scopes: ["tenant"],
   title: "Segments",

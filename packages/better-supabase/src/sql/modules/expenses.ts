@@ -1,11 +1,11 @@
 import type { ExpensesEvents } from "../../blocks/expenses/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -29,7 +29,7 @@ const REPORT_PAYLOAD = [
   "currency",
 ] as const;
 
-const EVENTS: ModuleEvents<ExpensesEvents> = {
+const EVENTS: BlockSqlEvents<ExpensesEvents> = {
   "expense_report.created": {
     subject: "expense-reports",
     payload: REPORT_PAYLOAD,
@@ -52,7 +52,7 @@ const EVENTS: ModuleEvents<ExpensesEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     expense_report: {
       table: "reports",
@@ -137,7 +137,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext): string {
+function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -231,7 +231,7 @@ create policy ${index("lines", "read")} on ${lines} for select to authenticated
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -251,7 +251,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx)}${expensesFunctions(ctx)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED),
   ).contract;
@@ -301,7 +301,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const EXPENSES: ModuleDefinition = {
+export const EXPENSES: BlockSqlDefinition = {
   name: "expenses",
   scopes: ["tenant"],
   title: "Expenses",

@@ -46,7 +46,7 @@ export type { BlockTenantOptions } from "../core/block-tenant.ts";
 
 export type { BlockTenant } from "../core/tenant-source.ts";
 
-export type { SubjectRef } from "../schema/types.ts";
+export type { RecordRef } from "../schema/types.ts";
 
 export type {
   EntityNames,

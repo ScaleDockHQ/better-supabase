@@ -6,7 +6,7 @@ import { ADOPTED_FORMAT_ERROR } from "../../../src/sql/modules/webhooks-out.ts";
 import {
   customContracts,
   moduleBody,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
@@ -75,11 +75,11 @@ describe("webhooks-out module", () => {
     expect(
       body({ "webhooks-out": { options: { allowHttp: true } } }),
     ).not.toContain(`"url" ~* '^https://'`);
-    const plain = renderModules(["webhooks-out"]).at(-1)!.contents;
+    const plain = renderBlocks(["webhooks-out"]).at(-1)!.contents;
     expect(plain).not.toContain("better_supabase.can(");
     expect(plain).not.toContain("tenant_ids_with(");
 
-    const sql = renderModules(["access", "outbox", "webhooks-out"]).find(
+    const sql = renderBlocks(["access", "outbox", "webhooks-out"]).find(
       (file) => file.path.includes("webhooks_out"),
     )!.contents;
 
@@ -166,7 +166,7 @@ describe("webhooks-out module", () => {
       );
 
     it("checks the endpoint owner with can_user and service endpoints with their declared permissions", () => {
-      const sql = renderModules(["access", "outbox", "webhooks-out"]).find(
+      const sql = renderBlocks(["access", "outbox", "webhooks-out"]).find(
         (file) => file.contents.includes("publish_webhook_event"),
       )!.contents;
 

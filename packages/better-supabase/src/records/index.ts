@@ -20,14 +20,14 @@ export type {
 export type { LoadMyWorkOptions, MyWork } from "./my-work.ts";
 
 export type {
-  EntityForm,
-  EntityFormCustomField,
-  EntityFormField,
-  EntityFormInput,
-  EntityFormOptions,
-  EntityFormResult,
-  EntityFormValues,
-} from "./entity-form.ts";
+  RecordForm,
+  RecordFormCustomField,
+  RecordFormField,
+  RecordFormInput,
+  RecordFormOptions,
+  RecordFormResult,
+  RecordFormValues,
+} from "./record-form.ts";
 
 export type { MyWorkKind } from "../blocks/subjects/my-work-kinds.ts";
 
@@ -113,7 +113,7 @@ export { loadTimeline, timelineSections } from "./timeline.ts";
 
 export { loadMyWork } from "./my-work.ts";
 
-export { entityForm } from "./entity-form.ts";
+export { recordForm } from "./record-form.ts";
 
 export {
   defineSection,

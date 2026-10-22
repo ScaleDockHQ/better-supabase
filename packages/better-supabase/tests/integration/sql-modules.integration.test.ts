@@ -22,8 +22,8 @@ import {
   createWebhookInbox,
   createJobs,
   createRateLimit,
-  sqlQueueBackend,
-  transportQueueBackend,
+  sqlQueueProvider,
+  transportQueueProvider,
   withLease,
 } from "../../src/blocks/jobs/index.ts";
 import { createVercelMarketplace } from "../../src/blocks/vercel-marketplace/index.ts";
@@ -40,9 +40,9 @@ import { apiWrappers } from "../../src/sql/api-schema.ts";
 import { auditRegistrations } from "../../src/sql/audit-registrations.ts";
 import { compileReadSet } from "../../src/sql/read-sets.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../src/sql/render.ts";
 import { asUser } from "../../src/testing/as-user.ts";
-import { testQueueBackend } from "../../src/testing/kits/queue-backend.ts";
+import { testQueueProvider } from "../../src/testing/kits/queue-provider.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { deleteAudit } from "./audit-cleanup.ts";
@@ -159,7 +159,7 @@ async function installSchemaModules(pool: Pool): Promise<void> {
       )
       .map((module) => module.name);
 
-    for (const file of renderModules(names)) {
+    for (const file of renderBlocks(names)) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }
@@ -333,7 +333,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     try {
       await client.query("begin");
-      const [file] = renderModules(["ensure-rls"]);
+      const [file] = renderBlocks(["ensure-rls"]);
       await client.query(file!.contents);
       await client.query(file!.contents);
       await client.query(`
@@ -495,7 +495,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         create function public.${name}_count() returns integer language sql as $$ select 1 $$;`,
       );
 
-      const [file] = renderModules(["grants"], {
+      const [file] = renderBlocks(["grants"], {
         grants: [
           { table: name, role: "anon", privileges: ["select"] },
           {
@@ -1112,7 +1112,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          insert into public.${name} values (1);`,
       );
 
-      const [file] = renderModules(["sessions"], {
+      const [file] = renderBlocks(["sessions"], {
         modules: {
           sessions: {
             options: { policies: true, exclude: ["public.other_*"] },
@@ -1164,7 +1164,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const ownsStripe = existing[0].t === null;
 
-    const module = renderModules(["entitlements"], {
+    const module = renderBlocks(["entitlements"], {
       entitlements: { table: billing, column: "customer_id", key: "org_id" },
     }).find((file) => file.module === "entitlements");
 
@@ -1325,7 +1325,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         insert into better_supabase.memberships (organization_id, user_id, role) values ('${organization}', '${member}', 'member');
       `);
 
-      const module = renderModules(["entitlements"], {
+      const module = renderBlocks(["entitlements"], {
         entitlements: {
           key: "id",
           source: {
@@ -1351,7 +1351,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       await client.query(module.contents);
 
-      const usage = renderModules(["entitlements", "usage"], {
+      const usage = renderBlocks(["entitlements", "usage"], {
         entitlements: {
           key: "id",
           source: {
@@ -1393,7 +1393,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       expect(rows[0]!.claims).toEqual({ [organization]: ["exports"] });
 
-      const compact = renderModules(["entitlements"], {
+      const compact = renderBlocks(["entitlements"], {
         entitlements: {
           key: "id",
           source: "custom",
@@ -1488,7 +1488,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       };
 
       await client.query(
-        renderModules(["entitlements"], {
+        renderBlocks(["entitlements"], {
           entitlements: { key: "id", source },
         }).find(
           (file) => file.module === "entitlements" && file.kind === "schema",
@@ -1512,7 +1512,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(await as(member, "file_history_days")).toBe(365);
       expect(await as(outsider, "file_history_days")).toBeNull();
       await client.query(
-        renderModules(["entitlements"], {
+        renderBlocks(["entitlements"], {
           entitlements: {
             key: "id",
             source: {
@@ -1592,7 +1592,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ],
     } as const;
 
-    const module = renderModules(["entitlements"], {
+    const module = renderBlocks(["entitlements"], {
       entitlements,
       entitlementsProvider,
     });
@@ -1689,7 +1689,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     } finally {
       // Put back the tenant-mode functions the other suites expect.
       await pool.query(
-        renderModules(["entitlements"], { entitlements }).find(
+        renderBlocks(["entitlements"], { entitlements }).find(
           (file) => file.module === "entitlements",
         )!.contents,
       );
@@ -2143,7 +2143,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   });
 
   it("passes the queue backend conformance kit on pgmq", async () => {
-    await testQueueBackend(sqlQueueBackend(postgres.admin), {
+    await testQueueProvider(sqlQueueProvider(postgres.admin), {
       queue: `block_${RUN}_conf`,
     });
   });
@@ -2190,8 +2190,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     try {
       const transport = rpcTransport(postgrestOver(pool), { schema: api });
-      await testQueueBackend(
-        transportQueueBackend(transport, { schema: api }),
+      await testQueueProvider(
+        transportQueueProvider(transport, { schema: api }),
         { queue: `block_${RUN}_rpc` },
       );
       const queue = `block_${RUN}_rpc_jobs`;
@@ -2273,7 +2273,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     );
 
     try {
-      await testQueueBackend(sqlQueueBackend(postgres.admin), {
+      await testQueueProvider(sqlQueueProvider(postgres.admin), {
         queue: `${queue}_conf`,
       });
 
@@ -3512,8 +3512,8 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ${register}
     `);
 
-    const file = (tables: Parameters<typeof renderModules>[1]) =>
-      renderModules(["audit"], tables).find((entry) => entry.kind === "test")!;
+    const file = (tables: Parameters<typeof renderBlocks>[1]) =>
+      renderBlocks(["audit"], tables).find((entry) => entry.kind === "test")!;
 
     const tap = async (contents: string): Promise<string[]> => {
       const client = await pool.connect();
@@ -3733,7 +3733,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("begin");
       await client.query("drop event trigger bsb_audit_forget_dropped");
 
-      const data = renderModules(["audit"]).find(
+      const data = renderBlocks(["audit"]).find(
         (file) => file.kind === "data",
       )!.contents;
 
@@ -3794,7 +3794,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `);
       expect(await registered()).toBe(1);
 
-      const data = renderModules(["audit"]).find(
+      const data = renderBlocks(["audit"]).find(
         (file) => file.kind === "data",
       )!.contents;
 
@@ -4207,7 +4207,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         );
       }
 
-      for (const file of renderModules(["audit", "access"], {
+      for (const file of renderBlocks(["audit", "access"], {
         modules: { audit: { options: { restricted: true, readPolicy: true } } },
       })) {
         if (file.kind === "schema" && file.module === "audit") {
@@ -4599,7 +4599,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }),
     );
 
-    const [file] = renderModules(["read-sets"], {
+    const [file] = renderBlocks(["read-sets"], {
       readSets: [await compileReadSet(chrome)],
     });
 
@@ -4677,7 +4677,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }),
     );
 
-    const [file] = renderModules(["read-sets"], {
+    const [file] = renderBlocks(["read-sets"], {
       readSets: [await compileReadSet(mine)],
     });
 
@@ -4782,7 +4782,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
         ],
       ]) {
-        const [module] = renderModules(["vector-search"], { vectorSearch });
+        const [module] = renderBlocks(["vector-search"], { vectorSearch });
         await fresh((client) => client.query(module!.contents));
       }
 
@@ -4873,7 +4873,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `(103, '${mine}', 'c', '[0.9,0.1,0]')`,
     ];
 
-    const [module] = renderModules(["vector-search"], {
+    const [module] = renderBlocks(["vector-search"], {
       vectorSearch: [{ table: name, column: "embedding", distance: "cosine" }],
     });
 
@@ -4990,7 +4990,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }),
     );
 
-    const [module] = renderModules(["vector-search"], {
+    const [module] = renderBlocks(["vector-search"], {
       vectorSearch: [
         {
           table: name,
@@ -5074,7 +5074,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const name = `bsb_pred_${RUN}`;
     const folders = `bsb_pred_folders_${RUN}`;
 
-    const [module] = renderModules(["vector-search"], {
+    const [module] = renderBlocks(["vector-search"], {
       vectorSearch: [
         {
           table: name,

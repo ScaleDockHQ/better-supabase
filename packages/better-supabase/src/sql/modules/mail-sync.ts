@@ -1,11 +1,11 @@
 import type { MailSyncEvents } from "../../blocks/mail-sync/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -41,7 +41,7 @@ const TRACKING_PAYLOAD = [
   "subjects",
 ] as const;
 
-const EVENTS: ModuleEvents<MailSyncEvents> = {
+const EVENTS: BlockSqlEvents<MailSyncEvents> = {
   "mail_account.connected": {
     subject: "mail-accounts",
     payload: [...ACCOUNT_PAYLOAD],
@@ -70,7 +70,7 @@ const EVENTS: ModuleEvents<MailSyncEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     mail_thread: { table: "threads", singular: "mail_thread", primary: true },
     mail_account: { table: "accounts", singular: "mail_account" },
@@ -209,7 +209,7 @@ export interface MailNames {
   readonly matchDomains: boolean;
 }
 
-function names(ctx: ModuleContext): MailNames {
+function names(ctx: BlockSqlContext): MailNames {
   const keys = moduleOperations("mail-sync");
   const engagementType = ctx.text("engagementType", "email");
 
@@ -237,7 +237,7 @@ function names(ctx: ModuleContext): MailNames {
   };
 }
 
-function tables(ctx: ModuleContext, n: MailNames): string {
+function tables(ctx: BlockSqlContext, n: MailNames): string {
   const { t, a, h, m, l, k, e } = n;
 
   const engagement = ctx.installed("engagements")
@@ -396,7 +396,7 @@ using (exists (select 1 from ${t("messages")} y where y.${m("id")} = ${e("messag
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const n = names(ctx);
 
   return `${schemaPreamble(ctx)}
@@ -405,7 +405,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, n)}${mailSyncFunctions(ctx, n)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "connect_mail_account",
@@ -466,7 +466,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const MAIL_SYNC: ModuleDefinition = {
+export const MAIL_SYNC: BlockSqlDefinition = {
   name: "mail-sync",
   scopes: ["tenant"],
   title: "Mail sync",

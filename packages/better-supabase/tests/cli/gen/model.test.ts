@@ -569,7 +569,7 @@ describe("views", () => {
 });
 
 describe("subject types", () => {
-  it("emits SubjectType and SubjectRef from config.subjects", async () => {
+  it("emits SubjectType and RecordRef from config.subjects", async () => {
     const input = await model(() => ({}), {
       subjects: {
         task: { table: "public.tasks" },

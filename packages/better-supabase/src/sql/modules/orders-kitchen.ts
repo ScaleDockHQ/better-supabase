@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -55,7 +55,7 @@ export const KITCHEN_TABLES = {
 } as const;
 
 /** Whether `blocks.orders.options.kitchen` is on. */
-export const kitchenOn = (ctx: ModuleContext): boolean =>
+export const kitchenOn = (ctx: BlockSqlContext): boolean =>
   ctx.flag("kitchen", false);
 
 const STATES = `array[${PREPARATION_STATES.map(sqlString).join(", ")}]`;
@@ -66,7 +66,7 @@ const rank = (state: string): string => `array_position(${STATES}, ${state})`;
  * Kitchen stations, line preparation states and the reads a kitchen display and
  * an order-state board need. Changes broadcast on `kitchen:{tenant}`.
  */
-export function kitchenSql(ctx: ModuleContext, names: OrdersNames): string {
+export function kitchenSql(ctx: BlockSqlContext, names: OrdersNames): string {
   const catalog = ctx.of("catalog");
   const fn = (name: string): string => ctx.fn(name);
   const t = (name: string): string => ctx.table(name);
@@ -505,7 +505,7 @@ ${userGrant(`${fn("order_board")}(${ctx.idType}, timestamptz, integer)`)}
 }
 
 /** The functions `options.kitchen` adds to the orders contract. */
-export function kitchenContract(): readonly ModuleContractFunction[] {
+export function kitchenContract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_kitchen_station",

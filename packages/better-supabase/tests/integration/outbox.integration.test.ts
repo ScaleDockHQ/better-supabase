@@ -5,7 +5,7 @@ import type { CloudEvent } from "../../src/events/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import { createOutbox, sqlTransport } from "../../src/blocks/outbox/index.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 const dbUrl = stackDbUrl();
@@ -50,7 +50,7 @@ describe.skipIf(!live)("outbox", () => {
 
   beforeAll(async () => {
     const { rows } = await pool.query(
-      "select to_regclass('better_supabase.modules') is not null and exists (select 1 from better_supabase.modules where name = 'outbox') as present",
+      "select to_regclass('better_supabase.blocks') is not null and exists (select 1 from better_supabase.blocks where name = 'outbox') as present",
     );
 
     registered = Boolean(rows[0]?.present);
@@ -64,7 +64,7 @@ describe.skipIf(!live)("outbox", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderModules(["outbox"], layout)) {
+      for (const file of renderBlocks(["outbox"], layout)) {
         await client.query(file.contents);
       }
 
@@ -88,7 +88,7 @@ describe.skipIf(!live)("outbox", () => {
 
     if (!registered) {
       await pool.query(
-        "delete from better_supabase.modules where name = 'outbox'",
+        "delete from better_supabase.blocks where name = 'outbox'",
       );
     }
 

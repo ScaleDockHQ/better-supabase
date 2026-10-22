@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -44,7 +44,7 @@ function valueSql(at: string, value: unknown): string {
   );
 }
 
-function rulesOf(ctx: ModuleContext): readonly AnonymizeRule[] {
+function rulesOf(ctx: BlockSqlContext): readonly AnonymizeRule[] {
   const where = "blocks.data-lifecycle.options.anonymize";
   const value = ctx.option("anonymize");
 
@@ -120,7 +120,7 @@ function rulesOf(ctx: ModuleContext): readonly AnonymizeRule[] {
  * `from` time is older than `after`, at most `max_rows` per rule, and marks
  * them in `markedBy` so each row is anonymized once.
  */
-export function anonymizeSql(ctx: ModuleContext): string {
+export function anonymizeSql(ctx: BlockSqlContext): string {
   const fn = ctx.fn("anonymize_due");
   const rules = rulesOf(ctx);
 

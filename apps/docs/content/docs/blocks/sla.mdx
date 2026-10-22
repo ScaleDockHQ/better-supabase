@@ -69,7 +69,7 @@ Bind a record type in `options.subjects` and the module drives its clocks from t
 | its status enters a `resolve` status | every open clock is met                                        |
 | its status leaves a `resolve` status | a new resolution clock starts                                  |
 
-A reply is an event only the app knows about: call `record(subject, "responded")` when an agent answers. It meets the first response, and with a next-response time and the record still open, it starts a next-response clock. Without a binding, call `start(subject, priority)` and `record(subject, event)` with `resolved`, `reopened`, `paused` and `resumed` yourself. The subject is a `SubjectRef`, such as `{ type: "ticket", id: ticketId }`; these calls take no tenant, since it comes from the record. Each clock carries its record as `subject`.
+A reply is an event only the app knows about: call `record(subject, "responded")` when an agent answers. It meets the first response, and with a next-response time and the record still open, it starts a next-response clock. Without a binding, call `start(subject, priority)` and `record(subject, event)` with `resolved`, `reopened`, `paused` and `resumed` yourself. The subject is a `RecordRef`, such as `{ type: "ticket", id: ticketId }`; these calls take no tenant, since it comes from the record. Each clock carries its record as `subject`.
 
 `clocks(subject)` returns a record's clocks with their state (`running`, `paused`, `met`, `breached`) and the seconds left, for a ticket's timer.
 

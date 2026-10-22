@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -18,7 +18,7 @@ import {
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["personModel", "companyModel", "rescoreAfterHours"],
   tables: {
     checks: {
@@ -39,8 +39,8 @@ interface LeadNames {
   readonly fn: (name: string) => string;
   readonly c: (column: string) => string;
   readonly checks: string;
-  readonly parties: ModuleContext;
-  readonly scores: ModuleContext;
+  readonly parties: BlockSqlContext;
+  readonly scores: BlockSqlContext;
   readonly person: string;
   readonly company: string;
   readonly personModel: string;
@@ -50,7 +50,7 @@ interface LeadNames {
   readonly allowed: (tenant: string) => string;
 }
 
-function names(ctx: ModuleContext): LeadNames {
+function names(ctx: BlockSqlContext): LeadNames {
   const parties = ctx.of("parties");
   const scores = ctx.of("scores");
   const keys = moduleOperations("scores");
@@ -95,11 +95,11 @@ const modelOf = (n: LeadNames, type: string): string =>
     : `case when ${type} = ${n.company} then ${n.companyModel} else ${n.personModel} end`;
 
 /** Named so score_lead's upsert can target it past its own parameter names. */
-function checksKey(ctx: ModuleContext): string {
+function checksKey(ctx: BlockSqlContext): string {
   return sqlIdent(`${ctx.tableName("checks").name}_pkey`);
 }
 
-function tables(ctx: ModuleContext, n: LeadNames): string {
+function tables(ctx: BlockSqlContext, n: LeadNames): string {
   const { c, checks } = n;
   const policy = sqlIdent(`${ctx.tableName("checks").name}_read`);
 
@@ -122,7 +122,7 @@ create policy ${policy} on ${checks} for select to authenticated
 `;
 }
 
-function mailStats(ctx: ModuleContext, type: string, id: string): string {
+function mailStats(ctx: BlockSqlContext, type: string, id: string): string {
   if (!ctx.installed("mail-sync") || !ctx.of("mail-sync").manages) {
     return "'{}'::jsonb";
   }
@@ -144,7 +144,7 @@ function mailStats(ctx: ModuleContext, type: string, id: string): string {
     where k.${l("subjectType")} = ${type} and k.${l("subjectId")} = ${id})`;
 }
 
-function segmentIds(ctx: ModuleContext, type: string, id: string): string {
+function segmentIds(ctx: BlockSqlContext, type: string, id: string): string {
   if (!ctx.installed("segments") || !ctx.of("segments").manages) {
     return "'[]'::jsonb";
   }
@@ -159,7 +159,11 @@ function segmentIds(ctx: ModuleContext, type: string, id: string): string {
     where g.${g("subjectType")} = ${type} and x.${s("subjectId")} = ${id})`;
 }
 
-function enrichmentOf(ctx: ModuleContext, column: string, id: string): string {
+function enrichmentOf(
+  ctx: BlockSqlContext,
+  column: string,
+  id: string,
+): string {
   if (!ctx.installed("enrichment") || !ctx.of("enrichment").manages) {
     return "null";
   }
@@ -174,7 +178,7 @@ function enrichmentOf(ctx: ModuleContext, column: string, id: string): string {
     limit 1)`;
 }
 
-function functions(ctx: ModuleContext, n: LeadNames): string {
+function functions(ctx: BlockSqlContext, n: LeadNames): string {
   const { fn, c, checks, parties } = n;
   const pe = (column: string): string => parties.col("people", column);
   const co = (column: string): string => parties.col("companies", column);
@@ -332,7 +336,7 @@ ${serviceGrant(`${fn("score_leads_due")}(integer)`)}
 }
 
 /** The triggers that mark a record stale when what its score reads changes. */
-function triggers(ctx: ModuleContext, n: LeadNames): string {
+function triggers(ctx: BlockSqlContext, n: LeadNames): string {
   const { fn, c, checks, parties } = n;
 
   const mark = (
@@ -447,7 +451,7 @@ create trigger ${trigger}
   return parts.join("");
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -466,7 +470,7 @@ ${functions(ctx, n)}
 ${triggers(ctx, n)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "lead_fields", args: ["{id}", "text", "text"], returns: "jsonb" },
     { name: "score_lead", args: ["{id}", "text", "text"], returns: "jsonb" },
@@ -474,7 +478,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const LEAD_SCORING: ModuleDefinition = {
+export const LEAD_SCORING: BlockSqlDefinition = {
   internal: [
     "lead_person_changed",
     "lead_company_changed",

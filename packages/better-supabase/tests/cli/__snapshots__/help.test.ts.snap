@@ -361,7 +361,7 @@ Docs: https://bettersupabase.com/docs/cli/codemod
 exports[`help > documents codemod 0.15 1`] = `
 "Usage: better-supabase codemod 0.15 [options] [path...]
 
-Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, on request contexts too
+Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, and module, subject, carrier and backend exports take their block, record and provider names
 
 Arguments
   [path...]  Files or directories to rewrite (default: the project)
@@ -398,7 +398,7 @@ Commands
   0.6   Changes from 0.5 to 0.6: kits become blocks and modules
   0.9   Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags
   0.11  Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat
-  0.15  Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, on request contexts too
+  0.15  Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, and module, subject, carrier and backend exports take their block, record and provider names
 
 Global options
   --cwd <dir>            Project directory

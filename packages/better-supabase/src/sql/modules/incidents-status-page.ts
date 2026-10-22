@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
@@ -12,7 +12,7 @@ const list = (values: readonly string[]): string =>
  * anon may call (ADR 0084): it returns the fields named below and nothing else,
  * for published pages only.
  */
-export function statusPageFunctions(ctx: ModuleContext): string {
+export function statusPageFunctions(ctx: BlockSqlContext): string {
   const components = ctx.table("components");
   const history = ctx.table("history");
   const incidents = ctx.table("incidents");

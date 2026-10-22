@@ -3,7 +3,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions, BlockTenantOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -91,7 +91,7 @@ export interface ReactOptions {
 export interface Reactions {
   /** Adds or removes the caller's reaction; returns the subject's reactions. */
   react(
-    subject: SubjectRef,
+    subject: RecordRef,
     emoji: string,
     options?: ReactOptions,
   ): AsyncResult<readonly ReactionCount[]>;
@@ -101,14 +101,14 @@ export interface Reactions {
    * out.
    */
   summary(
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ): AsyncResult<Readonly<Record<string, readonly ReactionCount[]>>>;
   /**
    * Sets the caller's vote on `subject` and returns its tally. Votes use the
    * `create` permission and the subject's read rules, like `react`.
    */
   vote(
-    subject: SubjectRef,
+    subject: RecordRef,
     value: VoteValue,
     options?: VoteOptions,
   ): AsyncResult<VoteTally>;
@@ -117,7 +117,7 @@ export interface Reactions {
    * `subjectKey(subject)`.
    */
   votes(
-    subjects: readonly SubjectRef[],
+    subjects: readonly RecordRef[],
   ): AsyncResult<Readonly<Record<string, VoteTally>>>;
   /** The tenant's custom emoji, by shortcode. */
   customEmoji(): AsyncResult<readonly CustomEmoji[]>;

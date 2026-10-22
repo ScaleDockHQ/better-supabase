@@ -1,4 +1,4 @@
-import type { ModuleDeprecation } from "../../sql/index.ts";
+import type { BlockSqlDeprecation } from "../../sql/index.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { tenantClaimPaths, DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
@@ -492,7 +492,7 @@ async function missingTenantClaim(
  * Where a deprecated symbol is used: a call, a qualified name or a claim
  * lookup.
  */
-function deprecationPattern(entry: ModuleDeprecation): RegExp {
+function deprecationPattern(entry: BlockSqlDeprecation): RegExp {
   const [first = "", second] = entry.symbol.split(".");
 
   const qualified =
@@ -533,7 +533,7 @@ const bareWord = (name: string): RegExp =>
  * on that table.
  */
 function lineOfUse(
-  entry: ModuleDeprecation,
+  entry: BlockSqlDeprecation,
   text: string,
   policyTable?: string,
 ): number | undefined {

@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { ActivitySourceName } from "./activity-reads.ts";
 
 import {
@@ -16,7 +16,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 import { activityReads } from "./activity-reads.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   tables: {
     activity: {
       name: "activity_entries",
@@ -48,7 +48,7 @@ function sourcesComment(sources: readonly ActivitySourceName[]): string {
   return sources.map((source) => SOURCE_COMMENTS[source]).join(",\n-- ");
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -162,7 +162,7 @@ grant execute on function ${fn("list_activity")}(${id}, text, text, timestamptz,
 grant execute on function ${fn("record_activity")}(jsonb) to service_role;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "list_activity",
@@ -180,7 +180,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const ACTIVITY: ModuleDefinition = {
+export const ACTIVITY: BlockSqlDefinition = {
   internal: ["activity_subject_readable", "activity_subject_deliveries"],
   name: "activity",
   scopes: ["tenant", "user", "none"],

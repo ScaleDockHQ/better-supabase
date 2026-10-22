@@ -81,7 +81,7 @@ over: `setRange` on the calendar and bookings controllers and `setSubjects`
 on the reactions controller keep the shown data until the new data arrives.
 
 The comments, reactions and tag input controllers work on records: they take
-the record as `subject` (`subjects` for reactions), a `SubjectRef` such as
+the record as `subject` (`subjects` for reactions), a `RecordRef` such as
 `{ type: "task", id: taskId }`, and a block client built with its `tenant`.
 The hooks build that client from the provider's client, with the schema from
 its `blocks` option and the tenant from its `tenant` option or the session's

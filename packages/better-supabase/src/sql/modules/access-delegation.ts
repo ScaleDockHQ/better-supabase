@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 
@@ -18,8 +18,8 @@ export const capFor = (member: string, permission: string): string =>
  * them is narrowed without calling `token_scope_allows`.
  */
 export function delegationSql(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): string {
   const scopes = { ...layout.delegationScopes, ...ctx.modules.access?.scopes };
 

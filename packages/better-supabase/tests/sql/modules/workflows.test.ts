@@ -6,11 +6,11 @@ import {
   customContracts,
   moduleBody,
   moduleTopics,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 
 const files = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
-  renderModules(names, { modules });
+  renderBlocks(names, { modules });
 
 const schemaOf = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
   files(names, modules)

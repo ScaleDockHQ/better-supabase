@@ -1,7 +1,7 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
-export function readers(ctx: ModuleContext, n: NotifyNames): string {
+export function readers(ctx: BlockSqlContext, n: NotifyNames): string {
   const id = ctx.idType;
   const parts: string[] = [];
 

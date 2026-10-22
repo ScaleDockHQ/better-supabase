@@ -1,9 +1,9 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
 import { lockTable, SERVICE_CALLER, triggerGrant } from "../shared.ts";
 
 /** Whether `blocks.audit.options.chain` is on for a log the module manages. */
-export function chainOn(ctx: ModuleContext): boolean {
+export function chainOn(ctx: BlockSqlContext): boolean {
   return ctx.manages && ctx.flag("chain", false);
 }
 
@@ -11,11 +11,11 @@ export function chainOn(ctx: ModuleContext): boolean {
  * Whether `blocks.audit.options.partitioned` is on for a log the module
  * manages.
  */
-export function partitionedOn(ctx: ModuleContext): boolean {
+export function partitionedOn(ctx: BlockSqlContext): boolean {
   return ctx.manages && ctx.flag("partitioned", false);
 }
 
-export const CHAIN_CONTRACT: readonly ModuleContractFunction[] = [
+export const CHAIN_CONTRACT: readonly BlockSqlContractFunction[] = [
   {
     name: "verify_audit_chain",
     args: ["{id}", "timestamptz", "timestamptz"],
@@ -48,7 +48,7 @@ const fail = (hint: string, message: string, errcode = "42501"): string =>
  * before insert under a per-tenant advisory lock, `verify_audit_chain`, and
  * `audit_checkpoints` that a signing job fills.
  */
-export function chainSql(ctx: ModuleContext): string {
+export function chainSql(ctx: BlockSqlContext): string {
   const log = ctx.table("log");
   const trigger = ctx.trigger("audit_chain");
 

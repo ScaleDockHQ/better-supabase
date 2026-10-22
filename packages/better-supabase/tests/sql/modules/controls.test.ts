@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleContext } from "../../../src/sql/context.ts";
+import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { CONTROLS } from "../../../src/sql/modules/controls.ts";
-import { customContracts, renderModules } from "../../../src/sql/render.ts";
+import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const BASE = ["versions", "attachments", "notifications", "controls"];
 
@@ -13,7 +13,7 @@ const sqlOf = (
   layout: Layout = {},
   modules: readonly string[] = BASE,
 ): string =>
-  renderModules(modules, layout)
+  renderBlocks(modules, layout)
     .filter((file) => file.module === "controls")
     .map((file) => file.contents)
     .join("\n");
@@ -65,7 +65,7 @@ describe("controls module", () => {
     const custom: Layout = { modules: { controls: { mode: "custom" } } };
     expect(sqlOf(custom).trim()).toBe("");
     // SAFETY: custom mode returns before reading anything else on the context.
-    const context = { mode: "custom" } as unknown as ModuleContext;
+    const context = { mode: "custom" } as unknown as BlockSqlContext;
     expect(CONTROLS.build(context, {})).toBe("");
     const [contract] = customContracts(["controls"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(

@@ -1,6 +1,6 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { MyWorkKind } from "./my-work-kinds.ts";
 
@@ -27,7 +27,7 @@ export interface SubjectsOptions extends BlockOptions {
 }
 
 /** A subject with its title and path, from `config.subjects`. */
-export interface ResolvedSubject extends SubjectRef {
+export interface ResolvedSubject extends RecordRef {
   /** The `title` column's value, when the type names one. */
   readonly title?: string;
   /** The `url` template filled in, such as `/customers/42`. */
@@ -51,7 +51,7 @@ export interface RecordSummaryOptions {
 export interface MyWorkItem {
   readonly kind: MyWorkKind;
   /** The record it is about: the work item, or the approval's subject. */
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   /**
    * The row that put it here: the work item, approval request, reminder,
    * comment or SLA clock id.
@@ -81,7 +81,7 @@ export interface Subjects {
    * unknown type is left out.
    */
   resolve(
-    refs: readonly SubjectRef[],
+    refs: readonly RecordRef[],
   ): AsyncResult<Readonly<Record<string, ResolvedSubject>>>;
   /**
    * The subject's title and path with a count and unread state for each of
@@ -89,7 +89,7 @@ export interface Subjects {
    * the caller can't read the subject.
    */
   summary(
-    subject: SubjectRef,
+    subject: RecordRef,
     sections: readonly string[],
     options?: RecordSummaryOptions,
   ): AsyncResult<RecordSummary | undefined>;
@@ -211,7 +211,7 @@ export function createSubjects(options: SubjectsOptions): Subjects {
           ...new Map(refs.map((ref) => [subjectKey(ref), ref])).values(),
         ];
 
-        const chunks: SubjectRef[][] = [];
+        const chunks: RecordRef[][] = [];
 
         for (
           let start = 0;

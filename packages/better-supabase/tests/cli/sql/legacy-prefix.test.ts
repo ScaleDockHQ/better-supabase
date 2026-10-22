@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  legacyBlocksTableSql,
   legacyPrefixNames,
   legacyPrefixSql,
 } from "../../../src/cli/sql/legacy-prefix.ts";
@@ -40,5 +41,17 @@ describe("legacyPrefixSql", () => {
   it("warns instead of failing on objects the migration role doesn't own", () => {
     expect(sql).toContain("exception when insufficient_privilege");
     expect(sql).toContain("raise warning");
+  });
+});
+
+describe("legacyBlocksTableSql", () => {
+  it("creates better_supabase.blocks and copies the rows of the old table", () => {
+    expect(legacyBlocksTableSql).toContain(
+      "create table if not exists better_supabase.blocks",
+    );
+    expect(legacyBlocksTableSql).toContain(
+      "if to_regclass('better_supabase.modules') is not null",
+    );
+    expect(legacyBlocksTableSql).toContain("on conflict (name) do nothing");
   });
 });

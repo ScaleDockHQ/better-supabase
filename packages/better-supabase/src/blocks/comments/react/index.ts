@@ -1,6 +1,6 @@
 "use client";
 
-import type { SubjectRef } from "../../../schema/types.ts";
+import type { RecordRef } from "../../../schema/types.ts";
 import type { BlockEnv } from "../../block-env.ts";
 import type { CommentsActions, CommentsSnapshot } from "../client.ts";
 
@@ -21,7 +21,7 @@ function topicOf(env: BlockEnv): string {
 
 export interface UseCommentsOptions {
   /** The subject whose thread to show; the thread waits without one. */
-  readonly subject: SubjectRef | null | undefined;
+  readonly subject: RecordRef | null | undefined;
   /**
    * The messaging topic prefix the record conversation's pings arrive on;
    * default `blocks.messaging.options.topic` (`messages`). `null` turns

@@ -1,11 +1,11 @@
 import type { EmployeesEvents } from "../../blocks/employees/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { EmployeeNames } from "./employees-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -28,7 +28,7 @@ const EMPLOYEE = [
   "name",
 ] as const;
 
-const EVENTS: ModuleEvents<EmployeesEvents> = {
+const EVENTS: BlockSqlEvents<EmployeesEvents> = {
   "employee.created": {
     subject: "employees",
     payload: [...EMPLOYEE, "userId", "managerId", "status"],
@@ -57,7 +57,7 @@ const EMPLOYEE_STATUSES = [
 
 const EMPLOYMENT_TYPES = ["employee", "contractor", "intern", "temporary"];
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     employee: {
       table: "employees",
@@ -179,7 +179,7 @@ const NAMES: ModuleNames = {
 /** The keys the employee reads return next to the table's columns. */
 const RESERVED = ["depth", "direct_reports"];
 
-function tablesSql(ctx: ModuleContext, n: EmployeeNames): string {
+function tablesSql(ctx: BlockSqlContext, n: EmployeeNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -276,7 +276,7 @@ using (${ctx.scope.check(k("tenant"), n.sensitive)} or exists (
 }
 
 /** The manager guard, and the user id the private details mirror. */
-function triggersSql(ctx: ModuleContext, n: EmployeeNames): string {
+function triggersSql(ctx: BlockSqlContext, n: EmployeeNames): string {
   const { t } = n;
   const e = (column: string): string => n.c("employees", column);
   const mirrorName = ctx.naming.rename("bsb_employee_user_mirror");
@@ -345,7 +345,7 @@ for each row execute function better_supabase.${guardName}();
 ${mirror}`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -371,7 +371,7 @@ function build(ctx: ModuleContext): string {
 ${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const fromApplication =
     ctx.installed("hiring") && ctx.has("employees", "originId")
       ? [
@@ -421,7 +421,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const EMPLOYEES: ModuleDefinition = {
+export const EMPLOYEES: BlockSqlDefinition = {
   name: "employees",
   scopes: ["tenant"],
   title: "Employees",

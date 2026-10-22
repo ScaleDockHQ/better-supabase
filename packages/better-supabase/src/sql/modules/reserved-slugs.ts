@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SCHEMA, raise } from "../shared.ts";
@@ -18,7 +18,7 @@ on conflict (slug) do nothing;`;
 const SLUG_PATTERN = "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$";
 
 /** `minLength` and `maxLength` of `blocks["reserved-slugs"].options`. */
-function slugLengths(ctx: ModuleContext): {
+function slugLengths(ctx: BlockSqlContext): {
   readonly min: number;
   readonly max: number;
 } {
@@ -43,7 +43,7 @@ function slugLengths(ctx: ModuleContext): {
  * `blocks["reserved-slugs"].options.slugs`: the app's own words, such as its
  * route names.
  */
-function appSlugs(ctx: ModuleContext): string {
+function appSlugs(ctx: BlockSqlContext): string {
   const slugs = ctx.list("slugs", []);
 
   for (const slug of slugs) {
@@ -67,7 +67,7 @@ from unnest(array[${slugs.map(sqlString).join(", ")}]) as value
 on conflict (slug) do nothing;`;
 }
 
-export const RESERVED_SLUGS: ModuleDefinition = {
+export const RESERVED_SLUGS: BlockSqlDefinition = {
   name: "reserved-slugs",
   names: { tables: {}, options: ["maxLength", "minLength", "slugs"] },
   data: (ctx) => `${RESERVED_SLUGS_SEED}${appSlugs(ctx)}`,

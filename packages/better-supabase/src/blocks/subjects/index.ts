@@ -15,7 +15,7 @@ export { subjectsBlock } from "./manifest.ts";
 
 export { subjectKey } from "../../core/block-subjects.ts";
 
-export type { SubjectRef } from "../../schema/types.ts";
+export type { RecordRef } from "../../schema/types.ts";
 
 export {
   dbTransport,

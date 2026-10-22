@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { WorkItemNames } from "./work-items-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -13,7 +13,7 @@ import {
 
 /** The reminders rule table a work item's recurrence lives in, when it has one. */
 function recurrenceRules(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ):
   | { readonly table: string; readonly col: (column: string) => string }
   | undefined {
@@ -29,14 +29,14 @@ function recurrenceRules(
   };
 }
 
-function watchable(ctx: ModuleContext): boolean {
+function watchable(ctx: BlockSqlContext): boolean {
   return (
     ctx.installed("notifications") &&
     ctx.of("notifications").hasTable("subscriptions")
   );
 }
 
-function attachable(ctx: ModuleContext): boolean {
+function attachable(ctx: BlockSqlContext): boolean {
   return (
     ctx.installed("attachments") && ctx.of("attachments").mode !== "custom"
   );
@@ -46,7 +46,7 @@ function attachable(ctx: ModuleContext): boolean {
  * The checklist table, with its read policy; empty when the module doesn't
  * manage tables.
  */
-export function checklistTable(ctx: ModuleContext, n: WorkItemNames): string {
+export function checklistTable(ctx: BlockSqlContext, n: WorkItemNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -85,7 +85,7 @@ using (${ctx.scope.check(k("tenant"), n.read)});
  * reminders, `recurrence` ({ rrule, tzid, dtstart } or null).
  */
 export function itemExtrasJson(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: WorkItemNames,
   alias: string,
 ): string {
@@ -106,7 +106,7 @@ export function itemExtrasJson(
  * jsonb list) to item `alias`. Empty without attachments.
  */
 export function linkAttachmentsSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: WorkItemNames,
   alias: string,
   ids: string,
@@ -149,7 +149,7 @@ export function linkAttachmentsSql(
  * module.
  */
 export function workItemExtraFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: WorkItemNames,
   row: (alias: string) => string,
   record: (type: string, alias: string, extra?: string) => string,
@@ -279,7 +279,7 @@ ${userGrant(`${fn("get_work_item")}(uuid)`)}
 }
 
 function recurrence(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: WorkItemNames,
   helpers: {
     readonly row: (alias: string) => string;
@@ -390,7 +390,7 @@ ${serviceGrant(`${fn("repeat_work_item")}(uuid, timestamptz)`)}
 }
 
 function watchers(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: WorkItemNames,
   readable: (alias: string) => string,
 ): string {
@@ -452,8 +452,8 @@ ${userGrant(`${fn("list_work_item_watchers")}(uuid)`)}
 
 /** The contract entries for the functions above. */
 export function workItemExtrasContract(
-  ctx: ModuleContext,
-): readonly ModuleContractFunction[] {
+  ctx: BlockSqlContext,
+): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_work_item_checklist_item",

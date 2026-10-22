@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { BuilderSql } from "./workflow-builder-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -16,7 +16,7 @@ export const sqlList = (values: readonly string[]): string =>
  * How runs start (`workflow_start_target`, its subject variant and
  * `start_test_run`), and who may run a definition: forks, opt-outs and grants.
  */
-export function builderStartsSql(ctx: ModuleContext, s: BuilderSql): string {
+export function builderStartsSql(ctx: BlockSqlContext, s: BuilderSql): string {
   const {
     id,
     fn,

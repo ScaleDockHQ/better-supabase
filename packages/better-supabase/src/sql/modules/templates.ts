@@ -1,11 +1,11 @@
 import type { TemplatesEvents } from "../../blocks/templates/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
@@ -23,7 +23,7 @@ import {
 import { OPERATIONS } from "./access-model.ts";
 import { workflowParts } from "./templates-workflows.ts";
 
-const EVENTS: ModuleEvents<TemplatesEvents> = {
+const EVENTS: BlockSqlEvents<TemplatesEvents> = {
   "template.published": {
     subject: "templates",
     payload: ["organizationId", "id", "versionId", "version", "type"],
@@ -41,7 +41,7 @@ const EVENTS: ModuleEvents<TemplatesEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_template_save",
@@ -122,7 +122,7 @@ const LANGUAGE_PATTERN = "'^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'";
 const MAX_BODY_BYTES = 1_048_576;
 const MAX_SETTINGS_BYTES = 65_536;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -784,7 +784,7 @@ ${userGrant(`${fn("template_applications_list")}(${id}, uuid, text, text)`)}
 ${workflows?.functions ?? ""}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_template",
@@ -845,7 +845,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const TEMPLATES: ModuleDefinition = {
+export const TEMPLATES: BlockSqlDefinition = {
   name: "templates",
   scopes: ["tenant"],
   title: "Templates",

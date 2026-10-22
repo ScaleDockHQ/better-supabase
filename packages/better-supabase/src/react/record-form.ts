@@ -2,17 +2,17 @@
 
 import { useState } from "react";
 
-import type { EntityForm, EntityFormValues } from "../records/entity-form.ts";
+import type { RecordForm, RecordFormValues } from "../records/record-form.ts";
 
-export interface UseEntityFormOptions<T> {
+export interface UseRecordFormOptions<T> {
   /** The values the form starts with, by field key. */
   readonly initial?: Readonly<Record<string, unknown>>;
   /** Receives the block input and the custom values once they validate. */
-  readonly onSubmit: (values: EntityFormValues<T>) => unknown;
+  readonly onSubmit: (values: RecordFormValues<T>) => unknown;
 }
 
-/** What `useEntityForm` returns. */
-export interface EntityFormState {
+/** What `useRecordForm` returns. */
+export interface RecordFormState {
   readonly values: Readonly<Record<string, unknown>>;
   /** One message per field key, from the last submit. */
   readonly errors: Readonly<Record<string, string>>;
@@ -28,21 +28,21 @@ const NO_VALUES: Readonly<Record<string, unknown>> = {};
 const NO_ERRORS: Readonly<Record<string, string>> = {};
 
 /**
- * The state of a form from `entityForm`: the values by key, the errors of the
+ * The state of a form from `recordForm`: the values by key, the errors of the
  * last submit, and `submit`, which validates with the entity schema before it
  * calls `onSubmit`.
  *
  * ```tsx
- * const state = useEntityForm(form, {
+ * const state = useRecordForm(form, {
  *   onSubmit: (values) => create(values),
  * });
  * <form onSubmit={state.submit}>…</form>;
  * ```
  */
-export function useEntityForm<T>(
-  form: EntityForm<T>,
-  options: UseEntityFormOptions<T>,
-): EntityFormState {
+export function useRecordForm<T>(
+  form: RecordForm<T>,
+  options: UseRecordFormOptions<T>,
+): RecordFormState {
   const initial = options.initial ?? NO_VALUES;
   const [values, setValues] = useState(initial);
 

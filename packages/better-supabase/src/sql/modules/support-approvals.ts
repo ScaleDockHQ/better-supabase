@@ -1,11 +1,11 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 /**
  * The callbacks the approvals module makes for a support request it filed.
  * `approver` is the approver check against the request row `v_row`.
  */
 export function supportApprovalFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   approver: string,
 ): string {
   const requests = ctx.table("requests");
@@ -44,4 +44,30 @@ as $$
   where x.${c("id")} = $1 and x.${c("approvedBy")} is null and x.${c("session")} is null;
 $$;
 revoke execute on function ${ctx.fn("close_support_request")}(uuid) from public, anon, authenticated;`;
+}
+
+const APPROVAL_MODES = ["distinct", "none"] as const;
+
+type ApprovalMode = (typeof APPROVAL_MODES)[number];
+
+const isApprovalMode = (value: string): value is ApprovalMode =>
+  APPROVAL_MODES.some((mode) => mode === value);
+
+/** `options.approval`: `distinct` (the default) or `none`. */
+export function approvalMode(ctx: BlockSqlContext): ApprovalMode {
+  const mode = ctx.text("approval", "distinct");
+
+  if (!isApprovalMode(mode)) {
+    throw new TypeError(
+      `blocks.support-sessions.options.approval must be ${APPROVAL_MODES.join(" or ")}, not "${mode}"`,
+    );
+  }
+
+  if (mode === "distinct" && !ctx.hasTable("requests")) {
+    throw new TypeError(
+      'blocks.support-sessions.tables.requests is null, so starts cannot wait for a second admin; map the table or set options.approval to "none"',
+    );
+  }
+
+  return mode;
 }

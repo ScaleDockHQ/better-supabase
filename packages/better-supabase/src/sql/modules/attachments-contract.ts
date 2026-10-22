@@ -1,13 +1,13 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
 /**
  * The attachments functions the module exposes; extra is the contract of
  * create_attachment's `fields` argument.
  */
 export function attachmentsContract(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   extra: readonly string[],
-): readonly ModuleContractFunction[] {
+): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "attachment_object_allowed",

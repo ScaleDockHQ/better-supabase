@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import {
   pageSize,
@@ -11,7 +11,7 @@ import { sequenceSql } from "./sequences-sql.ts";
 /** How long a claimed email step waits for its result before it runs again. */
 const LEASE_MINUTES = 10;
 
-function runner(ctx: ModuleContext): string {
+function runner(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
   const { fn, s, r, tasks } = q;
   const maxAttempts = ctx.number("maxAttempts", 3);
@@ -182,7 +182,7 @@ ${serviceGrant(`${fn("sequence_step_failed")}(uuid, text, text)`)}
 `;
 }
 
-function threadOf(ctx: ModuleContext): string {
+function threadOf(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
   const { r, mail } = q;
 
@@ -201,7 +201,7 @@ function threadOf(ctx: ModuleContext): string {
   end if;`;
 }
 
-function replies(ctx: ModuleContext): string {
+function replies(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
   const { fn, s, r, mail } = q;
 
@@ -247,6 +247,6 @@ create trigger ${trigger}
 }
 
 /** The sequences module's runner functions and the reply trigger. */
-export function sequenceRunner(ctx: ModuleContext): string {
+export function sequenceRunner(ctx: BlockSqlContext): string {
   return `${runner(ctx)}${replies(ctx)}`;
 }

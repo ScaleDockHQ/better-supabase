@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SubjectsConfig } from "../../../src/config/index.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const SUBJECTS: SubjectsConfig = {
   task: {
@@ -17,9 +17,9 @@ const SUBJECTS: SubjectsConfig = {
 
 const sqlOf = (
   modules: readonly string[],
-  layout: Parameters<typeof renderModules>[1] = {},
+  layout: Parameters<typeof renderBlocks>[1] = {},
 ): string =>
-  renderModules(modules, { subjects: SUBJECTS, ...layout })
+  renderBlocks(modules, { subjects: SUBJECTS, ...layout })
     .map((file) => file.contents)
     .join("\n");
 
@@ -58,7 +58,7 @@ describe("subjects module", () => {
   });
 
   it("skips soft-deleted rows in subject_titles", () => {
-    const sql = renderModules(["subjects"], {
+    const sql = renderBlocks(["subjects"], {
       subjects: {
         doc: { table: "docs", title: "name", deletedAt: "trashed_at" },
       },
@@ -85,7 +85,7 @@ describe("subjects module", () => {
   });
 
   it("treats soft-deleted rows as gone", () => {
-    const sql = renderModules(["subjects"], {
+    const sql = renderBlocks(["subjects"], {
       subjects: {
         doc: { table: "docs", title: "name", deletedAt: "trashed_at" },
       },
@@ -103,7 +103,7 @@ describe("subjects module", () => {
 
   it("rejects a url placeholder that is not a column", () => {
     expect(() =>
-      renderModules(["subjects"], {
+      renderBlocks(["subjects"], {
         subjects: { task: { table: "tasks", url: "/tasks/{id;drop}" } },
       }),
     ).toThrow(/subjects\.task\.url/);
@@ -111,7 +111,7 @@ describe("subjects module", () => {
 
   it("rejects permissions on a subject with neither a tenant nor a scope", () => {
     expect(() =>
-      renderModules(["subjects"], {
+      renderBlocks(["subjects"], {
         subjects: {
           note: {
             table: "notes",
@@ -156,7 +156,7 @@ describe("subjectsOption with the registry", () => {
 
   it("rejects a listed type the registry lacks", () => {
     expect(() =>
-      renderModules(["tags"], {
+      renderBlocks(["tags"], {
         subjects: SUBJECTS,
         modules: { tags: { options: { subjects: ["deal"] } } },
       }),

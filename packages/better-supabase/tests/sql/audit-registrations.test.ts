@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { auditRegistrations, renderModules } from "../../src/sql/index.ts";
+import { auditRegistrations, renderBlocks } from "../../src/sql/index.ts";
 
 const file = (text: string) => ({ text });
 
@@ -79,7 +79,7 @@ describe("audit pgTAP files", () => {
   ];
 
   it("writes one test file per audited table", () => {
-    const tests = renderModules(["audit"], { auditedTables: audited }).filter(
+    const tests = renderBlocks(["audit"], { auditedTables: audited }).filter(
       (entry) => entry.kind === "test",
     );
 
@@ -88,7 +88,7 @@ describe("audit pgTAP files", () => {
       "supabase/tests/900_better_supabase_audit_crm_deals.test.sql",
     ]);
     const [customers, deals] = tests.map((entry) => entry.contents);
-    expect(customers).toContain("-- @bs-module-test audit");
+    expect(customers).toContain("-- @bsb-block-test audit");
     expect(customers).toContain("select extensions.plan(7);");
     expect(customers).toContain(`like "public"."customers" including defaults`);
     expect(customers).toContain(
@@ -101,7 +101,7 @@ describe("audit pgTAP files", () => {
   });
 
   it("reads the snapshots from the restricted table and skips what an adopted log lacks", () => {
-    const restricted = renderModules(["audit"], {
+    const restricted = renderBlocks(["audit"], {
       auditedTables: audited.slice(0, 1),
       modules: { audit: { options: { restricted: true } } },
     }).find((entry) => entry.kind === "test");
@@ -110,7 +110,7 @@ describe("audit pgTAP files", () => {
       'left join "better_supabase"."audit_events_restricted" r on r."entry_id" = l."id"',
     );
 
-    const bare = renderModules(["audit"], {
+    const bare = renderBlocks(["audit"], {
       auditedTables: audited.slice(0, 1),
       modules: {
         audit: {
@@ -127,7 +127,7 @@ describe("audit pgTAP files", () => {
 
   it("writes no test files without audited tables", () => {
     expect(
-      renderModules(["audit"]).filter((entry) => entry.kind === "test"),
+      renderBlocks(["audit"]).filter((entry) => entry.kind === "test"),
     ).toEqual([]);
   });
 });

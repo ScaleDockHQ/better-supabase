@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleContext } from "../../../src/sql/context.ts";
+import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { MODERATION } from "../../../src/sql/modules/moderation.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const sqlOf = (
   modules: readonly string[],
   layout: Layout = {},
   module = "moderation",
 ): string =>
-  renderModules(modules, layout)
+  renderBlocks(modules, layout)
     .filter((file) => file.module === module && file.kind === "schema")
     .map((file) => file.contents)
     .join("\n");
@@ -102,7 +102,7 @@ describe("moderation module", () => {
     );
 
     const data = (layout: Layout = {}): string =>
-      renderModules(["moderation", "reviews"], layout)
+      renderBlocks(["moderation", "reviews"], layout)
         .filter((file) => file.module === "reviews" && file.kind === "data")
         .map((file) => file.contents)
         .join("\n");
@@ -135,7 +135,7 @@ describe("moderation module", () => {
       sqlOf(["moderation"], { modules: { moderation: { mode: "custom" } } }),
     ).toBe("");
     // SAFETY: custom mode returns before reading anything else on the context.
-    const custom = { mode: "custom" } as unknown as ModuleContext;
+    const custom = { mode: "custom" } as unknown as BlockSqlContext;
 
     expect(MODERATION.build(custom, {})).toBe("");
   });

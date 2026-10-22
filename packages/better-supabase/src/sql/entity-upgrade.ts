@@ -1,5 +1,5 @@
-import type { ModuleContext } from "./context.ts";
-import type { ModuleLayout } from "./module-types.ts";
+import type { BlockSqlContext } from "./context.ts";
+import type { BlockSqlLayout } from "./module-types.ts";
 import type { Qualified } from "./rename-sql.ts";
 
 import { sqlString } from "../core/template.ts";
@@ -24,7 +24,7 @@ import {
   TRIGGER,
   unquote,
 } from "./rename-sql.ts";
-import { renderModules } from "./render.ts";
+import { renderBlocks } from "./render.ts";
 
 /** One statement `sql upgrade` runs to move an installed block to new names. */
 export interface EntityRenameStep {
@@ -119,10 +119,10 @@ function markerEntities(
  * with.
  */
 function installedLayout(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   markers: ReadonlyMap<string, string>,
   modules: readonly string[],
-): ModuleLayout {
+): BlockSqlLayout {
   const configured = { ...layout.modules };
 
   for (const module of modules) {
@@ -225,8 +225,8 @@ function bodyRenames(
 /** Permission keys the module checks, renamed: they are rows in `permissions`. */
 function permissionKeyRenames(
   module: string,
-  before: ModuleContext,
-  after: ModuleContext,
+  before: BlockSqlContext,
+  after: BlockSqlContext,
 ): readonly (readonly [string, string])[] {
   if (!isOperationModule(module)) {
     return [];
@@ -258,8 +258,8 @@ function permissionKeyRenames(
 
 /** Subject types the module's renamed entities registered under. */
 function subjectTypeRenames(
-  before: ModuleContext,
-  after: ModuleContext,
+  before: BlockSqlContext,
+  after: BlockSqlContext,
 ): readonly (readonly [string, string])[] {
   return Object.values(after.resolved.entities).flatMap((entity) => {
     const was = before.resolved.entities[entity.key];
@@ -274,7 +274,7 @@ function subjectTypeRenames(
 
 /** Every installed table with a `subjectType` column, as `[table, column]`. */
 function subjectColumns(
-  contexts: ReadonlyMap<string, ModuleContext>,
+  contexts: ReadonlyMap<string, BlockSqlContext>,
 ): readonly (readonly [string, string])[] {
   return [...contexts.values()].flatMap((ctx) =>
     ctx.mode === "custom"
@@ -292,7 +292,7 @@ const namesLabel = (marker: string | undefined): string =>
 
 /**
  * The statements that move installed blocks from the entity names their files
- * carry (`@bs-entities`) to the names `layout` gives them: tables, columns,
+ * carry (`@bsb-names`) to the names `layout` gives them: tables, columns,
  * indexes, policies, triggers and functions are renamed in place, permission
  * keys keep their grants, and stored subject types follow. `installedText` is
  * the installed module files or migration; `modules` the installed modules.
@@ -301,11 +301,11 @@ export function entityRenamePlan(
   names: readonly string[],
   modules: readonly string[],
   installedText: string,
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): EntityRenamePlan {
   const before = entityMarkers(installedText);
 
-  const current = renderModules(names, layout).filter(
+  const current = renderBlocks(names, layout).filter(
     (file) => file.kind === "schema",
   );
 
@@ -321,7 +321,7 @@ export function entityRenamePlan(
 
   const oldLayout = installedLayout(layout, before, changed);
 
-  const previous = renderModules(names, oldLayout).filter(
+  const previous = renderBlocks(names, oldLayout).filter(
     (file) => file.kind === "schema",
   );
 
@@ -333,7 +333,7 @@ export function entityRenamePlan(
       .map((file) => file.contents)
       .join("\n");
 
-  const contexts = (from: ModuleLayout): Map<string, ModuleContext> =>
+  const contexts = (from: BlockSqlLayout): Map<string, BlockSqlContext> =>
     new Map(
       rendered.map((module) => [module, moduleContext(module, from, rendered)]),
     );

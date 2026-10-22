@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { BlockConfig } from "../../../src/config/blocks.ts";
 
 import { moduleContext } from "../../../src/sql/module-context.ts";
-import { resolveModules } from "../../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { resolveBlocks } from "../../../src/sql/registry.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const audit = (config: BlockConfig = {}) =>
@@ -75,7 +75,7 @@ describe("audit module", () => {
     expect(sql).toContain(
       "hint = 'Set blocks.audit.options.restricted to true.'",
     );
-    const [file] = renderModules(["audit"]);
+    const [file] = renderBlocks(["audit"]);
     expect(file!.contents).not.toContain("audit_log;");
   });
 
@@ -139,7 +139,7 @@ describe("audit module", () => {
 
   it("needs the access module only for the read policy", () => {
     const names = (config: BlockConfig) =>
-      resolveModules(["audit"], { modules: { audit: config } }).map(
+      resolveBlocks(["audit"], { modules: { audit: config } }).map(
         (module) => module.name,
       );
 
@@ -259,7 +259,7 @@ describe("audit module", () => {
     );
 
     const contract = (config: BlockConfig) =>
-      resolveModules(["audit"]).find((module) => module.name === "audit")!
+      resolveBlocks(["audit"]).find((module) => module.name === "audit")!
         .contract!(moduleContext("audit", { modules: { audit: config } })).map(
         (fn) => fn.name,
       );
@@ -294,7 +294,7 @@ describe("audit module", () => {
   });
 
   it("keeps entries for the data-lifecycle policies and holds", () => {
-    const sql = renderModules(["audit", "data-lifecycle"], {
+    const sql = renderBlocks(["audit", "data-lifecycle"], {
       modules: { audit: { options: { partitioned: true } } },
     })
       .filter((file) => file.module === "audit")
@@ -527,7 +527,7 @@ describe("audit value mapping", () => {
 
 describe("audit revert", () => {
   const sqlOf = (config: BlockConfig = {}, modules = ["access", "audit"]) =>
-    renderModules(modules, { modules: { audit: config } })
+    renderBlocks(modules, { modules: { audit: config } })
       .filter((file) => file.module === "audit")
       .map((file) => file.contents)
       .join("\n");

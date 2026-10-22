@@ -3,9 +3,9 @@ import type { PoolClient } from "pg";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 const dbUrl = stackDbUrl();
@@ -46,7 +46,7 @@ async function inTransaction<T>(
   pool: Pool,
   setup: string,
   names: readonly string[],
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   run: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await pool.connect();
@@ -63,7 +63,7 @@ async function inTransaction<T>(
       await client.query(setup);
     }
 
-    for (const file of renderModules(names, layout)) {
+    for (const file of renderBlocks(names, layout)) {
       await client.query(file.contents);
     }
 
@@ -205,7 +205,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
       insert into public.bsb_access_organization_users (user_id, organization_id, role_id) values ('${USER}', '${ORG}', '${ADMIN_ROLE}');
     `;
 
-    const layout: ModuleLayout = {
+    const layout: BlockSqlLayout = {
       modules: {
         tenant: {
           mode: "adopt",

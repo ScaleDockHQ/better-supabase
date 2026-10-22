@@ -1,12 +1,12 @@
 import type { ShipmentsEvents } from "../../blocks/shipments/events.ts";
 import type {
   ExtraColumn,
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   LABEL_FORMATS,
@@ -39,7 +39,7 @@ const MAX_PACKAGES = 50;
 /** The most tracking events one call records. */
 const MAX_EVENTS = 500;
 
-const EVENTS: ModuleEvents<ShipmentsEvents> = {
+const EVENTS: BlockSqlEvents<ShipmentsEvents> = {
   "shipment.created": {
     subject: "shipments",
     payload: ["organizationId", "id", "reference", "subjectType", "subjectId"],
@@ -58,7 +58,7 @@ const EVENTS: ModuleEvents<ShipmentsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     shipment: {
       table: "shipments",
@@ -145,14 +145,14 @@ const NAMES: ModuleNames = {
 const list = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");
 
-const assetsOf = (ctx: ModuleContext): ModuleContext | undefined =>
+const assetsOf = (ctx: BlockSqlContext): BlockSqlContext | undefined =>
   ctx.installed("assets") ? ctx.of("assets") : undefined;
 
 // An address object with a street line, a city and a two-letter country.
 const addressValid = (value: string): string =>
   `(jsonb_typeof(${value}) = 'object' and coalesce(${value} ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce(${value} ->> 'line1', ''))) >= 1 and length(btrim(coalesce(${value} ->> 'city', ''))) >= 1 and length(${value}::text) <= 4000)`;
 
-function tables(ctx: ModuleContext, extras: readonly ExtraColumn[]): string {
+function tables(ctx: BlockSqlContext, extras: readonly ExtraColumn[]): string {
   if (!ctx.manages) {
     return "";
   }
@@ -264,7 +264,10 @@ create policy ${index("trackingEvents", "read")} on ${events} for select to auth
 `;
 }
 
-function functions(ctx: ModuleContext, extras: readonly ExtraColumn[]): string {
+function functions(
+  ctx: BlockSqlContext,
+  extras: readonly ExtraColumn[],
+): string {
   const shipments = ctx.table("shipments");
   const packages = ctx.table("packages");
   const events = ctx.table("trackingEvents");
@@ -678,7 +681,7 @@ ${userGrant(`${fn("list_tracking_events")}(uuid)`)}
  * Moves the shipments on a merged registered subject to the record it merged
  * into.
  */
-function shipmentMerges(ctx: ModuleContext): string {
+function shipmentMerges(ctx: BlockSqlContext): string {
   const subjects = registeredSubjects(ctx.subjects, ctx.naming).map(
     (subject) =>
       [
@@ -703,7 +706,7 @@ function shipmentMerges(ctx: ModuleContext): string {
 
 const RESERVED = ["fields", "packages", "from", "to"];
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -716,7 +719,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, extras)}${functions(ctx, extras)}${shipmentMerges(ctx)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const fields = extraFieldsArg(ctx.extraColumns("shipments", RESERVED));
 
   return [
@@ -772,7 +775,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SHIPMENTS: ModuleDefinition = {
+export const SHIPMENTS: BlockSqlDefinition = {
   name: "shipments",
   scopes: ["tenant"],
   title: "Shipments",

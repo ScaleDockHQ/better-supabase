@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { AccessBlockConfig } from "../../../src/config/blocks.ts";
-import type { ModuleAccessProvider } from "../../../src/sql/module-types.ts";
+import type { BlockSqlAccessProvider } from "../../../src/sql/module-types.ts";
 
 import { DEFAULT_ROLES } from "../../../src/sql/modules/access-model.ts";
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import {
   callerOnlyProvider,
   moduleProvider,
@@ -21,7 +21,7 @@ const CALLER_ONLY = callerOnlyProvider;
 
 const provider = (
   config: AccessBlockConfig = {},
-  accessProvider: ModuleAccessProvider = PROVIDER,
+  accessProvider: BlockSqlAccessProvider = PROVIDER,
 ) =>
   moduleBody("access", {
     modules: { access: { model: "provider", ...config } },
@@ -278,8 +278,8 @@ describe("access module", () => {
       'better_supabase.can_assign_as(invite."invited_by"',
     );
 
-    const notifications = (accessProvider: ModuleAccessProvider) =>
-      renderModules(["notifications", "access"], {
+    const notifications = (accessProvider: BlockSqlAccessProvider) =>
+      renderBlocks(["notifications", "access"], {
         modules: { access: { model: "provider" } },
         accessProvider,
       }).find(
@@ -435,7 +435,7 @@ describe("access module", () => {
       /or coalesce\(\(false\), false\)/,
     );
 
-    const withTenant = renderModules(["tenant", "access"], {
+    const withTenant = renderBlocks(["tenant", "access"], {
       modules: { access: { model: "provider" } },
       accessProvider: CALLER_ONLY,
     })

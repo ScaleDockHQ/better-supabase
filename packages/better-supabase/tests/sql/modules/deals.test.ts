@@ -1,16 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const render = (
-  layout: Parameters<typeof renderModules>[1] = {},
+  layout: Parameters<typeof renderBlocks>[1] = {},
   extra: readonly string[] = [],
-) => renderModules(["deals", ...extra], layout);
+) => renderBlocks(["deals", ...extra], layout);
 
-const body = (
-  module: string,
-  files: ReturnType<typeof renderModules>,
-): string =>
+const body = (module: string, files: ReturnType<typeof renderBlocks>): string =>
   files
     .filter((file) => file.module === module)
     .map((file) => file.contents)

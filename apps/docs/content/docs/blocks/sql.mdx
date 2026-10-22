@@ -43,7 +43,7 @@ missing from every earlier migration; run `sql sync`, then create the schema
 migration again after the extensions migration.
 
 A schema diff only captures objects, so each module's rows and settings (its
-`better_supabase.modules` row, the reserved slugs, the rate-limit role
+`better_supabase.blocks` row, the reserved slugs, the rate-limit role
 setting) go to a second file in `supabase/better-supabase-data/`, outside the schema folder:
 pg-delta loads every file under `supabase/schemas`, nested folders included,
 and refuses a table that has rows afterwards. When `sql.dir` is a folder
@@ -133,7 +133,7 @@ lists the steps to move to pg-delta.
 This workflow is for an app without declarative schemas. The `sql` commands
 write nothing to `sql.dir`. `sql add`, `sql sync` and `sql upgrade` write one migration that
 holds, in order, the extensions, the upgrade steps, each module's schema with
-its `@bs-module` line, the realtime topic policies and the data statements.
+its `@bsb-block` line, the realtime topic policies and the data statements.
 Every statement can run again, so each new migration carries all the modules,
 not only the changes. A command writes a new one only when the statements
 differ from the newest `*_better_supabase_modules.sql`.
@@ -141,7 +141,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 - `sql sync --check` and [doctor BS304](/docs/cli/doctor#bs304) compare
   against that newest migration.
 - `sql list`, `sql upgrade` and doctor read the installed versions from its
-  `@bs-module` lines.
+  `@bsb-block` lines.
 - `sql data` writes nothing, because the rows are already in the migration.
 - `gen` writes the read-sets module into `<stamp>_better_supabase_read_sets.sql`.
 - The pgTAP files still go to `sql.testsDir`.
@@ -425,7 +425,7 @@ result keys, event types and the generated types. See
 
 You can rename the entities of a block you already installed. Change
 `blocks.<name>.entities`, then run `better-supabase sql upgrade`. It reads the
-names from each file's `@bs-entities` line, compares the old and new module
+names from each file's `@bsb-names` line, compares the old and new module
 SQL and writes guarded `alter ... rename` statements for the tables, columns,
 indexes, policies, triggers and functions, so the rows stay where they are.
 It also moves the permission keys in a role and permission catalog and the
@@ -598,8 +598,8 @@ const outbox = createOutbox({ transport, source: "https://app.example.com" });
 
 An unknown table, column or module, or a mode a module doesn't support, stops
 `sql add` and `sql sync` with the valid names. Each file's header records the
-module version and mode (`-- @bs-module tenant@2 adopt`), and the data migration
-records them in `better_supabase.modules`. An option a module doesn't read
+module version and mode (`-- @bsb-block tenant@2 adopt`), and the data migration
+records them in `better_supabase.blocks`. An option a module doesn't read
 stops `sql add` as well, so a misspelled option can't fall back to its default
 without notice. Only `blocks.access` takes the access keys (`model`, `roles`,
 `functions`, `activeTenant` and the rest).
@@ -1366,12 +1366,12 @@ With a registry, `gen` also emits the types in `database.types.ts`:
 
 ```ts
 import {
-  type SubjectRef,
+  type RecordRef,
   type SubjectType,
   subjectTypes,
 } from "./lib/supabase/schema";
 
-const ref: SubjectRef<SubjectType> = { type: "task", id: taskId };
+const ref: RecordRef<SubjectType> = { type: "task", id: taskId };
 ```
 
 Doctor reports a registered table or column the database lacks (BS331) and a
@@ -1486,7 +1486,7 @@ update the package:
 better-supabase sql upgrade
 ```
 
-It reads the version from each file's `@bs-module` line (a file without one,
+It reads the version from each file's `@bsb-block` line (a file without one,
 written before the line existed, counts as version 1). It then writes the
 forward steps into `<timestamp>_better_supabase_block_upgrade.sql` in the
 `migrations` folder next to your `config.toml` and rewrites the module files. Create the schema migration afterwards, so the
@@ -1525,22 +1525,18 @@ Doctor reports a table that still has both (BS310).
 
 `better-supabase/sql` exports what the `sql` command uses, for build scripts
 and tests that write the files themselves. `moduleLayout(config)` returns the
-paths, `renderModules` returns the files with their managed headers (dependencies
-included), and `resolveModules` lists the modules a set of names pulls in.
+paths, `renderBlocks` returns the files with their managed headers (dependencies
+included), and `resolveBlocks` lists the modules a set of names pulls in.
 
 ```ts title="scripts/write-block.ts"
 import { resolveConfig } from "better-supabase/config";
-import {
-  moduleLayout,
-  renderModules,
-  resolveModules,
-} from "better-supabase/sql";
+import { moduleLayout, renderBlocks, resolveBlocks } from "better-supabase/sql";
 
 import config from "../better-supabase.config.ts";
 
 const layout = moduleLayout(resolveConfig(config, process.cwd()));
-const modules = resolveModules(["audit", "jobs"], layout).map((m) => m.name);
-const files = renderModules(["audit", "jobs"], layout);
+const modules = resolveBlocks(["audit", "jobs"], layout).map((m) => m.name);
+const files = renderBlocks(["audit", "jobs"], layout);
 ```
 
 `compileReadSets` turns the read sets in `generated.ts` into the SQL views and

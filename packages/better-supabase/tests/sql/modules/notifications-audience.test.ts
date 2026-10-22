@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 describe("notification permission audiences", () => {
-  const sql = renderModules(["notifications"])
+  const sql = renderBlocks(["notifications"])
     .map((file) => file.contents)
     .join("\n");
 
@@ -12,7 +12,7 @@ describe("notification permission audiences", () => {
   });
 
   it("asks can_user for each member when the roles model has a tenant", () => {
-    const withTenant = renderModules(["access", "tenant", "notifications"])
+    const withTenant = renderBlocks(["access", "tenant", "notifications"])
       .map((file) => file.contents)
       .join("\n");
 

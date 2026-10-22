@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { EntityFormResult } from "../../src/records/index.ts";
+import type { RecordFormResult } from "../../src/records/index.ts";
 
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
 import { workItemInputSchema } from "../../src/blocks/work-items/schemas.ts";
 import { providedTemporal, provideTemporal } from "../../src/core/temporal.ts";
-import { entityForm } from "../../src/records/index.ts";
+import { recordForm } from "../../src/records/index.ts";
 
 interface Everything {
   id: string;
@@ -54,7 +54,7 @@ const everything = entitySchema<Everything>({
   },
 });
 
-function valuesOf<T>(result: EntityFormResult<T>) {
+function valuesOf<T>(result: RecordFormResult<T>) {
   if (!result.ok) {
     throw new Error(JSON.stringify(result.errors));
   }
@@ -62,9 +62,9 @@ function valuesOf<T>(result: EntityFormResult<T>) {
   return result;
 }
 
-describe("entityForm", () => {
+describe("recordForm", () => {
   it("lists one field per writable key with its input, bounds and options", () => {
-    const form = entityForm(everything);
+    const form = recordForm(everything);
 
     expect(form.fields.map((field) => [field.key, field.input])).toEqual([
       ["id", "text"],
@@ -103,7 +103,7 @@ describe("entityForm", () => {
   });
 
   it("picks and labels fields and appends the tenant's custom fields", () => {
-    const form = entityForm(workItemInputSchema, {
+    const form = recordForm(workItemInputSchema, {
       fields: ["title", "dueAt"],
       labels: { title: "Summary", region: "Area" },
       customFields: [
@@ -137,7 +137,7 @@ describe("entityForm", () => {
   });
 
   it("validates with the schema and splits the input from the custom values", async () => {
-    const form = entityForm(workItemInputSchema, {
+    const form = recordForm(workItemInputSchema, {
       fields: ["title", "priority", "dueAt"],
       customFields: [
         { key: "region", label: "Region", type: "option", required: true },
@@ -172,7 +172,7 @@ describe("entityForm", () => {
   });
 
   it("reports schema issues and missing required custom fields by key", async () => {
-    const form = entityForm(workItemInputSchema, {
+    const form = recordForm(workItemInputSchema, {
       fields: ["title", "priority"],
       customFields: [
         { key: "region", label: "Region", type: "option", required: true },
@@ -196,7 +196,7 @@ describe("entityForm", () => {
   });
 
   it("turns input text into each kind's value and keeps text that doesn't parse", async () => {
-    const form = entityForm(everything);
+    const form = recordForm(everything);
 
     const result = await form.validate({
       id: "00000000-0000-4000-8000-000000000001",
@@ -251,7 +251,7 @@ describe("entityForm", () => {
     // SAFETY: the test removes the global for one call and restores it below.
     (globalThis as { Temporal?: unknown }).Temporal = undefined;
 
-    const form = entityForm(everything, {
+    const form = recordForm(everything, {
       fields: ["id", "name", "at", "on", "local"],
     });
 
@@ -282,7 +282,7 @@ describe("entityForm", () => {
       },
     } as typeof everything;
 
-    const result = await entityForm(strict).validate({});
+    const result = await recordForm(strict).validate({});
 
     expect(result).toEqual({ ok: false, errors: { "": "Too many fields" } });
   });

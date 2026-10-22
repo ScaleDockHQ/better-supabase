@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const billing = (options?: Record<string, unknown>) =>
   moduleBody("billing", { modules: options ? { billing: { options } } : {} })!;
@@ -74,7 +74,7 @@ describe("billing module", () => {
       `foreign key ("organization_id") references "app"."accounts" ("account_id") on delete cascade`,
     );
 
-    const withOrganizations = renderModules(["organizations", "billing"]).find(
+    const withOrganizations = renderBlocks(["organizations", "billing"]).find(
       (file) => file.module === "billing" && file.kind === "schema",
     )!.contents;
 
@@ -82,7 +82,7 @@ describe("billing module", () => {
       'constraint "billing_customers_tenant_fkey"\n      foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade',
     );
 
-    const off = renderModules(["organizations", "billing"], {
+    const off = renderBlocks(["organizations", "billing"], {
       modules: { billing: { options: { tenantKey: false } } },
     }).find((file) => file.module === "billing" && file.kind === "schema")!;
 

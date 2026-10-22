@@ -1,5 +1,5 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
-import type { ModuleScope } from "../scope.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { BlockSqlScope } from "../scope.ts";
 
 import { extraFieldsJson, fail } from "../shared.ts";
 import { liveShareLink } from "./share-links.ts";
@@ -10,8 +10,8 @@ const RATE_SCOPE = "bookings.public";
 /** The tables, columns and permission keys the bookings SQL is built from. */
 export interface Parts {
   /** The block's scope checks. */
-  readonly scope: ModuleScope;
-  readonly ctx: ModuleContext;
+  readonly scope: BlockSqlScope;
+  readonly ctx: BlockSqlContext;
   readonly r: (column: string) => string;
   readonly av: (column: string) => string;
   readonly x: (column: string) => string;
@@ -30,7 +30,7 @@ export interface Parts {
 }
 
 export const allowed = (
-  scope: ModuleScope,
+  scope: BlockSqlScope,
   tenant: string,
   key: string,
 ): string => `(${SERVICE_CALLER} or ${scope.can(tenant, key)})`;
@@ -51,7 +51,7 @@ export function record(
 }
 
 /** Whether `blocks.bookings.options.recurring` is on; managed tables only. */
-export const recurringOn = (ctx: ModuleContext): boolean =>
+export const recurringOn = (ctx: BlockSqlContext): boolean =>
   ctx.manages && ctx.flag("recurring", false);
 
 /** A booking row as the JSON the bookings functions return. */

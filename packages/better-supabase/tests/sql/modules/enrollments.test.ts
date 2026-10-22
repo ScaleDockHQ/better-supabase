@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const sqlOf = (modules: readonly string[], layout: Layout = {}): string =>
-  renderModules(modules, layout)
+  renderBlocks(modules, layout)
     .filter((file) => file.module === "enrollments" && file.kind === "schema")
     .map((file) => file.contents)
     .join("\n");
@@ -60,7 +60,7 @@ describe("enrollments module", () => {
   });
 
   it("renders before onboarding", () => {
-    const order = renderModules(["onboarding"], {})
+    const order = renderBlocks(["onboarding"], {})
       .filter((file) => file.kind === "schema")
       .map((file) => file.module);
 

@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleTableSpec } from "./context.ts";
+import type { BlockSqlContext, BlockSqlTableSpec } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { fail, lockTable, triggerGrant } from "./shared.ts";
@@ -34,7 +34,7 @@ export const TOTAL_COLUMNS = {
 } as const;
 
 /** A `NAMES.tables` entry for a line table called `name`. */
-export function lineTableSpec(name: string): ModuleTableSpec {
+export function lineTableSpec(name: string): BlockSqlTableSpec {
   return {
     name,
     lifecycle: { tenant: "tenant", export: true },
@@ -61,7 +61,7 @@ export interface LineItems {
  * The record's totals are the sums, so they always add up.
  */
 export function lineItemsSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   items: LineItems,
   options: {
     /** `set_<this>` replaces a record's lines. */
@@ -224,7 +224,7 @@ grant execute on function ${fn}(uuid, jsonb) to authenticated, service_role;
 }
 
 /** The totals columns of a record table, as `create table` lines. */
-export function totalColumnsSql(ctx: ModuleContext, table: string): string {
+export function totalColumnsSql(ctx: BlockSqlContext, table: string): string {
   const c = (column: string): string => ctx.col(table, column);
 
   return [

@@ -1,6 +1,10 @@
 import type { AgentsEvents } from "../../blocks/agents/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
@@ -60,7 +64,7 @@ const SKILLS = {
   createdAt: "created_at",
 } as const;
 
-const EVENTS: ModuleEvents<AgentsEvents> = {
+const EVENTS: BlockSqlEvents<AgentsEvents> = {
   "agent.saved": {
     subject: "organizations",
     payload: ["organizationId", "agentId", "slug"],
@@ -83,7 +87,7 @@ const EVENTS: ModuleEvents<AgentsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["maxInstructions", "extraColumns"],
   tables: {
@@ -117,7 +121,7 @@ const AGENT_KEYS: readonly string[] = [
 
 const SLUG = "^[a-z0-9]+(-[a-z0-9]+)*$";
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const a = columnsOf(ctx, "agents", AGENTS);
@@ -537,7 +541,7 @@ $$;
 ${userGrant(`${fn("set_agent_skills")}(uuid, jsonb)`)}`;
 }
 
-export const AGENTS_MODULE: ModuleDefinition = {
+export const AGENTS_MODULE: BlockSqlDefinition = {
   name: "agents",
   scopes: ["tenant"],
   title: "Agents",

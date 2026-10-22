@@ -3,11 +3,11 @@ import type { PoolClient } from "pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { rankBetween } from "../../src/core/rank-keys.ts";
 import { rankAfter } from "../../src/sql/rank-sql.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import VECTORS from "../core/fixtures/rank-vectors.json" with { type: "json" };
 import { dbUrl, reachable } from "./block-session.ts";
@@ -17,7 +17,7 @@ const live = await reachable();
 const ACME = "00000000-0000-4000-8000-000000000001";
 const OTHER = "00000000-0000-4000-8000-0000000000ff";
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: {
     deal: { table: "rank_it.deals", rank: { column: "rank", group: "stage" } },
     ticket: {
@@ -126,7 +126,7 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
     await client.query("begin");
     await client.query(TABLE);
 
-    for (const file of renderModules(
+    for (const file of renderBlocks(
       ["rank", "state-machine", "tags", "custom-fields"],
       layout,
     )) {

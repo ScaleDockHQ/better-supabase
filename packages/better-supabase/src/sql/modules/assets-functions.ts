@@ -1,10 +1,10 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
 /** Whether the module stores points and areas as PostGIS geography (ADR 0066). */
-export const assetsPostgis = (ctx: ModuleContext): boolean =>
+export const assetsPostgis = (ctx: BlockSqlContext): boolean =>
   ctx.flag("postgis", false);
 
 /** `geography` qualified with the schema PostGIS is installed in. */
@@ -24,7 +24,7 @@ const haversine = (
   `(2 * 6371008.8 * asin(least(1, sqrt(power(sin(radians(${lat2} - ${lat1}) / 2), 2) + cos(radians(${lat1})) * cos(radians(${lat2})) * power(sin(radians(${lng2} - ${lng1}) / 2), 2)))))`;
 
 /** The assets module's functions. */
-export function assetsFunctions(ctx: ModuleContext): string {
+export function assetsFunctions(ctx: BlockSqlContext): string {
   const locations = ctx.table("locations");
   const assets = ctx.table("assets");
   const assignments = ctx.table("assignments");

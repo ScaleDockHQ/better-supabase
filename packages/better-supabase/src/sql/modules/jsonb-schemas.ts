@@ -1,8 +1,8 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { jsonSchemaChecks, SCHEMA } from "../shared.ts";
 
-export const JSONB_SCHEMAS: ModuleDefinition = {
+export const JSONB_SCHEMAS: BlockSqlDefinition = {
   name: "jsonb-schemas",
   title: "JSON Schema checks for jsonb",
   description:

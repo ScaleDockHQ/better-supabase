@@ -159,6 +159,15 @@ const retired: readonly (readonly [RegExp, string])[] = [
     /(?<![\w$.:/-])bs\.(?=[a-z$])|\b(?:const|let|var)\s+bs\b|\{\s*bs\s*[,}]/u,
     "retired instance name `bs`; the runtime instance is `bsb`",
   ],
+  [
+    // API keys keep the `bs` prefix, so `bs_bad_key` is a key, not an object.
+    /\bbs_(?!bad_key\b)[a-z][a-z0-9_]*/u,
+    "retired `bs_` object name; installed triggers, policies and functions start with `bsb_`",
+  ],
+  [
+    /@bs-(?:module|entities|app-tables|upgrade)/u,
+    "retired marker; block files carry `@bsb-block`, `@bsb-names` and `@bsb-tables`",
+  ],
 ];
 
 function collectSources(path: string, into: string[]): void {

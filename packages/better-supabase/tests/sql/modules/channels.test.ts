@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 describe("channels module", () => {
   it("builds the table and its functions on the messaging core", () => {
@@ -12,7 +12,7 @@ describe("channels module", () => {
   });
 
   it("links a channel only to a record in its own tenant", () => {
-    const sql = renderModules(["channels"], {
+    const sql = renderBlocks(["channels"], {
       modules: {},
       subjects: {
         deal: { table: "deals", idType: "uuid" },

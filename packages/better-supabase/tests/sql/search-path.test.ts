@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 /** Every function a rendered file creates that has no `set search_path`. */
 function mutable(contents: string): string[] {
@@ -53,7 +53,7 @@ describe("function search paths", () => {
     ];
 
     for (const layout of layouts) {
-      const files = renderModules(names, layout);
+      const files = renderBlocks(names, layout);
       expect(files.some((file) => file.module === "pgtap")).toBe(true);
 
       const found = files.flatMap((file) =>

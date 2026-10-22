@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig) => moduleBody("outbox", { modules })!;
 
@@ -116,9 +116,9 @@ describe("outbox module", () => {
   });
 
   it("lets other modules emit once the outbox is installed", () => {
-    const without = renderModules(["organizations"]).at(-1)!.contents;
+    const without = renderBlocks(["organizations"]).at(-1)!.contents;
     expect(without).not.toContain("emit_event");
-    const files = renderModules(["organizations", "outbox"]);
+    const files = renderBlocks(["organizations", "outbox"]);
 
     const organizations = files.find((file) =>
       file.path.includes("organizations"),
@@ -128,7 +128,7 @@ describe("outbox module", () => {
       `perform "better_supabase".emit_event('organization.created'`,
     );
 
-    const silenced = renderModules(["organizations", "outbox"], {
+    const silenced = renderBlocks(["organizations", "outbox"], {
       modules: { organizations: { events: false } },
     }).find((file) => file.path.includes("organizations"))!;
 

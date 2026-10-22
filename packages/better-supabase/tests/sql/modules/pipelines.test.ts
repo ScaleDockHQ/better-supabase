@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { SubjectsConfig } from "../../../src/config/index.ts";
-import type { ModuleLayout } from "../../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const SUBJECTS: SubjectsConfig = {
   deal: { table: "public.deals", deletedAt: "deleted_at" },
@@ -28,9 +28,9 @@ const DEAL = {
 const render = (
   subjects: Record<string, unknown>,
   extra: readonly string[] = [],
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
 ): string =>
-  renderModules(["pipelines", ...extra], {
+  renderBlocks(["pipelines", ...extra], {
     ...layout,
     subjects: SUBJECTS,
     modules: {
@@ -169,7 +169,7 @@ describe("pipelines module", () => {
 describe("pipelines module, other layouts", () => {
   it("renders nothing in custom mode and no watch without a subscriptions table", () => {
     expect(
-      renderModules(["pipelines"], {
+      renderBlocks(["pipelines"], {
         subjects: SUBJECTS,
         modules: { pipelines: { mode: "custom" } },
       })
@@ -178,7 +178,7 @@ describe("pipelines module, other layouts", () => {
         .join(""),
     ).not.toContain("create table");
 
-    const sql = renderModules(["pipelines", "notifications"], {
+    const sql = renderBlocks(["pipelines", "notifications"], {
       subjects: SUBJECTS,
       modules: {
         pipelines: { options: { subjects: { deal: DEAL } } },

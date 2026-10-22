@@ -17,8 +17,8 @@ import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   appTableEventTypes,
   BLOCK_OPTION_SCHEMAS,
-  resolveModule,
-  resolveModules,
+  resolveBlock,
+  resolveBlocks,
 } from "../../sql/index.ts";
 import { nameConstantLines } from "./block-names.ts";
 import { GENERATED_HEADER } from "./emit.ts";
@@ -51,7 +51,7 @@ function namingOf(
     modules.flatMap((module) =>
       module === "access"
         ? []
-        : Object.entries(resolveModule(config.blocks[module]).functions),
+        : Object.entries(resolveBlock(config.blocks[module]).functions),
     ),
   );
 
@@ -83,7 +83,7 @@ export function blockConfigEntries(
   config: Pick<ResolvedConfig, "blocks" | "blockNames" | "sql">,
 ): Readonly<Record<string, GeneratedBlock>> {
   const installed = new Set(
-    resolveModules(config.blockNames, {
+    resolveBlocks(config.blockNames, {
       modules: config.blocks,
       ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
     }).map((module) => module.name),
@@ -99,7 +99,7 @@ export function blockConfigEntries(
       continue;
     }
 
-    const resolved = resolveModule(config.blocks[main]);
+    const resolved = resolveBlock(config.blocks[main]);
     const options: Record<string, unknown> = {};
 
     for (const module of modules) {
@@ -107,7 +107,7 @@ export function blockConfigEntries(
         continue;
       }
 
-      const configured = resolveModule(config.blocks[module]).options;
+      const configured = resolveBlock(config.blocks[module]).options;
 
       for (const [key, spec] of Object.entries(
         BLOCK_OPTION_SCHEMAS[module].specs,

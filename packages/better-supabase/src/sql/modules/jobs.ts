@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { SCHEMA, serviceOnly, revokeTable } from "../shared.ts";
 import { table } from "./jobs-table.ts";
@@ -9,7 +9,7 @@ export type JobsBackend = "pgmq" | "table";
 export type JobsScheduler = "pg_cron" | "drain";
 
 /** `blocks.jobs.options.backend`: Supabase Queues (pgmq) or a plain table. */
-function jobsBackend(ctx: ModuleContext): JobsBackend {
+function jobsBackend(ctx: BlockSqlContext): JobsBackend {
   const backend = ctx.text("backend", "pgmq");
 
   if (backend !== "pgmq" && backend !== "table") {
@@ -25,7 +25,7 @@ function jobsBackend(ctx: ModuleContext): JobsBackend {
  * `blocks.jobs.options.scheduler`: pg_cron, or due schedules run by the drain
  * route.
  */
-function jobsScheduler(ctx: ModuleContext): JobsScheduler {
+function jobsScheduler(ctx: BlockSqlContext): JobsScheduler {
   const scheduler = ctx.text("scheduler", "pg_cron");
 
   if (scheduler !== "pg_cron" && scheduler !== "drain") {
@@ -58,7 +58,7 @@ drop function if exists better_supabase.claim_due_schedules(integer, integer);`;
  * Opens purge_job_archive: nothing goes while a legal hold covers the archive,
  * and a data-lifecycle retention policy replaces both intervals.
  */
-function archiveGuard(ctx: ModuleContext): string {
+function archiveGuard(ctx: BlockSqlContext): string {
   const held = ctx.held("job_archive", "null");
 
   if (held === "false") {
@@ -737,7 +737,7 @@ const GRANTS = (backend: JobsBackend): string =>
     "retry_dead_jobs(text, bigint[], integer)",
   ]);
 
-function jobsSql(ctx: ModuleContext): string {
+function jobsSql(ctx: BlockSqlContext): string {
   const backend = jobsBackend(ctx);
   const scheduler = jobsScheduler(ctx);
 
@@ -750,7 +750,7 @@ function jobsSql(ctx: ModuleContext): string {
   ].join("\n\n");
 }
 
-export const JOBS: ModuleDefinition = {
+export const JOBS: BlockSqlDefinition = {
   name: "jobs",
   title: "Job queue",
   description:

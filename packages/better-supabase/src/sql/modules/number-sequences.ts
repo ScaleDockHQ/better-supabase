@@ -1,11 +1,11 @@
 import type { NumberSequencesEvents } from "../../blocks/number-sequences/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type {
   SequenceEntity,
   TenantColumn,
@@ -24,14 +24,14 @@ import {
 import { OPERATIONS } from "./access-model.ts";
 import { sequences } from "./number-sequences-entities.ts";
 
-const EVENTS: ModuleEvents<NumberSequencesEvents> = {
+const EVENTS: BlockSqlEvents<NumberSequencesEvents> = {
   "number.assigned": {
     subject: "number-sequences",
     payload: ["organizationId", "entity", "period", "number"],
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_number_assign", "after_number_assign"],
   options: ["entities"],
@@ -85,7 +85,7 @@ function periodSql(item: SequenceEntity, at: string, format: string): string {
 }
 
 function periodOf(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   item: SequenceEntity,
   args: {
     readonly at: string;
@@ -209,7 +209,7 @@ function syncPeriod(
 }
 
 function formatOf(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   item: SequenceEntity,
   tenant: string,
 ): string {
@@ -224,7 +224,7 @@ interface SyncSource {
   readonly match: string | undefined;
 }
 
-function syncSource(ctx: ModuleContext, item: SequenceEntity): SyncSource {
+function syncSource(ctx: BlockSqlContext, item: SequenceEntity): SyncSource {
   const sequence =
     item.sequenceColumn === undefined
       ? undefined
@@ -275,7 +275,7 @@ function syncSource(ctx: ModuleContext, item: SequenceEntity): SyncSource {
 }
 
 function syncEntity(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   item: SequenceEntity & { readonly table: string; readonly column: string },
 ): string {
   const { period, number, match } = syncSource(ctx, item);
@@ -332,7 +332,7 @@ function syncEntity(
 }
 
 function periodCaseOf(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   items: readonly SequenceEntity[],
   args: {
     readonly tenant: string;
@@ -353,7 +353,7 @@ function periodCaseOf(
 }
 
 function previewFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   items: readonly SequenceEntity[],
 ): string {
   const fn = ctx.fn("preview_number");
@@ -415,7 +415,7 @@ ${userGrant(`${fn}(${ctx.idType}, text, timestamptz)`)}`;
 }
 
 function formatFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   items: readonly SequenceEntity[],
 ): string {
   const fn = ctx.fn("number_format");
@@ -464,7 +464,7 @@ ${serviceGrant(`${fn}(${ctx.idType}, text)`)}`;
 }
 
 function periodFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   items: readonly SequenceEntity[],
 ): string {
   const fn = ctx.fn("number_period");
@@ -506,7 +506,7 @@ ${serviceGrant(`${fn}(${ctx.idType}, text)`)}`;
 }
 
 function syncFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   items: readonly SequenceEntity[],
 ): string {
   const fn = ctx.fn("sync_number_sequences");
@@ -580,7 +580,7 @@ function periodKind(
 }
 
 function periodTrigger(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   item: SequenceEntity,
   source: TenantColumn,
   name: string,
@@ -630,7 +630,7 @@ create trigger ${fn} after update on ${source.table}
 for each row execute function better_supabase.${fn}();`;
 }
 
-function periodTriggers(ctx: ModuleContext, item: SequenceEntity): string {
+function periodTriggers(ctx: BlockSqlContext, item: SequenceEntity): string {
   if (item.table === undefined || item.column === undefined) {
     return "";
   }
@@ -665,7 +665,7 @@ function periodTriggers(ctx: ModuleContext, item: SequenceEntity): string {
     .join("\n");
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -859,7 +859,7 @@ ${syncFunction(ctx, items)}
 ${triggers}`;
 }
 
-function trigger(ctx: ModuleContext, item: SequenceEntity): string {
+function trigger(ctx: BlockSqlContext, item: SequenceEntity): string {
   const table = item.table;
   const column = item.column;
 
@@ -944,7 +944,7 @@ create trigger ${fn} before insert or update on ${target}
 for each row execute function better_supabase.${fn}();`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "next_number",
@@ -959,7 +959,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const NUMBER_SEQUENCES: ModuleDefinition = {
+export const NUMBER_SEQUENCES: BlockSqlDefinition = {
   name: "number-sequences",
   scopes: ["tenant"],
   title: "Number sequences",

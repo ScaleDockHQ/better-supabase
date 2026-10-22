@@ -1,4 +1,4 @@
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { TimeEntry } from "./time-tracking.ts";
 
 import { nowInstant } from "../../core/temporal.ts";
@@ -7,7 +7,7 @@ import { nowInstant } from "../../core/temporal.ts";
 export type WeeklyGridEntry = Pick<
   TimeEntry,
   "id" | "startedAt" | "endedAt" | "billable"
-> & { readonly subject?: SubjectRef | undefined };
+> & { readonly subject?: RecordRef | undefined };
 
 export interface WeeklyGridOptions<E extends WeeklyGridEntry> {
   /** Any day of the week; the grid starts on its Monday. */
@@ -37,7 +37,7 @@ export interface WeeklyGridDay {
 export interface WeeklyGridRow {
   readonly id: string;
   /** The record of the row's first entry; `undefined` when it has none. */
-  readonly subject: SubjectRef | undefined;
+  readonly subject: RecordRef | undefined;
   readonly billable: boolean;
   /** Seconds per day, Monday first. */
   readonly days: readonly number[];

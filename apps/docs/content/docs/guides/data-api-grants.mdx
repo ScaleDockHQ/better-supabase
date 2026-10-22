@@ -74,7 +74,7 @@ expose: {
 exclusions leave no column. Doctor's [BS339](/docs/cli/doctor#bs339) warns
 about an excluded column the table no longer has, since a renamed secret
 column is then granted under its new name. An app that renders the `grants` module itself
-with `renderModules` from `better-supabase/sql` passes the layout's grants
+with `renderBlocks` from `better-supabase/sql` passes the layout's grants
 through `resolveExposeColumns(grants, schemaFiles, schemas)` first; the
 module refuses an unresolved `*`.
 

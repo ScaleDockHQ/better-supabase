@@ -1,11 +1,11 @@
 import type { BulkEvents } from "../../blocks/bulk/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -40,14 +40,14 @@ const DEFAULT_LIMIT = 500;
 const MAX_RUN = 100_000;
 const DEFAULT_CHUNK = 200;
 
-const EVENTS: ModuleEvents<BulkEvents> = {
+const EVENTS: BlockSqlEvents<BulkEvents> = {
   "bulk_run.completed": {
     subject: "bulk-runs",
     payload: ["organizationId", "id", "kind", "status", "count", "failed"],
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["limit", "actions"],
   tables: {
@@ -78,7 +78,7 @@ const NAMES: ModuleNames = {
  * `options.actions`: an app's own actions, each a `schema.function(tenant,
  * subject_type, id, args)`.
  */
-function bulkActions(ctx: ModuleContext): ReadonlyMap<string, string> {
+function bulkActions(ctx: BlockSqlContext): ReadonlyMap<string, string> {
   const where = "blocks.bulk.options.actions";
   const raw: unknown = ctx.option("actions") ?? {};
 
@@ -112,7 +112,7 @@ function bulkActions(ctx: ModuleContext): ReadonlyMap<string, string> {
 }
 
 function dispatch(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   custom: ReadonlyMap<string, string>,
 ): string {
   const arms: string[] = [];
@@ -176,7 +176,7 @@ ${arms.join("\n")}
  * `v_failed`.
  */
 function rowLoop(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   tenant: string,
   subjectType: string,
   action: string,
@@ -199,7 +199,7 @@ function rowLoop(
   end loop;`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -433,7 +433,7 @@ ${serviceGrant(`${ctx.fn("bulk_step")}(uuid, integer)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "bulk_apply",
@@ -450,7 +450,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const BULK: ModuleDefinition = {
+export const BULK: BlockSqlDefinition = {
   name: "bulk",
   scopes: ["tenant"],
   title: "Bulk actions",

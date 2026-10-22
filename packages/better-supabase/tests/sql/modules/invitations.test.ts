@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
-import type { ModuleAccessProvider } from "../../../src/sql/module-types.ts";
+import type { BlockSqlAccessProvider } from "../../../src/sql/module-types.ts";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import {
   callerOnlyProvider,
@@ -12,7 +12,7 @@ import {
 
 const body = (
   modules: AnyBlocksConfig,
-  accessProvider: ModuleAccessProvider = callerOnlyProvider,
+  accessProvider: BlockSqlAccessProvider = callerOnlyProvider,
 ) => moduleBody("invitations", { modules, accessProvider })!;
 
 describe("invitations module", () => {
@@ -159,7 +159,7 @@ describe("invitations module", () => {
 
   it("skips the inviter re-check when the provider answers for the caller only", () => {
     const accept = (modules: AnyBlocksConfig) =>
-      renderModules(["access", "invitations"], {
+      renderBlocks(["access", "invitations"], {
         modules,
         accessProvider: callerOnlyProvider,
       })
@@ -497,7 +497,7 @@ describe("invitation_preview_extra", () => {
 
     expect(sql).not.toContain("'inviter'");
 
-    const withProfiles = renderModules(["profiles", "invitations"], {}).find(
+    const withProfiles = renderBlocks(["profiles", "invitations"], {}).find(
       (file) => file.module === "invitations" && file.kind === "schema",
     )!.contents;
 
@@ -529,7 +529,7 @@ describe("invitation_preview_extra", () => {
 
     expect(own).toContain("tenant_ids_with('member.view')");
 
-    const listing = renderModules(["organizations", "invitations"], {
+    const listing = renderBlocks(["organizations", "invitations"], {
       modules: { invitations: { permissions: { invite: "member.invite" } } },
       accessProvider: moduleProvider,
     })

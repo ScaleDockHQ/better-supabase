@@ -1,11 +1,11 @@
 import type { ReviewsEvents } from "../../blocks/reviews/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -42,7 +42,7 @@ const PAYLOAD = [
   "verified",
 ] as const;
 
-const EVENTS: ModuleEvents<ReviewsEvents> = {
+const EVENTS: BlockSqlEvents<ReviewsEvents> = {
   "review.submitted": { subject: "reviews", payload: PAYLOAD },
   "review.published": { subject: "reviews", payload: PAYLOAD },
   "review.rejected": { subject: "reviews", payload: PAYLOAD },
@@ -50,7 +50,7 @@ const EVENTS: ModuleEvents<ReviewsEvents> = {
   "review.deleted": { subject: "reviews", payload: PAYLOAD },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_review_submit", "after_review_submit"],
   options: [
@@ -111,7 +111,7 @@ const REVIEW_SUBJECT = "review";
 /** The keys the review reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
-function scaleOf(ctx: ModuleContext): number {
+function scaleOf(ctx: BlockSqlContext): number {
   const scale = ctx.number("scale", 5);
 
   if (!Number.isInteger(scale) || scale < 2 || scale > 10) {
@@ -121,7 +121,7 @@ function scaleOf(ctx: ModuleContext): number {
   return scale;
 }
 
-function maxBodyOf(ctx: ModuleContext): number {
+function maxBodyOf(ctx: BlockSqlContext): number {
   const max = ctx.number("maxBodyLength", 5000);
 
   if (!Number.isInteger(max) || max < 1 || max > 100_000) {
@@ -133,7 +133,7 @@ function maxBodyOf(ctx: ModuleContext): number {
   return max;
 }
 
-function moderationOf(ctx: ModuleContext): "pre" | "post" {
+function moderationOf(ctx: BlockSqlContext): "pre" | "post" {
   const moderation = ctx.text("moderation", "pre");
 
   if (moderation !== "pre" && moderation !== "post") {
@@ -144,16 +144,16 @@ function moderationOf(ctx: ModuleContext): "pre" | "post" {
 }
 
 /** Whether product reviews are on: the catalog is installed with its tables. */
-const productsOn = (ctx: ModuleContext): boolean =>
+const productsOn = (ctx: BlockSqlContext): boolean =>
   ctx.installed("catalog") && ctx.of("catalog").mode !== "custom";
 
 /** Whether purchases can be checked: the orders tables are there. */
-const ordersOn = (ctx: ModuleContext): boolean =>
+const ordersOn = (ctx: BlockSqlContext): boolean =>
   productsOn(ctx) &&
   ctx.installed("orders") &&
   ctx.of("orders").mode !== "custom";
 
-function requirePurchaseOf(ctx: ModuleContext): boolean {
+function requirePurchaseOf(ctx: BlockSqlContext): boolean {
   const required = ctx.flag("requirePurchase", false);
 
   if (required && !ordersOn(ctx)) {
@@ -173,7 +173,7 @@ function requirePurchaseOf(ctx: ModuleContext): boolean {
  * registry), and the caller must be a member of its organization.
  */
 function readableCase(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   args: { readonly type: string; readonly id: string; readonly tenant: string },
 ): string {
   const whens: string[] = [];
@@ -216,7 +216,7 @@ ${whens.join("\n")}
 
 /** Whether `user` bought the product in a paid, uncancelled order. */
 function purchasedSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   args: {
     readonly tenant: string;
     readonly product: string;
@@ -236,7 +236,7 @@ function purchasedSql(
   )`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -780,7 +780,7 @@ ${subjectCascades(ctx, subjects, `delete from ${reviews} x where x.${r("subjectT
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("reviews", RESERVED)).contract;
 
   return [
@@ -822,7 +822,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
 }
 
 /** The items, as rows the moderation module would have written. */
-function itemRows(ctx: ModuleContext, decided: boolean): string {
+function itemRows(ctx: BlockSqlContext, decided: boolean): string {
   const moderated = ctx.of("moderation");
   const mi = (column: string): string => moderated.col("items", column);
   const r = (column: string): string => ctx.col("reviews", column);
@@ -837,7 +837,7 @@ function itemRows(ctx: ModuleContext, decided: boolean): string {
 }
 
 /** Moves the moderation columns of version 1 onto moderation items. */
-function moderationUpgrade(ctx: ModuleContext): string {
+function moderationUpgrade(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -867,7 +867,7 @@ $upgrade$;`;
 }
 
 /** Moderation items for the reviews written before moderation tracked them. */
-function moderationBackfill(ctx: ModuleContext): string {
+function moderationBackfill(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -876,7 +876,7 @@ function moderationBackfill(ctx: ModuleContext): string {
 ${itemRows(ctx, false)}`;
 }
 
-export const REVIEWS: ModuleDefinition = {
+export const REVIEWS: BlockSqlDefinition = {
   internal: [
     "review_subject_readable",
     "review_stats_refresh",

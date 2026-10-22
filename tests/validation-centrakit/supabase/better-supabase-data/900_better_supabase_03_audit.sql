@@ -1,5 +1,5 @@
--- better-supabase module: audit (0.8.0)
--- @bs-module-data audit
+-- better-supabase module: audit
+-- @bsb-block-data audit
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -14,7 +14,7 @@ create event trigger bsb_audit_forget_dropped on sql_drop
 delete from better_supabase.audited_tables a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid);
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('audit', 9, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

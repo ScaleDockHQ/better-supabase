@@ -1,11 +1,11 @@
 import type { TrashEvents } from "../../blocks/trash/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -39,13 +39,13 @@ const PAYLOAD = [
   "batchId",
 ] as const;
 
-const EVENTS: ModuleEvents<TrashEvents> = {
+const EVENTS: BlockSqlEvents<TrashEvents> = {
   "subject.trashed": { subject: "trash-items", payload: PAYLOAD },
   "subject.restored": { subject: "trash-items", payload: PAYLOAD },
   "subject.purged": { subject: "trash-items", payload: PAYLOAD },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_trash", "after_trash", "before_untrash", "after_untrash"],
   options: ["subjects", "retentionDays", "extraColumns"],
@@ -126,7 +126,7 @@ function childrenOf(value: unknown, where: string): readonly Child[] {
   });
 }
 
-function trashable(ctx: ModuleContext): readonly Trashable[] {
+function trashable(ctx: BlockSqlContext): readonly Trashable[] {
   const where = "blocks.trash.options.subjects";
   const explicit = ctx.option("subjects") !== undefined;
 
@@ -194,7 +194,7 @@ function trashable(ctx: ModuleContext): readonly Trashable[] {
  * The subject types trash can hold, for a module that trashes through
  * `trash_cascade`.
  */
-export function trashTypes(ctx: ModuleContext): ReadonlySet<string> {
+export function trashTypes(ctx: BlockSqlContext): ReadonlySet<string> {
   return new Set(trashable(ctx).map((entry) => entry.type));
 }
 
@@ -316,7 +316,7 @@ ${list
   end case;`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -622,7 +622,7 @@ ${userGrant(`${fn("is_trashed")}(text, text)`)}
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("items", ["fields", "batchId", "count"]),
   ).contract;
@@ -639,7 +639,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const TRASH: ModuleDefinition = {
+export const TRASH: BlockSqlDefinition = {
   name: "trash",
   scopes: ["tenant"],
   title: "Trash",

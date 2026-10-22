@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import type { AuthorizationFunctions } from "../../src/config/authorization.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { applyActorWriteGuards } from "../../src/sql/actor-guard.ts";
 
-const layoutWith = (template: string): ModuleLayout => {
+const layoutWith = (template: string): BlockSqlLayout => {
   const functions: Partial<AuthorizationFunctions> = {
     actorMayWrite: template,
   };
 
   // SAFETY: the guard reads only accessProvider.functions.actorMayWrite.
-  return { accessProvider: { functions } } as ModuleLayout;
+  return { accessProvider: { functions } } as BlockSqlLayout;
 };
 
 describe("applyActorWriteGuards with a provider template", () => {

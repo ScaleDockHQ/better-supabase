@@ -1,11 +1,11 @@
 import type { PushEvents } from "../../blocks/push/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
@@ -19,7 +19,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 
-const EVENTS: ModuleEvents<PushEvents> = {
+const EVENTS: BlockSqlEvents<PushEvents> = {
   "push.device_registered": {
     subject: "push-devices",
     payload: ["deviceId", "userId", "platform", "provider"],
@@ -30,7 +30,7 @@ const EVENTS: ModuleEvents<PushEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["extraColumns"],
   tables: {
@@ -53,12 +53,12 @@ const NAMES: ModuleNames = {
 };
 
 /** `options.extraColumns`, added to the devices table. */
-const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("devices");
+const extrasOf = (ctx: BlockSqlContext) => ctx.extraColumns("devices");
 
 const PLATFORMS = ["ios", "android", "web"];
 const PROVIDERS = ["expo", "fcm", "apns", "webpush"];
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -262,7 +262,7 @@ grant execute on function ${fn("push_tokens_for")}(uuid[]) to service_role;
 grant execute on function ${fn("prune_push_tokens")}(text[]) to service_role;`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "register_push_device",
@@ -282,7 +282,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const PUSH: ModuleDefinition = {
+export const PUSH: BlockSqlDefinition = {
   name: "push",
   title: "Push devices",
   description:

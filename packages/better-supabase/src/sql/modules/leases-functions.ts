@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -21,7 +21,7 @@ const step = (frequency: string): string =>
 export const LEASE_RESERVED = ["fields"] as const;
 
 /** The leases module's functions. */
-export function leasesFunctions(ctx: ModuleContext): string {
+export function leasesFunctions(ctx: BlockSqlContext): string {
   const assets = ctx.of("assets");
   const ledger = ctx.of("ledger");
   const members = ctx.of("tenant");

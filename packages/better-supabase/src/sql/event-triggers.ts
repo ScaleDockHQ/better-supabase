@@ -1,5 +1,5 @@
 /** An event trigger a module's schema file creates. */
-export interface ModuleEventTrigger {
+export interface BlockSqlEventTrigger {
   readonly name: string;
   /** `drop event trigger if exists` and the `create event trigger` statement. */
   readonly statement: string;
@@ -13,11 +13,11 @@ const CREATE_EVENT_TRIGGER =
  * diff limited to some schemas (pg-delta's `-s`) leaves them out of the
  * migration; the module's data file repeats them.
  */
-export function eventTriggersOf(body: string): ModuleEventTrigger[] {
+export function eventTriggersOf(body: string): BlockSqlEventTrigger[] {
   const seen = new Set<string>();
 
   return [...body.matchAll(CREATE_EVENT_TRIGGER)].flatMap(
-    ([statement, quoted = ""]): ModuleEventTrigger[] => {
+    ([statement, quoted = ""]): BlockSqlEventTrigger[] => {
       const name = quoted.startsWith('"')
         ? quoted.slice(1, -1)
         : quoted.toLowerCase();

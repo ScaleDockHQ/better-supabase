@@ -1,11 +1,11 @@
 import type { SavedViewsEvents } from "../../blocks/saved-views/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
@@ -37,7 +37,7 @@ export const SAVED_VIEW_SCOPES = ["user", "team", "tenant"] as const;
 
 const MAX_STATE_BYTES = 65_536;
 
-const EVENTS: ModuleEvents<SavedViewsEvents> = {
+const EVENTS: BlockSqlEvents<SavedViewsEvents> = {
   "saved_view.saved": {
     subject: "saved-views",
     payload: ["organizationId", "id", "kind", "name"],
@@ -48,7 +48,7 @@ const EVENTS: ModuleEvents<SavedViewsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_view_save", "after_view_save"],
   options: ["extraColumns"],
@@ -96,10 +96,10 @@ const textList = (values: readonly string[]): string =>
  * `options.extraColumns`, added to a managed views table. The preference keys
  * `list_views` returns next to them are reserved.
  */
-const extrasOf = (ctx: ModuleContext) =>
+const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("views", ["ownerId", "teamId", "updatedAt", "preferences"]);
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -448,7 +448,7 @@ ${preferences?.functions ?? ""}`;
  * With the collections module, a view's `state.collectionId` must name a
  * collection in the same tenant that is shared or the caller's own.
  */
-function collectionCheck(collections: ModuleContext): string {
+function collectionCheck(collections: BlockSqlContext): string {
   const c = (column: string): string => collections.col("collections", column);
 
   return `
@@ -477,7 +477,7 @@ interface PreferenceParts {
 }
 
 function preferenceParts(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   shared: {
     readonly views: string;
     readonly maySee: (alias: string) => string;
@@ -576,7 +576,7 @@ ${userGrant(`${fn}(uuid, boolean, boolean, boolean)`)}
   };
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_view",
@@ -614,7 +614,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SAVED_VIEWS: ModuleDefinition = {
+export const SAVED_VIEWS: BlockSqlDefinition = {
   name: "saved-views",
   scopes: ["tenant"],
   title: "Saved views",

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { fail, lockTable, serviceGrant, userGrant } from "../shared.ts";
 
@@ -17,9 +17,9 @@ export interface WorkflowParts {
  * version's `input_schema`, and attach, detach and list.
  */
 export function workflowParts(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   shared: {
-    readonly builder: ModuleContext;
+    readonly builder: BlockSqlContext;
     readonly schemas: boolean;
     readonly mayManage: (tenant: string) => string;
   },

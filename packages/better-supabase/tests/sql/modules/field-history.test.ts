@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const SUBJECTS = {
   deal: { table: "public.deals", tenant: "tenant_id" },
@@ -8,7 +8,7 @@ const SUBJECTS = {
 };
 
 const sqlOf = (subjects: unknown): string =>
-  renderModules(["field-history", "subjects"], {
+  renderBlocks(["field-history", "subjects"], {
     subjects: SUBJECTS,
     modules: { "field-history": { options: { subjects } } },
   })

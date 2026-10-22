@@ -4,7 +4,7 @@ import { Temporal } from "temporal-polyfill";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { AsyncResult } from "../../src/core/result.ts";
-import type { SubjectRef } from "../../src/schema/types.ts";
+import type { RecordRef } from "../../src/schema/types.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
@@ -27,8 +27,8 @@ interface Note {
 }
 
 interface Notes {
-  list(subject: SubjectRef): AsyncResult<readonly Note[]>;
-  add(subject: SubjectRef, body: string): AsyncResult<Note>;
+  list(subject: RecordRef): AsyncResult<readonly Note[]>;
+  add(subject: RecordRef, body: string): AsyncResult<Note>;
   remove(id: string): AsyncResult<boolean>;
 }
 
@@ -45,7 +45,7 @@ const notesSection = defineSection({
       input: noteInput,
       run: (
         client: Notes,
-        subject: SubjectRef,
+        subject: RecordRef,
         input: { readonly body: string },
       ) => client.add(subject, input.body),
     },
@@ -54,7 +54,7 @@ const notesSection = defineSection({
       input: sectionRowInput,
       run: (
         client: Notes,
-        _subject: SubjectRef,
+        _subject: RecordRef,
         { id }: { readonly id: string },
       ) => client.remove(id),
     },

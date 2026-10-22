@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
 ): string =>
-  renderModules(names, { modules: options ? { comments: { options } } : {} })
+  renderBlocks(names, { modules: options ? { comments: { options } } : {} })
     .filter((file) => file.module === "comments")
     .map((file) => file.contents)
     .join("\n");

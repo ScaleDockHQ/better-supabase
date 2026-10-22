@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { int8Text } from "../money-sql.ts";
@@ -19,7 +19,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 import { invoiceLedger } from "./invoices-ledger.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["extraColumns"],
   tables: {
     targets: {
@@ -47,7 +47,7 @@ const NAMES: ModuleNames = {
 
 /** The metrics `target_progress` computes, by the module that owns the data. */
 function metrics(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   c: (column: string) => string,
 ): Readonly<Record<string, string>> {
   const out: Record<string, string> = {};
@@ -90,7 +90,7 @@ function metrics(
   return out;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -225,7 +225,7 @@ ${userGrant(`${fn("target_progress")}(${ctx.idType}, date, uuid)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_target", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     {
@@ -236,7 +236,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const TARGETS: ModuleDefinition = {
+export const TARGETS: BlockSqlDefinition = {
   name: "targets",
   scopes: ["tenant"],
   title: "Targets",

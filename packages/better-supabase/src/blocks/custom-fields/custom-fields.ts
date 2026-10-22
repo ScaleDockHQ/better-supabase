@@ -4,7 +4,7 @@ import type { CustomFieldType } from "../../core/contracts/field-formats.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTenantOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -82,10 +82,10 @@ export interface CustomFields {
    */
   reorderDefinition(id: string, neighbors: RankNeighbors): AsyncResult<string>;
   /** The custom field values set on `subject`. */
-  readValues(subject: SubjectRef): AsyncResult<unknown>;
+  readValues(subject: RecordRef): AsyncResult<unknown>;
   /** Sets one custom field value of `subject`. */
   setValue(
-    subject: SubjectRef,
+    subject: RecordRef,
     definitionId: string,
     value: string,
   ): AsyncResult<FieldDefinition>;

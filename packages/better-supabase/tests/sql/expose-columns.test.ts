@@ -4,7 +4,7 @@ import { resolveConfig } from "../../src/config/index.ts";
 import {
   excludedColumns,
   moduleLayout,
-  renderModules,
+  renderBlocks,
   resolveExposeColumns,
 } from "../../src/sql/index.ts";
 
@@ -76,7 +76,7 @@ describe("resolveExposeColumns", () => {
       "/project",
     );
 
-    expect(() => renderModules(["grants"], moduleLayout(config))).toThrow(
+    expect(() => renderBlocks(["grants"], moduleLayout(config))).toThrow(
       "resolves against the declared columns",
     );
   });

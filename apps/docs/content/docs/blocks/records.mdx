@@ -6,7 +6,7 @@ description: Load the comments, files and tags of one record page in parallel, e
 A record page, such as a customer, shows parts that different blocks own: a
 comment thread, its files, its tags. Each block declares those parts as
 sections on its manifest, and `better-supabase/records` loads them for one
-`SubjectRef`. Every section settles on its own, so a failed or forbidden
+`RecordRef`. Every section settles on its own, so a failed or forbidden
 section never takes the page down:
 
 | `kind`   | Means                                                      |

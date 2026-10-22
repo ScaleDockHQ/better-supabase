@@ -43,7 +43,8 @@ function pgdeltaSchemaFiles(context: DoctorContext): readonly TextFile[] {
 
   return (context.sqlFiles ?? []).filter(
     (file) =>
-      file.path.startsWith(schemas) && !/^-- @bs-module /m.test(file.text),
+      file.path.startsWith(schemas) &&
+      !/^-- @(?:bsb-block|bs-module) /m.test(file.text),
   );
 }
 
@@ -157,7 +158,7 @@ function missingExtensions(context: DoctorContext): FindingInput[] {
         }
 
         seen.add(name);
-        const module = /^-- @bs-module /m.test(file.text);
+        const module = /^-- @(?:bsb-block|bs-module) /m.test(file.text);
 
         return [
           {

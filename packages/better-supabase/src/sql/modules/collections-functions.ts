@@ -1,5 +1,5 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
-import type { ModuleScope } from "../scope.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { BlockSqlScope } from "../scope.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
@@ -14,7 +14,7 @@ import { subjectInTenant } from "../subject-check-sql.ts";
 
 export interface CollectionNames {
   /** The block's scope checks. */
-  readonly scope: ModuleScope;
+  readonly scope: BlockSqlScope;
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;
@@ -37,7 +37,9 @@ export interface CollectionNames {
 const SERVICE = "auth.role() = 'service_role'";
 
 /** `options.extraColumns`, which the collections table gets. */
-export const collectionExtras = (ctx: ModuleContext): readonly ExtraColumn[] =>
+export const collectionExtras = (
+  ctx: BlockSqlContext,
+): readonly ExtraColumn[] =>
   ctx.extraColumns("collections", [
     "id",
     "scope",
@@ -47,7 +49,7 @@ export const collectionExtras = (ctx: ModuleContext): readonly ExtraColumn[] =>
   ]);
 
 export function collectionFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: CollectionNames,
 ): string {
   const { t, fn } = names;
@@ -447,7 +449,7 @@ ${userGrant(`${fn("collections_of")}(text, text)`)}
 }
 
 export function starFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: CollectionNames,
 ): string {
   const { t, fn } = names;
@@ -562,7 +564,7 @@ const MAX_DUE_SAVED_ITEMS = 500;
  * with an optional note and reminder time.
  */
 export function savedItemFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: CollectionNames,
 ): string {
   const { t, fn } = names;

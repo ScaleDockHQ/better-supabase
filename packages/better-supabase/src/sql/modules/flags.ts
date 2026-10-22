@@ -1,11 +1,11 @@
 import type { FlagsEvents } from "../../blocks/flags/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -19,7 +19,7 @@ import {
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<FlagsEvents> = {
+const EVENTS: BlockSqlEvents<FlagsEvents> = {
   "flag.saved": { subject: "flags", payload: ["key"] },
   "flag.deleted": { subject: "flags", payload: ["key"] },
   "flag.override_set": {
@@ -35,7 +35,7 @@ const EVENTS: ModuleEvents<FlagsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["contexts", "extraColumns"],
   tables: {
@@ -93,7 +93,7 @@ interface FlagContextSource {
  * and column that hold a tenant's value. `tenant` names the column with the
  * tenant id and defaults to `id`, for a column on the tenant table.
  */
-function contextsOf(ctx: ModuleContext): readonly FlagContextSource[] {
+function contextsOf(ctx: BlockSqlContext): readonly FlagContextSource[] {
   const where = "blocks.flags.options.contexts";
   const option = ctx.option("contexts");
 
@@ -158,7 +158,7 @@ function contextsOf(ctx: ModuleContext): readonly FlagContextSource[] {
 }
 
 /** The check and unique constraints of `flag_overrides` from version 3. */
-function overrideConstraints(ctx: ModuleContext): {
+function overrideConstraints(ctx: BlockSqlContext): {
   readonly target: string;
   readonly unique: string;
 } {
@@ -170,7 +170,7 @@ function overrideConstraints(ctx: ModuleContext): {
   };
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -560,7 +560,7 @@ grant execute on function ${fn("flag_definitions")}() to service_role;`;
  * flag, and replaces the unnamed tenant-or-user check and unique constraint of
  * `flag_overrides` with the named ones. A no-op on version 3 tables.
  */
-function upgradeContexts(ctx: ModuleContext): string {
+function upgradeContexts(ctx: BlockSqlContext): string {
   const flags = ctx.table("flags");
   const overrides = ctx.table("overrides");
   const o = (logical: string): string => ctx.col("overrides", logical);
@@ -591,7 +591,7 @@ end;
 $$;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "flag_bucket", args: ["text", "text"], returns: "integer" },
     {
@@ -613,7 +613,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const FLAGS: ModuleDefinition = {
+export const FLAGS: BlockSqlDefinition = {
   name: "flags",
   scopes: ["tenant"],
   title: "Feature flags",

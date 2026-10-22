@@ -5,7 +5,7 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import {
   customContracts,
   moduleBody,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 import { callerOnlyProvider } from "../../fixtures/authorization-provider.ts";
 
@@ -102,10 +102,10 @@ describe("notifications module", () => {
   });
 
   it("checks permissions and emits through the outbox when they are installed", () => {
-    const plain = renderModules(["notifications"]).at(-1)!.contents;
+    const plain = renderBlocks(["notifications"]).at(-1)!.contents;
     expect(plain).not.toContain("member_can");
     expect(plain).not.toContain("emit_event");
-    const files = renderModules(["access", "outbox", "notifications"]);
+    const files = renderBlocks(["access", "outbox", "notifications"]);
 
     const sql = files.find((file) =>
       file.path.includes("notifications"),
@@ -328,7 +328,7 @@ describe("notifications module", () => {
 
   it("skips the recipient read filter when the provider answers for the caller only", () => {
     const notify = (modules: AnyBlocksConfig) =>
-      renderModules(["access", "notifications"], {
+      renderBlocks(["access", "notifications"], {
         modules,
         accessProvider: callerOnlyProvider,
       }).find((file) => file.path.includes("notifications"))!.contents;
@@ -444,7 +444,7 @@ describe("notification subjects", () => {
 describe("notification actors", () => {
   it("reads actor profiles only next to the profiles module", () => {
     const file = (names: readonly string[]) =>
-      renderModules(names).find(
+      renderBlocks(names).find(
         (entry) => entry.module === "notifications" && entry.kind === "schema",
       )!.contents;
 
@@ -455,7 +455,7 @@ describe("notification actors", () => {
     expect(sql).toContain("'username', pr.\"username\"");
     expect(sql).toContain("'avatarPath', pr.\"avatar_path\"");
     expect(
-      renderModules(["notifications", "profiles"], {
+      renderBlocks(["notifications", "profiles"], {
         modules: {
           profiles: { mode: "adopt", tables: { profiles: "public.profiles" } },
         },
@@ -480,7 +480,7 @@ describe("notification actors", () => {
   });
 
   it("lets a sender add a level for another member only when none is set", () => {
-    const sql = renderModules(["access", "notifications"])
+    const sql = renderBlocks(["access", "notifications"])
       .filter((file) => file.module === "notifications")
       .map((file) => file.contents)
       .join("\n");

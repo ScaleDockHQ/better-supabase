@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { EntitlementPlansSource } from "../../../src/config/index.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const entitlements = (
   source: "stripe-sync" | "custom" | EntitlementPlansSource,
 ) =>
-  renderModules(["entitlements"], { entitlements: { key: "id", source } }).find(
+  renderBlocks(["entitlements"], { entitlements: { key: "id", source } }).find(
     (file) => file.module === "entitlements" && file.kind === "schema",
   )!.contents;
 
@@ -54,7 +54,7 @@ describe("entitlements sources", () => {
   });
 
   it("keeps the Stripe customer lookup by default", () => {
-    const sql = renderModules(["entitlements"], {
+    const sql = renderBlocks(["entitlements"], {
       entitlements: { table: "public.teams", column: "stripe_id", key: "id" },
     }).find(
       (file) => file.module === "entitlements" && file.kind === "schema",
@@ -65,7 +65,7 @@ describe("entitlements sources", () => {
   });
 
   it("reads the customer from renamed billing columns", () => {
-    const sql = renderModules(["billing", "entitlements"], {
+    const sql = renderBlocks(["billing", "entitlements"], {
       modules: {
         billing: {
           schema: "app",
@@ -85,7 +85,7 @@ describe("entitlements sources", () => {
   });
 
   it("reads the customer from a renamed organizations table", () => {
-    const sql = renderModules(["organizations", "entitlements"], {
+    const sql = renderBlocks(["organizations", "entitlements"], {
       modules: {
         organizations: {
           schema: "app",
@@ -146,7 +146,7 @@ describe("entitlements sources", () => {
     for (const source of [PLANS, "stripe-sync"] as const) {
       const plain =
         source === "stripe-sync"
-          ? renderModules(["entitlements"], {
+          ? renderBlocks(["entitlements"], {
               entitlements: {
                 table: "public.teams",
                 column: "stripe_id",

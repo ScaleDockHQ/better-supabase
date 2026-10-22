@@ -1,9 +1,9 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { columnsObject } from "../shared.ts";
 
-export function integerMutations(ctx: ModuleContext): string {
+export function integerMutations(ctx: BlockSqlContext): string {
   return [
     `${ctx.fn("mark_notifications_unread")}(uuid[], ${ctx.idType})`,
     `${ctx.fn("mark_notifications_read")}(uuid[], ${ctx.idType})`,

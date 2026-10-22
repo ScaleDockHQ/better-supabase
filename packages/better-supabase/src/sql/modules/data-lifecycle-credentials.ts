@@ -1,7 +1,7 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleTableLifecycle,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlTableLifecycle,
 } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -10,14 +10,14 @@ import { refOutsideTenant } from "./credentials.ts";
 
 /** The columns an export leaves out: `omit` and the credential refs. */
 export function exportOmits(
-  lifecycle: ModuleTableLifecycle | undefined,
+  lifecycle: BlockSqlTableLifecycle | undefined,
 ): readonly string[] {
   return [
     ...new Set([...(lifecycle?.omit ?? []), ...(lifecycle?.credentials ?? [])]),
   ];
 }
 
-export const CREDENTIALS_CONTRACT: readonly ModuleContractFunction[] = [
+export const CREDENTIALS_CONTRACT: readonly BlockSqlContractFunction[] = [
   { name: "data_lifecycle_credentials", args: [], returns: "record" },
   { name: "organization_credential_refs", args: ["{id}"], returns: "jsonb" },
 ];
@@ -33,7 +33,7 @@ interface CredentialColumn {
   readonly user: string | undefined;
 }
 
-function credentialColumns(ctx: ModuleContext): readonly CredentialColumn[] {
+function credentialColumns(ctx: BlockSqlContext): readonly CredentialColumn[] {
   const list: CredentialColumn[] = [];
 
   for (const of of ctx.installedModules.map((module) => ctx.of(module))) {
@@ -81,7 +81,7 @@ function credentialColumns(ctx: ModuleContext): readonly CredentialColumn[] {
  * credentials or removes files, so the check runs there as well as in
  * `purge_organization`.
  */
-export function refuseHeldTenant(ctx: ModuleContext, tenant: string): string {
+export function refuseHeldTenant(ctx: BlockSqlContext, tenant: string): string {
   return `if exists (
     select 1 from ${ctx.table("holds")} x
     where x.${ctx.col("holds", "releasedAt")} is null
@@ -96,7 +96,7 @@ export function refuseHeldTenant(ctx: ModuleContext, tenant: string): string {
  * which list the refs in the rows a due purge deletes for the purger to revoke
  * first.
  */
-export function credentialsSql(ctx: ModuleContext): string {
+export function credentialsSql(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const d = ctx.table("deletions");
   const cd = (logical: string): string => ctx.col("deletions", logical);

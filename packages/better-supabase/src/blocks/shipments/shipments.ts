@@ -8,12 +8,12 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 import type {
   CarrierTrackingEvent,
   ShipmentAddress,
-  ShipmentCarrier,
+  ShippingProvider,
   ShipmentParcel,
   ShipmentRate,
 } from "./carrier.ts";
@@ -26,7 +26,7 @@ import type {
 import { compareMoney } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -63,7 +63,7 @@ export interface ShipmentsOptions<
    * The carriers that quote, label and track, by `name`. Without one the block
    * still records shipments and tracking events by hand.
    */
-  readonly carriers?: readonly ShipmentCarrier[];
+  readonly carriers?: readonly ShippingProvider[];
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<Shipments<FieldsOf<S>>>>;
   /**
@@ -95,7 +95,7 @@ export interface Shipment<F extends object = Record<never, never>> {
   readonly to: ShipmentAddress;
   /** The assets location it ships from. */
   readonly fromLocationId?: string;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly carrier?: string;
   readonly service?: string;
   readonly trackingNumber?: string;
@@ -125,13 +125,13 @@ export interface ShipmentInput<F extends object = Record<never, never>> {
   /** Needs the assets block. */
   readonly fromLocationId?: string;
   /** The record it ships for, such as an order. */
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly fields?: Partial<F>;
 }
 
 export interface ShipmentListOptions {
   readonly status?: ShipmentStatus;
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly carrier?: string;
   /** Shipments created before this, for the next page. */
   readonly before?: Temporal.Instant;
@@ -282,7 +282,7 @@ function shipmentOf(value: unknown, fn: string): Shipment {
     fields: isRecord(row["fields"]) ? row["fields"] : {},
     ...defined({
       fromLocationId: optionalText(row["fromLocationId"]),
-      subject: optionalSubjectRefOf(row["subjectType"], row["subjectId"]),
+      subject: optionalRecordRefOf(row["subjectType"], row["subjectId"]),
       carrier: optionalText(row["carrier"]),
       service: optionalText(row["service"]),
       trackingNumber: optionalText(row["trackingNumber"]),
@@ -378,7 +378,7 @@ export function createShipments<
 
   const carrierNamed = (
     name: string | undefined,
-  ): AsyncResult<ShipmentCarrier> => {
+  ): AsyncResult<ShippingProvider> => {
     const found = name === undefined ? undefined : carriers.get(name);
 
     return found

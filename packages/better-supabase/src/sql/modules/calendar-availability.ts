@@ -1,7 +1,7 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleTableSpec,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlTableSpec,
 } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -15,7 +15,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 
 /** The weekly hours a member works, in their own time zone. */
-export const WORKING_HOURS_TABLE: ModuleTableSpec = {
+export const WORKING_HOURS_TABLE: BlockSqlTableSpec = {
   name: "calendar_working_hours",
   lifecycle: { tenant: "tenant", user: "user", export: true },
   optionalTable: true,
@@ -46,7 +46,7 @@ const MAX_USERS = 100;
  * BYDAY with ordinals, BYMONTHDAY, BYMONTH, BYSETPOS and WKST, in the rule's
  * time zone). A rule it can't read counts as one occurrence at dtstart.
  */
-function ruleStarts(ctx: ModuleContext): string {
+function ruleStarts(ctx: BlockSqlContext): string {
   const fn = ctx.fn("calendar_rule_starts");
 
   return `
@@ -250,7 +250,7 @@ ${userGrant(`${fn}(timestamptz, text, text, timestamptz, timestamptz)`)}
 }
 
 /** The leave rows of approved, not cancelled requests as out-of-office blocks. */
-function leaveBlocks(ctx: ModuleContext, hoursTz: string): string {
+function leaveBlocks(ctx: BlockSqlContext, hoursTz: string): string {
   if (!ctx.installed("leave")) {
     return "";
   }
@@ -289,7 +289,7 @@ function leaveBlocks(ctx: ModuleContext, hoursTz: string): string {
  * EXDATEs and overridden occurrences. Cancelled and transparent events don't
  * count. Only other functions call it.
  */
-function busyBlocks(ctx: ModuleContext): string {
+function busyBlocks(ctx: BlockSqlContext): string {
   const fn = ctx.fn("calendar_busy_blocks");
   const calendars = ctx.table("calendars");
   const events = ctx.table("events");
@@ -393,7 +393,7 @@ ${serviceGrant(`${fn}(${ctx.idType}, uuid[], timestamptz, timestamptz)`)}
 const rangesJson = (multirange: string): string =>
   `coalesce((select jsonb_agg(jsonb_build_object('startsAt', lower(x), 'endsAt', upper(x)) order by lower(x)) from unnest(${multirange}) x), '[]'::jsonb)`;
 
-function workingHoursFunctions(ctx: ModuleContext): string {
+function workingHoursFunctions(ctx: BlockSqlContext): string {
   if (!ctx.hasTable("workingHours")) {
     return "";
   }
@@ -479,7 +479,7 @@ ${userGrant(`${ctx.fn("list_calendar_working_hours")}(${ctx.idType}, uuid[])`)}
 `;
 }
 
-function freeBusy(ctx: ModuleContext): string {
+function freeBusy(ctx: BlockSqlContext): string {
   const fn = ctx.fn("calendar_free_busy");
   const perms = moduleOperations("calendar");
   const read = ctx.permission("read", perms.read);
@@ -573,7 +573,7 @@ ${userGrant(`${fn}(${ctx.idType}, uuid[], timestamptz, timestamptz)`)}
  * open invitations it covers. Series are left alone, and an answer the invitee
  * already gave is never changed.
  */
-function autoDecline(ctx: ModuleContext): string {
+function autoDecline(ctx: BlockSqlContext): string {
   if (!ctx.hasTable("attendees") || !ctx.has("events", "kind")) {
     return "";
   }
@@ -672,7 +672,7 @@ ${blockSql}`;
 }
 
 /** The working-hours table, created with the calendar's tables. */
-export function workingHoursTable(ctx: ModuleContext): string {
+export function workingHoursTable(ctx: BlockSqlContext): string {
   if (!ctx.manages || !ctx.hasTable("workingHours")) {
     return "";
   }
@@ -701,13 +701,13 @@ using (${ctx.scope.check(h("tenant"), read)} or ${h("user")} = (select auth.uid(
 }
 
 /** Availability: working hours, free/busy and auto-decline. */
-export function availabilitySql(ctx: ModuleContext): string {
+export function availabilitySql(ctx: BlockSqlContext): string {
   return `${ruleStarts(ctx)}${busyBlocks(ctx)}${workingHoursFunctions(ctx)}${freeBusy(ctx)}${autoDecline(ctx)}`;
 }
 
 export function availabilityContract(
-  ctx: ModuleContext,
-): readonly ModuleContractFunction[] {
+  ctx: BlockSqlContext,
+): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "calendar_rule_starts",

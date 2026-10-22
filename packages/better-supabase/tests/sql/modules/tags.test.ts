@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
-const sqlOf = (layout: Parameters<typeof renderModules>[1] = {}): string =>
-  renderModules(["tags"], layout)
+const sqlOf = (layout: Parameters<typeof renderBlocks>[1] = {}): string =>
+  renderBlocks(["tags"], layout)
     .filter((file) => file.module === "tags")
     .map((file) => file.contents)
     .join("\n");
 
 describe("tags module", () => {
   it("deletes a per-subject link row in adopt mode", () => {
-    const sql = renderModules(["tags"], {
+    const sql = renderBlocks(["tags"], {
       modules: {
         tags: {
           mode: "adopt",

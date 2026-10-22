@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (module: string, names: readonly string[]): string =>
-  renderModules(names, {})
+  renderBlocks(names, {})
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
@@ -35,7 +35,7 @@ describe("service-principals module", () => {
   });
 
   it("writes no membership when the tenant module is custom", () => {
-    const sql = renderModules(BASE, { modules: { tenant: { mode: "custom" } } })
+    const sql = renderBlocks(BASE, { modules: { tenant: { mode: "custom" } } })
       .filter((file) => file.module === "service-principals")
       .map((file) => file.contents)
       .join("\n");

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import type { SubjectRef } from "../../../schema/types.ts";
+import type { RecordRef } from "../../../schema/types.ts";
 import type { ReactionsActions, ReactionsSnapshot } from "../client.ts";
 
 import { envBlockOptions, envBlockSettings } from "../../block-env-options.ts";
@@ -13,7 +13,7 @@ import { createReactions } from "../reactions.ts";
 
 export interface UseReactionsOptions {
   /** The subjects on screen, at most 200 of each type. */
-  readonly subjects: readonly SubjectRef[];
+  readonly subjects: readonly RecordRef[];
   /**
    * The module's realtime topic; `null` loads without listening. Default
    * `blockConfig.reactions.options.topic` from the client's `blocks` config, or

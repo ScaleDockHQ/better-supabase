@@ -128,7 +128,7 @@ export function tenantColumnOf(preset: Preset): string | null {
  * Every module's file creates this table to record the installed modules. It
  * holds no app data, so the diagram leaves it out.
  */
-const BOOKKEEPING_TABLES = new Set(["better_supabase.modules"]);
+const BOOKKEEPING_TABLES = new Set(["better_supabase.blocks"]);
 
 const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)`;
 const QNAME = String.raw`${IDENT}(?:\s*\.\s*${IDENT})?`;

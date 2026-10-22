@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleContext } from "../../src/sql/context.ts";
+import type { BlockSqlContext } from "../../src/sql/context.ts";
 import type { Subject } from "../../src/sql/subjects.ts";
 
 import { subjectReadable } from "../../src/sql/subjects.ts";
@@ -12,7 +12,7 @@ const ctx = {
     eq: (left: string, right: string) => `${left} = ${right}`,
   },
   naming: { rename: (name: string) => name },
-} as unknown as Pick<ModuleContext, "scope" | "naming">;
+} as unknown as Pick<BlockSqlContext, "scope" | "naming">;
 
 const args = { type: "t", id: "i", tenant: "o" };
 

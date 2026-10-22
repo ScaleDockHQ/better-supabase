@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { MAX_BATCH } from "../../core/batch-limit.ts";
@@ -23,7 +23,7 @@ import {
 import { vectorSchemaOf } from "../vector-schema.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   hooks: ["before_search_document_index", "after_search_document_index"],
   options: ["config", "dimensions"],
   tables: {
@@ -51,7 +51,7 @@ const NAMES: ModuleNames = {
 const REGCONFIG = /^[a-z_][a-z0-9_]{0,62}$/;
 
 /** The text search configuration (`options.config`), default `simple`. */
-function configOf(ctx: ModuleContext): string {
+function configOf(ctx: BlockSqlContext): string {
   const config = ctx.text("config", "simple");
 
   if (!REGCONFIG.test(config)) {
@@ -64,7 +64,7 @@ function configOf(ctx: ModuleContext): string {
 }
 
 /** The embedding size (`options.dimensions`), or 0 when the index keeps none. */
-function dimensionsOf(ctx: ModuleContext): number {
+function dimensionsOf(ctx: BlockSqlContext): number {
   const dimensions = ctx.number("dimensions", 0);
 
   if (!Number.isInteger(dimensions) || dimensions < 0 || dimensions > 16_000) {
@@ -77,7 +77,7 @@ function dimensionsOf(ctx: ModuleContext): number {
 }
 
 /** The registered subjects with a `search` entry and a tenant column. */
-function searchedSubjects(ctx: ModuleContext): readonly RegisteredSubject[] {
+function searchedSubjects(ctx: BlockSqlContext): readonly RegisteredSubject[] {
   return registeredSubjects(ctx.subjects, ctx.naming).filter(
     (subject) =>
       subject.config.search !== undefined &&
@@ -134,7 +134,7 @@ function refreshBranch(subject: RegisteredSubject): string {
  * Whether a subject's table is an app table, which exists only after every
  * block file.
  */
-function isAppTable(ctx: ModuleContext, subject: RegisteredSubject): boolean {
+function isAppTable(ctx: BlockSqlContext, subject: RegisteredSubject): boolean {
   return subject.schema === "public" && ctx.appTables.has(subject.table);
 }
 
@@ -154,7 +154,7 @@ create trigger ${trigger}
  * when the block's data runs, so its branch checks first.
  */
 function reindexCondition(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   subject: RegisteredSubject,
 ): string {
   const type = `search_reindex.subject_type is null or search_reindex.subject_type = ${sqlString(subject.type)}`;
@@ -165,7 +165,7 @@ function reindexCondition(
 }
 
 function triggers(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   subjects: readonly RegisteredSubject[],
 ): string {
   const fn = ctx.fn("search_index_row");
@@ -181,7 +181,7 @@ function triggers(
  * entry, which the app tables file adds once the tables exist. `ctx` is the
  * search module's context.
  */
-export function appTableSearchTriggers(ctx: ModuleContext): string {
+export function appTableSearchTriggers(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -202,7 +202,7 @@ interface SearchNames {
 }
 
 /** The `search(...)` function, as the caller. */
-function searchFunction(ctx: ModuleContext, names: SearchNames): string {
+function searchFunction(ctx: BlockSqlContext, names: SearchNames): string {
   const { docs, c, config, vector } = names;
   const subjects = ctx.of("subjects");
   const canSubject = subjects.fn("can_subject");
@@ -326,7 +326,7 @@ interface StateNames {
 
 /** Recents and favorites over the share-links block's per-user state. */
 function userStateFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   state: StateNames | undefined,
 ): string {
   const subjects = ctx.of("subjects");
@@ -440,7 +440,7 @@ ${userGrant(`${fn("search_star")}(text, text, boolean)`)}`;
 }
 
 function embeddingFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: SearchNames,
   vector: string,
 ): string {
@@ -524,8 +524,8 @@ ${serviceGrant(`${fn("search_set_embeddings")}(text[], text[], text[], text[])`)
 }
 
 function vectorOf(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): string | undefined {
   if (dimensionsOf(ctx) === 0 || !ctx.installed("vector-search")) {
     return undefined;
@@ -534,7 +534,7 @@ function vectorOf(
   return sqlIdent(vectorSchemaOf(layout));
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -745,7 +745,7 @@ ${vector ? embeddingFunctions(ctx, names, vector) : ""}
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const embedded = dimensionsOf(ctx) > 0 && ctx.installed("vector-search");
 
   return [
@@ -774,7 +774,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SEARCH: ModuleDefinition = {
+export const SEARCH: BlockSqlDefinition = {
   internal: ["search_user_state", "search_normalize"],
   name: "search",
   scopes: ["tenant"],

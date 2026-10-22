@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthResolver } from "../../src/auth/resolve.ts";
 import type {
-  QueueBackend,
+  QueueProvider,
   QueueMessageRow,
 } from "../../src/blocks/jobs/index.ts";
 import type { Generator, GeneratorInput } from "../../src/config/index.ts";
@@ -38,7 +38,7 @@ import { testCacheAdapter } from "../../src/testing/kits/cache-adapter.ts";
 import { testEventSink } from "../../src/testing/kits/event-sink.ts";
 import { testExecutor } from "../../src/testing/kits/executor.ts";
 import { testPlugin } from "../../src/testing/kits/plugin.ts";
-import { testQueueBackend } from "../../src/testing/kits/queue-backend.ts";
+import { testQueueProvider } from "../../src/testing/kits/queue-provider.ts";
 import { testSupportSessionStore } from "../../src/testing/kits/support-session-store.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { validators } from "../fixtures/generated-camel.zod.ts";
@@ -215,7 +215,7 @@ interface Stored {
   message: { payload: unknown; max_attempts: number; last_error?: string };
 }
 
-function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
+function memoryQueue(options: { leases?: boolean } = {}): QueueProvider {
   const rows: Stored[] = [];
   const now = () => Date.now();
 
@@ -309,13 +309,13 @@ function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
   };
 }
 
-describe("testQueueBackend", () => {
+describe("testQueueProvider", () => {
   it("passes a backend that keeps the contract", async () => {
-    const report = await testQueueBackend(memoryQueue(), { queue: "q" });
+    const report = await testQueueProvider(memoryQueue(), { queue: "q" });
     expect(report.checks.every((check) => check.ok)).toBe(true);
     expect(report.checks).toHaveLength(6);
 
-    const lite = await testQueueBackend(memoryQueue({ leases: false }), {
+    const lite = await testQueueProvider(memoryQueue({ leases: false }), {
       queue: "q",
     });
 
@@ -325,14 +325,14 @@ describe("testQueueBackend", () => {
   it("fails a backend that never hides or dead-letters messages", async () => {
     const base = memoryQueue();
 
-    const leaky: QueueBackend = {
+    const leaky: QueueProvider = {
       ...base,
       apiVersion: 2 as 1,
       read: async (queue, _lease, batch) => base.read(queue, 0, batch),
       fail: () => Promise.resolve("queued"),
     };
 
-    expect(await failures(testQueueBackend(leaky, { queue: "q" }))).toEqual([
+    expect(await failures(testQueueProvider(leaky, { queue: "q" }))).toEqual([
       "has apiVersion 1",
       "round-trips a payload and leases it",
       "retries, then dead-letters at max attempts",

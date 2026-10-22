@@ -86,12 +86,12 @@ interface UntypedQueueClient {
 }
 
 /**
- * Where `createJobs` stores jobs. `sqlQueueBackend` (the `jobs` SQL module
+ * Where `createJobs` stores jobs. `sqlQueueProvider` (the `jobs` SQL module
  * module, on pgmq or its table backend) and `pgmqPublicBackend` ship with the
- * package; `testQueueBackend` from `better-supabase/testing` checks another
+ * package; `testQueueProvider` from `better-supabase/testing` checks another
  * one.
  */
-export interface QueueBackend {
+export interface QueueProvider {
   readonly apiVersion: 1;
   readonly name: string;
   /** Whether `extend` works, so long-running batches keep their lease. */
@@ -340,10 +340,10 @@ const onceOf = (
  * both `blocks.jobs.options.backend` values (pgmq and table) and both
  * schedulers. `now` dates a schedule's first run.
  */
-export function sqlQueueBackend(
+export function sqlQueueProvider(
   sql: SqlClient,
   now: () => Temporal.Instant = nowInstant,
-): QueueBackend {
+): QueueProvider {
   return {
     apiVersion: 1,
     name: "sql",
@@ -541,11 +541,11 @@ const PARAMS = {
   purge_job_archive: ["queue", "older_than", "batch", "dead_older_than"],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
-/** A `jobs` SQL module function `transportQueueBackend` calls. */
+/** A `jobs` SQL module function `transportQueueProvider` calls. */
 type JobsFunction = keyof typeof PARAMS;
 
-/** Options for `transportQueueBackend`. */
-export interface TransportQueueBackendOptions {
+/** Options for `transportQueueProvider`. */
+export interface TransportQueueProviderOptions {
   /** The schema the functions live in. Defaults to `better_supabase`. */
   readonly schema?: string;
   /** Dates a schedule's first run. */
@@ -590,10 +590,10 @@ export interface QueuePurgeArgs {
  * without a direct Postgres connection. Over Postgres, pass the `SqlClient` to
  * `createJobs` instead.
  */
-export function transportQueueBackend(
+export function transportQueueProvider(
   transport: BlockTransport,
-  options: TransportQueueBackendOptions = {},
-): QueueBackend {
+  options: TransportQueueProviderOptions = {},
+): QueueProvider {
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   const now = options.now ?? nowInstant;
 
@@ -744,7 +744,7 @@ export function sqlOnly(feature: string): never {
  * PostgREST"). No lease check on complete, no retry delay, no deduplication and
  * no schedules: a failed job reappears when its lease ends.
  */
-export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
+export function pgmqPublicBackend(client: QueueRpcClient): QueueProvider {
   // Method parameters are bivariant, so the never parameters widen back.
   const untyped: UntypedQueueClient = client;
 

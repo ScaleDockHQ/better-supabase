@@ -5,18 +5,18 @@ import { modulePath } from "../../../src/sql/paths.ts";
 import {
   ORDER,
   SQL_MODULES,
-  resolveModules,
+  resolveBlocks,
 } from "../../../src/sql/registry.ts";
-import { customContracts, renderModules } from "../../../src/sql/render.ts";
+import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const sqlOf = (
   modules: readonly string[],
   module: string,
   layout: Layout = {},
 ): string =>
-  renderModules(modules, layout)
+  renderBlocks(modules, layout)
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
@@ -56,7 +56,7 @@ const ADOPTED: Layout = {
 
 describe("drive module", () => {
   it("renders ahead of comments and keeps the later file numbers", () => {
-    const names = resolveModules(["drive", "comments"]).map(
+    const names = resolveBlocks(["drive", "comments"]).map(
       (module) => module.name,
     );
 
@@ -128,7 +128,7 @@ describe("drive module", () => {
   });
 
   it("adopts a node table without files and untyped user and team grants", () => {
-    const names = resolveModules(["drive"], ADOPTED).map(
+    const names = resolveBlocks(["drive"], ADOPTED).map(
       (module) => module.name,
     );
 
@@ -184,14 +184,12 @@ describe("drive module", () => {
   it("installs neither part in custom mode", () => {
     const custom: Layout = { modules: { drive: { mode: "custom" } } };
 
-    const names = resolveModules(["drive"], custom).map(
-      (module) => module.name,
-    );
+    const names = resolveBlocks(["drive"], custom).map((module) => module.name);
 
     expect(names).not.toContain("drive-files");
     expect(names).not.toContain("attachments");
     expect(
-      renderModules(["drive"], custom).some((file) =>
+      renderBlocks(["drive"], custom).some((file) =>
         file.module.startsWith("drive"),
       ),
     ).toBe(false);

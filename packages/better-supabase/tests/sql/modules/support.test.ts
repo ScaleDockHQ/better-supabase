@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockConfig } from "../../../src/config/blocks.ts";
 
-import { resolveModules } from "../../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { resolveBlocks } from "../../../src/sql/registry.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const support = (config: BlockConfig = {}) =>
@@ -190,7 +190,7 @@ describe("support-sessions module", () => {
   });
 
   it("brings access and audit along", () => {
-    const names = resolveModules(["support-sessions"]).map(
+    const names = resolveBlocks(["support-sessions"]).map(
       (module) => module.name,
     );
 
@@ -203,7 +203,7 @@ describe("support-sessions module", () => {
 
 describe("support-sessions approvers from the provider", () => {
   const withApprover = (isApprover?: string) =>
-    renderModules(["support-sessions"], {
+    renderBlocks(["support-sessions"], {
       modules: { access: { model: "provider" } },
       accessProvider: {
         ...moduleProvider,
@@ -240,7 +240,7 @@ describe("support-sessions approvers from the provider", () => {
 
 describe("support-sessions next to provider platform roles", () => {
   it("counts a row in the platform role table as a platform target", () => {
-    const files = renderModules(["support-sessions", "invitations"], {
+    const files = renderBlocks(["support-sessions", "invitations"], {
       modules: {
         access: { model: "provider" },
         invitations: {
@@ -266,7 +266,7 @@ describe("support-sessions next to provider platform roles", () => {
   });
 
   it("counts only the roles that match platformRoles.through.where", () => {
-    const files = renderModules(["support-sessions", "invitations"], {
+    const files = renderBlocks(["support-sessions", "invitations"], {
       modules: {
         access: { model: "provider" },
         invitations: {

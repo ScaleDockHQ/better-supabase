@@ -1,6 +1,6 @@
 import type { OperationTable } from "../../core/operations.ts";
-import type { ModuleContext } from "../context.ts";
-import type { ModuleOperations } from "./access-model.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlOperations } from "./access-model.ts";
 
 import {
   OPERATION_PREFIXES,
@@ -18,7 +18,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 import { tenantRefGuard } from "./credentials.ts";
 
-export type BuilderAction = keyof ModuleOperations<"workflow-builder">;
+export type BuilderAction = keyof BlockSqlOperations<"workflow-builder">;
 
 /** The names and SQL fragments the workflow-builder module's functions share. */
 export interface BuilderSql {
@@ -105,7 +105,7 @@ export interface BuilderSql {
   readonly alertEmit: string;
   readonly fire: string;
   readonly failedTrigger: string;
-  readonly broadcast: ModuleContext["broadcast"];
+  readonly broadcast: BlockSqlContext["broadcast"];
 }
 
 /**
@@ -159,7 +159,7 @@ function operationKeysOf(
 }
 
 export function builderSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   operations?: OperationTable,
 ): BuilderSql {
   const id = ctx.idType;

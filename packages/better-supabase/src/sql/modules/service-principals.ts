@@ -1,11 +1,11 @@
 import type { ServicePrincipalsEvents } from "../../blocks/service-principals/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
@@ -26,7 +26,7 @@ import { checkRole, roleValue } from "./organizations-roles.ts";
 /** The `app_metadata` key that marks an `auth.users` row as a service principal. */
 const SERVICE_PRINCIPAL_CLAIM = "bsb_service_principal";
 
-const EVENTS: ModuleEvents<ServicePrincipalsEvents> = {
+const EVENTS: BlockSqlEvents<ServicePrincipalsEvents> = {
   "service_principal.created": {
     subject: "service-principals",
     payload: ["organizationId", "id", "name", "role"],
@@ -41,7 +41,7 @@ const EVENTS: ModuleEvents<ServicePrincipalsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["extraColumns"],
   tables: {
@@ -63,9 +63,9 @@ const NAMES: ModuleNames = {
 };
 
 /** `options.extraColumns`, added to a managed principals table. */
-const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("principals");
+const extrasOf = (ctx: BlockSqlContext) => ctx.extraColumns("principals");
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -317,7 +317,7 @@ ${userGrant(`${fn("service_principals_list")}(${id})`)}
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "register_service_principal",
@@ -347,7 +347,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SERVICE_PRINCIPALS: ModuleDefinition = {
+export const SERVICE_PRINCIPALS: BlockSqlDefinition = {
   name: "service-principals",
   scopes: ["tenant"],
   title: "Service principals",

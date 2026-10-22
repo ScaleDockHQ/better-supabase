@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createApprovals } from "../../src/blocks/approvals/index.ts";
 import { createDrive, driveSubject } from "../../src/blocks/drive/index.ts";
@@ -11,7 +11,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: {
     drive_node: {
       table: "better_supabase.drive_nodes",

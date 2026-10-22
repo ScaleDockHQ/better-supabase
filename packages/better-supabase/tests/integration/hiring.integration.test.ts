@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createHiring } from "../../src/blocks/hiring/index.ts";
 import { createParties } from "../../src/blocks/parties/index.ts";
@@ -22,7 +22,7 @@ const MODULES = [
   "hiring",
 ];
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: {
     ...withBlockSubjects({}, ["parties"], {}),
     application: {

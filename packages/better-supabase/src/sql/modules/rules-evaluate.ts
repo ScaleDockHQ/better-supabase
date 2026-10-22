@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { FILTER_OPERATORS, NEGATIVE } from "../../list/filter-query.ts";
@@ -30,7 +30,7 @@ function negativeCase(operator: string): string {
  * The pure evaluator: the same operators and null handling as
  * `evaluateFilterQuery`.
  */
-export function rulesEvaluator(ctx: ModuleContext): string {
+export function rulesEvaluator(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
 
   return `-- A JSON value as text the way the TypeScript evaluator reads it:

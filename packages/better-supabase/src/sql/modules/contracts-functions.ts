@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -20,7 +20,7 @@ import { CONTRACT_RESERVED } from "./contracts-shared.ts";
  * `options.reminderDays`: how many days before the notice deadline the owner
  * hears.
  */
-function reminderDays(ctx: ModuleContext): number {
+function reminderDays(ctx: BlockSqlContext): number {
   const days = ctx.number("reminderDays", 14);
 
   if (!Number.isInteger(days) || days < 0 || days > 365) {
@@ -33,7 +33,7 @@ function reminderDays(ctx: ModuleContext): number {
 }
 
 /** The contract and obligation functions of the `contracts` module. */
-export function contractsFunctions(ctx: ModuleContext): string {
+export function contractsFunctions(ctx: BlockSqlContext): string {
   const contracts = ctx.table("contracts");
   const obligations = ctx.table("obligations");
   const c = (column: string): string => ctx.col("contracts", column);

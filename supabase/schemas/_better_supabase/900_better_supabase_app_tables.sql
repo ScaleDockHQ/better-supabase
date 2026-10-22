@@ -1,5 +1,5 @@
 -- better-supabase module: app-tables
--- @bs-app-tables
+-- @bsb-tables
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase sql sync`; re-running it overwrites this file.
 -- Change it through `appTables` in better-supabase.config.ts.

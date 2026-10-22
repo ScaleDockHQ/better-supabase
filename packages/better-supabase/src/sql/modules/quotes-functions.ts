@@ -1,4 +1,4 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
@@ -36,7 +36,7 @@ export interface QuoteNames {
  * relations module is installed, so lineage reads find the chain.
  */
 export function createdFromLink(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   link: {
     readonly tenant: string;
     readonly sourceType: string;
@@ -60,7 +60,7 @@ export function createdFromLink(
     );`;
 }
 
-export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
+export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
   const { fn, t, c } = n;
   const q = (column: string): string => c("quotes", column);
   const l = (column: string): string => c("lines", column);

@@ -8,7 +8,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { EventSink } from "../../events/index.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { ImageTransform, TransformOptions } from "../../storage/bucket.ts";
 import type { TtlPreset } from "../../storage/ttl.ts";
 import type { JobHandler } from "../jobs/types.ts";
@@ -24,7 +24,7 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
@@ -124,7 +124,7 @@ export interface Attachment {
   /** `undefined` for a file of a subject without a tenant (`tenant: false`). */
   readonly organizationId: string | undefined;
   /** `undefined` for a file uploaded without a subject. */
-  readonly subject: SubjectRef | undefined;
+  readonly subject: RecordRef | undefined;
   readonly bucket: string;
   /**
    * The current version's object path in the bucket:
@@ -260,7 +260,7 @@ export interface Attachments<F extends object = Record<never, never>> {
    * is deleted again.
    */
   upload(
-    subject: SubjectRef | null,
+    subject: RecordRef | null,
     attachment: NewAttachment & Partial<F>,
   ): AsyncResult<AttachmentUpload<F>>;
   /**
@@ -270,7 +270,7 @@ export interface Attachments<F extends object = Record<never, never>> {
   confirm(id: string): AsyncResult<Attachment & F>;
   get(id: string): AsyncResult<Attachment & F>;
   /** The files of `subject`, or every file of the tenant without one. */
-  list(subject?: SubjectRef | null): AsyncResult<readonly (Attachment & F)[]>;
+  list(subject?: RecordRef | null): AsyncResult<readonly (Attachment & F)[]>;
   /**
    * A signed URL for a file the scanner passed. `invalid_request` with hint
    * `ATTACHMENT_NOT_SCANNED` until then, and for an infected file.
@@ -320,7 +320,7 @@ export interface Attachments<F extends object = Record<never, never>> {
    * upload, the record is deleted again, so no pending record is left behind.
    */
   put(
-    subject: SubjectRef | null,
+    subject: RecordRef | null,
     attachment: NewAttachment & Partial<F>,
     file: Blob | ArrayBuffer | Uint8Array,
   ): AsyncResult<Attachment & F>;
@@ -360,7 +360,7 @@ export function attachmentOf(value: unknown): Attachment {
   return {
     id: textOf(row["id"]),
     organizationId: optionalText(row["organization_id"]),
-    subject: optionalSubjectRefOf(row["subject_type"], row["subject_id"]),
+    subject: optionalRecordRefOf(row["subject_type"], row["subject_id"]),
     bucket: textOf(row["bucket"]),
     path: textOf(row["object_path"]),
     name: textOf(row["name"]),
@@ -506,7 +506,7 @@ export function createAttachments<
   const tenantless: ReadonlySet<string> = new Set(options.tenantless);
 
   const tenantOf = (
-    subject: SubjectRef | null | undefined,
+    subject: RecordRef | null | undefined,
   ): AsyncResult<string | null> =>
     subject !== null && subject !== undefined && tenantless.has(subject.type)
       ? AsyncResult.ok(null)
@@ -593,7 +593,7 @@ export function createAttachments<
   };
 
   const create = (
-    subject: SubjectRef | null,
+    subject: RecordRef | null,
     attachment: NewAttachment,
   ): AsyncResult<Attachment & F> =>
     tenantOf(subject)
@@ -623,7 +623,7 @@ export function createAttachments<
       .andThen(typed);
 
   const upload = (
-    subject: SubjectRef | null,
+    subject: RecordRef | null,
     attachment: NewAttachment,
   ): AsyncResult<AttachmentUpload<F>> =>
     create(subject, attachment).andThen(async (created) => {

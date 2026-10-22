@@ -530,31 +530,31 @@ export const GET = jobs.drainRoute({
 ### Queue backends
 
 `createJobs` accepts a SQL connection, a Supabase client, or any
-`QueueBackend` (API version 1). `sqlQueueBackend(sql)`,
-`pgmqPublicBackend(client)` and `vercelQueueBackend(client)` are built in; implement the interface to
-put jobs somewhere else, and prove it with `testQueueBackend` from
+`QueueProvider` (API version 1). `sqlQueueProvider(sql)`,
+`pgmqPublicBackend(client)` and `vercelQueueProvider(client)` are built in; implement the interface to
+put jobs somewhere else, and prove it with `testQueueProvider` from
 [conformance kits](/docs/extending/conformance).
 
 ```ts
-import { createJobs, type QueueBackend } from "better-supabase/blocks/jobs";
+import { createJobs, type QueueProvider } from "better-supabase/blocks/jobs";
 
-const backend: QueueBackend = myQueue;
+const backend: QueueProvider = myQueue;
 const jobs = createJobs({ backend, queues: { send_email: schema } });
 ```
 
 ### Vercel Queues
 
-`vercelQueueBackend(client)` stores jobs on [Vercel Queues](https://vercel.com/docs/queues)
+`vercelQueueProvider(client)` stores jobs on [Vercel Queues](https://vercel.com/docs/queues)
 instead of Postgres. Pass a `PollingQueueClient` from `@vercel/queue` (an
 optional peer, range `>=0.8 <0.9`). Queue names are topic names, so they match
 `[A-Za-z0-9_-]+`.
 
 ```ts
 import { PollingQueueClient } from "@vercel/queue";
-import { createJobs, vercelQueueBackend } from "better-supabase/blocks/jobs";
+import { createJobs, vercelQueueProvider } from "better-supabase/blocks/jobs";
 
 const jobs = createJobs({
-  backend: vercelQueueBackend(new PollingQueueClient({ region: "iad1" })),
+  backend: vercelQueueProvider(new PollingQueueClient({ region: "iad1" })),
   queues: { send_email: schema },
 });
 ```
@@ -564,7 +564,7 @@ alive while a handler runs, and `fail` redelivers the message after the retry
 delay. Vercel Queues keeps no dead letters and has no schedules, so a message
 past `maxAttempts` is acknowledged and dropped, `stats` and `listDead` are
 absent, and `schedule` needs the SQL backend. Job ids are numbers local to the
-process. The backend passes `testQueueBackend`.
+process. The backend passes `testQueueProvider`.
 
 ### Without a database connection
 

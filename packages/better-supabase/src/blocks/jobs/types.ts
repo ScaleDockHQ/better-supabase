@@ -10,7 +10,7 @@ import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
-import type { QueueBackend, QueueRpcClient, QueueStats } from "./backends.ts";
+import type { QueueProvider, QueueRpcClient, QueueStats } from "./backends.ts";
 
 export type QueueSchemas = Readonly<Record<string, StandardSchemaV1>>;
 
@@ -519,8 +519,8 @@ export interface JobsOptions<
    * `jobsBlock.with({ queues })` sets them.
    */
   readonly queues?: Q;
-  /** Any `QueueBackend`. */
-  readonly backend?: QueueBackend;
+  /** Any `QueueProvider`. */
+  readonly backend?: QueueProvider;
   /**
    * A service SQL connection (`postgres.admin`, `ctx.sql`), for the full
    * feature set.

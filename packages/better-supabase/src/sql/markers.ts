@@ -1,8 +1,8 @@
-/** The `@bs-module` line: module, version and mode, read by `sql upgrade`. */
+/** The `@bsb-block` line: module, version and mode, read by `sql upgrade`. */
 const MODULE_MARKER: RegExp =
-  /^-- @bs-module ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
+  /^-- @(?:bsb-block|bs-module) ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
 
-/** The installed version of a module file, from its `@bs-module` line. */
+/** The installed version of a module file, from its `@bsb-block` line. */
 export function moduleFileVersion(
   contents: string,
 ): { readonly module: string; readonly version: number } | undefined {
@@ -11,10 +11,11 @@ export function moduleFileVersion(
   return match ? { module: match[1]!, version: Number(match[2]) } : undefined;
 }
 
-/** The `@bs-module-data` line of a data file. */
-const MODULE_DATA_MARKER: RegExp = /^-- @bs-module-data ([a-z0-9-]+)$/m;
+/** The `@bsb-block-data` line of a data file. */
+const MODULE_DATA_MARKER: RegExp =
+  /^-- @(?:bsb-block-data|bs-module-data) ([a-z0-9-]+)$/m;
 
-/** Whether `contents` is a data file `renderModules` wrote. */
+/** Whether `contents` is a data file `renderBlocks` wrote. */
 export const isModuleDataFile = (contents: string): boolean =>
   MODULE_DATA_MARKER.test(contents);
 
@@ -22,7 +23,7 @@ export const isModuleDataFile = (contents: string): boolean =>
  * Whether an installed file matches, ignoring line endings and the version
  * releases before 0.13 stamped in its header.
  */
-export function sameModuleFile(
+export function sameBlockFile(
   current: string | undefined,
   expected: string,
 ): boolean {
@@ -41,12 +42,11 @@ export function sameModuleFile(
   return strip(current) === strip(expected);
 }
 
-const ENTITIES_MARKER = /^-- @bs-entities ([a-z0-9-]+) (.+)$/gm;
+const ENTITIES_MARKER = /^-- @(?:bsb-names|bs-entities) ([a-z0-9-]+) (.+)$/gm;
 
 /**
- * The `@bs-entities` line of a module file whose entities are renamed, such as
- * `-- @bs-entities work-items work_item=task/tasks`; undefined without a
- * rename.
+ * The `@bsb-names` line of a module file whose entities are renamed, such as
+ * `-- @bsb-names work-items work_item=task/tasks`; undefined without a rename.
  */
 export function entitiesMarker(
   module: string,
@@ -58,12 +58,12 @@ export function entitiesMarker(
 ): string | undefined {
   return renames.length === 0
     ? undefined
-    : `-- @bs-entities ${module} ${renames
+    : `-- @bsb-names ${module} ${renames
         .map((rename) => `${rename.key}=${rename.singular}/${rename.plural}`)
         .join(" ")}`;
 }
 
-/** Module to its entity renames, from the `@bs-entities` lines in `text`. */
+/** Module to its entity renames, from the `@bsb-names` lines in `text`. */
 export function entityMarkers(text: string): ReadonlyMap<string, string> {
   return new Map(
     [...text.matchAll(ENTITIES_MARKER)].map((match) => [

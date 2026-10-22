@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { modulePermissionKeys } from "../../../src/sql/introspect.ts";
-import { resolveModules } from "../../../src/sql/registry.ts";
+import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
 
 describe("webhooks-in module", () => {
@@ -51,7 +51,7 @@ describe("webhooks-in module", () => {
   });
 
   it("installs after access and the webhook inbox and lists its keys", () => {
-    expect(resolveModules(["webhooks-in"]).map((m) => m.name)).toEqual([
+    expect(resolveBlocks(["webhooks-in"]).map((m) => m.name)).toEqual([
       "updated-at",
       "tenant",
       "webhook-inbox",

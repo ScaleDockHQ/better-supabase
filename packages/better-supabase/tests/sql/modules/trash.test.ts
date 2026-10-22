@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
-type Layout = Parameters<typeof renderModules>[1];
+type Layout = Parameters<typeof renderBlocks>[1];
 
 const sqlOf = (layout: Layout = {}): string =>
-  renderModules(["trash"], layout)
+  renderBlocks(["trash"], layout)
     .filter((file) => file.module === "trash")
     .map((file) => file.contents)
     .join("\n");
@@ -69,7 +69,7 @@ describe("trash module", () => {
 
   it("writes nothing in custom mode", () => {
     expect(
-      renderModules(["trash"], { modules: { trash: { mode: "custom" } } }).find(
+      renderBlocks(["trash"], { modules: { trash: { mode: "custom" } } }).find(
         (file) => file.module === "trash",
       )?.contents ?? "",
     ).not.toContain("create or replace function");

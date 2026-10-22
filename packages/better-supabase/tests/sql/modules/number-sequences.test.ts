@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 
 const sqlOf = (modules: AnyBlocksConfig = {}): string =>
-  renderModules(["number-sequences"], { modules })
+  renderBlocks(["number-sequences"], { modules })
     .filter((file) => file.module === "number-sequences")
     .map((file) => file.contents)
     .join("\n");
@@ -320,7 +320,7 @@ async function withNumbers(
   seed: readonly string[],
   block: Record<string, unknown> = {},
 ): Promise<void> {
-  const files = renderModules(["number-sequences"], {
+  const files = renderBlocks(["number-sequences"], {
     modules: { "number-sequences": { ...block, options: { entities } } },
   });
 

@@ -321,7 +321,7 @@ const RESERVED_EXPORTS = [
   "topics",
   "subjectTypes",
   "SubjectType",
-  "SubjectRef",
+  "RecordRef",
   "schema",
 ];
 
@@ -477,7 +477,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
       `export const subjectTypes = [${subjects.map(q).join(", ")}] as const;`,
       "export type SubjectType = (typeof subjectTypes)[number];",
       "/** One subject: its type and its id as text. */",
-      "export type SubjectRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };",
+      "export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };",
       "",
       "export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);",
       "",

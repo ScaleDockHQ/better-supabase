@@ -1,11 +1,11 @@
 import type { BlockMode } from "../config/blocks.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleIdType,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlIdType,
 } from "./context.ts";
 import type { EntityTable } from "./entity-clashes.ts";
-import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
+import type { BlockSqlFile, BlockSqlLayout, BlockSql } from "./module-types.ts";
 
 import { tenantNameOf } from "../config/blocks.ts";
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
@@ -18,10 +18,10 @@ import { eventTriggersOf } from "./event-triggers.ts";
 import { moduleExtensions } from "./introspect.ts";
 import { entitiesMarker } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
-import { moduleVersion } from "./module-types.ts";
+import { blockSqlVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
-import { checkModules, resolveModules, SQL_MODULES } from "./registry.ts";
+import { checkModules, resolveBlocks, SQL_MODULES } from "./registry.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
 import { deprecationWrappers } from "./upgrade.ts";
 
@@ -31,7 +31,7 @@ import { deprecationWrappers } from "./upgrade.ts";
  * `create_organization.name` follows `create_organization` to
  * `create_workspace.name`.
  */
-function renameQualifiers(sql: string, ctx: ModuleContext): string {
+function renameQualifiers(sql: string, ctx: BlockSqlContext): string {
   let out = sql;
 
   for (const [from, to] of ctx.functionRenames()) {
@@ -45,9 +45,9 @@ function renameQualifiers(sql: string, ctx: ModuleContext): string {
 }
 
 function moduleSql(
-  module: SqlModule,
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  module: BlockSql,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ) {
   return withSubjectMergeFunction(
     withColumnTypeFunction(
@@ -59,10 +59,10 @@ function moduleSql(
 /** A module's SQL for `layout`, without header; `undefined` in custom mode. */
 export function moduleBody(
   name: string,
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
 ): string | undefined {
   checkModules(layout.modules);
-  const modules = resolveModules([name], layout);
+  const modules = resolveBlocks([name], layout);
   const module = modules.find((entry) => entry.name === name)!;
 
   const ctx = moduleContext(
@@ -77,27 +77,27 @@ export function moduleBody(
 }
 
 /** The table `moduleRow` writes to, created by every schema module's file. */
-const MODULE_MODULES_TABLE = `
+const BLOCKS_TABLE = `
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 `;
 
 /**
- * Records the module in `better_supabase.modules`, which `sql upgrade` and
+ * Records the module in `better_supabase.blocks`, which `sql upgrade` and
  * doctor read.
  */
-function moduleRow(module: SqlModule, mode: BlockMode): string {
-  return `insert into better_supabase.modules (name, version, mode)
-values (${sqlString(module.name)}, ${String(moduleVersion(module))}, ${sqlString(mode)})
+function moduleRow(module: BlockSql, mode: BlockMode): string {
+  return `insert into better_supabase.blocks (name, version, mode)
+values (${sqlString(module.name)}, ${String(blockSqlVersion(module))}, ${sqlString(mode)})
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();`;
 }
@@ -109,17 +109,17 @@ on conflict (name) do update
  * in `better-supabase-data/` (`kind: 'data'`), which `sql data` writes into a
  * migration.
  */
-export function renderModules(
+export function renderBlocks(
   names: readonly string[],
-  layout: ModuleLayout = {},
-): ModuleFile[] {
+  layout: BlockSqlLayout = {},
+): BlockSqlFile[] {
   checkModules(layout.modules);
-  const modules = resolveModules(names, layout);
+  const modules = resolveBlocks(names, layout);
   checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);
   checkEntityTables(modules, layout, installed);
 
-  const files = modules.flatMap((module): ModuleFile[] => {
+  const files = modules.flatMap((module): BlockSqlFile[] => {
     const ctx = moduleContext(module.name, layout, installed);
 
     if (ctx.mode === "custom") {
@@ -147,7 +147,7 @@ export function renderModules(
 
     const header = [
       title,
-      `-- @bs-module ${module.name}@${String(moduleVersion(module))} ${ctx.mode}`,
+      `-- @bsb-block ${module.name}@${String(blockSqlVersion(module))} ${ctx.mode}`,
       ...(entities === undefined ? [] : [entities]),
       `-- ${module.description}`,
       ...managed,
@@ -194,7 +194,7 @@ export function renderModules(
 
     const dataHeader = [
       title,
-      `-- @bs-module-data ${module.name}`,
+      `-- @bsb-block-data ${module.name}`,
       "-- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`",
       "-- after the schema migration to put them in a migration.",
       ...managed,
@@ -209,7 +209,7 @@ export function renderModules(
 
     const testHeader = [
       title,
-      `-- @bs-module-test ${module.name}`,
+      `-- @bsb-block-test ${module.name}`,
       ...managed,
     ].join("\n");
 
@@ -221,7 +221,7 @@ export function renderModules(
         module: module.name,
         kind: "schema",
         path: modulePath(module, layout),
-        contents: `${header}\n\n${body}\n${extra}${wrappers}${api}${MODULE_MODULES_TABLE}`,
+        contents: `${header}\n\n${body}\n${extra}${wrappers}${api}${BLOCKS_TABLE}`,
       },
       {
         module: module.name,
@@ -229,7 +229,7 @@ export function renderModules(
         path: moduleDataPath(module, layout),
         contents: `${dataHeader}\n\n${data}\n`,
       },
-      ...tests.map((test): ModuleFile => ({
+      ...tests.map((test): BlockSqlFile => ({
         module: module.name,
         kind: "test",
         path: `${testsDir}/900_better_supabase_${slug}_${test.name}.test.sql`,
@@ -246,8 +246,8 @@ export function renderModules(
  * column a name a module already uses.
  */
 function checkTenantName(
-  modules: readonly SqlModule[],
-  layout: ModuleLayout,
+  modules: readonly BlockSql[],
+  layout: BlockSqlLayout,
 ): void {
   const tenant = tenantNameOf(layout.modules);
 
@@ -273,8 +273,8 @@ function checkTenantName(
  * installed block's table already has.
  */
 function checkEntityTables(
-  modules: readonly SqlModule[],
-  layout: ModuleLayout,
+  modules: readonly BlockSql[],
+  layout: BlockSqlLayout,
   installed: readonly string[],
 ): void {
   if (!modules.some((module) => layout.modules?.[module.name]?.entities)) {
@@ -311,7 +311,7 @@ function checkEntityTables(
 }
 
 /** Throws on a `blocks.<name>.functions` key the module writes no function for. */
-function checkFunctionRenames(ctx: ModuleContext): void {
+function checkFunctionRenames(ctx: BlockSqlContext): void {
   const unknown = ctx.unusedFunctions();
 
   if (unknown.length === 0) {
@@ -323,16 +323,16 @@ function checkFunctionRenames(ctx: ModuleContext): void {
   );
 }
 
-export interface ModuleTopic {
+export interface BlockSqlTopic {
   readonly module: string;
   readonly topic: string;
 }
 
 export function moduleTopics(
   names: readonly string[],
-  layout: ModuleLayout = {},
-): ModuleTopic[] {
-  const modules = resolveModules(names, layout);
+  layout: BlockSqlLayout = {},
+): BlockSqlTopic[] {
+  const modules = resolveBlocks(names, layout);
   const installed = modules.map((module) => module.name);
 
   return modules.flatMap((module) => {
@@ -353,14 +353,14 @@ export function moduleTopics(
 /** The contract functions of the modules in `custom` mode, for doctor. */
 export function customContracts(
   names: readonly string[],
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
 ): {
   readonly module: string;
   readonly schema: string;
-  readonly idType: ModuleIdType;
-  readonly functions: readonly ModuleContractFunction[];
+  readonly idType: BlockSqlIdType;
+  readonly functions: readonly BlockSqlContractFunction[];
 }[] {
-  const modules = resolveModules(names, layout);
+  const modules = resolveBlocks(names, layout);
   const installed = modules.map((module) => module.name);
 
   return modules.flatMap((module) => {

@@ -1,5 +1,5 @@
 import type { SectionResult, TimelineItem } from "../blocks/sections.ts";
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 import type {
   LoadSectionsOptions,
   SectionBlocks,
@@ -84,7 +84,7 @@ export async function loadTimeline<
   const N extends SectionName<B>,
 >(
   source: SectionSource<B>,
-  subject: SubjectRef,
+  subject: RecordRef,
   options: LoadTimelineOptions<B, N> = {},
 ): Promise<Timeline> {
   // SAFETY: without `sections` every timeline section loads, which is `N` at

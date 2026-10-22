@@ -4,7 +4,7 @@ import {
   moduleOperations,
   OPERATIONS,
 } from "../../../src/sql/modules/access-model.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const operationFn = (sql: string): string => {
@@ -15,9 +15,9 @@ const operationFn = (sql: string): string => {
 
 const accessSql = (
   names: readonly string[],
-  layout: Parameters<typeof renderModules>[1] = {},
+  layout: Parameters<typeof renderBlocks>[1] = {},
 ): string =>
-  renderModules(names, layout)
+  renderBlocks(names, layout)
     .filter((file) => file.module === "access" && file.kind === "schema")
     .map((file) => file.contents)
     .join("\n");

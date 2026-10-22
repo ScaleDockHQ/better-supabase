@@ -6,13 +6,13 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { NotificationMessage } from "../../src/blocks/notifications/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createNotifications,
   sqlTransport,
 } from "../../src/blocks/notifications/index.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 const dbUrl = stackDbUrl();
@@ -48,7 +48,7 @@ type Who = keyof typeof USERS;
 
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
 
-const LAYOUT: ModuleLayout = {
+const LAYOUT: BlockSqlLayout = {
   modules: {
     notifications: {
       options: {
@@ -145,7 +145,7 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "outbox", "notifications"],
         LAYOUT,
       )) {
@@ -549,7 +549,7 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderModules(["organizations", "notifications"], {
+      for (const file of renderBlocks(["organizations", "notifications"], {
         modules: { notifications: { columns: { events: { key: null } } } },
       })) {
         await client.query(file.contents);
@@ -624,7 +624,7 @@ describe.skipIf(!live)("notifications", () => {
          )`,
       );
 
-      for (const file of renderModules(["organizations", "notifications"], {
+      for (const file of renderBlocks(["organizations", "notifications"], {
         modules: {
           notifications: {
             options: {
@@ -757,7 +757,7 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "profiles", "notifications"],
         LAYOUT,
       )) {
@@ -901,7 +901,7 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "notifications"],
         LAYOUT,
       )) {

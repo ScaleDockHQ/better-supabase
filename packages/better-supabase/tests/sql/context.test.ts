@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { OrganizationsEvents } from "../../src/blocks/organizations/events.ts";
-import type { ModuleEvents } from "../../src/sql/context.ts";
+import type { BlockSqlEvents } from "../../src/sql/context.ts";
 
 import {
   contractSignature,
@@ -12,13 +12,13 @@ import { isModuleDataFile, moduleFileVersion } from "../../src/sql/markers.ts";
 import { moduleContext } from "../../src/sql/module-context.ts";
 import {
   checkModules,
-  resolveModules,
+  resolveBlocks,
   SQL_MODULES,
 } from "../../src/sql/registry.ts";
 import {
   customContracts,
   moduleBody,
-  renderModules,
+  renderBlocks,
 } from "../../src/sql/render.ts";
 
 const names = {
@@ -303,7 +303,7 @@ describe("module modes", () => {
       checkModules({ mfa: { mode: "adopt" } });
     }).toThrow(/supports managed, not adopt/);
     expect(() =>
-      renderModules(["mfa"], { modules: { mfa: { mode: "custom" } } }),
+      renderBlocks(["mfa"], { modules: { mfa: { mode: "custom" } } }),
     ).toThrow(/supports managed/);
   });
 
@@ -342,12 +342,12 @@ describe("module modes", () => {
   });
 
   it("stamps the module version and mode, and records the module", () => {
-    const tenant = renderModules(["tenant"]).filter(
+    const tenant = renderBlocks(["tenant"]).filter(
       (module) => module.module === "tenant",
     );
 
     const file = tenant.find((module) => module.kind === "schema");
-    expect(file!.contents).toContain("-- @bs-module tenant@2 managed\n");
+    expect(file!.contents).toContain("-- @bsb-block tenant@2 managed\n");
     expect(moduleFileVersion(file!.contents)).toEqual({
       module: "tenant",
       version: 2,
@@ -355,20 +355,20 @@ describe("module modes", () => {
     expect(moduleFileVersion("-- no marker")).toBeUndefined();
     expect(file!.contents).not.toContain("insert into");
     expect(file!.contents).toContain(
-      "create table if not exists better_supabase.modules",
+      "create table if not exists better_supabase.blocks",
     );
     const data = tenant.find((module) => module.kind === "data");
     expect(data).toMatchObject({
       kind: "data",
       path: "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
     });
-    expect(data!.contents).toContain("-- @bs-module-data tenant\n");
+    expect(data!.contents).toContain("-- @bsb-block-data tenant\n");
     expect(data!.contents).toContain("values ('tenant', 2, 'managed')");
     expect(isModuleDataFile(data!.contents)).toBe(true);
     expect(isModuleDataFile(file!.contents)).toBe(false);
 
-    const dataPath = (layout: Parameters<typeof renderModules>[1]) =>
-      renderModules(["tenant"], layout).find(
+    const dataPath = (layout: Parameters<typeof renderBlocks>[1]) =>
+      renderBlocks(["tenant"], layout).find(
         (module) => module.kind === "data" && module.module === "tenant",
       )!.path;
 
@@ -387,14 +387,14 @@ describe("module modes", () => {
     expect(dataPath({ dir: "db/module" })).toBe(
       "db/better-supabase-data/900_better_supabase_04_tenant.sql",
     );
-    const pgtap = renderModules(["pgtap"]);
+    const pgtap = renderBlocks(["pgtap"]);
     expect(pgtap.map((entry) => entry.kind)).toEqual(["test"]);
-    expect(pgtap[0]!.contents).not.toContain("better_supabase.modules");
+    expect(pgtap[0]!.contents).not.toContain("better_supabase.blocks");
   });
 
   it("writes no file in custom mode and lists the contract instead", () => {
     const layout = { modules: { tenant: { mode: "custom" as const } } };
-    const files = renderModules(["invitations"], layout);
+    const files = renderBlocks(["invitations"], layout);
     expect(
       files.filter((file) => file.kind === "schema").map((file) => file.module),
     ).toEqual(["updated-at", "invitations", "access"]);
@@ -496,7 +496,7 @@ describe("module modes", () => {
   it("defines the disabled helpers in one module file", () => {
     const disabled = { tenant: "public.organizations.disabled_at" } as const;
 
-    const files = renderModules(["access"], {
+    const files = renderBlocks(["access"], {
       modules: { access: { disabled } },
     }).filter((file) => file.kind === "schema");
 
@@ -547,7 +547,7 @@ describe("module modes", () => {
 
   it("pulls in tenant for the roles and catalog models only", () => {
     const names = (model: "roles" | "catalog" | "provider" | "custom") =>
-      resolveModules(["access"], { modules: { access: { model } } }).map(
+      resolveBlocks(["access"], { modules: { access: { model } } }).map(
         (module) => module.name,
       );
 
@@ -660,7 +660,7 @@ describe("statement helpers", () => {
   });
 
   it("checks each recorded event against the module's catalog", () => {
-    const catalog = (events: ModuleEvents<OrganizationsEvents>) =>
+    const catalog = (events: BlockSqlEvents<OrganizationsEvents>) =>
       createModuleContext("demo", () => ({ ...names, events }), {
         installed: ["demo", "outbox"],
       });

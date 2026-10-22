@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
@@ -14,7 +14,7 @@ export const SECRET_COLUMNS = "token|secret|_hash|password|api_key|license_key";
  * `options.omitPattern`: `true` for `SECRET_COLUMNS`, a string for a Postgres
  * regex of its own. Undefined when off.
  */
-export function omitPatternOf(ctx: ModuleContext): string | undefined {
+export function omitPatternOf(ctx: BlockSqlContext): string | undefined {
   const value = ctx.option("omitPattern");
 
   if (value === undefined || value === false) {
@@ -84,7 +84,7 @@ export interface DataExportPlan {
 
 /** The export tables for doctor. Undefined without the `data-lifecycle` module. */
 export function dataExportPlan(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   installed: readonly string[],
 ): DataExportPlan | undefined {
   if (!installed.includes("data-lifecycle")) {

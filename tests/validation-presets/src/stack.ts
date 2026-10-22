@@ -2,7 +2,7 @@ import type { PresetName } from "better-supabase/preset";
 import type { PoolClient } from "pg";
 
 import { resolveConfig } from "better-supabase/config";
-import { moduleLayout, renderModules } from "better-supabase/sql";
+import { moduleLayout, renderBlocks } from "better-supabase/sql";
 import { DatabaseError, Pool } from "pg";
 
 // `pnpm env:local` writes it (the CLI picks the ports per checkout); without
@@ -40,7 +40,7 @@ export function presetFiles(
   options: { readonly tests?: boolean } = {},
 ) {
   const config = resolveConfig({ preset }, process.cwd());
-  const files = renderModules(config.blockNames, moduleLayout(config));
+  const files = renderBlocks(config.blockNames, moduleLayout(config));
 
   return [
     ...files.filter((file) => file.kind === "schema"),

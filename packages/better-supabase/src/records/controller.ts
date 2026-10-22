@@ -8,7 +8,7 @@ import type {
 import type { DbError } from "../core/errors.ts";
 import type { SubscriptionStatus } from "../realtime/index.ts";
 import type { TopicPort } from "../realtime/watch-topic.ts";
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 import type {
   LoadedSections,
   LoadSectionsOptions,
@@ -29,7 +29,7 @@ export interface RecordControllerOptions<
   readonly auth: AuthPort;
   readonly ports: { readonly topic: TopicPort };
   /** The record to follow; nothing loads without one. */
-  readonly subject: SubjectRef | null;
+  readonly subject: RecordRef | null;
   readonly sections: readonly N[];
   /**
    * The one private topic that hears of changes to the record, such as a

@@ -1,15 +1,15 @@
 import type { ResolvedConfig } from "../../config/index.ts";
 import type {
-  ModuleAccessProvider,
-  ModuleLayout,
-  ModuleEntitlementsProvider,
+  BlockSqlAccessProvider,
+  BlockSqlLayout,
+  BlockSqlEntitlementsProvider,
 } from "../../sql/index.ts";
 import type { SqlFlags } from "./args.ts";
 
 import {
   moduleLayout,
   modulePermissionKeys,
-  resolveModules,
+  resolveBlocks,
 } from "../../sql/index.ts";
 import {
   accessProviderMode,
@@ -40,7 +40,7 @@ export const providerOwnsMemberships = (config: ResolvedConfig): boolean =>
 function entitlementsProviderFor(
   config: ResolvedConfig,
   names?: readonly string[],
-): ModuleEntitlementsProvider | undefined {
+): BlockSqlEntitlementsProvider | undefined {
   const mode = entitlementsMode(config);
 
   switch (mode.kind) {
@@ -55,7 +55,7 @@ function entitlementsProviderFor(
     case "invalid": {
       if (
         names === undefined ||
-        !resolveModules(names, {}).some(
+        !resolveBlocks(names, {}).some(
           (module) => module.name === "entitlements",
         )
       ) {
@@ -82,12 +82,12 @@ function entitlementsProviderFor(
 function accessProviderFor(
   config: ResolvedConfig,
   names?: readonly string[],
-): ModuleAccessProvider | undefined {
+): BlockSqlAccessProvider | undefined {
   const mode = accessProviderMode(config);
 
   const renders =
     names !== undefined &&
-    resolveModules(names, {}).some((module) => module.name === "access");
+    resolveBlocks(names, {}).some((module) => module.name === "access");
 
   switch (mode.kind) {
     case "off": {
@@ -139,7 +139,7 @@ export async function layout(
   config: ResolvedConfig,
   args: SqlFlags,
   names?: readonly string[],
-): Promise<ModuleLayout> {
+): Promise<BlockSqlLayout> {
   return {
     ...moduleLayout(
       config,
@@ -161,11 +161,11 @@ export async function layoutFor(
   config: ResolvedConfig,
   args: SqlFlags,
   names: readonly string[],
-): Promise<ModuleLayout> {
+): Promise<BlockSqlLayout> {
   const entitlementsProvider = entitlementsProviderFor(config, names);
 
   const resolved = new Set(
-    resolveModules(
+    resolveBlocks(
       names,
       entitlementsProvider ? { entitlementsProvider } : {},
     ).map((module) => module.name),

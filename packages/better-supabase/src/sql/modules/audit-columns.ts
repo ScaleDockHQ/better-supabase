@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 export type AuditImpersonators = "show" | "hide";
 
@@ -6,7 +6,7 @@ export type AuditImpersonators = "show" | "hide";
  * `blocks.audit.options.impersonators`: whether tenant readers see who
  * impersonated.
  */
-export function impersonators(ctx: ModuleContext): AuditImpersonators {
+export function impersonators(ctx: BlockSqlContext): AuditImpersonators {
   const value = ctx.text("impersonators", "show");
 
   if (value !== "show" && value !== "hide") {
@@ -38,7 +38,7 @@ const ADDED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
 
 /** Whether the log or restricted table has a logical column. */
 export function hasColumn(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   table: string,
   logical: string,
 ): boolean {

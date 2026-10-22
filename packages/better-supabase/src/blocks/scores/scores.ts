@@ -4,7 +4,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -146,7 +146,7 @@ export interface Score {
   /** From `forSubject`. */
   readonly modelName?: string;
   readonly modelVersion: number;
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   readonly score: number;
   readonly band?: string;
   readonly breakdown: ScoreBreakdown;
@@ -179,16 +179,16 @@ export interface Scores {
    */
   compute(
     modelKey: string,
-    subject: SubjectRef,
+    subject: RecordRef,
     fields: Readonly<Record<string, unknown>>,
     options?: { readonly timeZone?: string },
   ): AsyncResult<ComputedScore>;
   /** A record's current scores, one per model. */
-  forSubject(subject: SubjectRef): AsyncResult<readonly Score[]>;
+  forSubject(subject: RecordRef): AsyncResult<readonly Score[]>;
   /** A record's scores under one model, newest first. */
   history(
     modelKey: string,
-    subject: SubjectRef,
+    subject: RecordRef,
     options?: { readonly pageSize?: number },
   ): AsyncResult<readonly Score[]>;
   /** The highest current scores under one model. */

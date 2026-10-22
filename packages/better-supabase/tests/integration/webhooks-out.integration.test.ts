@@ -8,7 +8,7 @@ import type {
   WebhookTransport,
 } from "../../src/blocks/webhooks/index.ts";
 import type { SqlClient } from "../../src/postgres/executor.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createWebhooks,
@@ -16,7 +16,7 @@ import {
   verifyWebhook,
 } from "../../src/blocks/webhooks/index.ts";
 import { AsyncResult } from "../../src/core/result.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
@@ -49,7 +49,7 @@ const USERS = {
 
 type Who = keyof typeof USERS;
 
-const LAYOUT: ModuleLayout = {
+const LAYOUT: BlockSqlLayout = {
   modules: { "webhooks-out": { options: { disableAfter: "2 days" } } },
 };
 
@@ -151,7 +151,7 @@ describe.skipIf(!live)("webhooks-out", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "outbox", "webhooks-out"],
         LAYOUT,
       )) {
@@ -522,7 +522,7 @@ describe.skipIf(!live)("webhooks-out", () => {
         [USERS.owner, `hec-${USERS.owner}@example.test`],
       );
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "outbox", "webhooks-out"],
         LAYOUT,
       )) {
@@ -608,7 +608,7 @@ describe.skipIf(!live)("webhooks-out", () => {
     const s = new Session(client);
 
     const install = async () => {
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "outbox", "webhooks-out"],
         LAYOUT,
       )) {

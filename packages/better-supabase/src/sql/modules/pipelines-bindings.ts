@@ -1,5 +1,5 @@
 import type { SubjectConfig } from "../../config/types/subjects.ts";
-import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -347,7 +347,7 @@ const BUILT_IN_BINDINGS: readonly BuiltInBinding[] = [
 ];
 
 export function pipelineBindings(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): readonly PipelineBinding[] {
   const configured = ctx.option("subjects") ?? {};
 

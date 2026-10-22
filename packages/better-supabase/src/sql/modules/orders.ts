@@ -1,12 +1,12 @@
 import type { OrdersEvents } from "../../blocks/orders/events.ts";
 import type { CommerceSubjectEventData } from "../../core/block-events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
 import {
@@ -37,7 +37,7 @@ const orderEvent = (
   payload: ["organizationId", "subjectType", "subjectId", "id", ...payload],
 });
 
-const EVENTS: ModuleEvents<OrdersEvents> = {
+const EVENTS: BlockSqlEvents<OrdersEvents> = {
   "order.placed": orderEvent([
     "number",
     "customerId",
@@ -83,7 +83,7 @@ const EVENTS: ModuleEvents<OrdersEvents> = {
 
 const tenantExport = { tenant: "tenant", export: true } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_order_place",
@@ -302,7 +302,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext, names: OrdersNames): string {
+function tables(ctx: BlockSqlContext, names: OrdersNames): string {
   const catalog = ctx.of("catalog");
   const variant = columns(catalog, "variants");
   const t = (name: string): string => ctx.table(name);
@@ -570,9 +570,10 @@ ${policy("refunds", ofOrder("refunds"))}
 }
 
 /** `options.extraColumns`, added to the orders table. */
-const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("orders", ["fields"]);
+const extrasOf = (ctx: BlockSqlContext) =>
+  ctx.extraColumns("orders", ["fields"]);
 
-function namesOf(ctx: ModuleContext): OrdersNames {
+function namesOf(ctx: BlockSqlContext): OrdersNames {
   return {
     extras: extrasOf(ctx),
     scope: ctx.scope,
@@ -583,7 +584,7 @@ function namesOf(ctx: ModuleContext): OrdersNames {
   };
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -597,7 +598,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_shipping_rate",
@@ -703,7 +704,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const ORDERS: ModuleDefinition = {
+export const ORDERS: BlockSqlDefinition = {
   name: "orders",
   scopes: ["tenant"],
   title: "Orders",

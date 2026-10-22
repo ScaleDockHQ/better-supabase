@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (names: readonly string[]): string =>
-  renderModules(names)
+  renderBlocks(names)
     .filter((file) => file.contents.includes("flag_overrides"))
     .map((file) => file.contents)
     .join("\n");
@@ -26,7 +26,7 @@ describe("flags module", () => {
 });
 
 const withContexts = (contexts: unknown): string =>
-  renderModules(["flags"], { modules: { flags: { options: { contexts } } } })
+  renderBlocks(["flags"], { modules: { flags: { options: { contexts } } } })
     .filter((file) => file.module === "flags")
     .map((file) => file.contents)
     .join("\n");
@@ -84,7 +84,7 @@ describe("flags module custom contexts", () => {
 
   it("writes nothing in custom mode", () => {
     expect(
-      renderModules(["flags"], { modules: { flags: { mode: "custom" } } })
+      renderBlocks(["flags"], { modules: { flags: { mode: "custom" } } })
         .filter((file) => file.module === "flags")
         .map((file) => file.contents)
         .join(""),

@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -26,7 +26,7 @@ async function teamSchema(s: BlockSession): Promise<string> {
 function adopted(
   schema: string,
   organizations: Record<string, unknown> = {},
-): ModuleLayout {
+): BlockSqlLayout {
   return {
     modules: {
       access: { schema },
@@ -346,7 +346,7 @@ describe.skipIf(!live)("organizations member guards", () => {
       const owner = await s.user("owner");
 
       const categories = async (
-        modules: NonNullable<ModuleLayout["modules"]>,
+        modules: NonNullable<BlockSqlLayout["modules"]>,
       ) => {
         await s.install(["organizations", "audit"], { modules });
         const organization = await s.organization(owner);
@@ -401,7 +401,7 @@ describe.skipIf(!live)("organizations member guards", () => {
             select auth.uid() = '${staff.id}' and permission in ('platform.members.update_role', 'platform.members.remove') $$;
       `);
 
-      const layout = (permissions: Record<string, string>): ModuleLayout => ({
+      const layout = (permissions: Record<string, string>): BlockSqlLayout => ({
         accessProvider: {
           name: "test",
           scope: "organization",

@@ -1,4 +1,4 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { raise as raiseWith, sha256Hex } from "../shared.ts";
 import { hasPlatformRoles } from "./access-model.ts";
@@ -50,7 +50,7 @@ export function raise(
  * (the default) keeps only the hash; `plain` keeps the token itself, for an
  * adopted table whose open invitations hold plain tokens.
  */
-export function tokenHash(ctx: ModuleContext, token: string): string {
+export function tokenHash(ctx: BlockSqlContext, token: string): string {
   const storage = ctx.text("tokenStorage", "sha256");
 
   if (storage === "plain") {
@@ -84,7 +84,7 @@ export interface InviteTable {
  * Whether platform invitations live in the tenant table, as rows without a
  * tenant.
  */
-function sharesTable(ctx: ModuleContext): boolean {
+function sharesTable(ctx: BlockSqlContext): boolean {
   return (
     !ctx.manages &&
     typeof ctx.config.tables["platformInvitations"] === "string" &&
@@ -104,7 +104,7 @@ const INVITATION_KEYS = [
   "fields",
 ];
 
-export function tenantTable(ctx: ModuleContext): InviteTable {
+export function tenantTable(ctx: BlockSqlContext): InviteTable {
   const shared = sharesTable(ctx);
 
   // Managed tables add prefill only on request (`blocks.invitations.options.prefill`).
@@ -130,7 +130,7 @@ export function tenantTable(ctx: ModuleContext): InviteTable {
  * own table. Adopted: `blocks.invitations.tables.platformInvitations`, which
  * may name the tenant table.
  */
-export function platformTable(ctx: ModuleContext): InviteTable | undefined {
+export function platformTable(ctx: BlockSqlContext): InviteTable | undefined {
   if (!hasPlatformRoles(ctx) || !ctx.hasTable("platformInvitations")) {
     return undefined;
   }

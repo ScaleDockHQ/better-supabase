@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { FINAL_RUN_STATES as FINAL } from "../../core/run-state.ts";
@@ -64,7 +64,7 @@ function projectJson(names: AiChatNames, row: string): string {
   return `jsonb_build_object('id', ${row}.${p.id}, 'organization_id', ${row}.${p.tenant}, 'owner_id', ${row}.${p.owner}, 'name', ${row}.${p.name}, 'instructions', ${row}.${p.instructions}, 'default_model', ${row}.${p.model}, 'pinned', ${row}.${p.pinned}, 'archived_at', ${row}.${p.archivedAt}, 'created_at', ${row}.${p.createdAt}, 'updated_at', ${row}.${p.updatedAt})`;
 }
 
-function chats(ctx: ModuleContext, names: AiChatNames): string {
+function chats(ctx: BlockSqlContext, names: AiChatNames): string {
   const fn = (name: string): string => ctx.fn(name);
   const { t, perm } = names;
   const ch = names.c.chats;
@@ -410,9 +410,9 @@ ${userGrant(`${fn("list_ai_projects")}(${ctx.idType})`)}`;
  * message tree and streams in `messages()`, the rest in `aiChatExtras`.
  */
 export function aiChatFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: AiChatNames,
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): string {
   return `${chats(ctx, names)}
 
@@ -427,7 +427,7 @@ function messageJson(names: AiChatNames, row: string, native: string): string {
   return `jsonb_build_object('id', ${row}.${m.id}, 'parent_id', ${row}.${m.parent}, 'role', ${row}.${m.role}, 'parts', ${row}.${m.parts}, 'metadata', ${row}.${m.metadata}, 'format', ${row}.${m.format}, 'native', case when ${native} then ${row}.${m.native} end, 'model', ${row}.${m.model}, 'status', ${row}.${m.status}, 'created_at', ${row}.${m.createdAt})`;
 }
 
-function messages(ctx: ModuleContext, names: AiChatNames): string {
+function messages(ctx: BlockSqlContext, names: AiChatNames): string {
   const fn = (name: string): string => ctx.fn(name);
   const { t } = names;
   const ch = names.c.chats;

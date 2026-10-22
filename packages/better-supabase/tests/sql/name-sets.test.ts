@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import type { SqlModule } from "../../src/sql/module-types.ts";
+import type { BlockSql } from "../../src/sql/module-types.ts";
 
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import { SQL_MODULES } from "../../src/sql/index.ts";
@@ -50,7 +50,7 @@ describe("the block names registry", () => {
 });
 
 /** What is wrong with `module`'s entities, as messages. */
-function entityProblems(module: SqlModule): string[] {
+function entityProblems(module: BlockSql): string[] {
   const names = module.names;
   const actions = moduleNameSet(module).actions;
   const entities = Object.entries(names?.entities ?? {});

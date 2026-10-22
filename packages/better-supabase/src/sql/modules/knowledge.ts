@@ -1,5 +1,5 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -42,7 +42,7 @@ const CHUNKS = {
   tsv: "tsv",
 } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["dimensions", "type", "textSearch", "embedQueue"],
   tables: {
     documents: {
@@ -73,8 +73,8 @@ export interface EmbeddingColumn {
 
 /** The embedding column a module's `dimensions` and `type` options describe. */
 export function embeddingColumn(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): EmbeddingColumn {
   const vector = vectorSchemaOf(layout);
   const type = ctx.text("type", "vector");
@@ -107,7 +107,7 @@ export function embeddingColumn(
 }
 
 /** `blocks.<name>.options.textSearch`: the text search configuration. */
-export function textSearchConfig(ctx: ModuleContext): string {
+export function textSearchConfig(ctx: BlockSqlContext): string {
   const config = ctx.text("textSearch", "simple");
 
   if (!REGCONFIG.test(config)) {
@@ -122,7 +122,7 @@ export function textSearchConfig(ctx: ModuleContext): string {
 type Columns<T> = { readonly [K in keyof T]: string };
 
 function columnsOf<T extends Readonly<Record<string, string>>>(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   table: string,
   spec: T,
 ): Columns<T> {
@@ -132,7 +132,7 @@ function columnsOf<T extends Readonly<Record<string, string>>>(
   ) as Columns<T>;
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const d = columnsOf(ctx, "documents", DOCUMENTS);
@@ -603,7 +603,7 @@ $$;
 ${serviceGrant(`${fn("reembed_knowledge")}(${id}, text)`)}`;
 }
 
-export const KNOWLEDGE: ModuleDefinition = {
+export const KNOWLEDGE: BlockSqlDefinition = {
   name: "knowledge",
   scopes: ["tenant"],
   title: "Knowledge",

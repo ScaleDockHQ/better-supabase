@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { resolveModules } from "../../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { resolveBlocks } from "../../../src/sql/registry.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 
 const CENTRAKIT: AnyBlocksConfig = {
   profiles: {
@@ -147,7 +147,7 @@ describe("profiles module", () => {
   });
 
   it("adds extra columns and a members read policy", () => {
-    const sql = renderModules(["tenant", "profiles"], {
+    const sql = renderBlocks(["tenant", "profiles"], {
       modules: {
         profiles: {
           options: {
@@ -281,7 +281,7 @@ describe("profiles module", () => {
   });
 
   it("joins metadata names into a username and adds a platform read policy", () => {
-    const sql = renderModules(["profiles"], {
+    const sql = renderBlocks(["profiles"], {
       modules: {
         profiles: {
           options: {
@@ -303,7 +303,7 @@ describe("profiles module", () => {
     expect(sql).toContain("better_supabase.is_platform('platform.user.read')");
     expect(sql).toContain("create policy bsb_profiles_platform_read");
     expect(
-      resolveModules(["profiles"], {
+      resolveBlocks(["profiles"], {
         modules: { profiles: { options: { readPolicy: { platform: "x" } } } },
       }).map((module) => module.name),
     ).toContain("access");
@@ -381,7 +381,7 @@ describe("profiles module", () => {
   });
 
   it("needs no other module", () => {
-    expect(resolveModules(["profiles"]).map((module) => module.name)).toEqual([
+    expect(resolveBlocks(["profiles"]).map((module) => module.name)).toEqual([
       "profiles",
     ]);
   });

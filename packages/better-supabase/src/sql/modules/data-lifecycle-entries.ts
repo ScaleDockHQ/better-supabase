@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { columnRef } from "../shared.ts";
@@ -35,14 +35,14 @@ const BUCKET = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
 
-function unquoted(ctx: ModuleContext, logical: string): string {
+function unquoted(ctx: BlockSqlContext, logical: string): string {
   const { schema, name } = ctx.tableName(logical);
 
   return `${schema}.${name}`;
 }
 
 /** The tables each installed module contributes, then `options.tables`. */
-export function entries(ctx: ModuleContext): readonly Entry[] {
+export function entries(ctx: BlockSqlContext): readonly Entry[] {
   const list: Entry[] = [];
   const modules = ctx.installedModules.map((module) => ctx.of(module));
 
@@ -165,7 +165,7 @@ export function entries(ctx: ModuleContext): readonly Entry[] {
   return [...list.filter((entry) => !replaced.has(entry.name)), ...configured];
 }
 
-export function bucketOf(ctx: ModuleContext): string {
+export function bucketOf(ctx: BlockSqlContext): string {
   const bucket = ctx.text("bucket", "data-exports");
 
   if (!BUCKET.test(bucket)) {
@@ -183,7 +183,7 @@ export function bucketOf(ctx: ModuleContext): string {
  * table, else the table the access contract disables tenants in.
  */
 export function tenantRowOf(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): { readonly table: string; readonly key: string } | undefined {
   const configured = ctx.option("tenantRow");
 
@@ -222,7 +222,7 @@ export function tenantRowOf(
 
 /** The statement that disables a tenant, from the access contract. */
 export function disabling(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): { table: string; key: string; column: string } | undefined {
   const configured = ctx.modules.access?.disabled?.tenant;
 

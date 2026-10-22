@@ -1,11 +1,11 @@
 import type { BillingEvents } from "../../blocks/billing/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PlanLookup } from "./billing-platform.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -26,7 +26,7 @@ import {
   webhookSubscriptions,
 } from "./billing-webhook.ts";
 
-const EVENTS: ModuleEvents<BillingEvents> = {
+const EVENTS: BlockSqlEvents<BillingEvents> = {
   "billing.customer_linked": {
     subject: "organizations",
     payload: ["organizationId", "customerId"],
@@ -39,7 +39,7 @@ const EVENTS: ModuleEvents<BillingEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["seatRoles", "plans", "tenantKey", "subscriptions"],
   tables: {
@@ -95,7 +95,7 @@ interface PlanCatalog {
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
 
-function plansOf(ctx: ModuleContext): PlanCatalog | undefined {
+function plansOf(ctx: BlockSqlContext): PlanCatalog | undefined {
   const where = "blocks.billing.options.plans";
   const option = ctx.option("plans");
 
@@ -159,7 +159,10 @@ const platformPlans = (
     price: plans.price,
   };
 
-function planPrice(ctx: ModuleContext, plans: PlanCatalog | undefined): string {
+function planPrice(
+  ctx: BlockSqlContext,
+  plans: PlanCatalog | undefined,
+): string {
   const fn = ctx.fn("billing_plan_price");
 
   const body = plans
@@ -208,7 +211,7 @@ grant execute on function ${fn}(text, text, text) to authenticated, service_role
  * (`schema.table.column`, `false` for none), else the organizations module's
  * table when it is installed.
  */
-function tenantReference(ctx: ModuleContext): string | undefined {
+function tenantReference(ctx: BlockSqlContext): string | undefined {
   const configured = ctx.option("tenantKey");
 
   if (configured === false) {
@@ -236,7 +239,7 @@ function tenantReference(ctx: ModuleContext): string | undefined {
   return `${organizations.table("organizations")} (${organizations.col("organizations", "id")})`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -740,8 +743,8 @@ grant execute on function ${fn("billing_subscription_item")}(${id}, text) to ser
 grant execute on function ${fn("billing_status")}(${id}) to authenticated, service_role;`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
-  const webhook: readonly ModuleContractFunction[] =
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+  const webhook: readonly BlockSqlContractFunction[] =
     subscriptionSourceOf(ctx) === "webhook"
       ? [
           { name: "billing_plan_of_price", args: ["text"], returns: "text" },
@@ -803,7 +806,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const BILLING: ModuleDefinition = {
+export const BILLING: BlockSqlDefinition = {
   name: "billing",
   scopes: ["tenant"],
   title: "Stripe billing",

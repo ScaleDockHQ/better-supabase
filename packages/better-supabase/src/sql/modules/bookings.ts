@@ -1,11 +1,11 @@
 import type { BookingsEvents } from "../../blocks/bookings/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Parts } from "./bookings-public.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -44,7 +44,7 @@ const BOOKING_EXPIRE_QUEUE = "bookings.expire-holds";
 
 const PAYLOAD = ["organizationId", "id", "resourceId", "serviceId"] as const;
 
-const EVENTS: ModuleEvents<BookingsEvents> = {
+const EVENTS: BlockSqlEvents<BookingsEvents> = {
   "booking.reserved": { subject: "bookings", payload: PAYLOAD },
   "booking.confirmed": { subject: "bookings", payload: PAYLOAD },
   "booking.cancelled": { subject: "bookings", payload: PAYLOAD },
@@ -52,7 +52,7 @@ const EVENTS: ModuleEvents<BookingsEvents> = {
   "booking.rescheduled": { subject: "bookings", payload: PAYLOAD },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_booking_reserve",
@@ -915,7 +915,7 @@ ${userGrant(`${fn("list_bookings")}(${ctx.idType}, timestamptz, timestamptz, uui
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -953,7 +953,7 @@ function build(ctx: ModuleContext): string {
 ${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_booking_resource",
@@ -1014,7 +1014,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const BOOKINGS: ModuleDefinition = {
+export const BOOKINGS: BlockSqlDefinition = {
   name: "bookings",
   scopes: ["tenant"],
   title: "Bookings",

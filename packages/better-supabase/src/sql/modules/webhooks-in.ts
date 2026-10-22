@@ -1,6 +1,6 @@
 import type { IncomingWebhooksEvents } from "../../blocks/webhooks/events.ts";
-import type { ModuleContext, ModuleEvents } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlEvents } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -35,7 +35,7 @@ const headerFor = (mode: string, given: string, kept: string): string =>
       when 'shared-secret' then coalesce(${given}, ${kept}, 'x-webhook-secret')
     end`;
 
-function secretStorage(ctx: ModuleContext): boolean {
+function secretStorage(ctx: BlockSqlContext): boolean {
   const storage = ctx.text("secretStorage", "vault");
 
   if (storage !== "vault" && storage !== "column") {
@@ -90,7 +90,7 @@ const graceColumns = (vault: boolean): readonly EndpointColumn[] => [
   "previousSecretExpiresAt",
 ];
 
-function webhooksInSql(ctx: ModuleContext): string {
+function webhooksInSql(ctx: BlockSqlContext): string {
   const renamed = Object.keys(ctx.config.columns["endpoints"] ?? {});
 
   if (ctx.manages && renamed.length > 0) {
@@ -809,7 +809,7 @@ revoke execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) f
 grant execute on function ${ctx.fn("record_incoming_webhook")}(uuid, integer) to service_role;`;
 }
 
-const EVENTS: ModuleEvents<IncomingWebhooksEvents> = {
+const EVENTS: BlockSqlEvents<IncomingWebhooksEvents> = {
   "incoming_webhook.created": {
     subject: "organizations",
     payload: ["organizationId", "endpointId", "name"],
@@ -836,7 +836,7 @@ const EVENTS: ModuleEvents<IncomingWebhooksEvents> = {
   },
 };
 
-export const WEBHOOKS_IN: ModuleDefinition = {
+export const WEBHOOKS_IN: BlockSqlDefinition = {
   internal: [
     "incoming_webhook_tenant_ids",
     "incoming_webhook_subject_readable",

@@ -1,7 +1,7 @@
 // #region recipe:subject-link
 "use client";
 
-import type { SubjectRef } from "better-supabase/blocks/subjects";
+import type { RecordRef } from "better-supabase/blocks/subjects";
 
 import { useSubject } from "better-supabase/blocks/subjects/react";
 import { RotateCwIcon } from "lucide-react";
@@ -16,7 +16,7 @@ import { Link } from "@/i18n/navigation";
  * `subject_titles`. The links rendered in one pass share one round trip, and a
  * subject the caller can't read shows as plain text.
  */
-export function SubjectLink({ subject }: { subject: SubjectRef }) {
+export function SubjectLink({ subject }: { subject: RecordRef }) {
   const t = useExtracted("subjects");
   const { subject: resolved, error, refresh } = useSubject(subject);
 

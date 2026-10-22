@@ -1,4 +1,4 @@
-import type { ModuleContext } from "./context.ts";
+import type { BlockSqlContext } from "./context.ts";
 import type { Subject } from "./subjects.ts";
 
 import { sqlString } from "../core/template.ts";
@@ -105,7 +105,7 @@ export function moveSubjectRows(rows: SubjectRows, type: string): string {
  * Empty without subjects.
  */
 export function subjectMergeHandler(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   subjects: readonly (readonly [string, Subject])[],
   move: string,
 ): string {
@@ -187,7 +187,7 @@ export interface RecordMerge {
  * `id`, `tenant`, `mergedInto`, `archivedAt` and `updatedAt`.
  */
 export function recordMergeFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   merge: RecordMerge,
 ): string {
   const table = ctx.table(merge.table);

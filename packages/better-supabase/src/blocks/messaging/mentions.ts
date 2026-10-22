@@ -1,4 +1,4 @@
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 
 /**
  * Mention markup, the same `parse_mentions` reads in SQL: `@[Ada](user:<user
@@ -32,7 +32,7 @@ export interface ParsedMentions {
   /** Mentioned user ids, lowercase, in order and without repeats. */
   readonly users: readonly string[];
   /** Mentioned records, in order and without repeats. */
-  readonly records: readonly SubjectRef[];
+  readonly records: readonly RecordRef[];
   /** `channel` wins over `here` when the body has both, as in SQL. */
   readonly scope: MentionScope | undefined;
 }
@@ -44,7 +44,7 @@ export type MentionSegment =
   | {
       readonly kind: "record";
       readonly name: string;
-      readonly subject: SubjectRef;
+      readonly subject: RecordRef;
     }
   | { readonly kind: "scope"; readonly scope: MentionScope };
 
@@ -106,7 +106,7 @@ export function mentionSegments(body: string): readonly MentionSegment[] {
 /** The users, records and scope a body mentions. */
 export function parseMentions(body: string): ParsedMentions {
   const users = new Set<string>();
-  const records = new Map<string, SubjectRef>();
+  const records = new Map<string, RecordRef>();
   let channel = false;
   let here = false;
 
@@ -162,7 +162,7 @@ export function userMention(name: string, userId: string): string {
 }
 
 /** `@[Name](subject:<type>/<id>)`: the markup that mentions a record. */
-export function recordMention(name: string, subject: SubjectRef): string {
+export function recordMention(name: string, subject: RecordRef): string {
   if (!SUBJECT_TYPE.test(subject.type) || !SUBJECT_ID.test(subject.id)) {
     throw new TypeError(
       "better-supabase: a record mention needs a lowercase subject type and an id of at most 200 characters without spaces or )",

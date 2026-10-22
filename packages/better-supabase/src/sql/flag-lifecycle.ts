@@ -1,4 +1,4 @@
-import type { ModuleLayout } from "./module-types.ts";
+import type { BlockSqlLayout } from "./module-types.ts";
 
 import { moduleContext } from "./module-context.ts";
 
@@ -9,7 +9,7 @@ import { moduleContext } from "./module-context.ts";
  * `expires_at` column.
  */
 export function expiredFlagsQuery(
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
   installed: readonly string[],
 ): string | undefined {
   if (!installed.includes("flags")) {

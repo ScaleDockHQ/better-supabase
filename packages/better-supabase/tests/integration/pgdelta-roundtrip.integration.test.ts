@@ -193,7 +193,7 @@ declarative_schema_path = "./schemas"
 
       try {
         const { rows: modules } = await client.query<{ name: string }>(
-          "select name from better_supabase.modules order by name",
+          "select name from better_supabase.blocks order by name",
         );
 
         expect(modules.map((row) => row.name)).toEqual(INSTALLED);

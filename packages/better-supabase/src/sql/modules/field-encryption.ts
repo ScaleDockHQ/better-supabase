@@ -1,11 +1,11 @@
 import type { FieldEncryptionEvents } from "../../blocks/field-encryption/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   fail,
@@ -14,11 +14,11 @@ import {
   serviceGrant,
 } from "../shared.ts";
 
-const EVENTS: ModuleEvents<FieldEncryptionEvents> = {
+const EVENTS: BlockSqlEvents<FieldEncryptionEvents> = {
   "field_key.dropped": { subject: "field-keys", payload: ["owner"] },
 };
 
-const NAMES: ModuleNames = { events: EVENTS, tables: {} };
+const NAMES: BlockSqlNames = { events: EVENTS, tables: {} };
 
 /** The prefix of every ciphertext the module writes: format 1. */
 export const FIELD_CIPHER_PREFIX = "bsf1:";
@@ -59,7 +59,7 @@ export function fieldKeyOwner(
   }
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
 
   const secret = (owner: string): string => `'${FIELD_KEY_PREFIX}' || ${owner}`;
@@ -194,7 +194,7 @@ $$;
 ${serviceGrant(`${fn("drop_field_key")}(text)`)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "field_encrypt", args: ["text", "text"], returns: "text" },
     { name: "field_decrypt", args: ["text", "text"], returns: "text" },
@@ -202,7 +202,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const FIELD_ENCRYPTION: ModuleDefinition = {
+export const FIELD_ENCRYPTION: BlockSqlDefinition = {
   name: "field-encryption",
   title: "Field encryption",
   description:

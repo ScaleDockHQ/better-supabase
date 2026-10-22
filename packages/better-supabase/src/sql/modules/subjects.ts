@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -19,13 +19,13 @@ import {
   urlExpression,
 } from "../subject-registry.ts";
 
-const NAMES: ModuleNames = { tables: {} };
+const NAMES: BlockSqlNames = { tables: {} };
 
 /**
  * The permission check for `action` on row `s`, `true` when the action has no
  * key.
  */
-function actionCheck(ctx: ModuleContext, subject: RegisteredSubject): string {
+function actionCheck(ctx: BlockSqlContext, subject: RegisteredSubject): string {
   const permissions = Object.entries(subject.config.permissions ?? {});
 
   if (permissions.length === 0) {
@@ -178,8 +178,8 @@ interface SummarySection {
  * sent messages of the record's conversation, unread after the caller's read
  * marker on it.
  */
-function summarySections(ctx: ModuleContext): readonly SummarySection[] {
-  const of = (module: string): ModuleContext | undefined =>
+function summarySections(ctx: BlockSqlContext): readonly SummarySection[] {
+  const of = (module: string): BlockSqlContext | undefined =>
     ctx.installed(module) && ctx.of(module).mode !== "custom"
       ? ctx.of(module)
       : undefined;
@@ -251,8 +251,8 @@ const MAX_WORK_ITEMS = 200;
  * the caller. Each selects `kind, subject_type, subject_id, ref, title, at`; a
  * null title falls back to `subject_title`.
  */
-function workBranches(ctx: ModuleContext): readonly string[] {
-  const of = (module: string): ModuleContext | undefined =>
+function workBranches(ctx: BlockSqlContext): readonly string[] {
+  const of = (module: string): BlockSqlContext | undefined =>
     ctx.installed(module) && ctx.of(module).mode !== "custom"
       ? ctx.of(module)
       : undefined;
@@ -343,7 +343,7 @@ function workBranches(ctx: ModuleContext): readonly string[] {
 }
 
 /** `my_work` and the reminders it reads through a definer helper. */
-function myWork(ctx: ModuleContext): string {
+function myWork(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const branches = workBranches(ctx);
 
@@ -423,7 +423,7 @@ ${userGrant(`${fn("my_work")}(${ctx.idType}, integer)`)}
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -630,7 +630,7 @@ const PRESENCE_TOPIC_PREFIX = "presence";
  * Realtime presence on `presence:<type>:<id>`: who has a record open. A caller
  * who can read the subject joins, tracks and sees the others there.
  */
-function presenceSql(ctx: ModuleContext): string {
+function presenceSql(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const receive = ctx.trigger("subject_presence_receive");
   const send = ctx.trigger("subject_presence_send");
@@ -683,7 +683,7 @@ $$;
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "subject_types", args: [], returns: "text[]" },
     { name: "subject_title", args: ["text", "text"], returns: "text" },
@@ -705,7 +705,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SUBJECTS: ModuleDefinition = {
+export const SUBJECTS: BlockSqlDefinition = {
   name: "subjects",
   scopes: ["tenant"],
   title: "Subjects",

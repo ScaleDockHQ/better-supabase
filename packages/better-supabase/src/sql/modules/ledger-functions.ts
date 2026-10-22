@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import {
   fail,
@@ -10,7 +10,7 @@ import {
 import { moduleOperations } from "./access-model.ts";
 
 /** The ledger's functions: the internal posting core and the public API. */
-export function ledgerFunctions(ctx: ModuleContext): string {
+export function ledgerFunctions(ctx: BlockSqlContext): string {
   const accounts = ctx.table("accounts");
   const transactions = ctx.table("transactions");
   const entries = ctx.table("entries");

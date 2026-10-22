@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { defineChecklist } from "../../../src/blocks/onboarding/index.ts";
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
 ): string =>
-  renderModules(names, { modules: options ? { onboarding: { options } } : {} })
+  renderBlocks(names, { modules: options ? { onboarding: { options } } : {} })
     .filter((file) => file.contents.includes("onboarding_progress"))
     .map((file) => file.contents)
     .join("\n");
@@ -78,7 +78,7 @@ describe("onboarding module", () => {
 
   it("needs enrollments in managed mode", () => {
     expect(() =>
-      renderModules(["onboarding"], {
+      renderBlocks(["onboarding"], {
         modules: { enrollments: { mode: "custom" } },
       }),
     ).toThrow("install enrollments in managed mode");
@@ -145,7 +145,7 @@ describe("onboarding module", () => {
   });
 
   it("writes nothing in custom mode", () => {
-    const files = renderModules(["onboarding"], {
+    const files = renderBlocks(["onboarding"], {
       modules: { onboarding: { mode: "custom" } },
     });
 

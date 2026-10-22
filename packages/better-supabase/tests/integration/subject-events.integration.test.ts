@@ -3,9 +3,9 @@ import type { PoolClient } from "pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -13,7 +13,7 @@ const live = await reachable();
 const ACME = "00000000-0000-4000-8000-000000000001";
 const USER = "00000000-0000-4000-8000-0000000000a1";
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   modules: {
     "state-machine": {
       options: {
@@ -55,7 +55,7 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
       );
       insert into events_it.tickets (id, organization_id) values ('t1', '${ACME}');`);
 
-    for (const file of renderModules(
+    for (const file of renderBlocks(
       ["outbox", "state-machine", "reminders"],
       layout,
     )) {

@@ -4,7 +4,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -243,7 +243,7 @@ export interface Assets {
   assets(options?: AssetListOptions): AsyncResult<readonly Asset[]>;
   /** The assets a member or a record holds. The record decides the tenant. */
   assignedTo(
-    assignee: SubjectRef | AssetAssignee,
+    assignee: RecordRef | AssetAssignee,
     options?: { readonly pageSize?: number },
   ): AsyncResult<readonly Asset[]>;
   /** Needs `assets.assign`. Ends the previous assignment. */

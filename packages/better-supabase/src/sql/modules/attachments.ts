@@ -1,6 +1,10 @@
 import type { AttachmentsEvents } from "../../blocks/attachments/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -28,7 +32,7 @@ import { attachmentsContract } from "./attachments-contract.ts";
 import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
 
-const EVENTS: ModuleEvents<AttachmentsEvents> = {
+const EVENTS: BlockSqlEvents<AttachmentsEvents> = {
   "object.uploaded": { subject: "objects", payload: ["bucket", "path"] },
   "attachment.uploaded": {
     subject: "attachments",
@@ -73,7 +77,7 @@ const EVENTS: ModuleEvents<AttachmentsEvents> = {
 /** The keys the attachment reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     attachment: { table: "attachments", singular: "attachment", primary: true },
   },
@@ -165,13 +169,13 @@ const PATH_PARTS: Readonly<Record<string, string>> = {
  * `options.path`: the object path template, default
  * `{organization_id}/attachments/{id}`, as the generated column's expression.
  */
-const pathTemplate = (ctx: ModuleContext): string =>
+const pathTemplate = (ctx: BlockSqlContext): string =>
   ctx.text("path", "{organization_id}/attachments/{id}");
 
 /** Version 2 and later of a file live at its path plus `-v<version>`. */
 const VERSION_SUFFIX = /-v\d+$/;
 
-function pathExpression(ctx: ModuleContext, tenantless = false): string {
+function pathExpression(ctx: BlockSqlContext, tenantless = false): string {
   const template = pathTemplate(ctx);
   const where = "blocks.attachments.options.path";
 
@@ -279,7 +283,7 @@ const mimeMatch = (column: string, types: readonly string[]): string =>
     .join(" or ");
 
 /** `options.scanBuckets`: buckets whose new objects get a pending scan row. */
-function scanBucketsOf(ctx: ModuleContext): readonly string[] {
+function scanBucketsOf(ctx: BlockSqlContext): readonly string[] {
   const buckets = ctx.list("scanBuckets", []);
 
   for (const bucket of buckets) {
@@ -298,7 +302,7 @@ const CREATE_ARGS = (id: string): string =>
   `${id}, text, text, bigint, text, text, jsonb, integer, integer, integer`;
 
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -1010,7 +1014,7 @@ grant execute on function ${fn("delete_attachment")}(uuid) to authenticated, ser
 }
 
 // An existing bucket keeps its settings.
-function data(ctx: ModuleContext): string {
+function data(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -1048,7 +1052,7 @@ values ${values.join(",\n  ")}
 on conflict (id) do nothing;`;
 }
 
-export const ATTACHMENTS: ModuleDefinition = {
+export const ATTACHMENTS: BlockSqlDefinition = {
   internal: [
     "attachment_authors",
     "attachment_subject_readable",

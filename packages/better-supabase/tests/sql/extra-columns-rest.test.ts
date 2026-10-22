@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 /**
  * The modules whose managed table takes `options.extraColumns`: the table that
@@ -31,7 +31,7 @@ const MODULES: readonly (readonly [
 ];
 
 const sqlOf = (module: string, extraColumns: unknown): string =>
-  renderModules([module], {
+  renderBlocks([module], {
     modules: { [module]: { options: { extraColumns } } },
   })
     .filter((file) => file.module === module)

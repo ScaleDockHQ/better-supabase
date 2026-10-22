@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 // Refactors of the module builders keep every file here byte-identical; an
 // intended change to the SQL goes in its own commit with the golden diff.
@@ -14,7 +14,7 @@ interface Variant {
   readonly name: string;
   readonly applies: (module: string) => boolean;
   readonly modules: (module: string) => readonly string[];
-  readonly layout: (module: string) => ModuleLayout;
+  readonly layout: (module: string) => BlockSqlLayout;
 }
 
 const VARIANTS: readonly Variant[] = [
@@ -61,7 +61,7 @@ function render(variant: Variant, module: string): string {
   let files;
 
   try {
-    files = renderModules(variant.modules(module), variant.layout(module));
+    files = renderBlocks(variant.modules(module), variant.layout(module));
   } catch (cause) {
     return `-- ==== ${variant.name}: throws\n-- ${String(cause instanceof Error ? cause.message : cause)}\n`;
   }
@@ -87,7 +87,7 @@ describe("SQL module output", () => {
   it("gives every table one owning module", () => {
     const owners = new Map<string, Set<string>>();
 
-    const files = renderModules(
+    const files = renderBlocks(
       NAMES.filter((name) => name !== "pgtap"),
       {},
     );
@@ -112,4 +112,4 @@ describe("SQL module output", () => {
 const CREATE_TABLE = /create table (?:if not exists )?("?\w+"?\."?\w+"?)/giu;
 
 /** The modules registry every module writes its row to. */
-const REGISTRY = "better_supabase.modules";
+const REGISTRY = "better_supabase.blocks";

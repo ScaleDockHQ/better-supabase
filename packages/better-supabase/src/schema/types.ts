@@ -394,7 +394,7 @@ export type SubjectTypeOf<S> =
   S extends Schema<AnyModels, unknown, AnyFunctions, infer T> ? T : string;
 
 /** One subject: its type and its id as text. */
-export interface SubjectRef<T extends string = string> {
+export interface RecordRef<T extends string = string> {
   readonly type: T;
   readonly id: string;
 }

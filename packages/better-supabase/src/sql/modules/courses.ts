@@ -1,11 +1,11 @@
 import type { CoursesEvents } from "../../blocks/courses/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
@@ -31,7 +31,7 @@ const COURSE_ITEM_PAYLOAD = [
   "enrollmentId",
 ] as const;
 
-const EVENTS: ModuleEvents<CoursesEvents> = {
+const EVENTS: BlockSqlEvents<CoursesEvents> = {
   "course.saved": { subject: "courses", payload: COURSE_PAYLOAD },
   "course.deleted": { subject: "courses", payload: COURSE_PAYLOAD },
   "course.enrolled": { subject: "courses", payload: LEARNER_PAYLOAD },
@@ -51,7 +51,7 @@ const EVENTS: ModuleEvents<CoursesEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     course: {
       table: "courses",
@@ -158,7 +158,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function courseTables(ctx: ModuleContext): string {
+function courseTables(ctx: BlockSqlContext): string {
   const enrolled = courseEnrollments(ctx);
   const courses = ctx.table("courses");
   const modules = ctx.table("modules");
@@ -294,7 +294,7 @@ create policy ${name("certificates", "read")} on ${certificates} for select to a
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -307,7 +307,7 @@ ${courseAuthoringFunctions(ctx)}
 ${courseLearningFunctions(ctx)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_course", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "list_courses", args: ["{id}", "text"], returns: "jsonb" },
@@ -323,7 +323,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const COURSES: ModuleDefinition = {
+export const COURSES: BlockSqlDefinition = {
   internal: [
     "course_json",
     "course_steps",

@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -18,7 +18,7 @@ import {
 import { registeredSubjects } from "../subject-registry.ts";
 import { moduleOperations } from "./access-model.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["subjects"],
   tables: {
     changes: {
@@ -48,7 +48,7 @@ interface HistoryBinding {
 }
 
 /** `blocks.field-history.options.subjects`, checked against `config.subjects`. */
-function historyBindings(ctx: ModuleContext): readonly HistoryBinding[] {
+function historyBindings(ctx: BlockSqlContext): readonly HistoryBinding[] {
   const raw = ctx.option("subjects") ?? {};
 
   if (!isRecord(raw)) {
@@ -82,7 +82,7 @@ function historyBindings(ctx: ModuleContext): readonly HistoryBinding[] {
 }
 
 function bindingTrigger(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   binding: HistoryBinding,
   c: (column: string) => string,
 ): string {
@@ -121,7 +121,7 @@ create trigger ${name} after update of ${watched} on ${binding.subject.qualified
 for each row execute function better_supabase.${name}();`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const bindings = historyBindings(ctx);
   const read = ctx.permission("read", moduleOperations("field-history").read);
   const fn = (name: string): string => ctx.fn(name);
@@ -192,7 +192,7 @@ ${userGrant(`${fn("field_history")}(text, text, text, bigint, integer)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "field_history",
@@ -202,7 +202,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const FIELD_HISTORY: ModuleDefinition = {
+export const FIELD_HISTORY: BlockSqlDefinition = {
   name: "field-history",
   scopes: ["tenant"],
   title: "Field history",

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const sqlOf = (
-  layout: Parameters<typeof renderModules>[1] = {},
+  layout: Parameters<typeof renderBlocks>[1] = {},
   blocks: readonly string[] = [],
 ): string =>
-  renderModules(["custom-fields", ...blocks], layout)
+  renderBlocks(["custom-fields", ...blocks], layout)
     .filter((file) => file.module === "custom-fields")
     .map((file) => file.contents)
     .join("\n");

@@ -1,6 +1,6 @@
 import type { AuditedTable } from "../audit-registrations.ts";
-import type { ModuleContext } from "../context.ts";
-import type { ModuleTestFile } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlTestFile } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 
@@ -77,7 +77,7 @@ $$;`;
  * entries without the ignored columns and with the redacted values masked.
  */
 function auditTableTest(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   table: AuditedTable,
   restricted: boolean,
 ): string {
@@ -173,10 +173,10 @@ rollback;`;
 
 /** One pgTAP file per table in `audited`, named after the table. */
 export function auditTests(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   audited: readonly AuditedTable[],
   restricted: boolean,
-): ModuleTestFile[] {
+): BlockSqlTestFile[] {
   return audited.map((table) => ({
     name: table.target.toLowerCase().replaceAll(/[^a-z0-9]+/g, "_"),
     sql: auditTableTest(ctx, table, restricted),

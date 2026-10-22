@@ -146,7 +146,7 @@ describe("extensionSchema", () => {
       extensionSchema(
         [
           {
-            text: "-- @bs-module vector-search@1 managed\ncreate extension if not exists vector with schema extensions;",
+            text: "-- @bsb-block vector-search@1 managed\ncreate extension if not exists vector with schema extensions;",
           },
           {
             text: "-- create extension vector schema nope;\ncreate table a (id int);",

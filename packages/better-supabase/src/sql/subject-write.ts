@@ -1,4 +1,4 @@
-import type { ModuleContext } from "./context.ts";
+import type { BlockSqlContext } from "./context.ts";
 import type { Subject } from "./subjects.ts";
 
 import { sqlString } from "../core/template.ts";
@@ -9,7 +9,7 @@ import { sqlString } from "../core/template.ts";
  * without one, so a module's own check decides.
  */
 export function subjectWritable(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   subjects: readonly (readonly [string, Subject])[],
   args: { readonly type: string; readonly tenant: string },
 ): string {

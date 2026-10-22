@@ -1,11 +1,11 @@
 import type { ShareLinksEvents } from "../../blocks/share-links/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -25,7 +25,7 @@ import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
 import { driveSubjectType } from "./drive-kit.ts";
 
-const EVENTS: ModuleEvents<ShareLinksEvents> = {
+const EVENTS: BlockSqlEvents<ShareLinksEvents> = {
   "share_link.created": {
     subject: "share-links",
     payload: ["organizationId", "id", "subjectType", "subjectId"],
@@ -40,7 +40,7 @@ const EVENTS: ModuleEvents<ShareLinksEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["subjects", "extraColumns"],
   tables: {
@@ -106,7 +106,7 @@ const RESERVED = ["fields", "token"] as const;
  * the use limit through this, so none of them can drop one.
  */
 export function liveShareLink(
-  links: ModuleContext,
+  links: BlockSqlContext,
   alias: string,
   token: string,
   subjectType: string,
@@ -120,7 +120,7 @@ export function liveShareLink(
 }
 
 /** Not revoked, not expired and, with `use_count`, under `max_uses`. */
-function unspentShareLink(links: ModuleContext, alias: string): string {
+function unspentShareLink(links: BlockSqlContext, alias: string): string {
   const l = (column: string): string =>
     `${alias}.${links.col("links", column)}`;
 
@@ -145,7 +145,7 @@ const SUBJECT_ARGS = {
  * `share_ai_chat` does.
  */
 function blockSubjects(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): readonly (readonly [string, string])[] {
   const { id, tenant } = SUBJECT_ARGS;
 
@@ -190,7 +190,7 @@ function blockSubjects(
  * (`config.subjects` or `options.subjects`) check the row's tenant and the
  * subject's read permission. Any other type fails.
  */
-function subjectCheck(ctx: ModuleContext): string {
+function subjectCheck(ctx: BlockSqlContext): string {
   const blocks = blockSubjects(ctx);
   const owned = new Set(blocks.map(([type]) => type));
 
@@ -235,7 +235,7 @@ ${blocks.map(([type, sql]) => `    when ${sqlString(type)} then ${sql}`).join("\
  * A link pinned to a version names one of the subject's versions; without the
  * versions module there is nothing to pin.
  */
-function versionCheck(ctx: ModuleContext): string {
+function versionCheck(ctx: BlockSqlContext): string {
   const refuse = (message: string): string =>
     fail("SHARE_VERSION_INVALID", message, "22023");
 
@@ -257,7 +257,7 @@ function versionCheck(ctx: ModuleContext): string {
   end if;`;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -599,7 +599,7 @@ ${chat}
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("links", RESERVED)).contract;
 
   return [
@@ -628,7 +628,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const SHARE_LINKS: ModuleDefinition = {
+export const SHARE_LINKS: BlockSqlDefinition = {
   name: "share-links",
   scopes: ["tenant"],
   title: "Share links",

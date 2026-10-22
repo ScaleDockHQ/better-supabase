@@ -2,7 +2,7 @@ import type { DbError } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { SubscriptionStatus } from "../../realtime/index.ts";
 import type { TopicPort } from "../../realtime/watch-topic.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { Comment, CommentEdit, Comments, NewComment } from "./comments.ts";
 
@@ -33,7 +33,7 @@ export interface CommentsControllerOptions {
   readonly auth: AuthPort;
   readonly ports: { readonly topic: TopicPort };
   /** The subject whose thread to follow; the thread waits without one. */
-  readonly subject: SubjectRef | null;
+  readonly subject: RecordRef | null;
   /**
    * `blocks.messaging.options.topic`, default `messages`: the thread joins the
    * record conversation's private topic and fetches the comment each ping

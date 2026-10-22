@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { resolveModules } from "../../../src/sql/registry.ts";
-import { moduleBody, renderModules } from "../../../src/sql/render.ts";
+import { resolveBlocks } from "../../../src/sql/registry.ts";
+import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const CENTRAKIT: AnyBlocksConfig = {
@@ -40,7 +40,7 @@ const body = (modules: AnyBlocksConfig) =>
 
 describe("organizations module", () => {
   it("lists the caller's organizations, members and invitations", () => {
-    const sql = renderModules(["organizations", "invitations"], {
+    const sql = renderBlocks(["organizations", "invitations"], {
       modules: { invitations: {} },
     }).find((file) => file.module === "organizations")!.contents;
 
@@ -92,7 +92,7 @@ describe("organizations module", () => {
 
   it("audits under the shared categories unless auditCategory overrides them", () => {
     const audited = (options: Record<string, unknown>) =>
-      renderModules(["organizations", "audit"], {
+      renderBlocks(["organizations", "audit"], {
         modules: { organizations: { options } },
       }).find(
         (file) => file.module === "organizations" && file.kind === "schema",
@@ -106,7 +106,7 @@ describe("organizations module", () => {
     expect(legacy).toContain("category => 'tenancy',");
     expect(legacy).not.toContain("category => 'membership',");
 
-    const optedOut = renderModules(["organizations", "audit"], {
+    const optedOut = renderBlocks(["organizations", "audit"], {
       modules: { organizations: { audit: false } },
     }).find(
       (file) => file.module === "organizations" && file.kind === "schema",
@@ -116,7 +116,7 @@ describe("organizations module", () => {
   });
 
   it("deletes through data-lifecycle or not at all with deleteMode", () => {
-    const lifecycle = renderModules(["organizations", "data-lifecycle"], {
+    const lifecycle = renderBlocks(["organizations", "data-lifecycle"], {
       modules: { organizations: { options: { deleteMode: "lifecycle" } } },
     }).find(
       (file) => file.module === "organizations" && file.kind === "schema",
@@ -336,7 +336,7 @@ describe("organizations module", () => {
   });
 
   it("installs after tenant and access", () => {
-    const names = resolveModules(["organizations"]).map((m) => m.name);
+    const names = resolveBlocks(["organizations"]).map((m) => m.name);
     expect(names).toEqual(["updated-at", "tenant", "access", "organizations"]);
     expect(
       moduleBody("organizations", {

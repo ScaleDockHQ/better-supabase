@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 /**
  * Each module whose managed table takes `extraColumns`, and what its SQL must
@@ -75,7 +75,7 @@ const CASES: readonly {
 ];
 
 const body = (module: string, options: Record<string, unknown>): string =>
-  renderModules([module], { modules: { [module]: { options } } })
+  renderBlocks([module], { modules: { [module]: { options } } })
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");

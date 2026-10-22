@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   modules: readonly string[] = ["saved-views"],
-  layout: Parameters<typeof renderModules>[1] = {},
+  layout: Parameters<typeof renderBlocks>[1] = {},
 ): string =>
-  renderModules(modules, layout)
+  renderBlocks(modules, layout)
     .filter((file) => file.module === "saved-views")
     .map((file) => file.contents)
     .join("\n");
@@ -115,7 +115,7 @@ describe("saved-views module with the provider's teamIdsOf", () => {
         teamIdsOf: "authz.team_ids_of({user})",
       },
     },
-  } as Parameters<typeof renderModules>[1];
+  } as Parameters<typeof renderBlocks>[1];
 
   it("shares team views through the template without the teams module", () => {
     const sql = sqlOf(["saved-views"], provider);
@@ -126,7 +126,7 @@ describe("saved-views module with the provider's teamIdsOf", () => {
   });
 
   it("makes team_ids_of() return the template's set", () => {
-    const teams = renderModules(["teams"], provider)
+    const teams = renderBlocks(["teams"], provider)
       .filter((file) => file.module === "teams")
       .map((file) => file.contents)
       .join("\n");

@@ -111,3 +111,29 @@ begin
 end
 $bsb_rename$;`;
 }
+
+/**
+ * Creates `better_supabase.blocks` and copies the rows of the 0.14
+ * `better_supabase.modules` table into it, so the schema diff that drops the
+ * old table loses no installed versions.
+ */
+export const legacyBlocksTableSql: string = `create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+do $bsb_blocks$
+begin
+  if to_regclass('better_supabase.modules') is not null then
+    insert into better_supabase.blocks (name, version, mode, installed_at, updated_at)
+    select name, version, mode, installed_at, updated_at from better_supabase.modules
+    on conflict (name) do nothing;
+  end if;
+end
+$bsb_blocks$;`;

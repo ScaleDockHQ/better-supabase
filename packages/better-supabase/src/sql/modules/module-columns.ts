@@ -1,10 +1,10 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 export type Columns<T> = { readonly [K in keyof T]: string };
 
 /** The quoted column names of a module table, keyed like its spec. */
 export function columnsOf<T extends Readonly<Record<string, string>>>(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   table: string,
   spec: T,
 ): Columns<T> {

@@ -2,10 +2,10 @@ export {
   customContracts,
   moduleBody,
   moduleTopics,
-  renderModules,
+  renderBlocks,
 } from "./render.ts";
 
-export { isModuleIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
+export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 
 export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
 
@@ -13,7 +13,7 @@ export { entityRenamePlan } from "./entity-upgrade.ts";
 
 export { moduleFilePaths } from "./paths.ts";
 
-export { moduleFileVersion, sameModuleFile } from "./markers.ts";
+export { moduleFileVersion, sameBlockFile } from "./markers.ts";
 
 export {
   modulePermissionKeys,
@@ -22,9 +22,9 @@ export {
   moduleSchemaExtensions,
 } from "./introspect.ts";
 
-export { moduleVersion } from "./module-types.ts";
+export { blockSqlVersion } from "./module-types.ts";
 
-export { resolveModules, SQL_MODULES } from "./registry.ts";
+export { resolveBlocks, SQL_MODULES } from "./registry.ts";
 
 export { DEFAULT_ROLES } from "./modules/access-model.ts";
 
@@ -34,7 +34,7 @@ export {
   appTablesFiles,
 } from "./modules/app-tables.ts";
 
-export { resolveModule } from "../config/blocks.ts";
+export { resolveBlock } from "../config/blocks.ts";
 
 export { appTableEventTypes } from "../config/app-tables.ts";
 
@@ -42,26 +42,26 @@ export { BLOCK_OPTION_SCHEMAS } from "../blocks/options-registry.ts";
 
 export type { BlockOptionsRegistry } from "../blocks/options-registry.ts";
 
-export type { InstalledModule, ModuleUpgradePlan } from "./upgrade.ts";
+export type { InstalledBlock, BlockSqlUpgradePlan } from "./upgrade.ts";
 
 export type { EntityRenamePlan, EntityRenameStep } from "./entity-upgrade.ts";
 
 export type {
-  ModuleDeprecation,
-  ModuleAccessProvider,
-  ModuleFile,
-  ModuleLayout,
-  ModuleEntitlementsProvider,
-  ModuleTestFile,
-  ModuleUpgrade,
-  SqlModule,
+  BlockSqlDeprecation,
+  BlockSqlAccessProvider,
+  BlockSqlFile,
+  BlockSqlLayout,
+  BlockSqlEntitlementsProvider,
+  BlockSqlTestFile,
+  BlockSqlUpgrade,
+  BlockSql,
 } from "./module-types.ts";
 
-export type { ModuleExtension, ModulePermissionKey } from "./introspect.ts";
+export type { BlockSqlExtension, BlockSqlPermissionKey } from "./introspect.ts";
 
-export type { ModuleIdType } from "./context.ts";
+export type { BlockSqlIdType } from "./context.ts";
 
-export type { ModuleTopic } from "./render.ts";
+export type { BlockSqlTopic } from "./render.ts";
 
 export {
   adoptedColumnProblems,
@@ -110,13 +110,13 @@ export { AUDIT_CATEGORIES, contractSignature } from "./context.ts";
 
 export type {
   AuditCategory,
-  ModuleAction,
-  ModuleAudit,
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEmit,
-  ModuleNames,
-  ModuleTableSpec,
+  BlockSqlAction,
+  BlockSqlAudit,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEmit,
+  BlockSqlNames,
+  BlockSqlTableSpec,
 } from "./context.ts";
 
 export { moduleLayout } from "./layout.ts";

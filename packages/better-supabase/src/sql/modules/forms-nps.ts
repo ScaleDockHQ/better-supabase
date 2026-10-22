@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { NPS_MAX } from "../../core/contracts/form-definition.ts";
 import { sqlString } from "../../core/template.ts";
@@ -26,7 +26,7 @@ const npsCounts = (alias: string): string => {
  * first one by default) over the submitted and accepted answers between since
  * and until, with a row per period when bucket is set. Needs `forms.review`.
  */
-export function formNpsFunction(ctx: ModuleContext): string {
+export function formNpsFunction(ctx: BlockSqlContext): string {
   const forms = ctx.table("forms");
   const versions = ctx.table("versions");
   const submissions = ctx.table("submissions");

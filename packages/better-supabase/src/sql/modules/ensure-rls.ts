@@ -1,4 +1,4 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { SCHEMA } from "../shared.ts";
 
@@ -26,7 +26,7 @@ const ENSURE_RLS_SKIPPED_SCHEMAS = [
   "information_schema",
 ];
 
-export const ENSURE_RLS: ModuleDefinition = {
+export const ENSURE_RLS: BlockSqlDefinition = {
   name: "ensure-rls",
   title: "RLS on every new table",
   description:

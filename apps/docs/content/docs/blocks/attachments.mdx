@@ -182,13 +182,13 @@ export async function startUpload(projectId: string, file: FileMeta) {
 }
 ```
 
-The first argument is the record as a `SubjectRef` (`{ type, id }`), or
+The first argument is the record as a `RecordRef` (`{ type, id }`), or
 `null` for a file without one. The tenant comes from the block's `tenant`
 option, an organization id or a function that returns the current one;
 `createBlocks` and `createBlockClient` pass the request's tenant (see
 [createBlocks](/docs/blocks/create-blocks#one-block-per-request)). A call
 that needs a tenant and has none fails with `invalid_request` and the hint
-`TENANT_REQUIRED`. Each attachment carries `subject` (a `SubjectRef`, or
+`TENANT_REQUIRED`. Each attachment carries `subject` (a `RecordRef`, or
 `undefined` without one) and `organizationId`.
 
 The browser uploads with the token,

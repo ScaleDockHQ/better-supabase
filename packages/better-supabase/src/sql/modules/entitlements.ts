@@ -1,6 +1,6 @@
 import type { EntitlementPlansSource } from "../../config/index.ts";
 import type { ClaimsMeta } from "../../schema/types.ts";
-import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -15,7 +15,7 @@ import { customerSource, entitlementsSource } from "./entitlements-source.ts";
 
 const entitlementsSql = (
   claims: ClaimsMeta,
-  layout: ModuleLayout = {},
+  layout: BlockSqlLayout = {},
 ): string => {
   const m = memberships(layout);
   const id = layout.entitlementsProvider?.idType ?? m.idType;
@@ -189,7 +189,7 @@ revoke execute on function better_supabase.tenant_entitlement_value(${id}, text)
 grant execute on function better_supabase.tenant_entitlement_value(${id}, text) to service_role;`;
 }
 
-export const ENTITLEMENTS: ModuleDefinition = {
+export const ENTITLEMENTS: BlockSqlDefinition = {
   name: "entitlements",
   scopes: ["tenant"],
   title: "Stripe entitlements",

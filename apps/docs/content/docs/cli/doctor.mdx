@@ -835,7 +835,7 @@ older trigger, or call `track_updated_at()` or `audit()` with
 ### BS311
 
 **Warning: SQL module behind its current version.** A module file's
-`@bs-module` line, or its row in `better_supabase.modules` on a live database,
+`@bsb-block` line, or its row in `better_supabase.blocks` on a live database,
 records an older version than this release ships. Run `better-supabase sql
 upgrade`, which writes the forward steps into a migration and rewrites the
 files, then create the schema migration. BS304 skips files this check reports.

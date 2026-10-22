@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { ServicePrincipalAuthAdmin } from "../../src/blocks/service-principals/index.ts";
 import type { WorkflowGraph } from "../../src/blocks/workflow-builder/index.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createServicePrincipals } from "../../src/blocks/service-principals/index.ts";
 import {
@@ -24,7 +24,7 @@ const CRM_GRAPH: WorkflowGraph = {
 };
 
 // Members hold neither crm.read nor workflow rights; readers hold crm.read.
-const LAYOUT: ModuleLayout = {
+const LAYOUT: BlockSqlLayout = {
   modules: {
     access: {
       roles: {

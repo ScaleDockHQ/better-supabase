@@ -8819,9 +8819,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ShipmentCancelledEventData"
         },
         {
-          "name": "ShipmentCarrier"
-        },
-        {
           "name": "ShipmentCreatedEventData"
         },
         {

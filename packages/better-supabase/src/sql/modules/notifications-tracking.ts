@@ -1,4 +1,4 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -36,7 +36,7 @@ const KINDS = `array[${DELIVERY_EVENT_KINDS.map(sqlString).join(", ")}]::text[]`
  * provider message id, and an adopted module needs `tables.deliveryEvents`
  * mapped explicitly, so an adopter that predates it keeps installing.
  */
-const tracking = (ctx: ModuleContext): boolean =>
+const tracking = (ctx: BlockSqlContext): boolean =>
   ctx.hasTable("deliveries") &&
   ctx.hasTable("deliveryEvents") &&
   ctx.has("deliveries", "providerMessageId") &&
@@ -47,11 +47,11 @@ const tracking = (ctx: ModuleContext): boolean =>
  * `created_at`. Only this leaf is: events, recipients and deliveries are
  * referenced by id and updated in place (ADR 0038).
  */
-export const eventsPartitioned = (ctx: ModuleContext): boolean =>
+export const eventsPartitioned = (ctx: BlockSqlContext): boolean =>
   ctx.manages && tracking(ctx) && ctx.flag("partitioned", false);
 
 /** Whether `complete_notification_delivery` takes and stores a template key. */
-export const keepsTemplateKey = (ctx: ModuleContext): boolean =>
+export const keepsTemplateKey = (ctx: BlockSqlContext): boolean =>
   tracking(ctx) && ctx.has("deliveries", "templateKey");
 
 /**
@@ -59,7 +59,7 @@ export const keepsTemplateKey = (ctx: ModuleContext): boolean =>
  * for webhooks, and the `notification_delivery_events` table that recipients
  * read for their own deliveries.
  */
-export function trackingTables(ctx: ModuleContext, n: NotifyNames): string {
+export function trackingTables(ctx: BlockSqlContext, n: NotifyNames): string {
   if (!ctx.manages || !tracking(ctx)) {
     return "";
   }
@@ -136,7 +136,7 @@ create policy ${policy} on ${t} for select to authenticated using (
 }
 
 /** The SQL for one kind's outbox event, inside `record_delivery_event`. */
-function recordKinds(ctx: ModuleContext, fn: string): string {
+function recordKinds(ctx: BlockSqlContext, fn: string): string {
   const statements = DELIVERY_EVENT_KINDS.map((kind) => ({
     kind,
     statement: ctx.record({
@@ -168,7 +168,10 @@ function recordKinds(ctx: ModuleContext, fn: string): string {
  * `record_delivery_event` for the service (provider webhooks) and
  * `list_subject_deliveries`, which a sender reads for one record.
  */
-export function trackingFunctions(ctx: ModuleContext, n: NotifyNames): string {
+export function trackingFunctions(
+  ctx: BlockSqlContext,
+  n: NotifyNames,
+): string {
   if (!tracking(ctx)) {
     return "";
   }
@@ -422,13 +425,13 @@ grant execute on function ${signature} to authenticated, service_role;`
 }
 
 export function trackingContract(
-  ctx: ModuleContext,
-): readonly ModuleContractFunction[] {
+  ctx: BlockSqlContext,
+): readonly BlockSqlContractFunction[] {
   if (!tracking(ctx)) {
     return [];
   }
 
-  const fns: ModuleContractFunction[] = [
+  const fns: BlockSqlContractFunction[] = [
     {
       name: "record_delivery_event",
       args: [

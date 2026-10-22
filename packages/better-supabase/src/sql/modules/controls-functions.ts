@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -15,7 +15,7 @@ import { moduleOperations } from "./access-model.ts";
 import { CONTROL_RESERVED, evidenceAttachments } from "./controls-shared.ts";
 
 /** The framework, control, evidence and evidence task functions. */
-export function controlsFunctions(ctx: ModuleContext): string {
+export function controlsFunctions(ctx: BlockSqlContext): string {
   const frameworks = ctx.table("frameworks");
   const controls = ctx.table("controls");
   const evidence = ctx.table("evidence");

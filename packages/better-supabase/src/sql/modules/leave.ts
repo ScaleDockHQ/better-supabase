@@ -1,11 +1,11 @@
 import type { LeaveEvents } from "../../blocks/leave/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -48,7 +48,7 @@ const ADJUSTED_PAYLOAD = [
   "period",
 ] as const;
 
-const EVENTS: ModuleEvents<LeaveEvents> = {
+const EVENTS: BlockSqlEvents<LeaveEvents> = {
   "leave.requested": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
   "leave.approved": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
   "leave.cancelled": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
@@ -58,7 +58,7 @@ const EVENTS: ModuleEvents<LeaveEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_leave_request", "after_leave_request"],
   options: ["policy", "workingDays", "allowNegative", "extraColumns"],
@@ -116,7 +116,7 @@ const ISO_WEEKDAY = new Map<string, number>(
 );
 
 /** `options.workingDays` as ISO weekday numbers (Monday is 1). */
-function workingDaysOf(ctx: ModuleContext): readonly number[] {
+function workingDaysOf(ctx: BlockSqlContext): readonly number[] {
   const days = ctx.list("workingDays", ["mon", "tue", "wed", "thu", "fri"]);
 
   if (days.length === 0) {
@@ -141,7 +141,7 @@ function workingDaysOf(ctx: ModuleContext): readonly number[] {
 }
 
 /** `options.policy` as an approvals policy; defaults to one approver step. */
-function leavePolicy(ctx: ModuleContext): string {
+function leavePolicy(ctx: BlockSqlContext): string {
   const raw = ctx.option("policy") ?? {
     steps: [
       {
@@ -168,7 +168,7 @@ function leavePolicy(ctx: ModuleContext): string {
   return policySnapshot(policy);
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -604,7 +604,7 @@ ${userGrant(`${fn("list_leave_requests")}(${idType}, uuid, text, date, date, boo
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("requests", RESERVED)).contract;
 
   return [
@@ -636,7 +636,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const LEAVE: ModuleDefinition = {
+export const LEAVE: BlockSqlDefinition = {
   internal: ["leave_available", "leave_post", "leave_posted"],
   name: "leave",
   scopes: ["tenant"],

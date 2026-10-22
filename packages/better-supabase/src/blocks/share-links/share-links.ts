@@ -7,7 +7,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -90,7 +90,7 @@ export interface ResolvedShareLink {
   readonly id: string;
   /** The organization the link was created in. */
   readonly organizationId: string;
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   readonly role: string;
   /** The version the link is pinned to, when it has one. */
   readonly versionId?: string;
@@ -107,7 +107,7 @@ export interface ResolvedShareLink {
 export interface ShareLinks<F extends object = Record<never, never>> {
   /** A link to `subject`. A role string is the same as `{ role }`. */
   create(
-    subject: SubjectRef,
+    subject: RecordRef,
     options?: string | CreateShareLinkOptions<F>,
   ): AsyncResult<CreatedShareLink<F>>;
   /** The link's creator, or a member with `share_links.create`. */
@@ -119,7 +119,7 @@ export interface ShareLinks<F extends object = Record<never, never>> {
   resolve(token: string): AsyncResult<ResolvedShareLink | null>;
   /** A member of the tenant records a view of `subject`. */
   recordView(
-    subject: SubjectRef,
+    subject: RecordRef,
     viewerKind: string,
     viewer?: string,
   ): AsyncResult<boolean>;
@@ -127,9 +127,9 @@ export interface ShareLinks<F extends object = Record<never, never>> {
    * The links to `subject` the caller created or may read (`share_links.read`),
    * revoked ones included.
    */
-  list(subject: SubjectRef): AsyncResult<readonly ShareLink<F>[]>;
+  list(subject: RecordRef): AsyncResult<readonly ShareLink<F>[]>;
   /** Stars or unstars `subject` for the caller. */
-  setState(subject: SubjectRef, starred: boolean): AsyncResult<boolean>;
+  setState(subject: RecordRef, starred: boolean): AsyncResult<boolean>;
 }
 
 const fieldsOf = (row: Readonly<Record<string, unknown>>) =>

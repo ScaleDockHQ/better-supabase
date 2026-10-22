@@ -1,6 +1,10 @@
 import type { AuditEvents } from "../../blocks/audit/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 import type { BatchArgument } from "../shared.ts";
 import type { AuditInsert } from "./audit-metadata.ts";
 
@@ -47,14 +51,14 @@ import { auditTests } from "./audit-tests.ts";
 import { AUDIT_UPGRADES } from "./audit-upgrades.ts";
 import { auditWrite, tenantLabel } from "./audit-values.ts";
 
-const EVENTS: ModuleEvents<AuditEvents> = {
+const EVENTS: BlockSqlEvents<AuditEvents> = {
   "audit.revealed": {
     subject: "audit-entries",
     payload: ["organizationId", "entries"],
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: [
     "appendOnly",
@@ -198,7 +202,7 @@ const ACTOR_LABEL = `coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name', aut
 
 /** The pairs every entry writes for the version 3 columns. */
 function contextPairs(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   tenant: string,
   values: {
     targetLabel: string;
@@ -234,7 +238,7 @@ function contextPairs(
  * The restricted table is in use: an option when managed, a mapping when
  * adopted.
  */
-function restrictedOn(ctx: ModuleContext): boolean {
+function restrictedOn(ctx: BlockSqlContext): boolean {
   return ctx.manages
     ? ctx.flag("restricted", false)
     : ctx.config.tables["restricted"] !== undefined &&
@@ -243,7 +247,7 @@ function restrictedOn(ctx: ModuleContext): boolean {
 
 /** `[column, value]` pairs for the logical columns the log has. */
 function present(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   table: string,
   pairs: readonly (readonly [string, string])[],
 ): AuditInsert {
@@ -260,7 +264,7 @@ function present(
   };
 }
 
-function managedTables(ctx: ModuleContext, restricted: boolean): string {
+function managedTables(ctx: BlockSqlContext, restricted: boolean): string {
   const log = ctx.table("log");
   const partitioned = partitionedOn(ctx);
   const sequence = `better_supabase.${ctx.naming.rename("audit_events_id_seq")}`;
@@ -416,7 +420,7 @@ $$;`;
  * use.
  */
 function restrictedInsert(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   restricted: boolean,
   values: {
     old: string;
@@ -455,7 +459,7 @@ function restrictedInsert(
 }
 
 /** `audit_event`'s restricted row, skipped when every restricted value is empty. */
-function eventRestricted(ctx: ModuleContext, restricted: boolean): string {
+function eventRestricted(ctx: BlockSqlContext, restricted: boolean): string {
   const insert = restrictedInsert(ctx, restricted, {
     old: "null",
     new: "null",
@@ -475,7 +479,7 @@ function eventRestricted(ctx: ModuleContext, restricted: boolean): string {
 }
 
 function triggerFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   tenantColumn: string,
   restricted: boolean,
 ): string {
@@ -643,7 +647,7 @@ const PREVIOUS_TRUSTED_ARGS = (id: string): readonly string[] => [
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text`,
 ];
 
-function auditEvent(ctx: ModuleContext, restricted: boolean): string {
+function auditEvent(ctx: BlockSqlContext, restricted: boolean): string {
   const id = ctx.idType;
   const extra = metadataColumns(ctx);
   const log = ctx.table("log");
@@ -845,7 +849,7 @@ ${create("audit_event_trusted", true)}revoke execute on function better_supabase
 grant execute on function better_supabase.audit_event_trusted(${EVENT_ARGS(id)}) to ${["service_role", ...ctx.list("trustedRoles", [])].map(sqlIdent).join(", ")};`;
 }
 
-function readPolicy(ctx: ModuleContext): string {
+function readPolicy(ctx: BlockSqlContext): string {
   const log = ctx.table("log");
 
   if (!ctx.flag("readPolicy", false)) {
@@ -917,7 +921,7 @@ grant select (${readable.join(", ")}) on ${log} to authenticated;`
 }`;
 }
 
-function auditSql(ctx: ModuleContext, layout: ModuleLayout): string {
+function auditSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const restricted = restrictedOn(ctx);
 
   const tenantColumn = ctx.text(
@@ -945,7 +949,7 @@ function auditSql(ctx: ModuleContext, layout: ModuleLayout): string {
     .join("\n\n");
 }
 
-export const AUDIT: ModuleDefinition = {
+export const AUDIT: BlockSqlDefinition = {
   name: "audit",
   title: "Audit log",
   description:

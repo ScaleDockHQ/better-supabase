@@ -1,11 +1,11 @@
 import type { FormsEvents } from "../../blocks/forms/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -36,7 +36,7 @@ const FORM_LINK_ROLE = "respond";
 const WHERE = "blocks.forms.options";
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
-const EVENTS: ModuleEvents<FormsEvents> = {
+const EVENTS: BlockSqlEvents<FormsEvents> = {
   "form.created": {
     subject: "forms",
     payload: ["organizationId", "id", "key"],
@@ -68,7 +68,7 @@ const EVENTS: ModuleEvents<FormsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_form_publish",
@@ -167,7 +167,7 @@ const functionName = (name: string): string =>
  * jsonb`.
  */
 function handlersOf(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): readonly (readonly [string, string])[] {
   const raw = ctx.option("handlers");
 
@@ -202,7 +202,7 @@ interface PublicLimit {
 }
 
 /** `options.publicLimit`: public submissions per form and caller, or `false`. */
-function publicLimitOf(ctx: ModuleContext): PublicLimit | undefined {
+function publicLimitOf(ctx: BlockSqlContext): PublicLimit | undefined {
   const raw = ctx.option("publicLimit");
 
   if (raw === false) {
@@ -235,7 +235,7 @@ function publicLimitOf(ctx: ModuleContext): PublicLimit | undefined {
  * Scoring needs the answer key table and the score columns: always when
  * managed, and when the app maps them on adopted tables.
  */
-function scoringOn(ctx: ModuleContext): boolean {
+function scoringOn(ctx: BlockSqlContext): boolean {
   const keys = ctx.manages
     ? true
     : ctx.config.tables["answerKeys"] !== undefined &&
@@ -257,7 +257,7 @@ const answersInvalid = (table: string): string =>
   `raise exception '%.answers does not match its JSON Schema: %', ${sqlString(table)}, array_to_string(v_errors, '; ')
       using errcode = '23514', column = 'answers', detail = to_jsonb(v_errors)::text, hint = 'JSON_SCHEMA_INVALID';`;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -995,7 +995,7 @@ ${userGrant(`${fn("delete_form_submission")}(uuid)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_form",
@@ -1013,7 +1013,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const FORMS: ModuleDefinition = {
+export const FORMS: BlockSqlDefinition = {
   name: "forms",
   scopes: ["tenant"],
   title: "Forms",

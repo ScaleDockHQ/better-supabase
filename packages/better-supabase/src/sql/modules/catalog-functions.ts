@@ -1,5 +1,5 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
-import type { ModuleScope } from "../scope.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { BlockSqlScope } from "../scope.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
@@ -23,10 +23,10 @@ const STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** `options.extraColumns`, which the products table gets. */
-export const productExtras = (ctx: ModuleContext): readonly ExtraColumn[] =>
+export const productExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
   ctx.extraColumns("products", ["id", "slug", "status", "fields"]);
 
-export function storefrontOption(ctx: ModuleContext): boolean {
+export function storefrontOption(ctx: BlockSqlContext): boolean {
   const value = ctx.text("storefront", "private");
 
   if (value !== "public" && value !== "private") {
@@ -49,7 +49,7 @@ export function storefrontOption(ctx: ModuleContext): boolean {
  * `set_product_status` then writes the status and leaves the transition rules,
  * history and `status.changed` to the machine's trigger.
  */
-function machineGoverns(ctx: ModuleContext): boolean {
+function machineGoverns(ctx: BlockSqlContext): boolean {
   if (!ctx.installed("state-machine")) {
     return false;
   }
@@ -81,7 +81,7 @@ function machineGoverns(ctx: ModuleContext): boolean {
 
 export interface Names {
   /** The block's scope checks. */
-  readonly scope: ModuleScope;
+  readonly scope: BlockSqlScope;
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
@@ -98,7 +98,7 @@ export function amountOf(value: string): string {
   return `case when ${value} ~ '^[0-9]{1,18}$' then ${value}::bigint end`;
 }
 
-export function productFunctions(ctx: ModuleContext, names: Names): string {
+export function productFunctions(ctx: BlockSqlContext, names: Names): string {
   const { fn } = names;
   const products = ctx.table("products");
   const p = (column: string): string => ctx.col("products", column);
@@ -278,7 +278,7 @@ ${userGrant(`${fn("delete_product")}(uuid)`)}
 ${variantFunctions(ctx, names, historyCheck)}`;
 }
 
-export function optionFunctions(ctx: ModuleContext, names: Names): string {
+export function optionFunctions(ctx: BlockSqlContext, names: Names): string {
   if (!ctx.hasTable("options") || !ctx.hasTable("optionValues")) {
     return "";
   }
@@ -389,7 +389,7 @@ ${userGrant(`${fn("delete_product_option")}(uuid)`)}
 }
 
 function variantFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: Names,
   historyCheck: (variants: string, code: string) => string,
 ): string {

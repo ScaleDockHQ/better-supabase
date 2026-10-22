@@ -7,7 +7,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { JsonPatchOperation, JsonValue } from "./json-patch.ts";
 
@@ -52,7 +52,7 @@ const SOURCES: readonly VersionSource[] = ["manual", "auto", "restore"];
 export interface Version<F extends object = Record<never, never>> {
   readonly id: string;
   readonly number: number;
-  readonly subject: SubjectRef;
+  readonly subject: RecordRef;
   /** A named version is kept out of retention. */
   readonly label?: string;
   readonly source: VersionSource;
@@ -110,12 +110,12 @@ export interface VersionListOptions {
 export interface Versions<F extends object = Record<never, never>> {
   /** Records a version of `subject`. */
   snapshot(
-    subject: SubjectRef,
+    subject: RecordRef,
     input?: SnapshotInput<F>,
   ): AsyncResult<SnapshotResult>;
   /** A subject's versions, newest first, without content. */
   list(
-    subject: SubjectRef,
+    subject: RecordRef,
     options?: VersionListOptions,
   ): AsyncResult<readonly Version<F>[]>;
   get(id: string): AsyncResult<Version<F>>;

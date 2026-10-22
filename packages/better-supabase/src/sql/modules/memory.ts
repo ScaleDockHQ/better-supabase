@@ -1,5 +1,5 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -56,7 +56,7 @@ const DOCUMENTS = {
   updatedAt: "updated_at",
 } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["dimensions", "type", "textSearch", "maxContent"],
   tables: {
     memories: {
@@ -88,7 +88,7 @@ const DOT_SEGMENT = "(^|/)[.]{1,2}(/|$)";
 type Columns<T> = { readonly [K in keyof T]: string };
 
 function columnsOf<T extends Readonly<Record<string, string>>>(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   table: string,
   spec: T,
 ): Columns<T> {
@@ -98,7 +98,7 @@ function columnsOf<T extends Readonly<Record<string, string>>>(
   ) as Columns<T>;
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const m = columnsOf(ctx, "memories", MEMORIES);
@@ -794,7 +794,7 @@ $$;
 ${serviceGrant(signature("purge_memory_documents", "integer"))}`;
 }
 
-function upgradeProjectScope(ctx: ModuleContext): string {
+function upgradeProjectScope(ctx: BlockSqlContext): string {
   const memories = ctx.table("memories");
   const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;
 
@@ -825,7 +825,7 @@ end;
 $$;`;
 }
 
-export const MEMORY: ModuleDefinition = {
+export const MEMORY: BlockSqlDefinition = {
   name: "memory",
   scopes: ["tenant"],
   title: "Memory",

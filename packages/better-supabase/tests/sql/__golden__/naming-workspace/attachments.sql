@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_34_attachments.sql
 -- better-supabase module: attachments
--- @bs-module attachments@4 managed
+-- @bsb-block attachments@4 managed
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -627,20 +627,20 @@ grant execute on function "better_supabase"."get_attachment"(uuid) to authentica
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
-create table if not exists better_supabase.modules (
+create table if not exists better_supabase.blocks (
   name text primary key,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table better_supabase.modules enable row level security;
-revoke all on better_supabase.modules from anon, authenticated;
-grant select on better_supabase.modules to service_role;
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from anon, authenticated;
+grant select on better_supabase.blocks to service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_34_attachments.sql
 -- better-supabase module: attachments
--- @bs-module-data attachments
+-- @bsb-block-data attachments
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -650,7 +650,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do nothing;
 
-insert into better_supabase.modules (name, version, mode)
+insert into better_supabase.blocks (name, version, mode)
 values ('attachments', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

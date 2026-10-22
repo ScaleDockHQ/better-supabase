@@ -1,5 +1,5 @@
 import type { ClaimsMeta } from "../../schema/types.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { sqlString } from "../../core/template.ts";
@@ -260,7 +260,7 @@ create policy bsb_realtime_tables_receive on realtime.messages for select to aut
     )
   );`;
 
-export const REALTIME_TABLES: ModuleDefinition = {
+export const REALTIME_TABLES: BlockSqlDefinition = {
   name: "realtime-tables",
   title: "Realtime table changes",
   description:

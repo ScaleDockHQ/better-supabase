@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { OrganizationReadNames } from "./organizations-reads.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -14,7 +14,7 @@ export interface DeletionHelpers {
 type DeleteMode = "hard" | "soft" | "lifecycle" | "none";
 
 /** `blocks.organizations.options.deleteMode`. */
-export function deleteMode(ctx: ModuleContext): DeleteMode {
+export function deleteMode(ctx: BlockSqlContext): DeleteMode {
   const mode = ctx.text("deleteMode", "hard");
 
   if (
@@ -41,7 +41,10 @@ export function deleteMode(ctx: ModuleContext): DeleteMode {
  * `delete_organization(organization)`: requests the purge through
  * data-lifecycle.
  */
-function requestDeletion(ctx: ModuleContext, platformOverride: string): string {
+function requestDeletion(
+  ctx: BlockSqlContext,
+  platformOverride: string,
+): string {
   return `
 -- Deletes an organization through data-lifecycle (blocks.organizations.options.deleteMode
 -- "lifecycle"): schedules the purge after the grace period and disables it.
@@ -68,7 +71,7 @@ $$;
  * `blocks.organizations.options.deleteMode`.
  */
 export function organizationDeletion(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: OrganizationReadNames,
   helpers: DeletionHelpers,
 ): string {

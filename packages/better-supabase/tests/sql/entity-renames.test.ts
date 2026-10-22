@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { pluralOf } from "../../src/core/entity-naming.ts";
-import { entityRenamePlan, renderModules } from "../../src/sql/index.ts";
+import { entityRenamePlan, renderBlocks } from "../../src/sql/index.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const BLOCKS = ["tenant", "access", "outbox", "work-items"];
 
-const TASKS: ModuleLayout = {
+const TASKS: BlockSqlLayout = {
   modules: {
     "work-items": { entities: { work_item: "task", project: "initiative" } },
   },
 };
 
-const body = (module: string, layout: ModuleLayout): string =>
-  renderModules(BLOCKS, layout)
+const body = (module: string, layout: BlockSqlLayout): string =>
+  renderBlocks(BLOCKS, layout)
     .filter((file) => file.module === module && file.kind === "schema")
     .map((file) => file.contents)
     .join("\n");
@@ -36,7 +36,7 @@ describe("blocks.<name>.entities in the SQL", () => {
     expect(sql).toContain("'tasks.read'");
     expect(sql).toContain('"public"."before_task_create"(');
     expect(sql).toContain(
-      "-- @bs-entities work-items work_item=task/tasks project=initiative/initiatives",
+      "-- @bsb-names work-items work_item=task/tasks project=initiative/initiatives",
     );
   });
 
@@ -45,7 +45,7 @@ describe("blocks.<name>.entities in the SQL", () => {
 
     expect(sql).toContain('"better_supabase"."work_items"');
     expect(sql).toContain("'work_item.created'");
-    expect(sql).not.toContain("@bs-entities");
+    expect(sql).not.toContain("@bsb-names");
   });
 
   it("renames the default roles' keys after every block's entities", () => {
@@ -76,7 +76,7 @@ describe("blocks.<name>.entities in the SQL", () => {
 
     const names = [...BLOCKS, "pipelines", "rank", "subjects", "notifications"];
 
-    const layout: ModuleLayout = {
+    const layout: BlockSqlLayout = {
       modules,
       subjects: withBlockSubjects({}, names, modules),
     };
@@ -84,7 +84,7 @@ describe("blocks.<name>.entities in the SQL", () => {
     const parameter =
       /\b(?:\w+\.)?(?:work_item|project|iteration)\b(?= uuid|[^_\w'"]|$)/g;
 
-    const left = renderModules(names, layout)
+    const left = renderBlocks(names, layout)
       .flatMap((file) => file.contents.split("\n"))
       .filter((line) => !line.trimStart().startsWith("--"))
       .map((line) =>
@@ -123,7 +123,7 @@ describe("blocks.<name>.entities in the SQL", () => {
         },
       };
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         modules,
         subjects: withBlockSubjects({}, [name], modules),
       };
@@ -155,7 +155,7 @@ describe("blocks.<name>.entities in the SQL", () => {
           .join("|")})`,
       );
 
-      const files = renderModules([name], layout);
+      const files = renderBlocks([name], layout);
 
       const declared = new RegExp(
         String.raw`(?<!")\b(?:\w+\.)?(?:${[
@@ -206,7 +206,7 @@ describe("blocks.<name>.entities in the SQL", () => {
 
   it("refuses a rename onto another block's table", () => {
     expect(() =>
-      renderModules([...BLOCKS, "deals"], {
+      renderBlocks([...BLOCKS, "deals"], {
         modules: { "work-items": { entities: { work_item: "deal" } } },
       }),
     ).toThrow(
@@ -216,11 +216,11 @@ describe("blocks.<name>.entities in the SQL", () => {
 });
 
 describe("entityRenamePlan", () => {
-  const installed = renderModules(BLOCKS, {});
+  const installed = renderBlocks(BLOCKS, {});
   const text = installed.map((file) => file.contents).join("\n");
   const modules = [...new Set(installed.map((file) => file.module))];
 
-  const sql = (layout: ModuleLayout): string[] =>
+  const sql = (layout: BlockSqlLayout): string[] =>
     entityRenamePlan(BLOCKS, modules, text, layout).steps.map(
       (step) => step.sql,
     );
@@ -255,7 +255,7 @@ describe("entityRenamePlan", () => {
   it("moves stored subjects to the renamed type", () => {
     const blocks = [...BLOCKS, "subjects", "messaging", "comments"];
 
-    const before = renderModules(blocks, {
+    const before = renderBlocks(blocks, {
       subjects: withBlockSubjects({}, ["work-items"], {}),
     });
 
@@ -281,7 +281,7 @@ describe("entityRenamePlan", () => {
   });
 
   it("plans the way back from the installed names", () => {
-    const renamed = renderModules(BLOCKS, TASKS);
+    const renamed = renderBlocks(BLOCKS, TASKS);
 
     expect(
       entityRenamePlan(

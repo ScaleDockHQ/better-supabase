@@ -1,11 +1,11 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 
 const MAX_BANDS = 10;
 
-function limitOf(ctx: ModuleContext, name: string, fallback: number): string {
+function limitOf(ctx: BlockSqlContext, name: string, fallback: number): string {
   const value = ctx.number(name, fallback);
 
   if (!Number.isInteger(value) || value < 1 || value > 1000) {
@@ -18,7 +18,7 @@ function limitOf(ctx: ModuleContext, name: string, fallback: number): string {
 }
 
 /** The scores module's functions. */
-export function scoresFunctions(ctx: ModuleContext): string {
+export function scoresFunctions(ctx: BlockSqlContext): string {
   const models = ctx.table("models");
   const versions = ctx.table("versions");
   const scores = ctx.table("scores");

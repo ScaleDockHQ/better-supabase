@@ -11,7 +11,7 @@ import type {
   SectionWriteName,
   SectionWriteOutput,
 } from "../blocks/sections.ts";
-import type { SubjectRef } from "../schema/types.ts";
+import type { RecordRef } from "../schema/types.ts";
 import type { SectionName, SectionNamed } from "./sections.ts";
 
 import { can as holds } from "../blocks/access/permissions.ts";
@@ -91,7 +91,7 @@ export function defineRecordFeature<
 export function recordSubject<T extends string>(
   feature: { readonly type: T },
   id: string,
-): SubjectRef<T> {
+): RecordRef<T> {
   return { type: feature.type, id };
 }
 
@@ -256,7 +256,7 @@ export function runSectionWrite(
   clients: object,
   section: string,
   write: string,
-  subject: SubjectRef,
+  subject: RecordRef,
   input: unknown,
 ): AsyncResult<unknown> {
   const found = findSectionWrite(feature, section, write);
@@ -279,7 +279,7 @@ export function runSectionWrite(
   // its schema validated.
   const run = found.write.run as (
     client: unknown,
-    subject: SubjectRef,
+    subject: RecordRef,
     input: unknown,
   ) => AsyncResult<unknown>;
 

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { AiChatNames } from "./ai-chat.ts";
 
 import { sqlString } from "../../core/template.ts";
@@ -43,7 +43,7 @@ function sandboxJson(names: AiChatNames, row: string): string {
  * table and its indexes.
  */
 export function sandboxTable(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: AiChatNames,
   adapt = "",
 ): string {
@@ -136,7 +136,7 @@ export function harnessSandboxSave(names: AiChatNames, fields: string): string {
 
 /** The sandbox registry's functions, the one idle-stop claim included. */
 export function sandboxFunctions(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: AiChatNames,
 ): string {
   const fn = (name: string): string => ctx.fn(name);
@@ -318,7 +318,7 @@ ${userGrant(`${fn("list_ai_sandboxes")}(${id}, uuid)`)}`;
  * `ai_harness_sessions` goes.
  */
 export function upgradeSandboxes(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: AiChatNames,
 ): string {
   const s = names.c.sandboxes;

@@ -11,7 +11,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type {
   SummarizeOptions,
@@ -75,7 +75,7 @@ export interface Conversation {
   readonly kind: ConversationKind;
   readonly access: ConversationAccess;
   /** The record of a `subject` conversation. */
-  readonly subject: SubjectRef | undefined;
+  readonly subject: RecordRef | undefined;
   readonly title: string | undefined;
   readonly createdBy: string | undefined;
   readonly lastMessageAt: Temporal.Instant | undefined;
@@ -210,7 +210,7 @@ export interface OpenConversation {
   /** A channel's access: `members` (private) or `tenant`. Default `members`. */
   readonly access?: "members" | "tenant";
   /** The record of a `subject` conversation. */
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   /** The members besides the caller. */
   readonly memberIds?: readonly string[];
 }
@@ -238,7 +238,7 @@ export interface RecordMention<F extends object = Record<never, never>> {
     readonly kind: ConversationKind;
     readonly title: string | undefined;
     /** The record of a `subject` conversation. */
-    readonly subject: SubjectRef | undefined;
+    readonly subject: RecordRef | undefined;
   };
 }
 
@@ -262,7 +262,7 @@ export interface Messaging<F extends object = Record<never, never>> {
   /** Opens the direct (one other person) or group message with `userIds`. */
   openDirect(userIds: readonly string[]): AsyncResult<Conversation>;
   /** The conversation of a record, read by whoever reads the record. */
-  openSubject(subject: SubjectRef): AsyncResult<Conversation>;
+  openSubject(subject: RecordRef): AsyncResult<Conversation>;
   /** Returns how many joined. Members add members; anyone joins a tenant one. */
   addMembers(
     conversationId: string,
@@ -328,7 +328,7 @@ export interface Messaging<F extends object = Record<never, never>> {
    * when they can't read the record.
    */
   recordMentions(
-    subject: SubjectRef,
+    subject: RecordRef,
     options?: { readonly before?: MessageCursor; readonly limit?: number },
   ): AsyncResult<RecordMention<F>[]>;
   /** The service role sends the scheduled messages that are due. */

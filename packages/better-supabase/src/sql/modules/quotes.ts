@@ -1,11 +1,11 @@
 import type { QuotesEvents } from "../../blocks/quotes/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { QuoteNames } from "./quotes-functions.ts";
 
 import {
@@ -25,7 +25,7 @@ const QUOTE = [
   "identifier",
 ] as const;
 
-const EVENTS: ModuleEvents<QuotesEvents> = {
+const EVENTS: BlockSqlEvents<QuotesEvents> = {
   "quote.created": { subject: "quotes", payload: [...QUOTE] },
   "quote.updated": { subject: "quotes", payload: [...QUOTE] },
   "quote.sent": { subject: "quotes", payload: [...QUOTE] },
@@ -40,7 +40,7 @@ const EVENTS: ModuleEvents<QuotesEvents> = {
   "quote.revised": { subject: "quotes", payload: [...QUOTE, "revisionId"] },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_quote_send",
@@ -89,7 +89,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext, n: QuoteNames): string {
+function tables(ctx: BlockSqlContext, n: QuoteNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -142,7 +142,7 @@ using (${ctx.scope.check(q("tenant"), n.read)});
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -178,7 +178,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, n)}${quoteFunctions(ctx, n)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_quote",
@@ -207,7 +207,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const QUOTES: ModuleDefinition = {
+export const QUOTES: BlockSqlDefinition = {
   name: "quotes",
   scopes: ["tenant"],
   title: "Quotes",

@@ -1,6 +1,6 @@
 import type { DbError } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type { Tag, Tags } from "./tags.ts";
 
@@ -20,7 +20,7 @@ export interface TagInputControllerOptions {
   >;
   readonly auth: AuthPort;
   /** The subject whose tags to show; the input waits without one. */
-  readonly subject: SubjectRef | null;
+  readonly subject: RecordRef | null;
   /** The kind of tags the input offers and creates, such as `customer`. */
   readonly kind: string;
   /** Runs after a tag was added or removed. A throw is kept in `error`. */

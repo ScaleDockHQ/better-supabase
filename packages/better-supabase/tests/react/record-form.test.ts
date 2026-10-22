@@ -3,8 +3,8 @@ import type * as ReactModule from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { workItemInputSchema } from "../../src/blocks/work-items/schemas.ts";
-import { useEntityForm } from "../../src/react/entity-form.ts";
-import { entityForm } from "../../src/records/entity-form.ts";
+import { useRecordForm } from "../../src/react/record-form.ts";
+import { recordForm } from "../../src/records/record-form.ts";
 import { renderHook } from "../fixtures/hook-runtime.ts";
 
 // vi.mock factories run before the imports above, so they load modules themselves.
@@ -13,21 +13,21 @@ vi.mock("react", async (importOriginal) => ({
   ...(await import("../fixtures/hook-runtime.ts")).reactHooks,
 }));
 
-const form = entityForm(workItemInputSchema, {
+const form = recordForm(workItemInputSchema, {
   fields: ["title", "priority"],
   customFields: [
     { key: "region", label: "Region", type: "text", required: false },
   ],
 });
 
-describe("useEntityForm", () => {
+describe("useRecordForm", () => {
   it("holds the values, validates on submit and passes the split values on", async () => {
     const submitted: unknown[] = [];
     let prevented = false;
 
     const view = renderHook(
       () =>
-        useEntityForm(form, {
+        useRecordForm(form, {
           initial: { title: "" },
           onSubmit: (values) => {
             submitted.push(values);
@@ -68,7 +68,7 @@ describe("useEntityForm", () => {
 
   it("starts empty without initial values", () => {
     const view = renderHook(
-      () => useEntityForm(form, { onSubmit: () => undefined }),
+      () => useRecordForm(form, { onSubmit: () => undefined }),
       undefined,
     );
 

@@ -2,7 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { ModuleFile } from "../../sql/index.ts";
+import type { BlockSqlFile } from "../../sql/index.ts";
 
 import { moduleSchemaExtensions } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
@@ -19,8 +19,8 @@ export const MODULES_SUFFIX = "_better_supabase_modules.sql";
  */
 export const READ_SETS_SUFFIX = "_better_supabase_read_sets.sql";
 
-const UPGRADE_START = "-- @bs-upgrade-start";
-const UPGRADE_END = "-- @bs-upgrade-end";
+const UPGRADE_START = "-- @bsb-upgrade-start";
+const UPGRADE_END = "-- @bsb-upgrade-end";
 
 /**
  * Whether the project runs the migrations workflow, with no declarative
@@ -35,8 +35,8 @@ export async function writesMigrations(
 }
 
 /** What goes into one module migration. */
-export interface ModuleMigrationParts {
-  readonly files: readonly ModuleFile[];
+export interface BlockSqlMigrationParts {
+  readonly files: readonly BlockSqlFile[];
   /** `sql upgrade` steps, already commented, that run before the schema bodies. */
   readonly upgrade?: readonly string[];
   /** The `realtime.policies` file. */
@@ -45,11 +45,11 @@ export interface ModuleMigrationParts {
 
 /**
  * One migration that holds, in order, the extensions, the upgrade steps, each
- * module's schema body with its `@bs-module` header, the realtime topic
+ * module's schema body with its `@bsb-block` header, the realtime topic
  * policies and the data statements. Every statement is re-runnable, so a later
  * migration carries all of them, not only the changes.
  */
-export function renderModuleMigration(parts: ModuleMigrationParts): string {
+export function renderModuleMigration(parts: BlockSqlMigrationParts): string {
   const schema = parts.files.filter((file) => file.kind === "schema");
   const data = parts.files.filter((file) => file.kind === "data");
   const modules = [...new Set(schema.map((file) => file.module))];
@@ -83,10 +83,7 @@ export function renderModuleMigration(parts: ModuleMigrationParts): string {
 function comparable(text: string): string {
   return text
     .replaceAll("\r\n", "\n")
-    .replace(
-      new RegExp(`\\n\\n${UPGRADE_START}\\n[\\s\\S]*?\\n${UPGRADE_END}`),
-      "",
-    )
+    .replace(/\n\n-- @bsb?-upgrade-start\n[\s\S]*?\n-- @bsb?-upgrade-end/, "")
     .replaceAll(
       /^(-- better-supabase module: [^\n(]*?)(?: \([^)]*\))?$/gm,
       "$1",
@@ -127,10 +124,10 @@ export async function latestMigration(
   };
 }
 
-const MODULE_MARKERS = /^-- @bs-module ([a-z0-9-]+)@(\d+)\b/gm;
+const MODULE_MARKERS = /^-- @(?:bsb-block|bs-module) ([a-z0-9-]+)@(\d+)\b/gm;
 
 /**
- * The modules and versions a module migration installs, from its `@bs-module`
+ * The modules and versions a module migration installs, from its `@bsb-block`
  * lines.
  */
 export function migrationModules(text: string): ReadonlyMap<string, number> {

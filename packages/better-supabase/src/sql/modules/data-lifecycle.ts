@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -36,7 +36,7 @@ import {
 } from "./data-lifecycle-retention.ts";
 import { omitPatternOf, withOmitPattern } from "./data-lifecycle-secrets.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: DATA_LIFECYCLE_EVENTS,
   options: [
     "bucket",
@@ -83,7 +83,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -738,7 +738,7 @@ grant execute on function ${fn("due_organization_deletions")}(integer) to servic
 grant execute on function ${fn("purge_organization")}(${id}) to service_role;`;
 }
 
-function data(ctx: ModuleContext): string {
+function data(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -750,7 +750,7 @@ values (${bucket}, ${bucket}, false)
 on conflict (id) do nothing;`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "data_lifecycle_tables", args: [], returns: "record" },
     ...CREDENTIALS_CONTRACT,
@@ -786,7 +786,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const DATA_LIFECYCLE: ModuleDefinition = {
+export const DATA_LIFECYCLE: BlockSqlDefinition = {
   internal: ["data_export_object_allowed"],
   name: "data-lifecycle",
   scopes: ["tenant"],

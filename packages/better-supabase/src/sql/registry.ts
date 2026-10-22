@@ -1,8 +1,8 @@
 import type { AnyBlocksConfig, BlockScope } from "../config/blocks.ts";
 import type {
-  ModuleDefinition,
-  ModuleLayout,
-  SqlModule,
+  BlockSqlDefinition,
+  BlockSqlLayout,
+  BlockSql,
 } from "./module-types.ts";
 
 import { BLOCK_SCOPES } from "../config/blocks.ts";
@@ -151,7 +151,7 @@ import { WORKFLOW_BUILDER } from "./modules/workflow-builder.ts";
 import { WORKFLOW_SDK_WORLD } from "./modules/workflow-sdk-world.ts";
 import { WORKFLOWS } from "./modules/workflows.ts";
 
-function built(definition: ModuleDefinition): SqlModule {
+function built(definition: BlockSqlDefinition): BlockSql {
   let cached: string | undefined;
 
   return {
@@ -174,7 +174,7 @@ const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
  * The scope `name` runs in for `layout`: its own, then `sql.scope`, then
  * `tenant`.
  */
-export function blockScope(name: string, layout: ModuleLayout): BlockScope {
+export function blockScope(name: string, layout: BlockSqlLayout): BlockScope {
   if (TENANT_PROVIDERS.has(name)) {
     return "tenant";
   }
@@ -183,8 +183,8 @@ export function blockScope(name: string, layout: ModuleLayout): BlockScope {
 }
 
 const requiresOf = (
-  module: SqlModule,
-  layout: ModuleLayout,
+  module: BlockSql,
+  layout: BlockSqlLayout,
 ): readonly string[] => {
   const requires =
     module.dependencies?.(layout) ??
@@ -203,8 +203,8 @@ const requiresOf = (
  * them.
  */
 function scopeProblem(
-  module: SqlModule,
-  layout: ModuleLayout,
+  module: BlockSql,
+  layout: BlockSqlLayout,
 ): string | undefined {
   if (TENANT_PROVIDERS.has(module.name)) {
     return undefined;
@@ -223,7 +223,7 @@ function scopeProblem(
 }
 
 /** New modules go at the end: the position is part of the file name. */
-export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
+export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
   Object.fromEntries(
     [
       built(UPDATED_AT),
@@ -374,23 +374,23 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
 export const ORDER: readonly string[] = Object.keys(SQL_MODULES);
 
 /** Where a module renders: its own position, or just ahead of `before`. */
-function renderPosition(module: SqlModule): number {
+function renderPosition(module: BlockSql): number {
   return module.before === undefined
     ? ORDER.indexOf(module.name)
     : ORDER.indexOf(module.before) - 0.5;
 }
 
-bindModuleRegistry({ modules: SQL_MODULES, resolve: resolveModules });
+bindModuleRegistry({ modules: SQL_MODULES, resolve: resolveBlocks });
 
 /**
  * The modules to install for `names`, dependencies first. Throws on an unknown
  * name.
  */
-export function resolveModules(
+export function resolveBlocks(
   names: readonly string[],
-  layout: ModuleLayout = {},
-): SqlModule[] {
-  const ordered: SqlModule[] = [];
+  layout: BlockSqlLayout = {},
+): BlockSql[] {
+  const ordered: BlockSql[] = [];
 
   const visit = (name: string, from?: string): void => {
     const module = SQL_MODULES[name];
@@ -433,7 +433,7 @@ export function resolveModules(
  */
 export function checkModules(
   config: AnyBlocksConfig = {},
-  registry: Readonly<Record<string, SqlModule>> = SQL_MODULES,
+  registry: Readonly<Record<string, BlockSql>> = SQL_MODULES,
 ): void {
   for (const [name, entry] of Object.entries(config)) {
     const module = registry[name];

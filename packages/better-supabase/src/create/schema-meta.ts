@@ -1,4 +1,4 @@
-import type { ModuleTableSpec } from "../sql/index.ts";
+import type { BlockSqlTableSpec } from "../sql/index.ts";
 import type { SchemaData, SchemaSoftRef, SchemaTable } from "./schema.ts";
 
 import { PRESET_CATALOG } from "../preset/index.ts";
@@ -34,7 +34,7 @@ function indexTables(
 
 function moduleTables(
   module: string,
-): readonly (readonly [string, ModuleTableSpec])[] {
+): readonly (readonly [string, BlockSqlTableSpec])[] {
   return Object.entries(SQL_MODULES[module]?.names?.tables ?? {});
 }
 

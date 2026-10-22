@@ -1,5 +1,5 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import {
   addExtraColumns,
@@ -49,7 +49,7 @@ const RUNS = {
   createdAt: "created_at",
 } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["queue", "staleAfter", "maxPrompt", "extraColumns"],
   tables: {
     tasks: {
@@ -68,7 +68,7 @@ const NAMES: ModuleNames = {
 const QUEUE = /^[a-z_][a-z0-9_]{0,46}$/;
 const INTERVAL = /^\d+ (second|minute|hour|day)s?$/;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const t = columnsOf(ctx, "tasks", TASKS);
@@ -432,7 +432,7 @@ ${serviceGrant(`${fn("finish_ai_task_run")}(uuid, boolean, text, uuid)`)}`;
 
 // Version 1 ended task runs succeeded; version 2 uses completed, the word
 // ai-chat and workflow runs use.
-function upgradeRunStates(ctx: ModuleContext): string {
+function upgradeRunStates(ctx: BlockSqlContext): string {
   const runs = ctx.table("runs");
   const status = ctx.col("runs", "status");
 
@@ -451,7 +451,7 @@ ${replaceColumnCheck({
 })}`;
 }
 
-export const AI_TASKS: ModuleDefinition = {
+export const AI_TASKS: BlockSqlDefinition = {
   name: "ai-tasks",
   scopes: ["tenant"],
   title: "AI scheduled tasks",

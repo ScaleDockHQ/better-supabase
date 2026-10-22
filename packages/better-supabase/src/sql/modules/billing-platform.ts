@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { SERVICE_CALLER, fail } from "../shared.ts";
@@ -13,7 +13,7 @@ const instant = (value: string): string =>
   `(case jsonb_typeof(${value}) when 'number' then to_timestamp((${value})::text::double precision) when 'string' then (${value} #>> '{}')::timestamptz end)`;
 
 export function platformLists(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   viewAll: string,
   plans: PlanLookup | undefined,
 ): string {

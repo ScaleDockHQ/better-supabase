@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { MailProvider } from "../../src/blocks/mail-sync/index.ts";
 import type { CredentialProvider } from "../../src/credentials/provider.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createMailSync } from "../../src/blocks/mail-sync/index.ts";
 import { createParties } from "../../src/blocks/parties/index.ts";
@@ -14,7 +14,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   subjects: withBlockSubjects({}, ["parties"], {}),
 };
 

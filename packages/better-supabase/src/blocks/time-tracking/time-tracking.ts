@@ -10,13 +10,13 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
+import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -70,7 +70,7 @@ export interface TimeEntry<F extends object = Record<never, never>> {
   readonly organizationId: string;
   readonly userId: string;
   /** The record the time is tracked on; `undefined` for an unattached entry. */
-  readonly subject: SubjectRef | undefined;
+  readonly subject: RecordRef | undefined;
   readonly startedAt: Temporal.Instant;
   /** Missing while the timer runs. */
   readonly endedAt?: Temporal.Instant;
@@ -89,7 +89,7 @@ export interface TimeEntry<F extends object = Record<never, never>> {
 /** The record time is tracked on, how it bills, and the extra columns. */
 export interface TimeEntryFields<F extends object = Record<never, never>> {
   /** The record the time is on. Default: none. */
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly billable?: boolean;
   /** The hourly rate, in minor units of its currency. */
   readonly rate?: Money;
@@ -111,7 +111,7 @@ export interface LogTimeInput<
 export interface TimeEntryPatch<F extends object = Record<never, never>> {
   readonly startedAt?: Temporal.Instant;
   readonly endedAt?: Temporal.Instant;
-  readonly subject?: SubjectRef | null;
+  readonly subject?: RecordRef | null;
   readonly billable?: boolean;
   readonly rate?: Money | null;
   readonly note?: string | null;
@@ -129,7 +129,7 @@ export interface TimeEntryListOptions {
   /** Entries that start before this instant. */
   readonly to?: Temporal.Instant;
   /** Entries on this record only. */
-  readonly subject?: SubjectRef;
+  readonly subject?: RecordRef;
   readonly pageSize?: number;
 }
 
@@ -236,7 +236,7 @@ function entryOf(value: unknown, fn: string): TimeEntry {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
     userId: textOf(row["userId"]),
-    subject: optionalSubjectRefOf(row["subjectType"], row["subjectId"]),
+    subject: optionalRecordRefOf(row["subjectType"], row["subjectId"]),
     startedAt: requiredInstant(row["startedAt"], "startedAt"),
     billable: row["billable"] === true,
     createdAt: requiredInstant(row["createdAt"], "createdAt"),

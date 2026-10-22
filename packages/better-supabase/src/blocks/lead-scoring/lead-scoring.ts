@@ -3,7 +3,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { RuleFieldCatalog } from "../rules/fields.ts";
 import type { ComputedScore } from "../scores/scores.ts";
-import type { BlockOptions, SubjectRef } from "../shared.ts";
+import type { BlockOptions, RecordRef } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
@@ -13,13 +13,13 @@ import { applyTemporal, blockCall, isRecord } from "../shared.ts";
 
 export interface LeadScoring {
   /** Scores one person or company under its lead model now. */
-  score(subject: SubjectRef): AsyncResult<ComputedScore>;
+  score(subject: RecordRef): AsyncResult<ComputedScore>;
   /**
    * The values the lead model reads for a record: its columns, `segments`,
    * `mail` and `enrichment`. `null` when there is no such record.
    */
   fields(
-    subject: SubjectRef,
+    subject: RecordRef,
   ): AsyncResult<Readonly<Record<string, unknown>> | null>;
   /**
    * Scores up to `limit` records that changed, or weren't scored for
@@ -79,7 +79,7 @@ export function createLeadScoring(options: LeadScoringOptions): LeadScoring {
 
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
-  const subjectArgs = (organizationId: string, subject: SubjectRef) => ({
+  const subjectArgs = (organizationId: string, subject: RecordRef) => ({
     tenant: organizationId,
     subject_type: subject.type,
     subject_id: subject.id,

@@ -12,7 +12,7 @@ import type { ReadSet } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { TagOptions } from "../core/tags.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
-import type { AnyFunctions, AnyModels, SubjectRef } from "../schema/types.ts";
+import type { AnyFunctions, AnyModels, RecordRef } from "../schema/types.ts";
 import type { AuthOutageHook } from "../server/entries/session.ts";
 import type {
   ActionInput,
@@ -163,7 +163,7 @@ export interface SectionActionTarget<S, Ctx> {
   /** The section to invalidate after the write, such as `"comments"`. */
   readonly section: string;
   /** The record the write is on, from the validated input. */
-  readonly subject: (input: ActionParsed<S>, ctx: Ctx) => SubjectRef;
+  readonly subject: (input: ActionParsed<S>, ctx: Ctx) => RecordRef;
 }
 
 export interface RouteOptions<

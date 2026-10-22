@@ -5,14 +5,14 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import {
   customContracts,
   moduleBody,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
 
-const rendered = (names: Parameters<typeof renderModules>[0]) =>
-  renderModules(names)
+const rendered = (names: Parameters<typeof renderBlocks>[0]) =>
+  renderBlocks(names)
     .filter((file) => file.module === "notifications")
     .map((file) => file.contents)
     .join("\n");

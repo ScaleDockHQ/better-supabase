@@ -1,6 +1,6 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
-export const READ_SETS: ModuleDefinition = {
+export const READ_SETS: BlockSqlDefinition = {
   name: "read-sets",
   title: "Read sets",
   description:

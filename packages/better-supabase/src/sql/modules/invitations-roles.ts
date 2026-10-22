@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -16,7 +16,7 @@ import { roleThrough, roleThroughTable } from "./tenant.ts";
  * given; `roleValue` in other models.
  */
 function roleIn(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   expr: string,
   scope: "tenant" | "platform",
   tenant?: string,
@@ -67,7 +67,7 @@ export interface PlatformAssignment {
  * table also holds the tenant roles of `blocks.tenant.options.roleThrough`.
  * `undefined` when it doesn't.
  */
-export function platformRolesProblem(ctx: ModuleContext): string | undefined {
+export function platformRolesProblem(ctx: BlockSqlContext): string | undefined {
   const through = providerPlatformRoles(ctx)?.through;
 
   if (!through || through.where) {
@@ -81,7 +81,7 @@ export function platformRolesProblem(ctx: ModuleContext): string | undefined {
   return `blocks.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (blocks.tenant.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`;
 }
 
-export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
+export function platformAssignment(ctx: BlockSqlContext): PlatformAssignment {
   const platform = providerPlatformRoles(ctx);
 
   if (platform) {
@@ -150,7 +150,7 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
  * model: with `platformRoles.through.where`, every write (the service role's
  * too) stores a role that the condition names. Removed when `where` is unset.
  */
-export function platformRoleScope(ctx: ModuleContext): string {
+export function platformRoleScope(ctx: BlockSqlContext): string {
   const platform = providerPlatformRoles(ctx);
 
   if (!platform) {
@@ -196,14 +196,14 @@ create trigger ${trigger} before insert or update of ${platform.role} on ${platf
 `;
 }
 
-export const invitePlatform = (ctx: ModuleContext): string =>
+export const invitePlatform = (ctx: BlockSqlContext): string =>
   ctx.permission("invitePlatform", OPERATIONS["invitations.invitePlatform"]);
 
 /**
  * `invitee_role` as the tenant table stores it, within the tenant in the
  * `tenant` variable, and the condition that it is unknown.
  */
-export function tenantRole(ctx: ModuleContext): {
+export function tenantRole(ctx: BlockSqlContext): {
   readonly stored: string;
   readonly unknownRole: string;
 } {

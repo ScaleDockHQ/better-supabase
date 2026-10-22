@@ -1,11 +1,11 @@
 import type { VercelMarketplaceEvents } from "../../blocks/vercel-marketplace/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -17,7 +17,7 @@ import {
   updatedAt,
 } from "../shared.ts";
 
-const EVENTS: ModuleEvents<VercelMarketplaceEvents> = {
+const EVENTS: BlockSqlEvents<VercelMarketplaceEvents> = {
   "marketplace_installation.upserted": {
     subject: "marketplace-installations",
     payload: ["installationId", "configurationId", "teamId"],
@@ -32,7 +32,7 @@ const EVENTS: ModuleEvents<VercelMarketplaceEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: ["currency"],
   tables: {
@@ -123,7 +123,7 @@ const guard = `
     ${fail("MARKETPLACE_FORBIDDEN", "only the service role manages Marketplace installations")}
   end if;`;
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -658,7 +658,7 @@ ${serviceGrant(`${fn("marketplace_resources")}(text)`)}
 ${serviceGrant(`${fn("delete_marketplace_resource")}(text, text)`)}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "upsert_marketplace_installation",
@@ -742,7 +742,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const VERCEL_MARKETPLACE: ModuleDefinition = {
+export const VERCEL_MARKETPLACE: BlockSqlDefinition = {
   name: "vercel-marketplace",
   title: "Vercel Marketplace",
   description:

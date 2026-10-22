@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 
@@ -7,7 +7,7 @@ const MEETING = "meeting";
 
 /** Whether `blocks.engagements.options.bookings` turns the integration on. */
 export function logsBookings(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   types: readonly string[],
 ): boolean {
   if (!ctx.flag("bookings", false)) {
@@ -34,7 +34,7 @@ export function logsBookings(
  * confirmation, moved on a reschedule and closed as cancelled on a
  * cancellation, on the person with the booker's email and their company.
  */
-export function bookingEngagementsSql(ctx: ModuleContext): string {
+export function bookingEngagementsSql(ctx: BlockSqlContext): string {
   const bookings = ctx.of("bookings");
   const t = (table: string): string => ctx.table(table);
   const e = (column: string): string => ctx.col("engagements", column);
@@ -146,8 +146,8 @@ for each row execute function ${fn}();
  * owner when no member made the booking.
  */
 function partyLinksSql(
-  ctx: ModuleContext,
-  parties: ModuleContext,
+  ctx: BlockSqlContext,
+  parties: BlockSqlContext,
   booking: { readonly email: string; readonly user: string },
 ): { readonly declare: string; readonly link: string } {
   const pe = (column: string): string => parties.col("people", column);

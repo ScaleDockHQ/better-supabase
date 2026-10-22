@@ -1,5 +1,5 @@
-import type { ModuleContext, ModuleNames } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -29,7 +29,7 @@ import { assignableRole, checkRole, roleValue } from "./organizations-roles.ts";
 import { memberSuspension } from "./organizations-suspension.ts";
 import { activeTenantSource, roleNameOf } from "./tenant.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: ORGANIZATION_EVENTS,
   options: [
     "assignmentGuard",
@@ -95,7 +95,7 @@ interface OrganizationNames {
   readonly ownerRole: string;
 }
 
-function namesOf(ctx: ModuleContext): OrganizationNames {
+function namesOf(ctx: BlockSqlContext): OrganizationNames {
   const t = ctx.of("tenant");
 
   return {
@@ -110,7 +110,7 @@ function namesOf(ctx: ModuleContext): OrganizationNames {
 }
 
 const isOwner = (
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: OrganizationNames,
   alias: string,
 ): string =>
@@ -118,7 +118,7 @@ const isOwner = (
 
 /** True while the organization exists and is neither deleted nor disabled. */
 function activeOrganization(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: OrganizationNames,
   organization: string,
 ): string {
@@ -132,7 +132,7 @@ function activeOrganization(
   return `exists (select 1 from ${n.organization} o where o.${n.id} = ${organization}${flags}) and not better_supabase.tenant_disabled(${organization})`;
 }
 
-function idColumn(ctx: ModuleContext, column: string): string {
+function idColumn(ctx: BlockSqlContext, column: string): string {
   switch (ctx.idType) {
     case "uuid": {
       return `${column} uuid primary key default gen_random_uuid()`;
@@ -155,7 +155,7 @@ function idColumn(ctx: ModuleContext, column: string): string {
   }
 }
 
-function table(ctx: ModuleContext, n: OrganizationNames): string {
+function table(ctx: BlockSqlContext, n: OrganizationNames): string {
   if (!ctx.manages) {
     return `
 -- Adopted: ${n.organization} belongs to the app (blocks.organizations.tables.organizations).
@@ -195,7 +195,7 @@ create policy ${ctx.naming.rename("bsb_organizations_read")} on ${n.organization
 }
 
 /** `organization_slug_problem(slug)`: `invalid`, `reserved`, `taken` or null. */
-function slugCheck(ctx: ModuleContext, n: OrganizationNames): string {
+function slugCheck(ctx: BlockSqlContext, n: OrganizationNames): string {
   if (!ctx.has("organizations", "slug")) {
     return "";
   }
@@ -251,7 +251,7 @@ grant execute on function ${ctx.fn("organization_slug_problem")}(text, ${ctx.idT
 }
 
 const raiseSlug = (
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   value: string,
   except: string,
 ): string =>
@@ -269,7 +269,7 @@ const raiseSlug = (
  * The columns `create_organization` and `update_organization` copy from
  * `attrs`.
  */
-function attributeColumns(ctx: ModuleContext): readonly string[] {
+function attributeColumns(ctx: BlockSqlContext): readonly string[] {
   const extra = organizationAttributes(ctx).map((column) => sqlIdent(column));
 
   return [
@@ -288,7 +288,7 @@ const unquoted = (ident: string): string =>
 const event = (organization: string, user: string, extra = ""): string =>
   `jsonb_build_object('organizationId', ${organization}::text, 'userId', ${user}${extra})`;
 
-function create(ctx: ModuleContext, n: OrganizationNames): string {
+function create(ctx: BlockSqlContext, n: OrganizationNames): string {
   const id = ctx.idType;
   const columns = attributeColumns(ctx);
   const fixed = ctx.has("organizations", "slug") ? 2 : 1;
@@ -421,7 +421,7 @@ $$;
  * role. Nothing when unset.
  */
 function platformOverride(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   action:
     | "updatePlatform"
     | "deletePlatform"
@@ -439,7 +439,7 @@ function platformOverride(
  * When the module owns the organizations table, the tenant rows of memberships,
  * invitations and permission overrides go with their organization.
  */
-function tenantKeys(ctx: ModuleContext, n: OrganizationNames): string {
+function tenantKeys(ctx: BlockSqlContext, n: OrganizationNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -501,7 +501,7 @@ ${keys.join("\n")}
 }
 
 /** The deferred owner check and the role guard on the memberships table. */
-function guards(ctx: ModuleContext, n: OrganizationNames): string {
+function guards(ctx: BlockSqlContext, n: OrganizationNames): string {
   const disabledAt = membershipDisabledAt(ctx);
 
   const invariant = ctx.flag("ownerInvariant", true)
@@ -618,7 +618,7 @@ revoke execute on function ${ctx.fn("guard_membership")}() from public, anon, au
   return `${invariant}${ceiling}`;
 }
 
-function members(ctx: ModuleContext, n: OrganizationNames): string {
+function members(ctx: BlockSqlContext, n: OrganizationNames): string {
   const id = ctx.idType;
   const p = moduleOperations("organizations");
 
@@ -810,7 +810,7 @@ $$;
  * \`app_metadata\` and returns refresh = true, so the client refreshes its
  * session.
  */
-function switcher(ctx: ModuleContext, n: OrganizationNames): string {
+function switcher(ctx: BlockSqlContext, n: OrganizationNames): string {
   const source = activeTenantSource(ctx);
   let write: string;
   let refresh = "false";
@@ -880,7 +880,7 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
 
 /** The module's functions, without delete_organization under deleteMode "none". */
 const functionsOf = (
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   id: string,
 ): readonly (readonly [string, string])[] => [
   ...FUNCTIONS(id).filter(
@@ -897,7 +897,7 @@ const functionsOf = (
       ] as const)),
 ];
 
-function organizationsSql(ctx: ModuleContext): string {
+function organizationsSql(ctx: BlockSqlContext): string {
   const n = namesOf(ctx);
 
   const grants = functionsOf(ctx, ctx.idType)
@@ -926,7 +926,7 @@ ${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${orga
 ${grants}`;
 }
 
-export const ORGANIZATIONS: ModuleDefinition = {
+export const ORGANIZATIONS: BlockSqlDefinition = {
   internal: ["guard_membership_role"],
   name: "organizations",
   scopes: ["tenant"],

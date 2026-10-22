@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, triggerGrant } from "../shared.ts";
@@ -8,7 +8,7 @@ import { moduleOperations } from "./access-model.ts";
  * The subject type moderation reports messages under, when both modules are
  * managed: the message entity's name (`message` by default).
  */
-export function moderatedMessageType(ctx: ModuleContext): string | undefined {
+export function moderatedMessageType(ctx: BlockSqlContext): string | undefined {
   if (!ctx.installed("messaging") || !ctx.installed("moderation")) {
     return undefined;
   }
@@ -27,7 +27,7 @@ export function moderatedMessageType(ctx: ModuleContext): string | undefined {
  * pending messages stay readable only to their author and moderators, and
  * banned members can't send.
  */
-export function messagingModeration(ctx: ModuleContext): string {
+export function messagingModeration(ctx: BlockSqlContext): string {
   const type = moderatedMessageType(ctx);
 
   if (type === undefined) {

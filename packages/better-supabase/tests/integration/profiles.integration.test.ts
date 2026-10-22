@@ -3,7 +3,7 @@ import type { PoolClient } from "pg";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import {
   avatarBucket,
   organizationLogoBucket,
@@ -93,7 +93,7 @@ describe.skipIf(!live)("profiles", () => {
         },
       };
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["tenant", "access", "profiles"],
         layout,
       )) {
@@ -308,7 +308,7 @@ describe.skipIf(!live)("profiles", () => {
         },
       };
 
-      for (const file of renderModules(["profiles"], layout)) {
+      for (const file of renderBlocks(["profiles"], layout)) {
         await client.query(file.contents);
       }
 
@@ -390,7 +390,7 @@ describe.skipIf(!live)("profiles", () => {
         },
       };
 
-      for (const file of renderModules(["profiles"], layout)) {
+      for (const file of renderBlocks(["profiles"], layout)) {
         await client.query(file.contents);
       }
 
@@ -429,7 +429,7 @@ describe.skipIf(!live)("profiles", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "tenant", "access"],
         {},
       )) {

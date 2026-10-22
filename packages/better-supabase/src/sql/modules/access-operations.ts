@@ -1,5 +1,5 @@
-import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
+import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 import type { OperationModule } from "./access-model.ts";
 
 import { operationPermission } from "../../core/operations.ts";
@@ -20,8 +20,8 @@ const isOperationModule = (name: string): name is OperationModule =>
  * provider's `authorization.operations` over them.
  */
 function operationKeys(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): ReadonlyMap<string, string> {
   const keys = new Map<string, string>();
 
@@ -62,8 +62,8 @@ function operationKeys(
  * nobody declared.
  */
 export function operationsSql(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
 ): string {
   const keys = [...operationKeys(ctx, layout)].toSorted(([a], [b]) =>
     a.localeCompare(b),

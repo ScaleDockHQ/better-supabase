@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthSnapshot } from "../../src/client/index.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
 import type { ClientLike } from "../../src/react/hooks.ts";
-import type { SubjectRef } from "../../src/schema/types.ts";
+import type { RecordRef } from "../../src/schema/types.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
@@ -28,8 +28,8 @@ interface Note {
 }
 
 interface Notes {
-  list(subject: SubjectRef): AsyncResult<readonly Note[]>;
-  add(subject: SubjectRef, body: string): AsyncResult<Note>;
+  list(subject: RecordRef): AsyncResult<readonly Note[]>;
+  add(subject: RecordRef, body: string): AsyncResult<Note>;
 }
 
 const AT = Temporal.Instant.from("2026-10-21T10:00:00Z");
@@ -62,7 +62,7 @@ const notesBlock = defineBlock({
           }),
           run: (
             client: Notes,
-            subject: SubjectRef,
+            subject: RecordRef,
             input: { readonly body: string },
           ) => client.add(subject, input.body),
         },

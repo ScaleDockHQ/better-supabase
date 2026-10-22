@@ -1,7 +1,11 @@
 import type { InboxEvents } from "../../blocks/inbox/events.ts";
 import type { OperationTable } from "../../core/operations.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleOperations } from "./access-model.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlOperations } from "./access-model.ts";
 
 import {
   OPERATION_PREFIXES,
@@ -12,7 +16,7 @@ import { fail, SERVICE_CALLER } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { messagingSql } from "./messaging-names.ts";
 
-const EVENTS: ModuleEvents<InboxEvents> = {
+const EVENTS: BlockSqlEvents<InboxEvents> = {
   "inbox_conversation.reopened": {
     subject: "conversations",
     payload: [
@@ -82,7 +86,7 @@ const EVENTS: ModuleEvents<InboxEvents> = {
   },
 };
 
-export const INBOX_NAMES: ModuleNames = {
+export const INBOX_NAMES: BlockSqlNames = {
   events: EVENTS,
   options: [
     "topic",
@@ -294,14 +298,14 @@ export const INBOX_NAMES: ModuleNames = {
   ],
 };
 
-type Action = keyof ModuleOperations<"inbox">;
+type Action = keyof BlockSqlOperations<"inbox">;
 
 const NAME = /^[a-z][a-z0-9_-]{0,30}$/;
 const QUEUE = /^[a-z][a-z0-9_]{0,40}$/;
 
 /** The table, column and permission helpers the inbox SQL shares. */
 export interface InboxSql {
-  readonly ctx: ModuleContext;
+  readonly ctx: BlockSqlContext;
   readonly id: string;
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
@@ -331,7 +335,7 @@ export interface InboxSql {
   readonly scheduleQueue: string;
   /** The messaging core, which holds the conversations and messages. */
   readonly core: {
-    readonly ctx: ModuleContext;
+    readonly ctx: BlockSqlContext;
     readonly t: (table: string) => string;
     readonly cols: (table: string) => (column: string) => string;
     readonly fn: (name: string) => string;
@@ -348,7 +352,7 @@ export interface InboxSql {
 export type InboxCommand = "assign" | "set_status" | "set_bot_mode" | "reply";
 
 export function inboxSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   operations?: OperationTable,
 ): InboxSql {
   const permissions = moduleOperations("inbox");

@@ -4,14 +4,14 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { InvitationSent } from "../../src/blocks/organizations/index.ts";
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createOrganizations,
   sqlTransport,
 } from "../../src/blocks/organizations/index.ts";
 import { EventHub } from "../../src/core/events.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 const dbUrl = stackDbUrl();
@@ -43,7 +43,7 @@ const live = await reachable();
 const testProvider = (
   schema: string,
   forUser = false,
-): NonNullable<ModuleLayout["accessProvider"]> => ({
+): NonNullable<BlockSqlLayout["accessProvider"]> => ({
   name: "test",
   scope: "organization",
   idType: "uuid",
@@ -92,7 +92,7 @@ const savepointSql = (client: PoolClient) => ({
   },
 });
 
-const LAYOUT: ModuleLayout = {
+const LAYOUT: BlockSqlLayout = {
   modules: {
     organizations: { options: { reservedSlugs: ["admin"] } },
     invitations: { options: { prefill: true } },
@@ -173,7 +173,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "invitations"],
         LAYOUT,
       )) {
@@ -341,7 +341,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       }
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         modules: {
           access: {
             activeTenant: "claim",
@@ -354,7 +354,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderModules(["organizations"], layout)) {
+      for (const file of renderBlocks(["organizations"], layout)) {
         await client.query(file.contents);
       }
 
@@ -467,7 +467,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       }
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         modules: {
           access: { ...module, model: "catalog" },
           tenant: module,
@@ -476,7 +476,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "invitations"],
         layout,
       )) {
@@ -589,7 +589,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         grant select on ${schema}.team_members, ${schema}.team_roles to authenticated;
       `);
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         modules: {
           access: { schema },
           tenant: {
@@ -616,7 +616,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "invitations"],
         layout,
       )) {
@@ -703,7 +703,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       `);
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         modules: {
           access: { schema },
           tenant: {
@@ -716,7 +716,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderModules(["organizations"], layout)) {
+      for (const file of renderBlocks(["organizations"], layout)) {
         await client.query(file.contents);
       }
 
@@ -791,7 +791,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           language sql stable as $$ select role <> 'superadmin' $$;
       `);
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         accessProvider: testProvider(schema),
         modules: {
           access: { model: "provider" },
@@ -820,7 +820,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderModules(["invitations"], layout)) {
+      for (const file of renderBlocks(["invitations"], layout)) {
         await client.query(file.contents);
       }
 
@@ -920,7 +920,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           language sql stable as $$ select p_user = '${USERS.owner}' $$;
       `);
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         accessProvider: testProvider(schema, true),
         modules: {
           access: { model: "provider" },
@@ -949,7 +949,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderModules(["invitations"], layout)) {
+      for (const file of renderBlocks(["invitations"], layout)) {
         await client.query(file.contents);
       }
 
@@ -1109,7 +1109,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           language sql stable as $$ select p_role <> 'owner' and p_user <> '${USERS.admin}' $$;
       `);
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         accessProvider: testProvider(schema, true),
         modules: {
           access: { model: "provider" },
@@ -1123,7 +1123,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderModules(["invitations"], layout)) {
+      for (const file of renderBlocks(["invitations"], layout)) {
         await client.query(file.contents);
       }
 
@@ -1177,7 +1177,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         create function ${api}.guard_membership_role(uuid, uuid, text, uuid, text) returns void
           language sql as $$ select $$;`);
 
-      for (const file of renderModules(["organizations", "invitations"], {
+      for (const file of renderBlocks(["organizations", "invitations"], {
         modules: { organizations: { api }, invitations: { api } },
       })) {
         await client.query(file.contents);
@@ -1225,7 +1225,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "invitations"],
         LAYOUT,
       )) {
@@ -1369,7 +1369,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         create function ${schema}.invitation_preview_extra(invitation uuid) returns jsonb
           language sql stable as $$ select jsonb_build_object('roleLabel', 'Team member', 'invitation', invitation) $$;`);
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         modules: {
           access: { schema },
           tenant: { schema },
@@ -1383,7 +1383,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "invitations", "reserved-slugs", "profiles"],
         layout,
       )) {
@@ -1509,7 +1509,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       }
 
-      const layout: ModuleLayout = {
+      const layout: BlockSqlLayout = {
         modules: {
           access: { ...module, model: "catalog" },
           tenant: module,
@@ -1518,7 +1518,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         },
       };
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "invitations"],
         layout,
       )) {
@@ -1642,7 +1642,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
       }
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "invitations"],
         LAYOUT,
       )) {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
-const sql = renderModules(["actor"], {})
+const sql = renderBlocks(["actor"], {})
   .filter((file) => file.module === "actor")
   .map((file) => file.contents)
   .join("\n");

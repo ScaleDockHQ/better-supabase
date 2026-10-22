@@ -1,6 +1,6 @@
 import type { SubjectConfig } from "../config/types/subjects.ts";
-import type { ModuleContext } from "./context.ts";
-import type { ModuleAccessProvider } from "./module-types.ts";
+import type { BlockSqlContext } from "./context.ts";
+import type { BlockSqlAccessProvider } from "./module-types.ts";
 import type { GuestAction } from "./scope.ts";
 
 import { fillTemplate } from "../core/access-sql.ts";
@@ -93,7 +93,7 @@ function fromRegistry(
  * can hold.
  */
 function rawSubjects(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   where: string,
   extraKeys: readonly string[],
   allow: {
@@ -163,7 +163,7 @@ function rawSubjects(
 }
 
 function withAlways(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   raw: Record<string, unknown>,
   extraKeys: readonly string[],
   always: ((entry: SubjectConfig) => boolean) | undefined,
@@ -185,7 +185,7 @@ function withAlways(
  * to the app-wide `config.subjects` registry.
  */
 export function subjectsOption(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   extraKeys: readonly string[] = [],
   allow: {
     readonly tenantless?: boolean;
@@ -318,7 +318,7 @@ export interface SubjectTableBinding {
  * `columns` are required; `optional` may be omitted.
  */
 function subjectTableBinding(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   type: string,
   subject: Subject,
   key: string,
@@ -400,7 +400,7 @@ function subjectTableBinding(
 
 /** Every subject table binding `key` declares, for adopt-mode column checks. */
 export function subjectTableBindings(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   subjects: readonly (readonly [string, Subject])[],
   key: string,
   spec: {
@@ -421,7 +421,7 @@ export function subjectTableBindings(
  * permission. `true` without `subjects`, `false` for an unlisted type.
  */
 export function subjectReadable(
-  ctx: Pick<ModuleContext, "scope" | "naming">,
+  ctx: Pick<BlockSqlContext, "scope" | "naming">,
   subjects: readonly (readonly [string, Subject])[],
   args: { readonly type: string; readonly id: string; readonly tenant: string },
   options: {
@@ -478,7 +478,7 @@ export function subjectReadable(
  * `tenant: false`.
  */
 export function subjectCascades(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   subjects: readonly (readonly [string, Subject])[],
   remove: string,
   options: { readonly tenant?: boolean } = {},
@@ -562,13 +562,13 @@ export interface SubjectAccess<A extends string> {
  * the record counts as well as one on the tenant).
  */
 export function subjectAccess<A extends string>(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   options: {
     readonly subjects: readonly (readonly [string, Subject])[];
     readonly actions: readonly A[];
     /** The module's key for an action, as a SQL literal. */
     readonly permission: (action: A) => string;
-    readonly provider: ModuleAccessProvider | undefined;
+    readonly provider: BlockSqlAccessProvider | undefined;
     /**
      * The guest action each module action needs (ADR 0070): a guest granted it
      * on the record passes the check without being a member.
@@ -743,8 +743,8 @@ export function subjectAccess<A extends string>(
 
 /** `options.subjects.<type>.scope`, checked against the provider's scopes. */
 function subjectScope(
-  ctx: ModuleContext,
-  provider: ModuleAccessProvider | undefined,
+  ctx: BlockSqlContext,
+  provider: BlockSqlAccessProvider | undefined,
   type: string,
   subject: Subject,
 ): string | undefined {

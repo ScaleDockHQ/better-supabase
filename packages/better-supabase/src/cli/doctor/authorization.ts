@@ -2,7 +2,7 @@ import type {
   AuthorizationProvider,
   ResolvedConfig,
 } from "../../config/index.ts";
-import type { ModuleEntitlementsProvider } from "../../sql/index.ts";
+import type { BlockSqlEntitlementsProvider } from "../../sql/index.ts";
 import type {
   AccessProviderMode,
   ProviderRequirement,
@@ -11,7 +11,7 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import {
   modulePermissionKeys,
-  resolveModules,
+  resolveBlocks,
   SQL_MODULES,
 } from "../../sql/index.ts";
 import {
@@ -319,7 +319,7 @@ function placementProblems(
  */
 export function entitlementsModule(
   context: Pick<DoctorContext, "config">,
-): ModuleEntitlementsProvider | undefined {
+): BlockSqlEntitlementsProvider | undefined {
   const mode = entitlementsMode(context.config);
 
   return mode.kind === "provider" ? mode.provider : undefined;
@@ -333,7 +333,7 @@ export function accessModule(
   context: Pick<DoctorContext, "config">,
 ): AccessProviderMode {
   if (
-    !resolveModules(context.config.blockNames, {}).some(
+    !resolveBlocks(context.config.blockNames, {}).some(
       (module) => module.name === "access",
     )
   ) {

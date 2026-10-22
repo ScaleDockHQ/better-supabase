@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   options: Record<string, unknown> = {},
-  extra: ModuleLayout = {},
+  extra: BlockSqlLayout = {},
 ): string =>
-  renderModules(["metrics"], {
+  renderBlocks(["metrics"], {
     ...extra,
     modules: {
       ...extra.modules,
@@ -58,7 +58,7 @@ describe("metrics module", () => {
   });
 
   it("skips a subject's soft-deleted rows unless the metric opts out", () => {
-    const layout: ModuleLayout = {
+    const layout: BlockSqlLayout = {
       subjects: { order: { table: "shop.orders", deletedAt: "archived_at" } },
     };
 

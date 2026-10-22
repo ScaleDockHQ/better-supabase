@@ -1,6 +1,10 @@
 import type { OrganizationsEvents } from "../../blocks/organizations/events.ts";
-import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { InviteTable } from "./invitations-tables.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -50,7 +54,7 @@ import {
 import { assignableRole, roleValue } from "./organizations-roles.ts";
 import { roleThrough } from "./tenant.ts";
 
-const EVENTS: ModuleEvents<OrganizationsEvents> = {
+const EVENTS: BlockSqlEvents<OrganizationsEvents> = {
   "invitation.created": {
     subject: "invitations",
     payload: ["invitationId", "organizationId", "email", "role"],
@@ -81,7 +85,7 @@ const EVENTS: ModuleEvents<OrganizationsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: [
     "maxValidFor",
@@ -135,7 +139,7 @@ const NAMES: ModuleNames = {
   ],
 };
 
-function tenantTableSql(ctx: ModuleContext): string {
+function tenantTableSql(ctx: BlockSqlContext): string {
   const t = tenantTable(ctx);
   const c = (logical: string) => t.col(logical);
 
@@ -204,7 +208,7 @@ create policy bsb_invitations_read on ${t.table} for select to authenticated
 `;
 }
 
-function platformTableSql(ctx: ModuleContext): string {
+function platformTableSql(ctx: BlockSqlContext): string {
   const p = platformTable(ctx);
 
   if (!p || !ctx.manages) {
@@ -260,7 +264,7 @@ create policy bsb_platform_invitations_read on ${p.table} for select to authenti
  * Raises unless `valid_for` is positive and at most
  * `blocks.invitations.options.maxValidFor`.
  */
-function validity(ctx: ModuleContext): string {
+function validity(ctx: BlockSqlContext): string {
   const max = sqlString(ctx.text("maxValidFor", "30 days"));
 
   return `if valid_for is null or valid_for <= interval '0' or valid_for > ${max}::interval then
@@ -269,7 +273,7 @@ function validity(ctx: ModuleContext): string {
 }
 
 function platformInvite(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   p: InviteTable | undefined,
 ): string {
   const fail = raise;
@@ -325,7 +329,7 @@ function platformInvite(
     return ${inviteJson(ctx, p, "platform_created", "token", null)};`;
 }
 
-function invite(ctx: ModuleContext): string {
+function invite(ctx: BlockSqlContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);
@@ -484,13 +488,13 @@ $$;
  * Whether the caller may manage tenant invitation row `alias` (revoke and
  * resend).
  */
-function canManage(ctx: ModuleContext, alias: string): string {
+function canManage(ctx: BlockSqlContext, alias: string): string {
   const tenant = `${alias}.${ctx.col("invitations", "tenant")}`;
 
   return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${modulePermission(ctx, "revoke", OPERATIONS["invitations.revoke"])}), false)`;
 }
 
-function close(ctx: ModuleContext): string {
+function close(ctx: BlockSqlContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
 
@@ -612,7 +616,7 @@ $$;
 }
 
 /** `invitation_preview(token)`: what the accept page shows before sign-in. */
-function preview(ctx: ModuleContext): string {
+function preview(ctx: BlockSqlContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   const c = (logical: string) => `i.${t.col(logical)}`;
@@ -670,8 +674,8 @@ $$;
 }
 
 function accept(
-  ctx: ModuleContext,
-  layout: ModuleLayout,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
   by: "token" | "id" = "token",
 ): string {
   const t = tenantTable(ctx);
@@ -866,7 +870,7 @@ $$;
 `;
 }
 
-function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
+function invitationsSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const id = ctx.idType;
 
   const grant = (
@@ -893,7 +897,7 @@ ${grant("decline_invitation_by_id", "uuid", "authenticated")}
 ${grant("my_invitations", "", "authenticated")}`;
 }
 
-export const INVITATIONS: ModuleDefinition = {
+export const INVITATIONS: BlockSqlDefinition = {
   internal: ["invitation_tenant_ids", "platform_invitations_readable"],
   name: "invitations",
   scopes: ["tenant"],

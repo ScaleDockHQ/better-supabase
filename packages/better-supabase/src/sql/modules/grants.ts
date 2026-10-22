@@ -1,10 +1,10 @@
-import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { hasColumnExclusions } from "../expose-columns.ts";
 import { quotedTable } from "../shared.ts";
 
-export const GRANTS: ModuleDefinition = {
+export const GRANTS: BlockSqlDefinition = {
   name: "grants",
   names: { tables: {}, options: ["fromPolicies"] },
   title: "Data API grants",
@@ -83,7 +83,7 @@ const keyOf = (name: string): string =>
  * also revokes from `public` and `service_role`, and leaves RLS to the module
  * that declares the table.
  */
-function tableGrants(layout: ModuleLayout): string {
+function tableGrants(layout: BlockSqlLayout): string {
   const listed = layout.grants ?? [];
   const named = new Set(listed.map((grant) => keyOf(grant.table)));
 

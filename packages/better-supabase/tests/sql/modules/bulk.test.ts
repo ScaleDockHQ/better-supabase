@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   modules: readonly string[] = ["bulk"],
   options: Record<string, unknown> = {},
 ): string =>
-  renderModules(modules, { modules: { bulk: { options } } })
+  renderBlocks(modules, { modules: { bulk: { options } } })
     .filter((file) => file.module === "bulk")
     .map((file) => file.contents)
     .join("\n");
@@ -28,7 +28,7 @@ describe("bulk module", () => {
   });
 
   it("knows appTables.set when the app has tables", () => {
-    const sql = renderModules(["bulk"], {
+    const sql = renderBlocks(["bulk"], {
       appTables: { tasks: { subject: { type: "task" } } },
     })
       .filter((file) => file.module === "bulk")

@@ -134,7 +134,7 @@ fails with `invalid_request` and the hint `TENANT_REQUIRED` before it reaches
 the database. The SQL functions still check that the caller belongs to that
 organization.
 
-Each of these methods takes the record it works on as a `SubjectRef`,
+Each of these methods takes the record it works on as a `RecordRef`,
 `{ type, id }`, and its rows carry it as `subject`. Batch methods such as
 `comments.counts(subjects)` and `reactions.summary(subjects)` return a record
 keyed `type:id`, which `subjectKey(subject)` from `better-supabase/blocks`

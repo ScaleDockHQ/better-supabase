@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { ModuleLayout } from "../../sql/index.ts";
+import type { BlockSqlLayout } from "../../sql/index.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
 import type { PeerVersion } from "../peers.ts";
 import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
@@ -13,8 +13,8 @@ import type { LocalStackCheck } from "./stacks.ts";
 
 import {
   moduleFileVersion,
-  moduleVersion,
-  sameModuleFile,
+  blockSqlVersion,
+  sameBlockFile,
   SQL_MODULES,
 } from "../../sql/index.ts";
 import { defineBucket, parseSize } from "../../storage/index.ts";
@@ -110,7 +110,7 @@ export interface DoctorContext {
   /** App source files matched by `doctor.sources`. */
   readonly sources: readonly TextFile[];
   /** `config.readSets`, compiled, or why they could not be loaded. */
-  readonly readSets?: ModuleLayout["readSets"] | { readonly skipped: string };
+  readonly readSets?: BlockSqlLayout["readSets"] | { readonly skipped: string };
   /**
    * Supabase advisors for the database being checked, or why they were skipped
    * (a saved snapshot has no database to lint).
@@ -190,9 +190,15 @@ async function moduleVersionsBehind(
   let rows: { name: string; version: number }[];
 
   try {
-    rows = await db.query("select name, version from better_supabase.modules");
+    rows = await db.query("select name, version from better_supabase.blocks");
   } catch {
-    return findings;
+    try {
+      rows = await db.query(
+        "select name, version from better_supabase.modules",
+      );
+    } catch {
+      return findings;
+    }
   }
 
   for (const row of rows) {
@@ -202,7 +208,7 @@ async function moduleVersionsBehind(
       continue;
     }
 
-    const version = moduleVersion(module);
+    const version = blockSqlVersion(module);
 
     if (row.version >= version) {
       continue;
@@ -210,7 +216,7 @@ async function moduleVersionsBehind(
 
     findings.push({
       message: `The database has ${row.name} version ${String(row.version)}; this release ships version ${String(version)}. ${upgrade} and apply the migrations it prints.`,
-      target: `better_supabase.modules.${row.name}`,
+      target: `better_supabase.blocks.${row.name}`,
     });
   }
 
@@ -771,7 +777,7 @@ const OWN_RULES: readonly Rule[] = [
       for (const { file, path, current, behind } of await moduleFiles(
         context,
       )) {
-        if (behind || sameModuleFile(current, file.contents)) {
+        if (behind || sameBlockFile(current, file.contents)) {
           continue;
         }
 
@@ -923,7 +929,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "SQL module behind its current version",
     description:
-      "A module file or `better_supabase.modules` records an older module version than this release ships. Same check as `sql upgrade --check`.",
+      "A block file or `better_supabase.blocks` records an older module version than this release ships. Same check as `sql upgrade --check`.",
     check: moduleVersionsBehind,
   },
   {

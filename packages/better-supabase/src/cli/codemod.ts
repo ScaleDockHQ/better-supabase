@@ -217,6 +217,23 @@ const SQL_ADD_HINT: ReviewHint = {
     "`sql add` still only writes the block's SQL; `add` also wires its clients and config. Use `add` unless the script needs the SQL alone",
 };
 
+const BLOCK_SQL_TYPES =
+  "Context ContractFunction Names Layout File IdType AccessProvider EntitlementsProvider TableSpec Upgrade PermissionKey Audit Deprecation Extension Emit UpgradePlan Topic TestFile Action";
+
+const ENTITY_FORM_TYPES =
+  " CustomField Field Input Options Result State Values";
+
+/** `from` and `to` prefixed to each space-separated suffix in `suffixes`. */
+function prefixed(
+  from: string,
+  to: string,
+  suffixes: string,
+): Record<string, string> {
+  return Object.fromEntries(
+    suffixes.split(" ").map((suffix) => [from + suffix, to + suffix]),
+  );
+}
+
 export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.4": {
     name: "0.4",
@@ -480,8 +497,36 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.15": {
     name: "0.15",
     description:
-      "Renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; cache tags, query keys and the debug header and route that start with bs are listed for review",
-    bindings: { bs: "bsb" },
+      "Renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; cache tags, query keys and the debug header and route that start with bs are listed for review",
+    bindings: {
+      bs: "bsb",
+      SqlModule: "BlockSql",
+      ModuleDefinition: "BlockSqlDefinition",
+      ...prefixed("Module", "BlockSql", BLOCK_SQL_TYPES),
+      ...prefixed("EntityForm", "RecordForm", ENTITY_FORM_TYPES),
+      renderModules: "renderBlocks",
+      resolveModules: "resolveBlocks",
+      resolveModule: "resolveBlock",
+      isModuleIdType: "isBlockSqlIdType",
+      sameModuleFile: "sameBlockFile",
+      InstalledModule: "InstalledBlock",
+      SkippedModule: "SkippedBlock",
+      SubjectRef: "RecordRef",
+      entityForm: "recordForm",
+      useEntityForm: "useRecordForm",
+      UseEntityFormOptions: "UseRecordFormOptions",
+      ShipmentCarrier: "ShippingProvider",
+      testShipmentCarrier: "testShippingProvider",
+      TestShipmentCarrierOptions: "TestShippingProviderOptions",
+      QueueBackend: "QueueProvider",
+      sqlQueueBackend: "sqlQueueProvider",
+      testQueueBackend: "testQueueProvider",
+      transportQueueBackend: "transportQueueProvider",
+      vercelQueueBackend: "vercelQueueProvider",
+      TestQueueBackendOptions: "TestQueueProviderOptions",
+      TransportQueueBackendOptions: "TransportQueueProviderOptions",
+      VercelQueueBackendOptions: "VercelQueueProviderOptions",
+    },
     members: [{ from: "bs", to: "bsb" }],
     review: [
       {
@@ -526,7 +571,7 @@ function renameBindings(
       const name = escapeRegExp(from);
 
       const declared = new RegExp(
-        `\\b(?:const|let|var|function)\\s+${name}(?![\\w$])|[{,]\\s*${name}\\s*(?:[,}]|as\\b)|\\(\\s*${name}\\s*[:,)]`,
+        `\\b(?:const|let|var|function)\\s+${name}(?![\\w$])|[{,]\\s*(?:type\\s+)?${name}\\s*(?:[,}]|as\\b)|\\(\\s*${name}\\s*[:,)]`,
         "g",
       );
 

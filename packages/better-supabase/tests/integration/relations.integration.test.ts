@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
 import { createRelations } from "../../src/blocks/relations/index.ts";
@@ -13,7 +13,7 @@ const live = await reachable();
 
 const OTHER_ORG = "00000000-0000-4000-8000-0000000000ff";
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   modules: {
     relations: {
       schema: "rel_it",

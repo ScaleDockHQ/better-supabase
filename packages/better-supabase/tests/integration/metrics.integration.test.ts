@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
   createMetrics,
@@ -50,7 +50,7 @@ const apiCalls = defineMetric({
   permission: "metrics.manage",
 });
 
-const layout: ModuleLayout = {
+const layout: BlockSqlLayout = {
   modules: {
     metrics: { options: { metrics: [orders, revenue, basket, apiCalls] } },
   },

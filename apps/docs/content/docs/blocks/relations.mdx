@@ -78,7 +78,7 @@ await relations.unlink(
 );
 ```
 
-The ends are `SubjectRef`s, `{ type, id }`, and every call acts in the
+The ends are `RecordRef`s, `{ type, id }`, and every call acts in the
 block's `tenant`, an organization id or a function that returns the current
 one. `createBlocks` and `createBlockClient` pass the request's tenant; a call
 without one fails with `invalid_request` and the hint `TENANT_REQUIRED`.

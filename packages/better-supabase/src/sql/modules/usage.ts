@@ -1,9 +1,9 @@
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -36,7 +36,7 @@ import {
   publicCatalog,
 } from "./usage-meters.ts";
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   options: ["meters", "history", "partitioned"],
   hooks: ["usage_billing_period"],
   tables: {
@@ -104,7 +104,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -920,11 +920,11 @@ grant execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeri
 ${usageKindsSql(ctx)}`;
 }
 
-function data(ctx: ModuleContext): string {
+function data(ctx: BlockSqlContext): string {
   return ctx.mode === "custom" ? "" : usageRefreshSchedule(ctx);
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     ...usageKindsContract(ctx),
     { name: "usage_status", args: ["{id}", "text"], returns: "jsonb" },
@@ -975,7 +975,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const USAGE: ModuleDefinition = {
+export const USAGE: BlockSqlDefinition = {
   name: "usage",
   scopes: ["tenant"],
   title: "Usage metering and quotas",

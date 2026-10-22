@@ -1,11 +1,11 @@
 import type { HiringEvents } from "../../blocks/hiring/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -31,7 +31,7 @@ const APPLICATION = [
   "candidateId",
 ] as const;
 
-const EVENTS: ModuleEvents<HiringEvents> = {
+const EVENTS: BlockSqlEvents<HiringEvents> = {
   "job.opened": {
     subject: "jobs",
     payload: ["organizationId", "jobId", "title"],
@@ -60,7 +60,7 @@ const EVENTS: ModuleEvents<HiringEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_application_hire", "after_application_hire"],
   options: ["candidate", "extraColumns"],
@@ -140,7 +140,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -535,7 +535,7 @@ ${userGrant(`${fn("application_detail")}(uuid)`)}
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_job", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     {
@@ -562,7 +562,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const HIRING: ModuleDefinition = {
+export const HIRING: BlockSqlDefinition = {
   name: "hiring",
   scopes: ["tenant"],
   title: "Hiring",

@@ -1,9 +1,9 @@
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { ACTING_MEMBER, actorWriteFunctions } from "../actor-guard.ts";
 import { SCHEMA } from "../shared.ts";
 
-export const ACTOR: ModuleDefinition = {
+export const ACTOR: BlockSqlDefinition = {
   name: "actor",
   title: "Actor stamping",
   description:

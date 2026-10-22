@@ -25,7 +25,7 @@ byDoc[`doc:${docId}`]; // the doc's ReactionCount[]
 await reactions.react(doc, "👍", { present: false }).orThrow();
 ```
 
-Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A subject is a `SubjectRef`, `{ type, id }`. `summary(subjects)` takes up to 200 subjects of each type and returns their reactions keyed `type:id` (`subjectKey(subject)` from `better-supabase/blocks`); a subject without reactions may be left out.
+Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A subject is a `RecordRef`, `{ type, id }`. `summary(subjects)` takes up to 200 subjects of each type and returns their reactions keyed `type:id` (`subjectKey(subject)` from `better-supabase/blocks`); a subject without reactions may be left out.
 
 `react` returns the subject's reactions, most used first:
 

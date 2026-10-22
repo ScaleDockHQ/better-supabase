@@ -1,5 +1,5 @@
 import type { AccessBlockConfig } from "../../config/blocks.ts";
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 
@@ -519,7 +519,7 @@ export type OperationModule = Operation extends `${infer M}.${string}`
   : never;
 
 /** One module's operations by action, as `moduleOperations` returns them. */
-export type ModuleOperations<M extends OperationModule> = {
+export type BlockSqlOperations<M extends OperationModule> = {
   readonly [
     O in Operation as O extends `${M}.${infer A}` ? A : never
   ]: (typeof OPERATIONS)[O];
@@ -538,9 +538,9 @@ for (const [name, key] of Object.entries(OPERATIONS)) {
 /** `module`'s default keys by action, from `OPERATIONS`. */
 export function moduleOperations<M extends OperationModule>(
   module: M,
-): ModuleOperations<M> {
+): BlockSqlOperations<M> {
   // SAFETY: built from OPERATIONS above, which holds every action of M.
-  return (operationsByModule.get(module) ?? {}) as ModuleOperations<M>;
+  return (operationsByModule.get(module) ?? {}) as BlockSqlOperations<M>;
 }
 
 /** Whether `name` is a module with actions in `OPERATIONS`. */
@@ -554,7 +554,7 @@ export const isOperationModule = (name: string): name is OperationModule =>
  */
 export const MODULE_PERMISSION_SCOPES: {
   readonly [M in OperationModule]: {
-    readonly [A in keyof ModuleOperations<M>]: "tenant" | "platform";
+    readonly [A in keyof BlockSqlOperations<M>]: "tenant" | "platform";
   };
 } = {
   organizations: {
@@ -770,7 +770,7 @@ export const MODULE_PERMISSION_SCOPES: {
   "field-history": { read: "tenant" },
 };
 
-export function accessModel(ctx: ModuleContext): AccessModel {
+export function accessModel(ctx: BlockSqlContext): AccessModel {
   return ctx.modules.access?.model ?? "roles";
 }
 
@@ -779,7 +779,7 @@ export function accessModel(ctx: ModuleContext): AccessModel {
  * blocks' entities (`work_items.*` becomes `tasks.*`).
  */
 export function rolesOf(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): Readonly<Record<string, readonly string[]>> {
   const configured = ctx.modules.access?.roles;
 
@@ -799,7 +799,7 @@ export function rolesOf(
     : DEFAULT_ROLES;
 }
 
-export const roleNames = (ctx: ModuleContext): readonly string[] =>
+export const roleNames = (ctx: BlockSqlContext): readonly string[] =>
   Object.keys(rolesOf(ctx));
 
 /**
@@ -807,7 +807,7 @@ export const roleNames = (ctx: ModuleContext): readonly string[] =>
  * (`blocks.access.options.scope`, default `organization`). `tenant` is accepted
  * too.
  */
-export const tenantScope = (ctx: ModuleContext): string =>
+export const tenantScope = (ctx: BlockSqlContext): string =>
   ctx.of("access").text("scope", "organization");
 
 /**
@@ -860,7 +860,7 @@ const quotedRef = (where: string, table: string, column: string) => {
 
 /** The `provider` model's platform role table, or `undefined` without one. */
 export function providerPlatformRoles(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
 ): ProviderPlatformRoles | undefined {
   if (accessModel(ctx) !== "provider" || !ctx.installed("invitations")) {
     return undefined;
@@ -937,7 +937,7 @@ export function providerPlatformRoles(
 }
 
 /** Whether the catalog has platform roles, and so platform invitations. */
-export function hasPlatformRoles(ctx: ModuleContext): boolean {
+export function hasPlatformRoles(ctx: BlockSqlContext): boolean {
   if (providerPlatformRoles(ctx)) {
     return true;
   }
@@ -955,7 +955,7 @@ export function hasPlatformRoles(ctx: ModuleContext): boolean {
  * `blocks.access.options.tenantRoleScope` and `platformRoleScope`.
  */
 export function roleScopeIs(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   alias: string,
   scope: "tenant" | "platform",
 ): string | undefined {
@@ -996,7 +996,7 @@ const MODULE_PERMISSION_SHORTHANDS: Readonly<
 };
 
 export function modulePermissionKey(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   action: string,
   fallback: string,
 ): string {
@@ -1019,7 +1019,7 @@ export function modulePermissionKey(
 }
 
 export const modulePermission = (
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   action: string,
   fallback: string,
 ): string => sqlString(modulePermissionKey(ctx, action, fallback));

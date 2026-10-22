@@ -15,7 +15,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { SubjectRef } from "../../schema/types.ts";
+import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { paymentProviderOf } from "../../commerce/payments.ts";
@@ -91,7 +91,7 @@ export interface DonationFundInput {
 export interface Gift<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
-  readonly donor: SubjectRef;
+  readonly donor: RecordRef;
   readonly fundId?: string;
   readonly pledgeId?: string;
   /** The pledge period this gift pays. */
@@ -115,7 +115,7 @@ export interface Gift<F extends object = Record<never, never>> {
 
 /** A gift received outside the payments provider: cash, a check, a transfer. */
 export interface GiftInput<F extends object = Record<never, never>> {
-  readonly donor: SubjectRef;
+  readonly donor: RecordRef;
   readonly amount: Money;
   readonly fundId?: string;
   /** Default: today. */
@@ -131,7 +131,7 @@ export interface GiftInput<F extends object = Record<never, never>> {
 
 /** A gift charged through the payments provider. */
 export interface GiveInput<F extends object = Record<never, never>> {
-  readonly donor: SubjectRef;
+  readonly donor: RecordRef;
   readonly amount: Money;
   readonly fundId?: string;
   readonly note?: string;
@@ -150,7 +150,7 @@ export interface GiveOutcome<F extends object = Record<never, never>> {
 }
 
 export interface GiftListOptions {
-  readonly donor?: SubjectRef;
+  readonly donor?: RecordRef;
   readonly fundId?: string;
   readonly pledgeId?: string;
   readonly status?: GiftStatus;
@@ -161,7 +161,7 @@ export interface GiftListOptions {
 export interface Pledge {
   readonly id: string;
   readonly organizationId: string;
-  readonly donor: SubjectRef;
+  readonly donor: RecordRef;
   readonly fundId?: string;
   readonly amount: Money;
   readonly frequency: PledgeFrequency;
@@ -178,7 +178,7 @@ export interface Pledge {
 }
 
 export interface PledgeInput {
-  readonly donor: SubjectRef;
+  readonly donor: RecordRef;
   /** Per period. */
   readonly amount: Money;
   /** Default `monthly`. */
@@ -201,7 +201,7 @@ export interface PledgeUpdate {
 }
 
 export interface PledgeListOptions {
-  readonly donor?: SubjectRef;
+  readonly donor?: RecordRef;
   readonly status?: PledgeStatus;
   readonly pageSize?: number;
 }
@@ -210,7 +210,7 @@ export interface PledgeListOptions {
 export interface PledgeInstallment {
   readonly pledgeId: string;
   readonly periodStart: Temporal.PlainDate;
-  readonly donor: SubjectRef;
+  readonly donor: RecordRef;
   readonly fundId?: string;
   readonly amount: Money;
   readonly provider?: string;
@@ -246,7 +246,7 @@ export type PledgeChargeOutcome<F extends object = Record<never, never>> =
 export interface DonationReceipt {
   readonly id: string;
   readonly organizationId: string;
-  readonly donor: SubjectRef;
+  readonly donor: RecordRef;
   readonly sequence: bigint;
   readonly number: string;
   readonly kind: "gift" | "yearly";
@@ -258,7 +258,7 @@ export interface DonationReceipt {
 }
 
 export interface ReceiptListOptions {
-  readonly donor?: SubjectRef;
+  readonly donor?: RecordRef;
   readonly year?: number;
   readonly pageSize?: number;
 }
@@ -266,7 +266,7 @@ export interface ReceiptListOptions {
 /** A donor's posted giving in one year. */
 export interface GivingSummary {
   readonly year: number;
-  readonly donor: SubjectRef;
+  readonly donor: RecordRef;
   readonly totals: readonly {
     readonly amount: Money;
     readonly gifts: number;
@@ -329,7 +329,7 @@ export interface Donations<F extends object = Record<never, never>> {
   issueGiftReceipt(giftId: string): AsyncResult<DonationReceipt>;
   /** A donor's receipt for their posted gifts in a year and currency. */
   issueYearlyReceipt(
-    donor: SubjectRef,
+    donor: RecordRef,
     year: number,
     currency: string,
   ): AsyncResult<DonationReceipt>;
@@ -338,7 +338,7 @@ export interface Donations<F extends object = Record<never, never>> {
     options?: ReceiptListOptions,
   ): AsyncResult<readonly DonationReceipt[]>;
   /** Default year: this one. */
-  givingSummary(donor: SubjectRef, year?: number): AsyncResult<GivingSummary>;
+  givingSummary(donor: RecordRef, year?: number): AsyncResult<GivingSummary>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

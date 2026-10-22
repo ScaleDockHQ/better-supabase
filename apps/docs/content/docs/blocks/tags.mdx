@@ -23,7 +23,7 @@ import { createTags } from "better-supabase/blocks/tags";
 
 In managed mode every application lives in `taggings` (`subject_type`, `subject_id`). In adopt mode each subject can name its own link table.
 
-Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A record is a `SubjectRef`, `{ type, id }`.
+Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A record is a `RecordRef`, `{ type, id }`.
 
 ```ts
 const tags = createTags({ transport, tenant: organizationId });

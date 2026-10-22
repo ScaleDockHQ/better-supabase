@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 const body = (module: string): string =>
-  renderModules([module])
+  renderBlocks([module])
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");

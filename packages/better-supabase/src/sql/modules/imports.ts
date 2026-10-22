@@ -1,17 +1,17 @@
 import type { ImportsEvents } from "../../blocks/imports/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<ImportsEvents> = {
+const EVENTS: BlockSqlEvents<ImportsEvents> = {
   "import.completed": {
     subject: "imports",
     payload: ["organizationId", "id", "count"],
@@ -22,7 +22,7 @@ const EVENTS: ModuleEvents<ImportsEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   tables: {
     runs: {
@@ -43,7 +43,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -154,7 +154,7 @@ grant execute on function ${ctx.fn("finish_import")}(uuid, text, integer, text) 
 `;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "start_import", args: ["{id}", "text", "jsonb"], returns: "jsonb" },
     { name: "mark_import_running", args: ["uuid"], returns: "boolean" },
@@ -166,7 +166,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const IMPORTS: ModuleDefinition = {
+export const IMPORTS: BlockSqlDefinition = {
   name: "imports",
   scopes: ["tenant"],
   title: "Imports",

@@ -1,11 +1,11 @@
 import type { InvoicesEvents } from "../../blocks/invoices/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { InvoiceNames } from "./invoices-functions.ts";
 
 import { guestOr } from "../guest-sql.ts";
@@ -27,7 +27,7 @@ const INVOICE = [
   "identifier",
 ] as const;
 
-const EVENTS: ModuleEvents<InvoicesEvents> = {
+const EVENTS: BlockSqlEvents<InvoicesEvents> = {
   "invoice.created": { subject: "invoices", payload: [...INVOICE] },
   "invoice.issued": {
     subject: "invoices",
@@ -49,7 +49,7 @@ const EVENTS: ModuleEvents<InvoicesEvents> = {
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: [
     "before_invoice_issue",
@@ -105,7 +105,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext, n: InvoiceNames): string {
+function tables(ctx: BlockSqlContext, n: InvoiceNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -166,7 +166,7 @@ using (${guestOr(ctx.scope.check(i("tenant"), n.read), [
 `;
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -207,7 +207,7 @@ function build(ctx: ModuleContext): string {
 ${tables(ctx, n)}${invoiceFunctions(ctx, n)}`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_invoice",
@@ -241,7 +241,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const INVOICES: ModuleDefinition = {
+export const INVOICES: BlockSqlDefinition = {
   name: "invoices",
   scopes: ["tenant"],
   title: "Invoices",

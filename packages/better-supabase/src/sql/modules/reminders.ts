@@ -1,11 +1,11 @@
 import type { RemindersEvents } from "../../blocks/reminders/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import {
@@ -21,14 +21,14 @@ import {
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
-const EVENTS: ModuleEvents<RemindersEvents> = {
+const EVENTS: BlockSqlEvents<RemindersEvents> = {
   "reminder.sent": {
     subject: "reminders",
     payload: ["organizationId", "id", "subjectType", "subjectId", "userId"],
   },
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     reminder: { table: "reminders", singular: "reminder", primary: true },
   },
@@ -89,9 +89,9 @@ const NAMES: ModuleNames = {
 };
 
 /** `options.extraColumns`, added to a managed reminders table. */
-const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("reminders");
+const extrasOf = (ctx: BlockSqlContext) => ctx.extraColumns("reminders");
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -322,7 +322,7 @@ grant execute on function ${ctx.fn("list_reminder_schedule")}() to service_role;
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_reminder",
@@ -350,7 +350,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const REMINDERS: ModuleDefinition = {
+export const REMINDERS: BlockSqlDefinition = {
   name: "reminders",
   scopes: ["tenant"],
   title: "Reminders",

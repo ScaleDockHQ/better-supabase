@@ -1,4 +1,4 @@
-import type { ModuleContext } from "./context.ts";
+import type { BlockSqlContext } from "./context.ts";
 
 import { isRecord } from "../core/guards.ts";
 import { sqlString } from "../core/template.ts";
@@ -8,7 +8,7 @@ import { sqlString } from "../core/template.ts";
  * configured one.
  */
 function sequenceFormatOf(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   entity: string,
   tenant: string,
 ): string | undefined {
@@ -41,7 +41,7 @@ function sequenceFormatOf(
  * (`DEAL-4821`).
  */
 export function assignNumberSql(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   entity: string,
   tenant: string,
   target: { readonly seq: string; readonly identifier: string },

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../src/config/blocks.ts";
-import type { ModuleNames } from "../../src/sql/context.ts";
+import type { BlockSqlNames } from "../../src/sql/context.ts";
 
 import { SQL_MODULES } from "../../src/sql/index.ts";
 import { resolveNames } from "../../src/sql/resolved-names.ts";
 
-const namesOf = (module: string): ModuleNames => {
+const namesOf = (module: string): BlockSqlNames => {
   const names = SQL_MODULES[module]?.names;
 
   if (names === undefined) {

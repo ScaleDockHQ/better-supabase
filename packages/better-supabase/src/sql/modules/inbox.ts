@@ -1,8 +1,8 @@
-import type { ModuleContext, ModuleContractFunction } from "../context.ts";
+import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type {
-  ModuleDefinition,
-  ModuleLayout,
-  ModuleUpgrade,
+  BlockSqlDefinition,
+  BlockSqlLayout,
+  BlockSqlUpgrade,
 } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -21,7 +21,7 @@ import {
 import { messagingSql } from "./messaging-names.ts";
 import { messagingTableDdl } from "./messaging-tables.ts";
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -63,7 +63,7 @@ ${inboxStorage(q)}`;
 
 // The module file creates the new names; the old ones go, and the moved
 // table's primary key takes its new name so messaging can create its own.
-function renamedFunctions(ctx: ModuleContext): string {
+function renamedFunctions(ctx: BlockSqlContext): string {
   const { id } = inboxSql(ctx);
 
   const old = [
@@ -92,7 +92,7 @@ const LEGACY_FUNCTIONS = [
 
 // The data moves before the module files run, so the step creates the core
 // tables and the details table it copies into; the schema diff adds the rest.
-const TO_MESSAGING: ModuleUpgrade = {
+const TO_MESSAGING: BlockSqlUpgrade = {
   from: 3,
   description:
     "The inbox moves onto the messaging core: each conversation becomes a core conversation of kind inbox with the same id, messages and notes become core messages with the same ids and their inbox fields in inbox_message_details, participants and read markers become conversation members, files become pending attachments for pending_inbox_files to import, and reactions move to the message.",
@@ -220,7 +220,7 @@ ${LEGACY_FUNCTIONS.map((signature) => `drop function if exists ${ctx.schema}.${s
   },
 };
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_inbox",
@@ -344,7 +344,7 @@ function contract(): readonly ModuleContractFunction[] {
   ];
 }
 
-export const INBOX: ModuleDefinition = {
+export const INBOX: BlockSqlDefinition = {
   internal: [
     "inbox_contact_ids",
     "inbox_conversation_allowed",

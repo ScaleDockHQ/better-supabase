@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { ModuleLayout } from "../../src/sql/module-types.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { endSessions } from "../../src/server/suspend-account.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -24,7 +24,7 @@ async function teamSchema(s: BlockSession): Promise<string> {
   return schema;
 }
 
-const layout = (schema: string): ModuleLayout => ({
+const layout = (schema: string): BlockSqlLayout => ({
   modules: {
     access: { schema },
     tenant: {

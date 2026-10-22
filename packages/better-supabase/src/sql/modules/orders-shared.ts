@@ -1,5 +1,5 @@
-import type { ExtraColumn, ModuleContext } from "../context.ts";
-import type { ModuleScope } from "../scope.ts";
+import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { BlockSqlScope } from "../scope.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
@@ -8,7 +8,7 @@ import { amountOf as bareAmountOf } from "./catalog-functions.ts";
 
 export interface OrdersNames {
   /** The block's scope checks. */
-  readonly scope: ModuleScope;
+  readonly scope: BlockSqlScope;
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
@@ -26,7 +26,7 @@ export const amountOf = (value: string): string => `(${bareAmountOf(value)})`;
 
 /** Column accessors for one logical table. */
 export const columns =
-  (ctx: ModuleContext, table: string) =>
+  (ctx: BlockSqlContext, table: string) =>
   (column: string): string =>
     ctx.col(table, column);
 
@@ -41,7 +41,7 @@ const ORDER_STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** Minutes a placed order holds its stock for payment. Default 30. */
-export function paymentWindow(ctx: ModuleContext): number {
+export function paymentWindow(ctx: BlockSqlContext): number {
   const minutes = ctx.number("paymentWindowMinutes", 30);
 
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10_080) {
@@ -54,7 +54,7 @@ export function paymentWindow(ctx: ModuleContext): number {
 }
 
 export function guard(
-  scope: ModuleScope,
+  scope: BlockSqlScope,
   permission: string,
   tenant: string,
 ): string {
@@ -81,7 +81,7 @@ export function asService(statements: string): string {
 }
 
 /** Whether a `state-machine` machine governs the orders status column. */
-function machineGoverns(ctx: ModuleContext): boolean {
+function machineGoverns(ctx: BlockSqlContext): boolean {
   if (!ctx.installed("state-machine")) {
     return false;
   }
@@ -115,7 +115,7 @@ function machineGoverns(ctx: ModuleContext): boolean {
  * configured one.
  */
 function sequenceFormat(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   entity: "order" | "invoice",
   tenant: string,
 ): string | undefined {
@@ -147,7 +147,7 @@ function sequenceFormat(
  * plain digits.
  */
 export function assignNumber(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   entity: "order" | "invoice",
   tenant: string,
   target: { readonly seq: string; readonly number: string },
@@ -175,7 +175,7 @@ export function assignNumber(
  * matching timestamp and returns the previous status. Internal.
  */
 export function transitionFunction(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   names: OrdersNames,
 ): string {
   const o = columns(ctx, "orders");
@@ -248,7 +248,7 @@ export function orderPayload(
 }
 
 /** SQL `select` list that loads an order into a record with stable field names. */
-export function orderFields(ctx: ModuleContext, alias: string): string {
+export function orderFields(ctx: BlockSqlContext, alias: string): string {
   const o = columns(ctx, "orders");
 
   return [

@@ -110,7 +110,7 @@ export interface CarrierCallOptions {
  * the carrier can no longer void, and `unauthorized` for a webhook whose
  * signature fails.
  */
-export interface ShipmentCarrier {
+export interface ShippingProvider {
   readonly apiVersion: 1;
   /** The carrier's name, stored on each shipment it labels. */
   readonly name: string;
@@ -142,7 +142,7 @@ export interface ShipmentCarrier {
 }
 
 /** Checks the carrier's `apiVersion` before a block uses it. */
-export function shipmentCarrierOf(carrier: ShipmentCarrier): ShipmentCarrier {
+export function shipmentCarrierOf(carrier: ShippingProvider): ShippingProvider {
   const version: unknown = carrier.apiVersion;
 
   if (version !== 1) {
@@ -358,7 +358,7 @@ export function trackingUpdatesOf(
 }
 
 /**
- * A `ShipmentCarrier` with fixed prices per service and package. It stores
+ * A `ShippingProvider` with fixed prices per service and package. It stores
  * nothing beyond the labels of recent idempotency keys: labels carry a
  * generated tracking number and no file, `track` returns no events, and
  * `cancel` always succeeds. With `webhookSecret` it reads Standard Webhooks
@@ -367,7 +367,7 @@ export function trackingUpdatesOf(
  */
 export function flatRateCarrier(
   options: FlatRateCarrierOptions,
-): ShipmentCarrier {
+): ShippingProvider {
   const name = options.name ?? "flat-rate";
   const prefix = options.trackingPrefix ?? "FR";
 

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
@@ -17,7 +17,7 @@ const stepIds = (json: string): string =>
 const sendsEmail = (json: string): string =>
   `exists (select 1 from jsonb_array_elements(${json}) t where t.value ->> 'kind' = 'email')`;
 
-function stepsCheck(ctx: ModuleContext): string {
+function stepsCheck(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
   const { fn, invalid } = q;
 
@@ -101,7 +101,7 @@ revoke execute on function ${fn("sequence_steps_check")}(jsonb, boolean) from pu
 `;
 }
 
-function placement(ctx: ModuleContext): string {
+function placement(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
   const { fn, s, r, e, d } = q;
 
@@ -248,7 +248,7 @@ revoke execute on function ${fn("sequence_resync")}(uuid) from public, anon, aut
 `;
 }
 
-function authoring(ctx: ModuleContext): string {
+function authoring(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
   const { fn, s, r, mail } = q;
 
@@ -462,7 +462,7 @@ ${userGrant(`${fn("delete_sequence")}(uuid)`)}
 `;
 }
 
-function enrolling(ctx: ModuleContext): string {
+function enrolling(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
   const { fn, s, r, e, d, mail, parties } = q;
   const a = (column: string): string => mail!.col("accounts", column);
@@ -695,7 +695,7 @@ ${userGrant(`${fn("list_sequence_enrollments")}(${ctx.idType}, jsonb)`)}
 }
 
 /** The sequences module's authoring and enrollment functions. */
-export function sequenceFunctions(ctx: ModuleContext): string {
+export function sequenceFunctions(ctx: BlockSqlContext): string {
   return `${stepsCheck(ctx)}
 ${placement(ctx)}
 ${authoring(ctx)}

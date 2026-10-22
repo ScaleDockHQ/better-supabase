@@ -20,7 +20,7 @@ import { createShipments } from "better-supabase/blocks/shipments";
 The module requires `tenant` and `access`. With `assets` a shipment can name
 the asset location it ships from, with `outbox` every change records an
 event, and with `audit` the writes are audited. Carriers plug in through the
-versioned `ShipmentCarrier` interface; the block ships no carrier SDK (see
+versioned `ShippingProvider` interface; the block ships no carrier SDK (see
 [ADR 0082](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0082-shipment-carriers.md)).
 
 ## Tables
@@ -145,9 +145,9 @@ needs no tenant. A tracking number no shipment has comes back with
 ## Write a carrier
 
 ```ts
-import type { ShipmentCarrier } from "better-supabase/blocks/shipments";
+import type { ShippingProvider } from "better-supabase/blocks/shipments";
 
-export const myCarrier: ShipmentCarrier = {
+export const myCarrier: ShippingProvider = {
   apiVersion: 1,
   name: "my-carrier",
   rates: (request, options) => quote(request, options),
@@ -166,7 +166,7 @@ label it can no longer void and `unauthorized` for a forged webhook. Honor
 `idempotencyKey` in `createLabel` and `cancel`. `invalidShipmentRequest`
 checks addresses and packages the way the block does, and
 `trackingUpdatesOf` reads the `{ trackingNumber, events }` webhook body. Run
-`testShipmentCarrier` from `better-supabase/testing` against your carrier in
+`testShippingProvider` from `better-supabase/testing` against your carrier in
 its tests (see [conformance](/docs/extending/conformance)).
 
 `flatRateCarrier` is a carrier without a network: fixed prices per service,

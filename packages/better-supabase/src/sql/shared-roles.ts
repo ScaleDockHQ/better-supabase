@@ -1,9 +1,9 @@
-import type { ModuleLayout } from "./module-types.ts";
+import type { BlockSqlLayout } from "./module-types.ts";
 
 import { moduleContext } from "./module-context.ts";
 import { platformRolesProblem } from "./modules/invitations-roles.ts";
 import { sharedRolesProblem } from "./modules/tenant.ts";
-import { resolveModules } from "./registry.ts";
+import { resolveBlocks } from "./registry.ts";
 
 /**
  * Why a roles table that holds both tenant and platform roles (the tenant
@@ -13,9 +13,9 @@ import { resolveModules } from "./registry.ts";
  */
 export function sharedRolesProblems(
   names: readonly string[],
-  layout: ModuleLayout,
+  layout: BlockSqlLayout,
 ): { readonly setting: string; readonly message: string }[] {
-  const installed = resolveModules(names, layout).map((module) => module.name);
+  const installed = resolveBlocks(names, layout).map((module) => module.name);
 
   if (!installed.includes("tenant") || !installed.includes("invitations")) {
     return [];

@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -19,7 +19,7 @@ import { EXPENSE_REPORT_SUBJECT } from "./approvals.ts";
 export const EXPENSE_REPORT_RESERVED = ["fields"] as const;
 
 /** One approver step: anyone with the approve permission. */
-function expensePolicy(ctx: ModuleContext): string {
+function expensePolicy(ctx: BlockSqlContext): string {
   const policy = policyOf(
     EXPENSE_REPORT_SUBJECT,
     "approve",
@@ -42,7 +42,7 @@ function expensePolicy(ctx: ModuleContext): string {
 }
 
 /** The expenses module's functions. */
-export function expensesFunctions(ctx: ModuleContext): string {
+export function expensesFunctions(ctx: BlockSqlContext): string {
   const approvals = ctx.of("approvals");
   const ledger = ctx.of("ledger");
   const categories = ctx.table("categories");

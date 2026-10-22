@@ -1,11 +1,11 @@
 import type { CatalogEvents } from "../../blocks/catalog/events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Names } from "./catalog-functions.ts";
 
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
@@ -30,7 +30,7 @@ import {
   storefrontFunctions,
 } from "./catalog-merchandising.ts";
 
-const EVENTS: ModuleEvents<CatalogEvents> = {
+const EVENTS: BlockSqlEvents<CatalogEvents> = {
   "product.created": {
     subject: "products",
     payload: ["organizationId", "id", "slug", "kind"],
@@ -80,7 +80,7 @@ const EVENTS: ModuleEvents<CatalogEvents> = {
 
 const tenantExport = { tenant: "tenant", export: true } as const;
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   entities: {
     product: {
       table: "products",
@@ -276,7 +276,7 @@ const NAMES: ModuleNames = {
   },
 };
 
-function tables(ctx: ModuleContext, names: Names): string {
+function tables(ctx: BlockSqlContext, names: Names): string {
   if (!ctx.manages) {
     return "";
   }
@@ -452,7 +452,7 @@ ${read("storefronts")}
  * Anon read policies for active products of tenants with a published
  * storefront.
  */
-function storefrontPolicies(ctx: ModuleContext, names: Names): string {
+function storefrontPolicies(ctx: BlockSqlContext, names: Names): string {
   if (!ctx.manages) {
     return "";
   }
@@ -522,7 +522,7 @@ using (${condition});`;
     .join("\n");
 }
 
-function build(ctx: ModuleContext): string {
+function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -547,7 +547,7 @@ ${ctx.hasTable("storefronts") ? storefrontPolicies(ctx, names) : ""}
 `;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const options = ctx.hasTable("options") && ctx.hasTable("optionValues");
   const lists = ctx.hasTable("priceLists") && ctx.has("prices", "priceList");
 
@@ -684,7 +684,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
-export const CATALOG: ModuleDefinition = {
+export const CATALOG: BlockSqlDefinition = {
   name: "catalog",
   scopes: ["tenant"],
   title: "Catalog",

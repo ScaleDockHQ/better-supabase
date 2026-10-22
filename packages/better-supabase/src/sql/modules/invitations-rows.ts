@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { InviteTable } from "./invitations-tables.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -27,7 +27,7 @@ import { assignableRole } from "./organizations-roles.ts";
  * `blocks.invitations.options.previewColumns` when the organizations module is
  * installed.
  */
-export function organizationJson(ctx: ModuleContext, tenant: string): string {
+export function organizationJson(ctx: BlockSqlContext, tenant: string): string {
   if (!ctx.installed("organizations")) {
     return `jsonb_build_object('id', ${tenant})`;
   }
@@ -55,7 +55,7 @@ export function organizationJson(ctx: ModuleContext, tenant: string): string {
  * otherwise.
  */
 function inviterJson(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   t: InviteTable,
   row: string,
 ): string | undefined {
@@ -78,14 +78,14 @@ function inviterJson(
 }
 
 /** The `invitation_preview_extra(uuid)` hook's signature, for `to_regprocedure`. */
-const extraHook = (ctx: ModuleContext): string =>
+const extraHook = (ctx: BlockSqlContext): string =>
   sqlString(`${ctx.hookTarget("invitation_preview_extra")}(uuid)`);
 
 /**
  * `invitation_extra(invitation)`: the keys the app's `invitation_preview_extra`
  * hook returns, or `{}` without the hook.
  */
-export function invitationExtra(ctx: ModuleContext): string {
+export function invitationExtra(ctx: BlockSqlContext): string {
   return `
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an
 -- invitation, such as a role's display name; {} without the hook. The
@@ -119,7 +119,7 @@ revoke execute on function ${ctx.fn("invitation_extra")}(uuid) from public, anon
  * after creating it.
  */
 export function inviteJson(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   t: InviteTable,
   row: string,
   token: string,
@@ -151,7 +151,7 @@ export function inviteJson(
  * `my_invitations()`: the caller's open invitations without their tokens, with
  * the organization and the `invitation_preview_extra` keys.
  */
-export function myInvitations(ctx: ModuleContext): string {
+export function myInvitations(ctx: BlockSqlContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
 
@@ -211,7 +211,7 @@ $$;
  * has not expired, with the checks `invite_member` makes. The token and expiry
  * stay.
  */
-export function updateInvitation(ctx: ModuleContext): string {
+export function updateInvitation(ctx: BlockSqlContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);

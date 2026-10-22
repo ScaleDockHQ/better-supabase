@@ -1,12 +1,12 @@
 import type { NotificationsEvents } from "../../blocks/notifications/events.ts";
 import type { NotificationDeliveryEventData } from "../../core/block-events.ts";
 import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
 } from "../context.ts";
-import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -52,7 +52,7 @@ const DELIVERY_EVENT = {
   retries: true,
 };
 
-const EVENTS: ModuleEvents<NotificationsEvents> = {
+const EVENTS: BlockSqlEvents<NotificationsEvents> = {
   "notification.created": {
     subject: "notifications",
     payload: ["notificationId", "organizationId", "type", "recipientIds"],
@@ -66,7 +66,7 @@ const EVENTS: ModuleEvents<NotificationsEvents> = {
   "notification.delayed": DELIVERY_EVENT,
 };
 
-const NAMES: ModuleNames = {
+const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: [
     "subjects",
@@ -249,7 +249,7 @@ function own(n: NotifyNames, table: string, user: string): string {
  * The configured priorities as a CHECK. The constraint is replaced when it
  * lacks a configured priority, because `addCheck` skips an existing name.
  */
-function priorityCheck(ctx: ModuleContext, n: NotifyNames): string {
+function priorityCheck(ctx: BlockSqlContext, n: NotifyNames): string {
   if (!n.has("events", "priority")) {
     return "";
   }
@@ -277,7 +277,7 @@ $$;
 ${addCheck({ table, name, expression: `${n.col("events", "priority")} in (${values})` })}`;
 }
 
-function tables(ctx: ModuleContext, n: NotifyNames): string {
+function tables(ctx: BlockSqlContext, n: NotifyNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -491,7 +491,7 @@ ${ownRowPolicies({
 
 /** The topic as a SQL expression over `new`, and the receive pattern. */
 function topic(
-  ctx: ModuleContext,
+  ctx: BlockSqlContext,
   n: NotifyNames,
 ): { expression: string; pattern: string } {
   const template = ctx.text("topic", "notifications:{userId}");
@@ -544,7 +544,7 @@ function topic(
   };
 }
 
-function realtime(ctx: ModuleContext, n: NotifyNames): string {
+function realtime(ctx: BlockSqlContext, n: NotifyNames): string {
   const mode = ctx.text("realtime", "broadcast");
   const trigger = ctx.trigger("notification_broadcast");
   const updateTrigger = ctx.trigger("notification_broadcast_update");
@@ -646,7 +646,7 @@ $$;`;
  * subscriptions to it. The deletes match the subject's tenant too, so they use
  * indexes that lead with the tenant column.
  */
-function subjectCleanup(ctx: ModuleContext, n: NotifyNames): string {
+function subjectCleanup(ctx: BlockSqlContext, n: NotifyNames): string {
   const subjects = subjectsOption(ctx, [], { tenantless: true, hyphens: true });
 
   if (!subjects.some(([, subject]) => subject.cascade)) {
@@ -689,7 +689,7 @@ function subjectCleanup(ctx: ModuleContext, n: NotifyNames): string {
   );
 }
 
-function build(ctx: ModuleContext, layout: ModuleLayout): string {
+function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
@@ -707,8 +707,8 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   ].join("\n");
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
-  const fns: ModuleContractFunction[] = [
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+  const fns: BlockSqlContractFunction[] = [
     { name: "notify", args: ["jsonb"], returns: "uuid" },
     { name: "send_notification", args: ["jsonb"], returns: "jsonb" },
     { name: "send_notifications", args: ["jsonb"], returns: "jsonb" },
@@ -836,7 +836,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return fns;
 }
 
-export const NOTIFICATIONS: ModuleDefinition = {
+export const NOTIFICATIONS: BlockSqlDefinition = {
   name: "notifications",
   title: "Notifications",
   description:

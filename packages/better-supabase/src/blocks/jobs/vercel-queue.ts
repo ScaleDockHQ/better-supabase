@@ -1,5 +1,5 @@
 import type {
-  QueueBackend,
+  QueueProvider,
   QueueMessageBody,
   QueueMessageRow,
 } from "./backends.ts";
@@ -49,7 +49,7 @@ export interface VercelQueueClient {
   ): PromiseLike<{ readonly ok: boolean }>;
 }
 
-export interface VercelQueueBackendOptions {
+export interface VercelQueueProviderOptions {
   /** The consumer group that reads the topics. Default `better-supabase`. */
   readonly consumerGroup?: string;
   /**
@@ -81,10 +81,10 @@ interface Held {
  * so ids are local handles, a message past `maxAttempts` is acknowledged and
  * dropped, and schedules need the SQL backend.
  */
-export function vercelQueueBackend(
+export function vercelQueueProvider(
   client: VercelQueueClient,
-  options: VercelQueueBackendOptions = {},
-): QueueBackend {
+  options: VercelQueueProviderOptions = {},
+): QueueProvider {
   const group = options.consumerGroup ?? "better-supabase";
   const retryAfter = options.retryAfter ?? 30;
   const settle = options.settle ?? 25;

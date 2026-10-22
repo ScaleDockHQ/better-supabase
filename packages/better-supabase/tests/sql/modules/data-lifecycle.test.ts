@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
   extra: Readonly<Record<string, unknown>> = {},
 ): string =>
-  renderModules(names, {
+  renderBlocks(names, {
     modules: {
       ...(options ? { "data-lifecycle": { options } } : {}),
       ...extra,
@@ -23,7 +23,7 @@ describe("data-lifecycle module", () => {
       `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)`,
     );
 
-    const custom = renderModules(["data-lifecycle"], {
+    const custom = renderBlocks(["data-lifecycle"], {
       modules: {
         "data-lifecycle": { permissions: { cancelDelete: "billing.manage" } },
       },
@@ -46,7 +46,7 @@ describe("data-lifecycle module", () => {
       `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)`,
     );
 
-    const through = renderModules(["data-lifecycle"], {
+    const through = renderBlocks(["data-lifecycle"], {
       modules: {
         tenant: {
           mode: "adopt",
@@ -165,7 +165,7 @@ describe("data-lifecycle module", () => {
     );
     expect(sql).not.toContain("'better_supabase.data_exports'");
     expect(
-      renderModules(["usage", "data-lifecycle"], {
+      renderBlocks(["usage", "data-lifecycle"], {
         modules: { usage: { tables: { history: "app.usage_log" } } },
       })
         .filter((file) => file.module === "data-lifecycle")
@@ -373,7 +373,7 @@ describe("data-lifecycle module", () => {
       }),
     ).toThrow(/export must be true or false/);
     expect(() =>
-      renderModules(["webhooks-in"], {
+      renderBlocks(["webhooks-in"], {
         modules: {
           "webhooks-in": { columns: { endpoints: { tenant: "org_id" } } },
         },

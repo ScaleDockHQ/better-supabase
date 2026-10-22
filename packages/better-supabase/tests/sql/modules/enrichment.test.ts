@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 const sqlOf = (blocks: Record<string, unknown> = {}): string =>
-  renderModules(["enrichment", "parties", "outbox"], {
+  renderBlocks(["enrichment", "parties", "outbox"], {
     modules: { enrichment: {}, ...blocks },
     // SAFETY: a partial config; the renderer fills in the defaults.
   })

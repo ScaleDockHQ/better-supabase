@@ -22,7 +22,7 @@ import { fromCatalog } from "../../../src/cli/introspect/from-catalog.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { parseToml } from "../../../src/cli/supabase-toml.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { renderModules, moduleLayout } from "../../../src/sql/index.ts";
+import { renderBlocks, moduleLayout } from "../../../src/sql/index.ts";
 import { stubProvider } from "../../fixtures/authorization-provider.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
@@ -572,10 +572,7 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(await run("BS304", rooted())).toEqual([]);
     const ctx = rooted({ blocks: ["updated-at", "audit"] });
 
-    const files = renderModules(
-      ctx.config.blockNames,
-      moduleLayout(ctx.config),
-    );
+    const files = renderBlocks(ctx.config.blockNames, moduleLayout(ctx.config));
 
     const missing = await run("BS304", ctx);
     expect(missing.map((finding) => finding.target)).toEqual(
@@ -642,7 +639,7 @@ describe("generated and module files (BS303, BS304)", () => {
           `${module} in supabase/migrations/<stamp>_better_supabase_modules.sql is missing. Run \`better-supabase sql sync\`, then \`supabase migration up\`.`,
       ),
     );
-    const files = renderModules(["tenant", "mfa"], moduleLayout(ctx.config));
+    const files = renderBlocks(["tenant", "mfa"], moduleLayout(ctx.config));
 
     const name =
       "supabase/migrations/20200101000000_better_supabase_modules.sql";
@@ -653,7 +650,7 @@ describe("generated and module files (BS303, BS304)", () => {
         .filter((file) => file.kind !== "test")
         .map((file) => file.contents)
         .join("\n")
-        .replace(/^-- @bs-module tenant@2/m, "-- @bs-module tenant@1"),
+        .replace(/^-- @bsb-block tenant@2/m, "-- @bsb-block tenant@1"),
     );
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
@@ -666,7 +663,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
   it("still checks the pgTAP files under the migrations workflow", async () => {
     const ctx = rooted({ sql: { workflow: "migrations" }, blocks: ["pgtap"] });
-    const files = renderModules(["pgtap"], moduleLayout(ctx.config));
+    const files = renderBlocks(["pgtap"], moduleLayout(ctx.config));
     const test = files.find((file) => file.kind === "test");
     expect(test).toBeDefined();
     await write(
@@ -685,7 +682,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
   it("reports a module behind its version in BS311, not BS304", async () => {
     const ctx = rooted({ blocks: ["tenant"] });
-    const files = renderModules(["tenant"], moduleLayout(ctx.config));
+    const files = renderBlocks(["tenant"], moduleLayout(ctx.config));
 
     for (const module of files) {
       await write(module.path, module.contents);
@@ -695,7 +692,7 @@ describe("generated and module files (BS303, BS304)", () => {
       (module) => module.module === "tenant" && module.kind === "schema",
     );
 
-    await write(file!.path, file!.contents.replace(/^-- @bs-module .*\n/m, ""));
+    await write(file!.path, file!.contents.replace(/^-- @bsb-block .*\n/m, ""));
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
       expect.objectContaining({
@@ -736,7 +733,7 @@ describe("generated and module files (BS303, BS304)", () => {
       ),
     ).toEqual([
       expect.objectContaining({
-        target: "better_supabase.modules.tenant",
+        target: "better_supabase.blocks.tenant",
         message: expect.stringContaining(
           "The database has tenant version 1; this release ships version 2.",
         ),
@@ -757,7 +754,7 @@ describe("generated and module files (BS303, BS304)", () => {
         (finding) => finding.target,
       ),
     ).toEqual(
-      renderModules(["read-sets"], moduleLayout(ctx.config)).map(
+      renderBlocks(["read-sets"], moduleLayout(ctx.config)).map(
         (file) => file.path,
       ),
     );
@@ -799,7 +796,7 @@ describe("module upgrades (BS309, BS310)", () => {
             },
             {
               path: "supabase/schemas/900_better_supabase_04_tenant.sql",
-              text: "-- @bs-module tenant@2 managed\nselect better_supabase.current_org_id();",
+              text: "-- @bsb-block tenant@2 managed\nselect better_supabase.current_org_id();",
             },
           ],
         },
@@ -3044,7 +3041,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
           configToml: pgdelta,
           sqlFiles: [
             file(grants.text, "supabase/migrations/1_init.sql"),
-            file(`-- @bs-module grants@1 managed\n${grants.text}`),
+            file(`-- @bsb-block grants@1 managed\n${grants.text}`),
           ],
         }),
       ),
@@ -3090,7 +3087,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
 
   it("flags extensions the schema files create that no migration does", async () => {
     const jobs = file(
-      "-- @bs-module jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;\nraise exception 'needs pg_cron: create extension pg_cron with schema pg_catalog';",
+      "-- @bsb-block jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;\nraise exception 'needs pg_cron: create extension pg_cron with schema pg_catalog';",
       "supabase/schemas/900_better_supabase_07_jobs.sql",
     );
 
@@ -3121,7 +3118,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
     );
 
     const data = file(
-      '-- @bs-module-data jobs\ncreate extension if not exists "pgmq";\ncreate extension if not exists pg_cron;',
+      '-- @bsb-block-data jobs\ncreate extension if not exists "pgmq";\ncreate extension if not exists pg_cron;',
       "supabase/migrations/20260101000001_better_supabase_module_data.sql",
     );
 

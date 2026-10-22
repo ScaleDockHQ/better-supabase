@@ -18,7 +18,7 @@ import {
   jobsDestination,
   signWebhook,
 } from "../../src/blocks/webhooks/index.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { testIncomingDestination } from "../../src/testing/index.ts";
 import { BlockSession } from "./block-session.ts";
@@ -94,7 +94,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         );
       }
 
-      for (const file of renderModules(["webhooks-in", "rate-limit"])) {
+      for (const file of renderBlocks(["webhooks-in", "rate-limit"])) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
@@ -665,7 +665,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderModules(["webhooks-in"])) {
+      for (const file of renderBlocks(["webhooks-in"])) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
@@ -794,7 +794,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         },
       };
 
-      for (const file of renderModules(
+      for (const file of renderBlocks(
         ["organizations", "webhooks-in", "webhook-inbox", "jobs"],
         layout,
       )) {
@@ -907,7 +907,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderModules(["webhook-inbox"])) {
+      for (const file of renderBlocks(["webhook-inbox"])) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }

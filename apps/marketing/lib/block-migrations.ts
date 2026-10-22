@@ -1,11 +1,11 @@
-import type { ModuleFile } from "better-supabase/sql";
+import type { BlockSqlFile } from "better-supabase/sql";
 
-import { renderModules, resolveModules } from "better-supabase/sql";
+import { renderBlocks, resolveBlocks } from "better-supabase/sql";
 
 export interface BlockMigrations {
   /** The modules `sql add` installs, dependencies first. */
   readonly installed: readonly string[];
-  readonly files: readonly ModuleFile[];
+  readonly files: readonly BlockSqlFile[];
 }
 
 /**
@@ -21,8 +21,8 @@ export function blockMigrations(name: string): BlockMigrations {
   for (const names of attempts) {
     try {
       return {
-        installed: resolveModules(names).map((module) => module.name),
-        files: renderModules(names),
+        installed: resolveBlocks(names).map((module) => module.name),
+        files: renderBlocks(names),
       };
     } catch (error) {
       failure = error;

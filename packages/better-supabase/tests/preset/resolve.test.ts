@@ -14,7 +14,7 @@ import {
   presetBlockConflict,
   resolvePreset,
 } from "../../src/preset/resolve.ts";
-import { renderModules, resolveModules } from "../../src/sql/index.ts";
+import { renderBlocks, resolveBlocks } from "../../src/sql/index.ts";
 
 const preset = (
   blocks: readonly string[],
@@ -233,11 +233,11 @@ describe("named presets", () => {
     const names = resolved.blocks.map((block) => block.name);
     // The resolver agrees with the SQL registry on the full set.
     expect(names.toSorted()).toEqual(
-      resolveModules(PRESETS[name].blocks)
+      resolveBlocks(PRESETS[name].blocks)
         .map((module) => module.name)
         .toSorted(),
     );
-    expect(renderModules(names).length).toBeGreaterThan(0);
+    expect(renderBlocks(names).length).toBeGreaterThan(0);
   });
 
   it("builds every preset after the starters on saas", () => {

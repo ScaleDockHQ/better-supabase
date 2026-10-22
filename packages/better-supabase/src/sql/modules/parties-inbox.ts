@@ -1,4 +1,4 @@
-import type { ModuleContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { PartyNames } from "./parties-functions.ts";
 
 import { fail, lockTable, userGrant } from "../shared.ts";
@@ -8,7 +8,10 @@ import { fail, lockTable, userGrant } from "../shared.ts";
  * shows the person's company, deals and history. One person has many contacts
  * (an email, a WhatsApp number); a contact has one person.
  */
-export function partiesInboxSql(ctx: ModuleContext, names: PartyNames): string {
+export function partiesInboxSql(
+  ctx: BlockSqlContext,
+  names: PartyNames,
+): string {
   if (!ctx.installed("inbox")) {
     return "";
   }

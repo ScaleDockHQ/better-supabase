@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { WRITE_GUARD_ALLOWLIST } from "../../src/sql/actor-guard.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
-import { renderModules } from "../../src/sql/render.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 
 const WRITE = /\b(insert\s+into|update\s+(?:only\s+)?["a-z_]|delete\s+from)\b/i;
 
@@ -79,7 +79,7 @@ function unguardedWrites(sql: string): string[] {
 }
 
 describe("actor write guard", () => {
-  const sql = renderModules([
+  const sql = renderBlocks([
     "profiles",
     "notifications",
     "teams",
@@ -96,7 +96,7 @@ describe("actor write guard", () => {
   });
 
   it("guards every authenticated write except the session allowlist", () => {
-    const sql = renderModules(
+    const sql = renderBlocks(
       Object.values(SQL_MODULES)
         .filter((module) => module.target === "schema")
         .map((module) => module.name),
@@ -108,7 +108,7 @@ describe("actor write guard", () => {
   });
 
   it("gives authenticated no permissive for-all policy, which would skip the guard", () => {
-    const sql = renderModules(
+    const sql = renderBlocks(
       Object.values(SQL_MODULES)
         .filter((module) => module.target === "schema")
         .map((module) => module.name),
@@ -129,7 +129,7 @@ describe("actor write guard", () => {
   });
 
   it("guards the split own-row policies on settings and notifications", () => {
-    const sql = renderModules(["settings", "notifications"])
+    const sql = renderBlocks(["settings", "notifications"])
       .map((file) => file.contents)
       .join("\n");
 

@@ -1,8 +1,8 @@
-import type { ModuleContext } from "./context.ts";
+import type { BlockSqlContext } from "./context.ts";
 import type {
-  ModuleLayout,
-  ModuleDeprecation,
-  SqlModule,
+  BlockSqlLayout,
+  BlockSqlDeprecation,
+  BlockSql,
 } from "./module-types.ts";
 
 import { createModuleContext } from "./context.ts";
@@ -11,7 +11,7 @@ import {
   providerIdType,
   withProviderDefaults,
 } from "./module-context.ts";
-import { moduleVersion } from "./module-types.ts";
+import { blockSqlVersion } from "./module-types.ts";
 import { SQL_MODULES, checkModules } from "./registry.ts";
 import { nameMigrationSql } from "./rename-sql.ts";
 
@@ -20,8 +20,8 @@ import { nameMigrationSql } from "./rename-sql.ts";
  * removed yet.
  */
 export function deprecationWrappers(
-  module: SqlModule,
-  ctx: ModuleContext,
+  module: BlockSql,
+  ctx: BlockSqlContext,
 ): string {
   return (module.deprecated ?? [])
     .flatMap((entry) =>
@@ -34,14 +34,14 @@ export function deprecationWrappers(
     .join("");
 }
 
-/** An installed module, from its file's `@bs-module` line or `modules`. */
-export interface InstalledModule {
+/** An installed module, from its file's `@bsb-block` line or `modules`. */
+export interface InstalledBlock {
   readonly module: string;
   readonly version: number;
 }
 
 /** What `sql upgrade` runs for one module behind the current version. */
-export interface ModuleUpgradePlan {
+export interface BlockSqlUpgradePlan {
   readonly module: string;
   readonly from: number;
   readonly to: number;
@@ -58,22 +58,22 @@ export interface ModuleUpgradePlan {
  * custom mode belong to the app and are skipped.
  */
 export function upgradePlan(
-  installed: readonly InstalledModule[],
-  layout: ModuleLayout = {},
-  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
-): ModuleUpgradePlan[] {
+  installed: readonly InstalledBlock[],
+  layout: BlockSqlLayout = {},
+  modules: Readonly<Record<string, BlockSql>> = SQL_MODULES,
+): BlockSqlUpgradePlan[] {
   checkModules(layout.modules, modules);
   const names = installed.map((entry) => entry.module);
   const defaults = withProviderDefaults(layout);
 
-  return installed.flatMap((entry): ModuleUpgradePlan[] => {
+  return installed.flatMap((entry): BlockSqlUpgradePlan[] => {
     const module = modules[entry.module];
 
     if (!module) {
       return [];
     }
 
-    const to = moduleVersion(module);
+    const to = blockSqlVersion(module);
 
     if (entry.version >= to) {
       return [];
@@ -98,7 +98,7 @@ export function upgradePlan(
     const moves = (module.names?.migrations ?? []).map((migration) => ({
       from: migration.from,
       description: migration.description,
-      sql: (each: ModuleContext) => nameMigrationSql(each, migration),
+      sql: (each: BlockSqlContext) => nameMigrationSql(each, migration),
     }));
 
     const steps = [...moves, ...(module.upgrades ?? [])]
@@ -116,8 +116,8 @@ export function upgradePlan(
 
 /** Every deprecated or removed module symbol, with its module. */
 export function moduleDeprecations(
-  modules: Readonly<Record<string, SqlModule>> = SQL_MODULES,
-): readonly (ModuleDeprecation & { readonly module: string })[] {
+  modules: Readonly<Record<string, BlockSql>> = SQL_MODULES,
+): readonly (BlockSqlDeprecation & { readonly module: string })[] {
   return Object.values(modules).flatMap((module) =>
     (module.deprecated ?? []).map((entry) => ({
       ...entry,

@@ -12,10 +12,10 @@ import {
   writeLatestMigration,
 } from "../../../src/cli/sql/module-migration.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
-import { moduleLayout, renderModules } from "../../../src/sql/index.ts";
+import { moduleLayout, renderBlocks } from "../../../src/sql/index.ts";
 
 const config = resolveConfig({ sql: { workflow: "migrations" } }, "/p");
-const files = renderModules(["tenant", "jsonb-schemas"], moduleLayout(config));
+const files = renderBlocks(["tenant", "jsonb-schemas"], moduleLayout(config));
 
 describe("renderModuleMigration", () => {
   it("orders the extensions, upgrade steps, schema bodies, topics and data", () => {
@@ -28,12 +28,12 @@ describe("renderModuleMigration", () => {
     const order = [
       "-- better-supabase sql: the SQL modules",
       'create extension if not exists "pg_jsonschema"',
-      "-- @bs-upgrade-start",
+      "-- @bsb-upgrade-start",
       "-- step one",
-      "-- @bs-upgrade-end",
-      "-- @bs-module tenant@",
+      "-- @bsb-upgrade-end",
+      "-- @bsb-block tenant@",
       "-- topics",
-      "-- @bs-module-data tenant",
+      "-- @bsb-block-data tenant",
     ].map((line) => text.indexOf(line));
 
     expect(order.every((index) => index >= 0)).toBe(true);
@@ -79,7 +79,7 @@ describe("sameModuleMigration and migrationHolds", () => {
   it("reads the installed modules and versions", () => {
     expect(
       migrationModules(
-        plain.replace("@bs-module tenant@2", "@bs-module tenant@1"),
+        plain.replace("@bsb-block tenant@2", "@bsb-block tenant@1"),
       ).get("tenant"),
     ).toBe(1);
     expect(migrationModules("").size).toBe(0);

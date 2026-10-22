@@ -5,19 +5,19 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import {
   customContracts,
   moduleBody,
-  renderModules,
+  renderBlocks,
 } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const schemaOf = (names: readonly string[]) =>
-  renderModules(names, {})
+  renderBlocks(names, {})
     .filter((file) => file.kind === "schema")
     .map((file) => file.contents)
     .join("\n");
 
 describe("workflow-builder module", () => {
   it("installs after workflows and emits alerts only with the outbox", () => {
-    const names = renderModules(["workflow-builder"], {}).map(
+    const names = renderBlocks(["workflow-builder"], {}).map(
       (file) => file.module,
     );
 

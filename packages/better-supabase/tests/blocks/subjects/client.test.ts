@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ResolvedSubject } from "../../../src/blocks/subjects/subjects.ts";
-import type { SubjectRef } from "../../../src/schema/types.ts";
+import type { RecordRef } from "../../../src/schema/types.ts";
 
 import {
   batchSubjects,
@@ -21,7 +21,7 @@ const myWork = () => resolved([]);
 const resolver = () => ({
   summary: vi.fn(summary),
   myWork: vi.fn(myWork),
-  resolve: vi.fn((refs: readonly SubjectRef[]) =>
+  resolve: vi.fn((refs: readonly RecordRef[]) =>
     resolved<Readonly<Record<string, ResolvedSubject>>>(
       Object.fromEntries(
         refs.map((ref) => [
