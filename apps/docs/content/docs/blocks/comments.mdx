@@ -374,6 +374,47 @@ const { state, actions } = useComments({
 </template>
 ```
 
+```svelte title="CommentCount.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { useComments } from "better-supabase/blocks/comments/svelte";
+  import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+
+  let { organizationId, projectId }: { organizationId: string; projectId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const thread = useComments({
+    client: createComments({
+      transport: rpcTransport(supabase),
+      tenant: organizationId,
+    }),
+    subject: { type: "project", id: projectId },
+  });
+</script>
+
+<p>{$thread.comments?.length ?? 0} comments</p>
+```
+
+```tsx title="CommentCount.tsx"
+import { useSupabase } from "better-supabase/solid";
+import { useComments } from "better-supabase/blocks/comments/solid";
+import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+
+export function CommentCount(props: {
+  organizationId: string;
+  projectId: string;
+}) {
+  const supabase = useSupabase();
+  const { state } = useComments({
+    client: createComments({
+      transport: rpcTransport(supabase),
+      tenant: props.organizationId,
+    }),
+    subject: { type: "project", id: props.projectId },
+  });
+  return <p>{state().comments?.length ?? 0} comments</p>;
+}
+```
+
 ## Reactions
 
 With the [reactions](/docs/blocks/reactions) module installed, react to a
