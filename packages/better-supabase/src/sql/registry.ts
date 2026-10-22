@@ -88,6 +88,7 @@ import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
 import { REVIEWS } from "./modules/reviews.ts";
 import { RULES } from "./modules/rules.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
+import { SCORES } from "./modules/scores.ts";
 import { SEARCH } from "./modules/search.ts";
 import { SERVICE_PRINCIPALS } from "./modules/service-principals.ts";
 import { SESSIONS } from "./modules/sessions.ts";
@@ -311,6 +312,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(VERCEL_MARKETPLACE),
       built(LEDGER),
       built(ASSETS),
+      built(SCORES),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

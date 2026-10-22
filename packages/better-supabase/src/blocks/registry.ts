@@ -80,6 +80,7 @@ import { reservedSlugsBlock } from "./reserved-slugs/manifest.ts";
 import { reviewsBlock } from "./reviews/manifest.ts";
 import { rulesBlock } from "./rules/manifest.ts";
 import { savedViewsBlock } from "./saved-views/manifest.ts";
+import { scoresBlock } from "./scores/manifest.ts";
 import { searchBlock } from "./search/manifest.ts";
 import { servicePrincipalsBlock } from "./service-principals/manifest.ts";
 import { sessionsBlock } from "./sessions/manifest.ts";
@@ -150,6 +151,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   leaveBlock,
   ledgerBlock,
   assetsBlock,
+  scoresBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

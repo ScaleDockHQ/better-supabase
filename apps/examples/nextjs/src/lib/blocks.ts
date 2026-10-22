@@ -45,6 +45,7 @@ import { relationsBlock } from "better-supabase/blocks/relations";
 import { remindersBlock } from "better-supabase/blocks/reminders";
 import { rulesBlock } from "better-supabase/blocks/rules";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
+import { scoresBlock } from "better-supabase/blocks/scores";
 import { searchBlock } from "better-supabase/blocks/search";
 import { servicePrincipalsBlock } from "better-supabase/blocks/service-principals";
 import { createSettings, settingsBlock } from "better-supabase/blocks/settings";
@@ -124,6 +125,7 @@ const blockSet = defineBlocks(blockConfig, {
   savedViews: savedViewsBlock,
   approvals: approvalsBlock,
   rules: rulesBlock,
+  scores: scoresBlock,
   sla: slaBlock,
   customFields: customFieldsBlock,
   bulk: bulkBlock,

@@ -82,6 +82,7 @@ import type { reservedSlugsBlock } from "../../src/blocks/reserved-slugs/manifes
 import type { reviewsBlock } from "../../src/blocks/reviews/manifest.ts";
 import type { rulesBlock } from "../../src/blocks/rules/manifest.ts";
 import type { savedViewsBlock } from "../../src/blocks/saved-views/manifest.ts";
+import type { scoresBlock } from "../../src/blocks/scores/manifest.ts";
 import type { searchBlock } from "../../src/blocks/search/manifest.ts";
 import type { servicePrincipalsBlock } from "../../src/blocks/service-principals/manifest.ts";
 import type { sessionsBlock } from "../../src/blocks/sessions/manifest.ts";
@@ -172,6 +173,7 @@ export type AllBlocks = {
   readonly leave: typeof leaveBlock;
   readonly ledger: typeof ledgerBlock;
   readonly assets: typeof assetsBlock;
+  readonly scores: typeof scoresBlock;
   readonly memory: typeof memoryBlock;
   readonly metrics: typeof metricsBlock;
   readonly mfa: typeof mfaBlock;

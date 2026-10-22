@@ -1834,6 +1834,7 @@
               "reviews",
               "rules",
               "saved-views",
+              "scores",
               "search",
               "service-principals",
               "sessions",
@@ -2114,6 +2115,9 @@
             },
             "saved-views": {
               "$ref": "#/$defs/blocks/saved-views"
+            },
+            "scores": {
+              "$ref": "#/$defs/blocks/scores"
             },
             "search": {
               "$ref": "#/$defs/blocks/search"
@@ -4853,6 +4857,26 @@
             "additionalProperties": false,
             "properties": {
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "scores": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxRules": {
+                "type": "number",
+                "default": 100
+              },
+              "maxMetrics": {
+                "type": "number",
+                "default": 50
+              }
             }
           }
         }

@@ -7,6 +7,7 @@ import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { relationsBlock } from "better-supabase/blocks/relations";
+import { scoresBlock } from "better-supabase/blocks/scores";
 import { shareLinksBlock } from "better-supabase/blocks/share-links";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
@@ -24,6 +25,7 @@ export const documentFeature = defineRecordFeature({
     comments: commentsBlock,
     ledger: ledgerBlock,
     assets: assetsBlock,
+    scores: scoresBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

@@ -5894,6 +5894,42 @@
       "RpcClient"
     ]
   },
+  "./blocks/scores": {
+    "values": [
+      "createScores",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "scoresBlock",
+      "scoresEvents",
+      "scoresSection",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "ComputedScore",
+      "RpcClient",
+      "Score",
+      "ScoreBand",
+      "ScoreBreakdown",
+      "ScoreChangedEventData",
+      "ScoreMetric",
+      "ScoreModel",
+      "ScoreModelDetail",
+      "ScoreModelEventData",
+      "ScoreModelInput",
+      "ScoreModelVersion",
+      "ScoreRule",
+      "Scores",
+      "ScoresEvents",
+      "ScoresOptions",
+      "ScoresSqlOptions"
+    ]
+  },
   "./blocks/shared-signals": {
     "values": [
       "CAEP_EVENTS",
@@ -6659,7 +6695,10 @@
       "ReactionsEvents",
       "ReactionsOptions",
       "ReactionsSnapshot",
-      "ReactOptions"
+      "ReactOptions",
+      "VoteOptions",
+      "VoteTally",
+      "VoteValue"
     ]
   },
   "./blocks/approvals": {

@@ -865,14 +865,15 @@ export interface BlockNameRegistry {
   };
   readonly "reactions": {
     readonly tables: {
-      readonly "reactions": "id" | "tenant" | "subjectType" | "subjectId" | "actor" | "user" | "emoji" | "createdAt";
+      readonly "reactions": "id" | "tenant" | "subjectType" | "subjectId" | "actor" | "user" | "kind" | "emoji" | "value" | "createdAt";
+      readonly "scores": "tenant" | "subjectType" | "subjectId" | "score" | "up" | "down" | "updatedAt";
       readonly "emoji": "id" | "tenant" | "shortcode" | "attachment" | "url" | "createdBy" | "createdAt";
     };
-    readonly functions: "delete_custom_emoji" | "list_custom_emoji" | "react" | "reaction_list" | "reaction_subject_visible" | "reaction_summary" | "reactions_changed" | "reactions_check" | "save_custom_emoji";
+    readonly functions: "delete_custom_emoji" | "list_custom_emoji" | "react" | "reaction_list" | "reaction_subject_visible" | "reaction_summary" | "reactions_changed" | "reactions_check" | "reactions_tally" | "save_custom_emoji" | "vote" | "vote_summary" | "vote_tally";
     readonly actions: "read" | "create" | "manage";
     readonly hooks: "before_react" | "after_react";
     readonly entities: {
-      readonly "reaction": "id" | "tenant_id" | "subject_type" | "subject_id" | "actor" | "user_id" | "emoji" | "created_at";
+      readonly "reaction": "id" | "tenant_id" | "subject_type" | "subject_id" | "actor" | "user_id" | "kind" | "emoji" | "value" | "created_at";
     };
     readonly primary: "reaction";
   };
@@ -958,6 +959,20 @@ export interface BlockNameRegistry {
     readonly hooks: "before_view_save" | "after_view_save";
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "scores": {
+    readonly tables: {
+      readonly "models": "id" | "tenant" | "key" | "name" | "description" | "subjectType" | "rules" | "metrics" | "bands" | "enabled" | "version" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "versions": "model" | "version" | "tenant" | "rules" | "metrics" | "bands" | "savedBy" | "savedAt";
+      readonly "scores": "id" | "tenant" | "model" | "modelVersion" | "subjectType" | "subjectId" | "score" | "band" | "breakdown" | "current" | "computedAt";
+    };
+    readonly functions: "compute_score" | "delete_score_model" | "get_score_model" | "list_score_models" | "save_score_model" | "score_history" | "subject_scores" | "top_scores";
+    readonly actions: "read" | "manage" | "compute";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "score_model": "id" | "tenant_id" | "key" | "name" | "description" | "subject_type" | "rules" | "metrics" | "bands" | "enabled" | "version" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "score_model";
   };
   readonly "search": {
     readonly tables: {

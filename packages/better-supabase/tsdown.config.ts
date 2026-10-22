@@ -118,6 +118,7 @@ const entries = [
   "blocks/leave/index",
   "blocks/ledger/index",
   "blocks/assets/index",
+  "blocks/scores/index",
   "blocks/shared-signals/index",
   "blocks/identities/index",
   "blocks/service-principals/index",

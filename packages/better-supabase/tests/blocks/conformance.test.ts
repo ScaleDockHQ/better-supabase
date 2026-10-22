@@ -94,6 +94,9 @@ const NO_FIELDS: readonly string[] = [
   // Rules hold a filter tree and action references the editor writes; the
   // app's data lives on the subjects the rules test.
   "rules",
+  // Models hold rule trees and metrics; the app's data lives on the scored
+  // subjects, which pass their fields to compute_score.
+  "scores",
   // A derived index the sink rebuilds from each subject's own row.
   "search",
   // Values of app-defined keys, typed by `defineSettings` schemas.

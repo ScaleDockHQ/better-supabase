@@ -976,6 +976,11 @@
       "types": "./dist/blocks/assets/index.d.ts",
       "default": "./dist/blocks/assets/index.js"
     },
+    "./blocks/scores": {
+      "@better-supabase/source": "./src/blocks/scores/index.ts",
+      "types": "./dist/blocks/scores/index.d.ts",
+      "default": "./dist/blocks/scores/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -2320,6 +2325,10 @@
       "./blocks/assets": {
         "types": "./dist/blocks/assets/index.d.ts",
         "default": "./dist/blocks/assets/index.js"
+      },
+      "./blocks/scores": {
+        "types": "./dist/blocks/scores/index.d.ts",
+        "default": "./dist/blocks/scores/index.js"
       },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",

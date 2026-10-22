@@ -1366,7 +1366,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "subjectId": "subject_id",
               "actor": "actor",
               "user": "user_id",
+              "kind": "kind",
               "emoji": "emoji",
+              "value": "value",
               "createdAt": "created_at"
             }
           }
@@ -2751,6 +2753,60 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "assets.read",
           "manage": "assets.manage",
           "assign": "assets.assign"
+        }
+      }
+    },
+    {
+      "name": "scores",
+      "title": "Scores",
+      "category": "growth",
+      "requires": [
+        "tenant",
+        "access",
+        "rules"
+      ],
+      "integrates": [
+        "reactions",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "scores",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "score_model": {
+            "table": "models",
+            "singular": "score_model",
+            "primary": true
+          }
+        },
+        "tables": {
+          "models": {
+            "name": "score_models",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "description": "description",
+              "subjectType": "subject_type",
+              "rules": "rules",
+              "metrics": "metrics",
+              "bands": "bands",
+              "enabled": "enabled",
+              "version": "version",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "scores.read",
+          "manage": "scores.manage",
+          "compute": "scores.compute"
         }
       }
     },
@@ -4657,6 +4713,47 @@ export const PRESET_CATALOG: PresetCatalog = {
           "asset.updated",
           "asset.assigned",
           "asset.released"
+        ]
+      }
+    },
+    {
+      "name": "scores",
+      "sql": [
+        "scores"
+      ],
+      "category": "growth",
+      "client": {
+        "export": "scoresBlock",
+        "subpath": "better-supabase/blocks/scores"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ScoreModel"
+        },
+        {
+          "name": "ScoreModelDetail"
+        },
+        {
+          "name": "ScoreModelEventData"
+        },
+        {
+          "name": "ScoreModelInput"
+        },
+        {
+          "name": "ScoreModelVersion"
+        }
+      ],
+      "sections": {
+        "scores": []
+      },
+      "events": {
+        "type": "ScoresEvents",
+        "types": [
+          "score_model.saved",
+          "score_model.deleted",
+          "score.changed"
         ]
       }
     },

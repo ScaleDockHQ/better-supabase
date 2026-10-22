@@ -70,6 +70,7 @@ import type { ReservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
 import type { ReviewsSqlOptions } from "./reviews/options.ts";
 import type { RulesSqlOptions } from "./rules/options.ts";
 import type { SavedViewsSqlOptions } from "./saved-views/options.ts";
+import type { ScoresSqlOptions } from "./scores/options.ts";
 import type { SearchSqlOptions } from "./search/options.ts";
 import type { ServicePrincipalsSqlOptions } from "./service-principals/options.ts";
 import type { SessionsSqlOptions } from "./sessions/options.ts";
@@ -174,6 +175,7 @@ import { reservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
 import { reviewsSqlOptions } from "./reviews/options.ts";
 import { rulesSqlOptions } from "./rules/options.ts";
 import { savedViewsSqlOptions } from "./saved-views/options.ts";
+import { scoresSqlOptions } from "./scores/options.ts";
 import { searchSqlOptions } from "./search/options.ts";
 import { servicePrincipalsSqlOptions } from "./service-principals/options.ts";
 import { sessionsSqlOptions } from "./sessions/options.ts";
@@ -293,6 +295,7 @@ export interface BlockOptionsRegistry {
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
   readonly reviews: ReviewsSqlOptions;
   readonly rules: RulesSqlOptions;
+  readonly scores: ScoresSqlOptions;
   readonly "vercel-marketplace": VercelMarketplaceSqlOptions;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly search: SearchSqlOptions;
@@ -415,6 +418,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "reserved-slugs": reservedSlugsSqlOptions,
   reviews: reviewsSqlOptions,
   rules: rulesSqlOptions,
+  scores: scoresSqlOptions,
   "vercel-marketplace": vercelMarketplaceSqlOptions,
   "saved-views": savedViewsSqlOptions,
   search: searchSqlOptions,
