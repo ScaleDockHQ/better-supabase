@@ -101,6 +101,7 @@
     "shared-signals",
     "oauth-server",
     "domains",
+    "moderation",
     "reviews",
     "leave",
     "rules",

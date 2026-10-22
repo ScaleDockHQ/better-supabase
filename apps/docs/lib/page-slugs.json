@@ -75,6 +75,7 @@
   "blocks/ledger",
   "blocks/memory",
   "blocks/metrics",
+  "blocks/moderation",
   "blocks/notifications",
   "blocks/number-sequences",
   "blocks/oauth-server",

@@ -138,3 +138,28 @@ realtime counts stay emoji-only.
 With `blocks.reactions.mode: "custom"`, add `kind text not null default
 'emoji'` and `value smallint not null default 1` to your own table, and
 include `kind` in its unique key on subject, actor and emoji.
+
+## Review moderation moves to the moderation block
+
+[Reviews](/docs/blocks/reviews#moderation) now moderate through the
+[moderation](/docs/blocks/moderation) block, so the reviews block requires it.
+Add `moderation: {}` to `blocks` in `better-supabase.config.ts` and grant
+`moderation.read`, `moderation.manage` and `moderation.ban` to the roles that
+moderated reviews.
+
+Run `better-supabase sql upgrade`, then `better-supabase sql data`. The
+upgrade creates a moderation item for each review with its status (published
+becomes `visible`, rejected becomes `hidden`, pending stays `pending`), moves
+`moderated_by` and `moderated_at` onto the item, logs each past decision, and
+drops both columns from `reviews`. Read the last decision with
+`moderation.item({ type: "review", id })` (`decidedBy`, `decidedAt`).
+
+`publish`, `reject` and the review's `status` work as before. With
+`blocks.reviews.mode: "custom"`, drop `moderated_by` and `moderated_at` from
+your table, and remove `moderatedBy` and `moderatedAt` from
+`blocks.reviews.columns` if you renamed them.
+
+Installing moderation shifts the later better-supabase module files in
+`supabase/schemas/_better_supabase` by one number. Run `better-supabase sql
+sync`, delete the files with the old numbers, and confirm with
+`better-supabase sql sync --check`.
