@@ -21,11 +21,11 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { accessModel, OPERATIONS, roleNames } from "./access-model.ts";
 import { DURATION, policyOf, policySnapshot } from "./approvals-policies.ts";
 import { ACCESS_REQUEST_SUBJECT } from "./approvals.ts";
+import { roleNameOf } from "./memberships.ts";
 import { roleValue } from "./organizations-roles.ts";
-import { roleNameOf } from "./tenant.ts";
+import { accessModel, OPERATIONS, roleNames } from "./permissions-model.ts";
 
 const WHERE = "blocks.access-requests.options";
 
@@ -162,7 +162,7 @@ function build(ctx: BlockSqlContext): string {
   const approvals = ctx.of("approvals");
   const ar = approvals.table("requests");
   const a = (column: string): string => approvals.col("requests", column);
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
   const m = members.table("memberships");
   const mu = members.col("memberships", "user");
   const mt = members.col("memberships", "tenant");
@@ -501,7 +501,7 @@ export const ACCESS_REQUESTS: BlockSqlDefinition = {
   title: "Access requests",
   description:
     "Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.",
-  requires: ["tenant", "access", "approvals"],
+  requires: ["memberships", "permissions", "approvals"],
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],

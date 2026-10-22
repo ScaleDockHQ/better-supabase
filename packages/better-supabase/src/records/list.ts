@@ -1,4 +1,4 @@
-import type { PermissionSet } from "../blocks/access/permissions.ts";
+import type { PermissionSet } from "../blocks/permissions/permissions-controller.ts";
 import type { SectionData, SectionResult } from "../blocks/sections.ts";
 import type { ValidationIssue } from "../core/errors.ts";
 import type { FilterField } from "../list/filter-query.ts";

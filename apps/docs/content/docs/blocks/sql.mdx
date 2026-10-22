@@ -20,7 +20,7 @@ a variable or a spread, it changes nothing and prints the entries to add
 instead. `--dry-run` says what it would add.
 
 ```bash
-better-supabase add audit jobs pgtap
+better-supabase add audit queue pgtap
 supabase db schema declarative sync -f better_supabase_block
 better-supabase add --adopt
 better-supabase blocks list --installed
@@ -57,7 +57,7 @@ migration already has them. `add` and `upgrade` say when to run it.
 Event triggers belong to no schema, so a diff limited to some schemas
 (`supabase db schema declarative sync -s public,better_supabase`) leaves
 them out of its migration. Run the sync without `-s` when you use `audit`
-(`bsb_audit_forget_dropped`) or `ensure-rls` (`bsb_ensure_rls`). Their data
+(`bsb_audit_forget_dropped`) or `rls-guard` (`bsb_ensure_rls`). Their data
 files repeat the event triggers (`drop event trigger if exists`, then
 `create event trigger`), so the `add --adopt` migration creates them even when
 the schema migration lacks them, and
@@ -91,7 +91,7 @@ their flags.
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   database: { sql: { workflow: "migrations" } },
-  blocks: ["audit", "jobs"],
+  blocks: ["audit", "queue"],
 });
 ```
 
@@ -149,10 +149,10 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `actor`              | `track_actor(table)` fills `created_by` and `updated_by` from `auth.uid()`; `impersonated_by => 'column'` also stamps an [impersonating](/docs/auth/impersonation) admin; `token_scope_allows(scope)` checks a delegated token's OAuth scope in a policy                                                                                                                                                                                                                           |
 | `audit`              | `audit(table, ignore => '{updated_at}')` records inserts, updates and deletes in `audit_events`, keyed by the primary key, with the changed columns, the tenant column from `auth.organization.column` and any impersonating admin                                                                                                                                                                                                                                                 |
 | `tenant`             | `memberships`, `current_tenant_id()`, `member_organization_ids(roles)` and `has_organization_role(organization, roles)` for RLS policies, and `membership_claims(user)` for the access token hook                                                                                                                                                                                                                                                                                  |
-| `access`             | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, an authorization provider or your functions. See [Access contract](/docs/blocks/access)                                                                                                                                                                                                                                                                     |
+| `access`             | `can(scope, id, permission)`, `tenant_ids_with(permission)` and `is_platform(permission)` over roles, your own tables, an authorization provider or your functions. See [Access contract](/docs/blocks/permissions)                                                                                                                                                                                                                                                                |
 | `invitations`        | `invite_member(tenant, email, role)` returns a single-use token, and only its hash is stored; `accept_invitation(token)` checks the signed-in user's confirmed email. See [Organizations](/docs/blocks/organizations)                                                                                                                                                                                                                                                              |
 | `reserved-slugs`     | `track_slug(table)` rejects reserved words (`admin`, `api`, ...) and malformed slugs, also for `service_role` writes; `options.minLength` and `options.maxLength` (1 and 63 by default) bound the length, and `options.slugs` adds the app's own words, such as its route names, to the data file                                                                                                                                                                                  |
-| `jobs`               | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/blocks/jobs`](/docs/blocks/jobs)                                                                                                                                                                                                                                                                          |
+| `jobs`               | Jobs on Supabase Queues (pgmq) or a table: leases, retries with backoff, dead letters, dedupe keys and schedules (pg_cron or the drain route). Used by [`better-supabase/blocks/queue`](/docs/blocks/queue)                                                                                                                                                                                                                                                                        |
 | `idempotency`        | Stores `Idempotency-Key` results so retried requests replay the first response                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `webhook-inbox`      | Stores verified webhooks once and hands them to a worker; adopt mode runs over your table                                                                                                                                                                                                                                                                                                                                                                                          |
 | `realtime-tables`    | Payload-free change broadcasts for [live queries](/docs/frontend/live-queries), registered from `database.realtime.tables`, and `broadcast_topic()` for [topic triggers](/docs/platform/realtime#row-changes)                                                                                                                                                                                                                                                                      |
@@ -165,7 +165,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `entitlements`       | `tenant_entitlements(tenant)`, `has_entitlement(tenant, key)` and `feature_claims(user)` over the Stripe Sync Engine. See [Entitlements](/docs/blocks/entitlements)                                                                                                                                                                                                                                                                                                                |
 | `vector-search`      | `search_<table>(query, k)` per table in `vectorSearch`, for `db.$search`. See [Vector search](/docs/blocks/vector-search)                                                                                                                                                                                                                                                                                                                                                          |
 | `rate-limit`         | `set_rate_limit(scope, max, period)` and `check_request()`, a `pgrst.db_pre_request` hook that answers writes over the limit with 429. See [below](#rate-limiting-writes)                                                                                                                                                                                                                                                                                                          |
-| `support-sessions`   | Support sessions: `start_support_session(target, reason)` checks `is_platform` and a second admin's approval, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                                                                                                                                                                                                                                                  |
+| `impersonation`      | Support sessions: `start_support_session(target, reason)` checks `is_platform` and a second admin's approval, records the session and audits it, for the [support mode](/docs/auth/impersonation)                                                                                                                                                                                                                                                                                  |
 | `organizations`      | `create_organization(attrs)`, member roles, ownership transfer, `switch_organization(organization)`, `list_my_organizations()`, `list_members(organization)` and an owner check on commit. See [Organizations](/docs/blocks/organizations)                                                                                                                                                                                                                                         |
 | `profiles`           | A profile per user from sign-up metadata, with a unique username, an email mirror, `my_profile()`, `update_my_profile(attrs)`, column grants and service-owned columns. See [Profiles](/docs/blocks/profiles)                                                                                                                                                                                                                                                                      |
 | `outbox`             | `emit_event(type, payload)` in the writing transaction, named consumers with their own cursor, backoff and dead letters, `track_events(table)` and a relay to any `EventSink`. Other modules emit to it once it's installed. See [Outbox](/docs/blocks/outbox)                                                                                                                                                                                                                     |
@@ -184,17 +184,17 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `memory`             | Core memory files under `/memories` edited with the memory tool commands, archival facts with embeddings, one embedding per chat message for recall, namespaces per user, agent, chat or organization, and versioned documents for agent runtimes. See [Memory](/docs/blocks/memory)                                                                                                                                                                                               |
 | `agents`             | Saved assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private, organization or public visibility, installs, ratings and skill references. See [Agents](/docs/blocks/agents)                                                                                                                                                                                                                                                               |
 | `connectors`         | MCP servers per organization, one OAuth grant per user behind a `credential_ref` that is revoked with the grant, MCP sessions per chat, and tool list fingerprints an admin approves. See [Connectors](/docs/blocks/connectors)                                                                                                                                                                                                                                                    |
-| `ai-tasks`           | Prompts scheduled on a cron in a time zone, a service-only tick that queues due runs to the `ai_task_run` queue, and a run log. See [AI tasks](/docs/blocks/ai-tasks)                                                                                                                                                                                                                                                                                                              |
+| `ai-schedules`       | Prompts scheduled on a cron in a time zone, a service-only tick that queues due runs to the `ai_task_run` queue, and a run log. See [AI tasks](/docs/blocks/ai-schedules)                                                                                                                                                                                                                                                                                                          |
 | `push`               | `push_devices` per user with RLS, `register_push_device` and `unregister_push_device` for the user, and `push_tokens_for` and `prune_push_tokens` for `service_role`. See [Push notifications](/docs/blocks/push)                                                                                                                                                                                                                                                                  |
 | `ai-cache`           | Model responses cached under a key the app derives from the request, with a TTL capped by `maxTtl`, an entry size cap (`maxBytes`), hit counts and a purge of expired entries; only the service role reads and writes it. See [AI cache](/docs/blocks/ai-cache)                                                                                                                                                                                                                    |
-| `ai-providers`       | Per-tenant provider keys stored as `credential_ref`s, and the `ai_batches` registry of provider batch jobs with their stored results. See [AI providers](/docs/blocks/ai-providers)                                                                                                                                                                                                                                                                                                |
+| `ai-keys`            | Per-tenant provider keys stored as `credential_ref`s, and the `ai_batches` registry of provider batch jobs with their stored results. See [AI providers](/docs/blocks/ai-keys)                                                                                                                                                                                                                                                                                                     |
 | `api-keys`           | `api_keys` with only the SHA-256 of each secret, `create_api_key`, `rotate_api_key`, `revoke_api_key`, `verify_api_key(public_id, secret_hash)` for the server and `has_scope(scope)` for policies. See [API keys](/docs/blocks/api-keys)                                                                                                                                                                                                                                          |
 | `settings`           | Per-user and per-organization settings with defaults, `get_user_settings()`, `set_organization_setting(tenant, key, value)` and the reset functions. See [Settings](/docs/blocks/settings)                                                                                                                                                                                                                                                                                         |
 | `usage`              | Usage counters per tenant, meter and period, `record_usage` with idempotency keys, quotas per tenant or plan, and `within_quota(tenant, meter)` and `consume_quota` for RLS and RPCs. See [Usage and quotas](/docs/blocks/usage)                                                                                                                                                                                                                                                   |
 | `billing`            | Stripe customers per tenant, `billing_status(tenant)`, `billing_seat_count(tenant)` and `link_billing_customer`. See [Billing](/docs/blocks/billing)                                                                                                                                                                                                                                                                                                                               |
-| `flags`              | Flags with targeting rules, overrides and percentage rollouts, and `flag_enabled(key)` and `tenant_ids_with_flag(key)` for policies, bucketed the same way as the TypeScript provider. See [Feature flags](/docs/blocks/flags)                                                                                                                                                                                                                                                     |
+| `flags`              | Flags with targeting rules, overrides and percentage rollouts, and `flag_enabled(key)` and `tenant_ids_with_flag(key)` for policies, bucketed the same way as the TypeScript provider. See [Feature flags](/docs/blocks/feature-flags)                                                                                                                                                                                                                                             |
 | `comments`           | Threaded comments on any record as its messaging conversation, with mentions, resolve, pins and tasks, `create_comment` and `list_comments`. See [Comments](/docs/blocks/comments)                                                                                                                                                                                                                                                                                                 |
-| `activity`           | An activity feed built from outbox events, joined with a subject's audit entries, notification deliveries and workflow runs, `record_activity` and `list_activity`. See [Activity](/docs/blocks/activity)                                                                                                                                                                                                                                                                          |
+| `activity`           | An activity feed built from outbox events, joined with a subject's audit entries, notification deliveries and workflow runs, `record_activity` and `list_activity`. See [Activity](/docs/blocks/timeline)                                                                                                                                                                                                                                                                          |
 | `attachments`        | Attachment records linked to Storage objects, tenant-scoped Storage policies, and a scan status that gates downloads. See [Attachments](/docs/blocks/attachments)                                                                                                                                                                                                                                                                                                                  |
 | `data-lifecycle`     | Data exports per user or organization, `request_organization_deletion(tenant)` with a grace period, `cancel_organization_deletion` and `purge_organization`. See [Data lifecycle](/docs/blocks/data-lifecycle)                                                                                                                                                                                                                                                                     |
 | `sso`                | Verified organization domains with auto-join, SAML providers per organization, SSO enforcement in the access token hook and the SCIM user and group functions. See [SSO and SCIM](/docs/blocks/sso)                                                                                                                                                                                                                                                                                |
@@ -202,9 +202,9 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `waitlist`           | `join_waitlist(email)`, approvals, hashed invite codes with use limits and an optional organization, and a trigger that redeems the code on sign-up. See [Waitlist and invite codes](/docs/blocks/waitlist)                                                                                                                                                                                                                                                                        |
 | `announcements`      | Announcements with audiences, a time window and severity, `active_announcements(tenant)`, `dismiss_announcement(id)` and a broadcast on a Realtime topic. See [Announcements](/docs/blocks/announcements)                                                                                                                                                                                                                                                                          |
 | `workflows`          | `workflow_runs` for any engine, read through RLS, with a Realtime ping per status change and outbox events when a run ends; cron schedules, counting semaphores, admission control for starts and `purge_workflow_runs`. See [Workflows](/docs/blocks/workflows)                                                                                                                                                                                                                   |
-| `workflow-sdk-world` | The Workflow SDK World's tables in a `workflow` schema only the service role reads, a trigger that copies each run into `workflow_runs`, and `dispatch_workflow_deliveries()` for pg_net delivery on a pg_cron schedule. See [Workflow SDK](/docs/blocks/workflow-sdk)                                                                                                                                                                                                             |
-| `workflow-builder`   | Graph workflows per tenant: definitions, numbered versions checked and published in SQL, webhook, schedule and event triggers, credentials by `credential_ref`, the step library, node-level run status with a Realtime ping, and alerts on failed or slow runs as outbox events. See [Workflow builder](/docs/blocks/workflow-builder)                                                                                                                                            |
-| `number-sequences`   | Gapless numbers per tenant, entity and period. See [Number sequences](/docs/blocks/number-sequences).                                                                                                                                                                                                                                                                                                                                                                              |
+| `workflow-sdk`       | The Workflow SDK World's tables in a `workflow` schema only the service role reads, a trigger that copies each run into `workflow_runs`, and `dispatch_workflow_deliveries()` for pg_net delivery on a pg_cron schedule. See [Workflow SDK](/docs/blocks/workflow-sdk)                                                                                                                                                                                                             |
+| `workflow-editor`    | Graph workflows per tenant: definitions, numbered versions checked and published in SQL, webhook, schedule and event triggers, credentials by `credential_ref`, the step library, node-level run status with a Realtime ping, and alerts on failed or slow runs as outbox events. See [Workflow builder](/docs/blocks/workflow-editor)                                                                                                                                             |
+| `numbering`          | Gapless numbers per tenant, entity and period. See [Number sequences](/docs/blocks/numbering).                                                                                                                                                                                                                                                                                                                                                                                     |
 | `teams`              | Teams and members. The inbox assigns conversations here. See [Teams](/docs/blocks/teams).                                                                                                                                                                                                                                                                                                                                                                                          |
 | `tags`               | Tag definitions and per-subject applications. See [Tags](/docs/blocks/tags).                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `state-machine`      | Allowed status transitions, history and `status.changed`. See [State machine](/docs/blocks/state-machine).                                                                                                                                                                                                                                                                                                                                                                         |
@@ -216,7 +216,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `rank`               | Fractional rank keys for subjects with a `rank` column: `rank_between`, `move` and the `rank.rebalance` job. See [Rank](/docs/blocks/rank).                                                                                                                                                                                                                                                                                                                                        |
 | `saved-views`        | Named list views per user, team or organization, with a default per slot and rank order. See [Saved views](/docs/blocks/saved-views).                                                                                                                                                                                                                                                                                                                                              |
 | `relations`          | Typed links between subjects with inverse names, cycle checks, one-target kinds, ancestors, descendants and rollups. See [Relations](/docs/blocks/relations).                                                                                                                                                                                                                                                                                                                      |
-| `bulk`               | One action over many rows with a result per row, and background runs on the jobs queue as the user who started them. See [Bulk actions](/docs/blocks/bulk).                                                                                                                                                                                                                                                                                                                        |
+| `bulk`               | One action over many rows with a result per row, and background runs on the jobs queue as the user who started them. See [Bulk actions](/docs/blocks/bulk-actions).                                                                                                                                                                                                                                                                                                                |
 | `search`             | A `search_documents` index kept up by triggers from each `search` entry in `config.records`; `search(q)` as the caller with websearch, prefix and trigram matching and `can_subject`, hybrid ranking with embeddings, and recents and favorites from share-links. See [Search](/docs/blocks/search).                                                                                                                                                                               |
 | `metrics`            | Metrics declared with `defineMetric`: `metric_points` rollups per grain and time zone, `metric_series` and `metric_value` checked against a permission in the tenant, and a `metrics.rollup` job. See [Metrics](/docs/blocks/metrics).                                                                                                                                                                                                                                             |
 | `calendar`           | Calendars, events with RFC 5545 recurrence, overrides and attendees, an iCalendar import and an iCal feed through a share link. See [Calendar](/docs/blocks/calendar).                                                                                                                                                                                                                                                                                                             |
@@ -236,10 +236,10 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `forms`              | Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that `pg_jsonschema` checks on every submission, drafts, public links through share-links with a rate limit and a bot-check hook, and handlers that turn a submission into a record. See [Forms](/docs/blocks/forms).                                                                                                                                                               |
 | `signatures`         | Simple electronic signatures on a frozen version from the versions module: click, typed or drawn signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide. See [Signatures](/docs/blocks/signatures).                                                                                                                                                                                                                 |
 | `time-tracking`      | Timers and logged time on any record with one running timer per member and no overlaps, weekly timesheets approved through approvals, and weeks that lock while pending or approved. See [Time tracking](/docs/blocks/time-tracking).                                                                                                                                                                                                                                              |
-| `identities`         | Links an email address or a chat user to an app user or a contact, through a one-time code or a confirmed address. See [Identities](/docs/blocks/identities).                                                                                                                                                                                                                                                                                                                      |
-| `service-principals` | Organization members that aren't people: `auth.users` rows that can't sign in, with a role through a membership. Organization-owned workflow versions and service webhook endpoints run as the default one. See [Service principals](/docs/blocks/service-principals).                                                                                                                                                                                                             |
+| `identities`         | Links an email address or a chat user to an app user or a contact, through a one-time code or a confirmed address. See [Identities](/docs/blocks/linked-identities).                                                                                                                                                                                                                                                                                                               |
+| `service-accounts`   | Organization members that aren't people: `auth.users` rows that can't sign in, with a role through a membership. Organization-owned workflow versions and service webhook endpoints run as the default one. See [Service principals](/docs/blocks/service-accounts).                                                                                                                                                                                                               |
 | `signing-keys`       | Ed25519 and ES256 keys per owner, private keys in Vault, one active key per owner, retired keys published until their tokens expire, and a JWK Set per owner. See [Signing keys](/docs/blocks/signing-keys).                                                                                                                                                                                                                                                                       |
-| `shared-signals`     | OpenID Shared Signals streams per receiver, push delivery through a webhooks-out endpoint with format `set`, a poll queue, SETs held while a stream is paused, and the receiver replay table. See [Shared signals](/docs/blocks/shared-signals).                                                                                                                                                                                                                                   |
+| `security-events`    | OpenID Shared Signals streams per receiver, push delivery through a webhooks-out endpoint with format `set`, a poll queue, SETs held while a stream is paused, and the receiver replay table. See [Shared signals](/docs/blocks/security-events).                                                                                                                                                                                                                                  |
 | `oauth-server`       | OAuth client registry with hashed secrets and registration tokens, authorization codes bound to an S256 PKCE challenge, device codes, grants per user and client, and a revocation list keyed by `jti` and grant. It stores and verifies; your authorization server signs the tokens. See [OAuth server](/docs/blocks/oauth-server).                                                                                                                                               |
 | `domains`            | Hostnames per organization: custom domains verified by a DNS TXT record, subdomains of `platformDomain` verified when added, one primary per organization, and `resolve_hostname` for the proxy. See [Custom domains](/docs/blocks/domains).                                                                                                                                                                                                                                       |
 | `reviews`            | Ratings and reviews of catalog products and registered subjects: one per user and subject, a verified flag from paid orders, moderation before or after publishing through the moderation module, the organization's reply and a per-subject aggregate public storefronts can read. See [Reviews](/docs/blocks/reviews).                                                                                                                                                           |
@@ -247,13 +247,13 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `enrollments`        | Programs of ordered steps per organization and enrollments of any subject in them, with a step snapshot, completed steps, completion and cancel. Onboarding checklists run on it. See [Enrollments](/docs/blocks/enrollments).                                                                                                                                                                                                                                                     |
 | `courses`            | Courses of modules and lessons in rank order, quiz lessons graded by `forms`, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through `enrollments`. See [Courses](/docs/blocks/courses).                                                                                                                                                                                                                          |
 | `leave`              | Leave types in days or hours, requests that go through approvals, and balances per member and year on the ledger with grants, accruals, adjustments and a year-end carryover. See [Leave](/docs/blocks/leave).                                                                                                                                                                                                                                                                     |
-| `rules`              | Tenant-editable rules on a subject type: a filter tree over a field catalog the app syncs, tested in rank order when a trigger event happens, `{ kind, config }` actions the app runs, saved versions, an evaluation log and `rule_evaluate`, which gives the same answer as `evaluateFilterQuery`. See [Rules](/docs/blocks/rules).                                                                                                                                               |
+| `rules`              | Tenant-editable rules on a subject type: a filter tree over a field catalog the app syncs, tested in rank order when a trigger event happens, `{ kind, config }` actions the app runs, saved versions, an evaluation log and `rule_evaluate`, which gives the same answer as `evaluateFilterQuery`. See [Rules](/docs/blocks/automations).                                                                                                                                         |
 | `vercel-marketplace` | Marketplace installations per configuration id with their access token sealed in Vault, provisioned resources with their tenant and secret refs, plans, invoices kept by event time and the meter totals reported to Vercel per period. Service role only. See [Vercel Marketplace](/docs/blocks/vercel-marketplace).                                                                                                                                                              |
 | `ledger`             | Double-entry accounts per organization in a currency or a custom unit, append-only transactions whose entries sum to zero per unit, running balances and holds. Credits, loyalty points, gift cards and trust balances are account kinds; inventory, leave and invoices post to it. See [Ledger](/docs/blocks/ledger).                                                                                                                                                             |
 | `assets`             | A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; booking resources and work items can name an asset. See [Assets and locations](/docs/blocks/assets).                                                                                                                                                                                 |
 | `scores`             | Tenant-editable scoring models on a subject type: rules from the rules field catalog worth points, weighted metrics from number fields or vote scores, bands, saved versions, and the current score and history per record with a breakdown. Lead and health scoring are models. See [Scores](/docs/blocks/scores).                                                                                                                                                                |
 | `guests`             | People outside the organization, invited by email, who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Guests are never members; comments, attachments, invoices and bookings let them in through `ctx.scope.guest`. See [Guests](/docs/blocks/guests).                                                                                                                                                  |
-| `passes`             | Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource. Every scan is logged, and drop-ins count against the resource's capacity with its bookings. With `credits`, a pass pays for class bookings and refunds the credit on an early cancellation. See [Passes](/docs/blocks/passes).                                                                                               |
+| `passes`             | Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource. Every scan is logged, and drop-ins count against the resource's capacity with its bookings. With `credits`, a pass pays for class bookings and refunds the credit on an early cancellation. See [Passes](/docs/blocks/admission-passes).                                                                                     |
 | `billable-time`      | An hourly rate card per organization, member and record, a preview of unbilled time, and `invoice_from_time`, which bills it as lines on a draft invoice. Billed entries lock until the invoice is voided. See [Billable time](/docs/blocks/billable-time).                                                                                                                                                                                                                        |
 | `leases`             | Units from the assets block let to parties, with rent per period posted on the ledger once (a charge row and a ledger key per period), deposits held through ledger holds until termination, renewals, and maintenance requests on the unit. See [Leases](/docs/blocks/leases).                                                                                                                                                                                                    |
 | `expenses`           | Expense reports with lines in categories, receipts as attachments on the lines, spend policies (a limit per category and a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger. See [Expenses](/docs/blocks/expenses).                                                                                                                                                                   |
@@ -263,10 +263,10 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `contracts`          | Contracts with a registered counterparty from draft through review and signature (frozen as a version and signed with the signatures block) to active, expired or terminated. Values are bigint minor units; renewal terms schedule the owner's reminder before the notice deadline, and `run_contract_renewals` renews or expires contracts past their end date. Obligations carry due dates and owners.                                                                          |
 | `controls`           | Compliance frameworks and controls, evidence (attachments or notes) with a validity date, recurring evidence tasks with an assignee and an overdue state, a computed control status and a rollup per framework, and policies published as versions that members acknowledge.                                                                                                                                                                                                       |
 | `incidents`          | Incidents with a severity, a status timeline, affected components and a postmortem. Component status follows the open incidents and keeps an uptime history. `public_status_page(slug)` is the one function anon may call: it returns only the public components, incidents and updates of a published page.                                                                                                                                                                       |
-| `templates`          | Versioned templates of a type that create records, system starters kept by key and forked per organization, a default per type and language, the applications each template made, and the workflow-builder workflows each new record starts. See [Templates](/docs/blocks/templates).                                                                                                                                                                                              |
+| `templates`          | Versioned templates of a type that create records, system starters kept by key and forked per organization, a default per type and language, the applications each template made, and the workflow-editor workflows each new record starts. See [Templates](/docs/blocks/templates).                                                                                                                                                                                               |
 | `pipelines`          | Tenant-editable pipelines for registered subjects: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency, and a status column set from the stage. See [Pipelines](/docs/blocks/pipelines).                                                                                                                                                                                                                |
-| `parties`            | Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search. See [Parties](/docs/blocks/parties).                                                                                                                                                                                                                                                        |
-| `engagements`        | Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks. With `recordings`, calls and meetings keep recordings and transcripts with speaker segments, and with `bookings`, confirmed bookings become meetings. See [Engagements](/docs/blocks/engagements).                                                                                      |
+| `parties`            | Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search. See [Parties](/docs/blocks/contacts).                                                                                                                                                                                                                                                       |
+| `engagements`        | Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks. With `recordings`, calls and meetings keep recordings and transcripts with speaker segments, and with `bookings`, confirmed bookings become meetings. See [Engagements](/docs/blocks/activities).                                                                                       |
 | `mail-sync`          | Gmail, Outlook and custom mailboxes synced per member through their own OAuth grant: threads and messages matched to the people and companies they name, logged as email engagements, private or shared mailboxes, and the mail members send. See [Mail sync](/docs/blocks/mail-sync).                                                                                                                                                                                             |
 | `segments`           | Saved filter trees over one registered record type whose matching records are kept in Postgres, refreshed on demand or on a schedule, with an event for each record that enters or leaves. See [Segments](/docs/blocks/segments).                                                                                                                                                                                                                                                  |
 | `assignment`         | Queues that pick an owner for a new record by round robin or weighted round robin among their members, within a territory filter, with a log of every pick. See [Assignment](/docs/blocks/assignment).                                                                                                                                                                                                                                                                             |
@@ -278,21 +278,21 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `field-history`      | A trigger per tracked table that records the column, old and new value, author and time of each change, read with the record's permission. See [Field history](/docs/blocks/field-history).                                                                                                                                                                                                                                                                                        |
 | `collections`        | Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one record type for a user, a team or the organization), whose entries stay hidden unless the caller can read the record. See [Collections](/docs/blocks/collections).                                                                                                                                                                                                        |
 | `deals`              | Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections. See [Deals](/docs/blocks/deals).                                                                                                                                                                                                                                 |
-| `work-items`         | Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree. See [Work items](/docs/blocks/work-items).                                                                                                                                                                                                                          |
+| `tasks`              | Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree. See [Work items](/docs/blocks/tasks).                                                                                                                                                                                                                               |
 | `quotes`             | Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. See [Quotes](/docs/blocks/quotes).                                                                                                                                                                                                                                                                                        |
 | `invoices`           | Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments recorded on the ledger, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes. See [Invoices](/docs/blocks/invoices).                                                                                                                                                                                                       |
 | `sla`                | Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records. See [Service levels](/docs/blocks/sla).                                                                                                                                                                                                                  |
-| `targets`            | Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps. See [Targets](/docs/blocks/targets).                                                                                                                                                                                                                                                               |
+| `targets`            | Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps. See [Targets](/docs/blocks/goals).                                                                                                                                                                                                                                                                 |
 | `hiring`             | Jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on. See [Hiring](/docs/blocks/hiring).                                                                                                                                                                                                                                                                      |
 | `employees`          | Employees with or without an account, a manager, team, job title, employment type and status, an org chart that refuses cycles, offboarding, employees from hired applications, and private details and a contract history behind employees.view_sensitive. See [Employees](/docs/blocks/employees).                                                                                                                                                                               |
 | `field-encryption`   | Per-owner data keys in Vault that app table columns and custom fields encrypt with, `drop_field_key` to shred an owner's values, and no searchable equality. See [Field encryption](/docs/blocks/field-encryption).                                                                                                                                                                                                                                                                |
-| `ensure-rls`         | An event trigger that enables row level security on every new table outside the Supabase-managed schemas. Install it as `postgres`, which supautils lets create event triggers. See [below](#rls-on-every-new-table)                                                                                                                                                                                                                                                               |
+| `rls-guard`          | An event trigger that enables row level security on every new table outside the Supabase-managed schemas. Install it as `postgres`, which supautils lets create event triggers. See [below](#rls-on-every-new-table)                                                                                                                                                                                                                                                               |
 
-`invitations` and `organizations` need `tenant` and `access`, so adding one
+`invitations` and `organizations` need `memberships` and `access`, so adding one
 pulls those in as well. They read the active tenant from the source in
-`blocks.access.activeTenant`: by default the tenant the server resolved for the
+`blocks.permissions.activeTenant`: by default the tenant the server resolved for the
 request, then the claim named by `auth.organization.claim` (`tenant_id` by default).
-The roles come from `blocks.access.roles`. Change modules through `blocks` (see
+The roles come from `blocks.permissions.roles`. Change modules through `blocks` (see
 [below](#existing-tables-managed-adopt-and-custom)) rather than by editing
 the files: `upgrade` rewrites them, and doctor reports a hand edit.
 
@@ -345,7 +345,7 @@ every block, and `blocks.<name>.scope` for one block.
 
 | Scope              | Rows belong to                                      | Checks                                                       |
 | ------------------ | --------------------------------------------------- | ------------------------------------------------------------ |
-| `tenant` (default) | a tenant, through the `tenant` module               | the access contract: `can`, `tenant_ids_with`, `is_platform` |
+| `tenant` (default) | a tenant, through the `memberships` module          | the access contract: `can`, `tenant_ids_with`, `is_platform` |
 | `user`             | the signed-in user, whose id the scope column holds | the scope column is the caller's id                          |
 | `none`             | one shared space                                    | any signed-in user                                           |
 
@@ -356,7 +356,7 @@ export default defineConfig({
 });
 ```
 
-Outside `tenant` scope a block needs neither the `tenant` module nor the
+Outside `tenant` scope a block needs neither the `memberships` module nor the
 access contract, so `add` leaves them out, and its scope column is
 nullable: a user's id by default (`default auth.uid()`) in `user` scope, null
 in `none` scope. The block's functions take the same arguments in every
@@ -366,14 +366,14 @@ write into another's rows. Blocks that need tenants (organizations,
 invitations, billing and most business blocks) run only in `tenant` scope,
 and `add` refuses them in another one; set their `scope` to `tenant` to
 keep them per tenant while the rest of the app runs per user.
-`tenant` and `access` always run in `tenant` scope.
+`memberships` and `access` always run in `tenant` scope.
 
 | Runs in       | Blocks                                                                                                               |
 | ------------- | -------------------------------------------------------------------------------------------------------------------- |
 | every scope   | `tags`, `comments`, and the blocks without tenant data (`notifications`, `profiles`, `jobs`, `outbox`, `audit`, ...) |
-| `tenant` only | every other block that requires `tenant` or `access`, and the blocks that require one of them                        |
+| `tenant` only | every other block that requires `memberships` or `access`, and the blocks that require one of them                   |
 
-`blocks.tenant.names.organization` renames the tenant concept in the SQL
+`blocks.memberships.names.organization` renames the tenant concept in the SQL
 the blocks write:
 `workspace` turns the `organizations` table into `workspaces`,
 `organization_id` into `workspace_id`, `create_organization` into
@@ -382,7 +382,7 @@ the blocks write:
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
-    tenant: { names: { organization: "workspace" } },
+    memberships: { names: { organization: "workspace" } },
     organizations: {},
   },
 });
@@ -409,8 +409,8 @@ into `tasks`, `work_item_id` into `task_id`, `create_work_item` into
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  "work-items": { entities: { work_item: { name: "task", url: "/tasks/{id}" } } },
-  parties: { entities: { company: "account" } },
+  "tasks": { entities: { work_item: { name: "task", url: "/tasks/{id}" } } },
+  contacts: { entities: { company: "account" } },
 },
 ```
 
@@ -439,7 +439,7 @@ work under any tenant name:
 - Event types and payload keys (`organization.created`, `organizationId`)
   and permission keys.
 - The access contract (`can`, `tenant_ids_with`, `is_platform`).
-  `blocks.access.functions` keeps its meaning: the templates of the `custom`
+  `blocks.permissions.functions` keeps its meaning: the templates of the `custom`
   model.
 - Tables and columns an adopted block maps by name.
 
@@ -464,7 +464,7 @@ TypeScript side call. `blocks.<module>.ownership` decides what stands behind it.
 
 `better-supabase blocks list --installed` marks custom modules, and `blocks view --sql <module>` shows
 the signatures a custom module must provide. Not every module supports every
-mode; `tenant` and `access` support all three.
+mode; `memberships` and `access` support all three.
 
 The other keys rename what the module reads and writes, so an app keeps its
 own names:
@@ -472,7 +472,7 @@ own names:
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
-    tenant: {
+    memberships: {
       ownership: "adopt",
       tables: { memberships: "public.organization_users" },
       columns: { memberships: { tenant: "organization_id", lastUsedAt: null } },
@@ -490,7 +490,7 @@ export default defineConfig({
 | `tables`      | logical table to `table` or `schema.table`; `null` for an optional table you don't have                                                                                           |
 | `columns`     | logical table to logical column to column name; `null` for an optional column                                                                                                     |
 | `idType`      | the tenant id type: `uuid` (default), `text`, `bigint` or `integer`                                                                                                               |
-| `permissions` | block action to permission key, checked through the [access contract](/docs/blocks/access)                                                                                        |
+| `permissions` | block action to permission key, checked through the [access contract](/docs/blocks/permissions)                                                                                   |
 | `options`     | module options, listed on each module's page                                                                                                                                      |
 | `hooks`       | where the module looks for the app's [SQL hooks](/docs/extending/events#sql-hooks)                                                                                                |
 | `events`      | `false` stops the module writing its events to the outbox                                                                                                                         |
@@ -508,7 +508,7 @@ An adopted column keeps the type the module writes, which is `text` for
 names, kinds and subject types. A few of those may be an enum or a domain
 instead, because the module casts what it writes and compares to the
 column's declared type through `better_supabase.as_column_type`: the tags
-`kind` and `subjectType` and the number-sequences `entity`. Any other text
+`kind` and `subjectType` and the numbering `entity`. Any other text
 column the module writes a parameter or computed value into must take a text
 value: `upgrade` and `add --adopt` refuse an enum there when the schema files
 declare it, and doctor reports it as [BS342](/docs/cli/doctor#bs342). A
@@ -548,7 +548,7 @@ sql: {
 blocks: {
   settings: {},
   notifications: {},
-  jobs: { api: false },
+  queue: { api: false },
 },
 ```
 
@@ -586,7 +586,7 @@ announcements:
 
 ```ts
 const transport = rpcTransport(serviceClient, { schema: "api" });
-const flags = createFlagsProvider({ transport });
+const flags = createFeatureFlagsProvider({ transport });
 const announcements = createAnnouncements({ transport });
 const outbox = createOutbox({ transport, source: "https://app.example.com" });
 ```
@@ -596,7 +596,7 @@ An unknown table, column or module, or a mode a module doesn't support, stops
 module version and mode (`-- @bsb-block tenant@2 adopt`), and the data migration
 records them in `better_supabase.blocks`. An option a module doesn't read
 stops `add` as well, so a misspelled option can't fall back to its default
-without notice. Only `blocks.access` takes the access keys (`model`, `roles`,
+without notice. Only `blocks.permissions` takes the access keys (`model`, `roles`,
 `functions`, `activeTenant` and the rest).
 
 ## Audit log
@@ -698,7 +698,7 @@ select better_supabase.audit_event(
 A job, a webhook handler or an admin tool that records an event as the
 service role can say who acted and from where: `actor_id`, `actor_kind`
 (such as `job` or `api-key`), `actor_label`, `request_id` (the request it
-handled), `scope` (an adopted log's own value, or `tenant` and `platform`),
+handled), `scope` (an adopted log's own value, or `memberships` and `platform`),
 and, with the restricted table, `ip`, `user_agent` and `session_id`. The function takes these only from the
 service role and direct admin connections; for any other caller it uses
 `auth.uid()`, the request's JWT and headers, so a user can't record an event
@@ -769,7 +769,7 @@ The module options (`blocks.audit.options`):
 | --------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tenantColumn`        | `plugins.tenant`         | the tenant column of audited tables                                                                                                                                                                                                                                                                 |
 | `appendOnly`          | `true` when managed      | triggers reject updates, deletes and truncate; only `purge_audit_log`, running as its owner, deletes                                                                                                                                                                                                |
-| `readPolicy`          | `false`                  | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/access))                                                                                                                                                     |
+| `readPolicy`          | `false`                  | members read their tenants' entries with the `view` permission, platform staff all of them with `viewAll` (needs [access](/docs/blocks/permissions))                                                                                                                                                |
 | `impersonators`       | `show`                   | `hide` keeps the impersonation columns from `authenticated`                                                                                                                                                                                                                                         |
 | `restricted`          | `false`                  | old and new records, IP address, user agent and metadata go to a separate `audit_events_restricted` table that only `service_role` reads; without it, `audit_event(restricted => ...)` fails with `22023`                                                                                           |
 | `eventRoles`          | `['service_role']`       | the roles that can call `audit_event`                                                                                                                                                                                                                                                               |
@@ -989,13 +989,13 @@ await purgeAuditLog(postgres.admin, {
 Each TypeScript method takes the same options in camel case (`olderThan` in
 seconds or as an interval, `includeDead`, `batch`) and returns how many rows
 it deleted as a `Result`. Each object also has a `purgeJob(options)` that
-returns a job handler, so the purges can run on the [jobs](/docs/blocks/jobs)
+returns a job handler, so the purges can run on the [jobs](/docs/blocks/queue)
 scheduler instead of pg_cron. They work over a service SQL connection or a
 service-role transport, so an app without a direct connection can schedule
 them too:
 
 ```ts
-const jobs = createJobs({
+const jobs = createQueue({
   sql: postgres.admin,
   queues: { purge: v.object({}) },
 });
@@ -1015,8 +1015,8 @@ was purged is stored and processed again.
 
 ## Support sessions
 
-`support-sessions` records who viewed the app as whom, for
-[support mode](/docs/auth/impersonation). It needs `access` and `audit`.
+`impersonation` records who viewed the app as whom, for
+[support mode](/docs/auth/impersonation). It needs `permissions` and `audit`.
 `start_support_session(target, reason, ttl, read_only, metadata, tenant)`
 checks `is_platform('support.start')` for the caller, ends the caller's
 previous session, writes `support.started` to the audit log and returns the
@@ -1053,7 +1053,7 @@ refuses it with `SUPPORT_SELF_APPROVAL`, and the
 for the service role. Clients can read their own requests but can't insert
 or update the table. Without an authorization provider, an approver needs
 `is_platform('support.start')` (rename it with
-`blocks["support-sessions"].permissions.approve`). With one that sets
+`blocks["impersonation"].permissions.approve`). With one that sets
 [`isApprover`](/docs/extending/authorization-providers#approvals), the module
 calls it with `{kind}` `'support-session'` and `{subject}` the request id
 instead. The service role may pass `admin_id`, `approved_by` and
@@ -1089,18 +1089,18 @@ and the writes call that instead of the built-in check.
 | `claimsHook`           | none       | `schema.function` of your access token hook, for `support_target_claims` |
 
 The permission keys are `support.start`, `support.read` and `support.revoke`;
-rename them with `blocks["support-sessions"].permissions`. The hooks
+rename them with `blocks["impersonation"].permissions`. The hooks
 `before_support_start(admin, target, reason, metadata)`,
 `after_support_start(session_id)` and `after_support_end(session_id)` run in
 the schema `hooks.schema` names. An existing sessions table can be adopted:
-the `tenant`, `readOnly`, `endedBy` and `metadata` columns are optional. In
+the `memberships`, `readOnly`, `endedBy` and `metadata` columns are optional. In
 `adopt` mode the module still creates `support_requests` unless
 `tables.requests` names your own table; `tables.requests: null` needs
 `options.approval: "none"`.
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  "support-sessions": {
+  "impersonation": {
     ownership: "adopt",
     tables: { sessions: "public.impersonation_sessions" },
     columns: { sessions: { admin: "impersonator_id", metadata: null } },
@@ -1182,11 +1182,11 @@ The hook runs only for the Data API. Queries through
 Public endpoints often limit by something other than a claim: a token in the
 URL, an organization, an AI chat thread. `hit_rate_limit(scope, key)` counts
 one hit of `key` with the same rules and counters, and `createRateLimit` from
-`better-supabase/blocks/jobs` calls it from a route handler. `rateLimited()`
+`better-supabase/blocks/queue` calls it from a route handler. `rateLimited()`
 answers a refused hit with a `problem+json` 429 and `Retry-After`:
 
 ```ts
-import { createRateLimit, rateLimited } from "better-supabase/blocks/jobs";
+import { createRateLimit, rateLimited } from "better-supabase/blocks/queue";
 
 const limits = createRateLimit({ sql: postgres.admin });
 
@@ -1308,7 +1308,7 @@ export default defineConfig({
     },
     customer: { table: "public.customers", title: "name" },
   },
-  blocks: ["tenant", "access", "subjects", "tags", "comments"],
+  blocks: ["memberships", "permissions", "subjects", "tags", "comments"],
 });
 ```
 
@@ -1427,7 +1427,7 @@ comment on function app.deals_subject_merge(text, text, text) is 'better-supabas
 
 ## RLS on every new table
 
-`better-supabase add ensure-rls` installs an event trigger that enables row level
+`better-supabase add rls-guard` installs an event trigger that enables row level
 security on every table created with `create table`, `create table as` or
 `select into`, so a table never reaches the Data API without RLS. Tables in
 the Supabase-managed schemas (`auth`, `storage`, `realtime`, `extensions`
@@ -1452,7 +1452,7 @@ you add other modules. List the modules you use in the config:
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   database: { sql: { testsDir: "supabase/tests" } },
-  blocks: ["audit", "jobs", "invitations"],
+  blocks: ["audit", "queue", "invitations"],
 });
 ```
 
@@ -1532,8 +1532,8 @@ import { moduleLayout, renderBlocks, resolveBlocks } from "better-supabase/sql";
 import config from "../better-supabase.config.ts";
 
 const layout = moduleLayout(resolveConfig(config, process.cwd()));
-const modules = resolveBlocks(["audit", "jobs"], layout).map((m) => m.name);
-const files = renderBlocks(["audit", "jobs"], layout);
+const modules = resolveBlocks(["audit", "queue"], layout).map((m) => m.name);
+const files = renderBlocks(["audit", "queue"], layout);
 ```
 
 `compileReadSets` turns the read sets in `generated.ts` into the SQL views and
@@ -1546,7 +1546,7 @@ and mode in a file's header.
 schema and test paths without rendering it. `modulePermissionKeys(blocks, names)`
 lists the permission keys those modules check, with the action, the key after
 `blocks.<module>.permissions` and whether a tenant or a platform check asks for
-it. Under `blocks.access.model: 'provider'`, `add` and doctor (BS411) check
+it. Under `blocks.permissions.model: 'provider'`, `add` and doctor (BS411) check
 each key against the provider's `permissions`; a script can do the same:
 
 ```ts title="scripts/check-module-keys.ts"

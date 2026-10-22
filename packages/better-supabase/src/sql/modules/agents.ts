@@ -16,8 +16,8 @@ import {
   revokeTable,
   writeExtraColumns,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { columnsOf, rowJson } from "./module-columns.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const AGENTS = {
   id: "id",
@@ -547,7 +547,7 @@ export const AGENTS_MODULE: BlockSqlDefinition = {
   title: "Agents",
   description:
     "Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   target: "schema",
   version: 1,
   names: NAMES,

@@ -123,8 +123,8 @@ describe("comments module", () => {
     );
   });
 
-  it("turns a comment into a work item with work-items", () => {
-    const sql = sqlOf(["organizations", "work-items", "comments"]);
+  it("turns a comment into a work item with tasks", () => {
+    const sql = sqlOf(["organizations", "tasks", "comments"]);
     expect(sql).toContain(
       `create or replace function "better_supabase"."assign_comment"(message uuid, assignee uuid default null, attrs jsonb default '{}')`,
     );

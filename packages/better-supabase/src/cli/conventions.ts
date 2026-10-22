@@ -49,16 +49,16 @@ export const CONVENTION_ARGS: {
   "tenant-name": {
     type: "string",
     description:
-      "What a tenant is called (blocks.tenant.names.organization): organization (the default), workspace, team or another lowercase name",
+      "What a tenant is called (blocks.memberships.names.organization): organization (the default), workspace, team or another lowercase name",
     valueHint: "name",
   },
   access: arg(
     "access",
-    "Auth and permissions (blocks.access.model): roles (the default), catalog, provider or custom",
+    "Auth and permissions (blocks.permissions.model): roles (the default), catalog, provider or custom",
   ),
   "id-type": arg(
     "idType",
-    "The type of the access block's ids (blocks.access.idType): uuid (the default), text, bigint or integer",
+    "The type of the permissions block's ids (blocks.permissions.idType): uuid (the default), text, bigint or integer",
   ),
   api: arg(
     "api",
@@ -151,7 +151,7 @@ export function withConventions(
     ) {
       throw new CliError(
         "usage",
-        `--tenant-name with a preset takes ${PRESET_TENANT_NAMES.join(", ")}. Leave it out and set blocks.tenant.names.organization in the config for another name.`,
+        `--tenant-name with a preset takes ${PRESET_TENANT_NAMES.join(", ")}. Leave it out and set blocks.memberships.names.organization in the config for another name.`,
       );
     }
 

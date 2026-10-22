@@ -126,7 +126,7 @@ To lock a user out, call `bsb.suspendAccount(userId, { suspended: true })`.
 It bans the user in Auth and keeps the sessions, so Auth answers with
 `user_banned`, `sessionStatus` returns `"banned"` and the `session_active()`
 policy refuses the user's tokens. `{ suspended: false }` ends every session
-and refresh token, then lifts the ban. Without the `sessions` SQL module, pass
+and refresh token, then lifts the ban. Without the `session-revocation` SQL module, pass
 `endSessions: true` to delete the sessions on suspension too (the app then
 sees `"ended"`). `bsb.endSessions(userId)` signs a user out everywhere without
 a ban. To
@@ -141,7 +141,7 @@ membership lasts until the next refresh. When that window matters:
 - Write policies that read the source of truth, for example
   `organization_id in (select better_supabase.member_organization_ids())`, instead of
   the claim.
-- For signed-out, banned or deleted users, add the `sessions` SQL module and a
+- For signed-out, banned or deleted users, add the `session-revocation` SQL module and a
   restrictive policy with `using ((select better_supabase.session_active()))`
   on the tables that guard sensitive data.
 - After a change the user made themselves (joining an organization), call

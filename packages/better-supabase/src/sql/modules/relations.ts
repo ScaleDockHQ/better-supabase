@@ -27,7 +27,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 /** How a kind of link behaves. */
 export interface RelationKind {
@@ -804,7 +804,7 @@ export const RELATIONS: BlockSqlDefinition = {
   title: "Relations",
   description:
     "Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

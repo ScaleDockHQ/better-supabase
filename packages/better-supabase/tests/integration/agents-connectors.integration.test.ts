@@ -7,14 +7,14 @@ import type {
 } from "../../src/credentials/provider.ts";
 
 import { createAgents, sqlTransport } from "../../src/blocks/agents/index.ts";
-import { createAiTasks } from "../../src/blocks/ai-tasks/index.ts";
+import { createAiSchedules } from "../../src/blocks/ai-schedules/index.ts";
 import { createConnectors } from "../../src/blocks/connectors/index.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
+describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => pool.end());
@@ -271,7 +271,7 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "agents", "ai-tasks"]);
+      await s.install(["organizations", "agents", "ai-schedules"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const tenant = await s.organization(owner, { member });
@@ -280,7 +280,7 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
       const seen: string[] = [];
       let clock = past;
 
-      const tasks = createAiTasks({
+      const tasks = createAiSchedules({
         transport,
         now: () => clock,
         run: (task) => {

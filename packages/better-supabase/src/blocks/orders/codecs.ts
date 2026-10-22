@@ -233,7 +233,7 @@ export interface OrderRefund {
 export interface Order<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
-  /** Gapless per organization, from `number-sequences` when it numbers `order`. */
+  /** Gapless per organization, from `numbering` when it numbers `order`. */
   readonly number: string;
   readonly cartId: string;
   readonly customerId: string;

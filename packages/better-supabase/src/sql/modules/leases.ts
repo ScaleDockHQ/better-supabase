@@ -16,8 +16,8 @@ import {
 } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
 import { LEASE_RESERVED, leasesFunctions } from "./leases-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const LEASE_PAYLOAD = [
   "organizationId",
@@ -378,7 +378,7 @@ export const LEASES: BlockSqlDefinition = {
   title: "Leases",
   description:
     "Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals, terminations and maintenance requests on the unit.",
-  requires: ["tenant", "access", "subjects", "assets", "ledger"],
+  requires: ["memberships", "permissions", "subjects", "assets", "ledger"],
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],

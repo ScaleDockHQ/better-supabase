@@ -1,4 +1,4 @@
-import type { PermissionSet } from "../blocks/access/permissions.ts";
+import type { PermissionSet } from "../blocks/permissions/permissions-controller.ts";
 import type {
   AnySection,
   SectionData,
@@ -8,7 +8,7 @@ import type {
 import type { DbError } from "../core/errors.ts";
 import type { RecordRef } from "../schema/types.ts";
 
-import { can as holds } from "../blocks/access/permissions.ts";
+import { can as holds } from "../blocks/permissions/permissions-controller.ts";
 import { dbError } from "../core/errors.ts";
 import { AsyncResult } from "../core/result.ts";
 

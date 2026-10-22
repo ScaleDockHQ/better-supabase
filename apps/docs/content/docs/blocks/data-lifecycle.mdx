@@ -174,7 +174,7 @@ reads on its own connection, so keep `concurrency` below the pool size;
 `concurrency: 1` restores the sequential order. The first failing table
 stops the others from starting, and the export is marked failed.
 
-`exporter.job` is a [jobs](/docs/blocks/jobs) handler for an `{ exportId }`
+`exporter.job` is a [jobs](/docs/blocks/queue) handler for an `{ exportId }`
 payload when you prefer a queue. A failure marks the export `failed` with
 the error, and running it again starts over. An event or job for an export
 that is no longer pending or failed (cancelled, deleted, already running or
@@ -206,7 +206,7 @@ await lifecycle.cancelOrganizationDeletion(organizationId).orThrow();
 
 The request needs `organization.delete`, and disables the tenant through
 the access contract: the organization's `disabled_at` with the managed
-organizations module, or the `blocks.access.disabled.tenant` column.
+organizations module, or the `blocks.permissions.disabled.tenant` column.
 Disabled tenants get no permissions and no membership claims, so members
 lose access at once. `grace` takes an interval or a `Temporal.Duration`
 and defaults to the `grace` option.
@@ -222,7 +222,7 @@ names another key), can cancel until the purge runs. The check goes through
 `better_supabase.member_can_while_deleting()`, which every access model
 renders: it asks the same question as `member_can()` without the
 disabled-tenant check, so an authorization provider's roles keep working
-while the organization waits. With `blocks.access.mode: "custom"`, where
+while the organization waits. With `blocks.permissions.mode: "custom"`, where
 the app writes the access functions itself, an owner can cancel instead.
 Cancelling enables the tenant again, unless it was disabled before the
 request.
@@ -266,7 +266,7 @@ when no pass makes progress, the purge stops with `ORGANIZATION_PURGE_BLOCKED`
 and names the tables.
 
 The tenant row is the organizations module's (managed or adopted), or the
-row of the table `blocks.access.disabled.tenant` names, or the one in
+row of the table `blocks.permissions.disabled.tenant` names, or the one in
 `options.tenantRow` (`"schema.table.column"`, `false` to keep it), so an
 adopted tenant table needs no `on_organization_purge` hook to go.
 

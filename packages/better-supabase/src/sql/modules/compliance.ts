@@ -1,0 +1,426 @@
+import type { ComplianceEvents } from "../../blocks/compliance/events.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlContractFunction,
+  BlockSqlEvents,
+  BlockSqlNames,
+} from "../context.ts";
+import type { BlockSqlDefinition } from "../module-types.ts";
+
+import { sqlIdent } from "../../core/template.ts";
+import {
+  addExtraColumns,
+  extraFieldsArg,
+  lockTable,
+  schemaPreamble,
+} from "../shared.ts";
+import { controlsFunctions } from "./compliance-functions.ts";
+import { policyFunctions } from "./compliance-policies.ts";
+import { CONTROL_RESERVED, evidenceAttachments } from "./compliance-shared.ts";
+import { moduleOperations } from "./permissions-model.ts";
+
+const EVENTS: BlockSqlEvents<ComplianceEvents> = {
+  "control.saved": {
+    subject: "controls",
+    payload: ["organizationId", "controlId", "frameworkId", "code"],
+  },
+  "control.evidence_added": {
+    subject: "controls",
+    payload: ["organizationId", "controlId", "evidenceId", "evidenceTaskId"],
+  },
+  "evidence_task.missed": {
+    subject: "evidence-tasks",
+    payload: [
+      "organizationId",
+      "evidenceTaskId",
+      "controlId",
+      "assigneeId",
+      "dueOn",
+    ],
+  },
+  "policy.published": {
+    subject: "policies",
+    payload: ["organizationId", "policyId", "versionId", "number"],
+  },
+  "policy.acknowledged": {
+    subject: "policies",
+    payload: ["organizationId", "policyId", "versionId", "userId"],
+  },
+};
+
+const NAMES: BlockSqlNames = {
+  entities: {
+    control: {
+      table: "controls",
+      singular: "control",
+      primary: true,
+      subject: {
+        title: "title",
+        permissions: { read: "read", write: "manage" },
+      },
+    },
+    control_framework: { table: "frameworks", singular: "control_framework" },
+    evidence_task: { table: "tasks", singular: "evidence_task" },
+    policy: {
+      table: "policies",
+      singular: "policy",
+      plural: "policies",
+      subject: {
+        title: "title",
+        permissions: { read: "read", write: "manage" },
+      },
+    },
+  },
+  events: EVENTS,
+  options: ["extraColumns"],
+  tables: {
+    frameworks: {
+      name: "control_frameworks",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        key: "key",
+        name: "name",
+        version: "version",
+        description: "description",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    controls: {
+      name: "controls",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        framework: "framework_id",
+        code: "code",
+        title: "title",
+        description: "description",
+        owner: "owner_id",
+        applicable: "applicable",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    evidence: {
+      name: "control_evidence",
+      lifecycle: { tenant: "tenant", user: "collectedBy", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        control: "control_id",
+        task: "task_id",
+        attachment: "attachment_id",
+        note: "note",
+        collectedBy: "collected_by",
+        collectedAt: "collected_at",
+        validUntil: "valid_until",
+      },
+    },
+    tasks: {
+      name: "evidence_tasks",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        control: "control_id",
+        title: "title",
+        assignee: "assignee_id",
+        intervalDays: "interval_days",
+        dueOn: "due_on",
+        lastCollectedAt: "last_collected_at",
+        notifiedFor: "notified_for",
+        active: "active",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    policies: {
+      name: "policies",
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        key: "key",
+        title: "title",
+        owner: "owner_id",
+        requiresAck: "requires_acknowledgement",
+        currentVersion: "current_version_id",
+        versionNumber: "version_number",
+        publishedAt: "published_at",
+        archivedAt: "archived_at",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    acknowledgements: {
+      name: "policy_acknowledgements",
+      lifecycle: { tenant: "tenant", user: "user", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        policy: "policy_id",
+        version: "version_id",
+        user: "user_id",
+        acknowledgedAt: "acknowledged_at",
+      },
+    },
+  },
+};
+
+function tables(ctx: BlockSqlContext): string {
+  const frameworks = ctx.table("frameworks");
+  const controls = ctx.table("controls");
+  const evidence = ctx.table("evidence");
+  const tasks = ctx.table("tasks");
+  const policies = ctx.table("policies");
+  const acks = ctx.table("acknowledgements");
+  const f = (column: string): string => ctx.col("frameworks", column);
+  const k = (column: string): string => ctx.col("controls", column);
+  const e = (column: string): string => ctx.col("evidence", column);
+  const t = (column: string): string => ctx.col("tasks", column);
+  const p = (column: string): string => ctx.col("policies", column);
+  const a = (column: string): string => ctx.col("acknowledgements", column);
+  const permissions = moduleOperations("compliance");
+  const read = ctx.permission("read", permissions.read);
+  const acknowledge = ctx.permission("acknowledge", permissions.acknowledge);
+  const versions = ctx.of("versions");
+  const attachments = evidenceAttachments(ctx);
+  const extras = ctx.extraColumns("controls", CONTROL_RESERVED);
+
+  const name = (logical: string, suffix: string): string =>
+    sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
+
+  const readPolicy = (logical: string, using: string): string =>
+    `drop policy if exists ${name(logical, "read")} on ${ctx.table(logical)};
+create policy ${name(logical, "read")} on ${ctx.table(logical)} for select to authenticated
+  using (${using});`;
+
+  const versionRef = versions.manages
+    ? ` references ${versions.table("versions")} (${versions.col("versions", "id")}) on delete restrict`
+    : "";
+
+  return `
+create table if not exists ${frameworks} (
+  ${f("id")} uuid primary key default gen_random_uuid(),
+  ${f("tenant")} ${ctx.idType} not null,
+  ${f("key")} text not null check (${f("key")} ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  ${f("name")} text not null check (length(${f("name")}) between 1 and 200),
+  ${f("version")} text check (${f("version")} is null or length(${f("version")}) <= 50),
+  ${f("description")} text check (${f("description")} is null or length(${f("description")}) <= 4000),
+  ${f("createdAt")} timestamptz not null default now(),
+  ${f("updatedAt")} timestamptz not null default now(),
+  unique (${f("tenant")}, ${f("key")}),
+  unique (${f("tenant")}, ${f("id")})
+);
+${lockTable(frameworks, { read: true })}
+${readPolicy("frameworks", ctx.scope.check(f("tenant"), read))}
+
+create table if not exists ${controls} (
+  ${k("id")} uuid primary key default gen_random_uuid(),
+  ${k("tenant")} ${ctx.idType} not null,
+  ${k("framework")} uuid not null,
+  ${k("code")} text not null check (length(${k("code")}) between 1 and 50),
+  ${k("title")} text not null check (length(${k("title")}) between 1 and 200),
+  ${k("description")} text check (${k("description")} is null or length(${k("description")}) <= 10000),
+  ${k("owner")} uuid,
+  -- A control out of scope (excluded in the statement of applicability).
+  ${k("applicable")} boolean not null default true,
+  ${k("createdAt")} timestamptz not null default now(),
+  ${k("updatedAt")} timestamptz not null default now(),
+  unique (${k("framework")}, ${k("code")}),
+  unique (${k("tenant")}, ${k("id")}),
+  foreign key (${k("tenant")}, ${k("framework")}) references ${frameworks} (${f("tenant")}, ${f("id")}) on delete cascade
+);${addExtraColumns(controls, extras)}
+create index if not exists ${name("controls", "tenant_idx")} on ${controls} (${k("tenant")}, ${k("framework")});
+create index if not exists ${name("controls", "owner_idx")} on ${controls} (${k("tenant")}, ${k("owner")}) where ${k("owner")} is not null;
+${lockTable(controls, { read: true })}
+${readPolicy("controls", ctx.scope.check(k("tenant"), read))}
+
+create table if not exists ${tasks} (
+  ${t("id")} uuid primary key default gen_random_uuid(),
+  ${t("tenant")} ${ctx.idType} not null,
+  ${t("control")} uuid not null,
+  ${t("title")} text not null check (length(${t("title")}) between 1 and 200),
+  ${t("assignee")} uuid,
+  -- Collecting evidence moves due_on this many days past the collection.
+  ${t("intervalDays")} integer not null check (${t("intervalDays")} between 1 and 3650),
+  ${t("dueOn")} date not null,
+  ${t("lastCollectedAt")} timestamptz,
+  -- The due date notify_overdue_evidence_tasks last reported, so each lapse notifies once.
+  ${t("notifiedFor")} date,
+  ${t("active")} boolean not null default true,
+  ${t("createdAt")} timestamptz not null default now(),
+  ${t("updatedAt")} timestamptz not null default now(),
+  foreign key (${t("tenant")}, ${t("control")}) references ${controls} (${k("tenant")}, ${k("id")}) on delete cascade
+);
+create index if not exists ${name("tasks", "parent_idx")} on ${tasks} (${t("tenant")}, ${t("control")});
+create index if not exists ${name("tasks", "assignee_idx")} on ${tasks} (${t("tenant")}, ${t("assignee")}, ${t("dueOn")}) where ${t("assignee")} is not null;
+create index if not exists ${name("tasks", "due_idx")} on ${tasks} (${t("dueOn")}) where ${t("active")};
+${lockTable(tasks, { read: true })}
+${readPolicy("tasks", `${t("assignee")} = (select auth.uid()) or ${ctx.scope.check(t("tenant"), read)}`)}
+
+create table if not exists ${evidence} (
+  ${e("id")} uuid primary key default gen_random_uuid(),
+  ${e("tenant")} ${ctx.idType} not null,
+  ${e("control")} uuid not null,
+  ${e("task")} uuid references ${tasks} (${t("id")}) on delete set null,
+  -- The file behind the evidence, an attachment on the control.
+  ${e("attachment")} uuid${attachments === undefined ? "" : ` references ${attachments.table("attachments")} (${attachments.col("attachments", "id")}) on delete cascade`},
+  ${e("note")} text check (${e("note")} is null or length(${e("note")}) <= 4000),
+  ${e("collectedBy")} uuid,
+  ${e("collectedAt")} timestamptz not null default now(),
+  -- The last day the evidence counts; null counts until it is removed.
+  ${e("validUntil")} date,
+  check (${e("attachment")} is not null or ${e("note")} is not null),
+  foreign key (${e("tenant")}, ${e("control")}) references ${controls} (${k("tenant")}, ${k("id")}) on delete cascade
+);
+create index if not exists ${name("evidence", "parent_idx")} on ${evidence} (${e("tenant")}, ${e("control")}, ${e("collectedAt")} desc);
+create index if not exists ${name("evidence", "request_idx")} on ${evidence} (${e("task")}) where ${e("task")} is not null;
+create index if not exists ${name("evidence", "attachment_idx")} on ${evidence} (${e("attachment")}) where ${e("attachment")} is not null;
+${lockTable(evidence, { read: true })}
+${readPolicy("evidence", ctx.scope.check(e("tenant"), read))}
+
+create table if not exists ${policies} (
+  ${p("id")} uuid primary key default gen_random_uuid(),
+  ${p("tenant")} ${ctx.idType} not null,
+  ${p("key")} text not null check (${p("key")} ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  ${p("title")} text not null check (length(${p("title")}) between 1 and 200),
+  ${p("owner")} uuid,
+  ${p("requiresAck")} boolean not null default true,
+  -- The published version (versions block), frozen.
+  ${p("currentVersion")} uuid${versionRef},
+  ${p("versionNumber")} integer,
+  ${p("publishedAt")} timestamptz,
+  ${p("archivedAt")} timestamptz,
+  ${p("createdAt")} timestamptz not null default now(),
+  ${p("updatedAt")} timestamptz not null default now(),
+  unique (${p("tenant")}, ${p("key")}),
+  unique (${p("tenant")}, ${p("id")})
+);
+create index if not exists ${name("policies", "version_idx")} on ${policies} (${p("currentVersion")}) where ${p("currentVersion")} is not null;
+${lockTable(policies, { read: true })}
+${readPolicy("policies", `${ctx.scope.check(p("tenant"), read)} or ${ctx.scope.check(p("tenant"), acknowledge)}`)}
+
+create table if not exists ${acks} (
+  ${a("id")} uuid primary key default gen_random_uuid(),
+  ${a("tenant")} ${ctx.idType} not null,
+  ${a("policy")} uuid not null,
+  ${a("version")} uuid not null${versionRef},
+  ${a("user")} uuid not null,
+  ${a("acknowledgedAt")} timestamptz not null default now(),
+  unique (${a("policy")}, ${a("version")}, ${a("user")}),
+  foreign key (${a("tenant")}, ${a("policy")}) references ${policies} (${p("tenant")}, ${p("id")}) on delete cascade
+);
+create index if not exists ${name("acknowledgements", "user_idx")} on ${acks} (${a("tenant")}, ${a("user")});
+create index if not exists ${name("acknowledgements", "parent_idx")} on ${acks} (${a("tenant")}, ${a("policy")});
+create index if not exists ${name("acknowledgements", "version_idx")} on ${acks} (${a("version")});
+${lockTable(acks, { read: true })}
+${readPolicy("acknowledgements", `${a("user")} = (select auth.uid()) or ${ctx.scope.check(a("tenant"), read)}`)}
+`;
+}
+
+function build(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  if (ctx.of("versions").mode === "custom") {
+    throw new TypeError(
+      "blocks.compliance needs the versions tables; versions can't be in custom mode",
+    );
+  }
+
+  return `${schemaPreamble(ctx)}
+-- Compliance controls: frameworks of controls, evidence linked to them,
+-- recurring evidence tasks, and versioned policies members acknowledge.
+${tables(ctx)}${controlsFunctions(ctx)}${policyFunctions(ctx)}`;
+}
+
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+  const extra = extraFieldsArg(
+    ctx.extraColumns("controls", CONTROL_RESERVED),
+  ).contract;
+
+  return [
+    {
+      name: "save_control_framework",
+      args: ["{id}", "text", "text", "text", "text"],
+      returns: "jsonb",
+    },
+    { name: "list_control_frameworks", args: ["{id}"], returns: "jsonb" },
+    {
+      name: "save_control",
+      args: [
+        "uuid",
+        "text",
+        "text",
+        "text",
+        "uuid",
+        "boolean",
+        "uuid",
+        ...extra,
+      ],
+      returns: "jsonb",
+    },
+    { name: "get_control", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "list_controls",
+      args: ["{id}", "uuid", "text", "uuid", "integer"],
+      returns: "jsonb",
+    },
+    {
+      name: "add_control_evidence",
+      args: ["uuid", "uuid", "text", "date", "uuid"],
+      returns: "jsonb",
+    },
+    { name: "remove_control_evidence", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "save_evidence_task",
+      args: ["uuid", "text", "integer", "date", "uuid", "boolean", "uuid"],
+      returns: "jsonb",
+    },
+    {
+      name: "list_evidence_tasks",
+      args: ["{id}", "uuid", "uuid", "boolean"],
+      returns: "jsonb",
+    },
+    { name: "control_posture", args: ["{id}", "uuid"], returns: "jsonb" },
+    { name: "notify_overdue_evidence_tasks", args: [], returns: "integer" },
+    {
+      name: "save_policy",
+      args: ["{id}", "text", "text", "uuid", "boolean", "uuid"],
+      returns: "jsonb",
+    },
+    {
+      name: "publish_policy",
+      args: ["uuid", "jsonb", "text"],
+      returns: "jsonb",
+    },
+    { name: "archive_policy", args: ["uuid"], returns: "jsonb" },
+    { name: "acknowledge_policy", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "list_policies",
+      args: ["{id}", "boolean", "boolean"],
+      returns: "jsonb",
+    },
+    { name: "policy_acknowledgements", args: ["uuid"], returns: "jsonb" },
+  ];
+}
+
+export const CONTROLS: BlockSqlDefinition = {
+  name: "compliance",
+  scopes: ["tenant"],
+  title: "Compliance controls",
+  description:
+    "Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.",
+  requires: ["memberships", "permissions", "versions"],
+  integrates: ["attachments", "notifications", "outbox", "audit"],
+  target: "schema",
+  modes: ["managed", "custom"],
+  names: NAMES,
+  contract,
+  build,
+};

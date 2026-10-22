@@ -1,6 +1,6 @@
 "use server";
 
-import type { WorkItemChange } from "better-supabase/blocks/work-items";
+import type { WorkItemChange } from "better-supabase/blocks/tasks";
 import type { ListQueryInput } from "better-supabase/list";
 
 import { dbError, err, ok } from "better-supabase";
@@ -58,8 +58,8 @@ async function applyChanges(
 
 /**
  * Creates a work item and sets the tenant's custom fields on it. Without a
- * pipeline the work-items module puts it on the organization's default one,
- * which it seeds on first use.
+ * pipeline the tasks module puts it on the organization's default one, which it
+ * seeds on first use.
  */
 export const createWorkItem = bsb.action(
   {

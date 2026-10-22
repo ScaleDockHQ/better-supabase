@@ -1,9 +1,9 @@
-import type { GraphStepCall } from "better-supabase/blocks/workflow-builder";
+import type { GraphStepCall } from "better-supabase/blocks/workflow-editor";
 
 import {
-  createWorkflowBuilder,
+  createWorkflowEditor,
   rpcTransport,
-} from "better-supabase/blocks/workflow-builder";
+} from "better-supabase/blocks/workflow-editor";
 import { createWorkflows } from "better-supabase/blocks/workflows";
 import { vaultCredentials } from "better-supabase/credentials";
 import { nodeRunReporter } from "better-supabase/workflow-sdk/builder";
@@ -21,7 +21,7 @@ import { stepLibrary } from "./step-library";
 function stepBuilder() {
   const transport = rpcTransport(serviceSupabase(), { schema: "api" });
 
-  return createWorkflowBuilder({
+  return createWorkflowEditor({
     transport,
     schema: "api",
     steps: stepLibrary,

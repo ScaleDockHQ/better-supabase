@@ -3,7 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -19,7 +19,7 @@ import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
-import { partiesBlock } from "better-supabase/blocks/parties";
+import { contactsBlock } from "better-supabase/blocks/contacts";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
@@ -31,7 +31,7 @@ import { blockConfig } from "./legal.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
   audit: auditBlock,
@@ -47,7 +47,7 @@ export const blockSet = defineBlocks(blockConfig, {
   onboarding: onboardingBlock,
   organizations: organizationsBlock,
   outbox: outboxBlock,
-  parties: partiesBlock,
+  contacts: contactsBlock,
   profiles: profilesBlock,
   settings: settingsBlock,
   subjects: subjectsBlock,

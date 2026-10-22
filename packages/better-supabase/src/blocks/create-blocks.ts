@@ -34,7 +34,7 @@ export const BLOCK_EVENT_SOURCE = "/better-supabase/blocks";
  * `with` settings.
  */
 export interface BlockContext extends BlockOptions {
-  /** Connectors, ai-providers and the workflow builder store their secrets here. */
+  /** Connectors, ai-keys and the workflow builder store their secrets here. */
   readonly credentials?: CredentialProvider;
   /** `betterSupabase.events`, for the block events of the blocks that emit them. */
   readonly events?: EventHub;
@@ -213,7 +213,7 @@ export function defineBlocks<
  * blocks provide. `credentials` reaches every block, and block events go to
  * `audit`. Only the blocks you pass are imported, so the rest stay out of the
  * bundle. `hooks` wraps each block's methods with `withBlockHooks`, and the
- * ports are built from the wrapped clients, so a sibling's calls (ai-tasks
+ * ports are built from the wrapped clients, so a sibling's calls (ai-schedules
  * sending notifications) go through the hooks too.
  */
 export function createBlocks<const B extends BlockMap>(

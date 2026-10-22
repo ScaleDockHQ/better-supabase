@@ -9,7 +9,7 @@ import {
   PRESET_CATALOG,
   PRESET_NAMES,
 } from "../../preset/index.ts";
-import { SQL_MODULES } from "../../sql/index.ts";
+import { SQL_MODULES, renamedBlock } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
@@ -150,9 +150,13 @@ export function viewBlock(name: string | undefined): CommandResult {
   const entry = ENTRIES.find((each) => each.name === name);
 
   if (entry === undefined) {
+    const renamed = renamedBlock(name);
+
     throw new CliError(
       "usage",
-      `Unknown block "${name}". Run \`better-supabase blocks search ${name}\`.`,
+      renamed === undefined
+        ? `Unknown block "${name}". Run \`better-supabase blocks search ${name}\`.`
+        : `The "${name}" block is named "${renamed}" since 0.15. Run \`better-supabase blocks view ${renamed}\`.`,
     );
   }
 

@@ -1,7 +1,7 @@
 // #region recipe:can
 "use client";
 
-import { Can } from "better-supabase/blocks/access/react";
+import { Can } from "better-supabase/blocks/permissions/react";
 
 import { permissions } from "@/lib/supabase/blocks.generated";
 

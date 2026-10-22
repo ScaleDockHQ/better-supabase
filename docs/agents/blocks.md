@@ -39,7 +39,7 @@ workflow; this page is the checklist for a new block.
 - Name module functions, triggers, indexes and policies through `ctx.fn`,
   `ctx.trigger` or `ctx.naming.rename(...)`, never a literal that contains
   `organization` or one of the module's entity nouns, so
-  `blocks.tenant.entities.organization` and `blocks.<name>.entities` rename
+  `blocks.memberships.entities.organization` and `blocks.<name>.entities` rename
   them (`tests/sql/__golden__/naming-workspace`,
   `tests/sql/entity-renames.test.ts`). Name a table's index or policy after
   the table (`${ctx.tableName("comments").name}_read`), so it follows the
@@ -47,7 +47,7 @@ workflow; this page is the checklist for a new block.
   `bs_<block>_` (constraints, storage policies, settings) and storage paths,
   because renaming them would orphan the old objects or files. Add the module's keys to
   `MODULE_PERMISSIONS` and `MODULE_PERMISSION_SCOPES` in
-  `src/sql/modules/access-model.ts`, and to `DEFAULT_ROLES` when a default
+  `src/sql/modules/permissions-model.ts`, and to `DEFAULT_ROLES` when a default
   role should hold them.
 - Every entity a user can rename goes in `NAMES.entities` (ADR 0060): its
   table, its `singular`, `primary: true` for the one a bare string renames,

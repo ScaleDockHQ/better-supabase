@@ -11,10 +11,10 @@ in as themselves the whole time.
 
 ## Support sessions
 
-Install the `support-sessions` SQL module, then pass a store to `createServer`:
+Install the `impersonation` SQL module, then pass a store to `createServer`:
 
 ```bash
-npx better-supabase add support-sessions
+npx better-supabase add impersonation
 ```
 
 ```ts title="src/lib/better-supabase.ts"
@@ -53,7 +53,7 @@ functions `start_support_session`, `end_support_session`,
 `request_support_session`, `approve_support_request`, `support_request` and
 `approved_support_request`. Starting a session checks
 `is_platform('support.start')` in the database with the admin's own claims, so
-only admins your [access model](/docs/blocks/access) grants that permission
+only admins your [access model](/docs/blocks/permissions) grants that permission
 can start one. Grant it with a platform permission claim (`"platform_permissions": ["support.*"]`)
 or a platform role in the catalog model.
 
@@ -279,7 +279,7 @@ session for themselves (`SUPPORT_SELF`) or from inside another one
 ### Deciding who may start one
 
 `authorize` runs before the store, with the admin's verified auth, the target,
-the reason, `readOnly`, `tenant` and `metadata`. It returns a decision:
+the reason, `readOnly`, `memberships` and `metadata`. It returns a decision:
 
 | Decision                 | Effect                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------ |
@@ -305,7 +305,7 @@ the store.
 
 In SQL, the `before_support_start(admin, target, reason, metadata)` hook can
 refuse a start too, for example when no open ticket names the user. See
-[support sessions](/docs/blocks/sql#support-sessions) for the module's names,
+[support sessions](/docs/blocks/sql#impersonation) for the module's names,
 hooks and options.
 
 ### Approval by a second admin
@@ -339,7 +339,7 @@ request never starts a writable session.
 asked about the requester as approver: better-supabase refuses them first. Without it, the SQL store
 checks the approver in the database: the provider's `isApprover` template,
 or `is_platform('support.start')` without a provider. Rename that key with
-`blocks["support-sessions"].permissions.approve`.
+`blocks["impersonation"].permissions.approve`.
 
 | Code                           | When                                                       |
 | ------------------------------ | ---------------------------------------------------------- |
@@ -369,7 +369,7 @@ the ones above.
 
 The target gets the claims your [custom access token hook](/docs/auth#typed-claims)
 would give them, so tenant and role claims match a real session. Set
-`blocks["support-sessions"].options.claimsHook` to the hook function
+`blocks["impersonation"].options.claimsHook` to the hook function
 (`"public.custom_access_token_hook"`) and `support_target_claims` calls it with
 a synthetic event. Without a hook, the target gets the claims Auth puts in
 every token (`email`, `role`, `app_metadata`, `user_metadata`, `aal1`). Pass
@@ -442,7 +442,7 @@ of your own implements the optional `expire()` method for this; without it,
 The SQL module refuses a target who holds platform permissions (the platform
 claim in `app_metadata`, or a platform role), because the admin would gain
 that staff member's reach (`allowPlatformTargets` turns this off). Sessions
-are read-only unless `blocks["support-sessions"].options.allowWrites` is true and
+are read-only unless `blocks["impersonation"].options.allowWrites` is true and
 the policy is `readOnly: "default"`. A token that carries an `act` claim never
 has platform permissions, so a support session can't start another one or act
 as staff. Each request checks again that the admin still holds

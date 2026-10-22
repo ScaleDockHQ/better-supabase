@@ -6,7 +6,7 @@ description: Start AI SDK batches for a tenant, poll them from a job, and store 
 Provider batch APIs run many requests at a lower price, but take minutes to
 hours. `aiBatches` from `better-supabase/ai-sdk/batches` starts a batch with
 `experimental_startBatch`, records it in the
-[AI providers block](/docs/blocks/ai-providers), and a job polls it until
+[AI providers block](/docs/blocks/ai-keys), and a job polls it until
 the results are stored in `ai_batch_items`.
 
 ```ts title="lib/batches.ts"
@@ -42,13 +42,13 @@ with the hint `AI_BATCH_PROVIDER`.
 
 ## The poll job
 
-Schedule `pollJob` every minute through the [jobs block](/docs/blocks/jobs).
+Schedule `pollJob` every minute through the [jobs block](/docs/blocks/queue).
 Each run claims the batches whose next poll is due, so two workers never
 poll the same batch:
 
 ```ts
 const batches = aiBatches({
-  providers: createAiProviders({ transport: service, service, schema: "api" }),
+  providers: createAiKeys({ transport: service, service, schema: "api" }),
   onDone: (batch) => notify(batch.userId, "Your summaries are ready"),
 });
 

@@ -22,7 +22,7 @@ import {
 import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const ACCESS_PAYLOAD = [
   "organizationId",
@@ -664,8 +664,8 @@ export const GUESTS: BlockSqlDefinition = {
   title: "Guests",
   description:
     "People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.",
-  requires: ["tenant", "access"],
-  integrates: ["outbox", "audit", "invoices", "bookings", "parties"],
+  requires: ["memberships", "permissions"],
+  integrates: ["outbox", "audit", "invoices", "bookings", "contacts"],
   before: "comments",
   target: "schema",
   modes: ["managed", "custom"],

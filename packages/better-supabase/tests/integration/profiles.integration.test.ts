@@ -83,8 +83,8 @@ describe.skipIf(!live)("profiles", () => {
 
       const layout = {
         modules: {
-          tenant: { schema: SCHEMA },
-          access: { schema: SCHEMA },
+          memberships: { schema: SCHEMA },
+          permissions: { schema: SCHEMA },
           profiles: {
             schema: SCHEMA,
             options: { readPolicy: "members" },
@@ -94,7 +94,7 @@ describe.skipIf(!live)("profiles", () => {
       };
 
       for (const file of renderBlocks(
-        ["tenant", "access", "profiles"],
+        ["memberships", "permissions", "profiles"],
         layout,
       )) {
         await client.query(file.contents);
@@ -292,8 +292,8 @@ describe.skipIf(!live)("profiles", () => {
 
       const layout = {
         modules: {
-          tenant: { schema },
-          access: { schema },
+          memberships: { schema },
+          permissions: { schema },
           profiles: {
             schema,
             options: {
@@ -430,7 +430,7 @@ describe.skipIf(!live)("profiles", () => {
       await client.query("begin");
 
       for (const file of renderBlocks(
-        ["organizations", "tenant", "access"],
+        ["organizations", "memberships", "permissions"],
         {},
       )) {
         await client.query(file.contents);

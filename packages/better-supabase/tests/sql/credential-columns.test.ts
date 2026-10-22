@@ -26,7 +26,7 @@ const KNOWN = new Set([
 /** Columns named like a token that hold no third-party credential, per module. */
 const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
   // Hook tokens address a Workflow SDK hook; the DDL is @workflow/world-postgres's.
-  "workflow-sdk-world": [
+  "workflow-sdk": [
     "workflow.workflow_hooks.token",
     "workflow.workflow_hooks.token_retention_until",
     "?.token",
@@ -44,7 +44,7 @@ const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
   // secret id. Secret refs are the app's ids for the keys it handed out.
   "vercel-marketplace": ["?.access_token_secret_id", "?.secret_refs"],
   // A SET is a signed, public security event the transmitter mints, not a credential.
-  "shared-signals": ['"better_supabase"."ssf_events".token'],
+  "security-events": ['"better_supabase"."ssf_events".token'],
 };
 
 const SENSITIVE = /token|secret|api_?key/;

@@ -3,9 +3,9 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { agentsBlock } from "better-supabase/blocks/agents";
-import { aiTasksBlock } from "better-supabase/blocks/ai-tasks";
+import { aiSchedulesBlock } from "better-supabase/blocks/ai-schedules";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { auditBlock } from "better-supabase/blocks/audit";
@@ -27,9 +27,9 @@ import { blockConfig } from "./ai-agents.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   agents: agentsBlock,
-  aiTasks: aiTasksBlock,
+  aiSchedules: aiSchedulesBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
   audit: auditBlock,

@@ -23,8 +23,8 @@ const TABLES: AppTablesConfig = {
 };
 
 const BLOCKS = [
-  "tenant",
-  "access",
+  "memberships",
+  "permissions",
   "organizations",
   "updated-at",
   "audit",

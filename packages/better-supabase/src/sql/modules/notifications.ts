@@ -19,8 +19,6 @@ import {
   revokeTable,
 } from "../shared.ts";
 import { subjectCascades, subjectsOption } from "../subjects.ts";
-import { accessModel } from "./access-model.ts";
-import { providerForUser } from "./access.ts";
 import { integerMutations } from "./notifications-items.ts";
 import { functions, notifyNames } from "./notifications-sql.ts";
 import {
@@ -32,6 +30,8 @@ import {
   trackingContract,
   trackingTables,
 } from "./notifications-tracking.ts";
+import { accessModel } from "./permissions-model.ts";
+import { providerForUser } from "./permissions.ts";
 
 /** What `record_delivery_event` writes for each provider event. */
 const DELIVERY_PAYLOAD = [
@@ -477,7 +477,7 @@ ${ownRowPolicies({
   name: (command) => `bsb_notification_${table}_own_${command}`,
   using: mine,
   check: `${mine}${
-    n.has(table, "tenant") && ctx.installed("access")
+    n.has(table, "tenant") && ctx.installed("permissions")
       ? ` and (${c(table, "tenant")} is null or ${ctx.scope.check(c(table, "tenant"), n.readPermission)})`
       : ""
   }`,
@@ -842,7 +842,7 @@ export const NOTIFICATIONS: BlockSqlDefinition = {
   description:
     "In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.",
   requires: ["updated-at"],
-  integrates: ["access", "profiles", "tenant", "data-lifecycle"],
+  integrates: ["permissions", "profiles", "memberships", "data-lifecycle"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

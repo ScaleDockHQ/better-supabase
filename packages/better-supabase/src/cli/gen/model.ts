@@ -128,10 +128,10 @@ function numberedColumnsOf(
   config: ResolvedConfig,
 ): ReadonlyMap<string, ReadonlySet<string>> {
   const columns = new Map<string, Set<string>>();
-  const block = config.blocks["number-sequences"];
+  const block = config.blocks["numbering"];
 
   if (
-    !config.blockNames.includes("number-sequences") ||
+    !config.blockNames.includes("numbering") ||
     block?.mode === "custom" ||
     !isRecord(block?.options?.["entities"])
   ) {

@@ -19,7 +19,7 @@ const userApp = (scope: "user" | "none"): BlockSqlLayout => ({
   scope,
   modules: {
     tags: { schema: "scope_it" },
-    activity: { schema: "scope_it" },
+    timeline: { schema: "scope_it" },
     notifications: { schema: "scope_it" },
   },
 });
@@ -46,18 +46,18 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
   describe("per user", () => {
     beforeEach(async () => {
-      await s.install(["tags", "activity", "notifications"], userApp("user"));
+      await s.install(["tags", "timeline", "notifications"], userApp("user"));
     });
 
     it("installs no tenant module or access contract", async () => {
       const modules = await s.rows<{ name: string }>(
-        "select name from better_supabase.blocks where name in ('tags', 'activity', 'notifications') order by name",
+        "select name from better_supabase.blocks where name in ('tags', 'timeline', 'notifications') order by name",
       );
 
       expect(modules.map((row) => row.name)).toEqual([
-        "activity",
         "notifications",
         "tags",
+        "timeline",
       ]);
 
       const nullable = await s.rows<{ table_name: string }>(
@@ -171,7 +171,7 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
   describe("in one shared space", () => {
     beforeEach(async () => {
-      await s.install(["tags", "activity"], userApp("none"));
+      await s.install(["tags", "timeline"], userApp("none"));
     });
 
     it("gives every signed-in user one set of tags and one activity feed", async () => {
@@ -226,8 +226,8 @@ describe.skipIf(!live)("a workspace-named app", () => {
   // until the rollback.
   const layout: BlockSqlLayout = {
     modules: {
-      tenant: { schema: "ws_it", entities: { organization: "workspace" } },
-      access: { schema: "ws_it" },
+      memberships: { schema: "ws_it", entities: { organization: "workspace" } },
+      permissions: { schema: "ws_it" },
       organizations: { schema: "ws_it" },
       tags: { schema: "ws_it" },
     },

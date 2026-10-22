@@ -211,7 +211,7 @@ function that stops listening.
 `recordQueries(feature, clients, options?)` gives one record page's
 [sections](/docs/blocks/records) the same factories: `sections.<name>(id)`
 query options keyed `["bsb-record", type, id, section]`, `writes.<section>.<write>(id)`
-mutation options that make that section stale, and `can()` from the `access`
+mutation options that make that section stale, and `can()` from the `permissions`
 client you pass as `options.access`. `gen` writes a `<subject>-queries.ts`
 per [generated feature](/docs/blocks/records#generated-features) when
 `@tanstack/react-query` is installed. `invalidateOnRecordEvents(queryClient,

@@ -8,6 +8,29 @@ import "./env.ts";
 
 const withMDX = createMDX();
 
+// Block pages renamed in 0.15, so links from older guides keep working.
+const RENAMED_BLOCK_PAGES = {
+  "work-items": "tasks",
+  parties: "contacts",
+  engagements: "activities",
+  targets: "goals",
+  "number-sequences": "numbering",
+  "shared-signals": "security-events",
+  "service-principals": "service-accounts",
+  bulk: "bulk-actions",
+  controls: "compliance",
+  passes: "admission-passes",
+  "ai-tasks": "ai-schedules",
+  "ai-providers": "ai-keys",
+  "workflow-builder": "workflow-editor",
+  jobs: "queue",
+  flags: "feature-flags",
+  access: "permissions",
+  rules: "automations",
+  identities: "linked-identities",
+  activity: "timeline",
+} as const satisfies Readonly<Record<string, string>>;
+
 const config = createNextConfig({
   // Served under /docs on bettersupabase.com, next to the marketing app.
   assetPrefix: "/docs",
@@ -50,6 +73,11 @@ const config = createNextConfig({
         destination: "/docs/cli/gen",
         permanent: true,
       },
+      ...Object.entries(RENAMED_BLOCK_PAGES).map(([from, to]) => ({
+        source: `/docs/blocks/${from}`,
+        destination: `/docs/blocks/${to}`,
+        permanent: true,
+      })),
     ]);
   },
   rewrites() {

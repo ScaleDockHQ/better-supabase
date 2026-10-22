@@ -1,9 +1,9 @@
 import type { RpcClient } from "better-supabase/blocks/organizations";
 
 import {
-  createWorkflowBuilder,
+  createWorkflowEditor,
   rpcTransport,
-} from "better-supabase/blocks/workflow-builder";
+} from "better-supabase/blocks/workflow-editor";
 import { vaultCredentials } from "better-supabase/credentials";
 import {
   compileGraph,
@@ -18,8 +18,8 @@ import { graphSteps } from "./graph-steps";
 import { graphExecutor } from "./graph-workflow";
 import { stepLibrary } from "./step-library";
 
-/** The API schema `gen` wrote for the workflow-builder block. */
-const API_SCHEMA = blockConfig["workflow-builder"].api;
+/** The API schema `gen` wrote for the workflow-editor block. */
+const API_SCHEMA = blockConfig["workflow-editor"].api;
 
 const start = graphStarter({ steps: graphSteps, executor: graphExecutor });
 
@@ -31,7 +31,7 @@ const start = graphStarter({ steps: graphSteps, executor: graphExecutor });
 export function builderFor(supabase: RpcClient) {
   const service = rpcTransport(bsb.admin().$client, { schema: API_SCHEMA });
 
-  return createWorkflowBuilder({
+  return createWorkflowEditor({
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
     service,
     schema: API_SCHEMA,

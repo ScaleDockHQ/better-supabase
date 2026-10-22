@@ -13,7 +13,7 @@ export interface WorkflowParts {
 
 /**
  * The workflows a template starts on the record it creates, with the
- * workflow-builder module: the attachment table, the input check against a
+ * workflow-editor module: the attachment table, the input check against a
  * version's `input_schema`, and attach, detach and list.
  */
 export function workflowParts(

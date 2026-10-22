@@ -16,7 +16,7 @@ const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("inbox", { modules })!;
 
 const withJobs = (modules: AnyBlocksConfig = {}) =>
-  renderBlocks(["inbox", "jobs"], { modules })
+  renderBlocks(["inbox", "queue"], { modules })
     .filter((file) => file.kind === "schema" && file.module === "inbox")
     .map((file) => file.contents)
     .join("\n");

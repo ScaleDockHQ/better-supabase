@@ -9,6 +9,13 @@ export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 
 export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
 
+export {
+  BLOCK_RENAMES,
+  currentBlockName,
+  formerBlockName,
+  renamedBlock,
+} from "./block-renames.ts";
+
 export { entityRenamePlan } from "./entity-upgrade.ts";
 
 export { moduleFilePaths } from "./paths.ts";
@@ -26,7 +33,7 @@ export { blockSqlVersion } from "./module-types.ts";
 
 export { resolveBlocks, SQL_MODULES } from "./registry.ts";
 
-export { DEFAULT_ROLES } from "./modules/access-model.ts";
+export { DEFAULT_ROLES } from "./modules/permissions-model.ts";
 
 export {
   APP_TABLES_MARKER,

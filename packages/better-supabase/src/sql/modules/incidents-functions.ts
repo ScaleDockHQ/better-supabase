@@ -11,13 +11,13 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import {
   COMPONENT_STATUSES,
   INCIDENT_RESERVED,
   INCIDENT_SEVERITIES,
   INCIDENT_STATUSES,
 } from "./incidents-shared.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
@@ -41,7 +41,7 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
   const permissions = moduleOperations("incidents");
   const write = ctx.permission("write", permissions.write);
   const manage = ctx.permission("manage", permissions.manage);
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
   const incidentType = sqlString(ctx.resolved.entityNaming.rename("incident"));
   const extras = ctx.extraColumns("incidents", INCIDENT_RESERVED);
   const extra = extraFieldsArg(extras);

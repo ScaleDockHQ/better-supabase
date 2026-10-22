@@ -23,7 +23,7 @@ import type { TeamsEvents } from "better-supabase/blocks/teams";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -59,7 +59,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  grants: {
+  "data-api-grants": {
     schema: "better_supabase",
     options: {},
   },
@@ -89,7 +89,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  sessions: {
+  "session-revocation": {
     schema: "better_supabase",
     options: {},
   },
@@ -101,7 +101,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "support-sessions": {
+  impersonation: {
     schema: "better_supabase",
     options: {},
   },
@@ -109,7 +109,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -159,6 +159,11 @@ export const permissions = {
     enroll: "enrollments.enroll",
     manage: "enrollments.manage",
   },
+  impersonation: {
+    start: "support.start",
+    view: "support.read",
+    revoke: "support.revoke",
+  },
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
@@ -188,11 +193,6 @@ export const permissions = {
   sso: {
     manage: "sso.manage",
   },
-  "support-sessions": {
-    start: "support.start",
-    view: "support.read",
-    revoke: "support.revoke",
-  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
@@ -206,7 +206,7 @@ export const permissions = {
  */
 export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "sso.manage" | "support.read" | "support.revoke" | "support.start" | "teams.manage" | "teams.read";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */

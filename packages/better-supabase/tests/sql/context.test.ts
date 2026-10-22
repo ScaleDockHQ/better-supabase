@@ -143,10 +143,10 @@ describe("createModuleContext", () => {
     expect(ctx.option("size")).toBeUndefined();
   });
 
-  it("takes the id type from blocks.access, then the provider", () => {
+  it("takes the id type from blocks.permissions, then the provider", () => {
     expect(
       createModuleContext("demo", () => names, {
-        modules: { access: { idType: "text" } },
+        modules: { permissions: { idType: "text" } },
       }).idType,
     ).toBe("text");
     expect(
@@ -156,13 +156,17 @@ describe("createModuleContext", () => {
   });
 
   it("knows the modules installed with it and reaches other modules", () => {
-    const ctx = moduleContext("access", {}, ["tenant", "access"]);
-    expect(ctx.installed("tenant")).toBe(true);
+    const ctx = moduleContext("permissions", {}, [
+      "memberships",
+      "permissions",
+    ]);
+
+    expect(ctx.installed("memberships")).toBe(true);
     expect(ctx.installed("organizations")).toBe(false);
     expect(() => ctx.installed("outbox")).toThrow(
-      'Module "access" reads module "outbox", which it neither requires nor lists in integrates',
+      'Module "permissions" reads module "outbox", which it neither requires nor lists in integrates',
     );
-    expect(ctx.of("tenant").table("memberships")).toBe(
+    expect(ctx.of("memberships").table("memberships")).toBe(
       '"better_supabase"."memberships"',
     );
   });
@@ -342,14 +346,14 @@ describe("module modes", () => {
   });
 
   it("stamps the module version and mode, and records the module", () => {
-    const tenant = renderBlocks(["tenant"]).filter(
-      (module) => module.module === "tenant",
+    const tenant = renderBlocks(["memberships"]).filter(
+      (module) => module.module === "memberships",
     );
 
     const file = tenant.find((module) => module.kind === "schema");
-    expect(file!.contents).toContain("-- @bsb-block tenant@2 managed\n");
+    expect(file!.contents).toContain("-- @bsb-block memberships@2 managed\n");
     expect(moduleFileVersion(file!.contents)).toEqual({
-      module: "tenant",
+      module: "memberships",
       version: 2,
     });
     expect(moduleFileVersion("-- no marker")).toBeUndefined();
@@ -360,32 +364,34 @@ describe("module modes", () => {
     const data = tenant.find((module) => module.kind === "data");
     expect(data).toMatchObject({
       kind: "data",
-      path: "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
+      path: "supabase/better-supabase-data/900_better_supabase_04_memberships.sql",
     });
-    expect(data!.contents).toContain("-- @bsb-block-data tenant\n");
-    expect(data!.contents).toContain("values ('tenant', 2, 'managed')");
+    expect(data!.contents).toContain("-- @bsb-block-data memberships\n");
+    expect(data!.contents).toContain("values ('memberships', 2, 'managed')");
     expect(isModuleDataFile(data!.contents)).toBe(true);
     expect(isModuleDataFile(file!.contents)).toBe(false);
 
     const dataPath = (layout: Parameters<typeof renderBlocks>[1]) =>
-      renderBlocks(["tenant"], layout).find(
-        (module) => module.kind === "data" && module.module === "tenant",
+      renderBlocks(["memberships"], layout).find(
+        (module) => module.kind === "data" && module.module === "memberships",
       )!.path;
 
     expect(dataPath({ dir: "supabase/schemas/_custom/better_supabase" })).toBe(
-      "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
+      "supabase/better-supabase-data/900_better_supabase_04_memberships.sql",
     );
     expect(dataPath({ dir: "./supabase/schemas/module/" })).toBe(
-      "./supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
+      "./supabase/better-supabase-data/900_better_supabase_04_memberships.sql",
     );
     expect(
       dataPath({
         dir: "supabase/declarative/module",
         schemasDir: "supabase/declarative",
       }),
-    ).toBe("supabase/better-supabase-data/900_better_supabase_04_tenant.sql");
+    ).toBe(
+      "supabase/better-supabase-data/900_better_supabase_04_memberships.sql",
+    );
     expect(dataPath({ dir: "db/module" })).toBe(
-      "db/better-supabase-data/900_better_supabase_04_tenant.sql",
+      "db/better-supabase-data/900_better_supabase_04_memberships.sql",
     );
     const pgtap = renderBlocks(["pgtap"]);
     expect(pgtap.map((entry) => entry.kind)).toEqual(["test"]);
@@ -393,15 +399,15 @@ describe("module modes", () => {
   });
 
   it("writes no file in custom mode and lists the contract instead", () => {
-    const layout = { modules: { tenant: { mode: "custom" as const } } };
+    const layout = { modules: { memberships: { mode: "custom" as const } } };
     const files = renderBlocks(["invitations"], layout);
     expect(
       files.filter((file) => file.kind === "schema").map((file) => file.module),
-    ).toEqual(["updated-at", "invitations", "access"]);
-    expect(moduleBody("tenant", layout)).toBeUndefined();
+    ).toEqual(["updated-at", "invitations", "permissions"]);
+    expect(moduleBody("memberships", layout)).toBeUndefined();
     const [contract] = customContracts(["invitations"], layout);
     expect(contract).toMatchObject({
-      module: "tenant",
+      module: "memberships",
       schema: "better_supabase",
     });
     expect(contract!.functions.map((fn) => fn.name)).toContain(
@@ -411,9 +417,9 @@ describe("module modes", () => {
   });
 
   it("adopts an existing memberships table without creating it", () => {
-    const sql = moduleBody("tenant", {
+    const sql = moduleBody("memberships", {
       modules: {
-        tenant: {
+        memberships: {
           mode: "adopt",
           tables: { memberships: "public.organization_users" },
           columns: {
@@ -432,8 +438,8 @@ describe("module modes", () => {
     expect(sql).toContain("Adopted:");
   });
 
-  it("keeps the managed tenant module's names and takes roles from blocks.access", () => {
-    const sql = SQL_MODULES["tenant"]!.sql;
+  it("keeps the managed tenant module's names and takes roles from blocks.permissions", () => {
+    const sql = SQL_MODULES["memberships"]!.sql;
     expect(sql).toContain(
       'create table if not exists "better_supabase"."memberships"',
     );
@@ -441,40 +447,40 @@ describe("module modes", () => {
       `check ("role" in ('owner', 'admin', 'member', 'viewer'))`,
     );
 
-    const custom = moduleBody("tenant", {
-      modules: { access: { roles: { lead: ["*"], guest: [] } } },
+    const custom = moduleBody("memberships", {
+      modules: { permissions: { roles: { lead: ["*"], guest: [] } } },
     })!;
 
     expect(custom).toContain(`check ("role" in ('lead', 'guest'))`);
   });
 
   it("renders the membership claim as a map on request", () => {
-    const sql = moduleBody("tenant", {
-      modules: { tenant: { options: { claimFormat: "map" } } },
+    const sql = moduleBody("memberships", {
+      modules: { memberships: { options: { claimFormat: "map" } } },
     })!;
 
     expect(sql).toContain('jsonb_object_agg(m."organization_id"::text');
   });
 
   it("reads the active tenant from the configured source, members only", () => {
-    const claim = moduleBody("tenant", {
-      modules: { access: { activeTenant: "claim" } },
+    const claim = moduleBody("memberships", {
+      modules: { permissions: { activeTenant: "claim" } },
     })!;
 
     expect(claim).toContain("auth.jwt() ->> 'tenant_id'");
     expect(claim).not.toContain("x-bsb-tenant");
     expect(claim).toContain('and m."user_id" = auth.uid() limit 1');
     expect(claim).toContain("raw_app_meta_data - 'tenant_id'");
-    const resolver = moduleBody("tenant", {})!;
+    const resolver = moduleBody("memberships", {})!;
     expect(resolver).not.toContain("clear_tenant_claim");
     expect(resolver).toContain(
       "current_setting('better_supabase.tenant', true)",
     );
     expect(resolver).toContain("->> 'x-bsb-tenant'");
 
-    const profile = moduleBody("tenant", {
+    const profile = moduleBody("memberships", {
       modules: {
-        access: {
+        permissions: {
           activeTenant: {
             profileColumn: "public.profiles.active_organization_id",
             key: "user_id",
@@ -487,8 +493,10 @@ describe("module modes", () => {
       'select p."active_organization_id"::text from "public"."profiles" p where p."user_id" = auth.uid()',
     );
     expect(() =>
-      moduleBody("tenant", {
-        modules: { access: { activeTenant: { profileColumn: "profiles.x" } } },
+      moduleBody("memberships", {
+        modules: {
+          permissions: { activeTenant: { profileColumn: "profiles.x" } },
+        },
       }),
     ).toThrow(/schema.table.column/);
   });
@@ -496,14 +504,14 @@ describe("module modes", () => {
   it("defines the disabled helpers in one module file", () => {
     const disabled = { tenant: "public.organizations.disabled_at" } as const;
 
-    const files = renderBlocks(["access"], {
-      modules: { access: { disabled } },
+    const files = renderBlocks(["permissions"], {
+      modules: { permissions: { disabled } },
     }).filter((file) => file.kind === "schema");
 
     expect(files.map((file) => file.module)).toEqual([
       "updated-at",
-      "tenant",
-      "access",
+      "memberships",
+      "permissions",
     ]);
 
     const defining = files.filter((file) =>
@@ -512,22 +520,28 @@ describe("module modes", () => {
       ),
     );
 
-    expect(defining.map((file) => file.module)).toEqual(["access"]);
-    const tenant = files.find((file) => file.module === "tenant")!.contents;
+    expect(defining.map((file) => file.module)).toEqual(["permissions"]);
+
+    const tenant = files.find(
+      (file) => file.module === "memberships",
+    )!.contents;
+
     expect(tenant).toContain("set check_function_bodies = off;");
     expect(tenant).toContain("not better_supabase.tenant_disabled(");
-    expect(moduleBody("tenant")).toContain(
+    expect(moduleBody("memberships")).toContain(
       "create or replace function better_supabase.tenant_disabled(",
     );
     expect(
-      moduleBody("tenant", { modules: { access: { mode: "custom" } } }),
+      moduleBody("memberships", {
+        modules: { permissions: { mode: "custom" } },
+      }),
     ).toContain("create or replace function better_supabase.tenant_disabled(");
   });
 
   it("honours disabled tenants and users", () => {
-    const sql = moduleBody("access", {
+    const sql = moduleBody("permissions", {
       modules: {
-        access: {
+        permissions: {
           disabled: {
             tenant: "public.organizations.disabled_at",
             user: "public.profiles.disabled_at",
@@ -547,14 +561,22 @@ describe("module modes", () => {
 
   it("pulls in tenant for the roles and catalog models only", () => {
     const names = (model: "roles" | "catalog" | "provider" | "custom") =>
-      resolveBlocks(["access"], { modules: { access: { model } } }).map(
-        (module) => module.name,
-      );
+      resolveBlocks(["permissions"], {
+        modules: { permissions: { model } },
+      }).map((module) => module.name);
 
-    expect(names("roles")).toEqual(["updated-at", "tenant", "access"]);
-    expect(names("catalog")).toEqual(["updated-at", "tenant", "access"]);
-    expect(names("provider")).toEqual(["access"]);
-    expect(names("custom")).toEqual(["access"]);
+    expect(names("roles")).toEqual([
+      "updated-at",
+      "memberships",
+      "permissions",
+    ]);
+    expect(names("catalog")).toEqual([
+      "updated-at",
+      "memberships",
+      "permissions",
+    ]);
+    expect(names("provider")).toEqual(["permissions"]);
+    expect(names("custom")).toEqual(["permissions"]);
   });
 });
 
@@ -733,7 +755,7 @@ describe("statement helpers", () => {
   });
 
   it("enqueues a deduplicated job", () => {
-    expect(all("jobs").enqueue("emails", "'{}'::jsonb", "'k'")).toBe(
+    expect(all("queue").enqueue("emails", "'{}'::jsonb", "'k'")).toBe(
       `perform "better_supabase"."enqueue_job"(queue => 'emails', payload => '{}'::jsonb, dedupe_key => 'k', dedupe_running => false);`,
     );
   });
@@ -748,7 +770,7 @@ describe("statement helpers", () => {
       "coalesce(better_supabase.can('tenant', t, 'item.read'), false)",
     );
     expect(all().staff("'item.manage'")).not.toContain("is_platform");
-    expect(all("access").staff("'item.manage'")).toContain(
+    expect(all("permissions").staff("'item.manage'")).toContain(
       "coalesce(better_supabase.is_platform('item.manage'), false)",
     );
   });
@@ -764,8 +786,8 @@ describe("statement helpers", () => {
 
 describe("integrates", () => {
   it("lets a module read only what it requires or integrates", () => {
-    const ctx = moduleContext("inbox", {}, ["inbox", "jobs", "outbox"]);
-    expect(ctx.installed("jobs")).toBe(true);
+    const ctx = moduleContext("inbox", {}, ["inbox", "queue", "outbox"]);
+    expect(ctx.installed("queue")).toBe(true);
     expect(() => ctx.installed("billing")).toThrow(
       'Module "inbox" reads module "billing", which it neither requires nor lists in integrates',
     );
@@ -773,36 +795,41 @@ describe("integrates", () => {
 
   it("rejects a jobs schema and keeps access functions in better_supabase", () => {
     expect(() => {
-      checkModules({ jobs: { schema: "app" } });
-    }).toThrow("blocks.jobs.schema");
+      checkModules({ queue: { schema: "app" } });
+    }).toThrow("blocks.queue.schema");
     expect(() => {
-      checkModules({ jobs: { schema: "better_supabase" } });
+      checkModules({ queue: { schema: "better_supabase" } });
     }).not.toThrow();
-    const layout = { modules: { access: { schema: "app" } } };
+    const layout = { modules: { permissions: { schema: "app" } } };
 
-    const support = moduleContext("support-sessions", layout, [
-      "tenant",
-      "access",
+    const support = moduleContext("impersonation", layout, [
+      "memberships",
+      "permissions",
       "audit",
-      "support-sessions",
+      "impersonation",
     ]);
 
-    expect(support.of("access").fn("is_platform")).toBe(
+    expect(support.of("permissions").fn("is_platform")).toBe(
       '"better_supabase"."is_platform"',
     );
-    expect(support.of("access").table("roles")).toContain('"app".');
+    expect(support.of("permissions").table("roles")).toContain('"app".');
   });
 });
 
 describe("fixed functions", () => {
   it("names the tenant role helpers in better_supabase whatever the tenant schema", () => {
     const flags = moduleContext(
-      "flags",
-      { modules: { tenant: { schema: "app" }, flags: { schema: "app" } } },
-      ["tenant", "flags"],
+      "feature-flags",
+      {
+        modules: {
+          memberships: { schema: "app" },
+          "feature-flags": { schema: "app" },
+        },
+      },
+      ["memberships", "feature-flags"],
     );
 
-    const tenant = flags.of("tenant");
+    const tenant = flags.of("memberships");
     expect(tenant.fn("member_organization_ids")).toBe(
       "better_supabase.member_organization_ids",
     );

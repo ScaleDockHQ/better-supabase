@@ -9,7 +9,7 @@ import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { assertCron, nextCronRun } from "../jobs/cron.ts";
+import { assertCron, nextCronRun } from "../queue/cron.ts";
 import {
   applyTemporal,
   blockCall,
@@ -26,7 +26,7 @@ import {
   pageOf,
 } from "../shared.ts";
 
-/** A workflow run's state, in the words ai-chat and ai-tasks runs share. */
+/** A workflow run's state, in the words ai-chat and ai-schedules runs share. */
 export type WorkflowRunStatus = Exclude<RunState, "cancel_requested">;
 
 /** The record a run belongs to: a subject type from `config.records` and its id. */

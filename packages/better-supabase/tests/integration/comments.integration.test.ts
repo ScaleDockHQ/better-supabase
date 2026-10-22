@@ -986,18 +986,14 @@ describe.skipIf(!live)("comments", () => {
           "rank",
           "relations",
           "pipelines",
-          "work-items",
+          "tasks",
           "messaging",
           "comments",
         ],
         {
-          subjects: withBlockSubjects(
-            { project: { table } },
-            ["work-items"],
-            {},
-          ),
+          subjects: withBlockSubjects({ project: { table } }, ["tasks"], {}),
           modules: {
-            "work-items": {
+            tasks: {
               tables: { projects: "work_projects" },
               options: { maxAssignees: 0 },
             },

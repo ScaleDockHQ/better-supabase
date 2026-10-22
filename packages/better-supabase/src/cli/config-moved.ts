@@ -20,7 +20,10 @@ const MOVED_SQL_KEYS: readonly (readonly [string, string])[] = [
     "modules",
     "moved to the top-level `blocks` key in 0.9; run `better-supabase codemod 0.9`",
   ],
-  ["naming", "`sql.naming.tenant` moved to `blocks.tenant.names.organization`"],
+  [
+    "naming",
+    "`sql.naming.tenant` moved to `blocks.memberships.names.organization`",
+  ],
 ];
 
 /** Moved `sql` keys in one config block, under `sql` or `database.sql`. */

@@ -4,9 +4,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createEmployees } from "../../src/blocks/employees/index.ts";
 import { createHiring } from "../../src/blocks/hiring/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -19,7 +19,7 @@ const MODULES = [
   "outbox",
   "subjects",
   "relations",
-  "parties",
+  "contacts",
   "pipelines",
   "hiring",
   "employees",
@@ -27,7 +27,7 @@ const MODULES = [
 
 const layout: BlockSqlLayout = {
   subjects: {
-    ...withBlockSubjects({}, ["parties", "employees"], {}),
+    ...withBlockSubjects({}, ["contacts", "employees"], {}),
     application: {
       table: "better_supabase.applications",
       idType: "uuid",
@@ -312,7 +312,7 @@ describe.skipIf(!live)("employees", () => {
         })
         .orThrow();
 
-      const ada = await createParties({ transport })
+      const ada = await createContacts({ transport })
         .savePerson(org, { name: "Ada" })
         .orThrow();
 

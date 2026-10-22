@@ -3,7 +3,7 @@ import type { AppOnDeleteAction } from "./types/app-tables.ts";
 
 /**
  * A logical table of a block the registry knows, as `tables` columns reference
- * it: `{ block: "work-items", table: "items" }`.
+ * it: `{ block: "tasks", table: "items" }`.
  */
 export type BlockTableReference = {
   readonly [M in keyof BlockNameRegistry]: {
@@ -45,15 +45,15 @@ type AppTableReferences<C> = {
 
 type RolesOf<C> = C extends {
   readonly blocks: {
-    readonly access: { readonly roles: infer R extends object };
+    readonly permissions: { readonly roles: infer R extends object };
   };
 }
   ? keyof R & string
   : never;
 
 /**
- * The roles `blocks.access.roles` declares, or `string` when the config leaves
- * them to the default list or another access model.
+ * The roles `blocks.permissions.roles` declares, or `string` when the config
+ * leaves them to the default list or another access model.
  */
 export type RoleNames<C> = [RolesOf<C>] extends [never] ? string : RolesOf<C>;
 
@@ -88,7 +88,7 @@ type RoleReferences<C> = [RolesOf<C>] extends [never]
 /**
  * What `defineConfig` checks a literal config against: block tables in `tables`
  * references, app table names, bucket names in `gen.storagePaths`, and the role
- * names other blocks take from `blocks.access.roles`.
+ * names other blocks take from `blocks.permissions.roles`.
  */
 export type ConfigReferences<C> = {
   readonly tables?: AppTableReferences<C>;

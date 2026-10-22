@@ -1,5 +1,5 @@
 import "server-only";
-import type { WorkItemListOptions } from "better-supabase/blocks/work-items";
+import type { WorkItemListOptions } from "better-supabase/blocks/tasks";
 
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";

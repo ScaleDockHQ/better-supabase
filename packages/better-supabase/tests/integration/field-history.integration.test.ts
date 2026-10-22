@@ -20,14 +20,14 @@ const MODULES = [
   "subjects",
   "state-machine",
   "rank",
-  "parties",
+  "contacts",
   "pipelines",
   "deals",
   "field-history",
 ];
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties", "deals"], {}),
+  subjects: withBlockSubjects({}, ["contacts", "deals"], {}),
   modules: {
     "field-history": {
       options: { subjects: { deal: ["amount", "forecast_category"] } },

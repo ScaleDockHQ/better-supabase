@@ -1,14 +1,14 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import type { WorkflowGraph } from "../../src/blocks/workflow-builder/index.ts";
+import type { WorkflowGraph } from "../../src/blocks/workflow-editor/index.ts";
 import type { AutomationRef } from "../../src/core/contracts/authorization-hooks.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import {
-  createWorkflowBuilder,
+  createWorkflowEditor,
   sqlTransport,
-} from "../../src/blocks/workflow-builder/index.ts";
+} from "../../src/blocks/workflow-editor/index.ts";
 import { moduleProvider } from "../fixtures/authorization-provider.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -34,7 +34,7 @@ const EMAIL_GRAPH: WorkflowGraph = {
 // provider's operations table says the crm.lookup step needs.
 const LAYOUT: BlockSqlLayout = {
   modules: {
-    access: {
+    permissions: {
       roles: {
         owner: ["*"],
         admin: ["organization.read", "members.read", "workflow.*"],
@@ -53,22 +53,19 @@ const STEPS = [
   { name: "email.send", title: "Send an email" },
 ];
 
-describe.skipIf(!live)("workflow-builder publisher rights", () => {
+describe.skipIf(!live)("workflow-editor publisher rights", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => pool.end());
 
   async function setUp(s: BlockSession) {
-    await s.install(["organizations", "workflow-builder"], LAYOUT);
+    await s.install(["organizations", "workflow-editor"], LAYOUT);
     const publisher = await s.user("publisher");
     const owner = await s.user("owner");
     const admin = await s.user("admin");
     const tenant = await s.organization(owner, { owner: publisher, admin });
     await s.service();
-    await createWorkflowBuilder({
-      transport: sqlTransport(s.sql),
-      steps: STEPS,
-    })
+    await createWorkflowEditor({ transport: sqlTransport(s.sql), steps: STEPS })
       .steps.sync()
       .orThrow();
 
@@ -81,7 +78,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
     try {
       const { admin, tenant } = await setUp(s);
       await s.asRole(admin);
-      const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
+      const builder = createWorkflowEditor({ transport: sqlTransport(s.sql) });
 
       const definition = await builder.definitions
         .save({ tenant, slug: "crm", name: "CRM" })
@@ -125,7 +122,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
       const { publisher, tenant } = await setUp(s);
       await s.asRole(publisher);
 
-      const asPublisher = createWorkflowBuilder({
+      const asPublisher = createWorkflowEditor({
         transport: sqlTransport(s.sql),
       });
 
@@ -147,7 +144,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
       await s.service();
       const refs: AutomationRef[] = [];
 
-      const service = createWorkflowBuilder({
+      const service = createWorkflowEditor({
         transport: sqlTransport(s.sql),
         authorization: {
           automation: {
@@ -224,7 +221,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
 
     try {
       const { tenant } = await setUp(s);
-      const plain = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
+      const plain = createWorkflowEditor({ transport: sqlTransport(s.sql) });
 
       const definition = await plain.definitions
         .save({ tenant, slug: "nightly", name: "Nightly" })
@@ -246,7 +243,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
       );
       let principal: Readonly<Record<string, unknown>> | null = null;
 
-      const service = createWorkflowBuilder({
+      const service = createWorkflowEditor({
         transport: sqlTransport(s.sql),
         authorization: { automation: { runAs: () => principal } },
       });

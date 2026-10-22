@@ -4,8 +4,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { EnrichmentProvider } from "../../src/blocks/enrichment/index.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createEnrichment } from "../../src/blocks/enrichment/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { AsyncResult } from "../../src/core/result.ts";
@@ -14,14 +14,14 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties"], {}),
+  subjects: withBlockSubjects({}, ["contacts"], {}),
 };
 
 const MODULES = [
   "organizations",
   "outbox",
   "subjects",
-  "parties",
+  "contacts",
   "enrichment",
 ];
 
@@ -57,7 +57,7 @@ describe.skipIf(!live)("enrichment", () => {
       const org = await s.organization(owner, { member: rep });
       const transport = sqlTransport(s.sql);
 
-      const parties = createParties({ transport });
+      const parties = createContacts({ transport });
       const enrichment = createEnrichment({ transport, provider });
 
       await s.as(owner);

@@ -55,9 +55,9 @@ import { useUndoStack } from "../../src/blocks/undo/react/index.ts";
 import { undoToken } from "../../src/blocks/undo/undo.ts";
 import { useUsageMeter } from "../../src/blocks/usage/react/index.ts";
 import {
-  useWorkflowBuilder,
+  useWorkflowEditor,
   useWorkflowCanvasRun,
-} from "../../src/blocks/workflow-builder/react/index.ts";
+} from "../../src/blocks/workflow-editor/react/index.ts";
 import {
   useWorkflowRun,
   useWorkflowRuns,
@@ -2495,7 +2495,7 @@ describe("workflow builder hooks", () => {
     const signedOut = fakeBrowser(SIGNED_OUT);
     const idle = withRpc(signedOut.client, () => []);
 
-    const waiting = renderHook(() => useWorkflowBuilder(), undefined, {
+    const waiting = renderHook(() => useWorkflowEditor(), undefined, {
       client: signedOut.browser,
     });
 
@@ -2520,7 +2520,7 @@ describe("workflow builder hooks", () => {
     });
 
     const view = renderHook(
-      () => useWorkflowBuilder({ tenant: "t1", schema: "app" }),
+      () => useWorkflowEditor({ tenant: "t1", schema: "app" }),
       undefined,
       { client: browser },
     );
@@ -2552,7 +2552,7 @@ describe("workflow builder hooks", () => {
       throw new Error("denied");
     });
 
-    const view = renderHook(() => useWorkflowBuilder(), undefined, {
+    const view = renderHook(() => useWorkflowEditor(), undefined, {
       client: browser,
     });
 

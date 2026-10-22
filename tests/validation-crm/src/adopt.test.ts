@@ -71,7 +71,7 @@ describe("add --preset --adopt on the CRM schema", () => {
     };
 
     expect(Object.keys(data.adopted)).toEqual([
-      "access",
+      "permissions",
       "organizations",
       "profiles",
       "teams",
@@ -129,11 +129,11 @@ describe("add --preset --adopt on the CRM schema", () => {
     expect(proposed.preset.tenantName).toBe("workspace");
 
     // The CRM's tables keep their names: adopted tables are named in the
-    // config, and only the managed blocks' default names follow blocks.tenant.entities.
+    // config, and only the managed blocks' default names follow blocks.memberships.entities.
     const { blocks } = (await committed()) as { blocks: BlocksConfig };
 
     expect(data.adopted).toEqual({
-      access: blocks.access,
+      permissions: blocks.permissions,
       organizations: blocks.organizations,
       profiles: blocks.profiles,
       teams: blocks.teams,

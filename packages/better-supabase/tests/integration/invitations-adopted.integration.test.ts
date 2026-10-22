@@ -76,8 +76,8 @@ function providerLayout(schema: string, canAssignFor?: string): BlockSqlLayout {
   return {
     accessProvider: provider(schema, canAssignFor),
     modules: {
-      access: { model: "provider" },
-      tenant: {
+      permissions: { model: "provider" },
+      memberships: {
         schema,
         mode: "adopt",
         tables: { memberships: `${schema}.team_members` },
@@ -155,7 +155,7 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
     }
   });
 
-  it("checks the inviter with blocks.access.functions.canAssignFor", async () => {
+  it("checks the inviter with blocks.permissions.functions.canAssignFor", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -168,7 +168,7 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
         ...layout,
         modules: {
           ...layout.modules,
-          access: {
+          permissions: {
             model: "provider",
             functions: {
               canAssignFor: `{role} <> 'auditor' and {user} is not null and {tenant} is not null`,
@@ -418,12 +418,12 @@ describe.skipIf(!live)("invitations in adopted tables", () => {
       const member = await s.user("member");
       const schema = await sharedSchema(s, crypto.randomUUID(), owner, staff);
       const layout = sharedLayout(schema);
-      const tenant = layout.modules!["tenant"]!;
+      const tenant = layout.modules!["memberships"]!;
       await s.install(["organizations", "invitations"], {
         ...layout,
         modules: {
           ...layout.modules,
-          tenant: {
+          memberships: {
             ...tenant,
             options: {
               roleThrough: {
@@ -567,8 +567,8 @@ function sharedLayout(schema: string): BlockSqlLayout {
   return {
     accessProvider: provider(schema),
     modules: {
-      access: { model: "provider" },
-      tenant: {
+      permissions: { model: "provider" },
+      memberships: {
         schema,
         mode: "adopt",
         tables: { memberships: `${schema}.team_members` },

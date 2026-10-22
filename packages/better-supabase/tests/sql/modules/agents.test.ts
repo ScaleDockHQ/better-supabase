@@ -57,10 +57,10 @@ describe("agents module", () => {
     );
   });
 
-  it("needs tenant and access", () => {
+  it("needs memberships and permissions", () => {
     const names = resolveBlocks(["agents"]).map((module) => module.name);
-    expect(names).toContain("tenant");
-    expect(names).toContain("access");
+    expect(names).toContain("memberships");
+    expect(names).toContain("permissions");
     expect(names.at(-1)).toBe("agents");
   });
 });

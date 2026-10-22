@@ -22,24 +22,24 @@ blocks: {
   memory: { api: "api" },
   agents: { api: "api" },
   connectors: { api: "api" },
-  "ai-tasks": { api: "api" },
-  "ai-providers": { api: "api" },
+  "ai-schedules": { api: "api" },
+  "ai-keys": { api: "api" },
   "ai-cache": { api: "api" },
 },
 ```
 
-| Module         | Gives the clone                                                       | Page                                      |
-| -------------- | --------------------------------------------------------------------- | ----------------------------------------- |
-| `ai-chat`      | chats, folders, pins, the message tree, runs, sharing and the catalog | [AI chat](/docs/blocks/ai-chat)           |
-| `streams`      | resumable answers that survive a reload                               | [Streams](/docs/blocks/streams)           |
-| `ai-files`     | uploads read as the caller, and generated files                       | [AI files](/docs/blocks/ai-files)         |
-| `knowledge`    | documents chunked and embedded for the search tool                    | [Knowledge](/docs/blocks/knowledge)       |
-| `memory`       | facts and core memory per user                                        | [Memory](/docs/blocks/memory)             |
-| `agents`       | custom assistants with their own instructions and tools               | [Agents](/docs/blocks/agents)             |
-| `connectors`   | MCP servers with per-user OAuth                                       | [Connectors](/docs/blocks/connectors)     |
-| `ai-tasks`     | prompts on a schedule                                                 | [AI tasks](/docs/blocks/ai-tasks)         |
-| `ai-providers` | tenant keys, batches and sandboxes                                    | [AI providers](/docs/blocks/ai-providers) |
-| `ai-cache`     | repeated model calls answered from Postgres                           | [AI cache](/docs/blocks/ai-cache)         |
+| Module         | Gives the clone                                                       | Page                                  |
+| -------------- | --------------------------------------------------------------------- | ------------------------------------- |
+| `ai-chat`      | chats, folders, pins, the message tree, runs, sharing and the catalog | [AI chat](/docs/blocks/ai-chat)       |
+| `streams`      | resumable answers that survive a reload                               | [Streams](/docs/blocks/streams)       |
+| `ai-files`     | uploads read as the caller, and generated files                       | [AI files](/docs/blocks/ai-files)     |
+| `knowledge`    | documents chunked and embedded for the search tool                    | [Knowledge](/docs/blocks/knowledge)   |
+| `memory`       | facts and core memory per user                                        | [Memory](/docs/blocks/memory)         |
+| `agents`       | custom assistants with their own instructions and tools               | [Agents](/docs/blocks/agents)         |
+| `connectors`   | MCP servers with per-user OAuth                                       | [Connectors](/docs/blocks/connectors) |
+| `ai-schedules` | prompts on a schedule                                                 | [AI tasks](/docs/blocks/ai-schedules) |
+| `ai-keys`      | tenant keys, batches and sandboxes                                    | [AI providers](/docs/blocks/ai-keys)  |
+| `ai-cache`     | repeated model calls answered from Postgres                           | [AI cache](/docs/blocks/ai-cache)     |
 
 Run `better-supabase upgrade`, generate a migration with
 `supabase db schema declarative sync`, then `better-supabase add --adopt`.
@@ -104,7 +104,7 @@ The blocks hold more than the example shows:
   quota answers with a 429 and `Retry-After`.
 - [Agents](/docs/ai-sdk/agents) run as a `ToolLoopAgent` with tool approvals,
   and [MCP connectors](/docs/ai-sdk/mcp) keep each user's tokens in Vault.
-- [AI tasks](/docs/blocks/ai-tasks) run a prompt on a cron, and
+- [AI tasks](/docs/blocks/ai-schedules) run a prompt on a cron, and
   [batches](/docs/ai-sdk/batches) run thousands at the batch price.
 - Sharing by link (`shares.create`), temporary chats that `chats.purge`
   removes, feedback and moderation events are chat block calls.

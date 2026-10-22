@@ -15,7 +15,7 @@ These come from [ADR 0010](https://github.com/ScaleDockHQ/better-supabase/blob/m
 
 - An adapter owns no tables and no SQL. It calls the blocks.
 - An engine that needs its own storage gets a SQL module named after the
-  engine, such as `workflow-sdk-world` or `chat-sdk-state`.
+  engine, such as `workflow-sdk` or `chat-sdk-state`.
 - The SDK is an optional peer: load it lazily or type it structurally, so
   apps that don't use the adapter never install it.
 - Tokens live behind a `credential_ref` and a
@@ -100,7 +100,7 @@ Statuses are `queued`, `running`, `waiting`, `completed`, `failed` and
 uses `idempotencyKey` as the workflow id, and records from an interceptor
 or a completion activity.
 
-The [workflow builder](/docs/blocks/workflow-builder) adds two more:
+The [workflow builder](/docs/blocks/workflow-editor) adds two more:
 
 | Contract         | An adapter provides                                                                                    |
 | ---------------- | ------------------------------------------------------------------------------------------------------ |

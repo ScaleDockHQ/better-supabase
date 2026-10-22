@@ -147,7 +147,7 @@ describe("profiles module", () => {
   });
 
   it("adds extra columns and a members read policy", () => {
-    const sql = renderBlocks(["tenant", "profiles"], {
+    const sql = renderBlocks(["memberships", "profiles"], {
       modules: {
         profiles: {
           options: {
@@ -306,7 +306,7 @@ describe("profiles module", () => {
       resolveBlocks(["profiles"], {
         modules: { profiles: { options: { readPolicy: { platform: "x" } } } },
       }).map((module) => module.name),
-    ).toContain("access");
+    ).toContain("permissions");
     expect(
       body({ profiles: { options: { usernameFrom: [{ names: ["nick"] }] } } }),
     ).toContain("concat_ws('_', nullif(btrim(coalesce(meta ->> 'nick')), ''))");

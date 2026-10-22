@@ -59,7 +59,7 @@ function missingTemplates(
 
       if (
         name === "canAssignFor" &&
-        context.config.blocks.access?.functions?.canAssignFor
+        context.config.blocks.permissions?.functions?.canAssignFor
       ) {
         continue;
       }
@@ -70,7 +70,7 @@ function missingTemplates(
 
   return [...callers].map(([name, modules]) => ({
     severity: "warning",
-    message: `The ${modules.join(", ")} ${modules.length > 1 ? "modules call" : "module calls"} authorization.functions.${name}, which ${providerLabel(provider)} doesn't set, so under the provider model ${TEMPLATE_EFFECT[name] ?? "those calls fail"}. Use a provider that sets ${name}${name === "canAssignFor" ? ", or set blocks.access.functions.canAssignFor" : ""}.`,
+    message: `The ${modules.join(", ")} ${modules.length > 1 ? "modules call" : "module calls"} authorization.functions.${name}, which ${providerLabel(provider)} doesn't set, so under the provider model ${TEMPLATE_EFFECT[name] ?? "those calls fail"}. Use a provider that sets ${name}${name === "canAssignFor" ? ", or set blocks.permissions.functions.canAssignFor" : ""}.`,
     target: `authorization.functions.${name}`,
   }));
 }
@@ -248,7 +248,7 @@ export function providerBucketKeys(
     return [];
   }
 
-  const providerModel = config.blocks.access?.model === "provider";
+  const providerModel = config.blocks.permissions?.model === "provider";
 
   return Object.entries(config.buckets).flatMap(([bucket, entry]) => {
     const policy = entry.policy;
@@ -334,7 +334,7 @@ export function accessModule(
 ): AccessProviderMode {
   if (
     !resolveBlocks(context.config.blockNames, {}).some(
-      (module) => module.name === "access",
+      (module) => module.name === "permissions",
     )
   ) {
     return { kind: "off" };
@@ -592,7 +592,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "The authorization provider and the better-supabase config disagree",
     description:
-      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.organization.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, notes when the provider sets `suspension` or `roleSources` but `blocks.access.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
+      "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `auth.organization.claim` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `auth.claims.scope` is neither `tenant` nor the provider's tenant scope, notes when the provider sets `suspension` or `roleSources` but `blocks.permissions.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
     check: (context) => {
       const provider = context.config.authorization;
 
@@ -631,7 +631,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
         });
       }
 
-      const model = context.config.blocks.access?.model ?? "roles";
+      const model = context.config.blocks.permissions?.model ?? "roles";
 
       const unread = [
         ...(provider.suspension ? ["suspension"] : []),
@@ -643,7 +643,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       if (model !== "provider" && unread.length > 0) {
         findings.push({
           severity: "info",
-          message: `${label} sets ${unread.join(" and ")}, but blocks.access.model is "${model}", so the SQL modules ignore ${unread.length > 1 ? "them" : "it"}. Set blocks.access.model to "provider" to use them, or set blocks.access.disabled yourself.`,
+          message: `${label} sets ${unread.join(" and ")}, but blocks.permissions.model is "${model}", so the SQL modules ignore ${unread.length > 1 ? "them" : "it"}. Set blocks.permissions.model to "provider" to use them, or set blocks.permissions.disabled yourself.`,
           target: `authorization.${unread[0]!}`,
         });
       }
@@ -656,7 +656,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "error",
     title: "The provider access model can't use the authorization provider",
     description:
-      "With `blocks.access.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.access.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter).",
+      "With `blocks.permissions.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.permissions.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter).",
     check: (context) => {
       const mode = accessModule(context);
 
@@ -698,14 +698,14 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       );
 
       const canAssign =
-        context.config.blocks.access?.functions?.canAssign ??
+        context.config.blocks.permissions?.functions?.canAssign ??
         provider.functions.canAssign;
 
       if (canAssign === undefined) {
         findings.push({
           severity: "warning",
-          message: `Neither blocks.access.functions.canAssign nor ${providerLabel(provider)} sets canAssign, so under the provider model only the service role assigns roles: the memberships guard refuses every membership a member adds or changes. Use a provider that sets authorization.functions.canAssign, or set blocks.access.functions.canAssign.`,
-          target: "blocks.access.functions.canAssign",
+          message: `Neither blocks.permissions.functions.canAssign nor ${providerLabel(provider)} sets canAssign, so under the provider model only the service role assigns roles: the memberships guard refuses every membership a member adds or changes. Use a provider that sets authorization.functions.canAssign, or set blocks.permissions.functions.canAssign.`,
+          target: "blocks.permissions.functions.canAssign",
         });
       }
 
@@ -721,11 +721,13 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     description:
       "Support sessions default to read-only. Write functions refuse them through the built-in act check, or through authorization.functions.actorMayWrite when the provider sets it. With the provider access model, doctor warns when support is installed and actorMayWrite is missing, so the provider's helper is not the one the writes call.",
     check: (context) => {
-      if (!context.config.blockNames.includes("support-sessions")) {
+      if (!context.config.blockNames.includes("impersonation")) {
         return [];
       }
 
-      if ((context.config.blocks.access?.model ?? "roles") !== "provider") {
+      if (
+        (context.config.blocks.permissions?.model ?? "roles") !== "provider"
+      ) {
         return [];
       }
 
@@ -740,7 +742,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
 
       return [
         {
-          message: `Support sessions are installed and blocks.access.model is "provider", but ${providerLabel(provider)} does not set authorization.functions.actorMayWrite. Writes use the built-in act check. Set actorMayWrite to the provider's read-only helper.`,
+          message: `Support sessions are installed and blocks.permissions.model is "provider", but ${providerLabel(provider)} does not set authorization.functions.actorMayWrite. Writes use the built-in act check. Set actorMayWrite to the provider's read-only helper.`,
           target: "authorization.functions.actorMayWrite",
         },
       ];
@@ -751,21 +753,21 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Access contract answers from built-in roles next to a provider",
     description:
-      "With `authorization` set, `blocks.access.model` defaults to `provider`, so `better_supabase.can()` and `better_supabase.tenant_ids_with()` answer from the provider's templates. When the config sets another model, those functions answer from the built-in roles instead, which the provider never sees. Doctor reports each policy and each function in `schemas` that calls them, so a check that looks provider-backed is not silently role-backed.",
+      "With `authorization` set, `blocks.permissions.model` defaults to `provider`, so `better_supabase.can()` and `better_supabase.tenant_ids_with()` answer from the provider's templates. When the config sets another model, those functions answer from the built-in roles instead, which the provider never sees. Doctor reports each policy and each function in `schemas` that calls them, so a check that looks provider-backed is not silently role-backed.",
     check: (context) => {
       const provider = context.config.authorization;
-      const model = context.config.blocks.access?.model;
+      const model = context.config.blocks.permissions?.model;
 
       if (
         provider === undefined ||
-        !context.config.blockNames.includes("access") ||
+        !context.config.blockNames.includes("permissions") ||
         model === undefined ||
         model === "provider"
       ) {
         return [];
       }
 
-      const why = `blocks.access.model is "${model}", so it answers from the built-in roles, not ${providerLabel(provider)}. Remove the model to use the provider, or call the provider's function directly.`;
+      const why = `blocks.permissions.model is "${model}", so it answers from the built-in roles, not ${providerLabel(provider)}. Remove the model to use the provider, or call the provider's function directly.`;
       const findings: FindingInput[] = [];
 
       for (const table of catalogOf(context).tables) {
@@ -817,7 +819,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     description:
       "`member_organization_ids()`, `has_organization_role()` and `organization_member_role()` answer by role name. Under an authorization provider they take membership from its `memberIds`, but a role list in the policy still names roles the provider may not have. `better_supabase.tenant_ids_with('<permission>')` and `member_can()` check a permission, so they follow renames, the provider and the delegation cap. Doctor reports each app policy and each function in `schemas` that calls a role helper.",
     check: (context) => {
-      if (!context.config.blockNames.includes("tenant")) {
+      if (!context.config.blockNames.includes("memberships")) {
         return [];
       }
 
@@ -903,17 +905,17 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "isApprover has no branch for support sessions",
     description:
-      "With the provider access model, the `support-sessions` module asks `authorization.functions.isApprover` who may approve a support request, with `{kind}` set to `'support-session'`, instead of its built-in platform check. A template that only handles `'ai-tool'` answers false, so no admin can approve a support request and every start that needs a second admin stays pending. Doctor warns when the template, and every function it calls, never names `support-session`.",
+      "With the provider access model, the `impersonation` module asks `authorization.functions.isApprover` who may approve a support request, with `{kind}` set to `'support-session'`, instead of its built-in platform check. A template that only handles `'ai-tool'` answers false, so no admin can approve a support request and every start that needs a second admin stays pending. Doctor warns when the template, and every function it calls, never names `support-session`.",
     check: (context) => {
       const provider = context.config.authorization;
-      const support = context.config.blocks["support-sessions"];
+      const support = context.config.blocks["impersonation"];
       const isApprover = provider?.functions.isApprover;
 
       if (
         provider === undefined ||
         isApprover === undefined ||
-        !context.config.blockNames.includes("support-sessions") ||
-        (context.config.blocks.access?.model ?? "roles") !== "provider" ||
+        !context.config.blockNames.includes("impersonation") ||
+        (context.config.blocks.permissions?.model ?? "roles") !== "provider" ||
         support?.options?.["approval"] === "none"
       ) {
         return [];
@@ -937,7 +939,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
 
       return [
         {
-          message: `Support sessions are installed, but ${providerLabel(provider)}'s isApprover template never handles {kind} = '${SUPPORT_SESSION_APPROVAL}', so it answers false and no admin can approve a support request. Add a '${SUPPORT_SESSION_APPROVAL}' branch (for example platform staff with the support permission), or set blocks["support-sessions"].options.approval to "none".`,
+          message: `Support sessions are installed, but ${providerLabel(provider)}'s isApprover template never handles {kind} = '${SUPPORT_SESSION_APPROVAL}', so it answers false and no admin can approve a support request. Add a '${SUPPORT_SESSION_APPROVAL}' branch (for example platform staff with the support permission), or set blocks['impersonation'].options.approval to "none".`,
           target: "authorization.functions.isApprover",
         },
       ];
@@ -955,7 +957,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       if (
         provider === undefined ||
         provider.functions.teamIdsOf !== undefined ||
-        (context.config.blocks.access?.model ?? "roles") !== "provider" ||
+        (context.config.blocks.permissions?.model ?? "roles") !== "provider" ||
         !provider.scopes.some((scope) => TEAM_SCOPE.test(scope.name))
       ) {
         return [];

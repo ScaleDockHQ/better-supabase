@@ -39,7 +39,7 @@ describe("data-lifecycle module", () => {
 
   it("checks the owner through the tenant module's role lookup when access is custom", () => {
     const sql = sqlOf(["organizations", "data-lifecycle"], undefined, {
-      access: { mode: "custom" },
+      permissions: { mode: "custom" },
     });
 
     expect(sql).toContain(
@@ -48,7 +48,7 @@ describe("data-lifecycle module", () => {
 
     const through = renderBlocks(["data-lifecycle"], {
       modules: {
-        tenant: {
+        memberships: {
           mode: "adopt",
           tables: { memberships: "public.members" },
           columns: { memberships: { role: "role_id" } },
@@ -58,7 +58,7 @@ describe("data-lifecycle module", () => {
         },
       },
     })
-      .filter((file) => file.module === "tenant")
+      .filter((file) => file.module === "memberships")
       .map((file) => file.contents)
       .join("\n");
 
@@ -88,7 +88,7 @@ describe("data-lifecycle module", () => {
         "audit",
         "profiles",
         "settings",
-        "activity",
+        "timeline",
         "attachments",
         "api-keys",
         "usage",
@@ -176,7 +176,7 @@ describe("data-lifecycle module", () => {
 
   it("disables the tenant through access.disabled.tenant when set", () => {
     const sql = sqlOf(["data-lifecycle"], undefined, {
-      access: { disabled: { tenant: "public.teams.archived_at" } },
+      permissions: { disabled: { tenant: "public.teams.archived_at" } },
     });
 
     expect(sql).toContain(
@@ -423,9 +423,9 @@ describe("data-lifecycle module", () => {
   it("leaves credential_refs out of exports and lists them for revocation before the purge", () => {
     const sql = sqlOf([
       "data-lifecycle",
-      "ai-providers",
+      "ai-keys",
       "connectors",
-      "workflow-builder",
+      "workflow-editor",
       "chat-sdk-state",
     ]);
 

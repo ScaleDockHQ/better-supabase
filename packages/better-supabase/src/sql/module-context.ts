@@ -96,7 +96,7 @@ export function withProviderDefaults(
 }
 
 /**
- * `blocks.access.disabled` from the provider's `suspension` under the
+ * `blocks.permissions.disabled` from the provider's `suspension` under the
  * `provider` model, per subject, unless the config sets that subject.
  */
 function withProviderSuspension(
@@ -104,7 +104,7 @@ function withProviderSuspension(
 ): AnyBlocksConfig | undefined {
   const modules = layout.modules;
   const suspension = layout.accessProvider?.suspension;
-  const access = modules?.access;
+  const access = modules?.permissions;
 
   if (!modules || !suspension || access?.model !== "provider") {
     return modules;
@@ -129,7 +129,7 @@ function withProviderSuspension(
     return modules;
   }
 
-  return { ...modules, access: { ...access, disabled } };
+  return { ...modules, permissions: { ...access, disabled } };
 }
 
 function withProviderRoles(
@@ -137,7 +137,7 @@ function withProviderRoles(
   modules: AnyBlocksConfig | undefined,
 ): AnyBlocksConfig | undefined {
   const sources = layout.accessProvider?.roleSources;
-  const tenant = modules?.["tenant"];
+  const tenant = modules?.["memberships"];
 
   if (!modules || !sources || tenant?.mode !== "adopt") {
     return modules;
@@ -169,7 +169,7 @@ function withProviderRoles(
 
   return {
     ...modules,
-    tenant: {
+    memberships: {
       ...tenant,
       options: { ...tenant.options, roleThrough: source.role.through },
     },

@@ -18,7 +18,7 @@ import type { RelationsEvents } from "better-supabase/blocks/relations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SlaEvents } from "better-supabase/blocks/sla";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
-import type { WorkItemsEvents } from "better-supabase/blocks/work-items";
+import type { TasksEvents } from "better-supabase/blocks/tasks";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -26,7 +26,7 @@ import type { WorkItemsEvents } from "better-supabase/blocks/work-items";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -112,7 +112,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -124,7 +124,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "work-items": {
+  tasks: {
     schema: "better_supabase",
     options: {},
   },
@@ -225,6 +225,11 @@ export const permissions = {
     read: "sla.read",
     manage: "sla.manage",
   },
+  tasks: {
+    read: "work_items.read",
+    write: "work_items.write",
+    manage: "work_items.manage",
+  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
@@ -232,11 +237,6 @@ export const permissions = {
   work_item: {
     read: "work_items.read",
     write: "work_items.write",
-  },
-  "work-items": {
-    read: "work_items.read",
-    write: "work_items.write",
-    manage: "work_items.manage",
   },
 } as const;
 
@@ -247,11 +247,11 @@ export const permissions = {
  */
 export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "incidents.manage" | "incidents.read" | "incidents.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "teams.manage" | "teams.read" | "work_items.manage" | "work_items.read" | "work_items.write";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & AssetsEvents & EnrollmentsEvents & IncidentsEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & SlaEvents & TeamsEvents & WorkItemsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & AssetsEvents & EnrollmentsEvents & IncidentsEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & SlaEvents & TeamsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

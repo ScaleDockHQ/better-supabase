@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { RecordFormResult } from "../../src/records/index.ts";
 
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
-import { workItemInputSchema } from "../../src/blocks/work-items/schemas.ts";
+import { workItemInputSchema } from "../../src/blocks/tasks/schemas.ts";
 import { providedTemporal, provideTemporal } from "../../src/core/temporal.ts";
 import { recordForm } from "../../src/records/index.ts";
 

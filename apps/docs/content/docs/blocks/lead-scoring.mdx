@@ -4,7 +4,7 @@ description: Score people and companies under a tenant-editable score model whos
 ---
 
 The `lead-scoring` block keeps a [score](/docs/blocks/scores) on every
-[person](/docs/blocks/parties), and optionally every company, under one score
+[person](/docs/blocks/contacts), and optionally every company, under one score
 model per organization. The model's rules read the record's own columns and
 three sets of fields the block adds: the [segments](/docs/blocks/segments)
 the record is in, its email activity from [mail-sync](/docs/blocks/mail-sync)
@@ -28,9 +28,9 @@ save the model:
 
 ```ts
 import {
-  createRulesAdmin,
+  createAutomationsAdmin,
   defineRuleFields,
-} from "better-supabase/blocks/rules";
+} from "better-supabase/blocks/automations";
 import { leadRuleFields } from "better-supabase/blocks/lead-scoring";
 import { createScores } from "better-supabase/blocks/scores";
 
@@ -38,7 +38,7 @@ const columns = defineRuleFields("person", {
   lifecycle: { type: "select", options: ["lead", "customer"] },
 });
 
-await createRulesAdmin({ transport: serviceTransport })
+await createAutomationsAdmin({ transport: serviceTransport })
   .syncFields({
     subjectType: "person",
     fields: [...columns.fields, ...leadRuleFields("person").fields],

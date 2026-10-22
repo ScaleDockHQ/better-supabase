@@ -29,8 +29,8 @@ function adopted(
 ): BlockSqlLayout {
   return {
     modules: {
-      access: { schema },
-      tenant: {
+      permissions: { schema },
+      memberships: {
         schema,
         mode: "adopt",
         tables: { memberships: `${schema}.team_members` },
@@ -214,7 +214,7 @@ describe.skipIf(!live)("organizations member guards", () => {
         ...layout,
         modules: {
           ...layout.modules,
-          access: {
+          permissions: {
             schema,
             disabled: { user: `${schema}.profiles.disabled_at` },
           },
@@ -413,7 +413,7 @@ describe.skipIf(!live)("organizations member guards", () => {
         },
         modules: {
           ...adopted(schema).modules,
-          access: {
+          permissions: {
             model: "provider",
             // Staff may assign every role but owner; members follow ownership.
             functions: { canAssign: `{role} <> 'owner'` },

@@ -1,14 +1,11 @@
-import type { Employee, EmployeeInput } from "../blocks/employees/employees.ts";
 import type {
   Engagement,
   EngagementInput,
   EngagementSubject,
-} from "../blocks/engagements/engagements.ts";
+} from "../blocks/activities/activities.ts";
+import type { Employee, EmployeeInput } from "../blocks/employees/employees.ts";
 import type { Conversation } from "../blocks/inbox/types.ts";
-import type {
-  WorkItem,
-  WorkItemInput,
-} from "../blocks/work-items/work-items.ts";
+import type { WorkItem, WorkItemInput } from "../blocks/tasks/tasks.ts";
 import type {
   ApplicationEventData,
   InboxEventData,
@@ -18,7 +15,7 @@ import type {
 import type { Result } from "../core/result.ts";
 import type { Flow, FlowClients, FlowContext } from "./flow.ts";
 
-import { workItemInputSchema } from "../blocks/work-items/schemas.ts";
+import { workItemInputSchema } from "../blocks/tasks/schemas.ts";
 import { dbError } from "../core/errors.ts";
 import { err, ok } from "../core/result.ts";
 import { defineFlow } from "./flow.ts";
@@ -169,7 +166,7 @@ export function applicationToEmployee(
   });
 }
 
-/** `blocks.engagements`, for `bookingToEngagement`. */
+/** `blocks.activities`, for `bookingToEngagement`. */
 export interface BookingToEngagementClients extends FlowClients {
   readonly engagements: {
     log(

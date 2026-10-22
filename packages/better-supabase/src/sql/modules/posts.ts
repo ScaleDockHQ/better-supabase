@@ -209,8 +209,8 @@ export const POSTS: BlockSqlDefinition = {
   description:
     "Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.",
   requires: [
-    "tenant",
-    "access",
+    "memberships",
+    "permissions",
     "subjects",
     "messaging",
     "comments",

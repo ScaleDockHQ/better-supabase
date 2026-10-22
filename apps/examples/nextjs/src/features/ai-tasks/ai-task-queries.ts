@@ -1,6 +1,6 @@
 import "server-only";
 import type { DbError } from "better-supabase";
-import type { AiTaskRunStatus } from "better-supabase/blocks/ai-tasks";
+import type { AiTaskRunStatus } from "better-supabase/blocks/ai-schedules";
 
 import { tenantOf } from "better-supabase/next";
 

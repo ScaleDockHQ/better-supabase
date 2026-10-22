@@ -14,7 +14,6 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { anonymizeSql } from "./data-lifecycle-anonymize.ts";
 import { autoTablesOf, autoTablesSql } from "./data-lifecycle-auto-tables.ts";
 import {
@@ -35,6 +34,7 @@ import {
   retentionSql,
 } from "./data-lifecycle-retention.ts";
 import { omitPatternOf, withOmitPattern } from "./data-lifecycle-secrets.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
   events: DATA_LIFECYCLE_EVENTS,
@@ -102,7 +102,7 @@ function build(ctx: BlockSqlContext): string {
   const bucket = sqlString(bucketOf(ctx));
   const grace = ctx.text("grace", "30 days");
   const exportTtl = ctx.text("exportTtl", "7 days");
-  const tenant = ctx.of("tenant");
+  const tenant = ctx.of("memberships");
   const m = tenant.table("memberships");
   const mTenant = tenant.col("memberships", "tenant");
   const mUser = tenant.col("memberships", "user");
@@ -233,8 +233,8 @@ function build(ctx: BlockSqlContext): string {
   const cancelKey = ctx.permission("cancelDelete", permissions.cancelDelete);
 
   const allowed =
-    ctx.of("access").mode === "custom"
-      ? `coalesce(${ctx.of("tenant").fn("organization_member_role")}(cancel_organization_deletion.tenant, auth.uid()) = ${ownerRole}, false)`
+    ctx.of("permissions").mode === "custom"
+      ? `coalesce(${ctx.of("memberships").fn("organization_member_role")}(cancel_organization_deletion.tenant, auth.uid()) = ${ownerRole}, false)`
       : `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, ${cancelKey}), false)`;
 
   return `${schemaPreamble(ctx)}
@@ -793,7 +793,7 @@ export const DATA_LIFECYCLE: BlockSqlDefinition = {
   title: "Data lifecycle",
   description:
     "Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["*"],
   target: "schema",
   modes: ["managed", "custom"],

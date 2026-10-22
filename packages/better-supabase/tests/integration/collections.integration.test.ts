@@ -4,9 +4,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { createBulk } from "../../src/blocks/bulk/index.ts";
+import { createBulkActions } from "../../src/blocks/bulk-actions/index.ts";
 import { createCollections } from "../../src/blocks/collections/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createSavedViews } from "../../src/blocks/saved-views/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -14,7 +14,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const { company, ...parties } = withBlockSubjects({}, ["parties"], {});
+const { company, ...parties } = withBlockSubjects({}, ["contacts"], {});
 
 const layout: BlockSqlLayout = {
   subjects: {
@@ -37,9 +37,9 @@ const MODULES = [
   "outbox",
   "teams",
   "subjects",
-  "parties",
+  "contacts",
   "saved-views",
-  "bulk",
+  "bulk-actions",
   "collections",
 ];
 
@@ -76,7 +76,7 @@ describe.skipIf(!live)("collections", () => {
       const org = await s.organization(owner, { member: rep });
       const other = await s.organization(stranger);
       const transport = sqlTransport(s.sql);
-      const companies = createParties({ transport });
+      const companies = createContacts({ transport });
       const collections = createCollections({ transport });
 
       await s.as(rep);
@@ -166,7 +166,7 @@ describe.skipIf(!live)("collections", () => {
       await s.install(MODULES, layout);
       const org = await s.organization(owner, { member: rep, member2: peer });
       const transport = sqlTransport(s.sql);
-      const companies = createParties({ transport });
+      const companies = createContacts({ transport });
       const collections = createCollections({ transport });
 
       await s.as(owner);
@@ -368,7 +368,7 @@ describe.skipIf(!live)("collections", () => {
       const transport = sqlTransport(s.sql);
       const collections = createCollections({ transport });
       const views = createSavedViews({ transport });
-      const bulk = createBulk({ transport });
+      const bulk = createBulkActions({ transport });
 
       await s.service();
 
@@ -467,7 +467,7 @@ describe.skipIf(!live)("collections", () => {
       const org = await s.organization(owner, { member: rep });
       await s.organization(stranger);
       const transport = sqlTransport(s.sql);
-      const companies = createParties({ transport });
+      const companies = createContacts({ transport });
       const sent: { key: unknown; recipients: unknown }[] = [];
 
       const collections = createCollections({

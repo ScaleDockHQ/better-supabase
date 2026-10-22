@@ -661,11 +661,11 @@ describe("CHECK not null", () => {
     );
   });
 
-  it("makes number-sequences columns optional on insert", async () => {
+  it("makes numbering columns optional on insert", async () => {
     const numbered = (mode: "adopt" | "custom") =>
       customersWith((table) => table, {
         blocks: {
-          "number-sequences": {
+          numbering: {
             ownership: mode,
             options: {
               entities: {
@@ -1087,22 +1087,22 @@ describe("sql", () => {
   });
 
   it("adds modules with their dependencies and lists them in the config", async () => {
-    const added = await run(["add", "jobs", "pgtap", "--cwd", dir]);
+    const added = await run(["add", "queue", "pgtap", "--cwd", dir]);
     expect(added.code).toBe(0);
     expect(added.stdout).toMatch(
-      /Created supabase\/schemas\/900_better_supabase_\d\d_jobs\.sql/,
+      /Created supabase\/schemas\/900_better_supabase_\d\d_queue\.sql/,
     );
     expect(added.stdout).toContain(
       "supabase/tests/000_better_supabase_pgtap.test.sql",
     );
     expect(added.stdout).toContain(
-      "Added jobs, pgtap to blocks in better-supabase.config.json.",
+      "Added queue, pgtap to blocks in better-supabase.config.json.",
     );
     expect(
       JSON.parse(
         await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
-    ).toEqual({ blocks: ["invitations", "jobs", "pgtap"] });
+    ).toEqual({ blocks: ["invitations", "queue", "pgtap"] });
 
     const list = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(list.stdout).not.toMatch(/○ jobs/);
@@ -1148,12 +1148,12 @@ describe("sql", () => {
   it("syncs blocks and detects stale files with --check", async () => {
     expect((await run(["upgrade", "--check", "--cwd", dir])).code).toBe(1);
     const sync = await run(["upgrade", "--cwd", dir]);
-    expect(sync.stdout).toContain("tenant");
+    expect(sync.stdout).toContain("memberships");
     expect(sync.stdout).toContain("invitations");
     expect((await run(["upgrade", "--check", "--cwd", dir])).code).toBe(0);
     const list = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(list.stdout).toMatch(/● invitations/);
-    expect(list.stdout).toMatch(/○ tenant/);
+    expect(list.stdout).toMatch(/○ memberships/);
   });
 
   it("stops before writing the tenant module when the provider's hook owns memberships", async () => {
@@ -1164,27 +1164,27 @@ describe("sql", () => {
         auth: { authorization: stubProvider },
       }),
     );
-    const stopped = await run(["add", "tenant", "--cwd", dir]);
+    const stopped = await run(["add", "memberships", "--cwd", dir]);
     expect(stopped.code).toBe(1);
     expect(stopped.stderr).toContain(
       "The access token hook of the authorization provider (stub) writes the memberships claim.",
     );
-    expect(stopped.stderr).toContain("tenant would add a second source");
+    expect(stopped.stderr).toContain("memberships would add a second source");
     expect(
       (await run(["blocks", "list", "--installed", "--cwd", dir])).stdout,
-    ).toMatch(/^ {2}tenant/m);
+    ).toMatch(/^ {2}memberships/m);
     expect((await run(["add", "audit", "--cwd", dir])).code).toBe(0);
 
     const forced = await run([
       "add",
-      "tenant",
+      "memberships",
       "--allow-hook-overlap",
       "--cwd",
       dir,
     ]);
 
     expect(forced.code).toBe(0);
-    expect(forced.stdout).toMatch(/900_better_supabase_\d\d_tenant\.sql/);
+    expect(forced.stdout).toMatch(/900_better_supabase_\d\d_memberships\.sql/);
   });
 
   it("writes entitlements on the provider's member functions", async () => {
@@ -1234,7 +1234,7 @@ describe("sql", () => {
       dir,
     ]);
 
-    expect(tenant.stdout).toContain("tenant came along as a dependency");
+    expect(tenant.stdout).toContain("memberships came along as a dependency");
   });
 
   it("prints a module and rejects unknown ones", async () => {

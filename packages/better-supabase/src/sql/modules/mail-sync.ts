@@ -8,8 +8,8 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { lockTable, schemaPreamble } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { mailSyncFunctions } from "./mail-sync-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const ACCOUNT_PAYLOAD = [
   "organizationId",
@@ -240,8 +240,8 @@ function names(ctx: BlockSqlContext): MailNames {
 function tables(ctx: BlockSqlContext, n: MailNames): string {
   const { t, a, h, m, l, k, e } = n;
 
-  const engagement = ctx.installed("engagements")
-    ? ` references ${ctx.of("engagements").table("engagements")} (${ctx.of("engagements").col("engagements", "id")}) on delete set null`
+  const engagement = ctx.installed("activities")
+    ? ` references ${ctx.of("activities").table("engagements")} (${ctx.of("activities").col("engagements", "id")}) on delete set null`
     : "";
 
   const visible = n.fn("mail_thread_visible");
@@ -472,8 +472,8 @@ export const MAIL_SYNC: BlockSqlDefinition = {
   title: "Mail sync",
   description:
     "Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.",
-  requires: ["tenant", "access", "subjects"],
-  integrates: ["outbox", "audit", "parties", "engagements", "data-lifecycle"],
+  requires: ["memberships", "permissions", "subjects"],
+  integrates: ["outbox", "audit", "contacts", "activities", "data-lifecycle"],
   target: "schema",
   modes: ["managed"],
   version: 1,

@@ -9,10 +9,10 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { courseAuthoringFunctions } from "./courses-authoring.ts";
 import { courseLearningFunctions } from "./courses-learning.ts";
 import { COURSE_KEYS, courseEnrollments } from "./courses-sql.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const COURSE_PAYLOAD = ["organizationId", "id", "key", "status"] as const;
 
@@ -337,7 +337,7 @@ export const COURSES: BlockSqlDefinition = {
   title: "Courses",
   description:
     "Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.",
-  requires: ["tenant", "access", "enrollments"],
+  requires: ["memberships", "permissions", "enrollments"],
   integrates: ["forms", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],

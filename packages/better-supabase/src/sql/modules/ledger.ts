@@ -9,8 +9,8 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, lockTable, schemaPreamble } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { ledgerFunctions } from "./ledger-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const ACCOUNT_PAYLOAD = [
   "organizationId",
@@ -510,7 +510,7 @@ export const LEDGER: BlockSqlDefinition = {
   title: "Ledger",
   description:
     "Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit"],
   before: "inventory",
   target: "schema",

@@ -1,6 +1,7 @@
 /**
  * Where a run is, in the words every block that records runs shares: ai-chat
- * runs, ai-tasks runs and workflow runs. Each block uses the subset it needs.
+ * runs, ai-schedules runs and workflow runs. Each block uses the subset it
+ * needs.
  */
 export type RunState =
   | "queued"

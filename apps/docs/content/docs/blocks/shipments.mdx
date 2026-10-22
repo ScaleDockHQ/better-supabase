@@ -17,7 +17,7 @@ better-supabase add shipments
 import { createShipments } from "better-supabase/blocks/shipments";
 ```
 
-The module requires `tenant` and `access`. With `assets` a shipment can name
+The module requires `memberships` and `access`. With `assets` a shipment can name
 the asset location it ships from, with `outbox` every change records an
 event, and with `audit` the writes are audited. Carriers plug in through the
 versioned `ShippingProvider` interface; the block ships no carrier SDK (see

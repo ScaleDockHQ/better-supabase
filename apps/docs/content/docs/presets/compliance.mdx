@@ -27,7 +27,7 @@ whatever they require:
 
 | Block                                   | Role in the app                                             |
 | --------------------------------------- | ----------------------------------------------------------- |
-| [controls](/docs/blocks/controls)       | Frameworks, controls, evidence tasks and versioned policies |
+| [controls](/docs/blocks/compliance)     | Frameworks, controls, evidence tasks and versioned policies |
 | [attachments](/docs/blocks/attachments) | Evidence files                                              |
 
 The controls block requires [versions](/docs/blocks/versions), which the
@@ -43,7 +43,7 @@ assignee. A control's status follows from its evidence and tasks: it fails
 when a task is overdue or all its evidence has lapsed, and `posture` rolls
 the statuses up per framework. `publishPolicy` freezes a policy as a version,
 and each member acknowledges that version with `acknowledgePolicy`
-([controls](/docs/blocks/controls)).
+([controls](/docs/blocks/compliance)).
 
 ## With ReUI
 

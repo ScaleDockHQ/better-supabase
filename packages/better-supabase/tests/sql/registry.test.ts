@@ -21,11 +21,13 @@ describe("resolveBlocks", () => {
   it("adds dependencies and keeps registry order", () => {
     expect(
       resolveBlocks(["invitations", "updated-at"]).map((module) => module.name),
-    ).toEqual(["updated-at", "tenant", "invitations", "access"]);
+    ).toEqual(["updated-at", "memberships", "invitations", "permissions"]);
   });
 
   it("deduplicates and rejects unknown modules", () => {
-    expect(resolveBlocks(["tenant", "tenant", "invitations"])).toHaveLength(4);
+    expect(
+      resolveBlocks(["memberships", "memberships", "invitations"]),
+    ).toHaveLength(4);
     expect(() => resolveBlocks(["nope"])).toThrow(/Unknown SQL module "nope"/);
   });
 });
@@ -93,12 +95,12 @@ describe("moduleTopics", () => {
 describe("renderBlocks", () => {
   it("numbers files by registry position so paths stay stable", () => {
     const all = renderBlocks(Object.keys(SQL_MODULES));
-    const jobs = renderBlocks(["jobs"]);
+    const jobs = renderBlocks(["queue"]);
     expect(jobs[0]!.path).toBe(
-      all.find((file) => file.module === "jobs")!.path,
+      all.find((file) => file.module === "queue")!.path,
     );
     expect(jobs[0]!.path).toMatch(
-      /^supabase\/schemas\/900_better_supabase_\d\d_jobs\.sql$/,
+      /^supabase\/schemas\/900_better_supabase_\d\d_queue\.sql$/,
     );
   });
 
@@ -151,7 +153,7 @@ describe("renderBlocks", () => {
   it("keeps statements a schema diff skips out of the schema files", () => {
     const layouts = [
       {},
-      { modules: { jobs: { options: { backend: "table" } } } },
+      { modules: { queue: { options: { backend: "table" } } } },
     ];
 
     for (const layout of layouts) {
@@ -263,14 +265,14 @@ describe("renderBlocks", () => {
         (file) => file.kind === "data" && file.module === name,
       )!.contents;
 
-    expect(data("jobs")).toContain('create extension if not exists "pgmq";');
+    expect(data("queue")).toContain('create extension if not exists "pgmq";');
     expect(
-      data("jobs", { modules: { jobs: { options: { backend: "table" } } } }),
+      data("queue", { modules: { queue: { options: { backend: "table" } } } }),
     ).not.toContain("create extension");
     expect(data("jsonb-schemas")).toContain(
       'create extension if not exists "pg_jsonschema" with schema "extensions";',
     );
-    expect(data("flags")).toContain(
+    expect(data("feature-flags")).toContain(
       'create extension if not exists "pgcrypto" with schema "extensions";',
     );
   });
@@ -321,21 +323,21 @@ describe("module event triggers", () => {
     expect(data("audit")).toContain(
       "drop event trigger if exists bsb_audit_forget_dropped;\ncreate event trigger bsb_audit_forget_dropped on sql_drop\n  when tag in ('DROP TABLE', 'DROP SCHEMA')\n  execute function better_supabase.audit_forget_dropped();",
     );
-    expect(data("ensure-rls")).toContain(
+    expect(data("rls-guard")).toContain(
       "drop event trigger if exists bsb_ensure_rls;\ncreate event trigger bsb_ensure_rls on ddl_command_end",
     );
-    expect(data("tenant")).not.toContain("event trigger");
+    expect(data("memberships")).not.toContain("event trigger");
   });
 
   it("names the event triggers of the installed modules", () => {
-    expect(moduleEventTriggers(["audit", "ensure-rls", "tenant"])).toEqual([
+    expect(moduleEventTriggers(["audit", "rls-guard", "memberships"])).toEqual([
       { module: "audit", name: "bsb_audit_forget_dropped" },
-      { module: "ensure-rls", name: "bsb_ensure_rls" },
+      { module: "rls-guard", name: "bsb_ensure_rls" },
     ]);
     expect(
       moduleEventTriggers(["broken", "missing"], {
         broken: {
-          ...SQL_MODULES["tenant"]!,
+          ...SQL_MODULES["memberships"]!,
           get sql(): string {
             throw new Error("no default layout");
           },
@@ -359,10 +361,10 @@ describe("module event triggers", () => {
   });
 });
 
-describe("ensure-rls", () => {
+describe("rls-guard", () => {
   it("installs a replaceable event trigger that skips managed schemas", () => {
-    const [file] = renderBlocks(["ensure-rls"]);
-    expect(file!.path).toMatch(/_ensure_rls\.sql$/);
+    const [file] = renderBlocks(["rls-guard"]);
+    expect(file!.path).toMatch(/_rls_guard\.sql$/);
     expect(file!.contents).toContain(
       "drop event trigger if exists bsb_ensure_rls;",
     );
@@ -495,9 +497,9 @@ describe("sameBlockFile", () => {
       "/project",
     );
 
-    const [file] = renderBlocks(["grants"], moduleLayout(config));
+    const [file] = renderBlocks(["data-api-grants"], moduleLayout(config));
     expect(file!.path).toBe(
-      "supabase/schemas/900_better_supabase_13_grants.sql",
+      "supabase/schemas/900_better_supabase_13_data_api_grants.sql",
     );
     expect(file!.contents).toContain(
       [
@@ -515,7 +517,7 @@ describe("sameBlockFile", () => {
       ].join("\n"),
     );
     expect(file!.contents).not.toContain('"reprice"(uuid) to');
-    expect(renderBlocks(["grants"])[0]!.contents).not.toContain(
+    expect(renderBlocks(["data-api-grants"])[0]!.contents).not.toContain(
       "config.expose",
     );
   });
@@ -570,12 +572,14 @@ describe("sameBlockFile", () => {
   it("writes the session policy on the declared tables except the excluded ones", () => {
     const layout = {
       modules: {
-        sessions: { options: { policies: true, exclude: ["public.audit_*"] } },
+        "session-revocation": {
+          options: { policies: true, exclude: ["public.audit_*"] },
+        },
       },
       declaredTables: ["public.invoices", "public.audit_log"],
     };
 
-    const [file] = renderBlocks(["sessions"], layout);
+    const [file] = renderBlocks(["session-revocation"], layout);
     expect(file!.contents).toContain(
       [
         'drop policy if exists bsb_session_active on "public"."invoices";',
@@ -587,13 +591,14 @@ describe("sameBlockFile", () => {
     );
     expect(file!.contents).not.toContain("audit_log");
     expect(
-      renderBlocks(["sessions"], { declaredTables: ["public.invoices"] })[0]!
-        .contents,
+      renderBlocks(["session-revocation"], {
+        declaredTables: ["public.invoices"],
+      })[0]!.contents,
     ).not.toContain("bsb_session_active");
   });
 
   it("writes a service-only last_sign_ins in the sessions module", () => {
-    const [file] = renderBlocks(["sessions"], {});
+    const [file] = renderBlocks(["session-revocation"], {});
     expect(file!.contents).toContain(
       "create or replace function better_supabase.last_sign_ins(p_users uuid[])\nreturns table (user_id uuid, last_sign_in_at timestamptz)",
     );
@@ -612,12 +617,12 @@ describe("sameBlockFile", () => {
     const config = resolveConfig(
       {
         database: { expose: { customers: ["select"] } },
-        blocks: { grants: { options: { fromPolicies: true } } },
+        blocks: { "data-api-grants": { options: { fromPolicies: true } } },
       },
       "/project",
     );
 
-    const [file] = renderBlocks(["grants"], {
+    const [file] = renderBlocks(["data-api-grants"], {
       ...moduleLayout(config),
       policyGrants: [
         {
@@ -634,7 +639,7 @@ describe("sameBlockFile", () => {
     });
 
     expect(file!.contents).toContain(
-      "-- config.expose and the policies (blocks.grants.options.fromPolicies)",
+      "-- config.expose and the policies (blocks['data-api-grants'].options.fromPolicies)",
     );
     expect(file!.contents).toContain(
       'grant select on table "public"."customers" to authenticated;',
@@ -655,7 +660,7 @@ describe("sameBlockFile", () => {
     const config = resolveConfig(
       {
         database: { expose: { customers: ["select"] } },
-        blocks: { grants: { options: { fromPolicies: true } } },
+        blocks: { "data-api-grants": { options: { fromPolicies: true } } },
       },
       "/project",
     );
@@ -683,7 +688,7 @@ describe("sameBlockFile", () => {
       ],
     };
 
-    const [file] = renderBlocks(["grants"], layout);
+    const [file] = renderBlocks(["data-api-grants"], layout);
     expect(file!.contents).toContain(
       [
         'revoke all on table "public"."jobs" from public, anon, authenticated, service_role;',
@@ -696,7 +701,7 @@ describe("sameBlockFile", () => {
       'grant select, insert, update, delete on table "public"."notes" to authenticated',
     );
 
-    const [rlsOff] = renderBlocks(["grants"], {
+    const [rlsOff] = renderBlocks(["data-api-grants"], {
       ...layout,
       rlsTables: ["audit.entries"],
     });
@@ -704,7 +709,7 @@ describe("sameBlockFile", () => {
     expect(rlsOff!.contents).not.toContain('"public"."jobs"');
     expect(rlsOff!.contents).toContain('"audit"."entries"');
 
-    const [without] = renderBlocks(["grants"], {
+    const [without] = renderBlocks(["data-api-grants"], {
       ...moduleLayout(config),
       declaredTables: layout.declaredTables,
     });
@@ -731,9 +736,9 @@ describe("sameBlockFile", () => {
       "/project",
     );
 
-    expect(() => renderBlocks(["grants"], moduleLayout(config))).toThrow(
-      /is not a function signature/,
-    );
+    expect(() =>
+      renderBlocks(["data-api-grants"], moduleLayout(config)),
+    ).toThrow(/is not a function signature/);
   });
 
   it("writes a search function per vectorSearch table", () => {
@@ -955,7 +960,7 @@ describe("entitlements with provider memberships", () => {
   it("drops the tenant dependency", () => {
     expect(
       resolveBlocks(["entitlements"]).map((module) => module.name),
-    ).toEqual(["updated-at", "tenant", "entitlements"]);
+    ).toEqual(["updated-at", "memberships", "entitlements"]);
     expect(
       resolveBlocks(["entitlements"], { entitlementsProvider }).map(
         (module) => module.name,
@@ -1070,10 +1075,7 @@ describe("entitlements with provider memberships", () => {
 
 describe("modulePermissionKeys", () => {
   it("lists every key the installed modules check, with its scope", () => {
-    const keys = modulePermissionKeys({}, [
-      "organizations",
-      "support-sessions",
-    ]);
+    const keys = modulePermissionKeys({}, ["organizations", "impersonation"]);
 
     expect(keys).toContainEqual({
       module: "organizations",
@@ -1082,7 +1084,7 @@ describe("modulePermissionKeys", () => {
       scope: "tenant",
     });
     expect(keys).toContainEqual({
-      module: "support-sessions",
+      module: "impersonation",
       action: "start",
       key: "support.start",
       scope: "platform",
@@ -1090,10 +1092,10 @@ describe("modulePermissionKeys", () => {
     expect(keys.map((entry) => entry.module)).not.toContain("notifications");
   });
 
-  it("lists a number-sequences entity's own assign key", () => {
+  it("lists a numbering entity's own assign key", () => {
     const keys = modulePermissionKeys(
       {
-        "number-sequences": {
+        numbering: {
           options: {
             entities: {
               invoice: {
@@ -1106,27 +1108,24 @@ describe("modulePermissionKeys", () => {
           },
         },
       },
-      ["number-sequences"],
+      ["numbering"],
     );
 
-    expect(keys.filter((entry) => entry.module === "number-sequences")).toEqual(
-      [
-        {
-          module: "number-sequences",
-          action: "assign",
-          key: "number_sequences.assign",
-          scope: "tenant",
-        },
-        {
-          module: "number-sequences",
-          action: "assign",
-          key: "invoices.write",
-          scope: "tenant",
-          setting:
-            "blocks.number-sequences.options.entities.invoice.permission",
-        },
-      ],
-    );
+    expect(keys.filter((entry) => entry.module === "numbering")).toEqual([
+      {
+        module: "numbering",
+        action: "assign",
+        key: "number_sequences.assign",
+        scope: "tenant",
+      },
+      {
+        module: "numbering",
+        action: "assign",
+        key: "invoices.write",
+        scope: "tenant",
+        setting: "blocks.numbering.options.entities.invoice.permission",
+      },
+    ]);
   });
 
   it("defaults suspendMember to the removeMember key", () => {
@@ -1219,8 +1218,8 @@ describe("modulePermissionKeys", () => {
         (entry) => entry.action === "invitePlatform",
       );
 
-    expect(platform({ access: { model: "provider" } })).toBe(false);
-    expect(platform({ access: { model: "catalog" } })).toBe(true);
+    expect(platform({ permissions: { model: "provider" } })).toBe(false);
+    expect(platform({ permissions: { model: "catalog" } })).toBe(true);
   });
 
   it("lists the optional platform keys an organizations config names", () => {

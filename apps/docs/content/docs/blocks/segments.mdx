@@ -3,7 +3,7 @@ title: Segments
 description: Save a filter over companies, people, deals or any registered subject, keep its members in Postgres and react when records enter or leave it.
 ---
 
-The `segments` block saves a [rules](/docs/blocks/rules) filter tree over
+The `segments` block saves a [rules](/docs/blocks/automations) filter tree over
 one subject type and stores the records it matches. A refresh evaluates the
 filter in Postgres, adds the records that now match, removes the ones that
 no longer do and writes a `segment.entered` or `segment.left` event for
@@ -32,9 +32,9 @@ per deploy, as for rules. A segment reads the stored row, so each field's
 
 ```ts
 import {
-  createRulesAdmin,
+  createAutomationsAdmin,
   defineRuleFields,
-} from "better-supabase/blocks/rules";
+} from "better-supabase/blocks/automations";
 
 export const companyFields = defineRuleFields("company", {
   lifecycle: { type: "select", options: ["lead", "customer", "churned"] },
@@ -42,7 +42,7 @@ export const companyFields = defineRuleFields("company", {
   archivedAt: { type: "date", column: "archived_at" },
 });
 
-await createRulesAdmin({ transport: serviceTransport })
+await createAutomationsAdmin({ transport: serviceTransport })
   .syncFields(companyFields)
   .orThrow();
 ```

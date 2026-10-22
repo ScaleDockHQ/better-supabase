@@ -19,7 +19,7 @@ import {
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const GROUPINGS = ["subject", "member", "entry"] as const;
 
@@ -140,7 +140,7 @@ create policy ${index("billed", "read")} on ${billed} for select to authenticate
 function functions(ctx: BlockSqlContext): string {
   const time = ctx.of("time-tracking");
   const invoices = ctx.of("invoices");
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
   const entries = time.table("entries");
   const e = (column: string): string => time.col("entries", column);
   const rates = ctx.table("rates");
@@ -625,7 +625,13 @@ export const BILLABLE_TIME: BlockSqlDefinition = {
   title: "Billable time",
   description:
     "A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.",
-  requires: ["tenant", "access", "subjects", "time-tracking", "invoices"],
+  requires: [
+    "memberships",
+    "permissions",
+    "subjects",
+    "time-tracking",
+    "invoices",
+  ],
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],

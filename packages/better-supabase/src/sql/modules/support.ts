@@ -1,4 +1,4 @@
-import type { SupportSessionsEvents } from "../../blocks/support-sessions/events.ts";
+import type { ImpersonationEvents } from "../../blocks/impersonation/events.ts";
 import type {
   BlockSqlContext,
   BlockSqlEvents,
@@ -16,17 +16,17 @@ import {
   fail,
   raise,
 } from "../shared.ts";
+import { linkedPolicy, SUPPORT_REQUEST_SUBJECT } from "./approvals.ts";
+import { approverCheck, SUPPORT_SESSION_APPROVAL } from "./approver.ts";
+import { READ_ONLY_GUARD } from "./drive-kit.ts";
 import {
   hasPlatformRoles,
   OPERATIONS,
   providerPlatformRoles,
-} from "./access-model.ts";
-import { linkedPolicy, SUPPORT_REQUEST_SUBJECT } from "./approvals.ts";
-import { approverCheck, SUPPORT_SESSION_APPROVAL } from "./approver.ts";
-import { READ_ONLY_GUARD } from "./drive-kit.ts";
+} from "./permissions-model.ts";
 import { approvalMode, supportApprovalFunctions } from "./support-approvals.ts";
 
-const EVENTS: BlockSqlEvents<SupportSessionsEvents> = {
+const EVENTS: BlockSqlEvents<ImpersonationEvents> = {
   "support.started": {
     subject: "support-sessions",
     payload: [
@@ -173,7 +173,7 @@ grant select on ${sessions} to service_role;
 -- Platform staff read every session.
 drop policy if exists bsb_support_read on ${sessions};
 create policy bsb_support_read on ${sessions} for select to authenticated
-  using ((select ${ctx.of("access").fn("is_platform")}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
+  using ((select ${ctx.of("permissions").fn("is_platform")}(${ctx.permission("view", OPERATIONS["impersonation.view"])})));
 grant select on ${sessions} to authenticated;
 `;
 }
@@ -223,7 +223,7 @@ function requestsTable(ctx: BlockSqlContext): string {
 
   const requests = ctx.table("requests");
   const c = (logical: string) => ctx.col("requests", logical);
-  const isPlatform = ctx.of("access").fn("is_platform");
+  const isPlatform = ctx.of("permissions").fn("is_platform");
 
   return `
 -- A support session waits for a second admin: the requester asks here, and
@@ -256,7 +256,7 @@ grant select on ${requests} to service_role;
 drop policy if exists bsb_support_requests_read on ${requests};
 create policy bsb_support_requests_read on ${requests} for select to authenticated
   using (${c("admin")} = (select auth.uid())
-    or (select ${isPlatform}(${ctx.permission("view", OPERATIONS["support-sessions.view"])})));
+    or (select ${isPlatform}(${ctx.permission("view", OPERATIONS["impersonation.view"])})));
 grant select on ${requests} to authenticated;
 `;
 }
@@ -285,9 +285,9 @@ function approverOf(
     return `coalesce((${check.sql}), false)`;
   }
 
-  const isPlatform = ctx.of("access").fn("is_platform");
+  const isPlatform = ctx.of("permissions").fn("is_platform");
 
-  return `${isPlatform}(${ctx.permission("approve", OPERATIONS["support-sessions.start"])})`;
+  return `${isPlatform}(${ctx.permission("approve", OPERATIONS["impersonation.start"])})`;
 }
 
 /**
@@ -331,11 +331,11 @@ function requestFunctions(
   const requests = ctx.table("requests");
   const c = (logical: string) => ctx.col("requests", logical);
   const id = ctx.idType;
-  const isPlatform = ctx.of("access").fn("is_platform");
+  const isPlatform = ctx.of("permissions").fn("is_platform");
 
   const startPermission = ctx.permission(
     "start",
-    OPERATIONS["support-sessions.start"],
+    OPERATIONS["impersonation.start"],
   );
 
   const approvalTtl = sqlString(ctx.text("approvalTtl", "1 hour"));
@@ -405,7 +405,7 @@ begin
       ? ""
       : `
   if not coalesce(read_only, true) then
-    ${fail("SUPPORT_WRITES_DISABLED", 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)')}
+    ${fail("SUPPORT_WRITES_DISABLED", "Support sessions are read-only (blocks.impersonation.options.allowWrites)")}
   end if;`
   }
   insert into ${requests} (${c("admin")}, ${c("target")}, ${c("reason")}, ${c("tenant")}, ${c("readOnly")}, ${c("metadata")}, ${c("expiresAt")}, ${c("approvedBy")}, ${c("approvedAt")})
@@ -570,7 +570,7 @@ $$;`;
  */
 function platformTarget(ctx: BlockSqlContext): string {
   const claim = sqlString(
-    ctx.modules.access?.platformClaim ?? "platform_permissions",
+    ctx.modules.permissions?.platformClaim ?? "platform_permissions",
   );
 
   const claimed = `exists (
@@ -601,7 +601,7 @@ function platformTarget(ctx: BlockSqlContext): string {
     return claimed;
   }
 
-  const access = ctx.of("access");
+  const access = ctx.of("permissions");
 
   return `(${claimed} or exists (
     select 1 from ${access.table("platformAssignments")} a
@@ -617,7 +617,7 @@ function start(ctx: BlockSqlContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const id = ctx.idType;
-  const isPlatform = ctx.of("access").fn("is_platform");
+  const isPlatform = ctx.of("permissions").fn("is_platform");
   const maxTtl = sqlString(ctx.text("maxTtl", "4 hours"));
   const requireReason = ctx.flag("requireReason", true);
 
@@ -697,7 +697,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not ${isPlatform}(${ctx.permission("start", OPERATIONS["support-sessions.start"])}) then
+      or not ${isPlatform}(${ctx.permission("start", OPERATIONS["impersonation.start"])}) then
       ${fail("SUPPORT_FORBIDDEN", "Not allowed to start a support session")}
     end if;
   end if;
@@ -722,7 +722,7 @@ begin
       ? ""
       : `
   if not coalesce(read_only, true) then
-    ${fail("SUPPORT_WRITES_DISABLED", 'Support sessions are read-only (blocks["support-sessions"].options.allowWrites)')}
+    ${fail("SUPPORT_WRITES_DISABLED", "Support sessions are read-only (blocks.impersonation.options.allowWrites)")}
   end if;`
   }${
     requireReason
@@ -774,7 +774,7 @@ $$;`;
 function end(ctx: BlockSqlContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
-  const isPlatform = ctx.of("access").fn("is_platform");
+  const isPlatform = ctx.of("permissions").fn("is_platform");
 
   const tenant = ctx.has("sessions", "tenant")
     ? `(ended ->> 'tenant')::${ctx.idType}`
@@ -811,7 +811,7 @@ begin
   }
   where s.${c("id")} = session_id and s.${c("endedAt")} is null
     and (service or s.${c("admin")} = auth.uid()
-      or ${isPlatform}(${ctx.permission("revoke", OPERATIONS["support-sessions.revoke"])}))
+      or ${isPlatform}(${ctx.permission("revoke", OPERATIONS["impersonation.revoke"])}))
   returning ${sessionJson(ctx, "s")} into ended;
   if not service then
     ended_by := case when (ended ->> 'admin_id')::uuid = auth.uid() then 'admin' else 'revoked' end;
@@ -884,7 +884,7 @@ $$;`;
 function reads(ctx: BlockSqlContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
-  const isPlatform = ctx.of("access").fn("is_platform");
+  const isPlatform = ctx.of("permissions").fn("is_platform");
 
   return `-- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
@@ -907,7 +907,7 @@ as $$
     and s.${c("endedAt")} is null
     and s.${c("expiresAt")} > now()
     and case when ${SERVICE_CALLER} then s.${c("admin")} = $2
-      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", OPERATIONS["support-sessions.start"])})
+      else s.${c("admin")} = auth.uid() and ${isPlatform}(${ctx.permission("start", OPERATIONS["impersonation.start"])})
     end
 $$;
 
@@ -927,7 +927,7 @@ as $$
   select ${sessionJson(ctx, "s")}
   from ${sessions} s
   where (${SERVICE_CALLER}
-      or ${isPlatform}(${ctx.permission("view", OPERATIONS["support-sessions.view"])}))
+      or ${isPlatform}(${ctx.permission("view", OPERATIONS["impersonation.view"])}))
     and ($1 is null or s.${c("admin")} = $1)
     and ($2 is null or s.${c("target")} = $2)
     and ($3 is null
@@ -1027,7 +1027,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     !/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(claimsHook)
   ) {
     throw new TypeError(
-      `blocks.support-sessions.options.claimsHook must be schema.function, not "${claimsHook}"`,
+      `blocks.impersonation.options.claimsHook must be schema.function, not "${claimsHook}"`,
     );
   }
 
@@ -1044,12 +1044,12 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 }
 
 export const SUPPORT_SESSIONS: BlockSqlDefinition = {
-  name: "support-sessions",
+  name: "impersonation",
   scopes: ["tenant"],
   title: "Support sessions",
   description:
     "Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.",
-  requires: ["access", "audit"],
+  requires: ["permissions", "audit"],
   integrates: ["invitations", "approvals"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

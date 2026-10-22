@@ -8,7 +8,7 @@ export {
 
 export { WORLD_POSTGRES_VERSION } from "../../sql/modules/workflow-sdk-world-ddl.generated.ts";
 
-export type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk-world.ts";
+export type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
 
 export {
   deriveRunKey,

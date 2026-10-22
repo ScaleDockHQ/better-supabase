@@ -113,7 +113,7 @@ describe("attachments module", () => {
 
     const scoped = renderBlocks(["attachments"], {
       modules: {
-        access: { model: "provider" },
+        permissions: { model: "provider" },
         attachments: {
           options: {
             subjects: { project: { table: "projects", scope: "project" } },
@@ -136,7 +136,7 @@ describe("attachments module", () => {
     const withScope = (scope: unknown, provider: boolean) => () =>
       renderBlocks(["attachments"], {
         modules: {
-          ...(provider ? { access: { model: "provider" } } : {}),
+          ...(provider ? { permissions: { model: "provider" } } : {}),
           attachments: {
             options: { subjects: { project: { table: "projects", scope } } },
           },
@@ -146,7 +146,7 @@ describe("attachments module", () => {
 
     expect(withScope(1, true)).toThrow(/must be the name of a provider scope/);
     expect(withScope("project", false)).toThrow(
-      /needs blocks.access.model "provider"/,
+      /needs blocks.permissions.model "provider"/,
     );
     expect(withScope("organization", true)).toThrow(
       /"organization" is not a scope stub declares below its tenant scope "organization". Scopes: project/,

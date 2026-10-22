@@ -25,9 +25,9 @@ describe("resolvePreset", () => {
   it("adds what comments requires, with a reason per block", () => {
     const resolved = resolvePreset(preset(["comments"]));
     expect(resolved.blocks.map((block) => [block.name, block.reason])).toEqual([
-      ["updated-at", "required by tenant"],
-      ["tenant", "required by access, comments and messaging"],
-      ["access", "required by comments, subjects and messaging"],
+      ["updated-at", "required by memberships"],
+      ["memberships", "required by permissions, comments and messaging"],
+      ["permissions", "required by comments, subjects and messaging"],
       ["comments", "selected"],
       ["subjects", "required by comments and messaging"],
       ["messaging", "required by comments"],
@@ -40,11 +40,11 @@ describe("resolvePreset", () => {
     });
     expect(resolved.conflicts).toEqual([]);
     expect(resolved.manifests.map((manifest) => manifest.name)).toEqual([
-      "access",
+      "permissions",
       "comments",
       "messaging",
       "subjects",
-      "tenant",
+      "memberships",
       "updated-at",
     ]);
   });
@@ -57,27 +57,31 @@ describe("resolvePreset", () => {
     });
     expect(resolved.integrations).toContainEqual({
       from: "notifications",
-      to: "access",
+      to: "permissions",
     });
     expect(
       resolved.integrations.some((each) => each.to === "jsonb-schemas"),
     ).toBe(false);
   });
 
-  it("takes access requires from the access model", () => {
-    const roles = resolvePreset(preset(["access"]));
+  it("takes access requires from the permissions model", () => {
+    const roles = resolvePreset(preset(["permissions"]));
     expect(roles.blocks.map((block) => block.name)).toEqual([
       "updated-at",
-      "tenant",
-      "access",
+      "memberships",
+      "permissions",
     ]);
-    const provider = resolvePreset(preset(["access"], { access: "provider" }));
-    expect(provider.blocks.map((block) => block.name)).toEqual(["access"]);
+
+    const provider = resolvePreset(
+      preset(["permissions"], { access: "provider" }),
+    );
+
+    expect(provider.blocks.map((block) => block.name)).toEqual(["permissions"]);
   });
 
   it("refuses blocks that need tenants under a user or no scope", () => {
     const resolved = resolvePreset(
-      preset(["profiles", "organizations", "tenant", "drive"], {
+      preset(["profiles", "organizations", "memberships", "drive"], {
         scope: "user",
       }),
     );
@@ -88,7 +92,7 @@ describe("resolvePreset", () => {
         block: "organizations",
         reason: 'it needs tenants, and scope "user" has none',
       },
-      { block: "tenant", reason: 'scope "user" has no tenants' },
+      { block: "memberships", reason: 'scope "user" has no tenants' },
       { block: "drive", reason: 'it needs tenants, and scope "user" has none' },
     ]);
     expect(
@@ -114,13 +118,13 @@ describe("resolvePreset", () => {
       ]);
       const names = resolved.blocks.map((block) => block.name);
       expect(names).toEqual(expect.arrayContaining(["tags", "notifications"]));
-      expect(names).not.toContain("tenant");
-      expect(names).not.toContain("access");
+      expect(names).not.toContain("memberships");
+      expect(names).not.toContain("permissions");
     }
 
     expect(
       resolvePreset(preset(["tags"])).blocks.map((block) => block.name),
-    ).toEqual(expect.arrayContaining(["tenant", "access"]));
+    ).toEqual(expect.arrayContaining(["memberships", "permissions"]));
   });
 
   it("refuses a tenant name a block's tables already use", () => {

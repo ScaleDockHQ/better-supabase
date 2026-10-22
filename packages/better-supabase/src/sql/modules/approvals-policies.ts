@@ -296,8 +296,8 @@ export function validateRuns(
       }
     }
 
-    if (policy.run?.kind === "queue" && !ctx.installed("jobs")) {
-      throw new TypeError(`${where} needs the jobs module`);
+    if (policy.run?.kind === "queue" && !ctx.installed("queue")) {
+      throw new TypeError(`${where} needs the queue block`);
     }
   }
 }

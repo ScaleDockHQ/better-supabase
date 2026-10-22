@@ -15,8 +15,8 @@ function config(extra: Record<string, unknown> = {}) {
         country: { table: "countries", tenant: false },
       },
       blocks: {
-        tenant: {},
-        access: {},
+        memberships: {},
+        permissions: {},
         comments: {},
         tags: {},
         versions: {},
@@ -111,7 +111,7 @@ describe("record features", () => {
     const bare = resolveConfig(
       {
         records: { customer: { table: "customers" } },
-        blocks: { tenant: {}, access: {} },
+        blocks: { memberships: {}, permissions: {} },
       },
       "/project",
     );
@@ -126,8 +126,8 @@ describe("record features", () => {
       emitFeatures(
         config({
           blocks: {
-            tenant: {},
-            access: {},
+            memberships: {},
+            permissions: {},
             comments: {},
             tags: {},
             versions: {},
@@ -158,7 +158,10 @@ describe("record features", () => {
   it("follows blocks.<name>.options.subjects", () => {
     const files = emitFeatures(
       config({
-        blocks: { tenant: {}, tags: { options: { subjects: ["project"] } } },
+        blocks: {
+          memberships: {},
+          tags: { options: { subjects: ["project"] } },
+        },
       }),
       [],
     ).map((file) => file.path);

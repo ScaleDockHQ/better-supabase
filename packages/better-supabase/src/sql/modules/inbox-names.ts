@@ -5,7 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockSqlOperations } from "./access-model.ts";
+import type { BlockSqlOperations } from "./permissions-model.ts";
 
 import {
   OPERATION_PREFIXES,
@@ -13,8 +13,8 @@ import {
 } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { messagingSql } from "./messaging-names.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<InboxEvents> = {
   "inbox_conversation.reopened": {

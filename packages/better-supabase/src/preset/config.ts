@@ -40,7 +40,7 @@ export function presetOf(input: PresetInput): Preset {
 
 /**
  * The conventions that map onto config keys; `tenantName` takes any name
- * `blocks.tenant.names.organization` allows.
+ * `blocks.memberships.names.organization` allows.
  */
 export type ConfigConventions = Pick<
   Preset,
@@ -48,8 +48,8 @@ export type ConfigConventions = Pick<
 > & { readonly tenantName: string };
 
 /**
- * `blocks.access` for the conventions: the model and id type that differ from
- * the defaults.
+ * `blocks.permissions` for the conventions: the model and id type that differ
+ * from the defaults.
  */
 function accessEntry(conventions: ConfigConventions): AccessBlockConfig {
   return {
@@ -59,7 +59,7 @@ function accessEntry(conventions: ConfigConventions): AccessBlockConfig {
 }
 
 /**
- * `blocks.tenant` for the conventions: the tenant's name when it isn't
+ * `blocks.memberships` for the conventions: the tenant's name when it isn't
  * `organization`.
  */
 function tenantEntry(conventions: ConfigConventions): BlockConfig {
@@ -73,11 +73,11 @@ function conventionEntry(
   name: string,
   preset: Preset,
 ): BlockConfig | AccessBlockConfig {
-  if (name === "access") {
+  if (name === "permissions") {
     return accessEntry(preset);
   }
 
-  return name === "tenant" ? tenantEntry(preset) : {};
+  return name === "memberships" ? tenantEntry(preset) : {};
 }
 
 /** `sql` for the conventions, or undefined when they are the defaults. */
@@ -92,15 +92,15 @@ function sqlOf(conventions: ConfigConventions): FlatConfig["sql"] {
 
 /**
  * The config keys conventions set without a preset: `casing`, `sql`,
- * `blocks.access` when the access model or id type differ from the defaults,
- * and `blocks.tenant` when the tenant has another name.
+ * `blocks.permissions` when the access model or id type differ from the
+ * defaults, and `blocks.memberships` when the tenant has another name.
  */
 export function conventionConfig(
   conventions: ConfigConventions,
 ): Pick<FlatConfig, "casing" | "sql"> & {
   readonly blocks?: {
-    readonly access?: AccessBlockConfig;
-    readonly tenant?: BlockConfig;
+    readonly permissions?: AccessBlockConfig;
+    readonly memberships?: BlockConfig;
   };
 } {
   const sql = sqlOf(conventions);
@@ -108,8 +108,8 @@ export function conventionConfig(
   const tenant = tenantEntry(conventions);
 
   const blocks = {
-    ...(Object.keys(access).length === 0 ? {} : { access }),
-    ...(Object.keys(tenant).length === 0 ? {} : { tenant }),
+    ...(Object.keys(access).length === 0 ? {} : { permissions: access }),
+    ...(Object.keys(tenant).length === 0 ? {} : { memberships: tenant }),
   };
 
   return {

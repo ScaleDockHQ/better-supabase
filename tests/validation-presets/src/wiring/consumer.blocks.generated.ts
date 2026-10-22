@@ -13,7 +13,7 @@ import type { PushEvents } from "better-supabase/blocks/push";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  identities: {
+  "linked-identities": {
     schema: "better_supabase",
     options: {},
   },
@@ -35,7 +35,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  sessions: {
+  "session-revocation": {
     schema: "better_supabase",
     options: {},
   },

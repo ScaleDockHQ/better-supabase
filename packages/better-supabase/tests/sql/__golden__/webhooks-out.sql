@@ -166,7 +166,7 @@ drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, u
 -- endpoint needs read_permission (the module's view permission when unset)
 -- in the tenant; one without a user owner is a service principal's: the
 -- tenant's default principal needs read_permission through its role when
--- the service-principals module is installed and the tenant has one, else
+-- the service-accounts module is installed and the tenant has one, else
 -- the endpoint needs read_permission among its declared permissions.
 create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
@@ -807,7 +807,7 @@ drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, u
 -- endpoint needs read_permission (the module's view permission when unset)
 -- in the tenant; one without a user owner is a service principal's: the
 -- tenant's default principal needs read_permission through its role when
--- the service-principals module is installed and the tenant has one, else
+-- the service-accounts module is installed and the tenant has one, else
 -- the endpoint needs read_permission among its declared permissions.
 create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
@@ -1456,7 +1456,7 @@ drop function if exists "app_private"."publish_webhook_event"(text, jsonb, uuid,
 -- endpoint needs read_permission (the module's view permission when unset)
 -- in the tenant; one without a user owner is a service principal's: the
 -- tenant's default principal needs read_permission through its role when
--- the service-principals module is installed and the tenant has one, else
+-- the service-accounts module is installed and the tenant has one, else
 -- the endpoint needs read_permission among its declared permissions.
 create or replace function "app_private"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
@@ -2084,7 +2084,7 @@ drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, u
 -- endpoint needs read_permission (the module's view permission when unset)
 -- in the tenant; one without a user owner is a service principal's: the
 -- tenant's default principal needs read_permission through its role when
--- the service-principals module is installed and the tenant has one, else
+-- the service-accounts module is installed and the tenant has one, else
 -- the endpoint needs read_permission among its declared permissions.
 create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer
@@ -2738,7 +2738,7 @@ drop function if exists "better_supabase"."publish_webhook_event"(text, jsonb, u
 -- endpoint needs read_permission (the module's view permission when unset)
 -- in the tenant; one without a user owner is a service principal's: the
 -- tenant's default principal needs read_permission through its role when
--- the service-principals module is installed and the tenant has one, else
+-- the service-accounts module is installed and the tenant has one, else
 -- the endpoint needs read_permission among its declared permissions.
 create or replace function "better_supabase"."publish_webhook_event"(event_type text, payload jsonb, tenant uuid default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer

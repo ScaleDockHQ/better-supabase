@@ -158,7 +158,7 @@ export function entitlementsMode(
 export function accessProviderMode(
   config: Pick<ResolvedConfig, "authorization" | "blocks">,
 ): AccessProviderMode {
-  const access = config.blocks.access;
+  const access = config.blocks.permissions;
 
   if (access?.model !== "provider") {
     return { kind: "off" };
@@ -170,7 +170,7 @@ export function accessProviderMode(
     return {
       kind: "invalid",
       problem:
-        'blocks.access.model is "provider", but the config has no authorization. Set authorization, or choose another blocks.access.model.',
+        'blocks.permissions.model is "provider", but the config has no authorization. Set authorization, or choose another blocks.permissions.model.',
     };
   }
 
@@ -186,7 +186,7 @@ export function accessProviderMode(
   if (idType !== undefined && idType !== chosen.idType) {
     return {
       kind: "invalid",
-      problem: `blocks.access.idType is "${access.idType}", but ${providerLabel(provider)} gives scope "${chosen.scope}" the type ${chosen.idType}. Set blocks.access.idType to "${chosen.idType}", or remove it.`,
+      problem: `blocks.permissions.idType is "${access.idType}", but ${providerLabel(provider)} gives scope "${chosen.scope}" the type ${chosen.idType}. Set blocks.permissions.idType to "${chosen.idType}", or remove it.`,
     };
   }
 

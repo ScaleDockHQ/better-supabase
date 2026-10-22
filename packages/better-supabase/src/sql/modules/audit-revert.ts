@@ -1,8 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { SERVICE_CALLER, fail, userGrant } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { hasColumn } from "./audit-columns.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const MAX_ENTRIES = 1000;
 
@@ -23,7 +23,7 @@ export function revert(ctx: BlockSqlContext, restricted: boolean): string {
     hasColumn(ctx, "log", logical),
   );
 
-  if (!snapshots || !needed || !ctx.installed("access")) {
+  if (!snapshots || !needed || !ctx.installed("permissions")) {
     return "";
   }
 

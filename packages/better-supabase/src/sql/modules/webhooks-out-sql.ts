@@ -11,7 +11,7 @@ import {
   fail,
   serviceGrant,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 export interface HookNames {
   readonly table: (table: string) => string;
@@ -50,7 +50,7 @@ export interface HookNames {
   readonly viewPermission: string;
   /**
    * The tenant's default service principal (a uuid expression), when the
-   * service-principals module is installed.
+   * service-accounts module is installed.
    */
   readonly principal?: (tenant: string) => string;
 }
@@ -145,7 +145,7 @@ function userMay(
       )} as t(id))`;
   }
 
-  if (ctx.installed("access")) {
+  if (ctx.installed("permissions")) {
     return (user, tenant, permission) =>
       ctx.scope.canUser(user, tenant, permission);
   }
@@ -189,7 +189,7 @@ export function hookNames(
     );
   }
 
-  const access = ctx.installed("access");
+  const access = ctx.installed("permissions");
   const permissions = moduleOperations("webhooks-out");
   const values = statusValues(ctx);
 
@@ -219,10 +219,10 @@ export function hookNames(
         : `case ${expression} ${WEBHOOK_STATUSES.map((status) => `when '${status}' then ${sqlString(values[status])}`).join(" ")} end`,
     userMay: userMay(ctx, layout),
     viewPermission: ctx.permission("view", permissions.view),
-    ...(ctx.installed("service-principals")
+    ...(ctx.installed("service-accounts")
       ? {
           principal: (tenant: string) =>
-            `${ctx.of("service-principals").fn("default_service_principal")}(${tenant})`,
+            `${ctx.of("service-accounts").fn("default_service_principal")}(${tenant})`,
         }
       : {}),
   };
@@ -333,7 +333,7 @@ drop function if exists ${fn}(text, jsonb, ${id}, text);
 -- endpoint needs read_permission (the module's view permission when unset)
 -- in the tenant; one without a user owner is a service principal's: the
 -- tenant's default principal needs read_permission through its role when
--- the service-principals module is installed and the tenant has one, else
+-- the service-accounts module is installed and the tenant has one, else
 -- the endpoint needs read_permission among its declared permissions.
 create or replace function ${fn}(event_type text, payload jsonb, tenant ${id} default null, event_id text default null, subject text default null, read_permission text default null)
 returns integer

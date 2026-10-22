@@ -64,7 +64,7 @@ bot.onNewMention(async (thread, message) => {
 });
 ```
 
-Run the bot jobs from a [jobs](/docs/blocks/jobs) drain route. Declare
+Run the bot jobs from a [jobs](/docs/blocks/queue) drain route. Declare
 `inbox_bot` in your queues with the `InboxBotJob` shape
 (`conversation_id`, `message_id`), then:
 

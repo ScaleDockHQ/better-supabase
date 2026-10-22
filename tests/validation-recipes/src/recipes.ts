@@ -70,7 +70,7 @@ ${readable("recipe_pm.tasks")}`,
       },
     },
     blocks: {
-      "number-sequences": {},
+      numbering: {},
       "state-machine": {
         options: {
           machines: {
@@ -267,7 +267,7 @@ revoke execute on function public.before_promotion_activate(uuid) from public, a
     blocks: {
       catalog: { names: { product: { url: "/admin/products/{id}" } } },
       imports: {},
-      "number-sequences": {
+      numbering: {
         options: {
           entities: {
             order: { period: "none", format: "SO-{n:4}" },

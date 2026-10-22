@@ -373,7 +373,7 @@ values (gen_random_uuid(), 'doc', 'd1', 'u1', '👍');`);
     const s = await BlockSession.open(pool);
 
     try {
-      const modules = ["organizations", "jobs", "streams", "outbox", "inbox"];
+      const modules = ["organizations", "queue", "streams", "outbox", "inbox"];
       await s.install(modules);
       const owner = await s.user("owner");
       const visitor = await s.user("visitor");

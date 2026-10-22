@@ -14,7 +14,7 @@ const snapshot = await parseSnapshot(fixture);
 
 const CUSTOM: BetterSupabaseConfig = {
   blocks: {
-    access: {
+    permissions: {
       ownership: "custom",
       model: "custom",
       functions: { can: "x()", tenantIdsWith: "y()", isPlatform: "z()" },
@@ -63,7 +63,7 @@ const fn = (name: string, args: string, returns = "boolean") => ({
 
 describe("BS307 custom module contracts", () => {
   it("passes when no module is in custom mode", async () => {
-    expect(await run(context({ blocks: ["access"] }))).toEqual([]);
+    expect(await run(context({ blocks: ["permissions"] }))).toEqual([]);
   });
 
   it("looks for create function in the SQL files without a database", async () => {
@@ -109,13 +109,13 @@ create function "better_supabase"."tenant_ids_with"(p text) returns setof uuid l
       [
         "better_supabase.is_platform",
         expect.stringContaining(
-          "returns text; the access contract expects boolean",
+          "returns text; the permissions contract expects boolean",
         ),
       ],
       [
         "better_supabase.can_user",
         expect.stringContaining(
-          "takes (uuid, text); the access contract calls it with (uuid, text, uuid, text)",
+          "takes (uuid, text); the permissions contract calls it with (uuid, text, uuid, text)",
         ),
       ],
       ["better_supabase.can_assign", expect.stringContaining("doesn't exist")],

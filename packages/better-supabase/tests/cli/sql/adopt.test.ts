@@ -140,7 +140,7 @@ describe("proposeAdoption", () => {
     });
 
     expect(
-      proposeAdoption("number-sequences", [
+      proposeAdoption("numbering", [
         enumColumn(sequences, "period", "fiscal_period"),
       ]).errors,
     ).toEqual([
@@ -149,7 +149,7 @@ describe("proposeAdoption", () => {
       ),
     ]);
     expect(
-      proposeAdoption("number-sequences", [
+      proposeAdoption("numbering", [
         enumColumn(sequences, "entity", "subject_type"),
       ]).errors,
     ).toEqual([]);

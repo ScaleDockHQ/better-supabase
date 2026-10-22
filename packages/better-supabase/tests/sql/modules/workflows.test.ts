@@ -53,9 +53,9 @@ describe("workflows module", () => {
   });
 });
 
-describe("workflow-sdk-world module", () => {
+describe("workflow-sdk module", () => {
   it("closes the workflow schema and mirrors runs into workflow_runs", () => {
-    const sql = moduleBody("workflow-sdk-world", {})!;
+    const sql = moduleBody("workflow-sdk", {})!;
     expect(sql).toContain(
       "revoke all on schema workflow from public, anon, authenticated;",
     );
@@ -69,10 +69,10 @@ describe("workflow-sdk-world module", () => {
   });
 
   it("schedules pg_net delivery only in the pg_net mode", () => {
-    expect(dataOf("workflow-sdk-world")).not.toContain("cron.schedule");
+    expect(dataOf("workflow-sdk")).not.toContain("cron.schedule");
 
-    const sql = dataOf("workflow-sdk-world", {
-      "workflow-sdk-world": {
+    const sql = dataOf("workflow-sdk", {
+      "workflow-sdk": {
         options: {
           delivery: "pg_net",
           schedule: "5 seconds",
@@ -87,9 +87,9 @@ describe("workflow-sdk-world module", () => {
       "cron.schedule('better-supabase-workflow-deliveries', '5 seconds'",
     );
 
-    const body = moduleBody("workflow-sdk-world", {
+    const body = moduleBody("workflow-sdk", {
       modules: {
-        "workflow-sdk-world": {
+        "workflow-sdk": {
           options: { queue: "wf_q", batch: 5, timeout: 10_000 },
         },
       },
@@ -108,29 +108,23 @@ describe("workflow-sdk-world module", () => {
 
   it("rejects an unknown delivery mode or queue name", () => {
     expect(() =>
-      dataOf("workflow-sdk-world", {
-        "workflow-sdk-world": { options: { delivery: "http" } },
+      dataOf("workflow-sdk", {
+        "workflow-sdk": { options: { delivery: "http" } },
       }),
     ).toThrow('must be "poll" or "pg_net", got "http"');
     expect(() =>
-      moduleBody("workflow-sdk-world", {
-        modules: { "workflow-sdk-world": { options: { queue: "Bad-Name" } } },
+      moduleBody("workflow-sdk", {
+        modules: { "workflow-sdk": { options: { queue: "Bad-Name" } } },
       }),
     ).toThrow('"Bad-Name" is not a queue name');
   });
 
   it("renders nothing in custom mode and lists the dispatcher contract", () => {
-    const custom: AnyBlocksConfig = {
-      "workflow-sdk-world": { mode: "custom" },
-    };
+    const custom: AnyBlocksConfig = { "workflow-sdk": { mode: "custom" } };
 
-    expect(
-      moduleBody("workflow-sdk-world", { modules: custom }),
-    ).toBeUndefined();
+    expect(moduleBody("workflow-sdk", { modules: custom })).toBeUndefined();
 
-    const [contract] = customContracts(["workflow-sdk-world"], {
-      modules: custom,
-    });
+    const [contract] = customContracts(["workflow-sdk"], { modules: custom });
 
     expect(contract!.functions).toEqual([
       {

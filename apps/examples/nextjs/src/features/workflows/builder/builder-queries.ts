@@ -3,7 +3,7 @@ import type {
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowTriggerKind,
-} from "better-supabase/blocks/workflow-builder";
+} from "better-supabase/blocks/workflow-editor";
 
 import { tenantOf } from "better-supabase/next";
 import "server-only";

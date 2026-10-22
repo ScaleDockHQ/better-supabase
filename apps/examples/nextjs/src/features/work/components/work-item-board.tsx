@@ -1,6 +1,6 @@
 "use client";
 
-import type { WorkItemState } from "better-supabase/blocks/work-items";
+import type { WorkItemState } from "better-supabase/blocks/tasks";
 
 import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";

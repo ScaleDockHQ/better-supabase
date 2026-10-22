@@ -17,14 +17,14 @@ export default defineConfig({
     customer: { table: "centrakit.customers", idType: "bigint" },
   },
   blocks: {
-    access: {
+    permissions: {
       model: "provider",
       activeTenant: {
         profileColumn: "centrakit.profiles.active_organization_id",
         key: "user_id",
       },
     },
-    tenant: {
+    memberships: {
       ownership: "adopt",
       tables: { memberships: "centrakit.organization_users" },
       columns: { memberships: { tenant: "organization_id", role: "role_id" } },
@@ -157,7 +157,7 @@ export default defineConfig({
         metadata: { first_name: "first_name", last_name: "last_name" },
       },
     },
-    "support-sessions": {
+    impersonation: {
       permissions: {
         start: "platform.users.manage",
         view: "platform.users.manage",
@@ -342,7 +342,7 @@ export default defineConfig({
         },
       },
     },
-    "number-sequences": {
+    numbering: {
       ownership: "adopt",
       tables: { sequences: "centrakit.organization_number_sequences" },
     },
@@ -496,7 +496,9 @@ export default defineConfig({
       },
     },
     "api-keys": { options: { scopes: "catalog" } },
-    sessions: { options: { policies: true, exclude: ["centrakit.roles"] } },
+    "session-revocation": {
+      options: { policies: true, exclude: ["centrakit.roles"] },
+    },
     "jsonb-schemas": {},
     settings: {
       options: {

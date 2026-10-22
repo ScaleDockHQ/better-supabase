@@ -106,7 +106,7 @@ transaction, the way PostgREST does it, so policies see
 [Impersonation](/docs/auth/impersonation).
 
 `forContext(context)` does the same for a context recorded earlier, such as
-`job.context` from the [jobs block](/docs/blocks/jobs#actor-and-tenant). It runs
+`job.context` from the [jobs block](/docs/blocks/queue#actor-and-tenant). It runs
 as the context's user, sets its tenant as `tenant_id` and as the
 `better_supabase.tenant` setting, and keeps an impersonating admin in `act`.
 It returns a `Result`, which fails with `forbidden` when the context has no
@@ -153,7 +153,7 @@ await db.customers.findMany();
 
 Without a server, pass the claims you verified yourself to `connect`.
 `authContext(auth)` builds the context from an `AuthState`; a hand-built one
-needs at least `claims`, and `actor` and `tenant` when the `actor()` and
+needs at least `claims`, and `created-by` and `tenant` when the `actor()` and
 `tenant()` plugins should fill them:
 
 ```ts
@@ -263,8 +263,8 @@ pass `tenant`. It returns the tenant id for a request, or `undefined`. The
 result becomes `context.tenant` for the [`tenant()` plugin](/docs/plugins/tenant),
 the `better_supabase.tenant` setting for `ctx.sql` and the `x-bsb-tenant`
 header (`TENANT_HEADER`) for `ctx.db`, which `current_tenant_id()` reads with
-`blocks.access.activeTenant: 'resolver'`. See
-[The active tenant](/docs/blocks/access#the-active-tenant).
+`blocks.permissions.activeTenant: 'resolver'`. See
+[The active tenant](/docs/blocks/permissions#the-active-tenant).
 
 ```ts
 export const bsb = createServer(betterSupabase, {
@@ -279,7 +279,7 @@ const ctx = await bsb.context(request, { tenant: organizationId });
 you pass `{ tenant }`. Under `createNext`, Server Components and actions
 have no request URL; pass the tenant from route params with
 `bsb.context({ tenant })` or `bsb.cached({ tenant })` (see
-[The active tenant](/docs/blocks/access#the-active-tenant)).
+[The active tenant](/docs/blocks/permissions#the-active-tenant)).
 
 ## Machine callers
 

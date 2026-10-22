@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 
+import { activitiesBlock } from "../../src/blocks/activities/manifest.ts";
+import { engagementInputSchema } from "../../src/blocks/activities/schemas.ts";
 import { attachmentsBlock } from "../../src/blocks/attachments/manifest.ts";
 import { calendarBlock } from "../../src/blocks/calendar/manifest.ts";
 import { calendarEventInputSchema } from "../../src/blocks/calendar/schemas.ts";
 import { commentsBlock } from "../../src/blocks/comments/manifest.ts";
 import { commentInputSchema } from "../../src/blocks/comments/schemas.ts";
 import { dealInputSchema } from "../../src/blocks/deals/schemas.ts";
-import { engagementsBlock } from "../../src/blocks/engagements/manifest.ts";
-import { engagementInputSchema } from "../../src/blocks/engagements/schemas.ts";
 import { renameBlock } from "../../src/blocks/rename-block.ts";
-import { workItemsBlock } from "../../src/blocks/work-items/manifest.ts";
+import { tasksBlock } from "../../src/blocks/tasks/manifest.ts";
 import {
   workItemChangeSchema,
   workItemInputSchema,
   workItemListFilterSchema,
-} from "../../src/blocks/work-items/schemas.ts";
+} from "../../src/blocks/tasks/schemas.ts";
 
 const names = {
   entities: [
@@ -85,9 +85,7 @@ describe("entity schemas", () => {
   });
 
   it("puts the schemas on the block's manifest", () => {
-    expect(workItemsBlock.schemas["work_item"]?.change).toBe(
-      workItemChangeSchema,
-    );
+    expect(tasksBlock.schemas["work_item"]?.change).toBe(workItemChangeSchema);
   });
 
   it("validates the collaboration blocks' inputs", async () => {
@@ -112,12 +110,12 @@ describe("entity schemas", () => {
     expect(event.issues?.map((issue) => issue.path)).toEqual([["status"]]);
     expect(commentsBlock.schemas).toEqual({});
     expect(Object.keys(attachmentsBlock.schemas)).toEqual(["attachment"]);
-    expect(Object.keys(engagementsBlock.schemas)).toEqual(["engagement"]);
+    expect(Object.keys(activitiesBlock.schemas)).toEqual(["engagement"]);
     expect(Object.keys(calendarBlock.schemas)).toEqual(["calendar_event"]);
   });
 
   it("renames the schemas of a renamed block", async () => {
-    const tasks = renameBlock(workItemsBlock, names);
+    const tasks = renameBlock(tasksBlock, names);
     const change = tasks.schemas["task"]?.change;
 
     const valid = await change?.["~standard"].validate({

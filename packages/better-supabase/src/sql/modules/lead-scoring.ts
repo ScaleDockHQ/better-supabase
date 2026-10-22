@@ -16,7 +16,7 @@ import {
   triggerGrant,
   userGrant,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
   options: ["personModel", "companyModel", "rescoreAfterHours"],
@@ -51,7 +51,7 @@ interface LeadNames {
 }
 
 function names(ctx: BlockSqlContext): LeadNames {
-  const parties = ctx.of("parties");
+  const parties = ctx.of("contacts");
   const scores = ctx.of("scores");
   const keys = moduleOperations("scores");
   const company = ctx.text("companyModel", "");
@@ -456,7 +456,7 @@ function build(ctx: BlockSqlContext): string {
     return "";
   }
 
-  if (!ctx.of("scores").manages || !ctx.of("parties").manages) {
+  if (!ctx.of("scores").manages || !ctx.of("contacts").manages) {
     throw new TypeError(
       "lead-scoring needs the scores and parties modules in managed mode",
     );
@@ -491,7 +491,7 @@ export const LEAD_SCORING: BlockSqlDefinition = {
   title: "Lead scoring",
   description:
     "Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.",
-  requires: ["tenant", "access", "parties", "scores"],
+  requires: ["memberships", "permissions", "contacts", "scores"],
   integrates: ["enrichment", "segments", "mail-sync"],
   target: "schema",
   modes: ["managed", "custom"],

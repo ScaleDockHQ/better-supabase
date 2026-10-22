@@ -11,7 +11,7 @@ import type { EventSink } from "../../events/index.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { ImageTransform, TransformOptions } from "../../storage/bucket.ts";
 import type { TtlPreset } from "../../storage/ttl.ts";
-import type { JobHandler } from "../jobs/types.ts";
+import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { UploadClaimStorage } from "../upload-claim.ts";
 

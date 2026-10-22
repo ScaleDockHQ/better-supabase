@@ -40,7 +40,7 @@ describe("CONFIG_DEFAULTS", () => {
       resolveConfig(
         {
           plugins: { tenant: true },
-          blocks: { tenant: { names: { organization: "workspace" } } },
+          blocks: { memberships: { names: { organization: "workspace" } } },
         },
         "/app",
       ).plugins.tenant,

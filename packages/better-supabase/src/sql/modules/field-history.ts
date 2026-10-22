@@ -16,7 +16,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
   options: ["subjects"],
@@ -208,7 +208,7 @@ export const FIELD_HISTORY: BlockSqlDefinition = {
   title: "Field history",
   description:
     "The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.",
-  requires: ["tenant", "access", "subjects"],
+  requires: ["memberships", "permissions", "subjects"],
   integrates: ["data-lifecycle"],
   target: "schema",
   modes: ["managed"],

@@ -21,7 +21,7 @@ import { moduleLayoutFor, schemasDirOf } from "../sql-layout.ts";
 
 /** Modules that fill the `memberships` claim, which a provider's hook may own. */
 export const MEMBERSHIP_CLAIM_MODULES: ReadonlySet<string> = new Set([
-  "tenant",
+  "memberships",
 ]);
 
 /**
@@ -88,7 +88,7 @@ function accessProviderFor(
 
   const renders =
     names !== undefined &&
-    resolveBlocks(names, {}).some((module) => module.name === "access");
+    resolveBlocks(names, {}).some((module) => module.name === "permissions");
 
   switch (mode.kind) {
     case "off": {

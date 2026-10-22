@@ -65,7 +65,7 @@ export const SPEC_PINS: {
    */
   readonly rfc9864: "2025-10";
   /**
-   * RFC 8417 Security Event Tokens that the shared-signals block mints and
+   * RFC 8417 Security Event Tokens that the security-events block mints and
    * verifies.
    */
   readonly rfc8417: "2018-07";

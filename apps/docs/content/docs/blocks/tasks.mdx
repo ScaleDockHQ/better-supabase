@@ -1,0 +1,161 @@
+---
+title: Work items
+description: Issues and tasks on pipelines, with identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
+---
+
+`tasks` is the task and issue record of Linear, Jira, GitHub issues and monday items: a title, a body, a parent, assignees, a priority, an estimate, start, end and due dates, and a stage on a [pipeline](/docs/blocks/pipelines). Items can belong to a team, a project and an iteration (a cycle or a sprint). Their identifier is `TASK-12`, or the format of a `work_item` entity in [numbering](/docs/blocks/numbering).
+
+Reading needs `work_items.read`, creating, editing and assigning needs `work_items.write`, and projects, iterations and deleting someone else's item need `work_items.manage`. Admins get every permission, and members get `work_items.read` and `work_items.write`.
+
+```bash
+better-supabase add tasks
+```
+
+The module needs `tenant`, `access`, `subjects` and `pipelines`. Installing it binds the `work_item` type in the pipelines module with one pipeline per team (`scope: "team_id"`) and the categories of Linear's workflow states:
+
+| Category    | Outcome | Default stages         |
+| ----------- | ------- | ---------------------- |
+| `triage`    | open    | Triage                 |
+| `backlog`   | open    | Backlog                |
+| `unstarted` | open    | Todo                   |
+| `started`   | open    | In progress, In review |
+| `completed` | success | Done                   |
+| `canceled`  | failure | Canceled               |
+
+A stage's category sets the item's `state`, so a list or a policy reads `state` and never a stage name. Set `blocks.pipelines.options.subjects.work_item` to rename the stages or start with your own, such as CentraKit's Todo, In progress, On hold and Done; your keys are merged over the defaults.
+
+Installing the block registers work items as the `work_item` subject, ranked by stage. Set the page a search result links to on the entity:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { tasks: { names: { work_item: { url: "/tasks/{id}" } } } },
+});
+```
+
+## Create, edit and assign
+
+```ts
+import { createTasks } from "better-supabase/blocks/tasks";
+
+const items = createTasks({ transport });
+const epic = await items
+  .create(organizationId, { title: "Checkout v2", teamId, priority: 2 })
+  .orThrow();
+const task = await items
+  .create(
+    organizationId,
+    { title: "Payment API", parentId: epic.id, teamId, dueAt },
+    [userId],
+  )
+  .orThrow();
+
+const { accepted, rejected } = await items
+  .update([
+    { workItemId: task.id, field: "stageId", value: inProgressStageId },
+    { workItemId: task.id, field: "endAt", value: friday },
+  ])
+  .orThrow();
+```
+
+`update(changes)` applies grid edits and Gantt drags one by one and returns the refused ones with their hint. The table refuses a parent that would put an item under itself (`WORK_ITEM_PARENT_CYCLE`) and date changes on a locked item (`WORK_ITEM_LOCKED`). Moving to a completed or canceled stage stamps `closedAt` and a close reason (`completed`, or `not_planned` for canceled; pass `closeReason: "duplicate"` with the move to mark a duplicate) and records `work_item.closed`. Moving back to an open stage clears both and records `work_item.reopened`.
+
+`assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. `options.maxAssignees` caps the list (`WORK_ITEM_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
+
+## Lists, trees, projects and iterations
+
+`list(organizationId, { teamId, projectId, iterationId, parentId, assigneeId, states, open, search })` returns active items, newest first, 50 per page; pass the last item's id as `after` for the next page. `tree(rootId)` returns an item and everything under it with its depth; an item without its own `progress` rolls up the share of its open and completed children that are completed, for a Gantt group.
+
+Dependencies between items are [relations](/docs/blocks/relations): `link(design, build, { kind: "blocks" })` is a finish-to-start dependency, and `edges("blocks")` reads them for the chart.
+
+`saveProject(organizationId, { key, name, status, startOn, targetOn })` keeps a project (`PAY`) with the share of its items that are completed. `saveIteration(organizationId, { name, teamId, startsOn, endsOn })` keeps a cycle or a sprint. Turn either table off with `tables: { projects: null }` or `tables: { iterations: null }`.
+
+## Checklists, files, repeat rules and watchers
+
+```ts
+const draft = await items
+  .saveChecklistItem(task.id, { title: "Draft the copy" })
+  .orThrow();
+await items.saveChecklistItem(task.id, { done: true }, draft.id).orThrow();
+const steps = await items.checklist(task.id).orThrow();
+```
+
+`saveChecklistItem(workItemId, input, checklistItemId?)` adds a step at the end, or edits the one you name: its `title`, `done` (which stamps `doneAt` and `doneBy`) or `rank`. `removeChecklistItem(id)` deletes one, and `checklist(workItemId)` lists them in rank order. Every item a read returns carries `checklist: { total, done }`, and `get(id)` reads one item. A checklist change records `work_item.updated` with `fields: ["checklist"]`.
+
+On the work item's own page, the block's `checklist` section (`workItemChecklistSection`) loads the steps for the item as the subject (`{ type: "work_item", id }`, or the renamed type) and reads again on `work_item.updated`. `workItemChecklistOptimistic` is its `useOptimistic` reducer: `{ type: "save", item }` adds or replaces a step in rank order and `{ type: "remove", id }` drops one.
+
+With the [attachments](/docs/blocks/attachments) block installed, `create` takes `attachmentIds` and `update` takes an `attachments` change with a list of ids. Upload the files first without a subject, then link them: the block links only files the caller uploaded that have no subject yet (`WORK_ITEM_ATTACHMENTS_INVALID`). A bucket whose path template uses `{subject_type}` or `{subject_id}` can't move a file after upload, so link through `attachments.upload` with the item as the subject instead (`WORK_ITEM_ATTACHMENTS_PATH`).
+
+With the [reminders](/docs/blocks/reminders) block installed, `setRecurrence(id, { rrule, tzid })` gives an item a repeat rule, such as `FREQ=MONTHLY;BYMONTHDAY=1`, and `setRecurrence(id, null)` removes it. Items carry the rule as `recurrence`. A repeating item makes its next copy when it is completed, like Asana and Todoist: relay the block's events to `workItemRecurrenceSink`, built on a service transport.
+
+```ts
+import {
+  createTasks,
+  workItemRecurrenceSink,
+} from "better-supabase/blocks/tasks";
+
+const serviceItems = createTasks({ transport: serviceTransport });
+
+outbox.relay("tasks", workItemRecurrenceSink(serviceItems));
+```
+
+The sink calls `repeat(id, dueAt)` with the rule's first occurrence after the completed item's due date. `repeat` copies the title, body, parent, team, project, priority, estimate, assignees, extra columns and an unchecked checklist, shifts the start and end dates by the same amount, and moves the rule to the copy, so a `COUNT` keeps counting. The copy's `recursFromId` names the item it repeats, and a second `repeat` of the same item returns the same copy, so a redelivered event changes nothing. After `entities: { work_item: "task" }`, pass `{ type: "task.closed" }`.
+
+With the [notifications](/docs/blocks/notifications) block installed, `watch(id, "all")` follows an item, `watch(id, "ignore")` mutes it, `watch(id, null)` goes back to the default, and `watchers(id)` lists who follows it. Assignees already watch their items.
+
+## Extra columns
+
+`options.extraColumns` adds columns to `work_items`, such as CentraKit's `customer_id`. Every item a read returns carries them in `fields`.
+
+## Events
+
+| Event                                                                                                                           | Data                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `work_item.created`, `work_item.updated`, `work_item.assigned`, `work_item.reopened`, `work_item.archived`, `work_item.deleted` | `organizationId`, `workItemId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds` |
+| `work_item.closed`                                                                                                              | the same, with `state` and `closeReason`                                                     |
+
+## Hooks
+
+The module calls `before_work_item_create(tenant, attrs jsonb)`, `after_work_item_create(work_item uuid)`, `before_work_item_update(work_item uuid, field text, value jsonb)` and `after_work_item_update(work_item uuid, field text)`. A `before_` hook raises to refuse; in `update`, that refuses only its change.
+
+## Wire it to ReUI
+
+The ReUI Kanban blocks commit a drag through `onValueCommit`: call `rank.move("work_item", id, { previous, next, group: stageId })`. The Gantt blocks commit a move or resize through `onEventUpdate`: send `startAt` and `endAt` through `update`, and return `false` when the change comes back in `rejected` (a locked bar). Read the Gantt rows from `tree`, and its arrows from the `blocks` relations.
+
+## Errors
+
+| Hint                                           | Cause                                               |
+| ---------------------------------------------- | --------------------------------------------------- |
+| `WORK_ITEM_FORBIDDEN`                          | the caller lacks the permission                     |
+| `WORK_ITEM_TITLE_REQUIRED`                     | the title is empty                                  |
+| `WORK_ITEM_ATTRS_INVALID`                      | a field has an invalid value                        |
+| `WORK_ITEM_NOT_FOUND`                          | no item the caller can edit                         |
+| `WORK_ITEM_FIELD_UNKNOWN`                      | `update` names a field it doesn't write             |
+| `WORK_ITEM_PARENT_CYCLE`                       | the parent would put the item under itself          |
+| `WORK_ITEM_PARENT_INVALID`                     | the parent is in another organization               |
+| `WORK_ITEM_LOCKED`                             | a locked item's dates don't change                  |
+| `WORK_ITEM_ASSIGNEES_LIMIT`                    | more assignees than `maxAssignees`                  |
+| `WORK_ITEM_PROJECT_*`, `WORK_ITEM_ITERATION_*` | a project or iteration is missing, taken or invalid |
+| `WORK_ITEM_CHECKLIST_ITEM_INVALID`             | a checklist step has no title or an invalid rank    |
+| `WORK_ITEM_CHECKLIST_ITEM_NOT_FOUND`           | no such step on this item                           |
+| `WORK_ITEM_ATTACHMENTS_INVALID`                | a file isn't the caller's or already has a subject  |
+| `WORK_ITEM_ATTACHMENTS_UNAVAILABLE`            | the attachments block isn't installed               |
+| `WORK_ITEM_ATTACHMENTS_PATH`                   | the bucket's paths name the subject                 |
+| `WORK_ITEM_RECURRENCE_INVALID`                 | the rule isn't an RRULE or the time zone is unknown |
+
+## Your own columns
+
+Add columns to the work item table with `blocks.tasks.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`create`, and `update` with the column name as `field` validates and writes them, and every method that returns an item return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createTasks } from "better-supabase/blocks/tasks";
+import { z } from "zod";
+
+const client = createTasks({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

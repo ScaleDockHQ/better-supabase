@@ -6,27 +6,27 @@ import { start } from "workflow/api";
 import type {
   GraphStepCall,
   GraphSubject,
-} from "../../blocks/workflow-builder/executor.ts";
+} from "../../blocks/workflow-editor/executor.ts";
 import type {
   WorkflowGraph,
   WorkflowGraphEdge,
   WorkflowGraphNode,
-} from "../../blocks/workflow-builder/graph.ts";
+} from "../../blocks/workflow-editor/graph.ts";
 import type {
   BuilderStartCall,
   BuilderStarter,
   NodeRunRecord,
-} from "../../blocks/workflow-builder/workflow-builder.ts";
+} from "../../blocks/workflow-editor/workflow-editor.ts";
 import type { Actor, RequestContext } from "../../core/plugin.ts";
 import type { WorkflowFn } from "../workflow-sdk.ts";
 
-import { startNodeOf } from "../../blocks/workflow-builder/executor.ts";
+import { startNodeOf } from "../../blocks/workflow-editor/executor.ts";
 import {
   durationMs,
   isGraphRecord,
   topologicalOrder,
   validateGraph,
-} from "../../blocks/workflow-builder/graph.ts";
+} from "../../blocks/workflow-editor/graph.ts";
 import { subjectAttribute, WORKFLOW_ATTRIBUTES } from "../attributes.ts";
 import { contextAttributes, runForKey } from "../workflow-sdk.ts";
 
@@ -169,7 +169,7 @@ function nodeBody(node: WorkflowGraphNode, alias: string | undefined): string {
     default: {
       const unknown: never = node.kind;
       throw new TypeError(
-        `workflow-builder: unknown node kind ${String(unknown)}`,
+        `workflow-editor: unknown node kind ${String(unknown)}`,
       );
     }
   }
@@ -190,13 +190,13 @@ const guard = (edges: readonly WorkflowGraphEdge[]): string =>
  * token is the id `steps.bsb_approval` returns (graphStarter's `approval`),
  * else `<runKey>:<node>`. A `meta.mode` of `test` returns `meta.stubs` instead.
  * It runs the same way `executeGraph` does. Throws when the graph is invalid or
- * the source is over 128 KiB. Pass it as `compile` to `createWorkflowBuilder`.
+ * the source is over 128 KiB. Pass it as `compile` to `createWorkflowEditor`.
  */
 export function compileGraph(graph: WorkflowGraph): CompiledGraph {
   const errors = validateGraph(graph);
 
   if (errors.length > 0) {
-    throw new TypeError(`workflow-builder: ${errors.join("; ")}`);
+    throw new TypeError(`workflow-editor: ${errors.join("; ")}`);
   }
 
   const order = topologicalOrder(graph) ?? [];
@@ -235,7 +235,7 @@ export function compileGraph(graph: WorkflowGraph): CompiledGraph {
   const pick =
     triggers.length === 1
       ? ""
-      : `  if (start === null) throw new TypeError("workflow-builder: pass the trigger node the run starts at, the id of one of the graph's trigger nodes");\n`;
+      : `  if (start === null) throw new TypeError("workflow-editor: pass the trigger node the run starts at, the id of one of the graph's trigger nodes");\n`;
 
   const source = `async function ${EXPORT_NAME}(input, meta) {
   "use workflow";
@@ -249,7 +249,7 @@ ${blocks.join("\n")}
 
   if (bytes > DYNAMIC_SOURCE_MAX_BYTES) {
     throw new RangeError(
-      `workflow-builder: the compiled source is ${bytes} bytes; dynamic workflows take at most ${DYNAMIC_SOURCE_MAX_BYTES}`,
+      `workflow-editor: the compiled source is ${bytes} bytes; dynamic workflows take at most ${DYNAMIC_SOURCE_MAX_BYTES}`,
     );
   }
 
@@ -383,7 +383,7 @@ function contextOf(call: BuilderStartCall): RequestContext {
 }
 
 /**
- * The `start` for `createWorkflowBuilder`: starts the published version as
+ * The `start` for `createWorkflowEditor`: starts the published version as
  * dynamic source when dynamic workflows are on, and through `executor`
  * otherwise. The source is always compiled from the version's graph; a stored
  * compiled form is never run. Runs carry `bsb.tenant`, `bsb.actor`,
@@ -485,7 +485,7 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
 
 /**
  * Where `nodeRunReporter` writes: `builder.nodeRuns` from
- * `createWorkflowBuilder`.
+ * `createWorkflowEditor`.
  */
 export interface NodeRunSink {
   record(input: NodeRunRecord): PromiseLike<unknown>;

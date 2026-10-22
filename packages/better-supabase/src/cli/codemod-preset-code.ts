@@ -3,6 +3,7 @@
 import type { CodemodConfigEdit, CodemodResult } from "./codemod.ts";
 
 import { DEFAULT_CONVENTIONS, presetSpec } from "../preset/index.ts";
+import { currentBlockName } from "../sql/index.ts";
 import { setPresetInConfig, setPresetInJson } from "./sql/config-edit.ts";
 
 /**
@@ -204,8 +205,8 @@ export function isLegacyPresetCode(value: string): boolean {
 }
 
 /**
- * The conventions and blocks a 0.14 preset code holds. Throws a TypeError when
- * `code` isn't one.
+ * The conventions and blocks a 0.14 preset code holds, the blocks under their
+ * 0.15 names. Throws a TypeError when `code` isn't one.
  */
 export function decodeLegacyPresetCode(code: string): {
   readonly [key: string]: string | readonly string[];
@@ -248,7 +249,7 @@ export function decodeLegacyPresetCode(code: string): {
     const name = BLOCKS[index];
 
     if ((value & 1n) === 1n && name !== null && name !== undefined) {
-      blocks.push(name);
+      blocks.push(currentBlockName(name));
     }
   }
 

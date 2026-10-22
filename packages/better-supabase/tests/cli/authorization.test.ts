@@ -156,7 +156,7 @@ describe("accessProviderMode", () => {
     resolveConfig(
       {
         ...(provider ? { authorization: provider } : {}),
-        blocks: { access: { model: "provider", ...access } },
+        blocks: { permissions: { model: "provider", ...access } },
       },
       "/project",
     );
@@ -207,7 +207,7 @@ describe("accessProviderMode", () => {
         resolveConfig(
           {
             auth: { authorization: stubProvider },
-            blocks: { access: { model: "roles" } },
+            blocks: { permissions: { model: "roles" } },
           },
           "/project",
         ),
@@ -278,7 +278,7 @@ describe("moduleKeyProblems", () => {
       scope: "tenant",
     },
     {
-      module: "support-sessions",
+      module: "impersonation",
       action: "start",
       key: "support.start",
       scope: "platform",
@@ -294,7 +294,7 @@ describe("moduleKeyProblems", () => {
         ),
       },
       {
-        target: "blocks.support-sessions.permissions.start",
+        target: "blocks.impersonation.permissions.start",
         message: expect.stringMatching(
           /checks "support\.start" \(start\) with authorization\.functions\.isPlatform.*not in authorization\.permissions/,
         ),
@@ -306,7 +306,7 @@ describe("moduleKeyProblems", () => {
     expect(
       moduleKeyProblems(stubProvider, [
         {
-          module: "number-sequences",
+          module: "numbering",
           action: "assign",
           key: "documents.own",
           scope: "tenant",
@@ -340,7 +340,7 @@ describe("requirements", () => {
       resolveConfig(
         {
           auth: { authorization: stubProvider },
-          blocks: { access: { model: "provider" } },
+          blocks: { permissions: { model: "provider" } },
         },
         "/project",
       ),

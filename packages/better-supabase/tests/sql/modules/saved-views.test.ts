@@ -104,7 +104,7 @@ describe("saved-views module", () => {
 
 describe("saved-views module with the provider's teamIdsOf", () => {
   const provider = {
-    modules: { access: { model: "provider" } },
+    modules: { permissions: { model: "provider" } },
     accessProvider: {
       name: "stub",
       scope: "organization",

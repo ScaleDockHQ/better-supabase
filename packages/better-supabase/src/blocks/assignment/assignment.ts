@@ -7,7 +7,7 @@ import type { FilterQuery } from "../../list/filter-query.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { conditionsOf } from "../rules/rules.ts";
+import { conditionsOf } from "../automations/automations.ts";
 import {
   applyTemporal,
   blockCall,

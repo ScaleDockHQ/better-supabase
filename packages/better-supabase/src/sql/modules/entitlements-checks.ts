@@ -24,7 +24,7 @@ interface Memberships {
 }
 
 export function memberships(layout: BlockSqlLayout): Memberships {
-  const ctx = moduleContext("tenant", layout);
+  const ctx = moduleContext("memberships", layout);
 
   return {
     table: ctx.table("memberships"),

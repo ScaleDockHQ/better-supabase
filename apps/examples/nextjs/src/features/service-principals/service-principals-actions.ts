@@ -2,9 +2,9 @@
 
 import { dbError, err, ok } from "better-supabase";
 import {
-  createServicePrincipals,
+  createServiceAccounts,
   rpcTransport,
-} from "better-supabase/blocks/service-principals";
+} from "better-supabase/blocks/service-accounts";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
@@ -12,7 +12,7 @@ import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
-const API_SCHEMA = blockConfig["service-principals"].api;
+const API_SCHEMA = blockConfig["service-accounts"].api;
 
 /**
  * Registering and disabling a principal are service-role functions; with
@@ -22,7 +22,7 @@ const API_SCHEMA = blockConfig["service-principals"].api;
 function serviceClient() {
   const admin = bsb.admin().$client;
 
-  return createServicePrincipals({
+  return createServiceAccounts({
     transport: rpcTransport(admin, { schema: API_SCHEMA }),
     admin: admin.auth.admin,
     schema: API_SCHEMA,

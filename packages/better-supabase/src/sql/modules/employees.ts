@@ -16,9 +16,9 @@ import {
   schemaPreamble,
   triggerGrant,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { employeeFunctions } from "./employees-functions.ts";
 import { sensitiveFunctions } from "./employees-sensitive.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EMPLOYEE = [
   "organizationId",
@@ -427,7 +427,7 @@ export const EMPLOYEES: BlockSqlDefinition = {
   title: "Employees",
   description:
     "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "relations", "hiring"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

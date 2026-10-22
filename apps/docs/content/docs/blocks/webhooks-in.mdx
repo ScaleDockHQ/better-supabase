@@ -7,7 +7,7 @@ Automation products let a tenant create a URL that another system calls:
 a form, a CRM, a monitoring tool. The `webhooks-in` SQL module keeps those
 endpoints per tenant, and `createIncomingWebhooks` from
 `better-supabase/blocks/webhooks` serves them. Each delivery is checked, then
-stored in the [webhook inbox](/docs/blocks/jobs#webhook-inbox) with the
+stored in the [webhook inbox](/docs/blocks/queue#webhook-inbox) with the
 endpoint's tenant, so it is acknowledged fast and processed with retries.
 
 ```bash
@@ -214,7 +214,7 @@ Deliveries are inbox messages of source `webhook-in` (or `source`), with the
 endpoint's tenant and its id in the `x-bsb-endpoint-id` header:
 
 ```ts
-import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/jobs";
+import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/queue";
 import { INCOMING_ENDPOINT_HEADER } from "better-supabase/blocks/webhooks";
 
 const inbox = createWebhookInbox({
@@ -238,19 +238,19 @@ A JSON body is stored as it is; any other body as `{ "body": "<text>" }`.
 
 `destination` decides where a verified delivery goes. The default,
 `inboxDestination`, stores it in the webhook inbox as above.
-`jobsDestination` enqueues it on a [jobs](/docs/blocks/jobs) queue instead,
+`jobsDestination` enqueues it on a [jobs](/docs/blocks/queue) queue instead,
 once per endpoint and message id, with the endpoint's tenant as the job's
 context:
 
 ```ts
 import * as v from "valibot";
-import { createJobs } from "better-supabase/blocks/jobs";
+import { createQueue } from "better-supabase/blocks/queue";
 import {
   createIncomingWebhooks,
   jobsDestination,
 } from "better-supabase/blocks/webhooks";
 
-const jobs = createJobs({
+const jobs = createQueue({
   sql: postgres.admin,
   queues: { leads: v.object({ route: v.string(), body: v.unknown() }) },
 });
@@ -338,7 +338,7 @@ The webhook inbox adopts a table the same way, through
 `id` (a `bigint`), `source`, `messageId`, `payload`, `status`, `attempts`,
 `availableAt`, `lockedBy`, `lockedUntil` and `receivedAt` are required.
 `eventType`, `headers`, `maxAttempts` (8 when missing), `lastError`,
-`processedAt`, `tenant` and `checkpoint` are optional; a missing column
+`processedAt`, `memberships` and `checkpoint` are optional; a missing column
 reads as the managed table's default. The functions stay in
 `better_supabase`, and `receive_webhook` takes a lock per message before it
 looks the message up, so the adopted table needs no particular unique

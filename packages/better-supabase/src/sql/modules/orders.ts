@@ -15,7 +15,6 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
@@ -27,6 +26,7 @@ import {
   kitchenSql,
 } from "./orders-kitchen.ts";
 import { columns, paymentWindow } from "./orders-shared.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 type CommerceKey = keyof CommerceSubjectEventData;
 
@@ -710,12 +710,12 @@ export const ORDERS: BlockSqlDefinition = {
   title: "Orders",
   description:
     "Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.",
-  requires: ["tenant", "access", "catalog"],
+  requires: ["memberships", "permissions", "catalog"],
   integrates: [
     "outbox",
     "inventory",
     "promotions",
-    "number-sequences",
+    "numbering",
     "state-machine",
   ],
   target: "schema",

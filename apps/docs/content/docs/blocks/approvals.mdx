@@ -54,17 +54,17 @@ blocks: {
 },
 ```
 
-| Option              | Default | What it does                                                                                                                                      |
-| ------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `steps[].approvers` | none    | `permission`, `role` (membership role), `team` (a [teams](/docs/blocks/teams) id) or `users`; any match may decide                                |
-| `steps[].required`  | `1`     | Approvals the step needs; `"all"` with `users` means every listed user                                                                            |
-| `expiresIn`         | none    | An ISO 8601 duration such as `P7D`; `expire_approvals()` closes the request after it                                                              |
-| `selfApproval`      | `false` | Whether the requester may decide a step                                                                                                           |
-| `run`               | none    | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/jobs) |
+| Option              | Default | What it does                                                                                                                                       |
+| ------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `steps[].approvers` | none    | `permission`, `role` (membership role), `team` (a [teams](/docs/blocks/teams) id) or `users`; any match may decide                                 |
+| `steps[].required`  | `1`     | Approvals the step needs; `"all"` with `users` means every listed user                                                                             |
+| `expiresIn`         | none    | An ISO 8601 duration such as `P7D`; `expire_approvals()` closes the request after it                                                               |
+| `selfApproval`      | `false` | Whether the requester may decide a step                                                                                                            |
+| `run`               | none    | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/queue) |
 
 A subject can have one pending request per action (`APPROVAL_PENDING`). A rejection on any step closes the request. An approver decides a step once, and `delegate(id, userId)` hands their place on the step to another member of the organization, who is then asked.
 
-Policies are fixed per subject type and action. To pick one by the record's values, such as the finance chain for an expense over 500, give each chain its own action and let a tenant-edited [rule](/docs/blocks/rules#actions) choose it: `approvalsAction` from `better-supabase/blocks/rules` files the request for the action in the matching rule's `config.action`.
+Policies are fixed per subject type and action. To pick one by the record's values, such as the finance chain for an expense over 500, give each chain its own action and let a tenant-edited [rule](/docs/blocks/automations#actions) choose it: `approvalsAction` from `better-supabase/blocks/automations` files the request for the action in the matching rule's `config.action`.
 
 ## Run the approved action
 
@@ -84,14 +84,14 @@ With `run: { queue }`, the final approval enqueues a job with `requestId`, `orga
 
 ## Tool calls and support sessions
 
-When the [AI chat](/docs/blocks/ai-chat) or support-sessions module is
+When the [AI chat](/docs/blocks/ai-chat) or impersonation module is
 installed next to approvals, its waiting requests become approval requests
 too, so one approvals inbox lists them:
 
-| Module           | `subjectType`      | `subjectId`                 | `action` | Who decides                                                                                      |
-| ---------------- | ------------------ | --------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| ai-chat          | `ai_tool_approval` | the tool call's approval id | `run`    | the chat's owner, or the users the provider's `isApprover` allows for kind `ai-tool`             |
-| support-sessions | `support_request`  | the support request id      | `start`  | platform staff with the approve permission, or the provider's `isApprover` for `support-session` |
+| Module        | `subjectType`      | `subjectId`                 | `action` | Who decides                                                                                      |
+| ------------- | ------------------ | --------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| ai-chat       | `ai_tool_approval` | the tool call's approval id | `run`    | the chat's owner, or the users the provider's `isApprover` allows for kind `ai-tool`             |
+| impersonation | `support_request`  | the support request id      | `start`  | platform staff with the approve permission, or the provider's `isApprover` for `support-session` |
 
 The module that filed the request keeps deciding who approves it, so the
 policy's approvers, roles and delegation don't apply (`delegate` refuses with
@@ -163,7 +163,7 @@ for (const event of events) await wakeOnApproval(event);
 
 ## Expiry and reminders
 
-Schedule both functions with pg_cron or the [jobs](/docs/blocks/jobs) drain. `remind_approvals(after)` asks the current step's approvers again for requests pending longer than `after` (default one day), once per `after`.
+Schedule both functions with pg_cron or the [jobs](/docs/blocks/queue) drain. `remind_approvals(after)` asks the current step's approvers again for requests pending longer than `after` (default one day), once per `after`.
 
 ```sql
 select cron.schedule('expire-approvals', '*/15 * * * *', 'select better_supabase.expire_approvals()');

@@ -261,8 +261,8 @@ export const SEQUENCES: BlockSqlDefinition = {
   title: "Sequences",
   description:
     "Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.",
-  requires: ["tenant", "access", "enrollments"],
-  integrates: ["mail-sync", "parties", "work-items", "outbox", "audit"],
+  requires: ["memberships", "permissions", "enrollments"],
+  integrates: ["mail-sync", "contacts", "tasks", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

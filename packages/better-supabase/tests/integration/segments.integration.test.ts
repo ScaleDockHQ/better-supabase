@@ -5,11 +5,11 @@ import type { FilterQuery } from "../../src/list/index.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createAssignment } from "../../src/blocks/assignment/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import {
-  createRulesAdmin,
+  createAutomationsAdmin,
   defineRuleFields,
-} from "../../src/blocks/rules/index.ts";
+} from "../../src/blocks/automations/index.ts";
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createSegments } from "../../src/blocks/segments/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -18,15 +18,15 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties"], {}),
+  subjects: withBlockSubjects({}, ["contacts"], {}),
 };
 
 const MODULES = [
   "organizations",
   "outbox",
   "subjects",
-  "rules",
-  "parties",
+  "automations",
+  "contacts",
   "segments",
   "assignment",
 ];
@@ -63,9 +63,11 @@ describe.skipIf(!live)("segments and assignment", () => {
       const transport = sqlTransport(s.sql);
 
       await s.service();
-      await createRulesAdmin({ transport }).syncFields(companyFields).orThrow();
+      await createAutomationsAdmin({ transport })
+        .syncFields(companyFields)
+        .orThrow();
 
-      const parties = createParties({ transport });
+      const parties = createContacts({ transport });
       const segments = createSegments({ transport });
       const assignment = createAssignment({ transport });
 

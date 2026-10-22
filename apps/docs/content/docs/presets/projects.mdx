@@ -26,7 +26,7 @@ alter table public.tasks enable row level security;
 The `projects` preset brings the SaaS blocks (organizations with teams,
 notifications, the outbox, ...) plus tags, comments, attachments, the state
 machine, `rank`, reminders and time tracking. Task keys add
-`number-sequences`, and the workflow is the state machine's options:
+`numbering`, and the workflow is the state machine's options:
 
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
@@ -43,7 +43,7 @@ export default defineConfig({
     },
   },
   blocks: {
-    "number-sequences": {},
+    numbering: {},
     "state-machine": {
       options: {
         machines: {

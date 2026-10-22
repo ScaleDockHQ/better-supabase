@@ -22,7 +22,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
 
@@ -782,7 +782,7 @@ $$;
 ${userGrant(`${fn("compact_document")}(uuid, text, bigint)`)}
 
 -- Documents with at least min_updates updates since their snapshot, for a
--- compaction sweep without the jobs module.
+-- compaction sweep without the queue block.
 create or replace function ${fn("documents_to_compact")}(min_updates integer default ${String(compactAfter)}, max_documents integer default 50)
 returns uuid[]
 language sql
@@ -855,8 +855,8 @@ export const DOCUMENTS: BlockSqlDefinition = {
   title: "Collaborative documents",
   description:
     "Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.",
-  requires: ["tenant", "access"],
-  integrates: ["outbox", "audit", "jobs", "versions"],
+  requires: ["memberships", "permissions"],
+  integrates: ["outbox", "audit", "queue", "versions"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

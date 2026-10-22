@@ -39,8 +39,8 @@ function sandboxJson(names: AiChatNames, row: string): string {
  * The sandboxes table: every sandbox or provider container a chat started, a
  * harness session's included (`harness_id`), so one idle-stop claim covers them
  * all. `create table if not exists`, so the upgrade step can run it on a
- * database where ai-providers 1 created the table; `adapt` runs between the
- * table and its indexes.
+ * database where ai-keys 1 created the table; `adapt` runs between the table
+ * and its indexes.
  */
 export function sandboxTable(
   ctx: BlockSqlContext,
@@ -314,7 +314,7 @@ ${userGrant(`${fn("list_ai_sandboxes")}(${id}, uuid)`)}`;
 
 /**
  * Upgrade step from ai-chat 1: harness sessions keep their sandbox in
- * `ai_sandboxes` (created here when ai-providers had not), so the column on
+ * `ai_sandboxes` (created here when ai-keys had not), so the column on
  * `ai_harness_sessions` goes.
  */
 export function upgradeSandboxes(

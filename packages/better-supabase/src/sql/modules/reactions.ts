@@ -16,7 +16,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const PAYLOAD = [
   "organizationId",
@@ -662,7 +662,7 @@ export const REACTIONS: BlockSqlDefinition = {
   title: "Reactions",
   description:
     "Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "messaging"],
   target: "schema",
   modes: ["managed", "custom"],

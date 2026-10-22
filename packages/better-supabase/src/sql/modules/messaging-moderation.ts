@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, triggerGrant } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /**
  * The subject type moderation reports messages under, when both modules are

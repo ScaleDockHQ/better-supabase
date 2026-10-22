@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { contextClaims, delegatedClaims } from "../../src/auth/delegation.ts";
-import { unwrap, withContext } from "../../src/blocks/jobs/envelope.ts";
+import { unwrap, withContext } from "../../src/blocks/queue/envelope.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 const actor = { id: "user-1", kind: "user" as const };

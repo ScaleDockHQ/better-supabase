@@ -283,13 +283,16 @@ export interface BlockSqlAction extends BlockSqlEmit {
   readonly audit: BlockSqlAudit | false;
 }
 
-const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
+const TENANT_PROVIDERS: ReadonlySet<string> = new Set([
+  "memberships",
+  "permissions",
+]);
 
 // These modules write their functions into better_supabase whatever
 // blocks.<name>.schema says; the schema only places their tables.
 const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set([
-  "access",
-  "jobs",
+  "permissions",
+  "queue",
   "webhook-inbox",
 ]);
 
@@ -298,7 +301,7 @@ const FIXED_FUNCTION_MODULES: ReadonlySet<string> = new Set([
 // them unquoted, as the tenant module defines them, so callers render the
 // same text as the definitions.
 const FIXED_FUNCTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
-  tenant: new Set([
+  memberships: new Set([
     "member_organization_ids",
     "has_organization_role",
     "organization_member_role",
@@ -341,7 +344,7 @@ export interface BlockSqlContext {
   readonly scope: BlockSqlScope;
   /**
    * The module's final names: its entities as `blocks.<name>.entities` and
-   * `blocks.tenant.names.organization` rename them.
+   * `blocks.memberships.names.organization` rename them.
    */
   readonly resolved: ResolvedNames;
   /** The renamer every default name goes through (`resolved.naming`). */
@@ -696,7 +699,7 @@ export function createModuleContext(
     scopeKind === "user"
       ? (config.idType ?? "uuid")
       : (config.idType ??
-        modules.access?.idType ??
+        modules.permissions?.idType ??
         source.providerIdType ??
         "uuid");
 
@@ -716,9 +719,9 @@ export function createModuleContext(
 
   const resolved = resolveNames(module, names, modules);
   const { naming, entityNaming } = resolved;
-  // blocks.access.functions holds the custom model's templates, and the
+  // blocks.permissions.functions holds the custom model's templates, and the
   // access contract's names (can, tenant_ids_with) name no tenant.
-  const renames = module === "access" ? {} : config.functions;
+  const renames = module === "permissions" ? {} : config.functions;
 
   for (const [name, target] of Object.entries(renames)) {
     checkIdent(`${where}.functions`, name);
@@ -973,7 +976,7 @@ export function createModuleContext(
 
     const auditIdType =
       modules["audit"]?.idType ??
-      modules.access?.idType ??
+      modules.permissions?.idType ??
       source.providerIdType ??
       "uuid";
 
@@ -1010,10 +1013,10 @@ export function createModuleContext(
   const scope = moduleScope({
     kind: scopeKind,
     idType,
-    access: installed.has("access"),
+    access: installed.has("permissions"),
     guests: installed.has("guests") || source.providerGuests === true,
     members: () =>
-      createModuleContext("tenant", namesOf, source).fn(
+      createModuleContext("memberships", namesOf, source).fn(
         "member_organization_ids",
       ),
   });
@@ -1259,13 +1262,13 @@ export function createModuleContext(
       ].join(`\n${indent}`);
     },
     enqueue(queue, payload, dedupe, options = {}) {
-      declares("jobs");
+      declares("queue");
 
-      if (!installed.has("jobs")) {
+      if (!installed.has("queue")) {
         return NOTHING;
       }
 
-      const jobs = createModuleContext("jobs", namesOf, source);
+      const jobs = createModuleContext("queue", namesOf, source);
 
       const delay =
         options.delay === undefined ? "" : `, delay => ${options.delay}`;
@@ -1304,9 +1307,9 @@ ${indent}end if;`;
         ? scope.can(id, permission)
         : `coalesce(better_supabase.can(${sqlString(name)}, ${id}, ${permission}), false)`,
     staff(permission) {
-      declares("access");
+      declares("permissions");
 
-      return installed.has("access")
+      return installed.has("permissions")
         ? `(${SERVICE_CALLER} or ${scope.platform(permission)})`
         : SERVICE_CALLER;
     },

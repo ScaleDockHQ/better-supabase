@@ -3,7 +3,7 @@ import type { LanguageModel, ToolSet } from "ai";
 import type { AssistantContext } from "better-supabase/ai-sdk/chat";
 import type { AiChat, AiRuns } from "better-supabase/blocks/ai-chat";
 import type { AiFiles, AiFileStorage } from "better-supabase/blocks/ai-files";
-import type { AiProviders } from "better-supabase/blocks/ai-providers";
+import type { AiKeys } from "better-supabase/blocks/ai-keys";
 import type { RpcClient } from "better-supabase/blocks/organizations";
 
 import { stepCountIs, streamText } from "ai";
@@ -15,7 +15,7 @@ import { memoryTool, withMemory } from "better-supabase/ai-sdk/memory";
 import { generatedOptions } from "better-supabase/blocks";
 import { createAiChat } from "better-supabase/blocks/ai-chat";
 import { createAiFiles } from "better-supabase/blocks/ai-files";
-import { createAiProviders } from "better-supabase/blocks/ai-providers";
+import { createAiKeys } from "better-supabase/blocks/ai-keys";
 import { rpcTransport } from "better-supabase/blocks/organizations";
 import { vaultCredentials } from "better-supabase/credentials";
 import { postgresStreamStore } from "better-supabase/streams";
@@ -67,20 +67,20 @@ export function aiRuns(supabase: RpcClient): AiRuns {
   return aiChat(supabase).runs;
 }
 
-let providersInstance: AiProviders | undefined;
+let providersInstance: AiKeys | undefined;
 
 /** The organizations' own provider keys, read from Vault as the service role. */
-function aiProviders(): AiProviders {
+function aiProviders(): AiKeys {
   if (providersInstance) {
     return providersInstance;
   }
 
   const service = serviceTransport();
-  providersInstance = createAiProviders({
+  providersInstance = createAiKeys({
     transport: service,
     service,
     credentials: vaultCredentials({ transport: service, schema: API_SCHEMA }),
-    ...generatedOptions(blockConfig["ai-providers"]),
+    ...generatedOptions(blockConfig["ai-keys"]),
   });
 
   return providersInstance;

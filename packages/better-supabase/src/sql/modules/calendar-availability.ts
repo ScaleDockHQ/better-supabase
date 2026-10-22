@@ -12,7 +12,7 @@ import {
   triggerGrant,
   userGrant,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The weekly hours a member works, in their own time zone. */
 export const WORKING_HOURS_TABLE: BlockSqlTableSpec = {

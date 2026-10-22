@@ -415,7 +415,7 @@ await outbox.relay("attachment-scans", scanner.sink());
 ```
 
 `scanner.sink()` scans the file of each `attachment.uploaded` event, and
-`scanner.job` is a [jobs](/docs/blocks/jobs) handler for an
+`scanner.job` is a [jobs](/docs/blocks/queue) handler for an
 `{ attachmentId }` payload when you prefer a queue. A file that is already
 clean or infected is not scanned again, so replays are safe. When `scan`
 throws, the file is marked `failed` with the error as `scan_detail`, the

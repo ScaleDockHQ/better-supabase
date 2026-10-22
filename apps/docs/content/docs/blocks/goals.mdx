@@ -1,0 +1,74 @@
+---
+title: Targets
+description: Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
+---
+
+`targets` keeps goals: a sales quota per rep per quarter, a number of completed work items per team per sprint, cash collected per month. Each target names a metric, a period, an owner or team when it isn't for the whole organization, and a goal. The database computes the progress of the metrics the other blocks own, and the app keeps the value of any other metric.
+
+Reading needs `targets.read`, and setting targets needs `targets.manage`. Admins get both, and members get `targets.read`.
+
+```bash
+better-supabase add goals
+```
+
+The module needs `memberships` and `access`.
+
+```ts
+import { createGoals } from "better-supabase/blocks/goals";
+
+const targets = createGoals({ transport });
+await targets
+  .save(organizationId, {
+    name: "Q4 quota",
+    metric: "deals.won_amount",
+    ownerId: repId,
+    currency: "EUR",
+    goal: 60_000_000n,
+    periodStart: Temporal.PlainDate.from("2026-10-01"),
+    periodEnd: Temporal.PlainDate.from("2026-12-31"),
+  })
+  .orThrow();
+
+const running = await targets
+  .progress(organizationId, { ownerId: repId })
+  .orThrow();
+// [{ name: "Q4 quota", progress: 18_400_000n, attainment: 0.3067, ... }]
+```
+
+## Metrics
+
+| Metric                 | Progress                                                                      | Needs      |
+| ---------------------- | ----------------------------------------------------------------------------- | ---------- |
+| `deals.won_amount`     | the amount of deals won in the period, in the target's currency, by its owner | `deals`    |
+| `deals.won_count`      | the number of deals won in the period, by its owner                           | `deals`    |
+| `work_items.completed` | the work items completed in the period, by its team and assignee              | `tasks`    |
+| `invoices.paid_amount` | payments recorded in the period, in the target's currency                     | `invoices` |
+| anything else          | the `actual` value the app saves                                              |            |
+
+`progress(organizationId, { on, ownerId })` returns the targets whose period contains `on` (today by default), with `progress` and `attainment` (progress over goal). Goals and progress are `bigint` values (minor units for money metrics) with no currency of their own, sent as text so they stay exact past 2^53. Progress reads run as the caller, so they count what the caller can see. The [deals](/docs/blocks/deals) forecast takes a target as its period goal.
+
+## Errors
+
+| Hint               | Cause                                                         |
+| ------------------ | ------------------------------------------------------------- |
+| `TARGET_FORBIDDEN` | the caller lacks `targets.manage`                             |
+| `TARGET_INVALID`   | a target needs a name, a metric, a period and a positive goal |
+| `TARGET_NOT_FOUND` | no such target                                                |
+
+## Your own columns
+
+Add columns to the target table with `blocks.goals.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`save` validates and writes them, and `save` and `progress` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createGoals } from "better-supabase/blocks/goals";
+import { z } from "zod";
+
+const client = createGoals({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

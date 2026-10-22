@@ -18,7 +18,6 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import {
   availabilityContract,
   availabilitySql,
@@ -27,6 +26,7 @@ import {
   WORKING_HOURS_TABLE,
   workingHoursTable,
 } from "./calendar-availability.ts";
+import { moduleOperations } from "./permissions-model.ts";
 import { liveShareLink } from "./share-links.ts";
 
 const EVENTS: BlockSqlEvents<CalendarEvents> = {
@@ -979,7 +979,7 @@ export const CALENDAR: BlockSqlDefinition = {
   title: "Calendar",
   description:
     "Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["share-links", "reminders", "outbox", "leave"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

@@ -3,7 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
@@ -11,15 +11,15 @@ import { commentsBlock } from "better-supabase/blocks/comments";
 import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { dealsBlock } from "better-supabase/blocks/deals";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
-import { engagementsBlock } from "better-supabase/blocks/engagements";
+import { activitiesBlock } from "better-supabase/blocks/activities";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { messagingBlock } from "better-supabase/blocks/messaging";
-import { activityBlock } from "better-supabase/blocks/activity";
+import { timelineBlock } from "better-supabase/blocks/timeline";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
-import { partiesBlock } from "better-supabase/blocks/parties";
+import { contactsBlock } from "better-supabase/blocks/contacts";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { quotesBlock } from "better-supabase/blocks/quotes";
@@ -28,14 +28,14 @@ import { searchBlock } from "better-supabase/blocks/search";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { tagsBlock } from "better-supabase/blocks/tags";
-import { targetsBlock } from "better-supabase/blocks/targets";
+import { goalsBlock } from "better-supabase/blocks/goals";
 import { teamsBlock } from "better-supabase/blocks/teams";
 
 import { blockConfig } from "./crm.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,
   billing: billingBlock,
@@ -43,15 +43,15 @@ export const blockSet = defineBlocks(blockConfig, {
   customFields: customFieldsBlock,
   deals: dealsBlock,
   enrollments: enrollmentsBlock,
-  engagements: engagementsBlock,
+  activities: activitiesBlock,
   entitlements: entitlementsBlock,
   messaging: messagingBlock,
-  activity: activityBlock,
+  timeline: timelineBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,
   outbox: outboxBlock,
-  parties: partiesBlock,
+  contacts: contactsBlock,
   pipelines: pipelinesBlock,
   profiles: profilesBlock,
   quotes: quotesBlock,
@@ -60,7 +60,7 @@ export const blockSet = defineBlocks(blockConfig, {
   settings: settingsBlock,
   subjects: subjectsBlock,
   tags: tagsBlock,
-  targets: targetsBlock,
+  goals: goalsBlock,
   teams: teamsBlock,
 });
 

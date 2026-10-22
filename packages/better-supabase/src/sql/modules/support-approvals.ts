@@ -59,13 +59,13 @@ export function approvalMode(ctx: BlockSqlContext): ApprovalMode {
 
   if (!isApprovalMode(mode)) {
     throw new TypeError(
-      `blocks.support-sessions.options.approval must be ${APPROVAL_MODES.join(" or ")}, not "${mode}"`,
+      `blocks.impersonation.options.approval must be ${APPROVAL_MODES.join(" or ")}, not "${mode}"`,
     );
   }
 
   if (mode === "distinct" && !ctx.hasTable("requests")) {
     throw new TypeError(
-      'blocks.support-sessions.tables.requests is null, so starts cannot wait for a second admin; map the table or set options.approval to "none"',
+      'blocks.impersonation.tables.requests is null, so starts cannot wait for a second admin; map the table or set options.approval to "none"',
     );
   }
 

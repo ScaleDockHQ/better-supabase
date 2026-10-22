@@ -19,7 +19,7 @@ import {
   fail,
   ensureCheck,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<WorkflowsEvents> = {
   "workflow_run.completed": {
@@ -1013,7 +1013,7 @@ export const WORKFLOWS: BlockSqlDefinition = {
   title: "Workflows",
   description:
     "Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["data-lifecycle"],
   target: "schema",
   modes: ["managed", "custom"],

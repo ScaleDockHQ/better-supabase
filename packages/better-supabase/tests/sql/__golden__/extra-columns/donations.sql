@@ -720,7 +720,7 @@ revoke execute on function "better_supabase"."due_pledge_installments"(uuid, dat
 grant execute on function "better_supabase"."due_pledge_installments"(uuid, date, integer) to authenticated, service_role;
 
 -- Issues a numbered tax receipt for one posted gift. Numbers come from
--- number-sequences when it configures donation_receipt, else one more than
+-- numbering when it configures donation_receipt, else one more than
 -- the organization's highest.
 create or replace function "better_supabase"."issue_gift_receipt"(gift_id uuid)
 returns jsonb

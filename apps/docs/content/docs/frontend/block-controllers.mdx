@@ -47,34 +47,34 @@ Each block exports its controllers from its main entry,
 `better-supabase/blocks/<name>`. The hooks in `better-supabase/blocks/<name>/react`
 build them from the provider's client.
 
-| Block              | Controllers                                                                                                    | Hooks                                                      |
-| ------------------ | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `ai-chat`          | `createAiChatsController`, `createAiChatTreeController`, `createAiModelsController`, `createAiShareController` | `useAiChats`, `useAiChatTree`, `useAiModels`, `useAiShare` |
-| `announcements`    | `createAnnouncementsController`                                                                                | `useAnnouncements`                                         |
-| `api-keys`         | `createApiKeysController`                                                                                      | `useApiKeys`                                               |
-| `audit`            | `createAuditLogController`                                                                                     | `useAuditLog`                                              |
-| `billing`          | `createPlanPickerController`                                                                                   | `usePlanPicker`                                            |
-| `bookings`         | `createAvailableSlotsController`                                                                               | `useAvailableSlots`                                        |
-| `calendar`         | `createCalendarController`                                                                                     | `useCalendar`                                              |
-| `comments`         | `createCommentsController`                                                                                     | `useComments`                                              |
-| `entitlements`     | `createFeatureGateController`                                                                                  | `useFeatureGate`                                           |
-| `forms`            | `createQuestionnaireController`                                                                                | `useQuestionnaire`                                         |
-| `inbox`            | `createInboxController`, `createConversationController`, `createInboxWidgetController`                         | `useInbox`, `useConversation`, `useInboxWidget`            |
-| `mfa`              | `createMfaController`, `createStepUpController`                                                                | `useMfa`, `useStepUp`                                      |
-| `notifications`    | `createNotificationsController`                                                                                | `useNotifications`                                         |
-| `onboarding`       | `createOnboardingController`                                                                                   | `useOnboarding`                                            |
-| `organizations`    | `createOrganizationsController`, `createMembersController`, `createInvitationsController`                      | `useOrganizations`, `useMembers`, `useInvitations`         |
-| `reactions`        | `createReactionsController`                                                                                    | `useReactions`                                             |
-| `rules`            | `createRuleBuilderController`                                                                                  | `useRuleBuilder`                                           |
-| `saved-views`      | `createSavedViewsController`, `matchSavedViews`                                                                | `useSavedViews`                                            |
-| `search`           | `createCommandSearchController`                                                                                | `useCommandSearch`                                         |
-| `sessions`         | `createOAuthConsentController`, `createOAuthGrantsController`                                                  | `useOAuthConsent`, `useOAuthGrants`                        |
-| `settings`         | `createSettingsController`, `settingFields`                                                                    | `useSettings`                                              |
-| `tags`             | `createTagInputController`                                                                                     | `useTagInput`                                              |
-| `undo`             | `createUndoController`                                                                                         | `useUndoStack`                                             |
-| `usage`            | `createUsageMeterController`                                                                                   | `useUsageMeter`                                            |
-| `workflows`        | `createWorkflowRunsController`, `createWorkflowRunController`                                                  | `useWorkflowRuns`, `useWorkflowRun`                        |
-| `workflow-builder` | `createWorkflowBuilderController`, `createWorkflowCanvasRunController`                                         | `useWorkflowBuilder`, `useWorkflowCanvasRun`               |
+| Block             | Controllers                                                                                                    | Hooks                                                      |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `ai-chat`         | `createAiChatsController`, `createAiChatTreeController`, `createAiModelsController`, `createAiShareController` | `useAiChats`, `useAiChatTree`, `useAiModels`, `useAiShare` |
+| `announcements`   | `createAnnouncementsController`                                                                                | `useAnnouncements`                                         |
+| `api-keys`        | `createApiKeysController`                                                                                      | `useApiKeys`                                               |
+| `audit`           | `createAuditLogController`                                                                                     | `useAuditLog`                                              |
+| `billing`         | `createPlanPickerController`                                                                                   | `usePlanPicker`                                            |
+| `bookings`        | `createAvailableSlotsController`                                                                               | `useAvailableSlots`                                        |
+| `calendar`        | `createCalendarController`                                                                                     | `useCalendar`                                              |
+| `comments`        | `createCommentsController`                                                                                     | `useComments`                                              |
+| `entitlements`    | `createFeatureGateController`                                                                                  | `useFeatureGate`                                           |
+| `forms`           | `createQuestionnaireController`                                                                                | `useQuestionnaire`                                         |
+| `inbox`           | `createInboxController`, `createConversationController`, `createInboxWidgetController`                         | `useInbox`, `useConversation`, `useInboxWidget`            |
+| `mfa`             | `createMfaController`, `createStepUpController`                                                                | `useMfa`, `useStepUp`                                      |
+| `notifications`   | `createNotificationsController`                                                                                | `useNotifications`                                         |
+| `onboarding`      | `createOnboardingController`                                                                                   | `useOnboarding`                                            |
+| `organizations`   | `createOrganizationsController`, `createMembersController`, `createInvitationsController`                      | `useOrganizations`, `useMembers`, `useInvitations`         |
+| `reactions`       | `createReactionsController`                                                                                    | `useReactions`                                             |
+| `rules`           | `createRuleBuilderController`                                                                                  | `useRuleBuilder`                                           |
+| `saved-views`     | `createSavedViewsController`, `matchSavedViews`                                                                | `useSavedViews`                                            |
+| `search`          | `createCommandSearchController`                                                                                | `useCommandSearch`                                         |
+| `sessions`        | `createOAuthConsentController`, `createOAuthGrantsController`                                                  | `useOAuthConsent`, `useOAuthGrants`                        |
+| `settings`        | `createSettingsController`, `settingFields`                                                                    | `useSettings`                                              |
+| `tags`            | `createTagInputController`                                                                                     | `useTagInput`                                              |
+| `undo`            | `createUndoController`                                                                                         | `useUndoStack`                                             |
+| `usage`           | `createUsageMeterController`                                                                                   | `useUsageMeter`                                            |
+| `workflows`       | `createWorkflowRunsController`, `createWorkflowRunController`                                                  | `useWorkflowRuns`, `useWorkflowRun`                        |
+| `workflow-editor` | `createWorkflowEditorController`, `createWorkflowCanvasRunController`                                          | `useWorkflowEditor`, `useWorkflowCanvasRun`                |
 
 Controllers with a moving input take it as an action instead of starting
 over: `setRange` on the calendar and bookings controllers and `setSubjects`

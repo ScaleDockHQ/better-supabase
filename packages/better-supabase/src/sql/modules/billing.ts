@@ -19,12 +19,12 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import { moduleOperations, modulePermission } from "./access-model.ts";
 import { platformLists } from "./billing-platform.ts";
 import {
   subscriptionSourceOf,
   webhookSubscriptions,
 } from "./billing-webhook.ts";
+import { moduleOperations, modulePermission } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<BillingEvents> = {
   "billing.customer_linked": {
@@ -248,7 +248,7 @@ function build(ctx: BlockSqlContext): string {
   const t = ctx.table("customers");
   const c = (logical: string): string => ctx.col("customers", logical);
   const fn = (name: string): string => ctx.fn(name);
-  const tenant = ctx.of("tenant");
+  const tenant = ctx.of("memberships");
   const memberships = tenant.table("memberships");
   const mc = (logical: string): string => tenant.col("memberships", logical);
   const permissions = moduleOperations("billing");
@@ -812,7 +812,7 @@ export const BILLING: BlockSqlDefinition = {
   title: "Stripe billing",
   description:
     "Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["organizations"],
   target: "schema",
   modes: ["managed", "custom"],

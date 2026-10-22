@@ -5804,7 +5804,7 @@ export function AgentActivitySkeleton() {
 
 ## Workflow canvas
 
-A node editor for a workflow definition that saves drafts, publishes versions and runs the workflow. It calls `useWorkflowCanvasRun` from `better-supabase/blocks/workflow-builder/react`; the [workflow-builder](https://bettersupabase.com/blocks/workflow-builder), [workflows](https://bettersupabase.com/blocks/workflows) blocks must be installed (`npx better-supabase add workflow-builder workflows`). Page: https://bettersupabase.com/recipes/workflow-canvas.
+A node editor for a workflow definition that saves drafts, publishes versions and runs the workflow. It calls `useWorkflowCanvasRun` from `better-supabase/blocks/workflow-editor/react`; the [workflow-editor](https://bettersupabase.com/blocks/workflow-editor), [workflows](https://bettersupabase.com/blocks/workflows) blocks must be installed (`npx better-supabase add workflow-editor workflows`). Page: https://bettersupabase.com/recipes/workflow-canvas.
 
 Web, with shadcn components:
 
@@ -5816,7 +5816,7 @@ npx shadcn add badge button input select
 "use client";
 
 import type { Connection } from "@xyflow/react";
-import type { WorkflowNodeKind } from "better-supabase/blocks/workflow-builder";
+import type { WorkflowNodeKind } from "better-supabase/blocks/workflow-editor";
 
 import {
   addEdge,
@@ -5827,7 +5827,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useWorkflowCanvasRun } from "better-supabase/blocks/workflow-builder/react";
+import { useWorkflowCanvasRun } from "better-supabase/blocks/workflow-editor/react";
 import { useWorkflowRuns } from "better-supabase/blocks/workflows/react";
 import { useAction } from "better-supabase/react";
 import { PlayIcon, PlusIcon, SaveIcon } from "lucide-react";
@@ -6421,7 +6421,7 @@ export function CredentialSheet({
 
 ## Support session banner
 
-A banner that tells the user a support agent is viewing the app as them, rendered on the server. It loads its data on the server through the block's client; the [support-sessions block](https://bettersupabase.com/blocks/support-sessions) must be installed (`npx better-supabase add support-sessions`). Page: https://bettersupabase.com/recipes/support-session-banner.
+A banner that tells the user a support agent is viewing the app as them, rendered on the server. It loads its data on the server through the block's client; the [impersonation block](https://bettersupabase.com/blocks/impersonation) must be installed (`npx better-supabase add impersonation`). Page: https://bettersupabase.com/recipes/support-session-banner.
 
 Web, with shadcn components:
 
@@ -6466,7 +6466,7 @@ export async function ImpersonationBanner() {
 
 ## AI task queue
 
-A table of scheduled AI prompts with each task's next run and latest run status, plus pause and resume. It loads its data on the server through the block's client; the [ai-tasks block](https://bettersupabase.com/blocks/ai-tasks) must be installed (`npx better-supabase add ai-tasks`). Page: https://bettersupabase.com/recipes/ai-task-queue.
+A table of scheduled AI prompts with each task's next run and latest run status, plus pause and resume. It loads its data on the server through the block's client; the [ai-schedules block](https://bettersupabase.com/blocks/ai-schedules) must be installed (`npx better-supabase add ai-schedules`). Page: https://bettersupabase.com/recipes/ai-task-queue.
 
 Web, with shadcn components:
 
@@ -6477,7 +6477,7 @@ npx shadcn add alert badge button card empty skeleton table
 ```tsx title="apps/examples/nextjs/src/features/ai-tasks/components/ai-task-queue.tsx"
 "use client";
 
-import type { AiTaskRunStatus } from "better-supabase/blocks/ai-tasks";
+import type { AiTaskRunStatus } from "better-supabase/blocks/ai-schedules";
 
 import { useAction } from "better-supabase/react";
 import { CalendarClockIcon, PauseIcon, PlayIcon } from "lucide-react";
@@ -6598,7 +6598,7 @@ function TaskRows({ tasks }: { tasks: readonly AiTaskRow[] }) {
     format.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" });
 
   return (
-    <Table data-testid="ai-tasks">
+    <Table data-testid="ai-schedules">
       <TableHeader>
         <TableRow>
           <TableHead>{t("Task")}</TableHead>
@@ -6777,7 +6777,7 @@ export function AiTaskQueueSkeleton() {
 
 ## AI provider settings
 
-A settings card that lists the organization's own AI provider keys and models, adds a key to Vault and removes one. It loads its data on the server through the block's client; the [ai-providers block](https://bettersupabase.com/blocks/ai-providers) must be installed (`npx better-supabase add ai-providers`). Page: https://bettersupabase.com/recipes/ai-provider-settings.
+A settings card that lists the organization's own AI provider keys and models, adds a key to Vault and removes one. It loads its data on the server through the block's client; the [ai-keys block](https://bettersupabase.com/blocks/ai-keys) must be installed (`npx better-supabase add ai-keys`). Page: https://bettersupabase.com/recipes/ai-provider-settings.
 
 Web, with shadcn components:
 
@@ -7828,7 +7828,7 @@ export function MetricsDashboardSkeleton() {
 
 ## Feature flags
 
-Which feature flags are on for the active organization, read-only. It loads its data on the server through the block's client; the [flags block](https://bettersupabase.com/blocks/flags) must be installed (`npx better-supabase add flags`). Page: https://bettersupabase.com/recipes/feature-flag-toggles.
+Which feature flags are on for the active organization, read-only. It loads its data on the server through the block's client; the [feature-flags block](https://bettersupabase.com/blocks/feature-flags) must be installed (`npx better-supabase add feature-flags`). Page: https://bettersupabase.com/recipes/feature-flag-toggles.
 
 Web, with shadcn components:
 
@@ -7995,7 +7995,7 @@ export function FeatureFlagListSkeleton() {
 
 ## Rule builder
 
-A condition tree with field, operator and value rows, nested And and Or groups, drag to reorder and a fixed first condition, saved as a versioned rule. It calls `useRuleBuilder` from `better-supabase/blocks/rules/react`; the [rules block](https://bettersupabase.com/blocks/rules) must be installed (`npx better-supabase add rules`). Page: https://bettersupabase.com/recipes/rule-builder.
+A condition tree with field, operator and value rows, nested And and Or groups, drag to reorder and a fixed first condition, saved as a versioned rule. It calls `useRuleBuilder` from `better-supabase/blocks/automations/react`; the [automations block](https://bettersupabase.com/blocks/automations) must be installed (`npx better-supabase add automations`). Page: https://bettersupabase.com/recipes/rule-builder.
 
 Web, with shadcn components:
 
@@ -8007,8 +8007,8 @@ npx shadcn add alert button card empty field input label select skeleton switch
 "use client";
 
 import type { DragEndEvent } from "@dnd-kit/core";
-import type { RuleField } from "better-supabase/blocks/rules";
-import type { RuleBuilderState } from "better-supabase/blocks/rules/react";
+import type { RuleField } from "better-supabase/blocks/automations";
+import type { RuleBuilderState } from "better-supabase/blocks/automations/react";
 import type {
   FilterCombinator,
   FilterGroupNode,
@@ -8033,8 +8033,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { contains, ruleOperators } from "better-supabase/blocks/rules";
-import { useRuleBuilder } from "better-supabase/blocks/rules/react";
+import { contains, ruleOperators } from "better-supabase/blocks/automations";
+import { useRuleBuilder } from "better-supabase/blocks/automations/react";
 import { FILTER_OPERATOR_LABELS } from "better-supabase/list";
 import {
   GripVerticalIcon,
@@ -8183,7 +8183,7 @@ export function RuleBuilder({
     trigger: RULE_TRIGGER,
     initial: initialConditions,
     locked: LOCKED,
-    schema: blockConfig.rules.api,
+    schema: blockConfig.automations.api,
   });
 
   const enabled = enabledEdit ?? builder.rule?.enabled ?? false;
@@ -8983,14 +8983,14 @@ export function RuleBuilderSkeleton() {
 
 ## Can
 
-Shows an action only to members who hold a permission key; the checks of one render share one round trip. It loads its data on the server through the block's client; the [access block](https://bettersupabase.com/blocks/access) must be installed (`npx better-supabase add access`). Page: https://bettersupabase.com/recipes/can.
+Shows an action only to members who hold a permission key; the checks of one render share one round trip. It loads its data on the server through the block's client; the [permissions block](https://bettersupabase.com/blocks/permissions) must be installed (`npx better-supabase add permissions`). Page: https://bettersupabase.com/recipes/can.
 
 Web, with no shadcn components.
 
 ```tsx title="apps/examples/nextjs/src/features/projects/components/task-import-action.tsx"
 "use client";
 
-import { Can } from "better-supabase/blocks/access/react";
+import { Can } from "better-supabase/blocks/permissions/react";
 
 import { permissions } from "@/lib/supabase/blocks.generated";
 
@@ -9146,7 +9146,7 @@ export function SubjectChip({ subject }: { subject: RecordRef }) {
 
 ## Sessions list
 
-The caller's signed-in devices with the last activity and a button to end each session. It loads its data on the server through the block's client; the [sessions block](https://bettersupabase.com/blocks/sessions) must be installed (`npx better-supabase add sessions`). Page: https://bettersupabase.com/recipes/sessions-list.
+The caller's signed-in devices with the last activity and a button to end each session. It loads its data on the server through the block's client; the [session-revocation block](https://bettersupabase.com/blocks/session-revocation) must be installed (`npx better-supabase add session-revocation`). Page: https://bettersupabase.com/recipes/sessions-list.
 
 Web, with shadcn components:
 
@@ -11188,7 +11188,7 @@ export function WaitlistSignup() {
 
 ## Contact detail
 
-A person or company with its details, related contacts and the latest activity. It loads its data on the server through the block's client; the [parties block](https://bettersupabase.com/blocks/parties) must be installed (`npx better-supabase add parties`). Page: https://bettersupabase.com/recipes/contact-detail.
+A person or company with its details, related contacts and the latest activity. It loads its data on the server through the block's client; the [contacts block](https://bettersupabase.com/blocks/contacts) must be installed (`npx better-supabase add contacts`). Page: https://bettersupabase.com/recipes/contact-detail.
 
 Web, with shadcn components:
 
@@ -11651,7 +11651,7 @@ export async function SequenceBuilder() {
 
 ## Activity timeline
 
-Calls, emails and meetings with a contact, newest first. It loads its data on the server through the block's client; the [engagements block](https://bettersupabase.com/blocks/engagements) must be installed (`npx better-supabase add engagements`). Page: https://bettersupabase.com/recipes/activity-timeline.
+Calls, emails and meetings with a contact, newest first. It loads its data on the server through the block's client; the [activities block](https://bettersupabase.com/blocks/activities) must be installed (`npx better-supabase add activities`). Page: https://bettersupabase.com/recipes/activity-timeline.
 
 Web, with shadcn components:
 
@@ -11956,7 +11956,7 @@ export async function QuoteBuilder({
 
 ## Targets progress
 
-Sales targets for the period with the progress toward each one. It loads its data on the server through the block's client; the [targets block](https://bettersupabase.com/blocks/targets) must be installed (`npx better-supabase add targets`). Page: https://bettersupabase.com/recipes/targets-progress.
+Sales targets for the period with the progress toward each one. It loads its data on the server through the block's client; the [goals block](https://bettersupabase.com/blocks/goals) must be installed (`npx better-supabase add goals`). Page: https://bettersupabase.com/recipes/targets-progress.
 
 Web, with shadcn components:
 
@@ -12075,7 +12075,7 @@ export async function TargetsProgress() {
 
 ## Work item board
 
-Work items in state columns, ordered by rank and moved through allowed transitions. It loads its data on the server through the block's client; the [work-items](https://bettersupabase.com/blocks/work-items), [state-machine](https://bettersupabase.com/blocks/state-machine), [rank](https://bettersupabase.com/blocks/rank) blocks must be installed (`npx better-supabase add work-items state-machine rank`). Page: https://bettersupabase.com/recipes/work-item-board.
+Work items in state columns, ordered by rank and moved through allowed transitions. It loads its data on the server through the block's client; the [tasks](https://bettersupabase.com/blocks/tasks), [state-machine](https://bettersupabase.com/blocks/state-machine), [rank](https://bettersupabase.com/blocks/rank) blocks must be installed (`npx better-supabase add tasks state-machine rank`). Page: https://bettersupabase.com/recipes/work-item-board.
 
 Web, with shadcn components:
 
@@ -12226,7 +12226,7 @@ export function WorkItemBoard({
 
 ## Entity form
 
-A create dialog whose inputs come from `recordForm`: the entity's own fields and the organization's custom fields, validated together by `useRecordForm` before the Server Action runs. It calls `useRecordForm` from `better-supabase/react`; the [work-items](https://bettersupabase.com/blocks/work-items), [custom-fields](https://bettersupabase.com/blocks/custom-fields) blocks must be installed (`npx better-supabase add work-items custom-fields`). Page: https://bettersupabase.com/recipes/entity-form.
+A create dialog whose inputs come from `recordForm`: the entity's own fields and the organization's custom fields, validated together by `useRecordForm` before the Server Action runs. It calls `useRecordForm` from `better-supabase/react`; the [tasks](https://bettersupabase.com/blocks/tasks), [custom-fields](https://bettersupabase.com/blocks/custom-fields) blocks must be installed (`npx better-supabase add tasks custom-fields`). Page: https://bettersupabase.com/recipes/entity-form.
 
 Web, with shadcn components:
 
@@ -12238,7 +12238,7 @@ npx shadcn add button checkbox dialog field input select
 import type { DbError } from "better-supabase";
 import type { RecordFormInput } from "better-supabase/records";
 
-import { workItemInputSchema } from "better-supabase/blocks/work-items";
+import { workItemInputSchema } from "better-supabase/blocks/tasks";
 import { useRecordForm } from "better-supabase/react";
 import { recordForm } from "better-supabase/records";
 import { PlusIcon } from "lucide-react";
@@ -12520,7 +12520,7 @@ export function CreateWorkItemDialog({
 
 ## Work item grid
 
-A data grid of work items with filters, sorting and saved views. It loads its data on the server through the block's client; the [work-items](https://bettersupabase.com/blocks/work-items), [saved-views](https://bettersupabase.com/blocks/saved-views) blocks must be installed (`npx better-supabase add work-items saved-views`). Page: https://bettersupabase.com/recipes/work-item-grid.
+A data grid of work items with filters, sorting and saved views. It loads its data on the server through the block's client; the [tasks](https://bettersupabase.com/blocks/tasks), [saved-views](https://bettersupabase.com/blocks/saved-views) blocks must be installed (`npx better-supabase add tasks saved-views`). Page: https://bettersupabase.com/recipes/work-item-grid.
 
 Web, with shadcn components:
 
@@ -13060,7 +13060,7 @@ export async function ApprovalsQueue() {
 
 ## My work
 
-What waits on the caller across the installed blocks, from `loadMyWork`: assigned work, approvals, due reminders, mentions and SLA warnings, each linked to its record. It loads its data on the server through the block's client; the [subjects](https://bettersupabase.com/blocks/subjects), [work-items](https://bettersupabase.com/blocks/work-items), [approvals](https://bettersupabase.com/blocks/approvals), [reminders](https://bettersupabase.com/blocks/reminders), [comments](https://bettersupabase.com/blocks/comments) blocks must be installed (`npx better-supabase add subjects work-items approvals reminders comments`). Page: https://bettersupabase.com/recipes/my-work.
+What waits on the caller across the installed blocks, from `loadMyWork`: assigned work, approvals, due reminders, mentions and SLA warnings, each linked to its record. It loads its data on the server through the block's client; the [subjects](https://bettersupabase.com/blocks/subjects), [tasks](https://bettersupabase.com/blocks/tasks), [approvals](https://bettersupabase.com/blocks/approvals), [reminders](https://bettersupabase.com/blocks/reminders), [comments](https://bettersupabase.com/blocks/comments) blocks must be installed (`npx better-supabase add subjects tasks approvals reminders comments`). Page: https://bettersupabase.com/recipes/my-work.
 
 Web, with shadcn components:
 
@@ -13609,7 +13609,7 @@ export async function CustomFieldsEditor({
 
 ## Bulk action bar
 
-A bar over a selection of rows that runs an action on all of them and reports failures. It loads its data on the server through the block's client; the [bulk block](https://bettersupabase.com/blocks/bulk) must be installed (`npx better-supabase add bulk`). Page: https://bettersupabase.com/recipes/bulk-action-bar.
+A bar over a selection of rows that runs an action on all of them and reports failures. It loads its data on the server through the block's client; the [bulk-actions block](https://bettersupabase.com/blocks/bulk-actions) must be installed (`npx better-supabase add bulk-actions`). Page: https://bettersupabase.com/recipes/bulk-action-bar.
 
 Web, with shadcn components:
 
@@ -20405,7 +20405,7 @@ export function WebhookEndpointsSkeleton() {
 
 ## Service principals table
 
-Machine identities with their scopes, last use and a button to disable one. It loads its data on the server through the block's client; the [service-principals block](https://bettersupabase.com/blocks/service-principals) must be installed (`npx better-supabase add service-principals`). Page: https://bettersupabase.com/recipes/service-principals-table.
+Machine identities with their scopes, last use and a button to disable one. It loads its data on the server through the block's client; the [service-accounts block](https://bettersupabase.com/blocks/service-accounts) must be installed (`npx better-supabase add service-accounts`). Page: https://bettersupabase.com/recipes/service-principals-table.
 
 Web, with shadcn components:
 
@@ -20938,7 +20938,7 @@ export async function PrivacySettings() {
 
 ## Job runs table
 
-The latest background job runs with their status, attempts and error, and a button to retry a failed run. It loads its data on the server through the block's client; the [jobs block](https://bettersupabase.com/blocks/jobs) must be installed (`npx better-supabase add jobs`). Page: https://bettersupabase.com/recipes/job-runs-table.
+The latest background job runs with their status, attempts and error, and a button to retry a failed run. It loads its data on the server through the block's client; the [queue block](https://bettersupabase.com/blocks/queue) must be installed (`npx better-supabase add queue`). Page: https://bettersupabase.com/recipes/job-runs-table.
 
 Web, with shadcn components:
 
@@ -21410,7 +21410,7 @@ export function ContractRenewalsSkeleton() {
 
 ## Control posture
 
-One card per compliance framework with its passing, failing and not started controls, then the overdue evidence tasks. It loads its data on the server through the block's client; the [controls block](https://bettersupabase.com/blocks/controls) must be installed (`npx better-supabase add controls`). Page: https://bettersupabase.com/recipes/control-posture.
+One card per compliance framework with its passing, failing and not started controls, then the overdue evidence tasks. It loads its data on the server through the block's client; the [compliance block](https://bettersupabase.com/blocks/compliance) must be installed (`npx better-supabase add compliance`). Page: https://bettersupabase.com/recipes/control-posture.
 
 Web, with shadcn components:
 
@@ -21476,7 +21476,7 @@ export async function ControlPosture() {
         <EmptyContent>
           <a
             className="text-sm underline underline-offset-4"
-            href="https://bettersupabase.com/docs/blocks/controls"
+            href="https://bettersupabase.com/docs/blocks/compliance"
           >
             {t("Read the controls guide")}
           </a>

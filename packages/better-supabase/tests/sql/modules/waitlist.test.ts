@@ -60,7 +60,7 @@ describe("waitlist module", () => {
 
   it("grants no roles through codes outside the roles and catalog models", () => {
     const sql = sqlOf(["waitlist"], {
-      access: {
+      permissions: {
         model: "custom",
         functions: {
           can: "app.can",
@@ -76,7 +76,7 @@ describe("waitlist module", () => {
 
   it("grants the roles in options.roles under any model, checked with can_assign", () => {
     const modules: AnyBlocksConfig = {
-      access: { model: "provider" },
+      permissions: { model: "provider" },
       waitlist: {
         options: { roles: ["staff", "viewer"], defaultRole: "viewer" },
       },

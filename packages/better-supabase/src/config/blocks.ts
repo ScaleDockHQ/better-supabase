@@ -105,7 +105,7 @@ export interface BlockConfig<
   /**
    * Function name to the name the module writes it under, e.g. `{
    * create_organization: 'start_company' }`. Keys are the default names; an
-   * unknown function is an error. `blocks.access.functions` is the custom
+   * unknown function is an error. `blocks.permissions.functions` is the custom
    * model's templates instead.
    */
   readonly functions?: { readonly [F in Names["functions"]]?: string };
@@ -290,7 +290,7 @@ export interface AccessBlockConfig<
  * type error.
  */
 export type BlocksConfig = {
-  readonly [M in keyof BlockOptionsRegistry]?: M extends "access"
+  readonly [M in keyof BlockOptionsRegistry]?: M extends "permissions"
     ? AccessBlockConfig<BlockOptionsRegistry[M], NamesOf<M>>
     : BlockConfig<BlockOptionsRegistry[M], NamesOf<M>>;
 };
@@ -300,9 +300,9 @@ export type BlocksConfig = {
  * renderer read it.
  */
 export interface AnyBlocksConfig {
-  readonly access?: AccessBlockConfig;
+  readonly permissions?: AccessBlockConfig;
   /**
-   * `AccessBlockConfig` is listed so an `access` entry fits the index
+   * `AccessBlockConfig` is listed so a `permissions` entry fits the index
    * signature.
    */
   readonly [module: string]: BlockConfig | AccessBlockConfig | undefined;
@@ -319,7 +319,7 @@ export function asBlocksConfig(blocks: AnyBlocksConfig): BlocksConfig {
 }
 
 /**
- * The tenant's new singular name (`blocks.tenant.names.organization`), or
+ * The tenant's new singular name (`blocks.memberships.names.organization`), or
  * `undefined` while it is `organization`. `blocks` may be the config's list of
  * block names, which renames nothing.
  */
@@ -330,7 +330,7 @@ export function tenantNameOf(
     return undefined;
   }
 
-  const entities = blocks["tenant"]?.entities;
+  const entities = blocks["memberships"]?.entities;
 
   if (entities === undefined || typeof entities === "string") {
     return undefined;

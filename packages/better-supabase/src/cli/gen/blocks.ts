@@ -40,8 +40,8 @@ function hasSchema(
 /**
  * How the tenant rename, the modules' renamed entities and their
  * `blocks.<module>.functions` rename the block's functions and payload keys, or
- * undefined when nothing does. `blocks.access.functions` is the custom model's
- * templates, not renames.
+ * undefined when nothing does. `blocks.permissions.functions` is the custom
+ * model's templates, not renames.
  */
 function namingOf(
   config: Pick<ResolvedConfig, "blocks" | "sql">,
@@ -49,7 +49,7 @@ function namingOf(
 ): BlockNaming | undefined {
   const functions = Object.fromEntries(
     modules.flatMap((module) =>
-      module === "access"
+      module === "permissions"
         ? []
         : Object.entries(resolveBlock(config.blocks[module]).functions),
     ),
@@ -267,7 +267,7 @@ function renamedBlockLines(
     const renamed = names.rename(block);
     const local = renamed === block ? `default${pascal(block)}` : block;
 
-    const types = (manifest.entityTypes ?? []).filter(
+    const entityTypes = (manifest.entityTypes ?? []).filter(
       (type) =>
         !(
           type.name.endsWith("Options") &&
@@ -276,6 +276,16 @@ function renamedBlockLines(
           )
         ),
     );
+
+    // A block-named events type (`TasksEvents`) carries no entity noun, but
+    // its event types do, so it gets a renamed alias under the same name.
+    const eventsType = manifest.events?.type;
+
+    const types =
+      eventsType === undefined ||
+      entityTypes.some((type) => type.name === eventsType)
+        ? entityTypes
+        : [...entityTypes, { name: eventsType }];
 
     const alias = `${pascal(camelOf(manifest.name))}Renames`;
     const key = q(manifest.name);

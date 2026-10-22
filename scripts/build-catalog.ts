@@ -54,7 +54,7 @@ import { moduleContext } from "../packages/better-supabase/src/sql/module-contex
 import {
   isOperationModule,
   moduleOperations,
-} from "../packages/better-supabase/src/sql/modules/access-model.ts";
+} from "../packages/better-supabase/src/sql/modules/permissions-model.ts";
 import { formatNameRegistry } from "../packages/better-supabase/src/sql/name-sets.ts";
 import { resolveBlocks } from "../packages/better-supabase/src/sql/registry.ts";
 
@@ -606,7 +606,9 @@ function presetBlock(module: BlockSql): PresetCatalogBlock {
 
   const byAccess = Object.fromEntries(
     ACCESS_MODELS.flatMap((model) => {
-      const needs = module.dependencies?.({ modules: { access: { model } } });
+      const needs = module.dependencies?.({
+        modules: { permissions: { model } },
+      });
 
       return needs === undefined || needs.join(",") === requires.join(",")
         ? []

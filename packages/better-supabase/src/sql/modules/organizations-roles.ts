@@ -2,15 +2,15 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { raise } from "../shared.ts";
-import { accessModel, roleNames } from "./access-model.ts";
-import { roleNameFrom, roleThrough } from "./tenant.ts";
+import { roleNameFrom, roleThrough } from "./memberships.ts";
+import { accessModel, roleNames } from "./permissions-model.ts";
 
 /**
  * The tenant column of a roles table with tenant custom roles: the
  * `roleThrough` table's `tenant`, or the catalog's mapped `roles.tenant`.
  */
 function rolesTenantColumn(ctx: BlockSqlContext): string | undefined {
-  const through = roleThrough(ctx.of("tenant"));
+  const through = roleThrough(ctx.of("memberships"));
 
   if (through) {
     return through.tenant;
@@ -20,7 +20,7 @@ function rolesTenantColumn(ctx: BlockSqlContext): string | undefined {
     return undefined;
   }
 
-  const access = ctx.of("access");
+  const access = ctx.of("permissions");
 
   return !access.manages &&
     typeof access.config.columns["roles"]?.["tenant"] === "string"
@@ -62,7 +62,7 @@ export function roleValue(
   tenantRoles = true,
 ): string {
   const scope = tenantRoleScope(ctx, tenant);
-  const through = roleThrough(ctx.of("tenant"));
+  const through = roleThrough(ctx.of("memberships"));
 
   if (through) {
     const text = `(${expr})::text`;
@@ -79,7 +79,7 @@ export function roleValue(
     return expr;
   }
 
-  const access = ctx.of("access");
+  const access = ctx.of("permissions");
   const rid = access.col("roles", "id");
   const key = access.col("roles", "key");
   const text = `(${expr})::text`;
@@ -89,10 +89,10 @@ export function roleValue(
 
 /**
  * A stored membership role as `can_assign` takes it: the role name with
- * `blocks.tenant.options.roleThrough`, the stored value otherwise.
+ * `blocks.memberships.options.roleThrough`, the stored value otherwise.
  */
 export function assignableRole(ctx: BlockSqlContext, stored: string): string {
-  const tenant = ctx.of("tenant");
+  const tenant = ctx.of("memberships");
 
   return roleThrough(tenant) ? roleNameFrom(tenant, stored) : `${stored}::text`;
 }
@@ -104,7 +104,7 @@ export function checkRole(
   tenant: string,
 ): string {
   const model = accessModel(ctx);
-  const through = roleThrough(ctx.of("tenant")) !== undefined;
+  const through = roleThrough(ctx.of("memberships")) !== undefined;
 
   if (!through && (model === "provider" || model === "custom")) {
     return "";

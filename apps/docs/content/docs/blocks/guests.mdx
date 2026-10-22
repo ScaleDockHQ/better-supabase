@@ -18,7 +18,7 @@ better-supabase add guests
 import { createGuests } from "better-supabase/blocks/guests";
 ```
 
-The module requires `tenant` and `access`. With `outbox` its events are
+The module requires `memberships` and `access`. With `outbox` its events are
 recorded, with `audit` every invite and grant is audited, and with
 `invoices`, `bookings` and `parties` a grant can name an invoice, a booking
 or a party. It renders ahead of `comments` so the comments, attachments,

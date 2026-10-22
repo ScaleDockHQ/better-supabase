@@ -17,12 +17,12 @@ const render = (modules: AnyBlocksConfig, names = Object.keys(modules)) => {
 };
 
 const ADOPTED: AnyBlocksConfig = {
-  tenant: {
+  memberships: {
     mode: "adopt",
     tables: { memberships: "public.organization_users" },
     columns: { memberships: { lastUsedAt: null, updatedAt: null } },
   },
-  access: {},
+  permissions: {},
   organizations: {
     mode: "adopt",
     tables: { organizations: "public.organizations" },
@@ -32,8 +32,8 @@ const ADOPTED: AnyBlocksConfig = {
 
 const SUSPENDABLE: AnyBlocksConfig = {
   ...ADOPTED,
-  tenant: {
-    ...ADOPTED["tenant"],
+  memberships: {
+    ...ADOPTED["memberships"],
     columns: {
       memberships: {
         lastUsedAt: null,
@@ -46,23 +46,23 @@ const SUSPENDABLE: AnyBlocksConfig = {
 
 describe("membership suspension", () => {
   it("adds the column to the managed memberships table and reads it everywhere", () => {
-    const sql = render({ tenant: {}, access: {}, organizations: {} });
-    expect(sql("tenant")).toContain(
+    const sql = render({ memberships: {}, permissions: {}, organizations: {} });
+    expect(sql("memberships")).toContain(
       'alter table "better_supabase"."memberships" add column if not exists "disabled_at" timestamptz;',
     );
-    expect(sql("tenant")).toMatch(
+    expect(sql("memberships")).toMatch(
       /member_organization_ids[\s\S]*and m\."disabled_at" is null\n\$\$;/,
     );
-    expect(sql("tenant")).toMatch(
+    expect(sql("memberships")).toMatch(
       /membership_claims[\s\S]*and m\."disabled_at" is null\n\$\$;/,
     );
-    expect(sql("access")).toContain(
+    expect(sql("permissions")).toContain(
       'm."user_id" = member_can.member and m."disabled_at" is null',
     );
-    expect(sql("access")).toMatch(
+    expect(sql("permissions")).toMatch(
       /tenant_ids_with[\s\S]*tenant_disabled\(m\."organization_id"\) and m\."disabled_at" is null/,
     );
-    expect(sql("access")).toContain(
+    expect(sql("permissions")).toContain(
       'm."user_id" = can_assign_as.member and m."disabled_at" is null',
     );
     expect(sql("organizations")).toContain(
@@ -75,8 +75,8 @@ describe("membership suspension", () => {
 
   it("leaves an adopted table alone until the column is mapped", () => {
     const sql = render(ADOPTED);
-    expect(sql("tenant")).not.toContain('"disabled_at"');
-    expect(sql("access")).not.toContain('"disabled_at"');
+    expect(sql("memberships")).not.toContain('"disabled_at"');
+    expect(sql("permissions")).not.toContain('"disabled_at"');
     expect(sql("organizations")).toContain(
       'drop function if exists "better_supabase"."suspend_member"(uuid, uuid);',
     );
@@ -102,8 +102,8 @@ describe("membership suspension", () => {
   it("reads a mapped column and guards owners and role changes", () => {
     const sql = render(SUSPENDABLE);
     const organizations = sql("organizations");
-    expect(sql("tenant")).not.toContain("add column");
-    expect(sql("tenant")).toContain('and m."suspended_at" is null');
+    expect(sql("memberships")).not.toContain("add column");
+    expect(sql("memberships")).toContain('and m."suspended_at" is null');
     expect(organizations).toContain(
       `"role" = 'owner' and m."suspended_at" is null`,
     );
@@ -165,9 +165,10 @@ describe("membership suspension", () => {
   });
 
   it("keeps suspended members out of the provider and custom models", () => {
-    const provider = render({ ...SUSPENDABLE, access: { model: "provider" } })(
-      "access",
-    );
+    const provider = render({
+      ...SUSPENDABLE,
+      permissions: { model: "provider" },
+    })("permissions");
 
     expect(provider).toContain(
       'and not exists (select 1 from "public"."organization_users" sm where sm."organization_id" = tenant and sm."user_id" = member and sm."suspended_at" is not null)',
@@ -178,7 +179,7 @@ describe("membership suspension", () => {
 
     const custom = render({
       ...SUSPENDABLE,
-      access: {
+      permissions: {
         model: "custom",
         functions: {
           can: "public.can({scope}, {id}, {permission})",
@@ -188,7 +189,7 @@ describe("membership suspension", () => {
           canAssign: "true",
         },
       },
-    })("access");
+    })("permissions");
 
     expect(custom).toContain(
       'then not exists (select 1 from "public"."organization_users" sm where sm."organization_id" = tenant and sm."user_id" = member and sm."suspended_at" is not null) and coalesce((public.can_user(',

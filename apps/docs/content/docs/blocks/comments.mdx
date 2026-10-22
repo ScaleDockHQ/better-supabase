@@ -15,7 +15,7 @@ following the record and turning a comment into a work item.
 better-supabase add comments   # adds tenant, access, subjects and messaging as well
 ```
 
-Comments need tenants: the module runs in the `tenant`
+Comments need tenants: the module runs in the `memberships`
 [scope](/docs/blocks/sql#scope-and-naming) only, and `user` or `none` scope
 refuses it. The records come from the
 [subject registry](/docs/blocks/sql#subject-registry) (`config.records`).
@@ -29,7 +29,7 @@ another tenant, even for a member of both.
 | `conversations` (messaging) | One `subject` conversation per record, with `subject_type` and `subject_id`, opened by the first comment |
 | `messages` (messaging)      | The comments: `body`, `document`, `anchor`, `mentions`, `parent_id`, pins, resolution, edits, deletes    |
 | `message_edits` (messaging) | The earlier versions of an edited comment                                                                |
-| `comment_tasks`             | The work item a comment was turned into (`message_id`, `task_id`), with the work-items block             |
+| `comment_tasks`             | The work item a comment was turned into (`message_id`, `task_id`), with the tasks block                  |
 
 The block has no entity of its own: a comment is a `message`, so reactions,
 search and share links accept it under the message entity
@@ -47,7 +47,7 @@ The comments operations check the messaging keys:
 | `comments.moderate` | `messages.moderate` | delete other members' comments                           | `admin` (`messages.*`) |
 
 `blocks.comments.permissions` renames a key per action, as for any block
-(see [access](/docs/blocks/access)). Only the author edits a comment, within
+(see [access](/docs/blocks/permissions)). Only the author edits a comment, within
 `blocks.messaging.options.editWindow` when it is set. Deleting is a soft
 delete: the comment stays as a placeholder so replies keep their parent, and
 its body and files are cleared.
@@ -257,7 +257,7 @@ await comments.create(project, {
 
 ### Assign to a task
 
-With the [work-items](/docs/blocks/work-items) block, `assign` turns a comment
+With the [tasks](/docs/blocks/tasks) block, `assign` turns a comment
 into a work item through `assign_comment(message, assignee, attrs)`. The
 title defaults to the comment's first 120 characters and the body to the
 comment's body; `attrs` passes other `create_work_item` attributes, such as
@@ -332,7 +332,7 @@ the outbox gets the messaging events: `message.sent`, `message.edited`,
 their data carries `conversationKind: "subject"` and the record as
 `recordType` and `recordId`, next to `messageId`, `conversationId` and
 `authorId`; see [Events](/docs/extending/events). To keep a record's history,
-send them to the [activity](/docs/blocks/activity) feed.
+send them to the [activity](/docs/blocks/timeline) feed.
 
 ## Realtime
 

@@ -78,7 +78,7 @@ export interface RuleViolation {
   readonly message: string;
 }
 
-export interface RulesOptions {
+export interface AutomationsOptions {
   readonly rules?: RuleSet;
   /**
    * Called for every violation. Defaults to `console.warn` for warnings. Errors
@@ -489,7 +489,7 @@ function defaultReport(violation: RuleViolation): void {
  * `better-supabase/lint` plugin to catch the same mistakes in the editor.
  */
 export function rules(
-  options: RulesOptions = {},
+  options: AutomationsOptions = {},
 ): Plugin<"rules", RulesExtension> {
   const set = options.rules ?? recommended();
   const report = options.report ?? defaultReport;

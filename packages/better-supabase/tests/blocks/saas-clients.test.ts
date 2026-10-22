@@ -5,7 +5,7 @@ import {
   createImports,
   suggestMapping,
 } from "../../src/blocks/imports/index.ts";
-import { createNumberSequences } from "../../src/blocks/number-sequences/index.ts";
+import { createNumbering } from "../../src/blocks/numbering/index.ts";
 import { createReminders } from "../../src/blocks/reminders/index.ts";
 import { createStateMachine } from "../../src/blocks/state-machine/index.ts";
 import { createTags } from "../../src/blocks/tags/index.ts";
@@ -61,11 +61,11 @@ describe("saas block clients", () => {
   });
 
   it("allocates a number from a bigint, a string, or rejects anything else", async () => {
-    const numbers = createNumberSequences(options({ next_number: 7n }));
+    const numbers = createNumbering(options({ next_number: 7n }));
     expect(await numbers.next("org", "invoice").orThrow()).toBe("7");
-    const text = createNumberSequences(options({ next_number: "8" }));
+    const text = createNumbering(options({ next_number: "8" }));
     expect(await text.next("org", "invoice", "2026-01-01").orThrow()).toBe("8");
-    const broken = createNumberSequences(options({ next_number: {} }));
+    const broken = createNumbering(options({ next_number: {} }));
     const result = await broken.next("org", "invoice");
     expect(result.ok).toBe(false);
   });
@@ -73,7 +73,7 @@ describe("saas block clients", () => {
   it("calls next_number with the SQL parameter names", async () => {
     const calls: unknown[] = [];
 
-    const numbers = createNumberSequences({
+    const numbers = createNumbering({
       schema: "app",
       transport: {
         call(_schema: string, _fn: string, args: unknown) {
@@ -93,7 +93,7 @@ describe("saas block clients", () => {
   it("previews the formatted next number with preview_number", async () => {
     const calls: unknown[] = [];
 
-    const numbers = createNumberSequences({
+    const numbers = createNumbering({
       schema: "app",
       transport: {
         call(_schema: string, fn: string, args: unknown) {
@@ -114,7 +114,7 @@ describe("saas block clients", () => {
       ],
     ]);
 
-    const broken = createNumberSequences(options({ preview_number: 7 }));
+    const broken = createNumbering(options({ preview_number: 7 }));
     expect((await broken.preview("org", "invoice")).ok).toBe(false);
   });
 

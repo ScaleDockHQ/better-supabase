@@ -50,7 +50,7 @@ describe("api-keys module", () => {
 
   it("refuses the * scope under the provider model", () => {
     const sql = moduleBody("api-keys", {
-      modules: { access: { model: "provider" } },
+      modules: { permissions: { model: "provider" } },
       accessProvider: moduleProvider,
     })!;
 

@@ -47,8 +47,8 @@ relations you show.
 
 ## Jobs over PostgREST
 
-The [jobs block](/docs/blocks/jobs) prefers a direct connection. Over the Data
-API, set `blocks.jobs.api` and pass `client` with `schema` (often `api`): jobs
+The [jobs block](/docs/blocks/queue) prefers a direct connection. Over the Data
+API, set `blocks.queue.api` and pass `client` with `schema` (often `api`): jobs
 then call the wrappers in that schema and keep the full feature set. A
 `client` without `schema` uses the `pgmq_public` functions, which can send,
 read and archive. It can't:

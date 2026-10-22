@@ -26,7 +26,7 @@ import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -64,7 +64,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  jobs: {
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -74,7 +74,7 @@ export const blockConfig = {
       topic: "messages",
     },
   },
-  activity: {
+  timeline: {
     schema: "better_supabase",
     options: {},
   },
@@ -128,7 +128,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -150,9 +150,6 @@ export const blockConfig = {
  * @public
  */
 export const permissions = {
-  activity: {
-    read: "activity.read",
-  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -247,6 +244,9 @@ export const permissions = {
     approve: "time_tracking.approve",
     manage: "time_tracking.manage",
   },
+  timeline: {
+    read: "activity.read",
+  },
 } as const;
 
 /**
@@ -256,7 +256,7 @@ export const permissions = {
  */
 export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */

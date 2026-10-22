@@ -43,7 +43,7 @@ const LIMIT = 50;
 
 /**
  * One queue's live messages and archive, limited to jobs whose recorded context
- * names the tenant (`createJobs` writes it at enqueue). The queue name is
+ * names the tenant (`createQueue` writes it at enqueue). The queue name is
  * checked against `QUEUE_NAME` before it reaches the SQL.
  */
 function queueRuns(queue: string, param: string): string {

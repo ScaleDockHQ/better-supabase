@@ -238,7 +238,7 @@ export default defineConfig({
     // The fixture writes the memberships table and the access contract
     // itself (supabase/schemas/better_supabase/functions), so tokens that
     // carry only a tenant claim keep working for the integration suite.
-    tenant: {
+    memberships: {
       ownership: "custom",
       api: false,
       tables: { memberships: "public.memberships" },
@@ -250,7 +250,7 @@ export default defineConfig({
     // supabase/schemas/better_supabase/functions/role_permissions.sql.
     // `<Can>` reads my_permissions through the hand-written
     // supabase/schemas/api/functions/my_permissions.sql.
-    access: {
+    permissions: {
       ownership: "custom",
       activeTenant: "claim",
       roles: { owner: [], admin: [], member: [] },
@@ -278,7 +278,7 @@ export default defineConfig({
     messaging: {},
     channels: {},
     // The record history the customer page shows, moved out of comments.
-    activity: {},
+    timeline: {},
     // Members' Gmail and Outlook mail, linked to parties and logged as
     // email engagements.
     "mail-sync": {},
@@ -313,7 +313,7 @@ export default defineConfig({
     },
     invitations: {},
     profiles: {},
-    flags: {},
+    "feature-flags": {},
     announcements: {},
     // Onboarding checklists run on enrollments (ADR 0077).
     enrollments: {},
@@ -334,11 +334,11 @@ export default defineConfig({
     // Durable workflow runs behind /workflows, run by the Workflow SDK on
     // the Supabase World (`WORKFLOW_TARGET_WORLD`), which polls in dev.
     workflows: {},
-    "workflow-sdk-world": { api: false },
+    "workflow-sdk": { api: false },
     // Workflows tenants build on a canvas at /workflows/builder.
-    "workflow-builder": {},
+    "workflow-editor": {},
     // Tenant rules for expenses, edited with the rule builder at /rules.
-    rules: {},
+    automations: {},
     // Lead scoring and account health are score models over parties (ADR 0067).
     scores: {},
     // People scored under the "lead" model, again when their segments, mail
@@ -350,7 +350,7 @@ export default defineConfig({
     credentials: {},
     // The support inbox behind /inbox and the Help sheet: jobs carry bot
     // turns and channel replies, streams hold the bot's resumable output.
-    jobs: { api: false },
+    queue: { api: false },
     streams: {},
     inbox: {},
     "chat-sdk-state": { api: false },
@@ -359,25 +359,25 @@ export default defineConfig({
     // /knowledge ingests documents into `knowledge` for the assistant's
     // search tool, and `memory` keeps what it remembers. /agents builds and
     // installs assistants (`agents`), `connectors` holds the MCP servers they
-    // call and `ai-tasks` their schedules.
+    // call and `ai-schedules` their schedules.
     "ai-chat": {},
     "ai-files": {},
     knowledge: {},
     memory: {},
     agents: {},
     connectors: {},
-    "ai-tasks": {},
+    "ai-schedules": {},
     // Device push tokens for the Expo example's push registration.
     push: {},
     // The assistant answers with each organization's own provider keys
-    // (`ai-providers`), and `ai-cache` keeps repeated model calls.
+    // (`ai-keys`), and `ai-cache` keeps repeated model calls.
     "ai-cache": {},
-    "ai-providers": {},
+    "ai-keys": {},
     // The blocks behind the remaining UI recipes (`/recipes`), one page or
     // card each in the app.
     // Ending a session on /settings/sessions cuts its access at once: every
     // app table gets the restrictive session_active() policy.
-    sessions: { options: { policies: true } },
+    "session-revocation": { options: { policies: true } },
     sso: {},
     approvals: {
       options: {
@@ -403,7 +403,7 @@ export default defineConfig({
       },
     },
     "access-requests": {},
-    grants: {},
+    "data-api-grants": {},
     subjects: {},
     reactions: {},
     // Forum and feedback boards behind /community (ADR 0092).
@@ -413,7 +413,7 @@ export default defineConfig({
     attachments: { options: { requireScan: false } },
     waitlist: {},
     teams: {},
-    parties: {
+    contacts: {
       names: {
         company: { url: "/crm/contacts/{id}" },
         person: { url: "/crm/contacts/{id}" },
@@ -423,9 +423,9 @@ export default defineConfig({
     deals: { names: { deal: { url: "/crm/deals" } } },
     // Call recordings on ai-files, with transcripts and notes. Confirmed
     // bookings show up as meetings on the booker's contact.
-    engagements: { options: { recordings: true, bookings: true } },
+    activities: { options: { recordings: true, bookings: true } },
     quotes: {},
-    targets: {},
+    goals: {},
     "state-machine": {
       options: {
         machines: {
@@ -447,7 +447,7 @@ export default defineConfig({
     },
     rank: {},
     // The app already has `projects` and `saved_views` tables (appTables).
-    "work-items": {
+    tasks: {
       tables: { projects: "work_projects" },
       names: { work_item: { url: "/work" } },
     },
@@ -455,7 +455,7 @@ export default defineConfig({
     sla: {},
     // Encrypted definitions and sensitive values are audited when read.
     "custom-fields": { options: { auditReads: true } },
-    bulk: {},
+    "bulk-actions": {},
     trash: {},
     relations: {},
     employees: { names: { employee: { url: "/people" } } },
@@ -474,7 +474,7 @@ export default defineConfig({
     assets: { options: { postgis: true } },
     guests: {},
     // Class bookings paid for with pass credits.
-    passes: { options: { credits: true } },
+    "admission-passes": { options: { credits: true } },
     "billable-time": {},
     leases: {},
     expenses: {},
@@ -485,7 +485,7 @@ export default defineConfig({
     // notice deadline with reminders; controls publish policies as versions.
     signatures: {},
     contracts: {},
-    controls: {},
+    compliance: {},
     incidents: {},
     reminders: {},
     "drive-files": {},
@@ -500,7 +500,7 @@ export default defineConfig({
     documents: {},
     "webhooks-out": {},
     outbox: {},
-    "service-principals": {},
+    "service-accounts": {},
     "signing-keys": {},
     // Per-tenant data keys in Vault for encrypted columns and custom fields.
     "field-encryption": {},

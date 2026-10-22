@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { RequestContext } from "../../src/core/plugin.ts";
 
 import { contextClaims } from "../../src/auth/delegation.ts";
-import { createJobs } from "../../src/blocks/jobs/index.ts";
+import { createQueue } from "../../src/blocks/queue/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -39,7 +39,7 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
     return table;
   }
 
-  /** Enqueues and claims a job through the jobs module, as a worker does. */
+  /** Enqueues and claims a job through the queue block, as a worker does. */
   async function roundTrip(
     session: BlockSession,
     context: RequestContext,
@@ -47,7 +47,7 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
     await session.service();
     const queue = `delegation_${crypto.randomUUID().slice(0, 8)}`;
 
-    const jobs = createJobs({
+    const jobs = createQueue({
       sql: session.sql,
       queues: { [queue]: v.object({ id: v.number() }) },
     });
@@ -84,9 +84,14 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
     const session = await BlockSession.open(pool);
 
     try {
-      await session.install(["organizations", "jobs", "actor", "access"], {
-        modules: { access: { scopes: { "posts:write": ["members.invite"] } } },
-      });
+      await session.install(
+        ["organizations", "queue", "created-by", "permissions"],
+        {
+          modules: {
+            permissions: { scopes: { "posts:write": ["members.invite"] } },
+          },
+        },
+      );
       const author = await session.user("author");
 
       const table = await postsTable(
@@ -144,7 +149,7 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
     const session = await BlockSession.open(pool);
 
     try {
-      await session.install(["actor"]);
+      await session.install(["created-by"]);
       const user = { id: crypto.randomUUID(), email: "scope@example.test" };
 
       const allows = async (claims: object, scope = "posts:write") => {

@@ -79,20 +79,23 @@ describe("resolveConfig specs", () => {
 describe("resolveConfig access model", () => {
   it("defaults the access model to provider when authorization is set", () => {
     const listed = resolveConfig(
-      { auth: { authorization: stubProvider }, blocks: ["tenant", "access"] },
+      {
+        auth: { authorization: stubProvider },
+        blocks: ["memberships", "permissions"],
+      },
       "/app",
     );
 
-    expect(listed.blocks.access?.model).toBe("provider");
-    expect(listed.blockNames).toEqual(["tenant", "access"]);
+    expect(listed.blocks.permissions?.model).toBe("provider");
+    expect(listed.blockNames).toEqual(["memberships", "permissions"]);
 
     const keyed = resolveConfig(
       {
         auth: { authorization: stubProvider },
-        blocks: { access: { idType: "uuid" } },
+        blocks: { permissions: { idType: "uuid" } },
       },
       "/app",
-    ).blocks.access;
+    ).blocks.permissions;
 
     expect(keyed).toEqual({ idType: "uuid", model: "provider" });
   });
@@ -102,17 +105,17 @@ describe("resolveConfig access model", () => {
       resolveConfig(
         {
           auth: { authorization: stubProvider },
-          blocks: { access: { model: "roles" } },
+          blocks: { permissions: { model: "roles" } },
         },
         "/app",
-      ).blocks.access?.model,
+      ).blocks.permissions?.model,
     ).toBe("roles");
     expect(
-      resolveConfig({ blocks: ["access"] }, "/app").blocks.access,
+      resolveConfig({ blocks: ["permissions"] }, "/app").blocks.permissions,
     ).toBeUndefined();
     expect(
       resolveConfig(
-        { auth: { authorization: stubProvider }, blocks: ["tenant"] },
+        { auth: { authorization: stubProvider }, blocks: ["memberships"] },
         "/app",
       ).blocks,
     ).toEqual({});
@@ -127,7 +130,7 @@ describe("resolveConfig sql defaults", () => {
         blocks: {
           comments: {},
           settings: { schema: "settings", api: "public_api" },
-          jobs: { api: false },
+          queue: { api: false },
         },
       },
       "/app",
@@ -136,7 +139,7 @@ describe("resolveConfig sql defaults", () => {
     expect(blocks).toEqual({
       comments: { schema: "app", api: "api" },
       settings: { schema: "settings", api: "public_api" },
-      jobs: { schema: "app", api: false },
+      queue: { schema: "app", api: false },
     });
   });
 
@@ -166,7 +169,7 @@ describe("flattenConfig and groupConfig", () => {
     tables: { notes: { owner: "user", columns: { body: { type: "text" } } } },
     blocks: {
       teams: { ownership: "adopt", owner: "user" },
-      tenant: { names: { organization: "workspace" } },
+      memberships: { names: { organization: "workspace" } },
     },
     plugins: { tenant: true },
   } satisfies BetterSupabaseConfig;
@@ -188,7 +191,7 @@ describe("flattenConfig and groupConfig", () => {
       },
       blocks: {
         teams: { mode: "adopt", scope: "user" },
-        tenant: { entities: { organization: "workspace" } },
+        memberships: { entities: { organization: "workspace" } },
       },
     });
   });

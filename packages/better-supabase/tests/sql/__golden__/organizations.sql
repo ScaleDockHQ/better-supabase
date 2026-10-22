@@ -631,7 +631,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (blocks.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql
@@ -1476,7 +1476,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (blocks.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql
@@ -2258,7 +2258,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (blocks.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function "app_private"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql
@@ -3012,7 +3012,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (blocks.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql
@@ -3887,7 +3887,7 @@ begin
 end;
 $$;
 
--- Makes organization the caller's active organization (blocks.access.activeTenant).
+-- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
 language plpgsql

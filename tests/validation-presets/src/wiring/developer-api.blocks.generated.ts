@@ -10,7 +10,7 @@ import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
-import type { ServicePrincipalsEvents } from "better-supabase/blocks/service-principals";
+import type { ServiceAccountsEvents } from "better-supabase/blocks/service-accounts";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SigningKeysEvents } from "better-supabase/blocks/signing-keys";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
@@ -22,7 +22,7 @@ import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -68,7 +68,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "service-principals": {
+  "service-accounts": {
     schema: "better_supabase",
     options: {},
   },
@@ -84,7 +84,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -151,7 +151,7 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
-  "service-principals": {
+  "service-accounts": {
     read: "service_principals.read",
     manage: "service_principals.manage",
   },
@@ -181,11 +181,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "usage.read" | "usage.record" | "webhooks.manage" | "webhooks.read";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & ServicePrincipalsEvents & SettingsEvents & SigningKeysEvents & TeamsEvents & WebhooksEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & ServiceAccountsEvents & SettingsEvents & SigningKeysEvents & TeamsEvents & WebhooksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

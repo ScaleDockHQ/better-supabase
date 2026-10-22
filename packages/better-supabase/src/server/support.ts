@@ -8,7 +8,7 @@ import type {
   SupportSession,
   SupportSessionStore,
 } from "../auth/support.ts";
-import type { SupportSessionsEvents } from "../blocks/support-sessions/events.ts";
+import type { ImpersonationEvents } from "../blocks/impersonation/events.ts";
 import type { SupportEventData } from "../core/block-events.ts";
 import type {
   AuthorizationHooks,
@@ -59,8 +59,8 @@ export interface SupportPolicy {
    * `distinct` (the default): a start needs a request that another admin
    * approved (`support.request`, then `support.approve`), or an `authorize`
    * decision of `{ approvedBy }` naming someone else. `none`: no second admin.
-   * Set `blocks.support-sessions.options.approval` to the same value, because
-   * the SQL store checks it again.
+   * Set `blocks.impersonation.options.approval` to the same value, because the
+   * SQL store checks it again.
    */
   readonly approval?: "distinct" | "none";
 }
@@ -77,8 +77,8 @@ export interface SupportOptions {
    * 'distinct'`; `{ approvedBy }` names that admin.
    *
    * `'store'` hands the decision to the store alone: the SQL store checks
-   * `is_platform(blocks["support-sessions"].permissions.start)` and nothing
-   * else, so use it only when that permission is the whole rule.
+   * `is_platform(blocks['impersonation'].permissions.start)` and nothing else,
+   * so use it only when that permission is the whole rule.
    */
   readonly authorize?: SupportAuthorize | "store";
   /**
@@ -282,7 +282,7 @@ function createSupport(
     type: "support.started" | "support.ended" | "support.denied",
     data: SupportEventData,
   ): void => {
-    emitBlockEvent<SupportSessionsEvents>(events, type, data, {
+    emitBlockEvent<ImpersonationEvents>(events, type, data, {
       actorId: data.adminId,
       ...(data.sessionId
         ? { subject: `support_sessions/${data.sessionId}` }

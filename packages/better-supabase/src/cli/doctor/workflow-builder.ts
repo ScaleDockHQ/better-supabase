@@ -21,7 +21,7 @@ function adminInBuilderExecutor(context: DoctorContext): FindingInput[] {
 
     return [
       {
-        message: `${file.path} runs workflow-builder steps and calls admin(), which bypasses RLS for every step. Resolve the publisher's claims with builder.versions.runAs(call.version) in each step and query as them, so a demoted publisher's workflow stops.`,
+        message: `${file.path} runs workflow-editor steps and calls admin(), which bypasses RLS for every step. Resolve the publisher's claims with builder.versions.runAs(call.version) in each step and query as them, so a demoted publisher's workflow stops.`,
         target: `${file.path}:admin`,
         location: { file: file.path, line },
       },
@@ -33,9 +33,9 @@ export const WORKFLOW_BUILDER_RULES: readonly Rule[] = [
   {
     code: "BS333",
     severity: "warning",
-    title: "admin() inside a workflow-builder executor",
+    title: "admin() inside a workflow-editor executor",
     description:
-      "A file that runs workflow-builder steps calls `admin()`. Steps run with the service role's rights instead of the publisher's, so a published workflow keeps running after its publisher loses a permission.",
+      "A file that runs workflow-editor steps calls `admin()`. Steps run with the service role's rights instead of the publisher's, so a published workflow keeps running after its publisher loses a permission.",
     check: adminInBuilderExecutor,
   },
 ];

@@ -3,20 +3,6 @@
 
 /** The names each module's `blocks.<name>` config keys accept. */
 export interface BlockNameRegistry {
-  readonly "access": {
-    readonly tables: {
-      readonly "roles": "id" | "key" | "scope" | "tenant";
-      readonly "permissions": "id" | "key";
-      readonly "rolePermissions": "role" | "permission";
-      readonly "overrides": "tenant" | "role" | "permission" | "granted";
-      readonly "platformAssignments": "user" | "role";
-    };
-    readonly functions: "can" | "can_assign" | "can_assign_as" | "can_user" | "is_platform" | "member_can" | "permission_claims" | "tenant_ids_with";
-    readonly actions: never;
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-  };
   readonly "access-requests": {
     readonly tables: {
       readonly "requests": "id" | "tenant" | "user" | "role" | "previousRole" | "reason" | "duration" | "approval" | "grantedAt" | "expiresAt" | "endedAt" | "createdAt";
@@ -27,23 +13,36 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "activity": {
+  readonly "activities": {
     readonly tables: {
-      readonly "activity": "id" | "tenant" | "event" | "type" | "actor" | "subjectType" | "subjectId" | "summary" | "data" | "occurredAt";
+      readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "links": "tenant" | "engagement" | "subjectType" | "subjectId" | "position";
+      readonly "recordings": "id" | "tenant" | "engagement" | "file" | "filename" | "mediaType" | "status" | "language" | "durationSeconds" | "error" | "model" | "createdBy" | "createdAt" | "transcribedAt";
+      readonly "segments": "recording" | "tenant" | "position" | "speaker" | "speakerUser" | "startsMs" | "endsMs" | "text" | "confidence";
+      readonly "notes": "engagement" | "tenant" | "summary" | "actionItems" | "model" | "source" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "activity_subject_deliveries" | "activity_subject_readable" | "list_activity" | "record_activity";
-    readonly actions: "read";
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
+    readonly functions: "complete_engagement" | "delete_engagement" | "engagements_of" | "log_engagement" | "next_engagement" | "open_engagements" | "update_engagement";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: "before_engagement_log" | "after_engagement_log";
+    readonly entities: {
+      readonly "engagement": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_user_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "engagement";
   };
-  readonly "actor": {
-    readonly tables: {};
-    readonly functions: never;
-    readonly actions: never;
+  readonly "admission-passes": {
+    readonly tables: {
+      readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
+      readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
+      readonly "credits": "id" | "tenant" | "pass" | "booking" | "delta" | "reason" | "createdBy" | "createdAt";
+    };
+    readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
+    readonly actions: "read" | "manage" | "checkIn";
     readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
+    readonly entities: {
+      readonly "pass": "id" | "tenant_id" | "kind" | "holder_user_id" | "holder_name" | "holder_email" | "subject_type" | "subject_id" | "booking_id" | "resource_id" | "uses_allowed" | "uses" | "valid_from" | "valid_until" | "status" | "nonce" | "issued_by" | "created_at" | "updated_at" | "revoked_at";
+      readonly "pass_check_in": "id" | "tenant_id" | "pass_id" | "resource_id" | "booking_id" | "gate" | "method" | "admitted" | "reason" | "checked_in_by" | "created_at";
+    };
+    readonly primary: "pass";
   };
   readonly "agents": {
     readonly tables: {
@@ -106,7 +105,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "ai-providers": {
+  readonly "ai-keys": {
     readonly tables: {
       readonly "keys": "id" | "tenant" | "provider" | "name" | "credentialRef" | "settings" | "enabled" | "createdBy" | "createdAt" | "updatedAt";
       readonly "batches": "id" | "tenant" | "user" | "provider" | "reference" | "status" | "rawStatus" | "itemCount" | "counts" | "error" | "metadata" | "resultsSaved" | "polls" | "nextPollAt" | "expiresAt" | "completedAt" | "createdAt" | "updatedAt";
@@ -118,7 +117,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "ai-tasks": {
+  readonly "ai-schedules": {
     readonly tables: {
       readonly "tasks": "id" | "tenant" | "user" | "chat" | "agent" | "title" | "prompt" | "cron" | "timezone" | "enabled" | "nextRunAt" | "lastRunAt" | "createdAt" | "updatedAt";
       readonly "runs": "id" | "task" | "tenant" | "user" | "status" | "scheduledFor" | "chat" | "error" | "startedAt" | "finishedAt" | "createdAt";
@@ -215,6 +214,19 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "automations": {
+    readonly tables: {
+      readonly "rules": "id" | "tenant" | "subjectType" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "stopProcessing" | "rank" | "version" | "createdBy" | "updatedBy" | "createdAt" | "updatedAt";
+      readonly "versions": "rule" | "version" | "tenant" | "name" | "conditions" | "actions" | "savedBy" | "savedAt";
+      readonly "evaluations": "id" | "tenant" | "rule" | "version" | "subjectType" | "subjectId" | "trigger" | "matched" | "results" | "mode" | "evaluatedBy" | "evaluatedAt";
+      readonly "fields": "subjectType" | "id" | "label" | "description" | "type" | "path" | "columnType" | "nullable" | "options" | "operators" | "position" | "updatedAt";
+    };
+    readonly functions: "matching_rules" | "rank_rule" | "record_rule_evaluation" | "remove_rule" | "rule_boolean" | "rule_bounds" | "rule_check" | "rule_date" | "rule_equal" | "rule_evaluate" | "rule_evaluations_list" | "rule_field_map" | "rule_fields_list" | "rule_get" | "rule_list" | "rule_matches" | "rule_moment" | "rule_node" | "rule_numeric" | "rule_positive" | "rule_text" | "rule_versions_list" | "rules_list" | "run_rules" | "save_rule" | "set_rule_enabled" | "sync_rule_fields";
+    readonly actions: "read" | "edit" | "publish" | "admin";
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "billable-time": {
     readonly tables: {
       readonly "rates": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "rate" | "currency" | "effectiveFrom" | "createdBy" | "createdAt";
@@ -254,7 +266,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "bulk": {
+  readonly "bulk-actions": {
     readonly tables: {
       readonly "runs": "id" | "tenant" | "subjectType" | "action" | "args" | "ids" | "position" | "succeeded" | "failed" | "results" | "status" | "createdBy" | "createdAt" | "finishedAt";
     };
@@ -354,34 +366,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "connectors": {
-    readonly tables: {
-      readonly "servers": "id" | "tenant" | "name" | "url" | "transport" | "authType" | "credentialRef" | "scopes" | "clientMetadata" | "enabled" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "grants": "id" | "user" | "server" | "tenant" | "credentialRef" | "scopes" | "expiresAt" | "grantedAt" | "revokedAt";
-      readonly "sessions": "server" | "user" | "chat" | "session" | "initializeResult" | "lastUsedAt" | "expiresAt";
-      readonly "fingerprints": "server" | "fingerprint" | "tools" | "status" | "approvedBy" | "approvedAt" | "createdAt";
-    };
-    readonly functions: "check_connector_fingerprint" | "decide_connector_fingerprint" | "delete_connector_server" | "expiring_connector_grants" | "get_connector" | "get_connector_session" | "list_connector_servers" | "purge_connector_sessions" | "record_connector_grant" | "renew_connector_grant" | "revoke_connector_grant" | "save_connector_server" | "save_connector_session";
-    readonly actions: "read" | "use" | "manage";
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-  };
-  readonly "contracts": {
-    readonly tables: {
-      readonly "contracts": "id" | "tenant" | "title" | "description" | "counterpartyType" | "counterpartyId" | "owner" | "status" | "value" | "currency" | "startsOn" | "endsOn" | "autoRenew" | "renewalMonths" | "noticeDays" | "renewedCount" | "signatureRequest" | "signedAt" | "terminatedAt" | "terminationReason" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "obligations": "id" | "tenant" | "contract" | "title" | "description" | "dueOn" | "owner" | "status" | "completedAt" | "completedBy" | "createdAt" | "updatedAt";
-    };
-    readonly functions: "contract_apply_status" | "contract_schedule_renewal" | "contract_signature_settled" | "create_contract" | "delete_obligation" | "get_contract" | "list_contracts" | "list_obligations" | "run_contract_renewals" | "save_obligation" | "send_contract_for_signature" | "set_obligation_status" | "transition_contract" | "update_contract";
-    readonly actions: "read" | "write" | "manage";
-    readonly hooks: never;
-    readonly entities: {
-      readonly "contract": "id" | "tenant_id" | "title" | "description" | "counterparty_type" | "counterparty_id" | "owner_id" | "status" | "value" | "currency" | "starts_on" | "ends_on" | "auto_renew" | "renewal_months" | "notice_days" | "renewed_count" | "signature_request_id" | "signed_at" | "terminated_at" | "termination_reason" | "created_by" | "created_at" | "updated_at";
-      readonly "obligation": "id" | "tenant_id" | "contract_id" | "title" | "description" | "due_on" | "owner_id" | "status" | "completed_at" | "completed_by" | "created_at" | "updated_at";
-    };
-    readonly primary: "contract";
-  };
-  readonly "controls": {
+  readonly "compliance": {
     readonly tables: {
       readonly "frameworks": "id" | "tenant" | "key" | "name" | "version" | "description" | "createdAt" | "updatedAt";
       readonly "controls": "id" | "tenant" | "framework" | "code" | "title" | "description" | "owner" | "applicable" | "createdAt" | "updatedAt";
@@ -400,6 +385,49 @@ export interface BlockNameRegistry {
       readonly "policy": "id" | "tenant_id" | "key" | "title" | "owner_id" | "requires_acknowledgement" | "current_version_id" | "version_number" | "published_at" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "control";
+  };
+  readonly "connectors": {
+    readonly tables: {
+      readonly "servers": "id" | "tenant" | "name" | "url" | "transport" | "authType" | "credentialRef" | "scopes" | "clientMetadata" | "enabled" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "grants": "id" | "user" | "server" | "tenant" | "credentialRef" | "scopes" | "expiresAt" | "grantedAt" | "revokedAt";
+      readonly "sessions": "server" | "user" | "chat" | "session" | "initializeResult" | "lastUsedAt" | "expiresAt";
+      readonly "fingerprints": "server" | "fingerprint" | "tools" | "status" | "approvedBy" | "approvedAt" | "createdAt";
+    };
+    readonly functions: "check_connector_fingerprint" | "decide_connector_fingerprint" | "delete_connector_server" | "expiring_connector_grants" | "get_connector" | "get_connector_session" | "list_connector_servers" | "purge_connector_sessions" | "record_connector_grant" | "renew_connector_grant" | "revoke_connector_grant" | "save_connector_server" | "save_connector_session";
+    readonly actions: "read" | "use" | "manage";
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
+  readonly "contacts": {
+    readonly tables: {
+      readonly "companies": "id" | "tenant" | "name" | "domain" | "website" | "vatId" | "lifecycle" | "owner" | "address" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "people": "id" | "tenant" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner" | "user" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "links": "tenant" | "company" | "person" | "role" | "isPrimary" | "createdAt";
+      readonly "personContacts": "tenant" | "person" | "contact" | "createdAt";
+    };
+    readonly functions: "archive_company" | "archive_person" | "company_people_of" | "list_companies" | "list_people" | "merge_companies" | "merge_people" | "remove_company_person" | "save_company" | "save_person" | "set_company_person";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: "before_company_save" | "after_company_save" | "before_person_save" | "after_person_save";
+    readonly entities: {
+      readonly "company": "id" | "tenant_id" | "name" | "domain" | "website" | "vat_id" | "lifecycle" | "owner_user_id" | "address" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "person": "id" | "tenant_id" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner_user_id" | "user_id" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: never;
+  };
+  readonly "contracts": {
+    readonly tables: {
+      readonly "contracts": "id" | "tenant" | "title" | "description" | "counterpartyType" | "counterpartyId" | "owner" | "status" | "value" | "currency" | "startsOn" | "endsOn" | "autoRenew" | "renewalMonths" | "noticeDays" | "renewedCount" | "signatureRequest" | "signedAt" | "terminatedAt" | "terminationReason" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "obligations": "id" | "tenant" | "contract" | "title" | "description" | "dueOn" | "owner" | "status" | "completedAt" | "completedBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "contract_apply_status" | "contract_schedule_renewal" | "contract_signature_settled" | "create_contract" | "delete_obligation" | "get_contract" | "list_contracts" | "list_obligations" | "run_contract_renewals" | "save_obligation" | "send_contract_for_signature" | "set_obligation_status" | "transition_contract" | "update_contract";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "contract": "id" | "tenant_id" | "title" | "description" | "counterparty_type" | "counterparty_id" | "owner_id" | "status" | "value" | "currency" | "starts_on" | "ends_on" | "auto_renew" | "renewal_months" | "notice_days" | "renewed_count" | "signature_request_id" | "signed_at" | "terminated_at" | "termination_reason" | "created_by" | "created_at" | "updated_at";
+      readonly "obligation": "id" | "tenant_id" | "contract_id" | "title" | "description" | "due_on" | "owner_id" | "status" | "completed_at" | "completed_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "contract";
   };
   readonly "courses": {
     readonly tables: {
@@ -420,6 +448,14 @@ export interface BlockNameRegistry {
     };
     readonly primary: "course";
   };
+  readonly "created-by": {
+    readonly tables: {};
+    readonly functions: never;
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "credentials": {
     readonly tables: {
       readonly "secrets": "provider" | "name" | "tenant" | "scope" | "vaultId" | "secret" | "updatedAt";
@@ -438,6 +474,14 @@ export interface BlockNameRegistry {
     };
     readonly functions: "delete_field_definition" | "list_field_definitions" | "rank_field_definition" | "read_field_values" | "save_field_definition" | "set_field_value";
     readonly actions: "manage" | "read" | "sensitive";
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
+  readonly "data-api-grants": {
+    readonly tables: {};
+    readonly functions: never;
+    readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
@@ -564,22 +608,6 @@ export interface BlockNameRegistry {
     };
     readonly primary: "employee";
   };
-  readonly "engagements": {
-    readonly tables: {
-      readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "links": "tenant" | "engagement" | "subjectType" | "subjectId" | "position";
-      readonly "recordings": "id" | "tenant" | "engagement" | "file" | "filename" | "mediaType" | "status" | "language" | "durationSeconds" | "error" | "model" | "createdBy" | "createdAt" | "transcribedAt";
-      readonly "segments": "recording" | "tenant" | "position" | "speaker" | "speakerUser" | "startsMs" | "endsMs" | "text" | "confidence";
-      readonly "notes": "engagement" | "tenant" | "summary" | "actionItems" | "model" | "source" | "createdBy" | "createdAt" | "updatedAt";
-    };
-    readonly functions: "complete_engagement" | "delete_engagement" | "engagements_of" | "log_engagement" | "next_engagement" | "open_engagements" | "update_engagement";
-    readonly actions: "read" | "write" | "manage";
-    readonly hooks: "before_engagement_log" | "after_engagement_log";
-    readonly entities: {
-      readonly "engagement": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_user_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at";
-    };
-    readonly primary: "engagement";
-  };
   readonly "enrichment": {
     readonly tables: {
       readonly "enrichments": "id" | "tenant" | "company" | "person" | "provider" | "status" | "data" | "filled" | "fetchedAt" | "requestedBy";
@@ -607,14 +635,6 @@ export interface BlockNameRegistry {
     };
     readonly primary: "enrollment_program";
   };
-  readonly "ensure-rls": {
-    readonly tables: {};
-    readonly functions: never;
-    readonly actions: never;
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-  };
   readonly "entitlements": {
     readonly tables: {};
     readonly functions: never;
@@ -639,6 +659,17 @@ export interface BlockNameRegistry {
     };
     readonly primary: "expense_report";
   };
+  readonly "feature-flags": {
+    readonly tables: {
+      readonly "flags": "key" | "type" | "description" | "variants" | "defaultVariant" | "enabled" | "archived" | "rules" | "rolloutPercentage" | "rolloutVariant" | "updatedAt";
+      readonly "overrides": "id" | "flag" | "tenant" | "user" | "context" | "contextKey" | "variant" | "createdAt";
+    };
+    readonly functions: "delete_flag" | "flag_bucket" | "flag_definitions" | "flag_enabled" | "flag_evaluation" | "list_flags" | "save_flag" | "set_flag_override" | "tenant_ids_with_flag";
+    readonly actions: "manage";
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "field-encryption": {
     readonly tables: {};
     readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_key" | "field_open" | "field_seal";
@@ -653,17 +684,6 @@ export interface BlockNameRegistry {
     };
     readonly functions: "field_history";
     readonly actions: "read";
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-  };
-  readonly "flags": {
-    readonly tables: {
-      readonly "flags": "key" | "type" | "description" | "variants" | "defaultVariant" | "enabled" | "archived" | "rules" | "rolloutPercentage" | "rolloutVariant" | "updatedAt";
-      readonly "overrides": "id" | "flag" | "tenant" | "user" | "context" | "contextKey" | "variant" | "createdAt";
-    };
-    readonly functions: "delete_flag" | "flag_bucket" | "flag_definitions" | "flag_enabled" | "flag_evaluation" | "list_flags" | "save_flag" | "set_flag_override" | "tenant_ids_with_flag";
-    readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
@@ -694,10 +714,12 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "grants": {
-    readonly tables: {};
-    readonly functions: never;
-    readonly actions: never;
+  readonly "goals": {
+    readonly tables: {
+      readonly "targets": "id" | "tenant" | "name" | "metric" | "owner" | "team" | "periodStart" | "periodEnd" | "currency" | "goal" | "actual" | "archivedAt" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "save_target" | "target_progress";
+    readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
@@ -737,14 +759,14 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "identities": {
+  readonly "impersonation": {
     readonly tables: {
-      readonly "links": "id" | "kind" | "provider" | "value" | "workspace" | "user" | "contact" | "source" | "createdAt";
-      readonly "codes": "id" | "user" | "kind" | "provider" | "codeHash" | "expiresAt" | "usedAt" | "createdAt";
+      readonly "sessions": "id" | "admin" | "target" | "reason" | "tenant" | "readOnly" | "startedAt" | "expiresAt" | "endedAt" | "endedBy" | "metadata";
+      readonly "requests": "id" | "admin" | "target" | "reason" | "tenant" | "readOnly" | "metadata" | "requestedAt" | "expiresAt" | "approvedBy" | "approvedAt" | "session";
     };
-    readonly functions: "backfill_verified_emails" | "begin_identity_link" | "link_verified_email" | "my_identities" | "on_auth_user_email" | "principal_by_identity" | "redeem_identity_link" | "unlink_identity";
-    readonly actions: never;
-    readonly hooks: never;
+    readonly functions: "active_support_session" | "apply_support_approval" | "approve_support_request" | "approved_support_request" | "end_support_session" | "expire_support_sessions" | "list_support_sessions" | "request_support_session" | "start_support_session" | "support_request" | "support_target_claims";
+    readonly actions: "start" | "view" | "revoke";
+    readonly hooks: "before_support_start" | "after_support_start" | "after_support_end";
     readonly entities: {};
     readonly primary: never;
   };
@@ -839,14 +861,6 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "jobs": {
-    readonly tables: {};
-    readonly functions: never;
-    readonly actions: never;
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-  };
   readonly "jsonb-schemas": {
     readonly tables: {};
     readonly functions: never;
@@ -920,6 +934,17 @@ export interface BlockNameRegistry {
     };
     readonly primary: "ledger_account";
   };
+  readonly "linked-identities": {
+    readonly tables: {
+      readonly "links": "id" | "kind" | "provider" | "value" | "workspace" | "user" | "contact" | "source" | "createdAt";
+      readonly "codes": "id" | "user" | "kind" | "provider" | "codeHash" | "expiresAt" | "usedAt" | "createdAt";
+    };
+    readonly functions: "backfill_verified_emails" | "begin_identity_link" | "link_verified_email" | "my_identities" | "on_auth_user_email" | "principal_by_identity" | "redeem_identity_link" | "unlink_identity";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "mail-sync": {
     readonly tables: {
       readonly "accounts": "id" | "tenant" | "user" | "provider" | "address" | "credentialRef" | "share" | "status" | "cursor" | "lastSyncedAt" | "lastError" | "createdAt" | "updatedAt";
@@ -938,6 +963,18 @@ export interface BlockNameRegistry {
       readonly "mail_message": "id" | "tenant_id" | "account_id" | "thread_id" | "external_id" | "rfc_message_id" | "direction" | "from_address" | "from_name" | "to_addresses" | "cc_addresses" | "subject" | "snippet" | "body_text" | "body_html" | "sent_at" | "template_version_id" | "tracking_hash" | "opened_at" | "open_count" | "clicked_at" | "click_count" | "created_at";
     };
     readonly primary: "mail_thread";
+  };
+  readonly "memberships": {
+    readonly tables: {
+      readonly "memberships": "tenant" | "user" | "role" | "createdAt" | "updatedAt" | "lastUsedAt" | "disabledAt";
+    };
+    readonly functions: "current_tenant_id" | "has_organization_role" | "member_organization_ids" | "membership_claims" | "organization_member_role";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {
+      readonly "organization": never;
+    };
+    readonly primary: never;
   };
   readonly "memory": {
     readonly tables: {
@@ -1019,7 +1056,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "number-sequences": {
+  readonly "numbering": {
     readonly tables: {
       readonly "sequences": "tenant" | "entity" | "period" | "lastNumber" | "createdAt" | "updatedAt";
     };
@@ -1096,36 +1133,19 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "parties": {
+  readonly "permissions": {
     readonly tables: {
-      readonly "companies": "id" | "tenant" | "name" | "domain" | "website" | "vatId" | "lifecycle" | "owner" | "address" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "people": "id" | "tenant" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner" | "user" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "links": "tenant" | "company" | "person" | "role" | "isPrimary" | "createdAt";
-      readonly "personContacts": "tenant" | "person" | "contact" | "createdAt";
+      readonly "roles": "id" | "key" | "scope" | "tenant";
+      readonly "permissions": "id" | "key";
+      readonly "rolePermissions": "role" | "permission";
+      readonly "overrides": "tenant" | "role" | "permission" | "granted";
+      readonly "platformAssignments": "user" | "role";
     };
-    readonly functions: "archive_company" | "archive_person" | "company_people_of" | "list_companies" | "list_people" | "merge_companies" | "merge_people" | "remove_company_person" | "save_company" | "save_person" | "set_company_person";
-    readonly actions: "read" | "write" | "manage";
-    readonly hooks: "before_company_save" | "after_company_save" | "before_person_save" | "after_person_save";
-    readonly entities: {
-      readonly "company": "id" | "tenant_id" | "name" | "domain" | "website" | "vat_id" | "lifecycle" | "owner_user_id" | "address" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
-      readonly "person": "id" | "tenant_id" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner_user_id" | "user_id" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
-    };
-    readonly primary: never;
-  };
-  readonly "passes": {
-    readonly tables: {
-      readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
-      readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
-      readonly "credits": "id" | "tenant" | "pass" | "booking" | "delta" | "reason" | "createdBy" | "createdAt";
-    };
-    readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
-    readonly actions: "read" | "manage" | "checkIn";
+    readonly functions: "can" | "can_assign" | "can_assign_as" | "can_user" | "is_platform" | "member_can" | "permission_claims" | "tenant_ids_with";
+    readonly actions: never;
     readonly hooks: never;
-    readonly entities: {
-      readonly "pass": "id" | "tenant_id" | "kind" | "holder_user_id" | "holder_name" | "holder_email" | "subject_type" | "subject_id" | "booking_id" | "resource_id" | "uses_allowed" | "uses" | "valid_from" | "valid_until" | "status" | "nonce" | "issued_by" | "created_at" | "updated_at" | "revoked_at";
-      readonly "pass_check_in": "id" | "tenant_id" | "pass_id" | "resource_id" | "booking_id" | "gate" | "method" | "admitted" | "reason" | "checked_in_by" | "created_at";
-    };
-    readonly primary: "pass";
+    readonly entities: {};
+    readonly primary: never;
   };
   readonly "pgtap": {
     readonly tables: {};
@@ -1190,6 +1210,14 @@ export interface BlockNameRegistry {
       readonly "devices": "id" | "user" | "token" | "platform" | "provider" | "deviceName" | "appVersion" | "createdAt" | "lastSeenAt";
     };
     readonly functions: "prune_push_tokens" | "push_tokens_for" | "register_push_device" | "unregister_push_device";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
+  readonly "queue": {
+    readonly tables: {};
+    readonly functions: never;
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -1295,15 +1323,10 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "rules": {
-    readonly tables: {
-      readonly "rules": "id" | "tenant" | "subjectType" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "stopProcessing" | "rank" | "version" | "createdBy" | "updatedBy" | "createdAt" | "updatedAt";
-      readonly "versions": "rule" | "version" | "tenant" | "name" | "conditions" | "actions" | "savedBy" | "savedAt";
-      readonly "evaluations": "id" | "tenant" | "rule" | "version" | "subjectType" | "subjectId" | "trigger" | "matched" | "results" | "mode" | "evaluatedBy" | "evaluatedAt";
-      readonly "fields": "subjectType" | "id" | "label" | "description" | "type" | "path" | "columnType" | "nullable" | "options" | "operators" | "position" | "updatedAt";
-    };
-    readonly functions: "matching_rules" | "rank_rule" | "record_rule_evaluation" | "remove_rule" | "rule_boolean" | "rule_bounds" | "rule_check" | "rule_date" | "rule_equal" | "rule_evaluate" | "rule_evaluations_list" | "rule_field_map" | "rule_fields_list" | "rule_get" | "rule_list" | "rule_matches" | "rule_moment" | "rule_node" | "rule_numeric" | "rule_positive" | "rule_text" | "rule_versions_list" | "rules_list" | "run_rules" | "save_rule" | "set_rule_enabled" | "sync_rule_fields";
-    readonly actions: "read" | "edit" | "publish" | "admin";
+  readonly "rls-guard": {
+    readonly tables: {};
+    readonly functions: never;
+    readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
@@ -1343,6 +1366,18 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "security-events": {
+    readonly tables: {
+      readonly "streams": "id" | "tenant" | "receiver" | "audience" | "description" | "eventsRequested" | "eventsDelivered" | "method" | "endpoint" | "status" | "reason" | "verifiedAt" | "createdAt" | "updatedAt";
+      readonly "events": "stream" | "jti" | "token" | "createdAt";
+      readonly "received": "issuer" | "jti" | "receivedAt";
+    };
+    readonly functions: "create_ssf_stream" | "delete_ssf_stream" | "forget_ssf_received" | "note_ssf_verification" | "poll_ssf_events" | "purge_shared_signals" | "queue_ssf_set" | "record_ssf_received" | "set_ssf_stream_status" | "ssf_stream" | "ssf_streams" | "ssf_streams_for_event" | "update_ssf_stream";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "segments": {
     readonly tables: {
       readonly "segments": "id" | "tenant" | "name" | "description" | "subjectType" | "conditions" | "memberCount" | "refreshedAt" | "createdBy" | "createdAt" | "updatedAt";
@@ -1370,7 +1405,7 @@ export interface BlockNameRegistry {
     };
     readonly primary: "sequence";
   };
-  readonly "service-principals": {
+  readonly "service-accounts": {
     readonly tables: {
       readonly "principals": "id" | "tenant" | "name" | "role" | "isDefault" | "createdBy" | "createdAt" | "disabledAt";
     };
@@ -1380,7 +1415,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "sessions": {
+  readonly "session-revocation": {
     readonly tables: {};
     readonly functions: never;
     readonly actions: never;
@@ -1408,18 +1443,6 @@ export interface BlockNameRegistry {
     };
     readonly functions: "create_share_link" | "list_share_links" | "record_view" | "resolve_share_link" | "revoke_share_link" | "set_user_state";
     readonly actions: "create" | "read";
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-  };
-  readonly "shared-signals": {
-    readonly tables: {
-      readonly "streams": "id" | "tenant" | "receiver" | "audience" | "description" | "eventsRequested" | "eventsDelivered" | "method" | "endpoint" | "status" | "reason" | "verifiedAt" | "createdAt" | "updatedAt";
-      readonly "events": "stream" | "jti" | "token" | "createdAt";
-      readonly "received": "issuer" | "jti" | "receivedAt";
-    };
-    readonly functions: "create_ssf_stream" | "delete_ssf_stream" | "forget_ssf_received" | "note_ssf_verification" | "poll_ssf_events" | "purge_shared_signals" | "queue_ssf_set" | "record_ssf_received" | "set_ssf_stream_status" | "ssf_stream" | "ssf_streams" | "ssf_streams_for_event" | "update_ssf_stream";
-    readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
@@ -1517,17 +1540,6 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "support-sessions": {
-    readonly tables: {
-      readonly "sessions": "id" | "admin" | "target" | "reason" | "tenant" | "readOnly" | "startedAt" | "expiresAt" | "endedAt" | "endedBy" | "metadata";
-      readonly "requests": "id" | "admin" | "target" | "reason" | "tenant" | "readOnly" | "metadata" | "requestedAt" | "expiresAt" | "approvedBy" | "approvedAt" | "session";
-    };
-    readonly functions: "active_support_session" | "apply_support_approval" | "approve_support_request" | "approved_support_request" | "end_support_session" | "expire_support_sessions" | "list_support_sessions" | "request_support_session" | "start_support_session" | "support_request" | "support_target_claims";
-    readonly actions: "start" | "view" | "revoke";
-    readonly hooks: "before_support_start" | "after_support_start" | "after_support_end";
-    readonly entities: {};
-    readonly primary: never;
-  };
   readonly "tags": {
     readonly tables: {
       readonly "tags": "id" | "tenant" | "kind" | "name" | "slug" | "color" | "description" | "rank" | "createdAt" | "updatedAt";
@@ -1539,15 +1551,24 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "targets": {
+  readonly "tasks": {
     readonly tables: {
-      readonly "targets": "id" | "tenant" | "name" | "metric" | "owner" | "team" | "periodStart" | "periodEnd" | "currency" | "goal" | "actual" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "recursFrom" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "checklist": "id" | "tenant" | "item" | "title" | "done" | "doneAt" | "doneBy" | "rank" | "createdBy" | "createdAt";
+      readonly "assignees": "tenant" | "item" | "user" | "createdAt";
+      readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
     };
-    readonly functions: "save_target" | "target_progress";
-    readonly actions: "read" | "manage";
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
+    readonly functions: "archive_work_item" | "create_work_item" | "delete_work_item" | "delete_work_item_checklist_item" | "get_work_item" | "list_work_item_checklist" | "list_work_items" | "save_iteration" | "save_project" | "save_work_item_checklist_item" | "set_work_item_assignees" | "update_work_items" | "work_item_tree";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: "before_work_item_create" | "after_work_item_create" | "before_work_item_update" | "after_work_item_update";
+    readonly entities: {
+      readonly "work_item": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "recurs_from" | "created_by" | "created_at" | "updated_at";
+      readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_user_id" | "status" | "start_on" | "target_on" | "archived_at" | "created_at" | "updated_at";
+      readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "created_at";
+      readonly "checklist_item": "id" | "tenant_id" | "work_item_id" | "title" | "done" | "done_at" | "done_by" | "rank" | "created_by" | "created_at";
+    };
+    readonly primary: "work_item";
   };
   readonly "teams": {
     readonly tables: {
@@ -1573,18 +1594,6 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "tenant": {
-    readonly tables: {
-      readonly "memberships": "tenant" | "user" | "role" | "createdAt" | "updatedAt" | "lastUsedAt" | "disabledAt";
-    };
-    readonly functions: "current_tenant_id" | "has_organization_role" | "member_organization_ids" | "membership_claims" | "organization_member_role";
-    readonly actions: never;
-    readonly hooks: never;
-    readonly entities: {
-      readonly "organization": never;
-    };
-    readonly primary: never;
-  };
   readonly "time-tracking": {
     readonly tables: {
       readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "seconds";
@@ -1593,6 +1602,16 @@ export interface BlockNameRegistry {
     readonly functions: "approve_timesheet" | "delete_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "reopen_timesheet" | "running_timer" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_locked" | "update_time_entry";
     readonly actions: "read" | "track" | "approve" | "manage";
     readonly hooks: "before_time_entry_save" | "after_time_entry_save" | "before_timesheet_submit" | "after_timesheet_submit";
+    readonly entities: {};
+    readonly primary: never;
+  };
+  readonly "timeline": {
+    readonly tables: {
+      readonly "activity": "id" | "tenant" | "event" | "type" | "actor" | "subjectType" | "subjectId" | "summary" | "data" | "occurredAt";
+    };
+    readonly functions: "activity_subject_deliveries" | "activity_subject_readable" | "list_activity" | "record_activity";
+    readonly actions: "read";
+    readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
   };
@@ -1704,26 +1723,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "work-items": {
-    readonly tables: {
-      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "recursFrom" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "checklist": "id" | "tenant" | "item" | "title" | "done" | "doneAt" | "doneBy" | "rank" | "createdBy" | "createdAt";
-      readonly "assignees": "tenant" | "item" | "user" | "createdAt";
-      readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "archivedAt" | "createdAt" | "updatedAt";
-      readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
-    };
-    readonly functions: "archive_work_item" | "create_work_item" | "delete_work_item" | "delete_work_item_checklist_item" | "get_work_item" | "list_work_item_checklist" | "list_work_items" | "save_iteration" | "save_project" | "save_work_item_checklist_item" | "set_work_item_assignees" | "update_work_items" | "work_item_tree";
-    readonly actions: "read" | "write" | "manage";
-    readonly hooks: "before_work_item_create" | "after_work_item_create" | "before_work_item_update" | "after_work_item_update";
-    readonly entities: {
-      readonly "work_item": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "recurs_from" | "created_by" | "created_at" | "updated_at";
-      readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_user_id" | "status" | "start_on" | "target_on" | "archived_at" | "created_at" | "updated_at";
-      readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "created_at";
-      readonly "checklist_item": "id" | "tenant_id" | "work_item_id" | "title" | "done" | "done_at" | "done_by" | "rank" | "created_by" | "created_at";
-    };
-    readonly primary: "work_item";
-  };
-  readonly "workflow-builder": {
+  readonly "workflow-editor": {
     readonly tables: {
       readonly "definitions": "id" | "tenant" | "slug" | "name" | "description" | "subjectTypes" | "scope" | "forkedFrom" | "forkedFromVersion" | "restricted" | "createdBy" | "createdAt" | "updatedAt";
       readonly "optOuts": "tenant" | "definition" | "createdBy" | "createdAt";
@@ -1743,7 +1743,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "workflow-sdk-world": {
+  readonly "workflow-sdk": {
     readonly tables: {};
     readonly functions: "dispatch_workflow_deliveries" | "workflow_sdk_mirror_run";
     readonly actions: never;

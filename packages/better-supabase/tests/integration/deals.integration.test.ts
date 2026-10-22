@@ -4,9 +4,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createActivities } from "../../src/blocks/activities/index.ts";
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createDeals } from "../../src/blocks/deals/index.ts";
-import { createEngagements } from "../../src/blocks/engagements/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { createRank } from "../../src/blocks/rank/index.ts";
 import { money } from "../../src/commerce/money.ts";
@@ -24,14 +24,14 @@ const MODULES = [
   "subjects",
   "state-machine",
   "rank",
-  "parties",
-  "engagements",
+  "contacts",
+  "activities",
   "pipelines",
   "deals",
 ];
 
 const layout = (readAll = true): BlockSqlLayout => ({
-  subjects: withBlockSubjects({}, ["parties", "deals"], {}),
+  subjects: withBlockSubjects({}, ["contacts", "deals"], {}),
   modules: { deals: { options: { readAll } } },
 });
 
@@ -56,7 +56,7 @@ describe.skipIf(!live)("deals", () => {
       const org = await s.organization(owner, { member: rep, member2: other });
       const transport = sqlTransport(s.sql);
       const deals = createDeals({ transport });
-      const parties = createParties({ transport });
+      const parties = createContacts({ transport });
       const pipelines = createPipelines({ transport });
 
       await s.as(rep);
@@ -170,7 +170,7 @@ describe.skipIf(!live)("deals", () => {
           overdue: false,
         }),
       ]);
-      await createEngagements({ transport })
+      await createActivities({ transport })
         .log(
           org,
           {

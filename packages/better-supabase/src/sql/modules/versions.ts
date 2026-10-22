@@ -31,7 +31,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
@@ -843,7 +843,7 @@ export const VERSIONS: BlockSqlDefinition = {
   title: "Versions",
   description:
     "Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "share-links"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

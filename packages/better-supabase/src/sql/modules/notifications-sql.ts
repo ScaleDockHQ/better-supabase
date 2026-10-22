@@ -9,7 +9,6 @@ import {
   fail,
   writeExtraColumns,
 } from "../shared.ts";
-import { accessModel, OPERATIONS } from "./access-model.ts";
 import {
   channelDefaults,
   permissionAudience,
@@ -23,6 +22,7 @@ import {
 import { readers } from "./notifications-readers.ts";
 import { suppressionFunctions } from "./notifications-suppressions.ts";
 import { trackingFunctions } from "./notifications-tracking.ts";
+import { accessModel, OPERATIONS } from "./permissions-model.ts";
 import { hasAvatarPath } from "./profiles.ts";
 
 export interface NotifyNames {
@@ -153,7 +153,7 @@ function notify(
   layout: BlockSqlLayout = {},
 ): string {
   const id = ctx.idType;
-  const access = ctx.installed("access");
+  const access = ctx.installed("permissions");
   const e = (logical: string) => n.col("events", logical);
   const r = (logical: string) => n.col("recipients", logical);
 
@@ -710,7 +710,7 @@ $$;`,
       ? `and ev.${e("tenant")} is not distinct from resolve_notifications.tenant`
       : "";
 
-    const allowed = ctx.installed("access")
+    const allowed = ctx.installed("permissions")
       ? `(${SERVICE_CALLER}) or coalesce(better_supabase.member_can(auth.uid(), resolve_notifications.tenant, ${n.sendPermission}), false)`
       : SERVICE_CALLER;
 
@@ -808,7 +808,7 @@ function settings(ctx: BlockSqlContext, n: NotifyNames): string {
   const parts: string[] = [];
 
   const member = (fn: string) =>
-    ctx.installed("access")
+    ctx.installed("permissions")
       ? `
   if ${fn}.tenant is not null and not (${SERVICE_CALLER})
     and not coalesce(better_supabase.member_can(auth.uid(), ${fn}.tenant, ${n.readPermission}), false) then
@@ -837,7 +837,7 @@ declare
   v_user uuid := coalesce(${fn}.member, auth.uid());
 begin
   if v_user is distinct from auth.uid() and not (${SERVICE_CALLER})${
-    ctx.installed("access")
+    ctx.installed("permissions")
       ? ` and not (
     coalesce(${fn}.if_absent, false) and ${fn}.level is not null and ${fn}.tenant is not null
     and coalesce(better_supabase.member_can(auth.uid(), ${fn}.tenant, ${n.sendPermission}), false)

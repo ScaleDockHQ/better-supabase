@@ -22,7 +22,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
@@ -147,7 +147,7 @@ function build(ctx: BlockSqlContext): string {
   const request = ctx.permission("request", OPERATIONS["signatures.request"]);
   const manage = ctx.permission("manage", OPERATIONS["signatures.manage"]);
   const subjects = subjectsOption(ctx);
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
 
   const approvals =
     ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
@@ -668,7 +668,7 @@ export const SIGNATURES: BlockSqlDefinition = {
   title: "Signatures",
   description:
     "Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.",
-  requires: ["tenant", "access", "versions"],
+  requires: ["memberships", "permissions", "versions"],
   integrates: ["approvals", "attachments", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

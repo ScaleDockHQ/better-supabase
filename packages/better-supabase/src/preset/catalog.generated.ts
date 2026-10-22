@@ -13,12 +13,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "updated-at"
     },
     {
-      "name": "actor",
+      "name": "created-by",
       "title": "Actor stamping",
       "category": "identity",
       "requires": [],
       "integrates": [],
-      "manifest": "actor"
+      "manifest": "created-by"
     },
     {
       "name": "audit",
@@ -26,25 +26,25 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "admin",
       "requires": [],
       "integrates": [
-        "access",
+        "permissions",
         "organizations",
         "data-lifecycle"
       ],
       "manifest": "audit"
     },
     {
-      "name": "tenant",
+      "name": "memberships",
       "title": "Tenant memberships and permission helper",
       "category": "tenancy",
       "requires": [
         "updated-at"
       ],
       "integrates": [
-        "access",
+        "permissions",
         "invitations",
         "organizations"
       ],
-      "manifest": "tenant",
+      "manifest": "memberships",
       "entities": {
         "specs": {
           "organization": {
@@ -61,8 +61,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Invitations",
       "category": "tenancy",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "updated-at"
       ],
       "integrates": [
@@ -84,14 +84,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "reserved-slugs"
     },
     {
-      "name": "jobs",
+      "name": "queue",
       "title": "Job queue",
       "category": "automation",
       "requires": [],
       "integrates": [
         "data-lifecycle"
       ],
-      "manifest": "jobs"
+      "manifest": "queue"
     },
     {
       "name": "idempotency",
@@ -137,12 +137,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "pgtap"
     },
     {
-      "name": "grants",
+      "name": "data-api-grants",
       "title": "Data API grants",
       "category": "identity",
       "requires": [],
       "integrates": [],
-      "manifest": "grants"
+      "manifest": "data-api-grants"
     },
     {
       "name": "read-sets",
@@ -165,7 +165,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Stripe entitlements",
       "category": "commerce",
       "requires": [
-        "tenant"
+        "memberships"
       ],
       "integrates": [
         "billing",
@@ -193,36 +193,36 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "vector-search"
     },
     {
-      "name": "access",
+      "name": "permissions",
       "title": "Access contract",
       "category": "identity",
       "requires": [
-        "tenant"
+        "memberships"
       ],
       "integrates": [
         "invitations",
         "organizations",
-        "tenant"
+        "memberships"
       ],
-      "manifest": "access",
+      "manifest": "permissions",
       "requiresByAccess": {
         "provider": [],
         "custom": []
       }
     },
     {
-      "name": "support-sessions",
+      "name": "impersonation",
       "title": "Support sessions",
       "category": "admin",
       "requires": [
-        "access",
+        "permissions",
         "audit"
       ],
       "integrates": [
         "invitations",
         "approvals"
       ],
-      "manifest": "support-sessions",
+      "manifest": "impersonation",
       "scopes": [
         "tenant"
       ]
@@ -232,8 +232,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Organizations",
       "category": "tenancy",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "updated-at"
       ],
       "integrates": [
@@ -255,7 +255,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "tenancy",
       "requires": [],
       "integrates": [
-        "tenant"
+        "memberships"
       ],
       "manifest": "profiles",
       "tenantNameClashes": [
@@ -281,9 +281,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "updated-at"
       ],
       "integrates": [
-        "access",
+        "permissions",
         "profiles",
-        "tenant",
+        "memberships",
         "data-lifecycle"
       ],
       "manifest": "notifications",
@@ -297,26 +297,26 @@ export const PRESET_CATALOG: PresetCatalog = {
         "updated-at"
       ],
       "integrates": [
-        "access",
-        "service-principals",
+        "permissions",
+        "service-accounts",
         "data-lifecycle"
       ],
       "manifest": "webhooks"
     },
     {
-      "name": "sessions",
+      "name": "session-revocation",
       "title": "Session revocation",
       "category": "identity",
       "requires": [],
       "integrates": [],
-      "manifest": "sessions"
+      "manifest": "session-revocation"
     },
     {
       "name": "webhooks-in",
       "title": "Incoming webhook endpoints",
       "category": "developer",
       "requires": [
-        "access",
+        "permissions",
         "updated-at",
         "webhook-inbox"
       ],
@@ -331,8 +331,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "API keys",
       "category": "developer",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [],
       "manifest": "api-keys",
@@ -346,8 +346,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Settings",
       "category": "tenancy",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "jsonb-schemas"
@@ -362,8 +362,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Usage metering and quotas",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "entitlements",
@@ -379,8 +379,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Stripe billing",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "organizations"
@@ -391,17 +391,17 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "flags",
+      "name": "feature-flags",
       "title": "Feature flags",
       "category": "growth",
       "requires": [
-        "tenant"
+        "memberships"
       ],
       "integrates": [
-        "access",
+        "permissions",
         "entitlements"
       ],
-      "manifest": "flags",
+      "manifest": "feature-flags",
       "scopes": [
         "tenant"
       ],
@@ -412,14 +412,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Comments",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "messaging"
       ],
       "integrates": [
         "notifications",
-        "work-items",
+        "tasks",
         "reactions",
         "attachments"
       ],
@@ -433,8 +433,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Attachments",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "profiles"
@@ -491,8 +491,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Data lifecycle",
       "category": "admin",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "*"
@@ -507,8 +507,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "SSO and SCIM",
       "category": "identity",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "organizations",
@@ -524,8 +524,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Onboarding",
       "category": "growth",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "enrollments"
       ],
       "integrates": [
@@ -541,8 +541,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Waitlist and invite codes",
       "category": "growth",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "invitations",
@@ -559,8 +559,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Announcements",
       "category": "growth",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "entitlements"
@@ -592,8 +592,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Workflows",
       "category": "automation",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "data-lifecycle"
@@ -604,35 +604,35 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "workflow-sdk-world",
+      "name": "workflow-sdk",
       "title": "Workflow SDK World",
       "category": "automation",
       "requires": [
         "workflows",
-        "jobs",
-        "access"
+        "queue",
+        "permissions"
       ],
       "integrates": [],
-      "manifest": "workflow-sdk-world",
+      "manifest": "workflow-sdk",
       "scopes": [
         "tenant"
       ]
     },
     {
-      "name": "workflow-builder",
+      "name": "workflow-editor",
       "title": "Workflow builder",
       "category": "automation",
       "requires": [
         "workflows",
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
-        "service-principals",
+        "service-accounts",
         "subjects",
         "teams"
       ],
-      "manifest": "workflow-builder",
+      "manifest": "workflow-editor",
       "scopes": [
         "tenant"
       ],
@@ -651,15 +651,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Shared inbox",
       "category": "messaging",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "updated-at",
         "teams",
         "messaging",
         "attachments"
       ],
       "integrates": [
-        "jobs",
+        "queue",
         "notifications",
         "reactions",
         "data-lifecycle"
@@ -677,13 +677,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "AI chat",
       "category": "ai",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "streams"
       ],
       "integrates": [
         "entitlements",
-        "ai-providers",
+        "ai-keys",
         "approvals",
         "data-lifecycle"
       ],
@@ -698,8 +698,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "AI files",
       "category": "ai",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "ai-chat"
@@ -715,14 +715,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Knowledge",
       "category": "ai",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "vector-search"
       ],
       "integrates": [
         "ai-chat",
         "ai-files",
-        "jobs"
+        "queue"
       ],
       "manifest": "knowledge",
       "scopes": [
@@ -734,8 +734,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Memory",
       "category": "ai",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "vector-search"
       ],
       "integrates": [
@@ -751,8 +751,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Agents",
       "category": "ai",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [],
       "manifest": "agents",
@@ -766,8 +766,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Connectors",
       "category": "automation",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [],
       "manifest": "connectors",
@@ -777,19 +777,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "servers"
     },
     {
-      "name": "ai-tasks",
+      "name": "ai-schedules",
       "title": "AI scheduled tasks",
       "category": "ai",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "agents",
         "ai-chat",
-        "jobs"
+        "queue"
       ],
-      "manifest": "ai-tasks",
+      "manifest": "ai-schedules",
       "scopes": [
         "tenant"
       ],
@@ -813,34 +813,34 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "ai-cache"
     },
     {
-      "name": "ai-providers",
+      "name": "ai-keys",
       "title": "AI providers",
       "category": "ai",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "ai-chat"
       ],
-      "manifest": "ai-providers",
+      "manifest": "ai-keys",
       "scopes": [
         "tenant"
       ]
     },
     {
-      "name": "number-sequences",
+      "name": "numbering",
       "title": "Number sequences",
       "category": "database",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
         "audit"
       ],
-      "manifest": "number-sequences",
+      "manifest": "numbering",
       "scopes": [
         "tenant"
       ]
@@ -850,8 +850,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Teams",
       "category": "tenancy",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "inbox",
@@ -872,8 +872,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Tags",
       "category": "work",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -892,8 +892,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "State machine",
       "category": "work",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -910,8 +910,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Custom fields",
       "category": "work",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -928,8 +928,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Share links",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "ai-chat",
@@ -951,9 +951,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Reminders",
       "category": "scheduling",
       "requires": [
-        "tenant",
-        "access",
-        "jobs"
+        "memberships",
+        "permissions",
+        "queue"
       ],
       "integrates": [
         "notifications",
@@ -997,9 +997,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Imports",
       "category": "content",
       "requires": [
-        "tenant",
-        "access",
-        "jobs"
+        "memberships",
+        "permissions",
+        "queue"
       ],
       "integrates": [
         "attachments",
@@ -1015,13 +1015,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Subjects",
       "category": "identity",
       "requires": [
-        "access"
+        "permissions"
       ],
       "integrates": [
         "comments",
         "messaging",
         "attachments",
-        "work-items",
+        "tasks",
         "approvals",
         "reminders",
         "sla"
@@ -1036,11 +1036,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Rank",
       "category": "database",
       "requires": [
-        "access",
+        "permissions",
         "subjects"
       ],
       "integrates": [
-        "jobs"
+        "queue"
       ],
       "manifest": "rank",
       "scopes": [
@@ -1052,8 +1052,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Saved views",
       "category": "work",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -1074,8 +1074,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Relations",
       "category": "work",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox"
@@ -1087,15 +1087,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "relations"
     },
     {
-      "name": "bulk",
+      "name": "bulk-actions",
       "title": "Bulk actions",
       "category": "work",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
-        "jobs",
+        "queue",
         "outbox",
         "tags",
         "state-machine",
@@ -1103,7 +1103,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "trash",
         "collections"
       ],
-      "manifest": "bulk",
+      "manifest": "bulk-actions",
       "scopes": [
         "tenant"
       ]
@@ -1113,8 +1113,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Search",
       "category": "work",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects"
       ],
       "integrates": [
@@ -1131,12 +1131,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Metrics",
       "category": "admin",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "usage",
-        "jobs"
+        "queue"
       ],
       "manifest": "metrics",
       "scopes": [
@@ -1148,8 +1148,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Calendar",
       "category": "scheduling",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "share-links",
@@ -1245,11 +1245,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Bookings",
       "category": "scheduling",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
-        "jobs",
+        "queue",
         "share-links",
         "rate-limit",
         "calendar",
@@ -1267,8 +1267,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Versions",
       "category": "content",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -1286,8 +1286,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Trash",
       "category": "content",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -1305,8 +1305,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Reactions",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -1353,14 +1353,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Approvals",
       "category": "work",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
         "audit",
         "notifications",
-        "jobs",
+        "queue",
         "drive",
         "teams",
         "state-machine",
@@ -1369,7 +1369,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "leave",
         "expenses",
         "ai-chat",
-        "support-sessions"
+        "impersonation"
       ],
       "manifest": "approvals",
       "scopes": [
@@ -1382,8 +1382,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Access requests",
       "category": "identity",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "approvals"
       ],
       "integrates": [
@@ -1401,13 +1401,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Collaborative documents",
       "category": "content",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
         "audit",
-        "jobs",
+        "queue",
         "versions"
       ],
       "manifest": "documents",
@@ -1477,8 +1477,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Catalog",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -1577,8 +1577,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Inventory",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "catalog",
         "ledger"
       ],
@@ -1596,8 +1596,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Drive",
       "category": "content",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "drive-files"
       ],
       "integrates": [
@@ -1647,15 +1647,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Orders",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "catalog"
       ],
       "integrates": [
         "outbox",
         "inventory",
         "promotions",
-        "number-sequences",
+        "numbering",
         "state-machine"
       ],
       "manifest": "orders",
@@ -1669,8 +1669,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Promotions",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "catalog",
         "orders"
       ],
@@ -1688,8 +1688,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Forms",
       "category": "content",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "jsonb-schemas"
       ],
       "integrates": [
@@ -1710,8 +1710,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Signatures",
       "category": "content",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "versions"
       ],
       "integrates": [
@@ -1731,8 +1731,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Time tracking",
       "category": "people",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "approvals"
       ],
       "integrates": [
@@ -1746,27 +1746,27 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "entries"
     },
     {
-      "name": "identities",
+      "name": "linked-identities",
       "title": "Identities",
       "category": "identity",
       "requires": [],
       "integrates": [
         "inbox"
       ],
-      "manifest": "identities"
+      "manifest": "linked-identities"
     },
     {
-      "name": "service-principals",
+      "name": "service-accounts",
       "title": "Service principals",
       "category": "developer",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "audit"
       ],
-      "manifest": "service-principals",
+      "manifest": "service-accounts",
       "scopes": [
         "tenant"
       ],
@@ -1777,13 +1777,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Templates",
       "category": "content",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
         "audit",
-        "workflow-builder",
+        "workflow-editor",
         "jsonb-schemas"
       ],
       "manifest": "templates",
@@ -1797,8 +1797,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Pipelines",
       "category": "work",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects"
       ],
       "integrates": [
@@ -1807,7 +1807,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "state-machine",
         "notifications",
         "deals",
-        "work-items",
+        "tasks",
         "hiring"
       ],
       "manifest": "pipelines",
@@ -1817,12 +1817,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "pipelines"
     },
     {
-      "name": "parties",
+      "name": "contacts",
       "title": "Parties",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -1830,7 +1830,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "inbox"
       ],
-      "manifest": "parties",
+      "manifest": "contacts",
       "scopes": [
         "tenant"
       ],
@@ -1923,23 +1923,23 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "engagements",
+      "name": "activities",
       "title": "Engagements",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects"
       ],
       "integrates": [
         "outbox",
         "notifications",
         "ai-files",
-        "jobs",
+        "queue",
         "bookings",
-        "parties"
+        "contacts"
       ],
-      "manifest": "engagements",
+      "manifest": "activities",
       "scopes": [
         "tenant"
       ],
@@ -1999,16 +1999,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Deals",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "pipelines"
       ],
       "integrates": [
         "outbox",
         "notifications",
-        "number-sequences",
-        "engagements"
+        "numbering",
+        "activities"
       ],
       "manifest": "deals",
       "scopes": [
@@ -2103,23 +2103,23 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "work-items",
+      "name": "tasks",
       "title": "Work items",
       "category": "work",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "pipelines"
       ],
       "integrates": [
         "outbox",
         "notifications",
-        "number-sequences",
+        "numbering",
         "attachments",
         "reminders"
       ],
-      "manifest": "work-items",
+      "manifest": "tasks",
       "scopes": [
         "tenant"
       ],
@@ -2257,14 +2257,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Quotes",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects"
       ],
       "integrates": [
         "outbox",
         "notifications",
-        "number-sequences",
+        "numbering",
         "deals",
         "relations"
       ],
@@ -2279,8 +2279,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Invoices",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "ledger"
       ],
@@ -2288,7 +2288,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "notifications",
-        "number-sequences",
+        "numbering",
         "quotes",
         "relations"
       ],
@@ -2303,8 +2303,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Service levels",
       "category": "work",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects"
       ],
       "integrates": [
@@ -2318,19 +2318,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "policies"
     },
     {
-      "name": "targets",
+      "name": "goals",
       "title": "Targets",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "deals",
-        "work-items",
+        "tasks",
         "invoices"
       ],
-      "manifest": "targets",
+      "manifest": "goals",
       "scopes": [
         "tenant"
       ],
@@ -2344,8 +2344,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Hiring",
       "category": "people",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "pipelines"
       ],
@@ -2366,8 +2366,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Employees",
       "category": "people",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -2441,8 +2441,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Collections",
       "category": "work",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects"
       ],
       "integrates": [
@@ -2470,7 +2470,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "signing-keys"
     },
     {
-      "name": "shared-signals",
+      "name": "security-events",
       "title": "Shared signals",
       "category": "developer",
       "requires": [],
@@ -2479,7 +2479,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit"
       ],
-      "manifest": "shared-signals"
+      "manifest": "security-events"
     },
     {
       "name": "oauth-server",
@@ -2497,8 +2497,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Custom domains",
       "category": "tenancy",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "reserved-slugs"
@@ -2513,8 +2513,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Moderation",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "messaging",
@@ -2565,8 +2565,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Reviews",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "moderation"
       ],
       "integrates": [
@@ -2588,8 +2588,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Leave",
       "category": "people",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "approvals",
         "ledger"
       ],
@@ -2604,15 +2604,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extraColumns": "requests"
     },
     {
-      "name": "rules",
+      "name": "automations",
       "title": "Rules",
       "category": "automation",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [],
-      "manifest": "rules",
+      "manifest": "automations",
       "scopes": [
         "tenant"
       ]
@@ -2636,8 +2636,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Ledger",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -2740,12 +2740,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Assets and locations",
       "category": "work",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "bookings",
-        "work-items",
+        "tasks",
         "outbox",
         "audit"
       ],
@@ -2833,9 +2833,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Scores",
       "category": "growth",
       "requires": [
-        "tenant",
-        "access",
-        "rules"
+        "memberships",
+        "permissions",
+        "automations"
       ],
       "integrates": [
         "reactions",
@@ -2887,8 +2887,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Enrollments",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -2961,15 +2961,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Guests",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
         "audit",
         "invoices",
         "bookings",
-        "parties"
+        "contacts"
       ],
       "manifest": "guests",
       "scopes": [
@@ -3031,12 +3031,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "passes",
+      "name": "admission-passes",
       "title": "Passes",
       "category": "scheduling",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -3044,7 +3044,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "bookings",
         "signing-keys"
       ],
-      "manifest": "passes",
+      "manifest": "admission-passes",
       "scopes": [
         "tenant"
       ],
@@ -3116,8 +3116,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Billable time",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "time-tracking",
         "invoices"
@@ -3168,8 +3168,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Leases",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "assets",
         "ledger"
@@ -3267,8 +3267,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Expenses",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "approvals",
         "ledger"
       ],
@@ -3379,15 +3379,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Donations",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "ledger"
       ],
       "integrates": [
         "outbox",
         "audit",
-        "number-sequences"
+        "numbering"
       ],
       "manifest": "donations",
       "scopes": [
@@ -3517,8 +3517,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Dispatch",
       "category": "work",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -3627,8 +3627,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Shipments",
       "category": "commerce",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "outbox",
@@ -3734,8 +3734,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Contracts",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "versions",
         "signatures",
@@ -3824,12 +3824,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "controls",
+      "name": "compliance",
       "title": "Compliance controls",
       "category": "admin",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "versions"
       ],
       "integrates": [
@@ -3838,7 +3838,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit"
       ],
-      "manifest": "controls",
+      "manifest": "compliance",
       "scopes": [
         "tenant"
       ],
@@ -3955,8 +3955,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Incidents",
       "category": "developer",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "notifications",
@@ -4073,8 +4073,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Courses",
       "category": "content",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "enrollments"
       ],
       "integrates": [
@@ -4193,13 +4193,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Messaging",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects"
       ],
       "integrates": [
         "notifications",
-        "jobs",
+        "queue",
         "profiles",
         "attachments",
         "reactions",
@@ -4308,8 +4308,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Channels",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "messaging"
       ],
@@ -4370,12 +4370,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "activity",
+      "name": "timeline",
       "title": "Activity feed",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access"
+        "memberships",
+        "permissions"
       ],
       "integrates": [
         "notifications",
@@ -4383,7 +4383,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "workflows"
       ],
-      "manifest": "activity",
+      "manifest": "timeline",
       "scopes": [
         "tenant",
         "user",
@@ -4395,15 +4395,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Mail sync",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects"
       ],
       "integrates": [
         "outbox",
         "audit",
-        "parties",
-        "engagements",
+        "contacts",
+        "activities",
         "data-lifecycle"
       ],
       "manifest": "mail-sync",
@@ -4503,10 +4503,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Segments",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
-        "rules"
+        "automations"
       ],
       "integrates": [
         "outbox",
@@ -4554,9 +4554,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Assignment",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
-        "rules"
+        "memberships",
+        "permissions",
+        "automations"
       ],
       "integrates": [
         "outbox",
@@ -4603,9 +4603,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Enrichment",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
-        "parties"
+        "memberships",
+        "permissions",
+        "contacts"
       ],
       "integrates": [
         "outbox",
@@ -4651,8 +4651,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Forecasts",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "deals"
       ],
       "integrates": [
@@ -4700,8 +4700,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Field history",
       "category": "database",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects"
       ],
       "integrates": [
@@ -4717,14 +4717,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Sequences",
       "category": "crm",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "enrollments"
       ],
       "integrates": [
         "mail-sync",
-        "parties",
-        "work-items",
+        "contacts",
+        "tasks",
         "outbox",
         "audit"
       ],
@@ -4800,9 +4800,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Lead scoring",
       "category": "growth",
       "requires": [
-        "tenant",
-        "access",
-        "parties",
+        "memberships",
+        "permissions",
+        "contacts",
         "scores"
       ],
       "integrates": [
@@ -4820,8 +4820,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "title": "Posts",
       "category": "collaboration",
       "requires": [
-        "tenant",
-        "access",
+        "memberships",
+        "permissions",
         "subjects",
         "messaging",
         "comments",
@@ -4916,24 +4916,24 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "field-encryption"
     },
     {
-      "name": "ensure-rls",
+      "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
       "requires": [],
       "integrates": [],
-      "manifest": "ensure-rls"
+      "manifest": "rls-guard"
     }
   ],
   "manifests": [
     {
-      "name": "access",
+      "name": "permissions",
       "sql": [
-        "access"
+        "permissions"
       ],
       "category": "identity",
       "client": {
-        "export": "accessBlock",
-        "subpath": "better-supabase/blocks/access"
+        "export": "permissionsBlock",
+        "subpath": "better-supabase/blocks/permissions"
       },
       "consumes": {},
       "provides": []
@@ -4960,9 +4960,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "actor",
+      "name": "created-by",
       "sql": [
-        "actor"
+        "created-by"
       ],
       "category": "identity",
       "client": null,
@@ -5044,19 +5044,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "ai-providers",
+      "name": "ai-keys",
       "sql": [
-        "ai-providers"
+        "ai-keys"
       ],
       "category": "ai",
       "client": {
-        "export": "aiProvidersBlock",
-        "subpath": "better-supabase/blocks/ai-providers"
+        "export": "aiKeysBlock",
+        "subpath": "better-supabase/blocks/ai-keys"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "AiProvidersEvents",
+        "type": "AiKeysEvents",
         "types": [
           "ai_provider_key.saved",
           "ai_provider_key.deleted"
@@ -5064,14 +5064,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "ai-tasks",
+      "name": "ai-schedules",
       "sql": [
-        "ai-tasks"
+        "ai-schedules"
       ],
       "category": "ai",
       "client": {
-        "export": "aiTasksBlock",
-        "subpath": "better-supabase/blocks/ai-tasks"
+        "export": "aiSchedulesBlock",
+        "subpath": "better-supabase/blocks/ai-schedules"
       },
       "consumes": {
         "notifier": "optional"
@@ -5413,19 +5413,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "bulk",
+      "name": "bulk-actions",
       "sql": [
-        "bulk"
+        "bulk-actions"
       ],
       "category": "work",
       "client": {
-        "export": "bulkBlock",
-        "subpath": "better-supabase/blocks/bulk"
+        "export": "bulkActionsBlock",
+        "subpath": "better-supabase/blocks/bulk-actions"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "BulkEvents",
+        "type": "BulkActionsEvents",
         "types": [
           "bulk_run.completed"
         ]
@@ -7158,18 +7158,33 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "passes",
+      "name": "admission-passes",
       "sql": [
-        "passes"
+        "admission-passes"
       ],
       "category": "scheduling",
       "client": {
-        "export": "passesBlock",
-        "subpath": "better-supabase/blocks/passes"
+        "export": "admissionPassesBlock",
+        "subpath": "better-supabase/blocks/admission-passes"
       },
       "consumes": {},
       "provides": [],
       "entityTypes": [
+        {
+          "name": "AdmissionPasses"
+        },
+        {
+          "name": "AdmissionPassesEvents"
+        },
+        {
+          "name": "AdmissionPassesOptions"
+        },
+        {
+          "name": "AdmissionPassesSqlOptions"
+        },
+        {
+          "name": "AdmissionPassesWrites"
+        },
         {
           "name": "IssuedPass"
         },
@@ -7199,21 +7214,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PassCreditEventData"
-        },
-        {
-          "name": "Passes"
-        },
-        {
-          "name": "PassesEvents"
-        },
-        {
-          "name": "PassesOptions"
-        },
-        {
-          "name": "PassesSqlOptions"
-        },
-        {
-          "name": "PassesWrites"
         },
         {
           "name": "PassInput"
@@ -7371,7 +7371,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         ]
       },
       "events": {
-        "type": "PassesEvents",
+        "type": "AdmissionPassesEvents",
         "types": [
           "pass.issued",
           "pass.revoked",
@@ -9464,14 +9464,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "controls",
+      "name": "compliance",
       "sql": [
-        "controls"
+        "compliance"
       ],
       "category": "admin",
       "client": {
-        "export": "controlsBlock",
-        "subpath": "better-supabase/blocks/controls"
+        "export": "complianceBlock",
+        "subpath": "better-supabase/blocks/compliance"
       },
       "consumes": {},
       "provides": [],
@@ -9510,17 +9510,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ControlPosture"
         },
         {
-          "name": "Controls",
-          "fields": true
-        },
-        {
           "name": "ControlSavedEventData"
-        },
-        {
-          "name": "ControlsEvents"
-        },
-        {
-          "name": "ControlsOptions"
         },
         {
           "name": "ControlStatus"
@@ -9835,7 +9825,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         }
       },
       "events": {
-        "type": "ControlsEvents",
+        "type": "ComplianceEvents",
         "types": [
           "control.saved",
           "control.evidence_added",
@@ -11375,14 +11365,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "engagements",
+      "name": "activities",
       "sql": [
-        "engagements"
+        "activities"
       ],
       "category": "crm",
       "client": {
-        "export": "engagementsBlock",
-        "subpath": "better-supabase/blocks/engagements"
+        "export": "activitiesBlock",
+        "subpath": "better-supabase/blocks/activities"
       },
       "consumes": {
         "files": "optional"
@@ -11411,16 +11401,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "EngagementRecordingStatus"
-        },
-        {
-          "name": "Engagements",
-          "fields": true
-        },
-        {
-          "name": "EngagementsEvents"
-        },
-        {
-          "name": "EngagementsOptions"
         },
         {
           "name": "EngagementSubject"
@@ -11679,7 +11659,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         }
       },
       "events": {
-        "type": "EngagementsEvents",
+        "type": "ActivitiesEvents",
         "types": [
           "engagement.logged",
           "engagement.updated",
@@ -11692,9 +11672,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "ensure-rls",
+      "name": "rls-guard",
       "sql": [
-        "ensure-rls"
+        "rls-guard"
       ],
       "category": "database",
       "client": null,
@@ -11725,19 +11705,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": []
     },
     {
-      "name": "flags",
+      "name": "feature-flags",
       "sql": [
-        "flags"
+        "feature-flags"
       ],
       "category": "growth",
       "client": {
-        "export": "flagsBlock",
-        "subpath": "better-supabase/blocks/flags"
+        "export": "featureFlagsBlock",
+        "subpath": "better-supabase/blocks/feature-flags"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "FlagsEvents",
+        "type": "FeatureFlagsEvents",
         "types": [
           "flag.saved",
           "flag.deleted",
@@ -11792,9 +11772,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "grants",
+      "name": "data-api-grants",
       "sql": [
-        "grants"
+        "data-api-grants"
       ],
       "category": "identity",
       "client": null,
@@ -11828,14 +11808,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "identities",
+      "name": "linked-identities",
       "sql": [
-        "identities"
+        "linked-identities"
       ],
       "category": "identity",
       "client": {
-        "export": "identitiesBlock",
-        "subpath": "better-supabase/blocks/identities"
+        "export": "linkedIdentitiesBlock",
+        "subpath": "better-supabase/blocks/linked-identities"
       },
       "consumes": {},
       "provides": []
@@ -11947,20 +11927,20 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "developer",
       "client": {
         "export": "idempotencyBlock",
-        "subpath": "better-supabase/blocks/jobs"
+        "subpath": "better-supabase/blocks/queue"
       },
       "consumes": {},
       "provides": []
     },
     {
-      "name": "jobs",
+      "name": "queue",
       "sql": [
-        "jobs"
+        "queue"
       ],
       "category": "automation",
       "client": {
-        "export": "jobsBlock",
-        "subpath": "better-supabase/blocks/jobs"
+        "export": "queueBlock",
+        "subpath": "better-supabase/blocks/queue"
       },
       "consumes": {},
       "provides": []
@@ -11973,7 +11953,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "developer",
       "client": {
         "export": "rateLimitBlock",
-        "subpath": "better-supabase/blocks/jobs"
+        "subpath": "better-supabase/blocks/queue"
       },
       "consumes": {},
       "provides": []
@@ -11986,7 +11966,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "developer",
       "client": {
         "export": "webhookInboxBlock",
-        "subpath": "better-supabase/blocks/jobs"
+        "subpath": "better-supabase/blocks/queue"
       },
       "consumes": {},
       "provides": []
@@ -12474,14 +12454,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "activity",
+      "name": "timeline",
       "sql": [
-        "activity"
+        "timeline"
       ],
       "category": "collaboration",
       "client": {
-        "export": "activityBlock",
-        "subpath": "better-supabase/blocks/activity"
+        "export": "timelineBlock",
+        "subpath": "better-supabase/blocks/timeline"
       },
       "consumes": {},
       "provides": []
@@ -13030,19 +13010,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "number-sequences",
+      "name": "numbering",
       "sql": [
-        "number-sequences"
+        "numbering"
       ],
       "category": "database",
       "client": {
-        "export": "numberSequencesBlock",
-        "subpath": "better-supabase/blocks/number-sequences"
+        "export": "numberingBlock",
+        "subpath": "better-supabase/blocks/numbering"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "NumberSequencesEvents",
+        "type": "NumberingEvents",
         "types": [
           "number.assigned"
         ]
@@ -13154,14 +13134,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": []
     },
     {
-      "name": "parties",
+      "name": "contacts",
       "sql": [
-        "parties"
+        "contacts"
       ],
       "category": "crm",
       "client": {
-        "export": "partiesBlock",
-        "subpath": "better-supabase/blocks/parties"
+        "export": "contactsBlock",
+        "subpath": "better-supabase/blocks/contacts"
       },
       "consumes": {},
       "provides": [],
@@ -13501,7 +13481,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         }
       },
       "events": {
-        "type": "PartiesEvents",
+        "type": "ContactsEvents",
         "types": [
           "company.created",
           "company.updated",
@@ -13788,19 +13768,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": []
     },
     {
-      "name": "rules",
+      "name": "automations",
       "sql": [
-        "rules"
+        "automations"
       ],
       "category": "automation",
       "client": {
-        "export": "rulesBlock",
-        "subpath": "better-supabase/blocks/rules"
+        "export": "automationsBlock",
+        "subpath": "better-supabase/blocks/automations"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "RulesEvents",
+        "type": "AutomationsEvents",
         "types": [
           "rule.saved",
           "rule.enabled",
@@ -13867,19 +13847,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "service-principals",
+      "name": "service-accounts",
       "sql": [
-        "service-principals"
+        "service-accounts"
       ],
       "category": "developer",
       "client": {
-        "export": "servicePrincipalsBlock",
-        "subpath": "better-supabase/blocks/service-principals"
+        "export": "serviceAccountsBlock",
+        "subpath": "better-supabase/blocks/service-accounts"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "ServicePrincipalsEvents",
+        "type": "ServiceAccountsEvents",
         "types": [
           "service_principal.created",
           "service_principal.role_changed",
@@ -13888,9 +13868,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "sessions",
+      "name": "session-revocation",
       "sql": [
-        "sessions"
+        "session-revocation"
       ],
       "category": "identity",
       "client": null,
@@ -13947,19 +13927,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "shared-signals",
+      "name": "security-events",
       "sql": [
-        "shared-signals"
+        "security-events"
       ],
       "category": "developer",
       "client": {
-        "export": "sharedSignalsBlock",
-        "subpath": "better-supabase/blocks/shared-signals"
+        "export": "securityEventsBlock",
+        "subpath": "better-supabase/blocks/security-events"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "SharedSignalsEvents",
+        "type": "SecurityEventsEvents",
         "types": [
           "ssf_stream.created",
           "ssf_stream.status_changed",
@@ -14090,9 +14070,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": []
     },
     {
-      "name": "support-sessions",
+      "name": "impersonation",
       "sql": [
-        "support-sessions"
+        "impersonation"
       ],
       "category": "admin",
       "client": null,
@@ -14129,14 +14109,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "targets",
+      "name": "goals",
       "sql": [
-        "targets"
+        "goals"
       ],
       "category": "crm",
       "client": {
-        "export": "targetsBlock",
-        "subpath": "better-supabase/blocks/targets"
+        "export": "goalsBlock",
+        "subpath": "better-supabase/blocks/goals"
       },
       "consumes": {},
       "provides": []
@@ -14186,9 +14166,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "tenant",
+      "name": "memberships",
       "sql": [
-        "tenant"
+        "memberships"
       ],
       "category": "tenancy",
       "client": null,
@@ -14382,14 +14362,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "work-items",
+      "name": "tasks",
       "sql": [
-        "work-items"
+        "tasks"
       ],
       "category": "work",
       "client": {
-        "export": "workItemsBlock",
-        "subpath": "better-supabase/blocks/work-items"
+        "export": "tasksBlock",
+        "subpath": "better-supabase/blocks/tasks"
       },
       "consumes": {},
       "provides": [
@@ -14440,16 +14420,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "WorkItemRecurrenceSinkOptions"
-        },
-        {
-          "name": "WorkItems",
-          "fields": true
-        },
-        {
-          "name": "WorkItemsEvents"
-        },
-        {
-          "name": "WorkItemsOptions"
         },
         {
           "name": "WorkItemState"
@@ -14776,7 +14746,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "checklist": []
       },
       "events": {
-        "type": "WorkItemsEvents",
+        "type": "TasksEvents",
         "types": [
           "work_item.created",
           "work_item.updated",
@@ -14789,21 +14759,21 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "workflow-builder",
+      "name": "workflow-editor",
       "sql": [
-        "workflow-builder"
+        "workflow-editor"
       ],
       "category": "automation",
       "client": {
-        "export": "workflowBuilderBlock",
-        "subpath": "better-supabase/blocks/workflow-builder"
+        "export": "workflowEditorBlock",
+        "subpath": "better-supabase/blocks/workflow-editor"
       },
       "consumes": {
         "workflows": "optional"
       },
       "provides": [],
       "events": {
-        "type": "WorkflowBuilderEvents",
+        "type": "WorkflowEditorEvents",
         "types": [
           "workflow.published",
           "workflow_alert.triggered"
@@ -14811,9 +14781,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "workflow-sdk-world",
+      "name": "workflow-sdk",
       "sql": [
-        "workflow-sdk-world"
+        "workflow-sdk"
       ],
       "category": "automation",
       "client": null,
@@ -14874,7 +14844,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "postgres",
       "title": "Server Postgres pool",
       "blocks": [
-        "jobs",
+        "queue",
         "outbox",
         "billing"
       ],
@@ -15002,7 +14972,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "jobs-drain-next",
       "title": "Jobs drain cron route (Next.js)",
       "blocks": [
-        "jobs"
+        "queue"
       ],
       "frameworks": [
         "next"
@@ -15040,7 +15010,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "name": "use-rule-editor",
       "title": "useRuleEditor",
       "blocks": [
-        "rules"
+        "automations"
       ],
       "frameworks": [
         "next",
@@ -15099,7 +15069,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "onboarding",
         "outbox",
-        "jobs",
+        "queue",
         "billing",
         "webhook-inbox"
       ],

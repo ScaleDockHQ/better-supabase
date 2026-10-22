@@ -302,8 +302,8 @@ export const RANK: BlockSqlDefinition = {
   title: "Rank",
   description:
     "Fractional rank keys: rank_between, move() for every config.records entry with a rank column (through the caller's policies and any state-machine trigger), and a rebalance job.",
-  requires: ["access", "subjects"],
-  integrates: ["jobs"],
+  requires: ["permissions", "subjects"],
+  integrates: ["queue"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

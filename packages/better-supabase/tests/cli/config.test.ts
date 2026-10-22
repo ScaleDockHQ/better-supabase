@@ -162,8 +162,8 @@ describe("config environments", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        sql: { modules: ["tenant"] },
-        $production: { database: { sql: { modules: { tenant: true } } } },
+        sql: { modules: ["memberships"] },
+        $production: { database: { sql: { modules: { memberships: true } } } },
       }),
     );
 
@@ -180,12 +180,15 @@ describe("config environments", () => {
       ),
     });
     expect(() =>
-      // @ts-expect-error -- `sql.modules` is the removed 0.8 key under test.
-      applyEnvironment({ $test: { sql: { modules: ["tenant"] } } }, "test"),
+      applyEnvironment(
+        // @ts-expect-error -- `sql.modules` is the removed 0.8 key under test.
+        { $test: { sql: { modules: ["memberships"] } } },
+        "test",
+      ),
     ).toThrow("sql.modules: moved to the top-level `blocks` key");
   });
 
-  it("points sql.naming at blocks.tenant.names", async () => {
+  it("points sql.naming at blocks.memberships.names", async () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
@@ -197,7 +200,7 @@ describe("config environments", () => {
     expect(error).toMatchObject({
       code: "config_invalid",
       message: expect.stringContaining(
-        "database.sql.naming: `sql.naming.tenant` moved to `blocks.tenant.names.organization`",
+        "database.sql.naming: `sql.naming.tenant` moved to `blocks.memberships.names.organization`",
       ),
     });
   });

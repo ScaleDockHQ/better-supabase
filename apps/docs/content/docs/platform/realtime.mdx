@@ -46,7 +46,7 @@ when a client joins. `topic.sql()` generates them:
   claim, not the membership table, so a removed member can still join until
   their token expires. A topic with `access` checks membership through
   `tenant_ids_with()` instead; see
-  [Removed members](/docs/blocks/access#removed-members-and-the-tenant-claim).
+  [Removed members](/docs/blocks/permissions#removed-members-and-the-tenant-claim).
 - `{userId}` must equal `auth.uid()`.
 
 Both checks switch on automatically when the template has those placeholders.
@@ -56,7 +56,7 @@ can broadcast too, and `presence` authorizes [presence](#presence).
 
 `access` replaces the tenant check with permissions: joining needs `receive`
 in the scope named by the `{organizationId}` segment, and sending needs
-`send`. Without `sql`, the policies call the [access contract](/docs/blocks/access)
+`send`. Without `sql`, the policies call the [access contract](/docs/blocks/permissions)
 (`tenant_ids_with`, or `is_platform` for `scope: 'platform'`). With an
 [authorization provider](/docs/extending/authorization-providers),
 `sql: "provider"` calls its `idsWith` and `isPlatform` functions for any
@@ -128,7 +128,7 @@ segment), `{tenant}` (the tenant segment, or `null` without one),
 `{resource}` and `{scope}`; a `null` answer denies. `better-supabase upgrade`
 passes the config's `authorization.functions`; anywhere else pass them to
 `topic.sql({ functions })`. Without `permitted`, the policy falls back to the
-[access contract](/docs/blocks/access): the caller needs the permission in
+[access contract](/docs/blocks/permissions): the caller needs the permission in
 the tenant of the topic (`tenant_ids_with`), so the check can't tell one
 instance from another, and a topic without a tenant segment throws.
 

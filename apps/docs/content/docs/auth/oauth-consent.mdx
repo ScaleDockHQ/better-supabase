@@ -28,8 +28,8 @@ covers the rest of the OAuth server setup.
 
 ## The consent page
 
-`useOAuthConsent` from `better-supabase/blocks/sessions/react`
-(`createOAuthConsentController` in `better-supabase/blocks/sessions`, with
+`useOAuthConsent` from `better-supabase/blocks/session-revocation/react`
+(`createOAuthConsentController` in `better-supabase/blocks/session-revocation`, with
 Vue, Svelte and Solid bindings) reads the request for `authorization_id`.
 Auth answers with the client, the user and the requested scopes, or with a
 `redirect_url` when the user approved this client before; the controller
@@ -38,7 +38,7 @@ then leaves at once:
 ```tsx title="src/features/auth/components/oauth-consent-form.tsx"
 "use client";
 
-import { useOAuthConsent } from "better-supabase/blocks/sessions/react";
+import { useOAuthConsent } from "better-supabase/blocks/session-revocation/react";
 
 const { request, deciding, error, approve, deny } = useOAuthConsent({
   authorizationId, // from the URL
@@ -70,7 +70,7 @@ The Vue, Svelte and Solid bindings take `oauth` themselves:
 ```vue title="Consent.vue"
 <script setup lang="ts">
 import { useSupabase } from "better-supabase/vue";
-import { useOAuthConsent } from "better-supabase/blocks/sessions/vue";
+import { useOAuthConsent } from "better-supabase/blocks/session-revocation/vue";
 
 const props = defineProps<{ authorizationId: string }>();
 const { state, actions } = useOAuthConsent({
@@ -90,7 +90,7 @@ const { state, actions } = useOAuthConsent({
 ```svelte title="Grants.svelte"
 <script lang="ts">
   import { getBetterSupabase } from "better-supabase/svelte";
-  import { useOAuthGrants } from "better-supabase/blocks/sessions/svelte";
+  import { useOAuthGrants } from "better-supabase/blocks/session-revocation/svelte";
 
   const { supabase } = getBetterSupabase();
   const grants = useOAuthGrants({ oauth: supabase.auth.oauth });
@@ -101,7 +101,7 @@ const { state, actions } = useOAuthConsent({
 
 ```tsx title="Grants.tsx"
 import { useSupabase } from "better-supabase/solid";
-import { useOAuthGrants } from "better-supabase/blocks/sessions/solid";
+import { useOAuthGrants } from "better-supabase/blocks/session-revocation/solid";
 
 export function Grants() {
   const { state } = useOAuthGrants({ oauth: useSupabase().auth.oauth });
@@ -113,7 +113,7 @@ Without a framework, `createOAuthConsentController` and
 `createOAuthGrantsController` take the same options plus `auth`:
 
 ```ts
-import { createOAuthGrantsController } from "better-supabase/blocks/sessions";
+import { createOAuthGrantsController } from "better-supabase/blocks/session-revocation";
 
 const grants = createOAuthGrantsController({
   oauth: supabase.auth.oauth,

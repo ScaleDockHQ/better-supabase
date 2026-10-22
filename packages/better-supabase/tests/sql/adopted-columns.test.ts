@@ -191,7 +191,7 @@ create table public.app_events (
 
   it("lists the text columns each adopted table takes without a cast", () => {
     const [table] = adoptedTables({
-      "number-sequences": {
+      numbering: {
         mode: "adopt",
         tables: { sequences: "public.org_sequences" },
       },

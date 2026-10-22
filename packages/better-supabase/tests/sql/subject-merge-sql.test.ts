@@ -89,7 +89,7 @@ describe("withSubjectMergeFunction", () => {
 });
 
 describe("recordMergeFunction", () => {
-  const ctx = moduleContext("parties");
+  const ctx = moduleContext("contacts");
 
   const merge = {
     name: "merge_people",
@@ -160,7 +160,7 @@ describe("rendered modules", () => {
       file.contents.includes("perform better_supabase.merge_subject_refs("),
     );
 
-    expect(callers.map((file) => file.module)).toContain("parties");
+    expect(callers.map((file) => file.module)).toContain("contacts");
     expect(
       callers.filter(
         (file) =>

@@ -118,9 +118,10 @@ describe("ai-files module", () => {
   });
 
   it("lists the functions a custom install has to provide", () => {
-    const contract = customContracts(["tenant", "access", "ai-files"], {
-      modules: { "ai-files": { mode: "custom" } },
-    }).find((entry) => entry.module === "ai-files");
+    const contract = customContracts(
+      ["memberships", "permissions", "ai-files"],
+      { modules: { "ai-files": { mode: "custom" } } },
+    ).find((entry) => entry.module === "ai-files");
 
     const names = contract?.functions.map((fn) => fn.name) ?? [];
     expect(names).toContain("reserve_ai_file");

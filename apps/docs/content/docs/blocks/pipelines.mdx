@@ -13,7 +13,7 @@ Reading pipelines and boards needs `pipelines.read`, and creating, renaming, reo
 better-supabase add pipelines
 ```
 
-The module needs `tenant`, `access` and `subjects`.
+The module needs `tenant`, `permissions` and `subjects`.
 
 ## Bind a record type
 
@@ -152,7 +152,7 @@ With the [notifications](/docs/blocks/notifications) module installed, the owner
 | `pipeline.created`, `pipeline.updated`, `pipeline.archived` | an admin changed a pipeline     | `organizationId`, `pipelineId`, `subjectType`, `key`                                                          |
 | `pipeline_stage.saved`, `pipeline_stage.archived`           | an admin changed a stage        | `organizationId`, `pipelineId`, `stageId`, `key`, `category`                                                  |
 
-`pipeline.stage_changed` carries the record as its subject, so the [activity feed](/docs/blocks/activity) shows it on the record's timeline. Pipeline and stage changes are written to the audit log as configuration changes.
+`pipeline.stage_changed` carries the record as its subject, so the [activity feed](/docs/blocks/timeline) shows it on the record's timeline. Pipeline and stage changes are written to the audit log as configuration changes.
 
 ## Your own fields
 

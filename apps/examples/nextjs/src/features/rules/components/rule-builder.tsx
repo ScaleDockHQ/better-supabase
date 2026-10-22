@@ -2,8 +2,8 @@
 "use client";
 
 import type { DragEndEvent } from "@dnd-kit/core";
-import type { RuleField } from "better-supabase/blocks/rules";
-import type { RuleBuilderState } from "better-supabase/blocks/rules/react";
+import type { RuleField } from "better-supabase/blocks/automations";
+import type { RuleBuilderState } from "better-supabase/blocks/automations/react";
 import type {
   FilterCombinator,
   FilterGroupNode,
@@ -28,8 +28,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { contains, ruleOperators } from "better-supabase/blocks/rules";
-import { useRuleBuilder } from "better-supabase/blocks/rules/react";
+import { contains, ruleOperators } from "better-supabase/blocks/automations";
+import { useRuleBuilder } from "better-supabase/blocks/automations/react";
 import { FILTER_OPERATOR_LABELS } from "better-supabase/list";
 import {
   GripVerticalIcon,
@@ -178,7 +178,7 @@ export function RuleBuilder({
     trigger: RULE_TRIGGER,
     initial: initialConditions,
     locked: LOCKED,
-    schema: blockConfig.rules.api,
+    schema: blockConfig.automations.api,
   });
 
   const enabled = enabledEdit ?? builder.rule?.enabled ?? false;

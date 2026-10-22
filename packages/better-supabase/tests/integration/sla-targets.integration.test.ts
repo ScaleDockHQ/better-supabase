@@ -5,8 +5,8 @@ import type { Result } from "../../src/core/result.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createDeals } from "../../src/blocks/deals/index.ts";
+import { createGoals } from "../../src/blocks/goals/index.ts";
 import { createSla } from "../../src/blocks/sla/index.ts";
-import { createTargets } from "../../src/blocks/targets/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -64,7 +64,7 @@ const MODULES = [
   "pipelines",
   "deals",
   "sla",
-  "targets",
+  "goals",
 ];
 
 const hint = (result: Result<unknown>): string =>
@@ -234,7 +234,7 @@ describe.skipIf(!live)("service levels and targets", () => {
       await s.install(MODULES, layout);
       const org = await s.organization(owner, { member: rep });
       const transport = sqlTransport(s.sql);
-      const targets = createTargets({ transport });
+      const targets = createGoals({ transport });
       const deals = createDeals({ transport });
       const today = Temporal.Now.plainDateISO();
 

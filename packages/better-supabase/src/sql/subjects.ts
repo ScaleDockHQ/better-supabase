@@ -6,7 +6,7 @@ import type { GuestAction } from "./scope.ts";
 import { fillTemplate } from "../core/access-sql.ts";
 import { isRecord } from "../core/guards.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
-import { accessModel } from "./modules/access-model.ts";
+import { accessModel } from "./modules/permissions-model.ts";
 import { quotedTable, splitTable } from "./shared.ts";
 
 /**
@@ -762,7 +762,7 @@ function subjectScope(
 
   if (accessModel(ctx) !== "provider" || provider === undefined) {
     throw new TypeError(
-      `${where} needs blocks.access.model "provider" and an authorization provider that declares the scope`,
+      `${where} needs blocks.permissions.model "provider" and an authorization provider that declares the scope`,
     );
   }
 

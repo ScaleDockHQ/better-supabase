@@ -15,7 +15,7 @@ pnpm better-supabase add notifications
 
 Sending goes through `notify(jsonb)`, a `security definer` function, so a
 client can't write notification rows directly or pick another user as the
-actor. With the [access contract](/docs/blocks/access) installed, the sender
+actor. With the [access contract](/docs/blocks/permissions) installed, the sender
 needs `notifications.send` in the organization and every recipient needs
 `notifications.read`; the actor and non-members are left out. With the
 [outbox](/docs/blocks/outbox), every notification also emits

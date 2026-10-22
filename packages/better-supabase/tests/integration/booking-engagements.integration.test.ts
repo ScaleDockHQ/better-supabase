@@ -3,9 +3,9 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
+import { createActivities } from "../../src/blocks/activities/index.ts";
 import { createBookings } from "../../src/blocks/bookings/bookings.ts";
-import { createEngagements } from "../../src/blocks/engagements/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
+import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -18,13 +18,13 @@ const MODULES = [
   "notifications",
   "subjects",
   "bookings",
-  "parties",
-  "engagements",
+  "contacts",
+  "activities",
 ];
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties"], {}),
-  modules: { engagements: { options: { bookings: true } } },
+  subjects: withBlockSubjects({}, ["contacts"], {}),
+  modules: { activities: { options: { bookings: true } } },
 };
 
 describe.skipIf(!live)("bookings to engagements", () => {
@@ -42,8 +42,8 @@ describe.skipIf(!live)("bookings to engagements", () => {
       const org = await s.organization(owner, { member });
       const transport = sqlTransport(s.sql);
       const bookings = createBookings({ transport });
-      const parties = createParties({ transport });
-      const engagements = createEngagements({ transport });
+      const parties = createContacts({ transport });
+      const engagements = createActivities({ transport });
 
       await s.as(owner);
 

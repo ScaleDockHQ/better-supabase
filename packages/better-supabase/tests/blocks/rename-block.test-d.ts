@@ -7,14 +7,11 @@ import type {
   RenameKey,
   RenamesOf,
 } from "../../src/blocks/rename-block.ts";
-import type {
-  WorkItem,
-  WorkItems,
-} from "../../src/blocks/work-items/work-items.ts";
+import type { WorkItem, Tasks } from "../../src/blocks/tasks/tasks.ts";
 import type { AsyncResult } from "../../src/core/result.ts";
 
 import { renameBlock } from "../../src/blocks/rename-block.ts";
-import { workItemsBlock } from "../../src/blocks/work-items/manifest.ts";
+import { tasksBlock } from "../../src/blocks/tasks/manifest.ts";
 
 const NAMES = {
   entities: [
@@ -81,21 +78,21 @@ describe("RenamedType", () => {
 });
 
 describe("RenamedClient", () => {
-  type Tasks = RenamedClient<WorkItems, R>;
+  type Renamed = RenamedClient<Tasks, R>;
 
   it("renames methods, arguments and results", () => {
-    expectTypeOf<Tasks>().toHaveProperty("saveInitiative");
-    expectTypeOf<Tasks>().not.toHaveProperty("saveProject");
-    expectTypeOf<Parameters<Tasks["list"]>[1]>().toExtend<
+    expectTypeOf<Renamed>().toHaveProperty("saveInitiative");
+    expectTypeOf<Renamed>().not.toHaveProperty("saveProject");
+    expectTypeOf<Parameters<Renamed["list"]>[1]>().toExtend<
       { readonly initiativeId?: string } | undefined
     >();
-    expectTypeOf<ReturnType<Tasks["list"]>>().toExtend<
+    expectTypeOf<ReturnType<Renamed["list"]>>().toExtend<
       AsyncResult<readonly { readonly initiativeId?: string }[]>
     >();
   });
 
   it("renames the column a change names", () => {
-    type Change = Parameters<Tasks["update"]>[0][number];
+    type Change = Parameters<Renamed["update"]>[0][number];
 
     expectTypeOf<"initiativeId">().toExtend<Change["field"]>();
     expectTypeOf<Change>().toHaveProperty("taskId");
@@ -103,7 +100,7 @@ describe("RenamedClient", () => {
 });
 
 describe("renameBlock", () => {
-  const tasks = renameBlock(workItemsBlock, NAMES);
+  const tasks = renameBlock(tasksBlock, NAMES);
 
   it("renames the event map", () => {
     expectTypeOf<
@@ -126,8 +123,6 @@ describe("renameBlock", () => {
   });
 
   it("keeps the block when nothing is renamed", () => {
-    expectTypeOf(renameBlock(workItemsBlock, undefined)).toEqualTypeOf(
-      workItemsBlock,
-    );
+    expectTypeOf(renameBlock(tasksBlock, undefined)).toEqualTypeOf(tasksBlock);
   });
 });

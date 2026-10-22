@@ -30,7 +30,7 @@ is no separate CLI package to add.
    `organization_id in (select better_supabase.member_organization_ids())`, which
    Postgres runs once per statement, not `has_organization_role(organization_id)`,
    which runs once per row. List the table in `expose` in
-   `better-supabase.config.ts` and run `pnpm better-supabase add grants`:
+   `better-supabase.config.ts` and run `pnpm better-supabase add data-api-grants`:
    new tables get no Data API grants on their own.
 3. Apply it with `supabase db reset` (or `supabase migration up`).
 4. Run `pnpm better-supabase gen`, then fix the type errors it surfaces. It

@@ -15,7 +15,6 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import {
   SLUG,
   optionFunctions,
@@ -29,6 +28,7 @@ import {
   priceFunctions,
   storefrontFunctions,
 } from "./catalog-merchandising.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<CatalogEvents> = {
   "product.created": {
@@ -242,7 +242,7 @@ const NAMES: BlockSqlNames = {
       },
     },
     collections: {
-      name: "collections",
+      name: "product_collections",
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -274,6 +274,15 @@ const NAMES: BlockSqlNames = {
       columns: { tenant: "tenant_id", publishedAt: "published_at" },
     },
   },
+  migrations: [
+    {
+      from: 1,
+      description:
+        "The collections table is product_collections, so it doesn't read as the collections block's table.",
+      table: "collections",
+      was: "collections",
+    },
+  ],
 };
 
 function tables(ctx: BlockSqlContext, names: Names): string {
@@ -690,12 +699,12 @@ export const CATALOG: BlockSqlDefinition = {
   title: "Catalog",
   description:
     "Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   before: "search",
   integrates: ["outbox", "state-machine", "inventory"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build,

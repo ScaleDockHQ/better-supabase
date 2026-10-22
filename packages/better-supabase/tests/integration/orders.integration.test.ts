@@ -195,12 +195,12 @@ describe.skipIf(!live)("orders module in Postgres", () => {
         "catalog",
         "inventory",
         "outbox",
-        "number-sequences",
+        "numbering",
         "orders",
       ],
       {
         modules: {
-          "number-sequences": {
+          numbering: {
             options: {
               entities: {
                 order: { period: "none", format: "SO-{n:4}" },

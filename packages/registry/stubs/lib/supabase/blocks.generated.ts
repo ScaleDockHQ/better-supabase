@@ -11,6 +11,6 @@ export const blockConfig = {
     options: { topic: "notifications:{userId}" },
   },
   organizations: { schema: "better_supabase", api: "api", options: {} },
-  rules: { schema: "better_supabase", api: "api", options: {} },
+  automations: { schema: "better_supabase", api: "api", options: {} },
   search: { schema: "better_supabase", api: "api", options: {} },
 } as const satisfies GeneratedBlocks;

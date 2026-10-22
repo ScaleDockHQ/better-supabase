@@ -1,0 +1,114 @@
+---
+title: AI tasks
+description: Prompts a user schedules on a cron in their time zone, a scheduler that queues each run, and a run log with the chat each run wrote to.
+---
+
+The `ai-schedules` block runs a prompt on a schedule, such as a summary of new
+tickets every weekday at 9:00 in the user's time zone. Each run is logged
+with its status and the chat it wrote to.
+
+```bash
+better-supabase add ai-schedules   # adds tenant and access as well
+```
+
+| Table                | Holds                                                              |
+| -------------------- | ------------------------------------------------------------------ |
+| `ai_scheduled_tasks` | The prompt, cron, time zone, optional chat and agent, and next run |
+| `ai_task_runs`       | One row per run: `queued`, `running`, `completed` or `failed`      |
+
+A user sees and changes their own tasks; `ai.admin` lists every task
+in the organization. With [agents](/docs/blocks/agents) installed, a task
+can name the agent it runs as.
+
+| Permission  | Lets a member                      | Default roles              |
+| ----------- | ---------------------------------- | -------------------------- |
+| `ai.create` | schedule tasks                     | `owner`, `admin`, `member` |
+| `ai.admin`  | see every task in the organization | `owner`, `admin`           |
+
+| Option       | Default       | Sets                                               |
+| ------------ | ------------- | -------------------------------------------------- |
+| `maxPrompt`  | 20,000        | The longest prompt, in characters                  |
+| `queue`      | `ai_task_run` | The jobs queue a run is sent to                    |
+| `staleAfter` | `30 minutes`  | When a `running` run counts as abandoned and fails |
+
+## Server
+
+```ts title="lib/ai-tasks.ts"
+import {
+  createAiSchedules,
+  rpcTransport,
+} from "better-supabase/blocks/ai-schedules";
+
+export const tasksFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createAiSchedules({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    run: async (task, run, signal) => {
+      const chatId = await runAssistant(task, signal);
+      return { chatId };
+    },
+  });
+```
+
+```ts
+await tasks
+  .create(organizationId, {
+    title: "Ticket summary",
+    prompt: "Summarize the tickets opened since yesterday.",
+    cron: "0 9 * * 1-5",
+    timezone: "Europe/Amsterdam",
+  })
+  .orThrow();
+```
+
+The block computes the next occurrence on the server from the cron and
+time zone; a bad cron or zone fails with `invalid_input`. Change `cron`
+and `timezone` together. `pause` and `resume` turn a task off and on, and
+`runs(taskId)` lists its recent runs.
+
+Only the service role sets `next_run_at`. A member's create, or a change to
+`cron` or `timezone`, clears it, and the next `tick()` schedules the task;
+with a `service` transport the block schedules it right after the save. A
+`chatId` must name a chat the task's user owns in the same tenant
+(`AI_TASK_CHAT_FORBIDDEN`), and an `agentId` an agent in the tenant that
+the user owns or that is published (`AI_TASK_AGENT_FORBIDDEN`). An unknown
+time zone fails with `AI_TASK_INVALID`.
+
+## Running tasks
+
+AI tasks are the per-user layer of scheduling; app-level job schedules and
+workflow schedules are compared in
+[three scheduling layers](/docs/blocks/queue#three-scheduling-layers).
+
+`tick()` claims the due tasks as the service role, queues a run for each
+and sets the next occurrence. With [jobs](/docs/blocks/queue) installed, each
+run is sent to the `ai_task_run` queue and `runJob()` is its handler;
+without jobs, call `drain()` from a cron route to tick and run in one go.
+`drain()` runs every claimed task even when one fails, then returns the
+first error with a `details` line that lists each failed run. A run that
+stays `queued` longer than the stale timeout is marked `failed` on the
+next `tick()`, so a lost queue message doesn't block its task.
+
+`execute(runId)` marks the run `running`, calls your `run` function and
+marks it `completed` or `failed` with the error. It returns `false` when
+another worker already has the run. The optional `notify` callback gets
+every outcome, for a notification or an email. Without it, a `notification`
+type sends each outcome through the `notifier` port, the notifications block
+that [`createBlocks`](/docs/blocks/create-blocks#ports) passes:
+`aiSchedulesBlock.with({ notification: "ai_task.finished" })`.
+
+## Your own fields
+
+`blocks["ai-schedules"].options.extraColumns` adds columns to the `ai_scheduled_tasks` table,
+keyed by column name with their SQL type. Pass `createAiSchedules` a Standard Schema
+for them as `fields`: `create`, `update` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and `create`, `update`, `pause`, `resume`, `list` return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAiSchedules({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

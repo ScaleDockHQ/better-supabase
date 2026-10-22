@@ -5,7 +5,7 @@ description: Tenant-editable scoring models that add rule points and weighted me
 
 `scores` keeps scoring models per organization and the scores they give
 records. A model names a subject type and adds up two kinds of points: rules,
-each a filter tree over the [rules](/docs/blocks/rules) field catalog worth a
+each a filter tree over the [rules](/docs/blocks/automations) field catalog worth a
 number of points when it matches, and metrics, each a number field of the
 record (or its vote score from [reactions](/docs/blocks/reactions)) times a
 weight, with an optional cap. Bands name ranges of the total, such as `hot`
@@ -23,7 +23,7 @@ three and members get `scores.read`.
 better-supabase add scores
 ```
 
-The module needs `tenant`, `access` and `rules`. It reads vote scores when
+The module needs `tenant`, `permissions` and `rules`. It reads vote scores when
 [reactions](/docs/blocks/reactions) is installed, records `score_model.*`
 events to the outbox and the audit log, and emits `score.changed`.
 
@@ -65,8 +65,8 @@ const score = await scores
 ```
 
 `qualified` and `bigRevenue` are `FilterQuery` trees, the same ones the
-[rule builder](/docs/blocks/rules#editor) edits. Sync the subject type's
-fields with `createRulesAdmin().syncFields()` first; a model can only test
+[rule builder](/docs/blocks/automations#editor) edits. Sync the subject type's
+fields with `createAutomationsAdmin().syncFields()` first; a model can only test
 fields the catalog has, and a `field` metric must name a `number` field.
 
 ## Models
@@ -138,7 +138,7 @@ account owner when health drops a band.
 There is no prebuilt scores UI. Show `band` as a `Badge` (`success-light` for
 the top band) next to the record title, and list `breakdown.rules` and
 `breakdown.metrics` in a `Popover` to explain the number. Edit a model's
-rules with the rule builder recipe from the [rules page](/docs/blocks/rules#editor),
+rules with the rule builder recipe from the [rules page](/docs/blocks/automations#editor),
 one filter tree per rule with a points input beside it.
 
 ## Why it works this way

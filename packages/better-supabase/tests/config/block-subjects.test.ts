@@ -5,7 +5,7 @@ import { resolveConfig } from "../../src/config/resolve.ts";
 
 describe("withBlockSubjects", () => {
   it("registers a work item as a ranked, searchable subject", () => {
-    expect(withBlockSubjects({}, ["work-items"], {})).toEqual({
+    expect(withBlockSubjects({}, ["tasks"], {})).toEqual({
       work_item: {
         table: "better_supabase.work_items",
         idType: "uuid",
@@ -37,8 +37,8 @@ describe("withBlockSubjects", () => {
   });
 
   it("names a renamed entity's subject, table and permission keys", () => {
-    const subjects = withBlockSubjects({}, ["work-items"], {
-      "work-items": {
+    const subjects = withBlockSubjects({}, ["tasks"], {
+      tasks: {
         schema: "app",
         entities: { work_item: { name: "task", url: "/tasks/{identifier}" } },
       },
@@ -80,10 +80,8 @@ describe("withBlockSubjects", () => {
 
   it("leaves out an entity with subject: false and a block in custom mode", () => {
     expect(
-      withBlockSubjects({}, ["work-items", "employees"], {
-        "work-items": {
-          entities: { work_item: { name: "task", subject: false } },
-        },
+      withBlockSubjects({}, ["tasks", "employees"], {
+        tasks: { entities: { work_item: { name: "task", subject: false } } },
         employees: { mode: "custom" },
       }),
     ).toEqual({});
@@ -99,10 +97,7 @@ describe("withBlockSubjects", () => {
 describe("resolveConfig subjects", () => {
   it("adds block subjects next to the app's own", () => {
     const resolved = resolveConfig(
-      {
-        blocks: ["work-items"],
-        records: { invoice: { table: "public.invoices" } },
-      },
+      { blocks: ["tasks"], records: { invoice: { table: "public.invoices" } } },
       "/app",
     );
 

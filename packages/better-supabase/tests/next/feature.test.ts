@@ -111,7 +111,7 @@ const permissionsCall = vi.fn((keys: readonly string[]) =>
   }),
 );
 
-const accessBlock = defineBlock({
+const permissionsBlock = defineBlock({
   name: "access",
   category: "identity",
   create: (): Keys => ({ permissions: permissionsCall }),
@@ -127,7 +127,7 @@ const feature = defineRecordFeature({
       moderate: "notes.moderate",
     },
   },
-  access: accessBlock,
+  access: permissionsBlock,
 });
 
 const db = { $context: { tenant: "org" } } as unknown as BlockClientSource;
@@ -328,7 +328,7 @@ describe("recordServer timeline", () => {
         type: "customer",
         blocks: { notes: notesBlock },
         permissions: { notes: { read: "notes.hidden" } },
-        access: accessBlock,
+        access: permissionsBlock,
       }),
     );
 

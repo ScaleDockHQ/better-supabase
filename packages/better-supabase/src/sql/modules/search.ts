@@ -21,7 +21,7 @@ import {
   urlExpression,
 } from "../subject-registry.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
   hooks: ["before_search_document_index", "after_search_document_index"],
@@ -781,7 +781,7 @@ export const SEARCH: BlockSqlDefinition = {
   title: "Search",
   description:
     "A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
-  requires: ["tenant", "access", "subjects"],
+  requires: ["memberships", "permissions", "subjects"],
   integrates: ["share-links", "vector-search"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

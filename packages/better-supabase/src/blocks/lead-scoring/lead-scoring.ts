@@ -1,13 +1,13 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
-import type { RuleFieldCatalog } from "../rules/fields.ts";
+import type { RuleFieldCatalog } from "../automations/fields.ts";
 import type { ComputedScore } from "../scores/scores.ts";
 import type { BlockOptions, RecordRef } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { defineRuleFields } from "../rules/fields.ts";
+import { defineRuleFields } from "../automations/fields.ts";
 import { computedScoreOf } from "../scores/scores.ts";
 import { applyTemporal, blockCall, isRecord } from "../shared.ts";
 

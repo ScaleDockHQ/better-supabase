@@ -11,7 +11,7 @@ import { createAttachments } from "../../src/blocks/attachments/attachments.ts";
 import { defineBlocks } from "../../src/blocks/create-blocks.ts";
 import { outboxBlock } from "../../src/blocks/outbox/manifest.ts";
 import { renameBlock } from "../../src/blocks/rename-block.ts";
-import { workItemsBlock } from "../../src/blocks/work-items/manifest.ts";
+import { tasksBlock } from "../../src/blocks/tasks/manifest.ts";
 import { blockConfigEntries } from "../../src/cli/gen/blocks.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
@@ -79,12 +79,12 @@ const config = resolveConfig(
   {
     blocks: {
       "updated-at": { schema: SCRATCH },
-      tenant: { schema: SCRATCH, names: { organization: "workspace" } },
-      access: { schema: SCRATCH },
+      memberships: { schema: SCRATCH, names: { organization: "workspace" } },
+      permissions: { schema: SCRATCH },
       subjects: { schema: SCRATCH },
       pipelines: { schema: SCRATCH },
       outbox: { schema: SCRATCH },
-      "work-items": { schema: SCRATCH, names: { work_item: "task" } },
+      tasks: { schema: SCRATCH, names: { work_item: "task" } },
       attachments: { schema: SCRATCH, options: { requireScan: false } },
     },
   },
@@ -93,10 +93,7 @@ const config = resolveConfig(
 
 const generated = blockConfigEntries(config);
 
-/**
- * The names `gen` writes for work-items, as `blocks.generated.ts` declares
- * them.
- */
+/** The names `gen` writes for tasks, as `blocks.generated.ts` declares them. */
 const NAMES = {
   tenant: "workspace",
   entities: [
@@ -108,7 +105,7 @@ const NAMES = {
 } as const;
 
 const blocks = defineBlocks(generated, {
-  tasks: renameBlock(workItemsBlock, NAMES),
+  tasks: renameBlock(tasksBlock, NAMES),
   outbox: outboxBlock.with({ source: "https://app.test" }),
 });
 
@@ -152,7 +149,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     });
 
     // attachment_subject_readable is SQL-language and names the `tasks` table,
-    // which work-items creates after it.
+    // which tasks creates after it.
     for (const file of [
       ...files.filter((file) => file.module !== "attachments"),
       ...files.filter((file) => file.module === "attachments"),
@@ -176,7 +173,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
   });
 
   it("generates the names the client is renamed with", () => {
-    expect(generated["work-items"]?.names).toEqual(NAMES);
+    expect(generated["tasks"]?.names).toEqual(NAMES);
   });
 
   it("installs the renamed tables, functions and permission keys", async () => {
@@ -205,7 +202,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
 
     const { rows: permissions } = await client.query<{ key: string }>(
       `select better_supabase.operation_permission(op) as key
-       from unnest(array['work-items.read', 'work-items.write', 'work-items.manage']) as op`,
+       from unnest(array['tasks.read', 'tasks.write', 'tasks.manage']) as op`,
     );
 
     expect({

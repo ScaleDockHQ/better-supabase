@@ -2,9 +2,9 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, pageSize, userGrant, raise } from "../shared.ts";
-import { OPERATIONS, modulePermission } from "./access-model.ts";
 import { hasColumn, impersonators } from "./audit-columns.ts";
 import { auditRead, isAuditValueColumn } from "./audit-values.ts";
+import { OPERATIONS, modulePermission } from "./permissions-model.ts";
 
 /** Logical log column to the key `list_audit_events` returns it under. */
 const ENTRY_KEYS: readonly (readonly [string, string])[] = [
@@ -263,7 +263,7 @@ ${revokeUsers(ctx.fn("count_audit_events"), filterTypes)}grant execute on functi
  * `audit.revealed` entry that records who looked.
  */
 export function reveal(ctx: BlockSqlContext, restricted: boolean): string {
-  if (!restricted || !ctx.installed("access")) {
+  if (!restricted || !ctx.installed("permissions")) {
     return "";
   }
 

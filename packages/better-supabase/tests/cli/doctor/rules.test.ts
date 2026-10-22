@@ -550,8 +550,8 @@ describe("generated and module files (BS303, BS304)", () => {
 
     const config: BetterSupabaseConfig = {
       blocks: {
-        grants: { options: { fromPolicies: true } },
-        sessions: { options: { policies: true } },
+        "data-api-grants": { options: { fromPolicies: true } },
+        "session-revocation": { options: { policies: true } },
       },
     };
 
@@ -565,7 +565,7 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(await run("BS304", ctx)).toEqual([]);
 
     const grants = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      join(root, "supabase/schemas/900_better_supabase_13_data_api_grants.sql"),
       "utf-8",
     );
 
@@ -633,17 +633,21 @@ describe("generated and module files (BS303, BS304)", () => {
   it("checks the newest module migration under the migrations workflow", async () => {
     const ctx = rooted({
       database: { sql: { workflow: "migrations" } },
-      blocks: ["tenant", "mfa"],
+      blocks: ["memberships", "mfa"],
     });
 
     const missing = await run("BS304", ctx);
     expect(missing.map((finding) => finding.message)).toEqual(
-      ["updated-at", "tenant", "mfa"].map(
+      ["updated-at", "memberships", "mfa"].map(
         (module) =>
           `${module} in supabase/migrations/<stamp>_better_supabase_modules.sql is missing. Run \`better-supabase upgrade\`, then \`supabase migration up\`.`,
       ),
     );
-    const files = renderBlocks(["tenant", "mfa"], moduleLayout(ctx.config));
+
+    const files = renderBlocks(
+      ["memberships", "mfa"],
+      moduleLayout(ctx.config),
+    );
 
     const name =
       "supabase/migrations/20200101000000_better_supabase_modules.sql";
@@ -654,13 +658,16 @@ describe("generated and module files (BS303, BS304)", () => {
         .filter((file) => file.kind !== "test")
         .map((file) => file.contents)
         .join("\n")
-        .replace(/^-- @bsb-block tenant@2/m, "-- @bsb-block tenant@1"),
+        .replace(
+          /^-- @bsb-block memberships@2/m,
+          "-- @bsb-block memberships@1",
+        ),
     );
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
       expect.objectContaining({
         target: name,
-        message: expect.stringContaining("has tenant version 1"),
+        message: expect.stringContaining("has memberships version 1"),
       }),
     ]);
   });
@@ -689,15 +696,15 @@ describe("generated and module files (BS303, BS304)", () => {
   });
 
   it("reports a module behind its version in BS311, not BS304", async () => {
-    const ctx = rooted({ blocks: ["tenant"] });
-    const files = renderBlocks(["tenant"], moduleLayout(ctx.config));
+    const ctx = rooted({ blocks: ["memberships"] });
+    const files = renderBlocks(["memberships"], moduleLayout(ctx.config));
 
     for (const module of files) {
       await write(module.path, module.contents);
     }
 
     const file = files.find(
-      (module) => module.module === "tenant" && module.kind === "schema",
+      (module) => module.module === "memberships" && module.kind === "schema",
     );
 
     await write(file!.path, file!.contents.replace(/^-- @bsb-block .*\n/m, ""));
@@ -707,7 +714,7 @@ describe("generated and module files (BS303, BS304)", () => {
         severity: "warning",
         target: file!.path,
         message: expect.stringContaining(
-          "has tenant version 1; this release ships version 2. Run `better-supabase upgrade`",
+          "has memberships version 1; this release ships version 2. Run `better-supabase upgrade`",
         ),
       }),
     ]);
@@ -716,7 +723,7 @@ describe("generated and module files (BS303, BS304)", () => {
   });
 
   it("reads modules on a live database in BS311", async () => {
-    const ctx = rooted({ blocks: ["tenant", "mfa"] });
+    const ctx = rooted({ blocks: ["memberships", "mfa"] });
 
     const live = (rows: Record<string, unknown>[] | Error) => ({
       ...ctx,
@@ -734,16 +741,16 @@ describe("generated and module files (BS303, BS304)", () => {
       await run(
         "BS311",
         live([
-          { name: "tenant", version: 1 },
+          { name: "memberships", version: 1 },
           { name: "mfa", version: 1 },
           { name: "audit", version: 0 },
         ]),
       ),
     ).toEqual([
       expect.objectContaining({
-        target: "better_supabase.blocks.tenant",
+        target: "better_supabase.blocks.memberships",
         message: expect.stringContaining(
-          "The database has tenant version 1; this release ships version 2.",
+          "The database has memberships version 1; this release ships version 2.",
         ),
       }),
     ]);
@@ -803,12 +810,12 @@ describe("module upgrades (BS309, BS310)", () => {
               text: "select better_supabase.current_org_id();",
             },
             {
-              path: "supabase/schemas/900_better_supabase_04_tenant.sql",
-              text: "-- @bsb-block tenant@2 managed\nselect better_supabase.current_org_id();",
+              path: "supabase/schemas/900_better_supabase_04_memberships.sql",
+              text: "-- @bsb-block memberships@2 managed\nselect better_supabase.current_org_id();",
             },
           ],
         },
-        { blocks: ["tenant"] },
+        { blocks: ["memberships"] },
       ),
     );
 
@@ -830,7 +837,10 @@ describe("module upgrades (BS309, BS310)", () => {
         context(
           snap,
           {},
-          { blocks: ["tenant"], auth: { organization: { claim: "org_id" } } },
+          {
+            blocks: ["memberships"],
+            auth: { organization: { claim: "org_id" } },
+          },
         ),
       ),
     ).toEqual([]);
@@ -865,7 +875,7 @@ describe("module upgrades (BS309, BS310)", () => {
 
     const findings = await run(
       "BS309",
-      context(snap, { sqlFiles }, { blocks: ["tenant"] }),
+      context(snap, { sqlFiles }, { blocks: ["memberships"] }),
     );
 
     expect(
@@ -883,7 +893,7 @@ describe("module upgrades (BS309, BS310)", () => {
         context(
           snap,
           { sqlFiles },
-          { blocks: { tenant: { ownership: "adopt" } } },
+          { blocks: { memberships: { ownership: "adopt" } } },
         ),
       ),
     ).toEqual([]);
@@ -929,7 +939,7 @@ describe("exposed module schemas (BS312)", () => {
       context(
         base,
         { configToml: api },
-        { blocks: { tenant: {}, audit: { schema: "crm" } } },
+        { blocks: { memberships: {}, audit: { schema: "crm" } } },
       ),
     );
 
@@ -949,7 +959,7 @@ describe("exposed module schemas (BS312)", () => {
           base,
           { configToml: toml('[api]\nschemas = ["public"]\n') },
           {
-            blocks: ["tenant"],
+            blocks: ["memberships"],
             database: { schemas: ["public", "better_supabase"] },
           },
         ),
@@ -962,7 +972,7 @@ describe("exposed module schemas (BS312)", () => {
           base,
           {},
           {
-            blocks: ["tenant"],
+            blocks: ["memberships"],
             database: { schemas: ["public", "better_supabase"] },
           },
         ),
@@ -1018,7 +1028,7 @@ describe("rate limits wired to PostgREST (BS313)", () => {
     }
 
     expect(
-      await run("BS313", live(["tenant"], [{ hook: null, calls: false }])),
+      await run("BS313", live(["memberships"], [{ hook: null, calls: false }])),
     ).toEqual([]);
     expect(
       await run("BS313", live(["rate-limit"], new Error("denied"))),
@@ -1082,7 +1092,9 @@ describe("audit registrations of dropped tables (BS322)", () => {
 
   it("passes a clean registry, projects without the module, a failed query and no database", async () => {
     expect(await run("BS322", live(["audit"], []))).toEqual([]);
-    expect(await run("BS322", live(["tenant"], [{ oid: "1" }]))).toEqual([]);
+    expect(await run("BS322", live(["memberships"], [{ oid: "1" }]))).toEqual(
+      [],
+    );
     expect(await run("BS322", live(["audit"], new Error("denied")))).toEqual(
       [],
     );
@@ -1094,7 +1106,7 @@ describe("audit registrations of dropped tables (BS322)", () => {
 
 describe("flags past their expiry (BS336)", () => {
   const withExpiry = (extraColumns: Record<string, string>) => ({
-    blocks: { flags: { options: { extraColumns } } },
+    blocks: { "feature-flags": { options: { extraColumns } } },
   });
 
   const live = (
@@ -1348,7 +1360,7 @@ describe("adopted enum columns the module writes as text (BS342)", () => {
 
   const blocks = {
     blocks: {
-      "number-sequences": {
+      numbering: {
         mode: "adopt" as const,
         tables: { sequences: "public.number_sequences" },
       },
@@ -1904,7 +1916,7 @@ describe("unpartitioned block tables (BS335)", () => {
 });
 
 describe("module event triggers (BS323)", () => {
-  const modules = { blocks: ["audit", "ensure-rls", "tenant"] };
+  const modules = { blocks: ["audit", "rls-guard", "memberships"] };
 
   const live = (rows: Record<string, unknown>[] | Error) => ({
     describe: "test",
@@ -1994,7 +2006,7 @@ describe("module event triggers (BS323)", () => {
     expect(
       await run(
         "BS323",
-        context(base, { database: live([]) }, { blocks: ["tenant"] }),
+        context(base, { database: live([]) }, { blocks: ["memberships"] }),
       ),
     ).toEqual([]);
   });
@@ -2185,7 +2197,10 @@ describe("tables without an audit trigger (BS315)", () => {
                   exempt: rest.map((table) => ({ table, reason: "archive" })),
                 },
               },
-              tenant: { ownership: "adopt", tables: { memberships: first } },
+              memberships: {
+                ownership: "adopt",
+                tables: { memberships: first },
+              },
             },
           },
         ),
@@ -2330,7 +2345,7 @@ describe("tables without the session policy (BS320)", () => {
 
   it("lists RLS tables without a restrictive session_active() policy", async () => {
     const covered = snapshot((tables) => {
-      // The repo's stack turns blocks.sessions.options.policies on.
+      // The repo's stack turns blocks['session-revocation'].options.policies on.
       for (const entry of tables) {
         entry.policies = entry.policies.filter(
           (policy) => policy.name !== "bsb_session_active",
@@ -2365,7 +2380,7 @@ describe("tables without the session policy (BS320)", () => {
 
     const findings = await run(
       "BS320",
-      context(covered, {}, { blocks: ["sessions"] }),
+      context(covered, {}, { blocks: ["session-revocation"] }),
     );
 
     expect(findings.map((finding) => finding.target)).toEqual(
@@ -2375,7 +2390,9 @@ describe("tables without the session policy (BS320)", () => {
       severity: "warning",
       object: { kind: "table", schema: "public" },
     });
-    expect(findings[0]!.message).toContain("blocks.sessions.options.exclude");
+    expect(findings[0]!.message).toContain(
+      "blocks['session-revocation'].options.exclude",
+    );
   });
 
   it("skips excluded tables and projects without the module", async () => {
@@ -2385,7 +2402,11 @@ describe("tables without the session policy (BS320)", () => {
         context(
           base,
           {},
-          { blocks: { sessions: { options: { exclude: ["public.*"] } } } },
+          {
+            blocks: {
+              "session-revocation": { options: { exclude: ["public.*"] } },
+            },
+          },
         ),
       ),
     ).toEqual([]);
@@ -2563,7 +2584,7 @@ describe("tenant foreign keys without a same-tenant trigger (BS340)", () => {
   it("lists a key between two tenant tables without the trigger", async () => {
     const findings = await run(
       "BS340",
-      context(tenantSnapshot(false), {}, { blocks: ["tenant"] }),
+      context(tenantSnapshot(false), {}, { blocks: ["memberships"] }),
     );
 
     expect(notes(findings)).toMatchObject([
@@ -2581,7 +2602,7 @@ describe("tenant foreign keys without a same-tenant trigger (BS340)", () => {
       notes(
         await run(
           "BS340",
-          context(tenantSnapshot(true), {}, { blocks: ["tenant"] }),
+          context(tenantSnapshot(true), {}, { blocks: ["memberships"] }),
         ),
       ),
     ).toEqual([]);
@@ -3077,7 +3098,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
           configToml: pgdelta,
           sqlFiles: [
             file(grants.text, "supabase/migrations/1_init.sql"),
-            file(`-- @bsb-block grants@1 managed\n${grants.text}`),
+            file(`-- @bsb-block data-api-grants@1 managed\n${grants.text}`),
           ],
         }),
       ),
@@ -3123,8 +3144,8 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
 
   it("flags extensions the schema files create that no migration does", async () => {
     const jobs = file(
-      "-- @bsb-block jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;\nraise exception 'needs pg_cron: create extension pg_cron with schema pg_catalog';",
-      "supabase/schemas/900_better_supabase_07_jobs.sql",
+      "-- @bsb-block queue@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;\nraise exception 'needs pg_cron: create extension pg_cron with schema pg_catalog';",
+      "supabase/schemas/900_better_supabase_07_queue.sql",
     );
 
     const own = file(
@@ -3145,7 +3166,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
     expect(
       findings.map((finding) => [finding.target, finding.location?.line]),
     ).toEqual([
-      ["supabase/schemas/900_better_supabase_07_jobs.sql", 2],
+      ["supabase/schemas/900_better_supabase_07_queue.sql", 2],
       ["supabase/schemas/010_extensions.sql", 2],
     ]);
     expect(findings[0]!.message).toContain("better-supabase upgrade");
@@ -3154,7 +3175,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
     );
 
     const data = file(
-      '-- @bsb-block-data jobs\ncreate extension if not exists "pgmq";\ncreate extension if not exists pg_cron;',
+      '-- @bsb-block-data queue\ncreate extension if not exists "pgmq";\ncreate extension if not exists pg_cron;',
       "supabase/migrations/20260101000001_better_supabase_module_data.sql",
     );
 

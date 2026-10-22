@@ -48,11 +48,11 @@ blocks: {
 
 The block's readers run as the caller too, and return `STATE_SUBJECT_NOT_FOUND` for a record the caller can't see:
 
-| Method                   | Returns                                                                                                            |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `state(subject)`         | The status, its `step` and `progress` through `order`, and with a lifecycle its `version`, `flags` and pause       |
-| `history(subject, page)` | Status changes, newest first, 50 per page and at most 500; pass the last `createdAt` as `cursor` for the next page |
-| `stages(subject)`        | The stages timeline in display order, empty for a machine without `stages: true`                                   |
+| Method                   | Returns                                                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `state(subject)`         | The status, its `step` and `progress` through `order`, and with a lifecycle its `version`, `feature-flags` and pause |
+| `history(subject, page)` | Status changes, newest first, 50 per page and at most 500; pass the last `createdAt` as `cursor` for the next page   |
+| `stages(subject)`        | The stages timeline in display order, empty for a machine without `stages: true`                                     |
 
 Every method takes the record as a `RecordRef`, `{ type, id }`, whose type is the machine name; `createStateMachine<"quote">` narrows it. `state` returns the record as `subject` next to its `organizationId`.
 
@@ -105,7 +105,7 @@ The events need the [outbox](/docs/blocks/outbox) module; the subject of each is
 
 ## A lifecycle driven by a workflow
 
-A workflow can own the part of a lifecycle that runs on a timer or waits on someone, while the machine keeps the rules. Start a [workflow-builder](/docs/blocks/workflow-builder) definition from an `event` trigger with `config.type` set to `status.changed`, and have your outbox consumer hand it only the events of the subject type the workflow is for:
+A workflow can own the part of a lifecycle that runs on a timer or waits on someone, while the machine keeps the rules. Start a [workflow-editor](/docs/blocks/workflow-editor) definition from an `event` trigger with `config.type` set to `status.changed`, and have your outbox consumer hand it only the events of the subject type the workflow is for:
 
 ```ts title="lib/outbox-consumer.ts"
 const isQuote = (payload: unknown) =>

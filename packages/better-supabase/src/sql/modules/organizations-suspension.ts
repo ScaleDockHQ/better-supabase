@@ -3,7 +3,7 @@ import type { OrganizationReadNames } from "./organizations-reads.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { membershipDisabledAt, SERVICE_CALLER, fail } from "../shared.ts";
-import { OPERATIONS, modulePermission } from "./access-model.ts";
+import { OPERATIONS, modulePermission } from "./permissions-model.ts";
 
 export interface SuspensionHelpers {
   readonly isOwner: (alias: string) => string;

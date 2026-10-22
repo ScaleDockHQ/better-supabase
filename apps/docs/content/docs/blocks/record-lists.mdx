@@ -115,13 +115,13 @@ The subjects block installs `my_work(tenant, page_size)`: what waits on the
 caller across the installed blocks, newest first. It runs as the caller, so
 every row is one they can read.
 
-| Kind       | From         | Rows                                              |
-| ---------- | ------------ | ------------------------------------------------- |
-| `assigned` | `work-items` | open work items assigned to the caller            |
-| `approval` | `approvals`  | pending approval requests the caller can decide   |
-| `reminder` | `reminders`  | the caller's reminders sent in the last 7 days    |
-| `mention`  | `comments`   | comments that mention the caller, last 30 days    |
-| `sla`      | `sla`        | SLA clocks that warned on the caller's work items |
+| Kind       | From        | Rows                                              |
+| ---------- | ----------- | ------------------------------------------------- |
+| `assigned` | `tasks`     | open work items assigned to the caller            |
+| `approval` | `approvals` | pending approval requests the caller can decide   |
+| `reminder` | `reminders` | the caller's reminders sent in the last 7 days    |
+| `mention`  | `comments`  | comments that mention the caller, last 30 days    |
+| `sla`      | `sla`       | SLA clocks that warned on the caller's work items |
 
 A kind whose block isn't installed returns nothing. `loadMyWork` groups the
 items by kind and counts them for tab badges, in one round trip:

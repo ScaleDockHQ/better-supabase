@@ -74,7 +74,7 @@ export interface Comment<
 > extends Message<F> {
   /** The record the comment is on. */
   readonly subject: RecordRef;
-  /** The work item `assign` turned it into, with the `work-items` block. */
+  /** The work item `assign` turned it into, with the `tasks` block. */
   readonly taskId: string | undefined;
 }
 
@@ -157,8 +157,8 @@ export interface Comments<F extends object = Record<never, never>> {
   /** The earlier versions of an edited comment, newest first. */
   edits(id: string): AsyncResult<readonly MessageEdit[]>;
   /**
-   * Turns a comment into a work item (with the `work-items` block) and returns
-   * its id; assigning it again returns the same one.
+   * Turns a comment into a work item (with the `tasks` block) and returns its
+   * id; assigning it again returns the same one.
    */
   assign(id: string, assignment?: CommentAssignment): AsyncResult<string>;
   /**

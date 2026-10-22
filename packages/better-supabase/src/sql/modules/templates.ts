@@ -20,7 +20,7 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 import { workflowParts } from "./templates-workflows.ts";
 
 const EVENTS: BlockSqlEvents<TemplatesEvents> = {
@@ -141,8 +141,8 @@ function build(ctx: BlockSqlContext): string {
   const extras = ctx.extraColumns("templates", RESERVED);
   const extra = extraFieldsArg(extras);
 
-  const builder = ctx.installed("workflow-builder")
-    ? ctx.of("workflow-builder")
+  const builder = ctx.installed("workflow-editor")
+    ? ctx.of("workflow-editor")
     : undefined;
 
   const schemas = ctx.installed("jsonb-schemas");
@@ -827,7 +827,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "uuid", "text", "text"],
       returns: "jsonb",
     },
-    ...(ctx.installed("workflow-builder")
+    ...(ctx.installed("workflow-editor")
       ? [
           {
             name: "attach_template_workflow",
@@ -851,8 +851,8 @@ export const TEMPLATES: BlockSqlDefinition = {
   title: "Templates",
   description:
     "Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.",
-  requires: ["tenant", "access"],
-  integrates: ["outbox", "audit", "workflow-builder", "jsonb-schemas"],
+  requires: ["memberships", "permissions"],
+  integrates: ["outbox", "audit", "workflow-editor", "jsonb-schemas"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

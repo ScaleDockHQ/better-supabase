@@ -56,7 +56,7 @@ export interface CreateOrganizationOptions {
 export type SlugProblem = "invalid" | "reserved" | "taken";
 
 export interface InviteRequest<I extends object = Record<never, never>> {
-  /** `null` invites to the platform (`blocks.access.model: 'catalog'`). */
+  /** `null` invites to the platform (`blocks.permissions.model: 'catalog'`). */
   readonly organizationId: string | null;
   readonly email: string;
   /** A role name, or a role id or key under the catalog model. */

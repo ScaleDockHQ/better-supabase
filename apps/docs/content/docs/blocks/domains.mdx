@@ -11,7 +11,7 @@ Listing hostnames needs `domains.read`, and adding, removing or choosing the pri
 better-supabase add domains
 ```
 
-The module needs `tenant` and `access`. With `reserved-slugs` installed, subdomains go through its slug check.
+The module needs `memberships` and `access`. With `reserved-slugs` installed, subdomains go through its slug check.
 
 ```ts
 import { createDomains } from "better-supabase/blocks/domains";
@@ -39,7 +39,7 @@ const result = await admin.verify(hostnameId, { actorId: user.id });
 // HOSTNAME_RECORD_MISSING until DNS has the record
 ```
 
-Run it from a button on the settings page, or from a [job](/docs/blocks/jobs) that retries until the record appears. Pass `resolver` to look up TXT records another way. Verification proves the organization controls the hostname; your host still has to serve it, so add the domain to your Vercel or Cloudflare project in the same step.
+Run it from a button on the settings page, or from a [job](/docs/blocks/queue) that retries until the record appears. Pass `resolver` to look up TXT records another way. Verification proves the organization controls the hostname; your host still has to serve it, so add the domain to your Vercel or Cloudflare project in the same step.
 
 Only one organization can hold a verified hostname. Several can claim one while it is pending, and the first to verify it wins, so a pending claim can't block the real owner.
 

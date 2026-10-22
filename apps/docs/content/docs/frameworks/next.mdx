@@ -142,9 +142,9 @@ pages share one context. It verifies the token locally and builds a
 stateless client; no auth call happens during rendering.
 
 `bsb.context({ tenant })` scopes the context to a tenant from the route
-params, in place of the `tenant` resolver, which has no request URL here.
+params, in place of the `memberships` resolver, which has no request URL here.
 The tenant gets the same checks as the resolver's
-([the active tenant](/docs/blocks/access#the-active-tenant)), and each
+([the active tenant](/docs/blocks/permissions#the-active-tenant)), and each
 tenant gets its own memoized context. `bsb.cached({ tenant })` does the same
 in a private cache; pass the tenant in as an argument of your function.
 
@@ -412,7 +412,7 @@ export const createTask = bsb.blockAction(
   {
     input: v.object({ title: v.pipe(v.string(), v.minLength(1)) }),
     requireTenant: true,
-    permission: permissions["work-items"].write,
+    permission: permissions["tasks"].write,
     args: (input, { tenant }) => [tenant, input],
   },
 );

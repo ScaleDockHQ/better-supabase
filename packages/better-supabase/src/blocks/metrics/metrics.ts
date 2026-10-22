@@ -6,7 +6,7 @@ import type {
   MetricGrain,
   MetricWhereValue,
 } from "../../core/metric-definition.ts";
-import type { JobHandler } from "../jobs/types.ts";
+import type { JobHandler } from "../queue/types.ts";
 import type { MetricsSinkOptions } from "./sink.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";

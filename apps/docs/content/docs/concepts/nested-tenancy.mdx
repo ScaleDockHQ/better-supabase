@@ -6,7 +6,7 @@ description: Model an organization with environments, projects or workspaces und
 Many apps have two levels: an organization that owns billing and members, and
 environments, projects or workspaces under it that own the data. better-supabase
 works per tenant, one id per row. This page says how to pick the level that is
-the tenant, and what each choice means for subjects, the `tenant` plugin and
+the tenant, and what each choice means for subjects, the `memberships` plugin and
 `access`.
 
 ## Pick the tenant level
@@ -32,7 +32,7 @@ answers `idsWith` for the environment scope.
 
 The consequences are the same everywhere:
 
-- `can(scope, id, permission)` in the [access](/docs/blocks/access) module asks
+- `can(scope, id, permission)` in the [access](/docs/blocks/permissions) module asks
   the provider for the environments where the caller holds the key. A role on
   the organization reaches its environments when the provider says so.
 - The [`tenant` plugin](/docs/plugins/tenant) scopes queries to one id, so put

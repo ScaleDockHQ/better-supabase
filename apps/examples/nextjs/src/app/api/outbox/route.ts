@@ -1,16 +1,16 @@
 import type {
   RuleFieldSetter,
   RuleSubjectContext,
-} from "better-supabase/blocks/rules";
+} from "better-supabase/blocks/automations";
 
 import { dbError, err } from "better-supabase";
 import {
   createRuleDispatcher,
   createRuleSink,
-  createRulesAdmin,
+  createAutomationsAdmin,
   rpcTransport,
   setFieldAction,
-} from "better-supabase/blocks/rules";
+} from "better-supabase/blocks/automations";
 import { conversationToWorkItem, createFlows } from "better-supabase/flows";
 import { connection } from "next/server";
 import * as v from "valibot";
@@ -58,10 +58,10 @@ export async function GET(request: Request): Promise<Response> {
   // Without a request-time API, Next.js runs this handler at build time.
   await connection();
   const admin = bsb.admin();
-  const schema = blockConfig.rules.api;
+  const schema = blockConfig.automations.api;
 
   const sink = createRuleSink<RuleSubjectContext>({
-    rules: createRulesAdmin({
+    rules: createAutomationsAdmin({
       transport: rpcTransport(admin.$client, { schema }),
       schema,
     }),

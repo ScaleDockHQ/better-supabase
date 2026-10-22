@@ -2,6 +2,11 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expectTypeOf, it } from "vitest";
 
+import type { EngagementInput } from "../../src/blocks/activities/activities.ts";
+import type {
+  engagementChangeSchema,
+  engagementInputSchema,
+} from "../../src/blocks/activities/schemas.ts";
 import type { NewAttachment } from "../../src/blocks/attachments/attachments.ts";
 import type { attachmentInputSchema } from "../../src/blocks/attachments/schemas.ts";
 import type { CalendarEventInput } from "../../src/blocks/calendar/calendar.ts";
@@ -16,6 +21,16 @@ import type {
   commentChangeSchema,
   commentInputSchema,
 } from "../../src/blocks/comments/schemas.ts";
+import type {
+  CompanyInput,
+  PartyListOptions,
+  PersonInput,
+} from "../../src/blocks/contacts/contacts.ts";
+import type {
+  companyInputSchema,
+  partyListFilterSchema,
+  personInputSchema,
+} from "../../src/blocks/contacts/schemas.ts";
 import type { DealChange, DealInput } from "../../src/blocks/deals/deals.ts";
 import type {
   dealChangeSchema,
@@ -29,31 +44,16 @@ import type {
   employeeChangeSchema,
   employeeInputSchema,
 } from "../../src/blocks/employees/schemas.ts";
-import type { EngagementInput } from "../../src/blocks/engagements/engagements.ts";
-import type {
-  engagementChangeSchema,
-  engagementInputSchema,
-} from "../../src/blocks/engagements/schemas.ts";
-import type {
-  CompanyInput,
-  PartyListOptions,
-  PersonInput,
-} from "../../src/blocks/parties/parties.ts";
-import type {
-  companyInputSchema,
-  partyListFilterSchema,
-  personInputSchema,
-} from "../../src/blocks/parties/schemas.ts";
 import type {
   workItemChangeSchema,
   workItemInputSchema,
   workItemListFilterSchema,
-} from "../../src/blocks/work-items/schemas.ts";
+} from "../../src/blocks/tasks/schemas.ts";
 import type {
   WorkItemChange,
   WorkItemInput,
   WorkItemListOptions,
-} from "../../src/blocks/work-items/work-items.ts";
+} from "../../src/blocks/tasks/tasks.ts";
 
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
 

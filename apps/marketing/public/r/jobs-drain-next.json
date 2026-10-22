@@ -13,7 +13,7 @@
   "files": [
     {
       "path": "items/lib/jobs.ts",
-      "content": "import { createJobs } from \"better-supabase/blocks/jobs\";\n\nimport { postgres } from \"@/lib/postgres\";\n\n/**\n * The job queues, one Standard Schema per queue for its payload. Add a queue\n * here and its handler in the drain route: `createJobs({ sql: postgres.admin,\n * queues: { send_email: SendEmail } })`.\n */\nexport const jobs = createJobs({ sql: postgres.admin, queues: {} });\n",
+      "content": "import { createQueue } from \"better-supabase/blocks/queue\";\n\nimport { postgres } from \"@/lib/postgres\";\n\n/**\n * The job queues, one Standard Schema per queue for its payload. Add a queue\n * here and its handler in the drain route: `createQueue({ sql: postgres.admin,\n * queues: { send_email: SendEmail } })`.\n */\nexport const jobs = createQueue({ sql: postgres.admin, queues: {} });\n",
       "type": "registry:lib",
       "target": "@lib/jobs.ts"
     },
@@ -28,7 +28,7 @@
     "CRON_SECRET": "development-cron-secret"
   },
   "meta": {
-    "block": "jobs",
+    "block": "queue",
     "platforms": [
       "web"
     ],
@@ -36,7 +36,7 @@
       "next"
     ]
   },
-  "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/jobs#drain-route.",
+  "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/queue#drain-route.",
   "categories": [
     "route"
   ],

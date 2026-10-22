@@ -5,14 +5,14 @@ import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
 import {
+  createAutomationsAdmin,
+  defineRuleFields,
+} from "../../src/blocks/automations/index.ts";
+import { createContacts } from "../../src/blocks/contacts/index.ts";
+import {
   createLeadScoring,
   leadRuleFields,
 } from "../../src/blocks/lead-scoring/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
-import {
-  createRulesAdmin,
-  defineRuleFields,
-} from "../../src/blocks/rules/index.ts";
 import { createScores } from "../../src/blocks/scores/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
@@ -21,7 +21,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 const layout: BlockSqlLayout = {
-  subjects: withBlockSubjects({}, ["parties"], {}),
+  subjects: withBlockSubjects({}, ["contacts"], {}),
 };
 
 const people = defineRuleFields("person", {
@@ -59,8 +59,8 @@ describe.skipIf(!live)("lead-scoring module in Postgres", () => {
         "organizations",
         "outbox",
         "subjects",
-        "parties",
-        "rules",
+        "contacts",
+        "automations",
         "scores",
         "lead-scoring",
       ],
@@ -73,7 +73,10 @@ describe.skipIf(!live)("lead-scoring module in Postgres", () => {
     await session.organization(outsider);
     await session.service();
 
-    const rules = createRulesAdmin({ transport: sqlTransport(session.sql) });
+    const rules = createAutomationsAdmin({
+      transport: sqlTransport(session.sql),
+    });
+
     await rules
       .syncFields({
         subjectType: "person",
@@ -83,7 +86,7 @@ describe.skipIf(!live)("lead-scoring module in Postgres", () => {
 
     await session.as(owner);
     dee = (
-      await createParties({ transport: sqlTransport(session.sql) })
+      await createContacts({ transport: sqlTransport(session.sql) })
         .savePerson(tenant, {
           name: "Dee Lead",
           email: "dee@lead.test",

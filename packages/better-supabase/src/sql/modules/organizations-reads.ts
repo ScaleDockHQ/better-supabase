@@ -1,7 +1,7 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { columnsObject, membershipDisabledAt, fail } from "../shared.ts";
-import { OPERATIONS, modulePermission } from "./access-model.ts";
+import { OPERATIONS, modulePermission } from "./permissions-model.ts";
 
 /** The keys `list_my_organizations` returns, which no attribute may shadow. */
 const MEMBERSHIP_KEYS: readonly string[] = [

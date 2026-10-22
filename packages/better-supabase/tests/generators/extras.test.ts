@@ -18,16 +18,13 @@ const column = (
 ): ColumnMeta => ({ db, type, nullable: false, hasDefault: false, ...extra });
 
 const workItems = PRESET_CATALOG.manifests.find(
-  (manifest) => manifest.name === "work-items",
+  (manifest) => manifest.name === "tasks",
 );
 
 const taskBlock: GeneratorBlock = {
-  name: "work-items",
+  name: "tasks",
   schema: "work_items",
-  client: {
-    export: "tasksBlock",
-    subpath: "better-supabase/blocks/work-items",
-  },
+  client: { export: "tasksBlock", subpath: "better-supabase/blocks/tasks" },
   entities: [
     {
       key: "work_item",
@@ -166,7 +163,7 @@ const input: GeneratorInput = {
 const lines = (text: string) => text.split("\n");
 
 describe("function and block schemas", () => {
-  it("has the work-items input schemas in the catalog", () => {
+  it("has the tasks input schemas in the catalog", () => {
     expect(taskBlock.entities[0]?.schemas.input?.title).toBe("WorkItemInput");
   });
 

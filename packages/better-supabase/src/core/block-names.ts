@@ -5,7 +5,7 @@ import { defineTransportMiddleware } from "./block-hooks.ts";
 import { composeNames, entityNames, tenantNames } from "./entity-naming.ts";
 
 // The block columns that carry the tenant concept in their default name.
-// `blocks.tenant.names.organization` refuses a name that would make one of
+// `blocks.memberships.names.organization` refuses a name that would make one of
 // them collide with a column a block already has, so the map back is
 // unambiguous.
 const TENANT_COLUMNS = ["organization_id", "active_organization_id"] as const;
@@ -20,13 +20,13 @@ const KEY_VALUES: ReadonlySet<string> = new Set(["field"]);
 
 /**
  * How the SQL names a block's functions and payload keys: the tenant's name
- * (`blocks.tenant.names.organization`), the block's renamed entities
+ * (`blocks.memberships.names.organization`), the block's renamed entities
  * (`blocks.<name>.entities`) and the `blocks.<name>.functions` maps, merged.
  * `better-supabase gen` writes it to each block's `names` in
  * `blocks.generated.ts`.
  */
 export interface BlockNaming {
-  /** `blocks.tenant.names.organization`, such as `workspace`. */
+  /** `blocks.memberships.names.organization`, such as `workspace`. */
   readonly tenant?: string;
   /** Function name to the name the SQL writes it under. */
   readonly functions?: Readonly<Record<string, string>>;

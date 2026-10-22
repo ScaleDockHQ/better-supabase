@@ -76,7 +76,7 @@ export type {
 export type {
   PermissionFlags,
   PermissionSet,
-} from "../blocks/access/permissions.ts";
+} from "../blocks/permissions/permissions-controller.ts";
 
 export type {
   FeatureBlocks,
@@ -122,4 +122,7 @@ export {
   sectionWrite,
 } from "../blocks/sections.ts";
 
-export { can, permissionFlags } from "../blocks/access/permissions.ts";
+export {
+  can,
+  permissionFlags,
+} from "../blocks/permissions/permissions-controller.ts";

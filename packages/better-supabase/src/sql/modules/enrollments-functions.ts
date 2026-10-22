@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const STEP_ID = "^[a-z][a-z0-9_.-]{0,63}$";
 const TYPE = "^[a-z][a-z0-9_-]{0,62}$";

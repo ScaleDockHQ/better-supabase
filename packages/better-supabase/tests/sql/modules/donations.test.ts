@@ -29,12 +29,12 @@ describe("donations module", () => {
     );
   });
 
-  it("numbers receipts per organization, from number-sequences when configured", () => {
+  it("numbers receipts per organization, from numbering when configured", () => {
     expect(sqlOf(["donations"])).toContain("'R-' || v_seq::text");
 
-    const sequenced = sqlOf(["donations", "number-sequences"], {
+    const sequenced = sqlOf(["donations", "numbering"], {
       modules: {
-        "number-sequences": {
+        numbering: {
           options: {
             entities: {
               donation_receipt: { period: "year", format: "R-{yyyy}-{n}" },

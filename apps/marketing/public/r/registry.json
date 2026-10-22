@@ -46,10 +46,10 @@
       "envVars": {
         "DATABASE_URL": "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
       },
-      "docs": "The pool reads `SUPABASE_DB_URL`, then `DATABASE_URL`; the value above is the local stack from `supabase start`. Never import it from client code. See https://bettersupabase.com/docs/blocks/jobs.",
+      "docs": "The pool reads `SUPABASE_DB_URL`, then `DATABASE_URL`; the value above is the local stack from `supabase start`. Never import it from client code. See https://bettersupabase.com/docs/blocks/queue.",
       "categories": ["wiring", "server"],
       "meta": {
-        "block": ["jobs", "outbox", "billing"],
+        "block": ["queue", "outbox", "billing"],
         "platforms": ["web"],
         "frameworks": ["next", "hono", "tanstack-start", "react-router"]
       }
@@ -233,10 +233,10 @@
       "envVars": {
         "CRON_SECRET": "development-cron-secret"
       },
-      "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/jobs#drain-route.",
+      "docs": "Needs the jobs block with the drain scheduler: `npx better-supabase add jobs`, with `scheduler: \"drain\"` in its options. Schedule it with `{ \"crons\": [{ \"path\": \"/api/jobs/drain\", \"schedule\": \"* * * * *\" }] }` in `vercel.json`. See https://bettersupabase.com/docs/blocks/queue#drain-route.",
       "categories": ["route"],
       "meta": {
-        "block": "jobs",
+        "block": "queue",
         "platforms": ["web"],
         "frameworks": ["next"]
       }
@@ -277,10 +277,10 @@
         }
       ],
       "envVars": {},
-      "docs": "Needs the rules block (`npx better-supabase add rules`), a field catalog synced with `createRulesAdmin().syncFields()`, `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. The Rule builder recipe renders it. See https://bettersupabase.com/docs/blocks/rules#editor.",
+      "docs": "Needs the rules block (`npx better-supabase add rules`), a field catalog synced with `createRulesAdmin().syncFields()`, `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. The Rule builder recipe renders it. See https://bettersupabase.com/docs/blocks/automations#editor.",
       "categories": ["hook"],
       "meta": {
-        "block": "rules",
+        "block": "automations",
         "platforms": ["web", "native"],
         "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
       }
@@ -364,7 +364,7 @@
           "audit",
           "onboarding",
           "outbox",
-          "jobs",
+          "queue",
           "billing",
           "webhook-inbox"
         ],

@@ -18,8 +18,8 @@ import {
   schemaPreamble,
   userGrant,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { FIELD_CIPHER_PREFIX } from "./field-encryption.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 /** The custom field types whose values `encrypt_field_definition` encrypts. */
 const ENCRYPTABLE_TYPES: readonly CustomFieldType[] = ["text", "email", "url"];
@@ -558,7 +558,7 @@ export const CUSTOM_FIELDS: BlockSqlDefinition = {
   title: "Custom fields",
   description:
     "Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "field-encryption", "audit"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

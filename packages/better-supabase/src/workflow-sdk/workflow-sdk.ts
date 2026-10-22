@@ -14,7 +14,7 @@ import type {
 import type { Actor, RequestContext } from "../core/plugin.ts";
 
 import { PERMISSION_CAP_CLAIM } from "../auth/delegation.ts";
-import { unwrap, withContext } from "../blocks/jobs/envelope.ts";
+import { unwrap, withContext } from "../blocks/queue/envelope.ts";
 import { subjectAttribute, WORKFLOW_ATTRIBUTES } from "./attributes.ts";
 
 /** A workflow function (a `"use workflow"` export), typed structurally. */

@@ -4,7 +4,7 @@ import type { BlockTransport } from "../../src/core/block-transport.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import { renameBlock } from "../../src/blocks/rename-block.ts";
-import { workItemsBlock } from "../../src/blocks/work-items/manifest.ts";
+import { tasksBlock } from "../../src/blocks/tasks/manifest.ts";
 import { wrapTransport } from "../../src/core/block-hooks.ts";
 import { blockNames } from "../../src/core/block-names.ts";
 
@@ -78,7 +78,7 @@ function sql(): {
 describe("renameBlock", () => {
   it("renames the client's methods, arguments and results", async () => {
     const { calls, transport } = sql();
-    const tasks = renameBlock(workItemsBlock, NAMES).create?.({ transport });
+    const tasks = renameBlock(tasksBlock, NAMES).create?.({ transport });
 
     const listed = await tasks?.list("o", { initiativeId: "p1" }).orThrow();
 
@@ -111,10 +111,10 @@ describe("renameBlock", () => {
   });
 
   it("renames the event types and keeps the name", () => {
-    const tasks = renameBlock(workItemsBlock, NAMES);
+    const tasks = renameBlock(tasksBlock, NAMES);
 
     expect({ name: tasks.name, types: tasks.events.types }).toEqual({
-      name: "work-items",
+      name: "tasks",
       types: [
         "task.created",
         "task.updated",
@@ -131,7 +131,7 @@ describe("renameBlock", () => {
     const { transport } = sql();
     const seen: string[] = [];
 
-    const tasks = renameBlock(workItemsBlock, NAMES).create?.({
+    const tasks = renameBlock(tasksBlock, NAMES).create?.({
       transport,
       hooks: {
         saveInitiative: {
@@ -246,6 +246,6 @@ describe("renameBlock", () => {
   });
 
   it("returns the block itself when nothing is renamed", () => {
-    expect(renameBlock(workItemsBlock, undefined)).toBe(workItemsBlock);
+    expect(renameBlock(tasksBlock, undefined)).toBe(tasksBlock);
   });
 });

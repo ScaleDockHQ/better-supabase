@@ -7,7 +7,7 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The ledger's functions: the internal posting core and the public API. */
 export function ledgerFunctions(ctx: BlockSqlContext): string {

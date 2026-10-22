@@ -7,7 +7,7 @@ description: Carts for anonymous and signed-in shoppers, a checkout that prices 
 belongs to the signed-in user, which can be an anonymous Supabase user, so a
 shopper can fill one before creating an account. Checkout prices the cart
 from the catalog, quotes tax through a `TaxProvider`, places the order with
-a number from `number-sequences`, reserves its stock when
+a number from `numbering`, reserves its stock when
 [inventory](/docs/blocks/inventory) is installed, and creates the payment
 through a `PaymentProvider` with an idempotency key. After the sale it
 records fulfillments, returns, refunds and the invoice.
@@ -31,9 +31,9 @@ export const orders = createOrders({
 });
 ```
 
-The module needs `tenant`, `access` and `catalog`. It uses `inventory` for
+The module needs `tenant`, `permissions` and `catalog`. It uses `inventory` for
 reservations and stock movements, `promotions` for discount codes,
-`number-sequences` for order and invoice numbers, `state-machine` for the
+`numbering` for order and invoice numbers, `state-machine` for the
 status column, and `outbox` for events, each when it is installed. The
 providers are described on the [commerce](/docs/concepts/commerce) page; both
 are optional, and without `payments` only free orders can be placed.

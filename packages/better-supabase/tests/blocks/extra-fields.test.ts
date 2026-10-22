@@ -3,14 +3,15 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 
-import { createWebhookInbox } from "../../src/blocks/jobs/index.ts";
+import { createGoals } from "../../src/blocks/goals/index.ts";
+import { createWebhookInbox } from "../../src/blocks/queue/index.ts";
 import { createShareLinks } from "../../src/blocks/share-links/index.ts";
 import { createSignatures } from "../../src/blocks/signatures/index.ts";
 import { createSla } from "../../src/blocks/sla/index.ts";
 import { createSso } from "../../src/blocks/sso/index.ts";
 import { createStateMachine } from "../../src/blocks/state-machine/index.ts";
 import { createTags } from "../../src/blocks/tags/index.ts";
-import { createTargets } from "../../src/blocks/targets/index.ts";
+import { createTasks } from "../../src/blocks/tasks/index.ts";
 import { createTeams } from "../../src/blocks/teams/index.ts";
 import { createTemplates } from "../../src/blocks/templates/index.ts";
 import { createTimeTracking } from "../../src/blocks/time-tracking/index.ts";
@@ -20,8 +21,7 @@ import { createUsage } from "../../src/blocks/usage/index.ts";
 import { createVersions } from "../../src/blocks/versions/index.ts";
 import { createWaitlist } from "../../src/blocks/waitlist/index.ts";
 import { createWebhooks } from "../../src/blocks/webhooks/index.ts";
-import { createWorkItems } from "../../src/blocks/work-items/index.ts";
-import { createWorkflowBuilder } from "../../src/blocks/workflow-builder/index.ts";
+import { createWorkflowEditor } from "../../src/blocks/workflow-editor/index.ts";
 import { createWorkflows } from "../../src/blocks/workflows/index.ts";
 import { dbError } from "../../src/core/errors.ts";
 
@@ -196,14 +196,14 @@ describe("block fields", () => {
     expect(fake.calls[0]?.args["attrs"]).toMatchObject({
       fields: { priority: "high", points: 1 },
     });
-    await createTargets({ transport: fake.transport })
+    await createGoals({ transport: fake.transport })
       .save("o", { name: "Q4", fields: { budget: 3 } })
       .orThrow();
     expect(fake.calls[1]?.args["attrs"]).toMatchObject({
       fields: { budget: 3 },
     });
 
-    const item = await createWorkItems({ transport: fake.transport })
+    const item = await createTasks({ transport: fake.transport })
       .create("o", { title: "A", fields: { priority_label: "x" } })
       .orThrow();
 
@@ -217,7 +217,7 @@ describe("block fields", () => {
   it("validates a work item change to an extra column before the batch", async () => {
     const fake = transport();
 
-    const items = createWorkItems({
+    const items = createTasks({
       transport: fake.transport,
       fields: v.object({ size: v.picklist(["s", "m", "l"]) }),
     });
@@ -332,7 +332,7 @@ describe("block fields", () => {
 
     expect(request.fields.points).toBe(2);
 
-    const definition = await createWorkflowBuilder({
+    const definition = await createWorkflowEditor({
       transport: fake.transport,
       fields: Fields,
     })
@@ -467,11 +467,11 @@ describe("block hooks", () => {
         transport: fake.transport,
         hooks: { schedules: { remove: { before: () => refusal } } },
       }).schedules.remove("s1"),
-      createWorkflowBuilder({
+      createWorkflowEditor({
         transport: fake.transport,
         hooks: { alerts: { remove: { before: () => refusal } } },
       }).alerts.remove("a1"),
-      createWorkflowBuilder({
+      createWorkflowEditor({
         transport: fake.transport,
         hooks: { run: { before: () => refusal } },
       }).run({ definition: "d1" }),

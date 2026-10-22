@@ -138,7 +138,7 @@ const disabledRow = v.strictObject({
   active: v.optional(strings),
 });
 
-const accessBlock = v.strictObject({
+const permissionsBlock = v.strictObject({
   ...blockEntries,
   model: v.optional(v.picklist(["roles", "catalog", "provider", "custom"])),
   roles: v.optional(v.record(v.string(), strings)),
@@ -183,7 +183,7 @@ const blocksSchema = v.lazy((input) =>
   Array.isArray(input)
     ? strings
     : v.objectWithRest(
-        { access: v.optional(accessBlock) },
+        { permissions: v.optional(permissionsBlock) },
         v.strictObject(blockEntries),
       ),
 ) as v.GenericSchema<unknown, readonly string[] | BlocksConfig>;
@@ -1050,7 +1050,7 @@ export interface ConfigSchemas {
   readonly config: v.GenericSchema;
   readonly environment: v.GenericSchema;
   readonly moduleConfig: v.GenericSchema;
-  readonly accessBlock: v.GenericSchema;
+  readonly permissionsBlock: v.GenericSchema;
   readonly privilege: v.GenericSchema;
   readonly triggerValue: v.GenericSchema;
   /** Checked by a function, so the renderer writes its JSON Schema. */
@@ -1063,7 +1063,7 @@ const SCHEMAS = {
   config: ConfigSchema,
   environment: EnvironmentSchema,
   moduleConfig: v.strictObject(blockEntries),
-  accessBlock,
+  permissionsBlock,
   privilege,
   triggerValue,
   generator,

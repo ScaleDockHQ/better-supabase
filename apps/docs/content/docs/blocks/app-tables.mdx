@@ -13,7 +13,7 @@ the same rules as the blocks around them.
 import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
-  blocks: ["tenant", "organizations", "crm"],
+  blocks: ["memberships", "organizations", "crm"],
   tables: {
     projects: {
       columns: {
@@ -70,8 +70,8 @@ take them. Columns keep the order you write them in. The `id` is a random
 | `user`              | `user_id`, referencing `auth.users`, defaulting to `auth.uid()`                  | the row's user, in any `database.sql.owner`                           |
 | `none`              | none                                                                             | every signed-in user reads; only the service role writes              |
 
-A tenant-scoped table needs the `tenant` block. The tenant column follows
-`blocks.tenant.names.organization`, and the client sends its value on insert; the insert
+A tenant-scoped table needs the `memberships` block. The tenant column follows
+`blocks.memberships.names.organization`, and the client sends its value on insert; the insert
 policy rejects a tenant the user isn't a member of.
 
 ## Columns
@@ -382,8 +382,8 @@ An update that changes only `updated_at` emits nothing. `gen blocks` writes
 `createOutbox`, and `appTableEventSchemas`, which documents them in the
 AsyncAPI document through `defineApi({ events: { blocks: appTableEventSchemas } })`.
 To react to the events, consume them with
-[`createRuleSink`](/docs/blocks/rules#run-rules-from-events) or
-[`workflows.sink()`](/docs/blocks/workflow-builder#start-from-outbox-events).
+[`createRuleSink`](/docs/blocks/automations#run-rules-from-events) or
+[`workflows.sink()`](/docs/blocks/workflow-editor#start-from-outbox-events).
 The decision is ADR 0048.
 
 ## History
@@ -421,7 +421,7 @@ fields each one changed and a restore per field.
 `appTableImport` from `better-supabase/blocks/imports` imports a CSV into an
 app table and updates the rows that already exist, matched on one of the
 table's `unique` sets. See [imports](/docs/blocks/imports#upsert-into-an-app-table).
-With the [bulk](/docs/blocks/bulk) block installed, `upgrade` also writes
+With the [bulk](/docs/blocks/bulk-actions) block installed, `upgrade` also writes
 `app_table_set`, which the built-in `appTables.set` bulk action calls to set
 columns on the selected rows of any app table that is a subject.
 

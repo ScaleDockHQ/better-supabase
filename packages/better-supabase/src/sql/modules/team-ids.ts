@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
-import { accessModel } from "./access-model.ts";
+import { accessModel } from "./permissions-model.ts";
 
 /**
  * `authorization.functions.teamIdsOf` for `user`, when the provider model is on

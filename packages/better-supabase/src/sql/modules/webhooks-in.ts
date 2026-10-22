@@ -19,7 +19,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { moduleOperations, modulePermissionKey } from "./access-model.ts";
+import { moduleOperations, modulePermissionKey } from "./permissions-model.ts";
 
 /** How a delivery to an endpoint proves it came from the sender. */
 const INCOMING_VERIFY = [
@@ -846,7 +846,7 @@ export const WEBHOOKS_IN: BlockSqlDefinition = {
   title: "Incoming webhook endpoints",
   description:
     "Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.",
-  requires: ["access", "updated-at", "webhook-inbox"],
+  requires: ["permissions", "updated-at", "webhook-inbox"],
   target: "schema",
   modes: ["managed", "adopt"],
   adoptOptional: (ctx) => ({

@@ -7,18 +7,18 @@ import type {
 
 import { BLOCK_SCOPES } from "../config/blocks.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
+import { renamedBlock } from "./block-renames.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
 import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
-import { ACCESS } from "./modules/access.ts";
-import { ACTIVITY } from "./modules/activity.ts";
-import { ACTOR } from "./modules/actor.ts";
+import { ENGAGEMENTS } from "./modules/activities.ts";
+import { PASSES } from "./modules/admission-passes.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
 import { AI_CACHE } from "./modules/ai-cache.ts";
 import { AI_CHAT } from "./modules/ai-chat.ts";
 import { AI_FILES } from "./modules/ai-files.ts";
-import { AI_PROVIDERS } from "./modules/ai-providers.ts";
-import { AI_TASKS } from "./modules/ai-tasks.ts";
+import { AI_PROVIDERS } from "./modules/ai-keys.ts";
+import { AI_TASKS } from "./modules/ai-schedules.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { APPROVALS } from "./modules/approvals.ts";
@@ -26,22 +26,26 @@ import { ASSETS } from "./modules/assets.ts";
 import { ASSIGNMENT } from "./modules/assignment.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
+import { RULES } from "./modules/automations.ts";
 import { BILLABLE_TIME } from "./modules/billable-time.ts";
 import { BILLING } from "./modules/billing.ts";
 import { BOOKINGS } from "./modules/bookings.ts";
-import { BULK } from "./modules/bulk.ts";
+import { BULK } from "./modules/bulk-actions.ts";
 import { CALENDAR } from "./modules/calendar.ts";
 import { CATALOG } from "./modules/catalog.ts";
 import { CHANNELS } from "./modules/channels.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
+import { CONTROLS } from "./modules/compliance.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
+import { PARTIES } from "./modules/contacts.ts";
 import { CONTRACTS } from "./modules/contracts.ts";
-import { CONTROLS } from "./modules/controls.ts";
 import { COURSES } from "./modules/courses.ts";
+import { ACTOR } from "./modules/created-by.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
+import { GRANTS } from "./modules/data-api-grants.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
 import { DISPATCH } from "./modules/dispatch.ts";
@@ -50,56 +54,54 @@ import { DOMAINS } from "./modules/domains.ts";
 import { DONATIONS } from "./modules/donations.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { EMPLOYEES } from "./modules/employees.ts";
-import { ENGAGEMENTS } from "./modules/engagements.ts";
 import { ENRICHMENT } from "./modules/enrichment.ts";
 import { ENROLLMENTS } from "./modules/enrollments.ts";
-import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
 import { EXPENSES } from "./modules/expenses.ts";
+import { FLAGS } from "./modules/feature-flags.ts";
 import { FIELD_ENCRYPTION } from "./modules/field-encryption.ts";
 import { FIELD_HISTORY } from "./modules/field-history.ts";
-import { FLAGS } from "./modules/flags.ts";
 import { FORECASTS } from "./modules/forecasts.ts";
 import { FORMS } from "./modules/forms.ts";
-import { GRANTS } from "./modules/grants.ts";
+import { TARGETS } from "./modules/goals.ts";
 import { GUESTS } from "./modules/guests.ts";
 import { HIRING } from "./modules/hiring.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
-import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
 import { INCIDENTS } from "./modules/incidents.ts";
 import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { INVOICES } from "./modules/invoices.ts";
-import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
 import { LEAD_SCORING } from "./modules/lead-scoring.ts";
 import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
+import { IDENTITIES } from "./modules/linked-identities.ts";
 import { MAIL_SYNC } from "./modules/mail-sync.ts";
+import { TENANT } from "./modules/memberships.ts";
 import { MEMORY } from "./modules/memory.ts";
 import { MESSAGING } from "./modules/messaging.ts";
 import { METRICS } from "./modules/metrics.ts";
 import { MFA } from "./modules/mfa.ts";
 import { MODERATION } from "./modules/moderation.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
-import { NUMBER_SEQUENCES } from "./modules/number-sequences.ts";
+import { NUMBER_SEQUENCES } from "./modules/numbering.ts";
 import { OAUTH_SERVER } from "./modules/oauth-server.ts";
 import { ONBOARDING } from "./modules/onboarding.ts";
 import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
-import { PARTIES } from "./modules/parties.ts";
-import { PASSES } from "./modules/passes.ts";
+import { ACCESS } from "./modules/permissions.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
 import { POSTS } from "./modules/posts.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { PROMOTIONS } from "./modules/promotions.ts";
 import { PUSH } from "./modules/push.ts";
+import { JOBS } from "./modules/queue.ts";
 import { QUOTES } from "./modules/quotes.ts";
 import { RANK } from "./modules/rank.ts";
 import { RATE_LIMIT } from "./modules/rate-limit.ts";
@@ -110,17 +112,17 @@ import { RELATIONS } from "./modules/relations.ts";
 import { REMINDERS } from "./modules/reminders.ts";
 import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
 import { REVIEWS } from "./modules/reviews.ts";
-import { RULES } from "./modules/rules.ts";
+import { ENSURE_RLS } from "./modules/rls-guard.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
 import { SCORES } from "./modules/scores.ts";
 import { SEARCH } from "./modules/search.ts";
+import { SHARED_SIGNALS } from "./modules/security-events.ts";
 import { SEGMENTS } from "./modules/segments.ts";
 import { SEQUENCES } from "./modules/sequences.ts";
-import { SERVICE_PRINCIPALS } from "./modules/service-principals.ts";
-import { SESSIONS } from "./modules/sessions.ts";
+import { SERVICE_PRINCIPALS } from "./modules/service-accounts.ts";
+import { SESSIONS } from "./modules/session-revocation.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
-import { SHARED_SIGNALS } from "./modules/shared-signals.ts";
 import { SHIPMENTS } from "./modules/shipments.ts";
 import { SIGNATURES } from "./modules/signatures.ts";
 import { SIGNING_KEYS } from "./modules/signing-keys.ts";
@@ -131,11 +133,11 @@ import { STREAMS } from "./modules/streams.ts";
 import { SUBJECTS } from "./modules/subjects.ts";
 import { SUPPORT_SESSIONS } from "./modules/support.ts";
 import { TAGS } from "./modules/tags.ts";
-import { TARGETS } from "./modules/targets.ts";
+import { WORK_ITEMS } from "./modules/tasks.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TEMPLATES } from "./modules/templates.ts";
-import { TENANT } from "./modules/tenant.ts";
 import { TIME_TRACKING } from "./modules/time-tracking.ts";
+import { ACTIVITY } from "./modules/timeline.ts";
 import { TRASH } from "./modules/trash.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
 import { USAGE } from "./modules/usage.ts";
@@ -146,9 +148,8 @@ import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
 import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
 import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
-import { WORK_ITEMS } from "./modules/work-items.ts";
-import { WORKFLOW_BUILDER } from "./modules/workflow-builder.ts";
-import { WORKFLOW_SDK_WORLD } from "./modules/workflow-sdk-world.ts";
+import { WORKFLOW_BUILDER } from "./modules/workflow-editor.ts";
+import { WORKFLOW_SDK_WORLD } from "./modules/workflow-sdk.ts";
 import { WORKFLOWS } from "./modules/workflows.ts";
 
 function built(definition: BlockSqlDefinition): BlockSql {
@@ -168,7 +169,10 @@ function built(definition: BlockSqlDefinition): BlockSql {
 // Outside tenant scope a module checks the caller itself, so the tenant
 // module and the access contract drop from what it needs. They are what
 // tenant scope runs on, so they always run in it.
-const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
+const TENANT_PROVIDERS: ReadonlySet<string> = new Set([
+  "memberships",
+  "permissions",
+]);
 
 /**
  * The scope `name` runs in for `layout`: its own, then `sql.scope`, then
@@ -396,8 +400,12 @@ export function resolveBlocks(
     const module = SQL_MODULES[name];
 
     if (!module) {
+      const renamed = renamedBlock(name);
+
       throw new TypeError(
-        `Unknown SQL module "${name}"${from ? ` (required by ${from})` : ""}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
+        renamed === undefined
+          ? `Unknown SQL module "${name}"${from ? ` (required by ${from})` : ""}. Available: ${Object.keys(SQL_MODULES).join(", ")}`
+          : `The "${name}" block is named "${renamed}" since 0.15. Run \`better-supabase codemod 0.15\` to rename it in your config and imports.`,
       );
     }
 
@@ -447,12 +455,12 @@ export function checkModules(
     // The jobs module writes everything into better_supabase, so a schema
     // would only point the modules that call it at functions that don't exist.
     if (
-      name === "jobs" &&
+      name === "queue" &&
       entry?.schema !== undefined &&
       entry.schema !== "better_supabase"
     ) {
       throw new TypeError(
-        "blocks.jobs.schema: the jobs module always installs in better_supabase. Remove schema.",
+        "blocks.queue.schema: the queue block always installs in better_supabase. Remove schema.",
       );
     }
 

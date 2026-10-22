@@ -62,7 +62,7 @@ function integrationLabel(name: IntegrationName): PresetValueInfo {
   return { label: title, hint: description };
 }
 
-/** The tenant names a preset can set (`blocks.tenant.names.organization`). */
+/** The tenant names a preset can set (`blocks.memberships.names.organization`). */
 export const PRESET_TENANT_NAMES = [
   "organization",
   "workspace",
@@ -158,7 +158,7 @@ export const CONVENTION_FIELDS: readonly PresetField<PresetFieldKey>[] = [
     },
     default: "tenant",
   }),
-  // `blocks.tenant.names.organization`.
+  // `blocks.memberships.names.organization`.
   field({
     key: "tenantName",
     label: "Tenant name",

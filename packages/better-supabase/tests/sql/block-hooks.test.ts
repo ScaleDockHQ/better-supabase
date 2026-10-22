@@ -18,7 +18,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
   ],
   profiles: ["before_profile_update", "after_profile_update"],
   notifications: ["before_notification_send", "after_notify"],
-  "number-sequences": ["before_number_assign", "after_number_assign"],
+  numbering: ["before_number_assign", "after_number_assign"],
   teams: ["before_team_create", "after_team_create"],
   tags: ["before_tag_apply", "after_tag_apply"],
   search: ["before_search_document_index", "after_search_document_index"],
@@ -120,13 +120,13 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_pipeline_stage_change",
     "after_pipeline_stage_change",
   ],
-  parties: [
+  contacts: [
     "before_company_save",
     "after_company_save",
     "before_person_save",
     "after_person_save",
   ],
-  engagements: ["before_engagement_log", "after_engagement_log"],
+  activities: ["before_engagement_log", "after_engagement_log"],
   collections: [
     "before_collection_create",
     "after_collection_create",
@@ -139,7 +139,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_deal_update",
     "after_deal_update",
   ],
-  "work-items": [
+  tasks: [
     "before_work_item_create",
     "after_work_item_create",
     "before_work_item_update",

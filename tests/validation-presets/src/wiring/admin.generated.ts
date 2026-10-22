@@ -3,15 +3,15 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
-import { bulkBlock } from "better-supabase/blocks/bulk";
+import { bulkActionsBlock } from "better-supabase/blocks/bulk-actions";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
-import { flagsBlock } from "better-supabase/blocks/flags";
+import { featureFlagsBlock } from "better-supabase/blocks/feature-flags";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
@@ -26,15 +26,15 @@ import { blockConfig } from "./admin.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
   audit: auditBlock,
   billing: billingBlock,
-  bulk: bulkBlock,
+  bulkActions: bulkActionsBlock,
   enrollments: enrollmentsBlock,
   entitlements: entitlementsBlock,
-  flags: flagsBlock,
+  featureFlags: featureFlagsBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,

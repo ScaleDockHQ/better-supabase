@@ -7,8 +7,8 @@ import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const CENTRAKIT: AnyBlocksConfig = {
-  access: { model: "catalog", platformClaim: "system_permissions" },
-  tenant: {
+  permissions: { model: "catalog", platformClaim: "system_permissions" },
+  memberships: {
     mode: "adopt",
     tables: { memberships: "public.organization_users" },
     columns: {
@@ -56,7 +56,7 @@ describe("organizations module", () => {
 
   it("resolves role keys among the tenant's own roles with a mapped roles.tenant", () => {
     const sql = body({
-      access: {
+      permissions: {
         model: "catalog",
         mode: "adopt",
         tables: { roles: "public.roles" },
@@ -67,7 +67,7 @@ describe("organizations module", () => {
     expect(sql).toContain(
       `(select r."id" from "public"."roles" r where (r."id"::text = (role)::text or r."key" = (role)::text) and (r."organization_id" = organization or r."organization_id" is null) order by (r."id"::text = (role)::text) desc, (r."organization_id" is not null) desc limit 1)`,
     );
-    expect(body({ access: { model: "catalog" } })).not.toContain(
+    expect(body({ permissions: { model: "catalog" } })).not.toContain(
       "is not null) desc limit 1",
     );
   });
@@ -283,7 +283,10 @@ describe("organizations module", () => {
 
   it("leaves role checks to an external guard on request", () => {
     const adopted: AnyBlocksConfig = {
-      tenant: { mode: "adopt", tables: { memberships: "public.team_members" } },
+      memberships: {
+        mode: "adopt",
+        tables: { memberships: "public.team_members" },
+      },
     };
 
     const external = body({
@@ -337,7 +340,12 @@ describe("organizations module", () => {
 
   it("installs after tenant and access", () => {
     const names = resolveBlocks(["organizations"]).map((m) => m.name);
-    expect(names).toEqual(["updated-at", "tenant", "access", "organizations"]);
+    expect(names).toEqual([
+      "updated-at",
+      "memberships",
+      "permissions",
+      "organizations",
+    ]);
     expect(
       moduleBody("organizations", {
         modules: { organizations: { mode: "custom" } },
@@ -348,8 +356,8 @@ describe("organizations module", () => {
 
 describe("roles through a lookup table", () => {
   const THROUGH: AnyBlocksConfig = {
-    access: { model: "provider" },
-    tenant: {
+    permissions: { model: "provider" },
+    memberships: {
       mode: "adopt",
       tables: { memberships: "public.team_members" },
       columns: { memberships: { tenant: "team_id", role: "role_id" } },
@@ -369,7 +377,7 @@ describe("roles through a lookup table", () => {
     );
     expect(sql).toContain("hint = 'ORGANIZATION_ROLE_UNKNOWN'");
 
-    const tenant = moduleBody("tenant", {
+    const tenant = moduleBody("memberships", {
       modules: THROUGH,
       accessProvider: moduleProvider,
     })!;
@@ -393,9 +401,9 @@ describe("roles through a lookup table", () => {
 
   it("rejects roleThrough on a managed table or in the wrong shape", () => {
     expect(() =>
-      moduleBody("tenant", {
+      moduleBody("memberships", {
         modules: {
-          tenant: {
+          memberships: {
             options: {
               roleThrough: { table: "public.roles", id: "id", column: "key" },
             },
@@ -404,19 +412,22 @@ describe("roles through a lookup table", () => {
       }),
     ).toThrow(/describes an adopted memberships table/);
     expect(() =>
-      moduleBody("tenant", {
+      moduleBody("memberships", {
         modules: {
-          tenant: { mode: "adopt", options: { roleThrough: "public.roles" } },
+          memberships: {
+            mode: "adopt",
+            options: { roleThrough: "public.roles" },
+          },
         },
       }),
     ).toThrow(/roleThrough must be/);
   });
 
   it("takes the role lookup from the provider's role sources", () => {
-    const { options: _options, ...tenant } = THROUGH["tenant"]!;
+    const { options: _options, ...tenant } = THROUGH["memberships"]!;
 
     const layout = {
-      modules: { ...THROUGH, tenant },
+      modules: { ...THROUGH, memberships: tenant },
       accessProvider: {
         ...moduleProvider,
         roleSources: [
@@ -431,15 +442,18 @@ describe("roles through a lookup table", () => {
       },
     };
 
-    expect(moduleBody("tenant", layout)).toContain(
+    expect(moduleBody("memberships", layout)).toContain(
       `from "public"."team_roles" r where r."id"::text = (m."role_id")::text`,
     );
     expect(
-      moduleBody("tenant", {
+      moduleBody("memberships", {
         ...layout,
         modules: {
           ...layout.modules,
-          tenant: { ...tenant, columns: { memberships: { role: "role" } } },
+          memberships: {
+            ...tenant,
+            columns: { memberships: { role: "role" } },
+          },
         },
       }),
     ).not.toContain("team_roles");

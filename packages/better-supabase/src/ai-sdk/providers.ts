@@ -1,10 +1,7 @@
 import type { Experimental_SandboxSession, JSONValue } from "ai";
 
 import type { AiSandboxes } from "../blocks/ai-chat/sandboxes.ts";
-import type {
-  AiProviders,
-  ResolvedProviderKey,
-} from "../blocks/ai-providers/ai-providers.ts";
+import type { AiKeys, ResolvedProviderKey } from "../blocks/ai-keys/ai-keys.ts";
 import type { AsyncResult } from "../core/result.ts";
 import type { GatewayContext, GatewayOptions } from "./gateway.ts";
 
@@ -57,7 +54,7 @@ export function byokOptions(
  * app's credentials.
  */
 export function tenantGatewayOptions(
-  providers: Pick<AiProviders, "keys">,
+  providers: Pick<AiKeys, "keys">,
   context: GatewayContext & { readonly organizationId: string },
   extra: GatewayOptions = {},
   options: {

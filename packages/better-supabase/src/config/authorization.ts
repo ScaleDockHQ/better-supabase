@@ -252,7 +252,7 @@ export interface AuthorizationProvider {
   readonly delegation?: {
     /**
      * OAuth scope to the permission keys it grants (RFC 9396 details stay with
-     * the app). `blocks.access.scopes` is merged over it.
+     * the app). `blocks.permissions.scopes` is merged over it.
      */
     readonly scopes?: Readonly<Record<string, readonly string[]>>;
   };

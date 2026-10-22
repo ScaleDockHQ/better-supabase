@@ -2,7 +2,7 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, withExtraFields } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const WHERE = "blocks.posts.options";
 

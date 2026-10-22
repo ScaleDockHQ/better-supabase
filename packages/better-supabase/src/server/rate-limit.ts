@@ -27,7 +27,7 @@ export interface RouteRateLimitRule {
 
 /**
  * What `rateLimit()` counts hits with: `createRateLimit()` from
- * `better-supabase/blocks/jobs`.
+ * `better-supabase/blocks/queue`.
  */
 export interface RateLimiter {
   check(

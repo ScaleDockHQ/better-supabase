@@ -2,7 +2,7 @@ import {
   createBilling,
   stripeInboxVerify,
 } from "better-supabase/blocks/billing";
-import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/jobs";
+import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/queue";
 
 import { postgres } from "@/lib/postgres";
 

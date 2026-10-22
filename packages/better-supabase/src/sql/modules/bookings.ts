@@ -20,7 +20,6 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import {
   allowed,
   bookingJson as bookingJsonOf,
@@ -38,6 +37,7 @@ import {
   seriesFunctions,
   seriesTables,
 } from "./bookings-series.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The queue a hold enqueues to expire itself once `hold_expires_at` passes. */
 const BOOKING_EXPIRE_QUEUE = "bookings.expire-holds";
@@ -656,7 +656,7 @@ ${userGrant(`${fn("available_slots")}(uuid, timestamptz, timestamptz, text, uuid
 function lifecycle(p: Parts): string {
   const { ctx, r, s, b } = p;
   const fn = (name: string) => ctx.fn(name);
-  const jobs = ctx.installed("jobs") ? ctx.of("jobs") : undefined;
+  const jobs = ctx.installed("queue") ? ctx.of("queue") : undefined;
 
   const expireJob =
     jobs === undefined
@@ -1020,9 +1020,9 @@ export const BOOKINGS: BlockSqlDefinition = {
   title: "Bookings",
   description:
     "Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: [
-    "jobs",
+    "queue",
     "share-links",
     "rate-limit",
     "calendar",

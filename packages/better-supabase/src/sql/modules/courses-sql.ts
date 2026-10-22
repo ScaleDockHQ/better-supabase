@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, withExtraFields } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The keys `course_json` returns next to the extra columns. */
 export const COURSE_KEYS = [

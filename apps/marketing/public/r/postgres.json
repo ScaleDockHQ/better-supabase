@@ -20,7 +20,7 @@
   },
   "meta": {
     "block": [
-      "jobs",
+      "queue",
       "outbox",
       "billing"
     ],
@@ -34,7 +34,7 @@
       "react-router"
     ]
   },
-  "docs": "The pool reads `SUPABASE_DB_URL`, then `DATABASE_URL`; the value above is the local stack from `supabase start`. Never import it from client code. See https://bettersupabase.com/docs/blocks/jobs.",
+  "docs": "The pool reads `SUPABASE_DB_URL`, then `DATABASE_URL`; the value above is the local stack from `supabase start`. Never import it from client code. See https://bettersupabase.com/docs/blocks/queue.",
   "categories": [
     "wiring",
     "server"

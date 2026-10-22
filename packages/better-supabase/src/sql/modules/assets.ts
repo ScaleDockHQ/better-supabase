@@ -9,13 +9,13 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { fail, lockTable, triggerGrant, schemaPreamble } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import {
   assetsFunctions,
   assetsPostgis,
   GEOGRAPHY,
   geographyPoint,
 } from "./assets-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const LOCATION_PAYLOAD = [
   "organizationId",
@@ -175,9 +175,9 @@ function build(ctx: BlockSqlContext): string {
       ? `alter table ${ctx.of("bookings").table("resources")} add column if not exists asset_id uuid references ${assets} (${s("id")}) on delete set null;
 create index if not exists ${sqlIdent(`${ctx.of("bookings").tableName("resources").name}_asset_idx`)} on ${ctx.of("bookings").table("resources")} (asset_id) where asset_id is not null;`
       : "",
-    ctx.installed("work-items") && ctx.of("work-items").manages
-      ? `alter table ${ctx.of("work-items").table("items")} add column if not exists asset_id uuid references ${assets} (${s("id")}) on delete set null;
-create index if not exists ${sqlIdent(`${ctx.of("work-items").tableName("items").name}_asset_idx`)} on ${ctx.of("work-items").table("items")} (asset_id) where asset_id is not null;`
+    ctx.installed("tasks") && ctx.of("tasks").manages
+      ? `alter table ${ctx.of("tasks").table("items")} add column if not exists asset_id uuid references ${assets} (${s("id")}) on delete set null;
+create index if not exists ${sqlIdent(`${ctx.of("tasks").tableName("items").name}_asset_idx`)} on ${ctx.of("tasks").table("items")} (asset_id) where asset_id is not null;`
       : "",
   ]
     .filter((part) => part !== "")
@@ -340,8 +340,8 @@ export const ASSETS: BlockSqlDefinition = {
   title: "Assets and locations",
   description:
     "A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.",
-  requires: ["tenant", "access"],
-  integrates: ["bookings", "work-items", "outbox", "audit"],
+  requires: ["memberships", "permissions"],
+  integrates: ["bookings", "tasks", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

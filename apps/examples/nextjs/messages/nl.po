@@ -48,7 +48,7 @@ msgstr "AI-taken"
 
 #: src/app/[locale]/(app)/assistant/tasks/page.tsx
 msgctxt "aiTasks.YcuQ6T"
-msgid "Prompts on the ai-tasks block that the assistant runs on a schedule."
+msgid "Prompts on the ai-schedules block that the assistant runs on a schedule."
 msgstr "Prompts uit het ai-tasks-blok die de assistent volgens een schema uitvoert."
 
 #: src/app/[locale]/(app)/beta/page.tsx

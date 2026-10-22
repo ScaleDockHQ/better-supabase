@@ -7,10 +7,10 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
 import {
-  createJobs,
+  createQueue,
   createWebhookInbox,
   sqlTransport,
-} from "../../src/blocks/jobs/index.ts";
+} from "../../src/blocks/queue/index.ts";
 import {
   createIncomingWebhooks,
   inboxDestination,
@@ -795,7 +795,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       };
 
       for (const file of renderBlocks(
-        ["organizations", "webhooks-in", "webhook-inbox", "jobs"],
+        ["organizations", "webhooks-in", "webhook-inbox", "queue"],
         layout,
       )) {
         if (file.kind === "schema") {
@@ -868,7 +868,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         source,
       });
 
-      const jobs = createJobs({
+      const jobs = createQueue({
         sql,
         queues: { [queue]: v.object({ route: v.string() }) },
       });

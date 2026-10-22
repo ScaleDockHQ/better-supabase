@@ -22,8 +22,8 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { driveSubjectType } from "./drive-kit.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<ShareLinksEvents> = {
   "share_link.created": {
@@ -634,7 +634,7 @@ export const SHARE_LINKS: BlockSqlDefinition = {
   title: "Share links",
   description:
     "Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: [
     "ai-chat",
     "bookings",

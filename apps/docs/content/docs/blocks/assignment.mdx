@@ -4,7 +4,7 @@ description: Route new leads, deals or tickets to an owner with round robin or w
 ---
 
 The `assignment` block picks an owner for a record. Each queue covers one
-subject type and an optional territory, a [rules](/docs/blocks/rules) filter
+subject type and an optional territory, a [rules](/docs/blocks/automations) filter
 tree such as "country is NL". `assign` tries the enabled queues by `rank`
 and gives the record to the next member of the first queue whose territory
 matches. It logs every pick and writes a `subject.assigned` event; writing

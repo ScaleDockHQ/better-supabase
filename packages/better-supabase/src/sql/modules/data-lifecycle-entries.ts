@@ -224,10 +224,10 @@ export function tenantRowOf(
 export function disabling(
   ctx: BlockSqlContext,
 ): { table: string; key: string; column: string } | undefined {
-  const configured = ctx.modules.access?.disabled?.tenant;
+  const configured = ctx.modules.permissions?.disabled?.tenant;
 
   if (typeof configured === "string") {
-    const ref = columnRef("blocks.access.disabled.tenant", configured);
+    const ref = columnRef("blocks.permissions.disabled.tenant", configured);
 
     return { table: ref.table, key: '"id"', column: ref.column };
   }

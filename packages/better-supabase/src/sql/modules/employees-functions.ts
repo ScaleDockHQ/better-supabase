@@ -98,7 +98,7 @@ export function employeeFunctions(
       `, 'fromManagerId', ${from}, 'toManagerId', ${alias}.${e("manager")}`,
     );
 
-  const memberships = ctx.of("tenant");
+  const memberships = ctx.of("memberships");
 
   const member = (tenant: string, user: string): string => `
   if ${user} is not null and not exists (

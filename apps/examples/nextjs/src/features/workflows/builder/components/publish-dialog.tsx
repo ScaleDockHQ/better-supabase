@@ -1,8 +1,8 @@
 "use client";
 
-import type { WorkflowGraph } from "better-supabase/blocks/workflow-builder";
+import type { WorkflowGraph } from "better-supabase/blocks/workflow-editor";
 
-import { diffGraphs } from "better-supabase/blocks/workflow-builder";
+import { diffGraphs } from "better-supabase/blocks/workflow-editor";
 import { UploadIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 

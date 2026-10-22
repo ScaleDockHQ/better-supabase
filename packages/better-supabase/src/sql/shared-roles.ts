@@ -2,7 +2,7 @@ import type { BlockSqlLayout } from "./module-types.ts";
 
 import { moduleContext } from "./module-context.ts";
 import { platformRolesProblem } from "./modules/invitations-roles.ts";
-import { sharedRolesProblem } from "./modules/tenant.ts";
+import { sharedRolesProblem } from "./modules/memberships.ts";
 import { resolveBlocks } from "./registry.ts";
 
 /**
@@ -17,13 +17,16 @@ export function sharedRolesProblems(
 ): { readonly setting: string; readonly message: string }[] {
   const installed = resolveBlocks(names, layout).map((module) => module.name);
 
-  if (!installed.includes("tenant") || !installed.includes("invitations")) {
+  if (
+    !installed.includes("memberships") ||
+    !installed.includes("invitations")
+  ) {
     return [];
   }
 
   const ctx = moduleContext("invitations", layout, installed);
 
-  return [sharedRolesProblem(ctx.of("tenant")), platformRolesProblem(ctx)]
+  return [sharedRolesProblem(ctx.of("memberships")), platformRolesProblem(ctx)]
     .filter((problem): problem is string => problem !== undefined)
     .map((problem) => {
       const at = problem.indexOf(": ");

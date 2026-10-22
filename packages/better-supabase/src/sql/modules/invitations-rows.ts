@@ -7,7 +7,6 @@ import {
   organizationMissing,
   SERVICE_CALLER,
 } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
 import {
   invitePlatform,
   platformAssignment,
@@ -21,6 +20,7 @@ import {
   tenantTable,
 } from "./invitations-tables.ts";
 import { assignableRole } from "./organizations-roles.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 /**
  * The invitation's organization: its id plus
@@ -216,7 +216,7 @@ export function updateInvitation(ctx: BlockSqlContext): string {
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);
   const fail = raise;
-  const tenantMembers = ctx.of("tenant");
+  const tenantMembers = ctx.of("memberships");
   const m = tenantMembers.table("memberships");
   const mt = tenantMembers.col("memberships", "tenant");
   const mu = tenantMembers.col("memberships", "user");

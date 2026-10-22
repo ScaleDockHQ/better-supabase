@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const MAX_BANDS = 10;
 
@@ -31,7 +31,7 @@ export function scoresFunctions(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
   const compute = ctx.permission("compute", permissions.compute);
-  const rules = ctx.of("rules");
+  const rules = ctx.of("automations");
   const maxRules = limitOf(ctx, "maxRules", 100);
   const maxMetrics = limitOf(ctx, "maxMetrics", 50);
 

@@ -17,11 +17,11 @@ import { authorizationProvider } from "your-authorization-package";
 
 export default defineConfig({
   auth: { authorization: authorizationProvider() },
-  blocks: { access: {}, organizations: {} },
+  blocks: { permissions: {}, organizations: {} },
 });
 ```
 
-With `authorization` set, `blocks.access.model` defaults to
+With `authorization` set, `blocks.permissions.model` defaults to
 `"provider"`, so `can()`, `tenant_ids_with()` and every module check answer
 from the provider's templates.
 
@@ -45,16 +45,16 @@ instead of calling it with defaults. See the
 
 | Feature                                                                                    | What it takes from the provider                                                   |
 | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `blocks.access.model: "provider"`                                                          | `can()` and the modules' checks call `functions`, at `tenantScope`                |
+| `blocks.permissions.model: "provider"`                                                     | `can()` and the modules' checks call `functions`, at `tenantScope`                |
 | `auth.entitlements.memberships: "provider"`                                                | `has_entitlement` and `entitlement_members()` call `memberIds` and `memberIdsFor` |
 | Bucket and topic `access` policies with `sql`                                              | the `idsWith` and `isPlatform` templates, for any scope in `scopes`               |
 | `options.subjects.<type>.scope` in attachments and comments                                | `idsWith` at that scope, for grants on a single record                            |
 | [API keys](/docs/blocks/api-keys) with `claim`                                             | nothing at runtime; the claim names follow the provider's functions               |
-| `better-supabase add tenant`                                                               | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)      |
+| `better-supabase add memberships`                                                          | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)      |
 | `better-supabase gen`                                                                      | refuses a bucket or topic key that isn't `sqlComplete: true`                      |
 | [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`          |
 
-`auth.entitlements.memberships` and `blocks.access.model` both default to
+`auth.entitlements.memberships` and `blocks.permissions.model` both default to
 `"provider"` when `authorization` is set. Set another access model to keep
 the built-in roles; doctor BS414 then reports each policy and function that
 calls `can()` or `tenant_ids_with()`, because those answer from roles the
@@ -162,13 +162,13 @@ puts the result into a policy or a module function:
 `idsWith` and `isPlatform` are required. A template that leaves out a `For`
 variant makes the module function answer for the caller only: called for
 another user, it raises SQLSTATE `0A000`. Without `canAssign`, only the
-service role assigns roles: the `access` module's `can_assign` answers false
+service role assigns roles: the `permissions` module's `can_assign` answers false
 for every member, owners included.
 
 Some modules call the optional templates under the `provider` model:
 `invitations` calls `idsWithFor`, `isPlatformFor` and `canAssignFor` to check
 the inviter again when an invitation is accepted; `inbox`, `comments`, `sso`,
-`notifications`, `connectors` and `workflow-sdk-world` call `idsWithFor`; and
+`notifications`, `connectors` and `workflow-sdk` call `idsWithFor`; and
 `usage` reads memberships through `memberIds`; `approvals` checks that a
 delegate is a member through `memberIdsFor`. Doctor (BS411) warns for each
 installed module whose template the provider doesn't set.
@@ -289,8 +289,8 @@ passes `{requester}` for that check.
 
 `delegation.scopes` maps an OAuth scope to the permission keys a delegated
 token (an OAuth client or an agent) may use. The access functions narrow
-every check to those keys, and `blocks.access.scopes` is merged over it.
-See [Access](/docs/blocks/access#delegated-tokens).
+every check to those keys, and `blocks.permissions.scopes` is merged over it.
+See [Access](/docs/blocks/permissions#delegated-tokens).
 
 ```ts
 delegation: {
@@ -331,16 +331,16 @@ the checks render `false` (ADR 0070).
 ### Operations
 
 `operations` maps an operation name to the permission it needs, so one table
-names the permission for every workflow-builder node, MCP tool, AI tool and
+names the permission for every workflow-editor node, MCP tool, AI tool and
 inbox command. A module looks up `<prefix><name>` and falls back to its own
 key, after the `blocks.<module>.permissions` rename:
 
-| Prefix           | Operations             |
-| ---------------- | ---------------------- |
-| `workflow.node.` | workflow-builder nodes |
-| `mcp.tool.`      | MCP tools              |
-| `ai.tool.`       | AI tools               |
-| `inbox.command.` | inbox commands         |
+| Prefix           | Operations            |
+| ---------------- | --------------------- |
+| `workflow.node.` | workflow-editor nodes |
+| `mcp.tool.`      | MCP tools             |
+| `ai.tool.`       | AI tools              |
+| `inbox.command.` | inbox commands        |
 
 ```ts
 operations: {
@@ -353,7 +353,7 @@ operations: {
 ```
 
 An MCP tool's `operation`, an agent's `toolOperations` and a
-workflow-builder step's `operation` name an entry in place of the prefixed
+workflow-editor step's `operation` name an entry in place of the prefixed
 one. Under the access module, `better_supabase.operation_permission(op)`
 answers the key of any operation in SQL: the installed modules' operations
 (`<module>.<action>`, such as `audit.view`) after renames, with this table
@@ -423,18 +423,18 @@ export const bsb = createServer(betterSupabase, { authorization });
 
 Every hook is optional. A slot passed to a block directly wins over the hook.
 
-| Hook                             | Decides                                                                                   | Owner page                                        |
-| -------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `automation.mayPublish`          | whether the publisher may publish a version whose nodes need the stored permissions       | [Workflow builder](/docs/blocks/workflow-builder) |
-| `automation.runAs`               | the claims each step of a published version runs with; `null` fails the step              | [Workflow builder](/docs/blocks/workflow-builder) |
-| `support.authorize`              | a support session start: `true` still needs a second approver, `{ approvedBy }` names one | [Support sessions](/docs/auth/impersonation)      |
-| `delivery.subscribers`           | which webhook endpoints, outbox consumers and realtime members may read an event          | [Outgoing webhooks](/docs/blocks/webhooks-out)    |
-| `delivery.audience`              | which notification recipients may read a notification                                     | [Notifications](/docs/blocks/notifications)       |
-| `identities.principalByIdentity` | the user or contact a verified email address or chat user links to                        | [Identities](/docs/blocks/identities)             |
-| `chat.onAction`                  | a button a linked chat user pressed, such as an approval                                  | [Chat SDK](/docs/chat-sdk)                        |
-| `approverOf`                     | whether a user may approve a request; the server side of `isApprover`                     | [Approvals](#approvals)                           |
-| `tickets.subject`                | the context an opaque run ticket stands for, for jobs and workflow steps                  | [Jobs](/docs/blocks/jobs)                         |
-| `delegation.permissions`         | the permission keys a delegated token's scopes grant, as the cap `forContext` runs with   | [Access](/docs/blocks/access#delegated-tokens)    |
+| Hook                             | Decides                                                                                   | Owner page                                          |
+| -------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `automation.mayPublish`          | whether the publisher may publish a version whose nodes need the stored permissions       | [Workflow builder](/docs/blocks/workflow-editor)    |
+| `automation.runAs`               | the claims each step of a published version runs with; `null` fails the step              | [Workflow builder](/docs/blocks/workflow-editor)    |
+| `support.authorize`              | a support session start: `true` still needs a second approver, `{ approvedBy }` names one | [Support sessions](/docs/auth/impersonation)        |
+| `delivery.subscribers`           | which webhook endpoints, outbox consumers and realtime members may read an event          | [Outgoing webhooks](/docs/blocks/webhooks-out)      |
+| `delivery.audience`              | which notification recipients may read a notification                                     | [Notifications](/docs/blocks/notifications)         |
+| `identities.principalByIdentity` | the user or contact a verified email address or chat user links to                        | [Identities](/docs/blocks/linked-identities)        |
+| `chat.onAction`                  | a button a linked chat user pressed, such as an approval                                  | [Chat SDK](/docs/chat-sdk)                          |
+| `approverOf`                     | whether a user may approve a request; the server side of `isApprover`                     | [Approvals](#approvals)                             |
+| `tickets.subject`                | the context an opaque run ticket stands for, for jobs and workflow steps                  | [Jobs](/docs/blocks/queue)                          |
+| `delegation.permissions`         | the permission keys a delegated token's scopes grant, as the cap `forContext` runs with   | [Access](/docs/blocks/permissions#delegated-tokens) |
 
 Without `delivery.subscribers` or `delivery.audience`, delivery still fails
 closed on records: webhooks, notifications and reminders fall back to

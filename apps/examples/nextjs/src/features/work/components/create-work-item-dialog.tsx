@@ -4,7 +4,7 @@
 import type { DbError } from "better-supabase";
 import type { RecordFormInput } from "better-supabase/records";
 
-import { workItemInputSchema } from "better-supabase/blocks/work-items";
+import { workItemInputSchema } from "better-supabase/blocks/tasks";
 import { useRecordForm } from "better-supabase/react";
 import { recordForm } from "better-supabase/records";
 import { PlusIcon } from "lucide-react";

@@ -26,16 +26,16 @@ describe("block file markers", () => {
   });
 
   it("writes @bsb-names and reads both forms of the names line", () => {
-    const line = entitiesMarker("work-items", [
+    const line = entitiesMarker("tasks", [
       { key: "work_item", singular: "task", plural: "tasks" },
     ]);
 
-    expect(line).toBe("-- @bsb-names work-items work_item=task/tasks");
+    expect(line).toBe("-- @bsb-names tasks work_item=task/tasks");
     expect(
       entityMarkers(`${line!}\n-- @bs-entities parties party=contact/contacts`),
     ).toEqual(
       new Map([
-        ["work-items", "work_item=task/tasks"],
+        ["tasks", "work_item=task/tasks"],
         ["parties", "party=contact/contacts"],
       ]),
     );

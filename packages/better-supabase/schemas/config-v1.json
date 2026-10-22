@@ -1266,7 +1266,7 @@
                 "const": false
               }
             ],
-            "description": "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<blocks.tenant.entities.organization>_id` when the tenant is renamed."
+            "description": "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<blocks.memberships.entities.organization>_id` when the tenant is renamed."
           },
           "title": {
             "type": "string",
@@ -1692,22 +1692,21 @@
       "description": "Tables the app owns, keyed by name, created in public by `better-supabase upgrade` with an id, the scope column, created_at and updated_at, row level security and policies for the scope. Money is a bigint of minor units next to a text currency column. ADR 0040."
     },
     "blocks": {
-      "description": "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, ensure-rls, ...) are configured here too.",
+      "description": "The blocks to install and keep in sync: a list of names, or an object keyed by block name whose values set the block's mode, names, permission keys and options. The foundation blocks (tenant, access, updated-at, rls-guard, ...) are configured here too.",
       "oneOf": [
         {
           "type": "array",
           "items": {
             "enum": [
-              "access",
               "access-requests",
-              "activity",
-              "actor",
+              "activities",
+              "admission-passes",
               "agents",
               "ai-cache",
               "ai-chat",
               "ai-files",
-              "ai-providers",
-              "ai-tasks",
+              "ai-keys",
+              "ai-schedules",
               "announcements",
               "api-keys",
               "approvals",
@@ -1715,22 +1714,26 @@
               "assignment",
               "attachments",
               "audit",
+              "automations",
               "billable-time",
               "billing",
               "bookings",
-              "bulk",
+              "bulk-actions",
               "calendar",
               "catalog",
               "channels",
               "chat-sdk-state",
               "collections",
               "comments",
+              "compliance",
               "connectors",
+              "contacts",
               "contracts",
-              "controls",
               "courses",
+              "created-by",
               "credentials",
               "custom-fields",
+              "data-api-grants",
               "data-lifecycle",
               "deals",
               "dispatch",
@@ -1740,56 +1743,55 @@
               "drive",
               "drive-files",
               "employees",
-              "engagements",
               "enrichment",
               "enrollments",
-              "ensure-rls",
               "entitlements",
               "expenses",
+              "feature-flags",
               "field-encryption",
               "field-history",
-              "flags",
               "forecasts",
               "forms",
-              "grants",
+              "goals",
               "guests",
               "hiring",
               "idempotency",
-              "identities",
+              "impersonation",
               "imports",
               "inbox",
               "incidents",
               "inventory",
               "invitations",
               "invoices",
-              "jobs",
               "jsonb-schemas",
               "knowledge",
               "lead-scoring",
               "leases",
               "leave",
               "ledger",
+              "linked-identities",
               "mail-sync",
+              "memberships",
               "memory",
               "messaging",
               "metrics",
               "mfa",
               "moderation",
               "notifications",
-              "number-sequences",
+              "numbering",
               "oauth-server",
               "onboarding",
               "orders",
               "organizations",
               "outbox",
-              "parties",
-              "passes",
+              "permissions",
               "pgtap",
               "pipelines",
               "posts",
               "profiles",
               "promotions",
               "push",
+              "queue",
               "quotes",
               "rank",
               "rate-limit",
@@ -1800,17 +1802,17 @@
               "reminders",
               "reserved-slugs",
               "reviews",
-              "rules",
+              "rls-guard",
               "saved-views",
               "scores",
               "search",
+              "security-events",
               "segments",
               "sequences",
-              "service-principals",
-              "sessions",
+              "service-accounts",
+              "session-revocation",
               "settings",
               "share-links",
-              "shared-signals",
               "shipments",
               "signatures",
               "signing-keys",
@@ -1819,13 +1821,12 @@
               "state-machine",
               "streams",
               "subjects",
-              "support-sessions",
               "tags",
-              "targets",
+              "tasks",
               "teams",
               "templates",
-              "tenant",
               "time-tracking",
+              "timeline",
               "trash",
               "updated-at",
               "usage",
@@ -1836,9 +1837,8 @@
               "webhook-inbox",
               "webhooks-in",
               "webhooks-out",
-              "work-items",
-              "workflow-builder",
-              "workflow-sdk-world",
+              "workflow-editor",
+              "workflow-sdk",
               "workflows"
             ]
           }
@@ -1847,17 +1847,14 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "access": {
-              "$ref": "#/$defs/blocks/access"
-            },
             "access-requests": {
               "$ref": "#/$defs/blocks/access-requests"
             },
-            "activity": {
-              "$ref": "#/$defs/blocks/activity"
+            "activities": {
+              "$ref": "#/$defs/blocks/activities"
             },
-            "actor": {
-              "$ref": "#/$defs/blocks/actor"
+            "admission-passes": {
+              "$ref": "#/$defs/blocks/admission-passes"
             },
             "agents": {
               "$ref": "#/$defs/blocks/agents"
@@ -1871,11 +1868,11 @@
             "ai-files": {
               "$ref": "#/$defs/blocks/ai-files"
             },
-            "ai-providers": {
-              "$ref": "#/$defs/blocks/ai-providers"
+            "ai-keys": {
+              "$ref": "#/$defs/blocks/ai-keys"
             },
-            "ai-tasks": {
-              "$ref": "#/$defs/blocks/ai-tasks"
+            "ai-schedules": {
+              "$ref": "#/$defs/blocks/ai-schedules"
             },
             "announcements": {
               "$ref": "#/$defs/blocks/announcements"
@@ -1898,6 +1895,9 @@
             "audit": {
               "$ref": "#/$defs/blocks/audit"
             },
+            "automations": {
+              "$ref": "#/$defs/blocks/automations"
+            },
             "billable-time": {
               "$ref": "#/$defs/blocks/billable-time"
             },
@@ -1907,8 +1907,8 @@
             "bookings": {
               "$ref": "#/$defs/blocks/bookings"
             },
-            "bulk": {
-              "$ref": "#/$defs/blocks/bulk"
+            "bulk-actions": {
+              "$ref": "#/$defs/blocks/bulk-actions"
             },
             "calendar": {
               "$ref": "#/$defs/blocks/calendar"
@@ -1928,23 +1928,32 @@
             "comments": {
               "$ref": "#/$defs/blocks/comments"
             },
+            "compliance": {
+              "$ref": "#/$defs/blocks/compliance"
+            },
             "connectors": {
               "$ref": "#/$defs/blocks/connectors"
+            },
+            "contacts": {
+              "$ref": "#/$defs/blocks/contacts"
             },
             "contracts": {
               "$ref": "#/$defs/blocks/contracts"
             },
-            "controls": {
-              "$ref": "#/$defs/blocks/controls"
-            },
             "courses": {
               "$ref": "#/$defs/blocks/courses"
+            },
+            "created-by": {
+              "$ref": "#/$defs/blocks/created-by"
             },
             "credentials": {
               "$ref": "#/$defs/blocks/credentials"
             },
             "custom-fields": {
               "$ref": "#/$defs/blocks/custom-fields"
+            },
+            "data-api-grants": {
+              "$ref": "#/$defs/blocks/data-api-grants"
             },
             "data-lifecycle": {
               "$ref": "#/$defs/blocks/data-lifecycle"
@@ -1973,17 +1982,11 @@
             "employees": {
               "$ref": "#/$defs/blocks/employees"
             },
-            "engagements": {
-              "$ref": "#/$defs/blocks/engagements"
-            },
             "enrichment": {
               "$ref": "#/$defs/blocks/enrichment"
             },
             "enrollments": {
               "$ref": "#/$defs/blocks/enrollments"
-            },
-            "ensure-rls": {
-              "$ref": "#/$defs/blocks/ensure-rls"
             },
             "entitlements": {
               "$ref": "#/$defs/blocks/entitlements"
@@ -1991,14 +1994,14 @@
             "expenses": {
               "$ref": "#/$defs/blocks/expenses"
             },
+            "feature-flags": {
+              "$ref": "#/$defs/blocks/feature-flags"
+            },
             "field-encryption": {
               "$ref": "#/$defs/blocks/field-encryption"
             },
             "field-history": {
               "$ref": "#/$defs/blocks/field-history"
-            },
-            "flags": {
-              "$ref": "#/$defs/blocks/flags"
             },
             "forecasts": {
               "$ref": "#/$defs/blocks/forecasts"
@@ -2006,8 +2009,8 @@
             "forms": {
               "$ref": "#/$defs/blocks/forms"
             },
-            "grants": {
-              "$ref": "#/$defs/blocks/grants"
+            "goals": {
+              "$ref": "#/$defs/blocks/goals"
             },
             "guests": {
               "$ref": "#/$defs/blocks/guests"
@@ -2018,8 +2021,8 @@
             "idempotency": {
               "$ref": "#/$defs/blocks/idempotency"
             },
-            "identities": {
-              "$ref": "#/$defs/blocks/identities"
+            "impersonation": {
+              "$ref": "#/$defs/blocks/impersonation"
             },
             "imports": {
               "$ref": "#/$defs/blocks/imports"
@@ -2039,9 +2042,6 @@
             "invoices": {
               "$ref": "#/$defs/blocks/invoices"
             },
-            "jobs": {
-              "$ref": "#/$defs/blocks/jobs"
-            },
             "jsonb-schemas": {
               "$ref": "#/$defs/blocks/jsonb-schemas"
             },
@@ -2060,8 +2060,14 @@
             "ledger": {
               "$ref": "#/$defs/blocks/ledger"
             },
+            "linked-identities": {
+              "$ref": "#/$defs/blocks/linked-identities"
+            },
             "mail-sync": {
               "$ref": "#/$defs/blocks/mail-sync"
+            },
+            "memberships": {
+              "$ref": "#/$defs/blocks/memberships"
             },
             "memory": {
               "$ref": "#/$defs/blocks/memory"
@@ -2081,8 +2087,8 @@
             "notifications": {
               "$ref": "#/$defs/blocks/notifications"
             },
-            "number-sequences": {
-              "$ref": "#/$defs/blocks/number-sequences"
+            "numbering": {
+              "$ref": "#/$defs/blocks/numbering"
             },
             "oauth-server": {
               "$ref": "#/$defs/blocks/oauth-server"
@@ -2099,11 +2105,8 @@
             "outbox": {
               "$ref": "#/$defs/blocks/outbox"
             },
-            "parties": {
-              "$ref": "#/$defs/blocks/parties"
-            },
-            "passes": {
-              "$ref": "#/$defs/blocks/passes"
+            "permissions": {
+              "$ref": "#/$defs/blocks/permissions"
             },
             "pgtap": {
               "$ref": "#/$defs/blocks/pgtap"
@@ -2122,6 +2125,9 @@
             },
             "push": {
               "$ref": "#/$defs/blocks/push"
+            },
+            "queue": {
+              "$ref": "#/$defs/blocks/queue"
             },
             "quotes": {
               "$ref": "#/$defs/blocks/quotes"
@@ -2153,8 +2159,8 @@
             "reviews": {
               "$ref": "#/$defs/blocks/reviews"
             },
-            "rules": {
-              "$ref": "#/$defs/blocks/rules"
+            "rls-guard": {
+              "$ref": "#/$defs/blocks/rls-guard"
             },
             "saved-views": {
               "$ref": "#/$defs/blocks/saved-views"
@@ -2165,26 +2171,26 @@
             "search": {
               "$ref": "#/$defs/blocks/search"
             },
+            "security-events": {
+              "$ref": "#/$defs/blocks/security-events"
+            },
             "segments": {
               "$ref": "#/$defs/blocks/segments"
             },
             "sequences": {
               "$ref": "#/$defs/blocks/sequences"
             },
-            "service-principals": {
-              "$ref": "#/$defs/blocks/service-principals"
+            "service-accounts": {
+              "$ref": "#/$defs/blocks/service-accounts"
             },
-            "sessions": {
-              "$ref": "#/$defs/blocks/sessions"
+            "session-revocation": {
+              "$ref": "#/$defs/blocks/session-revocation"
             },
             "settings": {
               "$ref": "#/$defs/blocks/settings"
             },
             "share-links": {
               "$ref": "#/$defs/blocks/share-links"
-            },
-            "shared-signals": {
-              "$ref": "#/$defs/blocks/shared-signals"
             },
             "shipments": {
               "$ref": "#/$defs/blocks/shipments"
@@ -2210,14 +2216,11 @@
             "subjects": {
               "$ref": "#/$defs/blocks/subjects"
             },
-            "support-sessions": {
-              "$ref": "#/$defs/blocks/support-sessions"
-            },
             "tags": {
               "$ref": "#/$defs/blocks/tags"
             },
-            "targets": {
-              "$ref": "#/$defs/blocks/targets"
+            "tasks": {
+              "$ref": "#/$defs/blocks/tasks"
             },
             "teams": {
               "$ref": "#/$defs/blocks/teams"
@@ -2225,11 +2228,11 @@
             "templates": {
               "$ref": "#/$defs/blocks/templates"
             },
-            "tenant": {
-              "$ref": "#/$defs/blocks/tenant"
-            },
             "time-tracking": {
               "$ref": "#/$defs/blocks/time-tracking"
+            },
+            "timeline": {
+              "$ref": "#/$defs/blocks/timeline"
             },
             "trash": {
               "$ref": "#/$defs/blocks/trash"
@@ -2261,14 +2264,11 @@
             "webhooks-out": {
               "$ref": "#/$defs/blocks/webhooks-out"
             },
-            "work-items": {
-              "$ref": "#/$defs/blocks/work-items"
+            "workflow-editor": {
+              "$ref": "#/$defs/blocks/workflow-editor"
             },
-            "workflow-builder": {
-              "$ref": "#/$defs/blocks/workflow-builder"
-            },
-            "workflow-sdk-world": {
-              "$ref": "#/$defs/blocks/workflow-sdk-world"
+            "workflow-sdk": {
+              "$ref": "#/$defs/blocks/workflow-sdk"
             },
             "workflows": {
               "$ref": "#/$defs/blocks/workflows"
@@ -2965,7 +2965,7 @@
       },
       "additionalProperties": false
     },
-    "accessBlock": {
+    "permissionsBlock": {
       "type": "object",
       "properties": {
         "ownership": {
@@ -3295,30 +3295,6 @@
       "description": "A column of the changed row, or a lookup: the `select` column of the `from` row (`table` or `schema.table`) whose `key` (default id) equals `via`, a column or another lookup."
     },
     "blocks": {
-      "access": {
-        "$ref": "#/$defs/accessBlock",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "platformRoleScope": {
-                "type": "string",
-                "default": "platform"
-              },
-              "scope": {
-                "type": "string",
-                "default": "organization"
-              },
-              "tenantRoleScope": {
-                "type": "string",
-                "default": "tenant"
-              }
-            }
-          }
-        }
-      },
       "access-requests": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3339,25 +3315,57 @@
           }
         }
       },
-      "activity": {
+      "activities": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "types": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "extraColumns": {},
+              "recordings": {
+                "type": "boolean",
+                "default": false
+              },
+              "bookings": {
+                "type": "boolean"
+              }
+            }
           }
         }
       },
-      "actor": {
+      "admission-passes": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "checkInOpens": {
+                "type": "string",
+                "default": "1 hour"
+              },
+              "dropInLength": {
+                "type": "string",
+                "default": "2 hours"
+              },
+              "credits": {
+                "type": "boolean",
+                "default": false
+              },
+              "creditRefundBefore": {
+                "type": "string",
+                "default": "12 hours"
+              }
+            }
           }
         }
       },
@@ -3454,7 +3462,7 @@
           }
         }
       },
-      "ai-providers": {
+      "ai-keys": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -3470,7 +3478,7 @@
           }
         }
       },
-      "ai-tasks": {
+      "ai-schedules": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -3709,6 +3717,30 @@
           }
         }
       },
+      "automations": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxConditions": {
+                "type": "number",
+                "default": 50
+              },
+              "maxDepth": {
+                "type": "number",
+                "default": 4
+              },
+              "maxActions": {
+                "type": "number",
+                "default": 20
+              }
+            }
+          }
+        }
+      },
       "billable-time": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3762,7 +3794,7 @@
           }
         }
       },
-      "bulk": {
+      "bulk-actions": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -3865,6 +3897,19 @@
           }
         }
       },
+      "compliance": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
       "connectors": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3890,6 +3935,21 @@
           }
         }
       },
+      "contacts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "companyLifecycles": {},
+              "personLifecycles": {},
+              "extraColumns": {}
+            }
+          }
+        }
+      },
       "contracts": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3907,7 +3967,7 @@
           }
         }
       },
-      "controls": {
+      "courses": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -3920,16 +3980,14 @@
           }
         }
       },
-      "courses": {
+      "created-by": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "extraColumns": {}
-            }
+            "properties": {}
           }
         }
       },
@@ -3965,6 +4023,19 @@
                 "type": "boolean",
                 "default": false
               }
+            }
+          }
+        }
+      },
+      "data-api-grants": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fromPolicies": {}
             }
           }
         }
@@ -4168,32 +4239,6 @@
           }
         }
       },
-      "engagements": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "types": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "extraColumns": {},
-              "recordings": {
-                "type": "boolean",
-                "default": false
-              },
-              "bookings": {
-                "type": "boolean"
-              }
-            }
-          }
-        }
-      },
       "enrichment": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4221,17 +4266,6 @@
           }
         }
       },
-      "ensure-rls": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {}
-          }
-        }
-      },
       "entitlements": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4251,6 +4285,20 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "feature-flags": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "contexts": {},
               "extraColumns": {}
             }
           }
@@ -4276,20 +4324,6 @@
             "additionalProperties": false,
             "properties": {
               "subjects": {}
-            }
-          }
-        }
-      },
-      "flags": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "contexts": {},
-              "extraColumns": {}
             }
           }
         }
@@ -4321,7 +4355,7 @@
           }
         }
       },
-      "grants": {
+      "goals": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -4329,7 +4363,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "fromPolicies": {}
+              "extraColumns": {}
             }
           }
         }
@@ -4373,7 +4407,7 @@
           }
         }
       },
-      "identities": {
+      "impersonation": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -4381,14 +4415,14 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "codeMinutes": {
-                "type": "number",
-                "default": 10
-              },
-              "verifiedEmails": {
-                "type": "boolean",
-                "default": true
-              }
+              "allowPlatformTargets": {},
+              "allowWrites": {},
+              "approval": {},
+              "approvalTtl": {},
+              "auditCategory": {},
+              "claimsHook": {},
+              "maxTtl": {},
+              "requireReason": {}
             }
           }
         }
@@ -4539,26 +4573,6 @@
           }
         }
       },
-      "jobs": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "backend": {
-                "type": "string",
-                "default": "pgmq"
-              },
-              "scheduler": {
-                "type": "string",
-                "default": "pg_cron"
-              }
-            }
-          }
-        }
-      },
       "jsonb-schemas": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4671,6 +4685,26 @@
           }
         }
       },
+      "linked-identities": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "codeMinutes": {
+                "type": "number",
+                "default": 10
+              },
+              "verifiedEmails": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          }
+        }
+      },
       "mail-sync": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4685,6 +4719,24 @@
               "matchDomains": {
                 "type": "boolean"
               }
+            }
+          }
+        }
+      },
+      "memberships": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "claimFormat": {
+                "type": "string",
+                "default": "array"
+              },
+              "roleThrough": {},
+              "sameTenant": {}
             }
           }
         }
@@ -4853,7 +4905,7 @@
           }
         }
       },
-      "number-sequences": {
+      "numbering": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -5014,7 +5066,7 @@
           }
         }
       },
-      "parties": {
+      "permissions": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -5022,36 +5074,17 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "companyLifecycles": {},
-              "personLifecycles": {},
-              "extraColumns": {}
-            }
-          }
-        }
-      },
-      "passes": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "checkInOpens": {
+              "platformRoleScope": {
                 "type": "string",
-                "default": "1 hour"
+                "default": "platform"
               },
-              "dropInLength": {
+              "scope": {
                 "type": "string",
-                "default": "2 hours"
+                "default": "organization"
               },
-              "credits": {
-                "type": "boolean",
-                "default": false
-              },
-              "creditRefundBefore": {
+              "tenantRoleScope": {
                 "type": "string",
-                "default": "12 hours"
+                "default": "tenant"
               }
             }
           }
@@ -5186,6 +5219,26 @@
             "additionalProperties": false,
             "properties": {
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "queue": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "backend": {
+                "type": "string",
+                "default": "pgmq"
+              },
+              "scheduler": {
+                "type": "string",
+                "default": "pg_cron"
+              }
             }
           }
         }
@@ -5374,27 +5427,14 @@
           }
         }
       },
-      "rules": {
+      "rls-guard": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "maxConditions": {
-                "type": "number",
-                "default": 50
-              },
-              "maxDepth": {
-                "type": "number",
-                "default": 4
-              },
-              "maxActions": {
-                "type": "number",
-                "default": 20
-              }
-            }
+            "properties": {}
           }
         }
       },
@@ -5451,6 +5491,22 @@
           }
         }
       },
+      "security-events": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "retention": {
+                "type": "string",
+                "default": "7 days"
+              }
+            }
+          }
+        }
+      },
       "segments": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -5486,7 +5542,7 @@
           }
         }
       },
-      "service-principals": {
+      "service-accounts": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -5499,7 +5555,7 @@
           }
         }
       },
-      "sessions": {
+      "session-revocation": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -5546,22 +5602,6 @@
             "properties": {
               "subjects": {},
               "extraColumns": {}
-            }
-          }
-        }
-      },
-      "shared-signals": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "retention": {
-                "type": "string",
-                "default": "7 days"
-              }
             }
           }
         }
@@ -5695,26 +5735,6 @@
           }
         }
       },
-      "support-sessions": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "allowPlatformTargets": {},
-              "allowWrites": {},
-              "approval": {},
-              "approvalTtl": {},
-              "auditCategory": {},
-              "claimsHook": {},
-              "maxTtl": {},
-              "requireReason": {}
-            }
-          }
-        }
-      },
       "tags": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -5729,7 +5749,7 @@
           }
         }
       },
-      "targets": {
+      "tasks": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -5737,6 +5757,14 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "prefix": {
+                "type": "string",
+                "default": "TASK-"
+              },
+              "maxAssignees": {
+                "type": "number",
+                "default": 0
+              },
               "extraColumns": {}
             }
           }
@@ -5769,24 +5797,6 @@
           }
         }
       },
-      "tenant": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "claimFormat": {
-                "type": "string",
-                "default": "array"
-              },
-              "roleThrough": {},
-              "sameTenant": {}
-            }
-          }
-        }
-      },
       "time-tracking": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -5803,6 +5813,17 @@
               },
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "timeline": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -6003,28 +6024,7 @@
           }
         }
       },
-      "work-items": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "prefix": {
-                "type": "string",
-                "default": "TASK-"
-              },
-              "maxAssignees": {
-                "type": "number",
-                "default": 0
-              },
-              "extraColumns": {}
-            }
-          }
-        }
-      },
-      "workflow-builder": {
+      "workflow-editor": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -6037,7 +6037,7 @@
           }
         }
       },
-      "workflow-sdk-world": {
+      "workflow-sdk": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

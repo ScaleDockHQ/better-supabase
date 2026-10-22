@@ -185,7 +185,7 @@ function featureFile(
     ),
     ...(extras.access === undefined
       ? []
-      : [`import { accessBlock } from ${q(extras.access)};`]),
+      : [`import { permissionsBlock } from ${q(extras.access)};`]),
   ].toSorted((a, b) => a.localeCompare(b));
 
   return {
@@ -212,7 +212,7 @@ function featureFile(
       "  },",
       "  config: blockConfig,",
       ...(extras.permissions ? ["  permissions,"] : []),
-      ...(extras.access === undefined ? [] : ["  access: accessBlock,"]),
+      ...(extras.access === undefined ? [] : ["  access: permissionsBlock,"]),
       "});",
       "",
     ].join("\n"),
@@ -430,13 +430,13 @@ export function emitFeatures(
   );
 
   const access = PRESET_CATALOG.manifests.find(
-    (manifest) => manifest.name === "access",
+    (manifest) => manifest.name === "permissions",
   )?.client;
 
   const installed = new Set(generatorBlocks(config).map((block) => block.name));
 
   const extras = {
-    access: installed.has("access") ? access?.subpath : undefined,
+    access: installed.has("permissions") ? access?.subpath : undefined,
     permissions: hasPermissionConstants(config),
   };
 

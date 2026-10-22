@@ -127,7 +127,7 @@ Engine only.
 | Function                                | Grants                                | Returns                                                                      |
 | --------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------- |
 | `tenant_entitlements(tenant)`           | `service_role`, `supabase_auth_admin` | Sorted lookup keys, `{}` without a customer                                  |
-| `has_entitlement(tenant, key)`          | `authenticated`                       | `true` when the caller is a member of `tenant` and it has `key`              |
+| `has_entitlement(tenant, key)`          | `authenticated`                       | `true` when the caller is a member of `memberships` and it has `key`         |
 | `tenant_entitlement_value(tenant, key)` | `service_role`                        | The feature's value as `jsonb`, `true` without one, null without the feature |
 | `entitlement_value(tenant, key)`        | `authenticated`                       | The same for a member of `tenant`, null for anyone else                      |
 | `tenant_ids_with_entitlement(key)`      | `authenticated`                       | The caller's tenants that have `key`, for one set check per query            |
@@ -335,7 +335,7 @@ const seats = await entitlements.value(organizationId, "seats").orThrow();
 
 With an [authorization provider](/docs/extending/authorization-providers) in
 the config, the module reads memberships through the provider's `memberIds`
-and `memberIdsFor` functions instead of the `tenant` module, and
+and `memberIdsFor` functions instead of the `memberships` module, and
 `add entitlements` no longer adds `tenant`:
 
 | Function                        | Membership check                                                                  |
@@ -351,7 +351,7 @@ that scope's `idType`. When the provider lacks `memberIds` or
 doctor reports [BS408](/docs/cli/doctor#bs408). BS408 also reports a tenant
 scope without a `memberships` entry, which `entitlement_members` needs.
 
-`auth.entitlements.memberships: "tenant"` keeps the `tenant` module's
+`auth.entitlements.memberships: "tenant"` keeps the `memberships` module's
 `better_supabase.memberships` even with a provider.
 
 `features` is not a claim a provider usually owns, so `add entitlements`
@@ -375,7 +375,7 @@ Two things close the gap:
    once the success page loads. The new token runs the hook again.
 2. **On plan changes Stripe initiates** (renewal failures, cancellations at
    period end), handle `entitlements.active_entitlement_summary.updated` in
-   the [webhook inbox](/docs/blocks/jobs#webhook-inbox) and drop the members'
+   the [webhook inbox](/docs/blocks/queue#webhook-inbox) and drop the members'
    cached sessions:
 
 ```ts title="src/app/api/stripe/entitlements/route.ts"
@@ -384,7 +384,7 @@ import {
   ENTITLEMENTS_UPDATED,
   entitlementMembers,
 } from "better-supabase/blocks/entitlements";
-import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/jobs";
+import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/queue";
 
 const inbox = createWebhookInbox({
   transport: sqlTransport(postgres.admin),

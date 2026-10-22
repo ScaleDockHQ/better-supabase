@@ -7,7 +7,7 @@ The `crm` preset holds your deals for you: the [deals](/docs/blocks/deals)
 block stores each deal with its amount, company, owner and close date, and
 the [pipelines](/docs/blocks/pipelines) block moves it through stages the
 organization edits. [Quotes](/docs/blocks/quotes) start from a deal, and
-[targets](/docs/blocks/targets) measure won deals against each rep's quota.
+[targets](/docs/blocks/goals) measure won deals against each rep's quota.
 The pipeline's transitions refuse a jump it does not allow, and the people
 watching a deal hear about comments, tags and stage moves.
 
@@ -120,7 +120,7 @@ is in Qualified.
   [filter tree](/docs/platform/list#filter-trees) of a `defineListQuery` on
   `deals`.
 - Timeline for the deal's history: `pipeline_stage_history` rows and
-  comments, newest first, or the [activity feed](/docs/blocks/activity).
+  comments, newest first, or the [activity feed](/docs/blocks/timeline).
 
 The ReUI Pro CRM blocks fit the same data (see
 [wire it to ReUI](/docs/blocks/deals#wire-it-to-reui) on the deals page);

@@ -80,7 +80,7 @@ skip null keys.
 The SQL modules' database objects are public API too: the functions, tables,
 columns and triggers each module creates, the claim names its functions read
 (`tenant_id`, `tenant_role`, `is_platform`), and the
-[access contract](/docs/blocks/access) (`can()`, `tenant_ids_with()`,
+[access contract](/docs/blocks/permissions) (`can()`, `tenant_ids_with()`,
 `is_platform()`). Apps call them from policies and their own functions, so a
 rename breaks the database, not the build. They follow these rules:
 

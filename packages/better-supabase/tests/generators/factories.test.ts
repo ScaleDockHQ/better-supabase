@@ -138,7 +138,7 @@ describe("factories generator", () => {
         functions: [],
         blocks: [
           {
-            name: "work-items",
+            name: "tasks",
             schema: "app",
             client: undefined,
             entities: [

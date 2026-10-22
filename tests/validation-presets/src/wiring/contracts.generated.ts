@@ -3,7 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
@@ -11,12 +11,12 @@ import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { contractsBlock } from "better-supabase/blocks/contracts";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
-import { jobsBlock } from "better-supabase/blocks/jobs";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
-import { partiesBlock } from "better-supabase/blocks/parties";
+import { contactsBlock } from "better-supabase/blocks/contacts";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { remindersBlock } from "better-supabase/blocks/reminders";
 import { settingsBlock } from "better-supabase/blocks/settings";
@@ -28,7 +28,7 @@ import { blockConfig } from "./contracts.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   audit: auditBlock,
   billing: billingBlock,
@@ -36,12 +36,12 @@ export const blockSet = defineBlocks(blockConfig, {
   contracts: contractsBlock,
   entitlements: entitlementsBlock,
   signatures: signaturesBlock,
-  jobs: jobsBlock,
+  queue: queueBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,
   outbox: outboxBlock,
-  parties: partiesBlock,
+  contacts: contactsBlock,
   profiles: profilesBlock,
   reminders: remindersBlock,
   settings: settingsBlock,

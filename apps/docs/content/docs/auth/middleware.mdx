@@ -106,14 +106,14 @@ pool and connection string (`SUPABASE_DB_URL`):
 import { pipeline } from "@supabase/middleware";
 import type { PostgresApi } from "@supabase/server/middleware/postgres";
 import { withPostgresAdminClient } from "@supabase/server/middleware/postgres-admin";
-import { createJobs } from "better-supabase/blocks/jobs";
+import { createQueue } from "better-supabase/blocks/queue";
 import { withBetterSupabase, withBlock } from "better-supabase/server";
 
 const entries = [
   withBetterSupabase(bsb, { allow: ["user"] }),
   withPostgresAdminClient(),
   withBlock("jobs", (ctx: { postgresAdmin: PostgresApi }) =>
-    createJobs({ sql: ctx.postgresAdmin, queues }),
+    createQueue({ sql: ctx.postgresAdmin, queues }),
   ),
 ] as const;
 
@@ -167,7 +167,7 @@ a cookie session. Use `withBetterSupabase` where browsers call with cookies.
 `withOpenFeature` from `@supabase-labs/middleware-openfeature` goes after
 `withBetterSupabase`, because its `context` callback reads the `jwtClaims`
 that `withBetterSupabase` contributes. `createFlagClient` from the
-[flags block](/docs/blocks/flags) is a client it accepts, and `flagContext`
+[flags block](/docs/blocks/feature-flags) is a client it accepts, and `flagContext`
 turns the claims into the evaluation context:
 
 ```ts title="src/server.ts"
@@ -179,7 +179,7 @@ import {
   type FlagContextSource,
   flagContext,
   sqlTransport,
-} from "better-supabase/blocks/flags";
+} from "better-supabase/blocks/feature-flags";
 import { withBetterSupabase } from "better-supabase/server";
 
 const client = createFlagClient({

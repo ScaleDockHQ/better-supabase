@@ -8,9 +8,9 @@ import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
-import type { BulkEvents } from "better-supabase/blocks/bulk";
+import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
-import type { FlagsEvents } from "better-supabase/blocks/flags";
+import type { FeatureFlagsEvents } from "better-supabase/blocks/feature-flags";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
@@ -23,7 +23,7 @@ import type { TeamsEvents } from "better-supabase/blocks/teams";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -43,7 +43,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  bulk: {
+  "bulk-actions": {
     schema: "better_supabase",
     options: {
       limit: 500,
@@ -57,7 +57,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  flags: {
+  "feature-flags": {
     schema: "better_supabase",
     options: {},
   },
@@ -99,7 +99,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -134,7 +134,7 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
-  bulk: {
+  "bulk-actions": {
     run: "bulk.run",
   },
   enrollments: {
@@ -142,7 +142,7 @@ export const permissions = {
     enroll: "enrollments.enroll",
     manage: "enrollments.manage",
   },
-  flags: {
+  "feature-flags": {
     manage: "flags.manage",
   },
   invitations: {
@@ -192,11 +192,11 @@ export const permissions = {
  */
 export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "flags.manage" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "views.read" | "views.share";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & BulkEvents & EnrollmentsEvents & FlagsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & BulkActionsEvents & EnrollmentsEvents & FeatureFlagsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

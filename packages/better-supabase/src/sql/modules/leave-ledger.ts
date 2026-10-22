@@ -1,8 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { ledgerRebalance, ledgerTables } from "./ledger.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** What the balance functions need from the rest of the leave module. */
 export interface LeaveLedgerParts {
@@ -51,7 +51,7 @@ export function leaveLedgerFunctions(
   const ty = (column: string): string => ctx.col("types", column);
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
-  const members = ctx.of("tenant");
+  const members = ctx.of("memberships");
   const permissions = moduleOperations("leave");
   const request = ctx.permission("request", permissions.request);
   const read = ctx.permission("read", permissions.read);

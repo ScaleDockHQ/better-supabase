@@ -18,7 +18,7 @@ const live = await reachable();
 
 const config = resolveConfig(
   {
-    blocks: ["tenant", "organizations"],
+    blocks: ["memberships", "organizations"],
     tables: {
       boards: { columns: { name: { type: "text", nullable: false } } },
       cards: {

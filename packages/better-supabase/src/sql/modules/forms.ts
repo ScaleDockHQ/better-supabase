@@ -21,10 +21,10 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { DURATION } from "./approvals-policies.ts";
 import { formNpsFunction } from "./forms-nps.ts";
 import { formSchemaFunctions, formScoringFunctions } from "./forms-schema.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 import { liveShareLink } from "./share-links.ts";
 
 /** The share-links subject type of a public form link. */
@@ -1019,7 +1019,7 @@ export const FORMS: BlockSqlDefinition = {
   title: "Forms",
   description:
     "Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.",
-  requires: ["tenant", "access", "jsonb-schemas"],
+  requires: ["memberships", "permissions", "jsonb-schemas"],
   integrates: ["custom-fields", "share-links", "rate-limit", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

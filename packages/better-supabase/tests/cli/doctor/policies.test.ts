@@ -126,7 +126,7 @@ describe("tables without a policy that are still granted (BS115)", () => {
     const config = (fromPolicies: boolean) => ({
       ...context(bare),
       config: resolveConfig(
-        { blocks: { grants: { options: { fromPolicies } } } },
+        { blocks: { "data-api-grants": { options: { fromPolicies } } } },
         "/project",
       ),
     });

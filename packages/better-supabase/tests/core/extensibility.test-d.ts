@@ -6,12 +6,11 @@ import * as v from "valibot";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AuthResolver } from "../../src/auth/resolve.ts";
-import type { AiTaskRunner } from "../../src/blocks/ai-tasks/index.ts";
 import type {
   NoteTaker,
   Transcriber,
-} from "../../src/blocks/engagements/index.ts";
-import type { QueueProvider } from "../../src/blocks/jobs/index.ts";
+} from "../../src/blocks/activities/index.ts";
+import type { AiTaskRunner } from "../../src/blocks/ai-schedules/index.ts";
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 import type {
   DeliveryTransport,
@@ -22,6 +21,7 @@ import type {
   InviteRequest,
 } from "../../src/blocks/organizations/index.ts";
 import type { Profiles } from "../../src/blocks/profiles/index.ts";
+import type { QueueProvider } from "../../src/blocks/queue/index.ts";
 import type { ShippingProvider } from "../../src/blocks/shipments/index.ts";
 import type {
   IncomingDestination,
@@ -32,7 +32,7 @@ import type {
 import type {
   BuilderStarter,
   GraphCompiler,
-} from "../../src/blocks/workflow-builder/index.ts";
+} from "../../src/blocks/workflow-editor/index.ts";
 import type { PaymentProvider, TaxProvider } from "../../src/commerce/index.ts";
 import type {
   AuthorizationProvider,
@@ -93,12 +93,12 @@ import type {
 } from "../../src/streams/redis/index.ts";
 import type { TestDocumentFormatOptions } from "../../src/testing/document-format.ts";
 
+import { createOrganizations } from "../../src/blocks/organizations/index.ts";
+import { createProfiles } from "../../src/blocks/profiles/index.ts";
 import {
   pgmqPublicBackend,
   sqlQueueProvider,
-} from "../../src/blocks/jobs/index.ts";
-import { createOrganizations } from "../../src/blocks/organizations/index.ts";
-import { createProfiles } from "../../src/blocks/profiles/index.ts";
+} from "../../src/blocks/queue/index.ts";
 import { flatRateCarrier } from "../../src/blocks/shipments/index.ts";
 import {
   fetchTransport,

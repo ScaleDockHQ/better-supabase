@@ -17,7 +17,7 @@ const CASES: readonly {
   readonly taken?: string;
 }[] = [
   {
-    module: "flags",
+    module: "feature-flags",
     table: "flags",
     taken: "key",
     writes: [`"region" = case when d -> 'fields' ? 'region'`],
@@ -32,7 +32,7 @@ const CASES: readonly {
     ],
   },
   {
-    module: "engagements",
+    module: "activities",
     table: "engagements",
     writes: [
       `"region" = case when log_engagement.attrs -> 'fields' ? 'region'`,

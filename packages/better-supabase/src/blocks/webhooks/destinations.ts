@@ -1,13 +1,13 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { SqlClient } from "../../postgres/executor.ts";
-import type { Jobs, QueueSchemas } from "../jobs/types.ts";
+import type { Queue, QueueSchemas } from "../queue/types.ts";
 import type {
   IncomingDelivery,
   IncomingDestination,
 } from "./incoming-types.ts";
 
-import { receiveWebhook } from "../jobs/webhook-inbox.ts";
+import { receiveWebhook } from "../queue/webhook-inbox.ts";
 
 /**
  * Stores deliveries in the webhook inbox under `source` (the delivery's source
@@ -58,7 +58,7 @@ export interface JobsDestinationOptions<
 export function jobsDestination<
   Q extends QueueSchemas,
   N extends Extract<keyof Q, string>,
->(jobs: Jobs<Q>, options: JobsDestinationOptions<Q, N>): IncomingDestination {
+>(jobs: Queue<Q>, options: JobsDestinationOptions<Q, N>): IncomingDestination {
   return {
     apiVersion: 1,
     name: "jobs",

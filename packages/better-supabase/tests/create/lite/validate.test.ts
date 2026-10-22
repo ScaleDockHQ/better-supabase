@@ -21,7 +21,7 @@ describe("validateDesign", () => {
 
     expect(result.ok).toBe(true);
     expect(result.skipped.map((each) => each.module).toSorted()).toEqual([
-      "jobs",
+      "queue",
       "time-tracking",
     ]);
   }, 60_000);

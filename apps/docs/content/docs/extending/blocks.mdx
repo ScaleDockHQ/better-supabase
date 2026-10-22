@@ -90,44 +90,44 @@ gains a `fields` argument for them gets it only when `extraColumns` is set,
 and each build drops the signature it doesn't create, so turning the option
 on or off leaves one function that a call matches.
 
-| Block              | Columns from                                              | `fields` types                                                                     |
-| ------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| organizations      | `options.attributes`, `options.extraColumns`              | `mine()`, `create`, `update`                                                       |
-| invitations        | `blocks.invitations.options.extraColumns`                 | `invitationFields`: `invite`, `updateInvitation`, `myInvitations`                  |
-| profiles           | `options.extraColumns`, or any column you adopt           | `mine()`, `updateMine`                                                             |
-| notifications      | the `data` of each type; `options.extraColumns` on events | `send`, `get`, `list`, `page`                                                      |
-| deals              | `options.extraColumns` on `deals`                         | every deal it returns, `create`, `update`                                          |
-| drive              | `options.extraColumns` on `drive_nodes`                   | every node it returns, `createFolder`, `upload`                                    |
-| employees          | `options.extraColumns` on `employees`                     | every employee it returns, `create`, `update`                                      |
-| engagements        | `options.extraColumns` on `engagements`                   | every engagement it returns, `log`, `update`                                       |
-| flags              | `options.extraColumns` on `flags`                         | `list`, `save`                                                                     |
-| forms              | `options.extraColumns` on `forms`                         | `create`, `update`, `get`, `list`                                                  |
-| hiring             | `options.extraColumns` on `jobs`                          | `saveJob`                                                                          |
-| inventory          | `options.extraColumns` on `inventory_locations`           | `saveLocation`                                                                     |
-| invoices           | `options.extraColumns` on `invoices`                      | every invoice it returns, `create`                                                 |
-| orders             | `options.extraColumns` on orders                          | `checkout`, `getOrder`, `capture`, `invoice`                                       |
-| parties            | `options.extraColumns` on companies                       | `saveCompany`, `mergeCompanies`, `listCompanies`                                   |
-| pipelines          | `options.extraColumns` on pipelines                       | `save`, `list`                                                                     |
-| promotions         | `options.extraColumns` on promotions                      | `savePromotion`                                                                    |
-| push               | `options.extraColumns` on devices                         | `register`, `tokensFor`                                                            |
-| quotes             | `options.extraColumns` on quotes                          | `create`, `update`, `send`, `decide`, `revise`, `fromDeal`                         |
-| relations          | `options.extraColumns` on relations                       | `link`, `of`, `edges`                                                              |
-| reminders          | `options.extraColumns` on reminders                       | `save`                                                                             |
-| saved-views        | `options.extraColumns` on views                           | `save`, `duplicate`, `list`                                                        |
-| service-principals | `options.extraColumns` on principals                      | `create`, `list`                                                                   |
-| access-requests    | `options.extraColumns` on `access_requests`               | writes: `request`; reads: every read                                               |
-| agents             | `options.extraColumns` on `agents`                        | writes: `create`, `update`; reads: every agent read                                |
-| ai-chat            | `options.extraColumns` on `ai_chats`                      | writes: `chats.create`, `chats.update`; reads: `chats.get`, `chats.list`           |
-| ai-files           | `options.extraColumns` on `ai_files`                      | writes: `files.upload`, `files.store`; reads: the file reads                       |
-| ai-tasks           | `options.extraColumns` on `ai_scheduled_tasks`            | writes: `create`, `update`; reads: `create`, `update`, `pause`, `resume`, `list`   |
-| announcements      | `options.extraColumns` on `announcements`                 | writes: `publish`, `update`; reads: `listActive`, `list`                           |
-| api-keys           | `options.extraColumns` on `api_keys`                      | writes: `create` (`rotate` copies them); reads: `list`, `verify`                   |
-| approvals          | `options.extraColumns` on `approval_requests`             | writes: `request`; reads: every request read                                       |
-| attachments        | `options.extraColumns` on `attachments`                   | writes: `upload`, `put`; reads: every attachment read                              |
-| bookings           | `options.extraColumns` on `bookings`                      | writes: the customer object of `hold` and `public.hold`; reads: every booking read |
-| calendar           | `options.extraColumns` on `calendar_events`               | writes: `save` and the occurrence edits; reads: `events`                           |
-| catalog            | `options.extraColumns` on `products`                      | writes: `createProduct`, `updateProduct`; reads: the saved product                 |
-| collections        | `options.extraColumns` on `subject_collections`           | writes: `create`, `rename`; reads: `create`, `rename`, `list`                      |
+| Block            | Columns from                                              | `fields` types                                                                     |
+| ---------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| organizations    | `options.attributes`, `options.extraColumns`              | `mine()`, `create`, `update`                                                       |
+| invitations      | `blocks.invitations.options.extraColumns`                 | `invitationFields`: `invite`, `updateInvitation`, `myInvitations`                  |
+| profiles         | `options.extraColumns`, or any column you adopt           | `mine()`, `updateMine`                                                             |
+| notifications    | the `data` of each type; `options.extraColumns` on events | `send`, `get`, `list`, `page`                                                      |
+| deals            | `options.extraColumns` on `deals`                         | every deal it returns, `create`, `update`                                          |
+| drive            | `options.extraColumns` on `drive_nodes`                   | every node it returns, `createFolder`, `upload`                                    |
+| employees        | `options.extraColumns` on `employees`                     | every employee it returns, `create`, `update`                                      |
+| engagements      | `options.extraColumns` on `engagements`                   | every engagement it returns, `log`, `update`                                       |
+| flags            | `options.extraColumns` on `flags`                         | `list`, `save`                                                                     |
+| forms            | `options.extraColumns` on `forms`                         | `create`, `update`, `get`, `list`                                                  |
+| hiring           | `options.extraColumns` on `jobs`                          | `saveJob`                                                                          |
+| inventory        | `options.extraColumns` on `inventory_locations`           | `saveLocation`                                                                     |
+| invoices         | `options.extraColumns` on `invoices`                      | every invoice it returns, `create`                                                 |
+| orders           | `options.extraColumns` on orders                          | `checkout`, `getOrder`, `capture`, `invoice`                                       |
+| parties          | `options.extraColumns` on companies                       | `saveCompany`, `mergeCompanies`, `listCompanies`                                   |
+| pipelines        | `options.extraColumns` on pipelines                       | `save`, `list`                                                                     |
+| promotions       | `options.extraColumns` on promotions                      | `savePromotion`                                                                    |
+| push             | `options.extraColumns` on devices                         | `register`, `tokensFor`                                                            |
+| quotes           | `options.extraColumns` on quotes                          | `create`, `update`, `send`, `decide`, `revise`, `fromDeal`                         |
+| relations        | `options.extraColumns` on relations                       | `link`, `of`, `edges`                                                              |
+| reminders        | `options.extraColumns` on reminders                       | `save`                                                                             |
+| saved-views      | `options.extraColumns` on views                           | `save`, `duplicate`, `list`                                                        |
+| service-accounts | `options.extraColumns` on principals                      | `create`, `list`                                                                   |
+| access-requests  | `options.extraColumns` on `access_requests`               | writes: `request`; reads: every read                                               |
+| agents           | `options.extraColumns` on `agents`                        | writes: `create`, `update`; reads: every agent read                                |
+| ai-chat          | `options.extraColumns` on `ai_chats`                      | writes: `chats.create`, `chats.update`; reads: `chats.get`, `chats.list`           |
+| ai-files         | `options.extraColumns` on `ai_files`                      | writes: `files.upload`, `files.store`; reads: the file reads                       |
+| ai-schedules     | `options.extraColumns` on `ai_scheduled_tasks`            | writes: `create`, `update`; reads: `create`, `update`, `pause`, `resume`, `list`   |
+| announcements    | `options.extraColumns` on `announcements`                 | writes: `publish`, `update`; reads: `listActive`, `list`                           |
+| api-keys         | `options.extraColumns` on `api_keys`                      | writes: `create` (`rotate` copies them); reads: `list`, `verify`                   |
+| approvals        | `options.extraColumns` on `approval_requests`             | writes: `request`; reads: every request read                                       |
+| attachments      | `options.extraColumns` on `attachments`                   | writes: `upload`, `put`; reads: every attachment read                              |
+| bookings         | `options.extraColumns` on `bookings`                      | writes: the customer object of `hold` and `public.hold`; reads: every booking read |
+| calendar         | `options.extraColumns` on `calendar_events`               | writes: `save` and the occurrence edits; reads: `events`                           |
+| catalog          | `options.extraColumns` on `products`                      | writes: `createProduct`, `updateProduct`; reads: the saved product                 |
+| collections      | `options.extraColumns` on `subject_collections`           | writes: `create`, `rename`; reads: `create`, `rename`, `list`                      |
 
 Deals, employees, invoices and the blocks from access-requests to
 collections take the columns next to their own fields
@@ -144,31 +144,31 @@ read returns the columns under `fields`, keyed by database name, and a
 write takes them as `fields` and copies only the columns it names, so the
 others keep their default.
 
-| Block            | Table                  | `fields` on writes                 |
-| ---------------- | ---------------------- | ---------------------------------- |
-| comments         | `comments`             | `create`, `edit`                   |
-| connectors       | `connector_servers`    | `servers.create`, `servers.update` |
-| share-links      | `share_links`          | `create`                           |
-| signatures       | `signature_requests`   | `request`                          |
-| sla              | `sla_policies`         | `savePolicy`                       |
-| tags             | `tags`                 | `create`, `update`                 |
-| targets          | `targets`              | `save`                             |
-| teams            | `teams`                | `create`, `update`                 |
-| templates        | `templates`            | `save`                             |
-| time-tracking    | `time_entries`         | `start`, `log`, `update`           |
-| trash            | `trash_items`          | `trash`                            |
-| versions         | `versions`             | `snapshot`                         |
-| waitlist         | `waitlist_entries`     | `join`, for a new address only     |
-| webhook-inbox    | `webhook_inbox`        | `store`                            |
-| work-items       | `work_items`           | `create`, `update` by column name  |
-| workflow-builder | `workflow_definitions` | `definitions.save`                 |
+| Block           | Table                  | `fields` on writes                 |
+| --------------- | ---------------------- | ---------------------------------- |
+| comments        | `comments`             | `create`, `edit`                   |
+| connectors      | `connector_servers`    | `servers.create`, `servers.update` |
+| share-links     | `share_links`          | `create`                           |
+| signatures      | `signature_requests`   | `request`                          |
+| sla             | `sla_policies`         | `savePolicy`                       |
+| tags            | `tags`                 | `create`, `update`                 |
+| targets         | `targets`              | `save`                             |
+| teams           | `teams`                | `create`, `update`                 |
+| templates       | `templates`            | `save`                             |
+| time-tracking   | `time_entries`         | `start`, `log`, `update`           |
+| trash           | `trash_items`          | `trash`                            |
+| versions        | `versions`             | `snapshot`                         |
+| waitlist        | `waitlist_entries`     | `join`, for a new address only     |
+| webhook-inbox   | `webhook_inbox`        | `store`                            |
+| tasks           | `work_items`           | `create`, `update` by column name  |
+| workflow-editor | `workflow_definitions` | `definitions.save`                 |
 
 sso, state-machine, usage, webhooks and workflows take `hooks` but no
 `fields`: their rows mirror another system (Supabase Auth, the IdP, an
 engine's run registry), are written by triggers on the app's own table, or
 are a metering log whose per-event data goes in `metadata`.
 
-A few blocks keep no app columns: `number-sequences` (counters the module
+A few blocks keep no app columns: `numbering` (counters the module
 owns), `onboarding` (progress rows of the steps `defineChecklist` declares),
 `outbox` (an event log whose payload carries the app's data), `reactions`,
 `search` (an index rebuilt from each subject's own row) and `settings`
@@ -216,7 +216,7 @@ const organizations = createOrganizations({
 Hooks are typed per method, so `request` above is an `InviteRequest` and
 `result` a `Result<InvitationSent>`. Every block takes them through
 [`createBlocks`](/docs/blocks/create-blocks), keyed like the blocks, and
-blocks that consume one through a port (ai-tasks sending notifications) go
+blocks that consume one through a port (ai-schedules sending notifications) go
 through its hooks too:
 
 ```ts

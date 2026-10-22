@@ -1,0 +1,844 @@
+---
+title: Access contract
+description: One permission check for RLS policies and SQL modules, over a role list, your own role tables, an authorization provider or functions you already have.
+---
+
+The `access` SQL module gives policies and the other SQL modules one way to
+ask "may the caller do this": `can(scope, id, permission)`. The functions behind
+it come from the access model you pick in `blocks.permissions`, so the same policies
+work over a fixed role list, a role and permission catalog you already have,
+an authorization provider, or functions your app already wrote.
+
+```bash
+better-supabase add permissions
+```
+
+```sql
+create policy "members read" on public.projects for select to authenticated
+  using (organization_id in (select better_supabase.tenant_ids_with('projects.read')));
+
+create policy "admins update" on public.projects for update to authenticated
+  using (organization_id in (select better_supabase.tenant_ids_with('projects.update')))
+  with check (organization_id in (select better_supabase.tenant_ids_with('projects.update')));
+
+create policy "admins delete the organization" on public.organizations for delete to authenticated
+  using (
+    id = (select better_supabase.current_tenant_id())
+    and (select better_supabase.can('organization', better_supabase.current_tenant_id(), 'organizations.delete'))
+  );
+```
+
+`tenant_ids_with()` returns a set, so Postgres runs it once per statement
+instead of once per row. Use it in `using` and `with check` whenever the
+tenant comes from the row. Keep `can()` for checks whose arguments are
+constants for the statement, and wrap the call in `(select ...)` so Postgres
+evaluates it once.
+
+## The contract
+
+| Function                                      | Returns                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `can(scope, scope_id, permission)`            | whether the caller holds `permission` in that tenant, or on the platform |
+| `tenant_ids_with(permission)`                 | the tenants where the caller holds `permission`                          |
+| `is_platform(permission)`                     | whether the caller holds a platform permission (support staff, admins)   |
+| `can_user(user, scope, scope_id, permission)` | the same check for another user (service role only)                      |
+| `can_assign(tenant, role)`                    | whether the caller may hand out `role` in that tenant                    |
+| `permission_claims(user)`                     | a `jsonb` claim for your access token hook                               |
+
+Permission keys are dotted strings. A granted `*` matches every key, and
+`members.*` matches every key that starts with `members.`. SQL modules check
+the keys in their `permissions` config, so `blocks.invitations.permissions.invite`
+can be `organization.members.invite` in an app that already uses that name:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    permissions: {},
+    invitations: { permissions: { invite: "organization.members.invite" } },
+  },
+});
+```
+
+Keys follow one scheme, `<area>.<verb>`, with `read` for viewing. Platform-wide actions are checked with `is_platform()`. An action whose default is another action's key follows that key as configured, unless you set the action itself.
+
+| Module          | Action and default key                                                                                                                                                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organizations` | `update`: `organization.update`, `delete`: `organization.delete`, `removeMember`: `members.remove`, `suspendMember`: the `removeMember` key, `updateRole`: `members.update_role`, `transferOwnership`: `organization.transfer_ownership` |
+| `invitations`   | `invite`: `members.invite`, `revoke` and `view`: the `invite` key; `invitePlatform`: `platform.invite`                                                                                                                                   |
+| `audit`         | `view`: `audit.read`, `viewAll` (platform): the `view` key                                                                                                                                                                               |
+| `impersonation` | `start`: `support.start`, `view`: `support.read`, `revoke`: `support.revoke`                                                                                                                                                             |
+| `notifications` | `send`: `notifications.send`, `read`: `notifications.read`                                                                                                                                                                               |
+| `webhooks-out`  | `manage`: `webhooks.manage`, `view`: `webhooks.read`                                                                                                                                                                                     |
+| `billing`       | `read`: `billing.read`, `manage`: `billing.manage`, `viewAll` (platform): the `read` key                                                                                                                                                 |
+| `flags`         | `manage` (platform): `flags.manage`                                                                                                                                                                                                      |
+| `waitlist`      | `manage` (platform): `waitlist.manage`, `invite`: the `invitations` module's `invite` key                                                                                                                                                |
+
+## Permissions in the app
+
+`my_permissions(tenant, keys)` returns the keys the caller holds in a tenant.
+With `keys`, it returns the ones `can()` grants, so every model answers,
+including a provider and delegated tokens. Without them, it returns the keys
+the model lists for the member, with wildcards as granted. Use it to hide
+buttons and menu items; the SQL functions and policies still check every
+write.
+
+`createPermissions` from `better-supabase/blocks/permissions` calls it. `can(key)` and
+`flags(map)` are typed by the keys you pass, such as the generated
+`permissions` constant from `blocks.generated.ts`:
+
+```ts
+import { createBlockClient } from "better-supabase/blocks";
+import {
+  permissionsBlock,
+  permissionFlags,
+} from "better-supabase/blocks/permissions";
+
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+const access = createBlockClient(db, permissionsBlock);
+const allowed = await access.can(permissions.invoices.write).orThrow();
+const { canEdit, canDelete } = await access
+  .flags({
+    edit: permissions.invoices.write,
+    delete: permissions.invoices.delete,
+  })
+  .orThrow();
+
+const set = await access.permissions([permissions.invoices.write]).orThrow();
+permissionFlags(set, { edit: permissions.invoices.write }); // { canEdit: true }
+```
+
+`permissions(keys?)` returns a `PermissionSet`, `{ tenant, keys }`, that
+`can(set, key)` and `permissionFlags(set, map)` read without another call,
+for a payload query that returns rows together with what the caller may do
+with them. A call without a tenant fails with the hint `TENANT_REQUIRED`.
+
+In React, `usePermission(key)` returns `undefined` while it loads, then true
+or false, and `<Can>` renders its children only for a caller who holds the
+key. The hooks of one render share one `my_permissions` call per tenant, so a
+table whose rows each check a key costs one round trip. They read the
+client's tenant unless you pass `tenant`:
+
+```tsx title="components/task-import-action.tsx"
+"use client";
+
+import { Can } from "better-supabase/blocks/permissions/react";
+
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+export function TaskImportAction({ projectId }: { projectId: string }) {
+  return (
+    <Can permission={permissions.imports.manage}>
+      <TaskImportDialog projectId={projectId} />
+    </Can>
+  );
+}
+```
+
+`createPermissionsController` is the same logic without React, and
+`better-supabase/blocks/permissions/vue`, `/svelte` and `/solid` export
+`usePermissions` over it. Those bindings have no `<Can>` component; render
+on `can(state.permissions, key)` with `v-if`, `{#if}` or `<Show>`. Wrap the
+client in `batchPermissions` so the components of one render share a call.
+The [Can recipe](/docs/registry/ui-recipes/can) shows it in the Next.js example.
+
+```vue title="ImportButton.vue"
+<script setup lang="ts">
+import { useSupabase } from "better-supabase/vue";
+import { rpcTransport } from "better-supabase/blocks";
+import {
+  batchPermissions,
+  can,
+  createPermissions,
+} from "better-supabase/blocks/permissions";
+import { usePermissions } from "better-supabase/blocks/permissions/vue";
+
+const props = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state } = usePermissions({
+  client: batchPermissions(
+    createPermissions({ transport: rpcTransport(supabase), schema: "api" }),
+  ),
+  keys: ["imports.manage"],
+  tenant: props.organizationId,
+});
+</script>
+
+<template>
+  <button v-if="can(state.permissions, 'imports.manage')">Import</button>
+</template>
+```
+
+```svelte title="ImportButton.svelte"
+<script lang="ts">
+  import { getBetterSupabase } from "better-supabase/svelte";
+  import { rpcTransport } from "better-supabase/blocks";
+  import { batchPermissions, can, createPermissions } from "better-supabase/blocks/permissions";
+  import { usePermissions } from "better-supabase/blocks/permissions/svelte";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const access = usePermissions({
+    client: batchPermissions(createPermissions({ transport: rpcTransport(supabase), schema: "api" })),
+    keys: ["imports.manage"],
+    tenant: organizationId,
+  });
+</script>
+
+{#if can($access.permissions, "imports.manage")}
+  <button>Import</button>
+{/if}
+```
+
+```tsx title="ImportButton.tsx"
+import { Show } from "solid-js";
+import { useSupabase } from "better-supabase/solid";
+import { rpcTransport } from "better-supabase/blocks";
+import {
+  batchPermissions,
+  can,
+  createPermissions,
+} from "better-supabase/blocks/permissions";
+import { usePermissions } from "better-supabase/blocks/permissions/solid";
+
+export function ImportButton(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = usePermissions({
+    client: batchPermissions(
+      createPermissions({ transport: rpcTransport(supabase), schema: "api" }),
+    ),
+    keys: ["imports.manage"],
+    tenant: props.organizationId,
+  });
+
+  return (
+    <Show when={can(state().permissions, "imports.manage")}>
+      <button>Import</button>
+    </Show>
+  );
+}
+```
+
+With `mode: "custom"`, write `my_permissions(tenant, keys text[] default null)
+returns text[]` next to your contract functions, and expose it through your
+API schema; the Next.js example's fixture has one in
+`supabase/schemas/better_supabase/functions/my_permissions.sql`.
+
+## Models
+
+`blocks.permissions.model` picks where permissions come from. Every model writes the
+same contract, so you can change models without touching your policies.
+
+### roles (the default)
+
+Roles and their keys live in the config. The `tenant` module's memberships
+table holds each member's role, and its role check follows the names here.
+Platform permissions come from the `platform_permissions` claim
+(`platformClaim` renames it), an array your access token hook writes.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    permissions: {
+      roles: {
+        owner: ["*"],
+        admin: ["organization.*", "members.*", "billing.*"],
+        member: ["organization.read", "projects.*"],
+      },
+    },
+  },
+});
+```
+
+Without `roles`, the defaults are `owner` (`*`), `admin`, `member` and
+`viewer`. `can_assign()` lets a member hand out a role only when their own role
+holds every key of it, so an admin can't make someone an owner.
+
+### catalog
+
+Roles, permissions and their links are rows in tables. A per-tenant override
+table can grant or deny a key for one role in one tenant (a deny wins), and a
+platform table assigns platform roles to users. In `managed` mode the block
+creates the tables; in `adopt` mode you point it at yours:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    memberships: {
+      ownership: "adopt",
+      tables: { memberships: "public.organization_members" },
+      columns: {
+        memberships: {
+          tenant: "organization_id",
+          role: "role_id",
+          lastUsedAt: null,
+        },
+      },
+    },
+    permissions: {
+      ownership: "adopt",
+      model: "catalog",
+      tables: {
+        roles: "public.roles",
+        permissions: "public.permissions",
+        rolePermissions: "public.role_permissions",
+        overrides: "public.organization_role_overrides",
+        platformAssignments: "public.user_roles",
+      },
+      columns: {
+        roles: { key: "slug" },
+        overrides: { tenant: "organization_id" },
+      },
+    },
+  },
+});
+```
+
+`null` marks an optional table or column you don't have. With
+`overrides: null`, role defaults are the only source.
+
+### provider
+
+With an [authorization provider](/docs/extending/authorization-providers) in
+the config's `authorization` key, `can()` and `tenant_ids_with()` call the
+provider's `idsWith` template at its `tenantScope`, and `platform_can()` calls
+its `isPlatform`. The id type is that scope's `idType`.
+
+`provider` is the default model whenever the config sets `authorization`, so
+every module check that goes through `can()` or `tenant_ids_with()` answers
+from the provider. Set another `model` to keep the built-in roles; doctor then
+reports policies and functions that call the access contract
+([BS414](/docs/cli/doctor#bs414)), because they answer from roles the provider
+never sees.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  auth: { authorization: authorizationProvider() },
+  blocks: { organizations: {}, invitations: {}, permissions: {} },
+});
+```
+
+`add` refuses, instead of guessing, when the config has no
+`authorization`, or when `blocks.permissions.idType` disagrees with the tenant
+scope's `idType`.
+
+The tenant is one level. For an organization with environments under it,
+the provider declares both as scopes and picks the tenant level with
+`tenantScope`; see [nested tenancy](/docs/concepts/nested-tenancy) and
+[the provider scopes](/docs/extending/authorization-providers#nested-tenancy).
+
+The provider's functions check role and scope, never row conditions. Every
+permission key a SQL module checks must be `sqlComplete: true` in the
+provider's `permissions`, or `add` and [doctor](/docs/cli/doctor#bs411)
+stop. Map an action to another key with `blocks.<module>.permissions`.
+
+`can_assign()` calls the provider's `canAssign`, and
+`blocks.permissions.functions.canAssign` replaces it. Without either, only the
+service role assigns roles, unless the `memberships` module is installed, and doctor
+BS411 warns.
+
+`can_user()` and `member_can()` answer for another user through `idsWithFor`
+and `isPlatformFor`. A provider without them answers for the caller only:
+called for another user, they raise SQLSTATE `0A000` instead of returning
+`null`. `can_assign_as(user, tenant, role)` checks a stored user's authority,
+such as the inviter's when an invitation is accepted, through `canAssignFor`;
+`blocks.permissions.functions.canAssignFor` replaces it with your own template
+(`{user}`, `{tenant}` and `{role}`), under the provider and custom models.
+
+### Blocks next to a provider
+
+A provider already answers permission questions and may guard memberships, so
+some module checks change under the provider model:
+
+| Module          | Check                                        | Under `provider`                                                                                         |
+| --------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `organizations` | Role ceiling trigger on memberships          | Kept, or dropped with `assignmentGuard: "external"` when the provider's assignment rules guard the table |
+| `organizations` | Owner check (`ownerInvariant`)               | Kept; turn it off when the provider already keeps an owner                                               |
+| `invitations`   | Inviter still holds the permission at accept | Runs with `idsWithFor` and `isPlatformFor`; skipped without them                                         |
+| `invitations`   | Inviter may still assign the role at accept  | Runs with `canAssignFor`; skipped without it                                                             |
+| `invitations`   | Platform invitations                         | Need `invitations.options.platformRoles`; the inviter is checked when inviting                           |
+| `notifications` | Each recipient may read the notification     | Runs with `idsWithFor`; without it, the sender and `notification_audience` decide                        |
+| `tenant`        | Role names on memberships                    | Read through the provider's `roleSources`                                                                |
+| `access`        | Disabled tenants and users                   | Read from the provider's `suspension`; an explicit `blocks.permissions.disabled` wins per subject        |
+
+### custom
+
+Your app already has the functions. Give the contract as SQL templates with
+`{scope}`, `{id}`, `{permission}`, `{user}`, `{tenant}` and `{role}`
+placeholders. `can`, `tenantIdsWith`, `isPlatform` and `canAssign` are required.
+`member_can(user, tenant, permission)` and `can_assign_as(user, tenant, role)`
+are required when the `organizations` or `invitations` modules are installed:
+those modules call them for a stored user, not only `auth.uid()`.
+`canAssignFor` (`{user}`, `{tenant}`, `{role}`) is the custom body of
+`can_assign_as`. Without it, write `can_assign_as` yourself so an invitation
+accept can check the inviter again.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    permissions: {
+      model: "custom",
+      functions: {
+        can: "public.authorize({scope}, {id}, {permission})",
+        tenantIdsWith: "public.organizations_with({permission})",
+        isPlatform: "public.is_staff({permission})",
+        canAssign: "public.can_grant_role({tenant}, {role})",
+      },
+    },
+  },
+});
+```
+
+With `mode: "custom"` instead, the block writes nothing at all and you write the
+contract functions under those names yourself. `better-supabase blocks view --sql
+access` lists their signatures, and [doctor](/docs/cli/doctor#bs307) checks
+them.
+
+## Membership roles stored as ids
+
+An adopted memberships table often stores a foreign key to a roles table
+instead of the role name. `blocks.memberships.options.roleThrough` names that
+table, its key column and the column with the role name:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  memberships: {
+    ownership: "adopt",
+    tables: { memberships: "public.team_members" },
+    columns: { memberships: { tenant: "team_id", role: "role_id" } },
+    options: {
+      roleThrough: { table: "public.team_roles", id: "id", column: "key" },
+    },
+  },
+},
+```
+
+Every model then reads role names through the table: `has_organization_role`,
+`member_organization_ids` and the memberships claim compare names, the roles
+model looks up each name's permissions, and `can_assign` receives the name.
+The organizations and invitations modules accept a role name or id, store
+the id, and refuse a role the table doesn't have (`ORGANIZATION_ROLE_UNKNOWN`,
+`INVITATION_ROLE_UNKNOWN`). A managed memberships table stores names, so the
+option is for `ownership: "adopt"` only.
+
+When the roles table also holds tenant custom roles, whose keys can repeat
+across tenants, add its tenant column as `tenant` (`roleThrough: { table,
+id, column, tenant: "organization_id" }`); under the catalog model, map
+`blocks.permissions.columns.roles.tenant` instead. A key then resolves among
+the tenant's own roles and the shared ones (no tenant), the tenant's first,
+and an id of another tenant's role is unknown in this one.
+
+When the roles table also holds roles of another kind, such as the platform
+roles the invitations module's `platformRoles.through` points at, name the
+tenant roles with `where`, a condition on the roles row `{row}`
+(`roleThrough: { table, id, column, where: "{row}.scope = 'organization'" }`).
+Every lookup of a role name or id for a membership keeps to those rows,
+including SSO and waitlist joins: organization invitations,
+`update_invitation` and accept refuse any other role with
+`INVITATION_ROLE_UNKNOWN`, and `update_member_role` and ownership transfer
+with `ORGANIZATION_ROLE_UNKNOWN`. When the table is
+also `platformRoles.through`'s, `where` is required on both, and
+[doctor BS324](/docs/cli/doctor#bs324) reports the side that lacks it.
+
+With `where` set, the tenant module also puts a `bsb_role_scope` trigger on
+the memberships table, so a direct write can't store a role outside it
+either: an insert or a role update through a client policy, the service role
+or an admin connection fails with `MEMBERSHIP_ROLE_SCOPE` (SQLSTATE `23514`).
+The invitations module does the same on `platformRoles.table` with
+`platformRoles.through.where` (`PLATFORM_ROLE_SCOPE`). Both triggers check new
+writes only; rows stored before you set `where` stay until they change.
+Removing `where` drops the trigger.
+
+Under the provider model, `add` reads the setting from the provider's
+`roleSources`: when one of them is the adopted memberships table, the tenant
+module uses its `role.through` lookup. An explicit `roleThrough` wins; set one
+to add `where`, which `roleSources` doesn't carry.
+
+## References within one tenant
+
+A foreign key checks that a referenced row exists, not that it belongs to
+the same tenant, so a task could point at another organization's project.
+`blocks.memberships.options.sameTenant` lists the references that must stay
+inside the row's tenant, and the tenant module puts a
+`bsb_same_tenant_<column>` trigger on each table. Every insert, and every
+update of the column or the tenant column, then needs a referenced row with
+the same tenant, whoever writes it (a client policy, the service role or an
+admin connection); otherwise it fails with `TENANT_MISMATCH` (SQLSTATE
+`23514`).
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  memberships: {
+    options: {
+      sameTenant: [
+        { table: "public.tasks", column: "project_id", references: "public.projects" },
+        {
+          table: "public.task_settings",
+          column: "template_id",
+          references: {
+            table: "public.templates",
+            column: "id",
+            tenant: "organization_id",
+            where: "{row}.type = 'task'",
+          },
+        },
+      ],
+    },
+  },
+},
+```
+
+| Field               | Default                       | Meaning                                                    |
+| ------------------- | ----------------------------- | ---------------------------------------------------------- |
+| `table`             | required                      | the table holding the reference, `table` or `schema.table` |
+| `column`            | required                      | the column holding the referenced row's key                |
+| `tenant`            | the memberships tenant column | the row's tenant column                                    |
+| `references.table`  | required                      | the referenced table; a string is the table alone          |
+| `references.column` | `id`                          | the referenced table's key column                          |
+| `references.tenant` | the row's tenant column       | the referenced table's tenant column                       |
+| `references.where`  | none                          | a condition the referenced row `{row}` must also meet      |
+| `match`             | none                          | `{ <column>: <referenced column> }` pairs that must match  |
+| `through`           | none                          | the tables that dotted `match` keys read through           |
+
+`match` ties the reference to other columns of the row being written. An
+asset on a job must belong to the job's customer, and a material on a quote
+line must belong to the quote's customer:
+
+```ts
+sameTenant: [
+  {
+    table: "public.jobs",
+    column: "asset_id",
+    references: "public.assets",
+    match: { customer_id: "customer_id" },
+  },
+],
+```
+
+Each key is a column of the row and each value a column of the referenced
+row, and the two must hold the same value. The comparison is `is not
+distinct from`, so a job without a customer accepts only an asset without
+one. An update of a `match` column runs the check again, so moving the job
+to another customer fails while its asset still belongs to the first one.
+
+A `match` key can also read a column through another reference of the row,
+written `<reference column>.<column>`. A quote asset must belong to the
+quote's customer, and the asset row holds `quote_id`, not the customer:
+
+```ts
+sameTenant: [
+  {
+    table: "public.quote_assets",
+    column: "asset_id",
+    references: "public.assets",
+    match: { "quote_id.customer_id": "customer_id" },
+    through: { quote_id: "public.quotes" },
+  },
+],
+```
+
+`through` names the table each dotted key's reference column points at, as
+`"schema.table"` or `{ table, column }` when its key is not `id`. The check
+reads `customer_id` from the quote that `quote_id` points at and compares it
+with the asset's `customer_id`, with `is not distinct from` as above, so a
+row without a quote accepts only an asset without a customer. An update of
+`quote_id` runs the check again. A later change to the quote's customer is
+not checked here; give that table its own entry or trigger if it can change.
+
+Every trigger calls the one function `better_supabase.same_tenant()` with the
+entry as its arguments. A null reference passes, so a nullable column stays
+optional, and the foreign key still reports a row that does not exist. The
+check runs on the referencing table only: it does not stop a change to the
+tenant column of a referenced row. Rows stored before you add an entry are
+checked when they change. The triggers are written in managed and adopt
+mode; in custom mode the module writes no SQL.
+
+`upgrade` can derive the entries from the foreign keys in the schema files
+instead. With `sameTenant: { auto: true }`, every single-column foreign key
+from a table with the tenant column to another table with it gets an entry,
+unless the key already includes the tenant column. The scan reads
+`references` on a column, `foreign key (...) references` table constraints
+and `alter table ... add constraint ... foreign key`; a key without a column
+list references the table's declared primary key. Keys over more than one
+column, and references that need `match`, `through` or `where`, go in
+`entries`. A listed entry wins over the derived one for the same table and
+column:
+
+```ts
+sameTenant: {
+  auto: true,
+  entries: [
+    {
+      table: "public.jobs",
+      column: "asset_id",
+      references: "public.assets",
+      match: { customer_id: "customer_id" },
+    },
+  ],
+},
+```
+
+A derived entry renders the same trigger as the same entry listed by hand.
+`doctor` reports each such foreign key that has no `bsb_same_tenant_<column>`
+trigger ([BS340](/docs/cli/doctor#bs340)).
+
+Composite foreign keys are the trigger-free alternative: a unique
+`(id, organization_id)` on the referenced table and a foreign key
+`(project_id, organization_id) references projects (id, organization_id)`
+on the referencing one. Postgres then checks both directions, including a
+referenced row moving tenants, at the cost of an extra unique index per
+table and a tenant column in every key. Use `sameTenant` when the tables
+already exist and their keys should stay as they are, or when the
+reference also needs a `where` condition.
+
+## Delegated tokens
+
+A delegated token is one an OAuth client or agent acts with: it carries a
+`client_id`, or an RFC 8693 `act` chain that is not a support or
+impersonation session. The access functions narrow it in every model:
+`member_can`, `member_can_while_deleting`, `platform_can` and
+`tenant_ids_with` ask `better_supabase.cap_allows(permission)`, which is true
+only when one of the token's scopes maps to the permission. The user's own
+roles still apply, so the token gets the overlap.
+
+Map scopes to permission keys in `authorization.delegation.scopes` (the
+provider's map) or `blocks.permissions.scopes`, which is merged over it. A
+scope without an entry grants the key with its own name, and `["*"]` grants
+every key.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  permissions: {
+    scopes: {
+      "posts:write": ["posts.*"],
+      "mcp:admin": ["*"],
+    },
+  },
+},
+```
+
+`cap_allows` also reads the `bsb_permission_cap` claim that
+`forContext(context, { permissions })` sets, and refuses every key outside
+it. A check about another user (an inviter, the holders of a permission) is
+not narrowed by the caller's token, and the service role is never narrowed.
+`token_scope_allows(scope)` in the `created-by` module stays available for a
+policy that checks the literal scope.
+
+A provider that maps scopes at runtime (per client, or from RFC 9396
+`authorization_details`) sets the `delegation.permissions` hook on its
+[authorization hooks](/docs/extending/authorization-providers#runtime-hooks).
+`forContext` calls it for a delegated context and caps the work to the keys
+it returns, narrowed by its own `permissions`. A throw grants nothing.
+
+## Disabled tenants and users
+
+`blocks.permissions.disabled` names columns that switch a tenant or a user off when
+they are set, such as `disabled_at`. A disabled tenant or user gets no
+permissions, and `membership_claims()` leaves them out of the token.
+
+```ts
+blocks: {
+  permissions: {
+    disabled: {
+      tenant: "public.organizations.disabled_at",
+      user: "public.profiles.disabled_at",
+      userKey: "user_id",
+    },
+  },
+},
+```
+
+The tenant column is matched against the table's `id`. `userKey` names the
+column matched against the user id; it defaults to `id`.
+
+The checks are `better_supabase.tenant_disabled(id)` and
+`better_supabase.user_disabled(user_id)`. The `access` module's file defines
+them; the `memberships` module's file defines them only when `access` isn't
+installed (or runs in custom mode), so each function lives in one schema file.
+
+Either subject also takes an active row: a table, the id column, and a
+nullable `disabledAt` column, a `status` column with its `active` values, or
+both. Only a row that matches counts as active, so a tenant or user without a
+row is disabled.
+
+```ts
+disabled: {
+  tenant: {
+    table: "public.organizations",
+    id: "id",
+    status: "state",
+    active: ["active", "trial"],
+  },
+  user: { table: "public.profiles", id: "id", disabledAt: "banned_at" },
+},
+```
+
+Under the provider model, `add` and `upgrade` read both from the
+provider's `suspension`. A subject set in
+`blocks.permissions.disabled` keeps its own setting. The data-lifecycle
+module disables a tenant awaiting deletion by setting the `disabledAt`
+column, so a tenant row with only a `status` column is not switched off
+during the grace period.
+
+Every model also renders `member_can_while_deleting(user, tenant, permission)`,
+the same check as `member_can` without the disabled-tenant test. The
+data-lifecycle module calls it so a member can cancel a pending deletion while
+the tenant is disabled.
+
+## Suspended memberships
+
+A suspended membership keeps its role but grants nothing in that tenant.
+The `tenant` module reads it from `memberships.disabledAt`, a nullable
+timestamp column on the memberships table: `member_can`, `tenant_ids_with`,
+`member_permissions`, `can_assign_as`, `permission_claims`,
+`member_organization_ids`, `has_organization_role` and `membership_claims`
+skip a membership while the column is set. The other memberships of the same
+user keep working.
+
+A managed memberships table gets the `disabled_at` column. An adopted table
+opts in by mapping the column, so an existing table without it keeps working:
+
+```ts
+blocks: {
+  memberships: {
+    ownership: "adopt",
+    tables: { memberships: "public.organization_users" },
+    columns: { memberships: { disabledAt: "disabled_at" } },
+  },
+},
+```
+
+Under the `provider` and `custom` models, `member_can` and `tenant_ids_with`
+also refuse a tenant whose membership row is suspended, on top of what the
+provider or your functions decide. The organizations block suspends and
+resumes members with [`suspend_member` and `resume_member`](/docs/blocks/organizations#suspending-members).
+
+## The active tenant
+
+`current_tenant_id()` and the [`tenant()` plugin](/docs/plugins/tenant) need
+the tenant a request works in. `blocks.permissions.activeTenant` says where it comes
+from.
+
+| Source                   | Reads                                                                             |
+| ------------------------ | --------------------------------------------------------------------------------- |
+| `'claim'`                | the `auth.organization.claim` claim, at the top level or in `app_metadata`        |
+| `'resolver'` (default)   | the tenant the server resolved for the request, then the claim                    |
+| `{ profileColumn, key }` | the claim, then a profile column such as `public.profiles.active_organization_id` |
+
+With `'resolver'`, pass `tenant` to the server. It runs once per request, and
+the tenant it returns becomes `context.tenant` for the `tenant()` plugin, the
+`better_supabase.tenant` setting for `ctx.sql`, and the `x-bsb-tenant` header
+for `ctx.db`. `current_tenant_id()` returns it only while the caller is a
+member, so a tampered header or slug grants nothing.
+
+```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createServer } from "better-supabase/server";
+
+import { betterSupabase } from "./index";
+
+export const bsb = createServer(betterSupabase, {
+  tenant: async (request, auth) => {
+    const slug = new URL(request.url).pathname.split("/")[2];
+    return slug ? organizationIdForSlug(slug) : undefined;
+  },
+});
+```
+
+Under `createNext`, Server Components, actions and private caches have no
+request URL: the resolver gets a request with the incoming headers and a
+placeholder URL. Pass the tenant from the route params instead. It goes
+where the resolver's result goes, so `current_tenant_id()` and the
+`tenant()` plugin check it the same way, and a tenant the caller doesn't
+belong to grants nothing:
+
+```tsx title="src/app/[organizationId]/customers/page.tsx"
+export default async function Customers({
+  params,
+}: PageProps<"/[organizationId]/customers">) {
+  const { organizationId } = await params;
+  const { db } = await bsb.context({ tenant: organizationId });
+  const customers = await db.customers.findMany().orThrow();
+  return <CustomerList customers={customers} />;
+}
+```
+
+`bsb.cached({ tenant })` does the same inside `'use cache: private'`. Take
+the tenant as an argument of your function, because Next.js keys the
+cache entry on the arguments:
+
+```ts
+async function getCustomers(organizationId: string) {
+  "use cache: private";
+  const { db } = await bsb.cached({ tenant: organizationId });
+  return db.customers.findMany().orThrow();
+}
+```
+
+Actions take it from their validated input with
+`bsb.action({ input, tenant: (input) => input.organizationId }, fn)`.
+`bsb.route()` and `bsb.context(request)` pass the real request, so a resolver
+that reads the URL works there.
+
+A route that already knows the tenant passes it directly:
+`bsb.context(request, { tenant })`. `contextFromResolution` runs only
+synchronous resolvers; pass `{ tenant }` to it when yours is async.
+
+With `'claim'`, [doctor `--as <user id>`](/docs/cli/doctor#bs308) calls your
+access token hook and warns when the claims it returns have no tenant.
+
+### Removed members and the tenant claim
+
+The tenant claim lives in the access token, and a token stays valid until it
+expires (`jwt_expiry` in `supabase/config.toml`: 3600 seconds by default and
+in the fixture). What a removed member can still do depends on which check
+reads the claim:
+
+| Check                                                                                                                                                                      | After the membership row is deleted                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `current_tenant_id()` from the `memberships` module (managed or adopted)                                                                                                   | Returns no tenant on the next call: it returns the claimed tenant only while the caller is still a member, for every `activeTenant` source. |
+| `tenant_ids_with()` and `can()`                                                                                                                                            | Grant nothing on the next call: they read the membership table.                                                                             |
+| A `current_tenant_id()` you write yourself in custom mode that returns the claim, like the fixture's `supabase/schemas/better_supabase/functions/current_tenant_id.sql`    | Keeps returning the tenant until the token expires.                                                                                         |
+| The `bsb:t:*` receive policy of [`realtime-tables`](/docs/platform/realtime), a topic's default tenant check, and your own policies that read `auth.jwt() ->> 'tenant_id'` | Keep passing until the token expires.                                                                                                       |
+
+A claim in `app_metadata` also survives a refresh. With the `'claim'`
+source, the `memberships` module (managed or adopted) clears `app_metadata.tenant_id` when the
+membership it points at is deleted, so the next token carries no tenant. In
+custom mode nothing clears it, and a removed member keeps the claim on every
+new token until you clear it.
+
+To close that window sooner:
+
+- Lower `jwt_expiry` (for example to 600). Clients refresh more often, and a
+  refresh drops the tenant once the claim's source no longer has it (an
+  access token hook that reads the membership table, or the cleared
+  `app_metadata`).
+- End the removed user's sessions so they get no new token: call
+  `supabase.auth.admin.signOut(jwt, "global")` with one of their access
+  tokens, or delete their rows in `auth.sessions` from a security definer
+  function. The current access token still works until it expires, but
+  `bsb.proxy({ endedSession })` turns away their page loads right away (see
+  [Ended sessions](/docs/auth/sessions#ended-sessions-in-your-own-proxy)).
+- Prefer the module's `current_tenant_id()` or `tenant_ids_with()` over the
+  raw claim in your own policies, since both read the membership table.
+
+## Claims for the access token hook
+
+The block never owns your access token hook. It gives you claim builders to
+call from it: `membership_claims(user)` from the `memberships` module and
+`permission_claims(user)` from this one.
+
+```sql
+create or replace function public.custom_access_token_hook(event jsonb)
+returns jsonb language plpgsql stable set search_path = '' as $$
+declare
+  user_id uuid := (event ->> 'user_id')::uuid;
+begin
+  event := jsonb_set(event, '{claims,memberships}', better_supabase.membership_claims(user_id));
+  return jsonb_set(event, '{claims,permissions}', better_supabase.permission_claims(user_id));
+end $$;
+```
+
+`blocks.memberships.options.claimFormat` picks the memberships claim's form:
+`'array'` (the default, `[{ scope, id, roles }]`) or `'map'`
+(`{ "<tenant id>": "<role>" }`).

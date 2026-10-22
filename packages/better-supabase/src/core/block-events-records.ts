@@ -180,7 +180,7 @@ export interface DealEventData extends SubjectEventData {
   readonly fields?: readonly string[];
 }
 
-/** Events from the work-items module. */
+/** Events from the tasks module. */
 export interface WorkItemEventData extends SubjectEventData {
   readonly organizationId: string;
   readonly workItemId: string;

@@ -1,5 +1,5 @@
 import "server-only";
-import { createJobs } from "better-supabase/blocks/jobs";
+import { createQueue } from "better-supabase/blocks/queue";
 import { createPostgres } from "better-supabase/postgres";
 import * as v from "valibot";
 
@@ -7,7 +7,7 @@ const postgres = createPostgres();
 
 // The inbox module queues one inbox_bot job per contact message in a
 // conversation in bot mode.
-export const jobs = createJobs({
+export const jobs = createQueue({
   sql: postgres.admin,
   queues: {
     inbox_bot: v.looseObject({

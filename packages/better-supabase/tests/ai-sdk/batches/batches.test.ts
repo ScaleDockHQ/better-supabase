@@ -6,8 +6,8 @@ import type {
   AiBatch,
   AiBatchItemInput,
   AiBatchPatch,
-  AiProviders,
-} from "../../../src/blocks/ai-providers/index.ts";
+  AiKeys,
+} from "../../../src/blocks/ai-keys/index.ts";
 
 import { aiBatches, batchItemOf } from "../../../src/ai-sdk/batches/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
@@ -67,7 +67,7 @@ function fakeStore(due: AiBatch[] = []) {
   const recorded: unknown[] = [];
   let current = batch();
 
-  const store: AiProviders["batches"] = {
+  const store: AiKeys["batches"] = {
     record: (_org, input) => {
       recorded.push(input);
 

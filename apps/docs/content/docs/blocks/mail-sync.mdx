@@ -5,9 +5,9 @@ description: Sync each member's Gmail or Outlook mailbox through their own OAuth
 
 The `mail-sync` block pulls each member's mailbox into Postgres and puts the
 mail on the records it concerns. A sync job stores new messages by thread,
-links each thread to the [parties](/docs/blocks/parties) whose addresses it
+links each thread to the [parties](/docs/blocks/contacts) whose addresses it
 names (a person by email, a company by its people or its domain) and logs it
-as an `email` [engagement](/docs/blocks/engagements) on them. Members can
+as an `email` [engagement](/docs/blocks/activities) on them. Members can
 also send from their mailbox, and the sent message shows on the thread
 before the next sync.
 
@@ -15,7 +15,7 @@ before the next sync.
 better-supabase add mail-sync   # adds tenant, access and subjects as well
 ```
 
-Install `parties` and `engagements` too for the matching and the timeline;
+Install `contacts` and `engagements` too for the matching and the timeline;
 without them, threads stay in the mailbox and can be linked by hand to any
 registered subject.
 

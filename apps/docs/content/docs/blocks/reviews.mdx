@@ -11,7 +11,7 @@ Moderating, replying and reading the queue need `reviews.manage`. Admins get it.
 better-supabase add reviews
 ```
 
-The module needs `tenant`, `access` and [moderation](/docs/blocks/moderation). With [catalog](/docs/blocks/catalog) installed, products are reviewable (subject type `product`); with `orders` installed, reviews of a product carry `verified`.
+The module needs `tenant`, `permissions` and [moderation](/docs/blocks/moderation). With [catalog](/docs/blocks/catalog) installed, products are reviewable (subject type `product`); with `orders` installed, reviews of a product carry `verified`.
 
 ```ts
 import { createReviews } from "better-supabase/blocks/reviews";

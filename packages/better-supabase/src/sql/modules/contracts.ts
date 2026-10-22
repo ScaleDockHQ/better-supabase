@@ -16,9 +16,9 @@ import {
 } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
 import { contractsFunctions } from "./contracts-functions.ts";
 import { CONTRACT_RESERVED, CONTRACT_STATUSES } from "./contracts-shared.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const CONTRACT_PAYLOAD = [
   "organizationId",
@@ -312,8 +312,8 @@ export const CONTRACTS: BlockSqlDefinition = {
   description:
     "Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.",
   requires: [
-    "tenant",
-    "access",
+    "memberships",
+    "permissions",
     "subjects",
     "versions",
     "signatures",

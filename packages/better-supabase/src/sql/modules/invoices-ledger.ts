@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { moduleOperations } from "./access-model.ts";
 import { ledgerRebalance, ledgerTables } from "./ledger.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The code of an invoice's receivable account. */
 const receivableCode = (invoice: string): string =>

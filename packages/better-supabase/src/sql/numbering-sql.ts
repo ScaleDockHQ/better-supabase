@@ -4,7 +4,7 @@ import { isRecord } from "../core/guards.ts";
 import { sqlString } from "../core/template.ts";
 
 /**
- * The `number-sequences` format of `entity` in `tenant` as SQL, when the app
+ * The `numbering` format of `entity` in `tenant` as SQL, when the app
  * configured one.
  */
 function sequenceFormatOf(
@@ -12,11 +12,11 @@ function sequenceFormatOf(
   entity: string,
   tenant: string,
 ): string | undefined {
-  if (!ctx.installed("number-sequences")) {
+  if (!ctx.installed("numbering")) {
     return undefined;
   }
 
-  const entities = ctx.of("number-sequences").option("entities");
+  const entities = ctx.of("numbering").option("entities");
 
   if (!isRecord(entities)) {
     return undefined;
@@ -29,16 +29,15 @@ function sequenceFormatOf(
   }
 
   return isRecord(entry["formatFrom"])
-    ? `${ctx.of("number-sequences").fn("number_format")}(${tenant}, ${sqlString(entity)})`
+    ? `${ctx.of("numbering").fn("number_format")}(${tenant}, ${sqlString(entity)})`
     : sqlString(entry["format"]);
 }
 
 /**
  * PL/pgSQL that assigns the next number of `entity` in `tenant` to `target.seq`
- * (bigint) and `target.identifier` (text): from `number-sequences` when it
- * configures the entity, otherwise one more than the tenant's highest in
- * `fallback.table` under a transaction lock, with `prefix` in front
- * (`DEAL-4821`).
+ * (bigint) and `target.identifier` (text): from `numbering` when it configures
+ * the entity, otherwise one more than the tenant's highest in `fallback.table`
+ * under a transaction lock, with `prefix` in front (`DEAL-4821`).
  */
 export function assignNumberSql(
   ctx: BlockSqlContext,
@@ -55,7 +54,7 @@ export function assignNumberSql(
   const format = sequenceFormatOf(ctx, entity, tenant);
 
   if (format !== undefined) {
-    const next = ctx.of("number-sequences").fn("next_number");
+    const next = ctx.of("numbering").fn("next_number");
 
     return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
   ${target.identifier} := better_supabase.format_assigned_number(${format}, ${target.seq}, now());`;

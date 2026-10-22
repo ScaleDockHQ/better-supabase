@@ -28,7 +28,7 @@ interface Hop {
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
 
-const WHERE = "blocks.tenant.options.sameTenant";
+const WHERE = "blocks.memberships.options.sameTenant";
 
 /**
  * One entry per declared foreign key from a table with the tenant column to
@@ -272,13 +272,13 @@ function triggerName(column: string): string {
  * column.
  */
 export function sameTenantColumn(layout: BlockSqlLayout): string {
-  return moduleContext("tenant", layout).colName("memberships", "tenant");
+  return moduleContext("memberships", layout).colName("memberships", "tenant");
 }
 
 /**
- * `blocks.tenant.options.sameTenant`: one `same_tenant()` trigger per entry,
- * listed or derived with `auto`, so a reference to a row of another tenant
- * fails for every writer. Empty without entries.
+ * `blocks.memberships.options.sameTenant`: one `same_tenant()` trigger per
+ * entry, listed or derived with `auto`, so a reference to a row of another
+ * tenant fails for every writer. Empty without entries.
  */
 export function sameTenantSql(
   ctx: BlockSqlContext,
@@ -337,7 +337,7 @@ create trigger ${name} before insert or update of ${columns} on ${entry.table}
   });
 
   return `
--- blocks.tenant.options.sameTenant: a row may reference only a row of
+-- blocks.memberships.options.sameTenant: a row may reference only a row of
 -- its own tenant, whoever writes it (a client policy, the service role or an
 -- admin connection). Arguments: the column, the row's tenant column, the
 -- referenced table, its key and tenant columns, and an optional condition on

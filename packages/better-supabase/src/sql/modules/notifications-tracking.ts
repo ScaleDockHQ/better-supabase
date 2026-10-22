@@ -370,7 +370,7 @@ ${serviceGrant(`${ctx.fn(record)}(text, text, text, text, timestamptz, jsonb, bo
         from ${n.table("deliveryEvents")} de where de.${e("delivery")} = d.${d("id")}
       )`,
     ]);
-    const access = ctx.installed("access");
+    const access = ctx.installed("permissions");
 
     const allowed = access
       ? `(${SERVICE_CALLER}) or (${list}.tenant is not null and coalesce(better_supabase.member_can(auth.uid(), ${list}.tenant, ${n.sendPermission}), false))`

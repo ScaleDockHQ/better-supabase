@@ -21,7 +21,7 @@ import {
   timingSafeEqual,
   verifyWebhook,
 } from "../../core/signatures.ts";
-import { hitRateLimit } from "../jobs/rate-limit.ts";
+import { hitRateLimit } from "../queue/rate-limit.ts";
 import {
   applyTemporal,
   isRecord,

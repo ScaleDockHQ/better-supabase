@@ -1,6 +1,6 @@
 import type { QueryClient, SkipToken } from "@tanstack/query-core";
 
-import type { PermissionSet } from "../blocks/access/permissions.ts";
+import type { PermissionSet } from "../blocks/permissions/permissions-controller.ts";
 import type {
   SectionData,
   SectionOptions,

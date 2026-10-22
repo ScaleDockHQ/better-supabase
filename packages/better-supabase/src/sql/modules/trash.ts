@@ -29,7 +29,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const PAYLOAD = [
   "organizationId",
@@ -645,7 +645,7 @@ export const TRASH: BlockSqlDefinition = {
   title: "Trash",
   description:
     "Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "data-lifecycle"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

@@ -168,11 +168,11 @@ function roleLines(
   config: NamesConfig,
   entries: Readonly<Record<string, GeneratedBlock>>,
 ): string[] {
-  if (entries["access"] === undefined) {
+  if (entries["permissions"] === undefined) {
     return [];
   }
 
-  const access = config.blocks.access;
+  const access = config.blocks.permissions;
   const settings = typeof access === "object" ? access : undefined;
 
   if ((settings?.model ?? "roles") !== "roles") {
@@ -183,7 +183,7 @@ function roleLines(
 
   return [
     "",
-    "/** The roles `blocks.access.roles` defines. @public */",
+    "/** The roles `blocks.permissions.roles` defines. @public */",
     `export type RoleName = ${union(Object.keys(roles))};`,
   ];
 }
@@ -205,13 +205,15 @@ function blockEventLists(
       return [];
     }
 
-    const names = entityNames(entry.names?.entities ?? []);
+    const renames = entry.names?.entities ?? [];
+    const names = entityNames(renames);
     const renamed = names.rename(events.type);
 
     return [
       {
+        // With renames, blocks.generated.ts declares the renamed events type.
         specifier:
-          renamed === events.type
+          renames.length === 0
             ? `import type { ${events.type} } from ${q(manifest.client.subpath)};`
             : "",
         type: renamed,

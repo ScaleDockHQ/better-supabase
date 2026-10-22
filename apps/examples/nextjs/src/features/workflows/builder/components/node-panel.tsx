@@ -1,6 +1,6 @@
 "use client";
 
-import type { WorkflowStepInfo } from "better-supabase/blocks/workflow-builder";
+import type { WorkflowStepInfo } from "better-supabase/blocks/workflow-editor";
 
 import { CheckIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";

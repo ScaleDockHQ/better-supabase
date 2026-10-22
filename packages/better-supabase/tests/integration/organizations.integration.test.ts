@@ -343,7 +343,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       const layout: BlockSqlLayout = {
         modules: {
-          access: {
+          permissions: {
             activeTenant: "claim",
             roles: {
               owner: ["*"],
@@ -469,8 +469,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       const layout: BlockSqlLayout = {
         modules: {
-          access: { ...module, model: "catalog" },
-          tenant: module,
+          permissions: { ...module, model: "catalog" },
+          memberships: module,
           organizations: module,
           invitations: module,
         },
@@ -591,8 +591,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       const layout: BlockSqlLayout = {
         modules: {
-          access: { schema },
-          tenant: {
+          permissions: { schema },
+          memberships: {
             schema,
             mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
@@ -705,8 +705,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       const layout: BlockSqlLayout = {
         modules: {
-          access: { schema },
-          tenant: {
+          permissions: { schema },
+          memberships: {
             schema,
             mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
@@ -794,8 +794,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
       const layout: BlockSqlLayout = {
         accessProvider: testProvider(schema),
         modules: {
-          access: { model: "provider" },
-          tenant: {
+          permissions: { model: "provider" },
+          memberships: {
             schema,
             mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
@@ -923,8 +923,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
       const layout: BlockSqlLayout = {
         accessProvider: testProvider(schema, true),
         modules: {
-          access: { model: "provider" },
-          tenant: {
+          permissions: { model: "provider" },
+          memberships: {
             schema,
             mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
@@ -1112,8 +1112,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
       const layout: BlockSqlLayout = {
         accessProvider: testProvider(schema, true),
         modules: {
-          access: { model: "provider" },
-          tenant: {
+          permissions: { model: "provider" },
+          memberships: {
             schema,
             mode: "adopt",
             tables: { memberships: `${schema}.team_members` },
@@ -1371,8 +1371,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       const layout: BlockSqlLayout = {
         modules: {
-          access: { schema },
-          tenant: { schema },
+          permissions: { schema },
+          memberships: { schema },
           "reserved-slugs": { options: { slugs: ["dashboard-beta"] } },
           organizations: {
             schema,
@@ -1511,8 +1511,8 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       const layout: BlockSqlLayout = {
         modules: {
-          access: { ...module, model: "catalog" },
-          tenant: module,
+          permissions: { ...module, model: "catalog" },
+          memberships: module,
           organizations: module,
           invitations: module,
         },

@@ -16,13 +16,13 @@ better-supabase add bookings
 import { createBookings } from "better-supabase/blocks/bookings";
 ```
 
-The module requires `tenant` and `access`, and installs the `btree_gist`
+The module requires `memberships` and `access`, and installs the `btree_gist`
 extension in the `extensions` schema for its exclusion constraint (see
 [ADR 0023](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0023-bookings-btree-gist.md)).
 With `jobs` a hold expires itself, with `share-links` and `rate-limit`
 guests book through a link, with `calendar` confirmed bookings appear on the
 resource's calendar, with `reminders` customers get reminders, and with
-`outbox` its events are recorded. With [engagements](/docs/blocks/engagements#bookings)
+`outbox` its events are recorded. With [engagements](/docs/blocks/activities#bookings)
 and `options.bookings`, a confirmed booking is logged as a meeting on the
 booker's contact.
 
@@ -233,7 +233,7 @@ returns the series with its bookings.
 | `series(seriesId)`                            | The series and its bookings, as the caller's policies allow         |
 
 To pay for classes with a pack of credits, see
-[class credits](/docs/blocks/passes#class-credits).
+[class credits](/docs/blocks/admission-passes#class-credits).
 
 ## Appointment schedules
 

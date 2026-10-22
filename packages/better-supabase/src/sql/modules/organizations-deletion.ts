@@ -3,7 +3,7 @@ import type { OrganizationReadNames } from "./organizations-reads.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, fail } from "../shared.ts";
-import { OPERATIONS } from "./access-model.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 export interface DeletionHelpers {
   /** The `deletePlatform` override clause, or nothing when it is unset. */

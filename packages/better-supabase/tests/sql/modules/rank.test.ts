@@ -27,7 +27,7 @@ describe("rank module", () => {
     );
 
     expect(modules).toContain("subjects");
-    expect(modules).toContain("access");
+    expect(modules).toContain("permissions");
   });
 
   it("moves ranked subjects as the caller, after can_subject", () => {
@@ -55,9 +55,9 @@ describe("rank module", () => {
     expect(sql).toContain("hint = 'RANK_CONFLICT'");
   });
 
-  it("enqueues a rebalance only with the jobs module", () => {
+  it("enqueues a rebalance only with the queue block", () => {
     expect(sqlOf(["rank"])).not.toContain("rank.rebalance");
-    const sql = sqlOf(["rank", "jobs"]);
+    const sql = sqlOf(["rank", "queue"]);
     expect(sql).toContain("if length(v_key) > 24 then");
     expect(sql).toContain("queue => 'rank.rebalance'");
   });

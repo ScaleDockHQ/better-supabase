@@ -12,8 +12,8 @@ import {
   revokeTable,
   lockTable,
 } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const MEMORIES = {
   id: "id",
@@ -831,7 +831,7 @@ export const MEMORY: BlockSqlDefinition = {
   title: "Memory",
   description:
     "Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.",
-  requires: ["tenant", "access", "vector-search"],
+  requires: ["memberships", "permissions", "vector-search"],
   integrates: ["ai-chat"],
   target: "schema",
   version: 2,

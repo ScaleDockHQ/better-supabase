@@ -220,7 +220,7 @@ await tenantSeed.insert(postgres.admin, { id });
 ```
 
 `supabaseClaimFixtures` holds access-token claims where someone acts for the
-user, with the `actor`, `impersonator` and `delegation` each one reads as:
+user, with the `created-by`, `impersonator` and `delegation` each one reads as:
 `supportSession`, `supportSessionReadOnly`, `impersonation`, `oauthClient`,
 `agentChain`, `agentRun` and `agentRunReadOnly`. `supabaseInvalidClaimFixtures`
 holds the claims better-supabase refuses (the 0.5.0 support token and

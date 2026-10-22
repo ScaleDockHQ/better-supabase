@@ -3,7 +3,7 @@ import {
   defineBlocks,
   rpcTransport,
 } from "better-supabase/blocks";
-import { accessBlock } from "better-supabase/blocks/access";
+import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
@@ -12,9 +12,9 @@ import { billingBlock } from "better-supabase/blocks/billing";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
-import { jobsBlock } from "better-supabase/blocks/jobs";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { messagingBlock } from "better-supabase/blocks/messaging";
-import { activityBlock } from "better-supabase/blocks/activity";
+import { timelineBlock } from "better-supabase/blocks/timeline";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
@@ -33,7 +33,7 @@ import { blockConfig } from "./projects.blocks.generated.ts";
 
 /** The installed blocks, with the settings `better-supabase gen` writes from the config. */
 export const blockSet = defineBlocks(blockConfig, {
-  access: accessBlock,
+  permissions: permissionsBlock,
   apiKeys: apiKeysBlock,
   approvals: approvalsBlock,
   attachments: attachmentsBlock,
@@ -42,9 +42,9 @@ export const blockSet = defineBlocks(blockConfig, {
   comments: commentsBlock,
   enrollments: enrollmentsBlock,
   entitlements: entitlementsBlock,
-  jobs: jobsBlock,
+  queue: queueBlock,
   messaging: messagingBlock,
-  activity: activityBlock,
+  timeline: timelineBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,

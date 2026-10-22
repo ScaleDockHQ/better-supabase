@@ -30,10 +30,10 @@ describe("the block names registry", () => {
   });
 
   it("reads tables, functions and actions from the module", () => {
-    const module = SQL_MODULES["work-items"];
+    const module = SQL_MODULES["tasks"];
 
     if (module === undefined) {
-      throw new Error("no work-items module");
+      throw new Error("no tasks module");
     }
 
     const names = moduleNameSet(module);

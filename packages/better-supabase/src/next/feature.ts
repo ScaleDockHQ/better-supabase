@@ -1,11 +1,11 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { PermissionSet } from "../blocks/access/permissions.ts";
 import type {
   BlockClientOptions,
   BlockClientSource,
 } from "../blocks/create-blocks.ts";
 import type { AnyBlock } from "../blocks/define-block.ts";
+import type { PermissionSet } from "../blocks/permissions/permissions-controller.ts";
 import type { SectionOptions } from "../blocks/sections.ts";
 import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";

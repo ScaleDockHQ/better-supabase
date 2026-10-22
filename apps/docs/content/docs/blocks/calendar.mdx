@@ -19,7 +19,7 @@ The block's entities are `calendar_event` (the `calendar_events` table, its prim
 import { createCalendar } from "better-supabase/blocks/calendar";
 ```
 
-The module requires `tenant` and `access`. With `share-links` it serves an
+The module requires `memberships` and `access`. With `share-links` it serves an
 iCal feed, with `reminders` each event gets a recurrence rule that reminders
 can attach to, with `leave` approved leave counts as out of office, and with
 `outbox` its events are recorded.

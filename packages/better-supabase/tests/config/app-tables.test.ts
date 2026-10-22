@@ -600,7 +600,7 @@ describe("isAppDefault", () => {
   it("merges a table's subject into subjects", () => {
     const config = resolveConfig(
       {
-        blocks: { tenant: { names: { organization: "workspace" } } },
+        blocks: { memberships: { names: { organization: "workspace" } } },
         records: { customer: { table: "public.customers" } },
         tables: {
           projects: {

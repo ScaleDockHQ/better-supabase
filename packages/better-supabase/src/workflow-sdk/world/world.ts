@@ -26,7 +26,7 @@ import { watchPoolErrors } from "../../postgres/pool-errors.ts";
 import {
   WORKFLOW_DELIVERY_QUEUE,
   WORKFLOW_VAULT_SECRETS,
-} from "../../sql/modules/workflow-sdk-world.ts";
+} from "../../sql/modules/workflow-sdk.ts";
 import { createAnalytics } from "./analytics.ts";
 import {
   deriveRunKey,
@@ -97,9 +97,9 @@ export type SupabaseWorld = World & {
 
 /**
  * A Workflow SDK World on Supabase Postgres: the run, step, event, hook and
- * stream tables of `@workflow/world-postgres` (installed by the
- * `workflow-sdk-world` SQL module), with messages in the jobs module's queue
- * instead of graphile-worker.
+ * stream tables of `@workflow/world-postgres` (installed by the `workflow-sdk`
+ * SQL module), with messages in the queue block's queue instead of
+ * graphile-worker.
  *
  * ```ts
  * // workflow.config or WORKFLOW_TARGET_WORLD=better-supabase/workflow-sdk/world

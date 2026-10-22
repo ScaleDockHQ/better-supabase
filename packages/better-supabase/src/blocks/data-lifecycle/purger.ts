@@ -5,7 +5,7 @@ import type {
   CredentialRef,
   CredentialSubject,
 } from "../../credentials/provider.ts";
-import type { JobHandler } from "../jobs/types.ts";
+import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { LifecycleBucket, LifecycleStorage } from "./data-lifecycle.ts";
 

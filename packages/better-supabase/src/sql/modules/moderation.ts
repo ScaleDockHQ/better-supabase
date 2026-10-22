@@ -9,8 +9,8 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { moderationFunctions } from "./moderation-functions.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<ModerationEvents> = {
   "moderation_report.created": {
@@ -315,7 +315,7 @@ export const MODERATION: BlockSqlDefinition = {
   title: "Moderation",
   description:
     "Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["messaging", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],

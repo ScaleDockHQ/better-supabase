@@ -15,9 +15,9 @@ import {
   totalColumnsSql,
 } from "../line-items-sql.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
-import { moduleOperations } from "./access-model.ts";
 import { invoiceFunctions } from "./invoices-functions.ts";
 import { invoicePaymentsUpgrade } from "./invoices-ledger.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 const INVOICE = [
   "organizationId",
@@ -247,12 +247,12 @@ export const INVOICES: BlockSqlDefinition = {
   title: "Invoices",
   description:
     "Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.",
-  requires: ["tenant", "access", "subjects", "ledger"],
+  requires: ["memberships", "permissions", "subjects", "ledger"],
   integrates: [
     "outbox",
     "audit",
     "notifications",
-    "number-sequences",
+    "numbering",
     "quotes",
     "relations",
   ],

@@ -22,8 +22,8 @@ import {
 import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
-import { moduleOperations } from "./access-model.ts";
 import { DISPATCH_NAMES, dispatchContract } from "./dispatch-names.ts";
+import { moduleOperations } from "./permissions-model.ts";
 
 /** The statuses that hold a technician's slot. */
 const BUSY = ["scheduled", "en_route", "on_site"] as const;
@@ -1045,7 +1045,7 @@ export const DISPATCH: BlockSqlDefinition = {
   title: "Dispatch",
   description:
     "Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "assets", "bookings", "catalog", "inventory"],
   target: "schema",
   modes: ["managed", "custom"],

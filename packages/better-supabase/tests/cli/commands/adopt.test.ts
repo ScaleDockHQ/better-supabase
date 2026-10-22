@@ -226,8 +226,8 @@ describe("apply --adopt", () => {
     expect(await readConfig()).toMatchObject({
       blocks: {
         "updated-at": {},
-        tenant: {},
-        access: {},
+        memberships: {},
+        permissions: {},
         teams: { ownership: "adopt", tables: { teams: "public.teams" } },
       },
     });

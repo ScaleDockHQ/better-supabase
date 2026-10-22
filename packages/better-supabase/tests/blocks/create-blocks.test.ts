@@ -15,12 +15,12 @@ import {
   event,
   rpcTransport,
 } from "../../src/blocks/index.ts";
-import { rateLimitBlock } from "../../src/blocks/jobs/index.ts";
+import { membershipsBlock } from "../../src/blocks/memberships/manifest.ts";
 import { metricsBlock } from "../../src/blocks/metrics/index.ts";
 import { organizationsBlock } from "../../src/blocks/organizations/index.ts";
+import { rateLimitBlock } from "../../src/blocks/queue/index.ts";
 import { remindersBlock } from "../../src/blocks/reminders/index.ts";
 import { searchSink } from "../../src/blocks/search/index.ts";
-import { tenantBlock } from "../../src/blocks/tenant/manifest.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
@@ -215,8 +215,12 @@ describe("createBlocks", () => {
   });
 
   it("skips blocks with only SQL", () => {
-    const blocks = createBlocks({ transport }, { tenant: tenantBlock });
-    expect(blocks).not.toHaveProperty("tenant");
+    const blocks = createBlocks(
+      { transport },
+      { memberships: membershipsBlock },
+    );
+
+    expect(blocks).not.toHaveProperty("memberships");
   });
 
   it("passes credentials, events and consumed ports, never unconsumed ones", () => {
@@ -291,7 +295,7 @@ describe("createBlocks", () => {
     expect(seen[0]).toMatchObject({ schema: "app_blocks" });
   });
 
-  it("hands ai-tasks the notifier port and its notification type", () => {
+  it("hands ai-schedules the notifier port and its notification type", () => {
     const seen: Record<string, unknown>[] = [];
     const send = vi.fn();
     createBlocks(

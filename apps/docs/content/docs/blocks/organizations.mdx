@@ -15,7 +15,7 @@ pnpm better-supabase add organizations invitations
 ```
 
 Both modules need `tenant` (the memberships table) and `access` (the
-[access contract](/docs/blocks/access)), so `add` pulls those in too.
+[access contract](/docs/blocks/permissions)), so `add` pulls those in too.
 Permissions are checked with `member_can()`, so the same functions work with
 the default roles, your own role and permission tables, an authorization
 provider or your own functions.
@@ -80,8 +80,8 @@ suspended (`ORGANIZATION_MEMBER_SUSPENDED`).
 ## Suspending members
 
 With a `disabledAt` column on the memberships table (managed tables have it;
-an adopted one maps `blocks.tenant.columns.memberships.disabledAt`, see
-[suspended memberships](/docs/blocks/access#suspended-memberships)),
+an adopted one maps `blocks.memberships.columns.memberships.disabledAt`, see
+[suspended memberships](/docs/blocks/permissions#suspended-memberships)),
 `suspend_member(organization, member)` switches a member off in one
 organization without removing them. They keep their role and their row, get
 no permissions there, and `resume_member` gives everything back.
@@ -267,7 +267,7 @@ SQL hooks run inside the functions for every caller:
 ## Switching organizations
 
 `switch_organization(organization)` checks the caller is a member and the organization
-is active, then follows `blocks.access.activeTenant`:
+is active, then follows `blocks.permissions.activeTenant`:
 
 | Source          | `switch_organization` writes                                         | `refresh` |
 | --------------- | -------------------------------------------------------------------- | --------- |
@@ -477,13 +477,13 @@ Accepting checks the inviter again: an inviter who lost the invite permission,
 or a permission the role grants, can no longer bring someone in with it.
 
 An invitation with a null organization is a platform invitation. It needs
-`blocks.access.model: "catalog"` with a `platformAssignments` table, and lives in
+`blocks.permissions.model: "catalog"` with a `platformAssignments` table, and lives in
 its own `platform_invitations` table. The inviter needs the `invitePlatform`
 permission (`platform.invite`) and every permission the platform role grants,
 both when inviting and when the invitation is accepted. Managed catalog roles
-have a `scope` column (`tenant` or `platform`), and neither kind of role is
-assignable as the other. An adopted catalog maps `blocks.access.columns.roles.scope`
-and names its values in `blocks.access.options.tenantRoleScope` and
+have a `scope` column (`memberships` or `platform`), and neither kind of role is
+assignable as the other. An adopted catalog maps `blocks.permissions.columns.roles.scope`
+and names its values in `blocks.permissions.options.tenantRoleScope` and
 `platformRoleScope`; an adopted invitations table that also holds platform
 invitations (rows without an organization) maps `tables.platformInvitations`
 to itself.
@@ -520,7 +520,7 @@ accept. When `through.table` is also the tenant module's `roleThrough`
 table, `where` is required there too (`roleThrough.where`, such as
 `"{row}.scope = 'organization'"`), so organization invitations, accept and
 `update_member_role` resolve only tenant roles; see
-[membership roles stored as ids](/docs/blocks/access#membership-roles-stored-as-ids).
+[membership roles stored as ids](/docs/blocks/permissions#membership-roles-stored-as-ids).
 With `through.where`, a `bsb_role_scope` trigger on `platformRoles.table` also
 refuses a direct write of any other role, from the service role too, with
 `PLATFORM_ROLE_SCOPE`.
@@ -587,8 +587,8 @@ names and set the columns you don't have to `null`:
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
-    access: { model: "catalog" },
-    tenant: {
+    permissions: { model: "catalog" },
+    memberships: {
       ownership: "adopt",
       tables: { memberships: "public.organization_users" },
       columns: { memberships: { tenant: "organization_id", role: "role_id" } },

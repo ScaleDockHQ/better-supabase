@@ -49,7 +49,7 @@ describe("messaging module", () => {
   it("opens a record's conversation to a grant on the record's scope", () => {
     const render = (provider: boolean) =>
       renderBlocks(["messaging"], {
-        modules: provider ? { access: { model: "provider" } } : {},
+        modules: provider ? { permissions: { model: "provider" } } : {},
         subjects: {
           project: { table: "projects", scope: "project" },
           note: { table: "notes" },
@@ -66,7 +66,7 @@ describe("messaging module", () => {
     expect(render(false)).toContain(
       `when 'project' then coalesce(better_supabase.can('project', "better_supabase"."conversations"."subject_id", 'messages.read'), false)`,
     );
-    expect(body()).not.toContain(`"access" = 'subject' and`);
+    expect(body()).not.toContain(`"permissions" = 'subject' and`);
   });
 
   it("mentions on a record notify only members who read it", () => {

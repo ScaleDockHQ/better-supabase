@@ -51,6 +51,13 @@ fixed (jobs becomes `queue`, rules becomes `automations`, tenant becomes
 `memberships`), and every block declares `names` so presets can rename its
 nouns per vertical (tasks become tickets in a helpdesk).
 
+A block rename changes the block name, its subpath, its exports, its
+operation prefix and its CloudEvent source. Table names, permission keys,
+event types, hint codes and queue names keep their 0.14 values, so an
+installed database moves only its `better_supabase.blocks` rows. Two tables
+clashed with a renamed block and move: hiring's `jobs` becomes
+`job_openings` and catalog's `collections` becomes `product_collections`.
+
 **Instances.** `blocks` in the config is keyed by instance. An entry takes
 `block` (defaulting to the key), `on` (the record types an attachable block
 attaches to, defaulting to all of them) and `uses` (which instance of a

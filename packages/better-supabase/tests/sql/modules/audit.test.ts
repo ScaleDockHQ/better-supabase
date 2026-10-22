@@ -144,7 +144,7 @@ describe("audit module", () => {
       );
 
     expect(names({})).toEqual(["audit"]);
-    expect(names({ options: { readPolicy: true } })).toContain("access");
+    expect(names({ options: { readPolicy: true } })).toContain("permissions");
   });
 
   it("rejects an unknown impersonators option", () => {
@@ -526,7 +526,10 @@ describe("audit value mapping", () => {
 });
 
 describe("audit revert", () => {
-  const sqlOf = (config: BlockConfig = {}, modules = ["access", "audit"]) =>
+  const sqlOf = (
+    config: BlockConfig = {},
+    modules = ["permissions", "audit"],
+  ) =>
     renderBlocks(modules, { modules: { audit: config } })
       .filter((file) => file.module === "audit")
       .map((file) => file.contents)

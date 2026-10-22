@@ -2,7 +2,10 @@ import type { BlockSqlContext } from "./context.ts";
 import type { BlockSql } from "./module-types.ts";
 
 import { moduleContext } from "./module-context.ts";
-import { isOperationModule, moduleOperations } from "./modules/access-model.ts";
+import {
+  isOperationModule,
+  moduleOperations,
+} from "./modules/permissions-model.ts";
 import { resolveBlocks } from "./registry.ts";
 
 /** The names a module's config keys accept, read from its definition. */

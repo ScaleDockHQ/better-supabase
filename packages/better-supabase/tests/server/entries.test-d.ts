@@ -9,7 +9,7 @@ import { withPostgresClient } from "@supabase/server/middleware/postgres";
 import { withPostgresAdminClient } from "@supabase/server/middleware/postgres-admin";
 import { describe, expectTypeOf, it } from "vitest";
 
-import { createJobs } from "../../src/blocks/jobs/index.ts";
+import { createQueue } from "../../src/blocks/queue/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { withBetterSupabase } from "../../src/server/composite.ts";
 import { withBlock } from "../../src/server/entries/block.ts";
@@ -74,7 +74,7 @@ describe("withBetterSupabase", () => {
         entry,
         withPostgresAdminClient(),
         withBlock("jobs", (ctx: { readonly postgresAdmin: PostgresApi }) =>
-          createJobs({ sql: ctx.postgresAdmin, queues: {} }),
+          createQueue({ sql: ctx.postgresAdmin, queues: {} }),
         ),
       ],
       (_req, ctx) => {
@@ -91,7 +91,7 @@ describe("withBetterSupabase", () => {
       [
         entry,
         withBlock("jobs", (ctx: { readonly postgresAdmin: PostgresApi }) =>
-          createJobs({ sql: ctx.postgresAdmin, queues: {} }),
+          createQueue({ sql: ctx.postgresAdmin, queues: {} }),
         ),
         withPostgresAdminClient(),
       ],

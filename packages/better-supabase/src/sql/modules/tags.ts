@@ -27,8 +27,8 @@ import {
   subjectTableBindings,
   subjectsOption,
 } from "../subjects.ts";
-import { OPERATIONS } from "./access-model.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<TagsEvents> = {
   "tag.created": {
@@ -643,7 +643,7 @@ export const TAGS: BlockSqlDefinition = {
   title: "Tags",
   description:
     "Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.",
-  requires: ["tenant", "access"],
+  requires: ["memberships", "permissions"],
   integrates: ["outbox", "drive"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],

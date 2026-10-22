@@ -150,10 +150,10 @@ export const MESSAGING: BlockSqlDefinition = {
   title: "Messaging",
   description:
     "Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.",
-  requires: ["tenant", "access", "subjects"],
+  requires: ["memberships", "permissions", "subjects"],
   integrates: [
     "notifications",
-    "jobs",
+    "queue",
     "profiles",
     "attachments",
     "reactions",

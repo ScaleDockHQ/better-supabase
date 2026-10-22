@@ -1,8 +1,8 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { PermissionSet } from "../blocks/access/permissions.ts";
 import type { GeneratedBlocks } from "../blocks/block-config.ts";
 import type { AnyBlock } from "../blocks/define-block.ts";
+import type { PermissionSet } from "../blocks/permissions/permissions-controller.ts";
 import type {
   AnySectionWrite,
   SectionData,
@@ -14,7 +14,7 @@ import type {
 import type { RecordRef } from "../schema/types.ts";
 import type { SectionName, SectionNamed } from "./sections.ts";
 
-import { can as holds } from "../blocks/access/permissions.ts";
+import { can as holds } from "../blocks/permissions/permissions-controller.ts";
 import { dbError } from "../core/errors.ts";
 import { AsyncResult } from "../core/result.ts";
 import { findSection } from "./sections.ts";

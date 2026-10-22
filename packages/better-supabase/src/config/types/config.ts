@@ -157,7 +157,7 @@ export interface FlatConfig {
    * The blocks to install and keep in sync (`better-supabase add`): a list of
    * names, or an object keyed by block name whose values set each block's mode,
    * schema, table and column names, permission keys and options. The foundation
-   * blocks (`tenant`, `access`, `updated-at`, `ensure-rls`, ...) are configured
+   * blocks (`tenant`, `access`, `updated-at`, `rls-guard`, ...) are configured
    * here too.
    */
   readonly blocks?: readonly string[] | BlocksConfig;

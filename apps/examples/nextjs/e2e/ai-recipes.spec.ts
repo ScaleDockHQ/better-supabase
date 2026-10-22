@@ -40,7 +40,7 @@ test.describe("admin", () => {
     await page.goto("/en/assistant/tasks");
 
     const card = await loadedRecipe(page, "ai-task-queue", [
-      "ai-tasks",
+      "ai-schedules",
       "ai-tasks-empty",
     ]);
 
@@ -68,7 +68,7 @@ test.describe("member", () => {
     await page.goto("/en/assistant/tasks");
 
     const card = await loadedRecipe(page, "ai-task-queue", [
-      "ai-tasks",
+      "ai-schedules",
       "ai-tasks-empty",
     ]);
 

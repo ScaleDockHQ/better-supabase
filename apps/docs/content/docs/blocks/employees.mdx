@@ -11,7 +11,7 @@ Reading the directory needs `employees.read`, which members have. Creating, edit
 better-supabase add employees
 ```
 
-The module needs `tenant` and `access`. With `outbox` it records events, with `hiring` it makes employees from hired applications, and with `relations` it links them to the application they came from.
+The module needs `memberships` and `access`. With `outbox` it records events, with `hiring` it makes employees from hired applications, and with `relations` it links them to the application they came from.
 
 ```ts
 import { createEmployees } from "better-supabase/blocks/employees";

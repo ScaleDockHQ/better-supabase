@@ -7,7 +7,7 @@
  * a SQL module as they are. This applies them to a scratch database on the
  * local stack, reads the resulting catalog and renders it as `create ... if not
  * exists` DDL. It also records each migration's SHA-256;
- * `tests/sql/modules/workflow-sdk-world-ddl.test.ts` fails when the installed
+ * `tests/sql/modules/workflow-sdk-ddl.test.ts` fails when the installed
  * package's migrations no longer match.
  *
  * `node scripts/gen-workflow-ddl.ts` writes the file; `--check` only compares.

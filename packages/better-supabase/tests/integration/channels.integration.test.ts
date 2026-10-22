@@ -17,7 +17,7 @@ const MODULES = [
   "profiles",
   "reactions",
   "attachments",
-  "jobs",
+  "queue",
   "messaging",
   "channels",
 ];

@@ -209,7 +209,7 @@ adds the `RateLimit` field to the response, plus `RateLimit-Policy` with a
 `Retry-After`:
 
 ```ts
-import { createRateLimit } from "better-supabase/blocks/jobs";
+import { createRateLimit } from "better-supabase/blocks/queue";
 
 const limiter = createRateLimit({ sql: postgres.admin });
 

@@ -260,7 +260,7 @@ function workBranches(ctx: BlockSqlContext): readonly string[] {
   const tenant = (column: string): string =>
     `(my_work.tenant is null or ${column} = my_work.tenant)`;
 
-  const work = of("work-items");
+  const work = of("tasks");
   const approvals = of("approvals");
   const reminders = of("reminders");
   const messaging = of("comments") === undefined ? undefined : of("messaging");
@@ -711,12 +711,12 @@ export const SUBJECTS: BlockSqlDefinition = {
   title: "Subjects",
   description:
     "The app-wide subject registry from config.records: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.",
-  requires: ["access"],
+  requires: ["permissions"],
   integrates: [
     "comments",
     "messaging",
     "attachments",
-    "work-items",
+    "tasks",
     "approvals",
     "reminders",
     "sla",

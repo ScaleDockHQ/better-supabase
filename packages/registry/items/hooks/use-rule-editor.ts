@@ -1,8 +1,8 @@
-import type { RuleBuilderState } from "better-supabase/blocks/rules/react";
+import type { RuleBuilderState } from "better-supabase/blocks/automations/react";
 import type { FilterQuery } from "better-supabase/list";
 
 import { generatedOptions } from "better-supabase/blocks";
-import { useRuleBuilder } from "better-supabase/blocks/rules/react";
+import { useRuleBuilder } from "better-supabase/blocks/automations/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -39,7 +39,7 @@ export function useRuleEditor(options: RuleEditorOptions): RuleEditor {
   const builder = useRuleBuilder({
     ...options,
     organizationId: organizationId ?? "",
-    schema: generatedOptions(blockConfig.rules).schema,
+    schema: generatedOptions(blockConfig.automations).schema,
   });
 
   return { ...builder, organizationId };

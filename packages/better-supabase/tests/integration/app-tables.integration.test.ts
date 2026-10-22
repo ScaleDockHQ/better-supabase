@@ -75,7 +75,7 @@ const TABLES: AppTablesConfig = {
   it_regions: { scope: "none", columns: { code: { type: "text" } } },
 };
 
-const BLOCKS = ["tenant", "organizations", "updated-at"];
+const BLOCKS = ["memberships", "organizations", "updated-at"];
 const LAYOUT: BlockSqlLayout = { appTables: TABLES };
 
 const pgtapFile = (): string =>

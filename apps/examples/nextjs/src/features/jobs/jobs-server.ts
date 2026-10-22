@@ -1,7 +1,7 @@
 import "server-only";
 import type { BetterPostgres } from "better-supabase/postgres";
 
-import { createJobs } from "better-supabase/blocks/jobs";
+import { createQueue } from "better-supabase/blocks/queue";
 import * as v from "valibot";
 
 /** The queue the settings page's "Enqueue a test job" writes to. */
@@ -14,7 +14,7 @@ const queues = { [TEST_QUEUE]: v.object({ message: v.string() }) };
  * so its functions are service-role only and not on the Data API.
  */
 export function jobsOn(connection: BetterPostgres) {
-  return createJobs({ sql: connection.admin, queues });
+  return createQueue({ sql: connection.admin, queues });
 }
 
 /** Pgmq queue names, which also name their tables (`pgmq.q_<name>`). */

@@ -396,7 +396,7 @@ export const CHANNELS: BlockSqlDefinition = {
   title: "Channels",
   description:
     "Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.",
-  requires: ["tenant", "access", "subjects", "messaging"],
+  requires: ["memberships", "permissions", "subjects", "messaging"],
   integrates: ["outbox", "audit", "data-lifecycle"],
   target: "schema",
   modes: ["managed", "custom"],

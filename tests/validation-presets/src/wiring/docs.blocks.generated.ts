@@ -25,7 +25,7 @@ import type { VersionsEvents } from "better-supabase/blocks/versions";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -63,7 +63,7 @@ export const blockConfig = {
       topic: "messages",
     },
   },
-  activity: {
+  timeline: {
     schema: "better_supabase",
     options: {},
   },
@@ -119,7 +119,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -139,9 +139,6 @@ export const blockConfig = {
  * @public
  */
 export const permissions = {
-  activity: {
-    read: "activity.read",
-  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -238,6 +235,9 @@ export const permissions = {
     apply: "templates.apply",
     manage: "templates.manage",
   },
+  timeline: {
+    read: "activity.read",
+  },
   versions: {
     read: "versions.read",
     create: "versions.create",
@@ -253,7 +253,7 @@ export const permissions = {
  */
 export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */

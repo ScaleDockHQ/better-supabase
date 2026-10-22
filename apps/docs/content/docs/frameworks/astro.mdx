@@ -20,7 +20,7 @@ export const onRequest = bsb.onRequest;
 ```
 
 The middleware verifies the caller, refreshes the session cookie on
-navigations and form posts, and puts `db`, `bsb`, `auth`, `tenant` and the
+navigations and form posts, and puts `db`, `bsb`, `auth`, `memberships` and the
 serializable `session` on `locals`. It runs around the page, so the refreshed
 cookies reach the browser. On Cloudflare, `locals.runtime.env` seeds `getEnv`;
 pass `platformEnv` to read the env elsewhere.

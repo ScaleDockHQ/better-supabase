@@ -15,7 +15,7 @@ paths:
 | --- | --- |
 | A SQL module | `src/sql/registry.ts` registry (module code in `src/sql/modules`, the `SqlModule` type in `src/sql/module-types.ts`), its block's manifest (`sql` and `options`), `PRESET_BLOCKS` (append only; a removed module stays as `null`) and `pnpm catalog`, `sql-modules.integration.test.ts`, `blocks/sql.mdx`, the fixture's copy when the Next.js example uses it (`docs/agents/database.md`) |
 | A preset field or value | append it to `PRESET_FIELDS` (`src/preset/fields.ts`) with the next `since` for a new field, raise `PRESET_VERSION`, add `tests/preset/fixtures/codes-v<n>.json`, `presets/codes.mdx`; never edit a released fixture |
-| A permission a module checks | its row in `OPERATIONS` (`src/sql/modules/access-model.ts`), keyed `<module>.<action>`, and the module's permissions table in its docs page |
+| A permission a module checks | its row in `OPERATIONS` (`src/sql/modules/permissions-model.ts`), keyed `<module>.<action>`, and the module's permissions table in its docs page |
 | A block's methods, hooks or fields | its `BlockHooks` typing and `withBlockHooks` wrap, its SQL `before_`/`after_` hooks (`tests/sql/block-hooks.test.ts`), `extending/blocks.mdx` and the block's page |
 | A block's React hook | its controller in `src/blocks/<name>/client.ts` (exported from the block entry), the controller's test with fake ports (`tests/fixtures/ports.ts`), `tests/blocks/platform-neutral.test.ts` stays green, `frontend/block-controllers.mdx` |
 | A block | its code in `src/blocks/<name>`, its `manifest.ts` and `events.ts` (listed in `src/blocks/registry.ts` and `tests/blocks/all-blocks.ts`), and subpath `better-supabase/blocks/<name>` (see A subpath), its page and the table in `apps/docs/content/docs/blocks/index.mdx` |

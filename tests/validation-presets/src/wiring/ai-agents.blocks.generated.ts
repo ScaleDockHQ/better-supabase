@@ -23,7 +23,7 @@ import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  access: {
+  permissions: {
     schema: "better_supabase",
     options: {},
   },
@@ -31,7 +31,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "ai-tasks": {
+  "ai-schedules": {
     schema: "better_supabase",
     options: {},
   },
@@ -101,7 +101,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  tenant: {
+  memberships: {
     schema: "better_supabase",
     options: {},
   },
@@ -127,7 +127,7 @@ export const permissions = {
     publish: "ai.share",
     moderate: "ai.moderate",
   },
-  "ai-tasks": {
+  "ai-schedules": {
     create: "ai.create",
     manage: "ai.admin",
   },
@@ -208,7 +208,7 @@ export const permissions = {
  */
 export type PermissionKey = "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "workflow.admin" | "workflow.read" | "workflow.run";
 
-/** The roles `blocks.access.roles` defines. @public */
+/** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */

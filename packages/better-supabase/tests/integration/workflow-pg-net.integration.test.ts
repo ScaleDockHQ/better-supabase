@@ -12,7 +12,7 @@ import type { SupabaseWorld } from "../../src/workflow-sdk/world/index.ts";
 import {
   WORKFLOW_DELIVERY_QUEUE,
   WORKFLOW_VAULT_SECRETS,
-} from "../../src/sql/modules/workflow-sdk-world.ts";
+} from "../../src/sql/modules/workflow-sdk.ts";
 import { createSupabaseWorld } from "../../src/workflow-sdk/world/index.ts";
 import { dbUrl, reachable } from "./block-session.ts";
 import { installWorld } from "./workflow-world.ts";

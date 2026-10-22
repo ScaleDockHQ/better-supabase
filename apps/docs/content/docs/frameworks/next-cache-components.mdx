@@ -209,7 +209,7 @@ and enforce it in the database with an `authorize(permission)` RLS helper.
 | Your code or an authorization library | Mapping roles to permissions                            |
 
 The hook, the schema and your policies read the same claims, so agree on
-one shape. For multi-tenant apps, use the one the `tenant` block module
+one shape. For multi-tenant apps, use the one the `memberships` block module
 emits:
 
 ```ts
@@ -227,7 +227,7 @@ const Claims = v.looseObject({
     ),
     [],
   ),
-  /** The active tenant; the `tenant` plugin and RLS read it. */
+  /** The active tenant; the `memberships` plugin and RLS read it. */
   tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
   /** Plan features per tenant, e.g. `{ [tenantId]: ['exports'] }`. */
   features: v.optional(v.record(v.string(), v.array(v.string())), {}),

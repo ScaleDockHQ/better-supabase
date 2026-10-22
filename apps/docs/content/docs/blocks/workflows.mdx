@@ -28,7 +28,7 @@ better-supabase add workflows   # adds tenant and access as well
 | `workflow.run`   | members start runs, for helpers such as `protectWebHandler` | none by default |
 | `workflow.admin` | members cancel any run of the tenant and manage schedules   | none by default |
 
-Grant the keys to your roles in `blocks.access.roles`. A user always
+Grant the keys to your roles in `blocks.permissions.roles`. A user always
 reads the runs they started, without a permission.
 
 A run's status is `queued`, `running`, `waiting`, `completed`, `failed` or
@@ -55,7 +55,7 @@ so a schedule's creator or an event's actor sees the run they caused, while
 the steps run as the publisher. `run.principal` returns both.
 
 `mode` is `live` or `test`. Test runs come from the
-[workflow builder's](/docs/blocks/workflow-builder#test-runs) test button:
+[workflow builder's](/docs/blocks/workflow-editor#test-runs) test button:
 they emit no outbox events and fire no alerts, and `runs.list` leaves them
 out unless you pass `mode: "test"` or `mode: "all"`. `trigger_node` names
 the trigger node a run of a graph with several started at.
@@ -221,7 +221,7 @@ export function Component(props: { organizationId: string }) {
 ## Schedules
 
 Workflow schedules sit between job schedules and per-user AI tasks; see
-[three scheduling layers](/docs/blocks/jobs#three-scheduling-layers).
+[three scheduling layers](/docs/blocks/queue#three-scheduling-layers).
 
 ```ts title="app/api/cron/workflows/route.ts"
 import {

@@ -261,8 +261,8 @@ export interface AgentEventData {
 }
 
 /**
- * `ai_provider_key.*`, from the ai-providers module. Only the credential
- * reference is stored.
+ * `ai_provider_key.*`, from the ai-keys module. Only the credential reference
+ * is stored.
  */
 export interface AiProviderKeyEventData {
   readonly organizationId: string;
@@ -331,8 +331,8 @@ export interface WorkflowRunEventData {
 }
 
 /**
- * `workflow.published` and `workflow_alert.triggered`, from the
- * workflow-builder module.
+ * `workflow.published` and `workflow_alert.triggered`, from the workflow-editor
+ * module.
  */
 export interface WorkflowEventData {
   readonly organizationId?: string | null;

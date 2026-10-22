@@ -12,7 +12,11 @@ describe("notification permission audiences", () => {
   });
 
   it("asks can_user for each member when the roles model has a tenant", () => {
-    const withTenant = renderBlocks(["access", "tenant", "notifications"])
+    const withTenant = renderBlocks([
+      "permissions",
+      "memberships",
+      "notifications",
+    ])
       .map((file) => file.contents)
       .join("\n");
 
