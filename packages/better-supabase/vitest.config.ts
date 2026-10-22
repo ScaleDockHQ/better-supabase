@@ -44,10 +44,10 @@ export default defineConfig({
       // Lines sit below statements because curly puts every if body on its
       // own line.
       thresholds: {
-        statements: 97,
-        lines: 97,
+        statements: 99,
+        lines: 99,
         functions: 98,
-        branches: 91,
+        branches: 94,
         "src/cli/**": {
           statements: 97,
           lines: 97,

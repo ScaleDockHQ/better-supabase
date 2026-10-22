@@ -8,6 +8,10 @@ import type {
 import type { Job } from "../../../src/blocks/jobs/types.ts";
 
 import { createEngagements } from "../../../src/blocks/engagements/index.ts";
+import {
+  recordingOf,
+  segmentOf,
+} from "../../../src/blocks/engagements/recordings.ts";
 import { DbException } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
@@ -440,6 +444,20 @@ describe("engagement recordings", () => {
       .orThrow();
 
     expect(done).toBe(0);
+  });
+});
+
+describe("recording rows", () => {
+  it("reads missing counts and offsets as zero", () => {
+    const { segmentCount: _count, ...rest } = RECORDING;
+
+    expect(recordingOf(rest).segmentCount).toBe(0);
+    expect(segmentOf({ text: "Hi" })).toEqual({
+      position: 0,
+      startMs: 0,
+      endMs: 0,
+      text: "Hi",
+    });
   });
 });
 
