@@ -43,6 +43,7 @@ import type {
 } from "./jobs/options.ts";
 import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
+import type { MailSyncSqlOptions } from "./mail-sync/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
 import type { MessagingSqlOptions } from "./messaging/options.ts";
 import type { MetricsSqlOptions } from "./metrics/options.ts";
@@ -148,6 +149,7 @@ import {
 } from "./jobs/options.ts";
 import { knowledgeSqlOptions } from "./knowledge/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
+import { mailSyncSqlOptions } from "./mail-sync/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
 import { messagingSqlOptions } from "./messaging/options.ts";
 import { metricsSqlOptions } from "./metrics/options.ts";
@@ -270,6 +272,7 @@ export interface BlockOptionsRegistry {
   readonly memory: MemorySqlOptions;
   readonly messaging: MessagingSqlOptions;
   readonly channels: None;
+  readonly "mail-sync": MailSyncSqlOptions;
   readonly activity: None;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
@@ -392,6 +395,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   leave: leaveSqlOptions,
   memory: memorySqlOptions,
   channels: NO_OPTIONS,
+  "mail-sync": mailSyncSqlOptions,
   activity: NO_OPTIONS,
   messaging: messagingSqlOptions,
   metrics: metricsSqlOptions,

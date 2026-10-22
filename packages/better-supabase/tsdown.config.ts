@@ -171,6 +171,7 @@ const entries = [
   "blocks/parties/index",
   "blocks/collections/index",
   "blocks/engagements/index",
+  "blocks/mail-sync/index",
   "blocks/deals/index",
   "blocks/work-items/index",
   "blocks/quotes/index",

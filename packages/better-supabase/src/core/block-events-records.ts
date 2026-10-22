@@ -24,6 +24,32 @@ export interface EngagementEventData extends SubjectEventData {
   readonly subjects: readonly { readonly type: string; readonly id: string }[];
 }
 
+/** `mail_account.connected` and `mail_account.disconnected`: a synced mailbox. */
+export interface MailAccountEventData {
+  readonly organizationId: string;
+  readonly accountId: string;
+  /** The member whose mailbox it is. */
+  readonly userId: string;
+  /** `gmail`, `outlook` or a custom provider name. */
+  readonly provider: string;
+  readonly address: string;
+}
+
+/**
+ * `mail_message.received` and `mail_message.sent`: a message stored on a
+ * thread. `subjects` lists the records the thread is linked to.
+ */
+export interface MailMessageEventData {
+  readonly organizationId: string;
+  readonly accountId: string;
+  readonly userId: string;
+  readonly threadId: string;
+  readonly messageId: string;
+  readonly direction: "inbound" | "outbound";
+  readonly fromAddress: string | null;
+  readonly subjects: readonly { readonly type: string; readonly id: string }[];
+}
+
 /** `collection.created` and `collection.archived`: a list of one subject type. */
 export interface CollectionEventData {
   readonly organizationId: string;

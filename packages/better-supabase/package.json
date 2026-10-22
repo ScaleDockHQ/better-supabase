@@ -767,6 +767,11 @@
       "types": "./dist/blocks/channels/index.d.ts",
       "default": "./dist/blocks/channels/index.js"
     },
+    "./blocks/mail-sync": {
+      "@better-supabase/source": "./src/blocks/mail-sync/index.ts",
+      "types": "./dist/blocks/mail-sync/index.d.ts",
+      "default": "./dist/blocks/mail-sync/index.js"
+    },
     "./blocks/messaging": {
       "@better-supabase/source": "./src/blocks/messaging/index.ts",
       "types": "./dist/blocks/messaging/index.d.ts",
@@ -2178,6 +2183,10 @@
       "./blocks/channels": {
         "types": "./dist/blocks/channels/index.d.ts",
         "default": "./dist/blocks/channels/index.js"
+      },
+      "./blocks/mail-sync": {
+        "types": "./dist/blocks/mail-sync/index.d.ts",
+        "default": "./dist/blocks/mail-sync/index.js"
       },
       "./blocks/messaging": {
         "types": "./dist/blocks/messaging/index.d.ts",

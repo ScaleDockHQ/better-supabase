@@ -25,6 +25,7 @@ import { importsBlock } from "better-supabase/blocks/imports";
 import { inboxBlock } from "better-supabase/blocks/inbox";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
 import { invoicesBlock } from "better-supabase/blocks/invoices";
+import { mailSyncBlock } from "better-supabase/blocks/mail-sync";
 import { messagingBlock } from "better-supabase/blocks/messaging";
 import { createMetrics, metricsBlock } from "better-supabase/blocks/metrics";
 import {
@@ -117,6 +118,7 @@ const blockSet = defineBlocks(blockConfig, {
   deals: dealsBlock,
   pipelines: pipelinesBlock,
   engagements: engagementsBlock,
+  mailSync: mailSyncBlock,
   quotes: quotesBlock,
   targets: targetsBlock,
   workItems: workItemsBlock,

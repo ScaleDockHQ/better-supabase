@@ -861,6 +861,8 @@ export type {
   EngagementEventData,
   InvoiceEventData,
   JobEventData,
+  MailAccountEventData,
+  MailMessageEventData,
   MessageEventData,
   PartyEventData,
   PipelineEventData,

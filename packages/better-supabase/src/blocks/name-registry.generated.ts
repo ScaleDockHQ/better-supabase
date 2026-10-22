@@ -630,6 +630,23 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "mail-sync": {
+    readonly tables: {
+      readonly "accounts": "id" | "tenant" | "user" | "provider" | "address" | "credentialRef" | "share" | "status" | "cursor" | "lastSyncedAt" | "lastError" | "createdAt" | "updatedAt";
+      readonly "threads": "id" | "tenant" | "account" | "externalId" | "subject" | "snippet" | "lastMessageAt" | "messageCount" | "engagement" | "createdAt" | "updatedAt";
+      readonly "messages": "id" | "tenant" | "account" | "thread" | "externalId" | "rfcId" | "direction" | "fromAddress" | "fromName" | "to" | "cc" | "subject" | "snippet" | "bodyText" | "bodyHtml" | "sentAt" | "createdAt";
+      readonly "links": "tenant" | "thread" | "subjectType" | "subjectId" | "source" | "createdAt";
+    };
+    readonly functions: "connect_mail_account" | "disconnect_mail_account" | "due_mail_accounts" | "get_mail_account" | "get_mail_thread" | "ingest_mail" | "link_mail_thread" | "list_mail_threads" | "mail_accounts_of" | "mail_thread_visible" | "mail_threads_of" | "record_sent_mail" | "set_mail_account_status" | "store_mail_message" | "unlink_mail_thread" | "update_mail_account";
+    readonly actions: "read" | "connect" | "send" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "mail_thread": "id" | "tenant_id" | "account_id" | "external_id" | "subject" | "snippet" | "last_message_at" | "message_count" | "engagement_id" | "created_at" | "updated_at";
+      readonly "mail_account": "id" | "tenant_id" | "user_id" | "provider" | "address" | "credential_ref" | "share" | "status" | "sync_cursor" | "last_synced_at" | "last_error" | "created_at" | "updated_at";
+      readonly "mail_message": "id" | "tenant_id" | "account_id" | "thread_id" | "external_id" | "rfc_message_id" | "direction" | "from_address" | "from_name" | "to_addresses" | "cc_addresses" | "subject" | "snippet" | "body_text" | "body_html" | "sent_at" | "created_at";
+    };
+    readonly primary: "mail_thread";
+  };
   readonly "memory": {
     readonly tables: {
       readonly "memories": "id" | "tenant" | "owner" | "scope" | "agent" | "chat" | "project" | "kind" | "path" | "content" | "version" | "embedding" | "model" | "sourceMessage" | "supersededBy" | "tsv" | "createdAt" | "updatedAt";

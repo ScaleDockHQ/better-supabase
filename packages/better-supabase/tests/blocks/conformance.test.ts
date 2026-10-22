@@ -79,6 +79,8 @@ const NO_FIELDS: readonly string[] = [
   "incoming-webhooks",
   // Documents carry app data in metadata, which search filters on.
   "knowledge",
+  // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
+  "mail-sync",
   // The model writes memories through memory commands, which carry no app columns.
   "memory",
   // Points are metric samples written by the sink.

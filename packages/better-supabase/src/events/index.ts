@@ -356,6 +356,8 @@ export type {
   SlaEventData,
   WorkItemEventData,
   EngagementEventData,
+  MailAccountEventData,
+  MailMessageEventData,
   PartyEventData,
   PipelineEventData,
   PipelineStageEventData,

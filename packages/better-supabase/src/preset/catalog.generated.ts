@@ -2708,6 +2708,108 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "mail-sync",
+      "title": "Mail sync",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "parties",
+        "engagements",
+        "data-lifecycle"
+      ],
+      "manifest": "mail-sync",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "mail_thread": {
+            "table": "threads",
+            "singular": "mail_thread",
+            "primary": true
+          },
+          "mail_account": {
+            "table": "accounts",
+            "singular": "mail_account"
+          },
+          "mail_message": {
+            "table": "messages",
+            "singular": "mail_message"
+          }
+        },
+        "tables": {
+          "threads": {
+            "name": "mail_threads",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "externalId": "external_id",
+              "subject": "subject",
+              "snippet": "snippet",
+              "lastMessageAt": "last_message_at",
+              "messageCount": "message_count",
+              "engagement": "engagement_id",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "accounts": {
+            "name": "mail_accounts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "provider": "provider",
+              "address": "address",
+              "credentialRef": "credential_ref",
+              "share": "share",
+              "status": "status",
+              "cursor": "sync_cursor",
+              "lastSyncedAt": "last_synced_at",
+              "lastError": "last_error",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "messages": {
+            "name": "mail_messages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "thread": "thread_id",
+              "externalId": "external_id",
+              "rfcId": "rfc_message_id",
+              "direction": "direction",
+              "fromAddress": "from_address",
+              "fromName": "from_name",
+              "to": "to_addresses",
+              "cc": "cc_addresses",
+              "subject": "subject",
+              "snippet": "snippet",
+              "bodyText": "body_text",
+              "bodyHtml": "body_html",
+              "sentAt": "sent_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "mail.read",
+          "connect": "mail.connect",
+          "send": "mail.send",
+          "manage": "mail.manage"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -5585,6 +5687,186 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": []
+    },
+    {
+      "name": "mail-sync",
+      "sql": [
+        "mail-sync"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "mailSyncBlock",
+        "subpath": "better-supabase/blocks/mail-sync"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "MailAccount"
+        },
+        {
+          "name": "MailAccountInput"
+        },
+        {
+          "name": "MailMessage"
+        },
+        {
+          "name": "MailThread"
+        },
+        {
+          "name": "MailThreadDetail"
+        }
+      ],
+      "entitySchemas": {
+        "mail_account": {
+          "input": {
+            "title": "MailAccountInput",
+            "fields": {
+              "provider": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "address": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "credentialRef": {
+                "kind": "json",
+                "description": "The member's OAuth grant: { provider, tenant, ... }."
+              },
+              "share": {
+                "kind": "enum",
+                "values": [
+                  "records",
+                  "private"
+                ],
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MailAccountInput",
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "address": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "credentialRef": {
+                  "description": "The member's OAuth grant: { provider, tenant, ... }."
+                },
+                "share": {
+                  "type": "string",
+                  "enum": [
+                    "records",
+                    "private"
+                  ]
+                }
+              },
+              "required": [
+                "provider",
+                "address",
+                "credentialRef"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "mail_message": {
+          "input": {
+            "title": "MailDraft",
+            "fields": {
+              "to": {
+                "kind": "json",
+                "array": true,
+                "description": "The recipients: { address, name? }."
+              },
+              "cc": {
+                "kind": "json",
+                "array": true,
+                "optional": true
+              },
+              "bcc": {
+                "kind": "json",
+                "array": true,
+                "optional": true
+              },
+              "subject": {
+                "kind": "string",
+                "maxLength": 998
+              },
+              "text": {
+                "kind": "string",
+                "optional": true
+              },
+              "html": {
+                "kind": "string",
+                "optional": true
+              },
+              "threadId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MailDraft",
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The recipients: { address, name? }."
+                },
+                "cc": {
+                  "type": "array",
+                  "items": {}
+                },
+                "bcc": {
+                  "type": "array",
+                  "items": {}
+                },
+                "subject": {
+                  "type": "string",
+                  "maxLength": 998
+                },
+                "text": {
+                  "type": "string"
+                },
+                "html": {
+                  "type": "string"
+                },
+                "threadId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "to",
+                "subject"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "MailSyncEvents",
+        "types": [
+          "mail_account.connected",
+          "mail_account.disconnected",
+          "mail_message.received",
+          "mail_message.sent"
+        ]
+      }
     },
     {
       "name": "metrics",

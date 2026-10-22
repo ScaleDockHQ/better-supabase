@@ -53,6 +53,7 @@ import {
 import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
 import { knowledgeBlock } from "./knowledge/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
+import { mailSyncBlock } from "./mail-sync/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
 import { messagingBlock } from "./messaging/manifest.ts";
 import { metricsBlock } from "./metrics/manifest.ts";
@@ -175,6 +176,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   messagingBlock,
   channelsBlock,
   activityBlock,
+  mailSyncBlock,
   metricsBlock,
   mfaBlock,
   notificationsBlock,

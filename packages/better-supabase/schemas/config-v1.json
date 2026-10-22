@@ -1803,6 +1803,7 @@
               "jsonb-schemas",
               "knowledge",
               "leave",
+              "mail-sync",
               "memory",
               "messaging",
               "metrics",
@@ -2028,6 +2029,9 @@
             },
             "leave": {
               "$ref": "#/$defs/blocks/leave"
+            },
+            "mail-sync": {
+              "$ref": "#/$defs/blocks/mail-sync"
             },
             "memory": {
               "$ref": "#/$defs/blocks/memory"
@@ -4230,6 +4234,24 @@
                 "default": false
               },
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "mail-sync": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "engagementType": {
+                "type": "string"
+              },
+              "matchDomains": {
+                "type": "boolean"
+              }
             }
           }
         }

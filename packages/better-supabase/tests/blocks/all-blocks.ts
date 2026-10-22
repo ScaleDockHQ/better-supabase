@@ -52,6 +52,7 @@ import type {
 import type { jsonbSchemasBlock } from "../../src/blocks/jsonb-schemas/manifest.ts";
 import type { knowledgeBlock } from "../../src/blocks/knowledge/manifest.ts";
 import type { leaveBlock } from "../../src/blocks/leave/manifest.ts";
+import type { mailSyncBlock } from "../../src/blocks/mail-sync/manifest.ts";
 import type { memoryBlock } from "../../src/blocks/memory/manifest.ts";
 import type { messagingBlock } from "../../src/blocks/messaging/manifest.ts";
 import type { metricsBlock } from "../../src/blocks/metrics/manifest.ts";
@@ -152,6 +153,7 @@ export type AllBlocks = {
   readonly drive: typeof driveBlock;
   readonly employees: typeof employeesBlock;
   readonly engagements: typeof engagementsBlock;
+  readonly "mail-sync": typeof mailSyncBlock;
   readonly ensureRls: typeof ensureRlsBlock;
   readonly entitlements: typeof entitlementsBlock;
   readonly flags: typeof flagsBlock;
