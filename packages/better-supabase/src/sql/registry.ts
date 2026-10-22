@@ -60,6 +60,7 @@ import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
 import { LEAVE } from "./modules/leave.ts";
+import { MAIL_SYNC } from "./modules/mail-sync.ts";
 import { MEMORY } from "./modules/memory.ts";
 import { MESSAGING } from "./modules/messaging.ts";
 import { METRICS } from "./modules/metrics.ts";
@@ -313,6 +314,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(MESSAGING),
       built(CHANNELS),
       built(ACTIVITY),
+      built(MAIL_SYNC),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

@@ -69,6 +69,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "collections.*",
     "messages.*",
     "channels.*",
+    "mail.*",
     "domains.*",
     "rules.*",
     "reviews.*",
@@ -152,6 +153,9 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "messages.read",
     "messages.send",
     "channels.create",
+    "mail.read",
+    "mail.connect",
+    "mail.send",
   ],
   viewer: ["organization.read"],
 };
@@ -379,6 +383,10 @@ export const OPERATIONS = {
   "channels.read": "messages.read",
   "channels.create": "channels.create",
   "channels.manage": "channels.manage",
+  "mail-sync.read": "mail.read",
+  "mail-sync.connect": "mail.connect",
+  "mail-sync.send": "mail.send",
+  "mail-sync.manage": "mail.manage",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -584,6 +592,12 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   messaging: { read: "tenant", send: "tenant", moderate: "tenant" },
   channels: { read: "tenant", create: "tenant", manage: "tenant" },
+  "mail-sync": {
+    read: "tenant",
+    connect: "tenant",
+    send: "tenant",
+    manage: "tenant",
+  },
 };
 
 export function accessModel(ctx: ModuleContext): AccessModel {
