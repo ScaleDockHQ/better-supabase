@@ -73,12 +73,13 @@ describe("createPosts", () => {
     const posts = createPosts({ transport, tenant: "org" });
 
     const board = await posts
+      // SAFETY: an undefined key on purpose, to check that it is left out.
       .saveBoard({
         key: "ideas",
         name: "Ideas",
         kind: "feedback",
         description: undefined,
-      })
+      } as never)
       .orThrow();
 
     expect(board).toMatchObject({

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { MailMessage } from "../../../src/blocks/mail-sync/mail-sync.ts";
+import type {
+  MailMessage,
+  MailSendDraft,
+} from "../../../src/blocks/mail-sync/mail-sync.ts";
 
 import {
   createSequences,
@@ -105,7 +108,12 @@ describe("createSequences", () => {
     const sequences = createSequences({ transport, tenant: "org" });
 
     const saved = await sequences
-      .save({ key: "welcome", name: "Welcome", description: undefined })
+      // SAFETY: an undefined key on purpose, to check that it is left out.
+      .save({
+        key: "welcome",
+        name: "Welcome",
+        description: undefined,
+      } as never)
       .orThrow();
 
     expect(saved).toMatchObject({
@@ -295,7 +303,7 @@ describe("createSequences", () => {
       sequence_step_failed: true,
     });
 
-    const send = vi.fn((_account: string, draft: { to: unknown[] }) =>
+    const send = vi.fn((_account: string, draft: MailSendDraft) =>
       JSON.stringify(draft.to).includes("b@x.test")
         ? AsyncResult.err<MailMessage>(dbError("network", "down"))
         : AsyncResult.ok(message),
