@@ -475,6 +475,32 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "kitchen-display",
+    title: "Kitchen display",
+    blocks: ["orders"],
+    kind: "screen",
+    description:
+      "Open tickets per kitchen station, each line moved from queued to served, refreshed over Realtime.",
+    web: {
+      file: `${WEB_APP}/src/features/shop/components/kitchen-display.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
+  {
+    slug: "order-state-board",
+    title: "Order state board",
+    blocks: ["orders"],
+    kind: "component",
+    description:
+      "Today's kitchen orders in preparation-state columns; dragging an order forward moves all of its lines.",
+    web: {
+      file: `${WEB_APP}/src/features/shop/components/order-state-board.tsx`,
+      components: ["badge", "card", "@reui/kanban"],
+      glue: [],
+    },
+  },
+  {
     slug: "promotion-code-field",
     title: "Promotion code field",
     blocks: ["promotions"],

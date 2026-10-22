@@ -399,7 +399,8 @@ export default defineConfig({
     invoices: {},
     catalog: { entities: { product: { url: "/shop" } } },
     inventory: {},
-    orders: {},
+    // The kitchen display and order board under /shop/kitchen.
+    orders: { options: { kitchen: true } },
     promotions: {},
     calendar: {},
     bookings: {},

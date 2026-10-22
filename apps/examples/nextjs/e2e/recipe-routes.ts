@@ -174,6 +174,8 @@ export const RECIPE_ROUTES: readonly RecipeRoute[] = [
   { slug: "inventory-table", path: "/en/shop/inventory" },
   { slug: "order-detail", path: "/en/shop", prepare: createDraftOrder },
   { slug: "promotion-code-field", path: "/en/shop", prepare: createDraftOrder },
+  { slug: "kitchen-display", path: "/en/shop/kitchen" },
+  { slug: "order-state-board", path: "/en/shop/kitchen/board" },
   { slug: "drive-explorer", path: "/en/drive" },
   {
     slug: "grants-editor",

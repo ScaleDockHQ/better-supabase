@@ -15,5 +15,5 @@ export const ordersBlock: BlockOf<"orders", typeof createOrders, OrdersEvents> =
     events: ordersEvents,
     create: createOrders,
     category: "commerce",
-    recipes: ["order-detail"],
+    recipes: ["order-detail", "kitchen-display", "order-state-board"],
   });

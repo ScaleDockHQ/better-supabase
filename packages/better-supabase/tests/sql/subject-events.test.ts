@@ -105,6 +105,8 @@ const SUBJECT_EVENTS = [
   "fulfillment.delivered",
   "return.requested",
   "return.received",
+  "order.prepared",
+  "order.served",
   "form_submission.submitted",
   "form_submission.reviewed",
   "form_submission.deleted",
