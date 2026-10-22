@@ -86,6 +86,18 @@ export const loadThread = bs.action(
   },
 );
 
+/** One message, for the Realtime ping that names it. */
+export const loadMessage = bs.action(
+  { input: v.object({ messageId: Id }) },
+  async ({ messageId }, { supabase }) => {
+    const message = await blocks(supabase).inbox.messages.get(messageId);
+
+    return message.ok
+      ? ok(message.data === null ? null : toMessageRow(message.data))
+      : message;
+  },
+);
+
 /** A reply to the contact, or with `note` an internal note only staff see. */
 export const reply = bs.action(
   { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },

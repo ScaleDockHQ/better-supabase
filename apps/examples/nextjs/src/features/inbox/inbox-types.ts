@@ -74,10 +74,10 @@ export function toMessageRow(message: InboxMessage): MessageRow {
     id: message.id,
     kind: message.kind,
     authorType: message.authorType,
-    authorId: message.authorId,
+    authorId: message.authorId ?? null,
     body: message.body,
     createdAt: message.createdAt.toString(),
-    deleted: message.deletedAt !== null,
+    deleted: message.deletedAt !== undefined,
     delivery: message.delivery?.status ?? null,
   };
 }

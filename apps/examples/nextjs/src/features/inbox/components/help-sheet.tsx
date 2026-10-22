@@ -20,7 +20,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
-import { askForHelp, loadThread, sendHelp } from "../inbox-actions";
+import {
+  askForHelp,
+  loadMessage,
+  loadThread,
+  sendHelp,
+} from "../inbox-actions";
 import { unwrap } from "../inbox-load";
 
 const TYPING_EVERY_MS = 2000;
@@ -75,6 +80,7 @@ function HelpChat() {
     },
     load: async (conversationId) =>
       unwrap(await loadThread({ conversationId })).messages,
+    get: async (messageId) => unwrap(await loadMessage({ messageId })),
   });
 
   const messages = widget.items ?? [];

@@ -11,6 +11,7 @@ import {
   UserRoundIcon,
 } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -20,9 +21,15 @@ import { useAuth } from "@/lib/hooks";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 
-import type { MessageRow } from "../inbox-types";
+import type { ConversationRow, MessageRow } from "../inbox-types";
 
-import { assign, loadThread, setStatus, takeOver } from "../inbox-actions";
+import {
+  assign,
+  loadMessage,
+  loadThread,
+  setStatus,
+  takeOver,
+} from "../inbox-actions";
 import { unwrap } from "../inbox-load";
 import { Composer } from "./composer";
 
@@ -36,23 +43,33 @@ export function ConversationPanel({
   const errorMessage = useErrorMessage();
   const userId = useAuth().user?.id ?? null;
 
+  // A full load also brings the header; a ping fetches only its message.
+  const [conversation, setConversation] = useState<ConversationRow | null>();
+
   const thread = useConversation({
     conversationId,
-    load: async () => [unwrap(await loadThread({ conversationId }))],
-  });
+    load: async () => {
+      const loaded = unwrap(await loadThread({ conversationId }));
+      setConversation(loaded.conversation);
 
-  const loaded = thread.items?.[0];
-  const conversation = loaded?.conversation ?? null;
+      return loaded.messages;
+    },
+    get: async (messageId) => unwrap(await loadMessage({ messageId })),
+  });
 
   const onError = (error: Parameters<typeof errorMessage>[0]) => {
     toast.error(errorMessage(error));
   };
 
-  const assignAction = useAction(assign, { onError });
-  const mode = useAction(takeOver, { onError });
-  const status = useAction(setStatus, { onError });
+  const onSuccess = () => {
+    void thread.refresh();
+  };
 
-  if (loaded === undefined) {
+  const assignAction = useAction(assign, { onError, onSuccess });
+  const mode = useAction(takeOver, { onError, onSuccess });
+  const status = useAction(setStatus, { onError, onSuccess });
+
+  if (thread.items === undefined || conversation === undefined) {
     return (
       <div className="space-y-2 rounded-xl border p-4" aria-busy="true">
         {Array.from({ length: 4 }, (_, index) => (
@@ -143,7 +160,7 @@ export function ConversationPanel({
         </Button>
       </header>
       <ol className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {loaded.messages.map((message) => {
+        {thread.items.map((message) => {
           const outbound = message.authorType !== "contact";
 
           return (
