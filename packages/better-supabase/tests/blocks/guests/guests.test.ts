@@ -399,7 +399,7 @@ describe("guest schemas", () => {
 
   it("are the manifest's entity inputs", () => {
     expect(guestsBlock.name).toBe("guests");
-    expect(guestsBlock.schemas.guest?.input).toBe(guestInviteSchema);
-    expect(guestsBlock.schemas.guest_grant?.input).toBe(guestGrantSchema);
+    expect(guestsBlock.schemas["guest"]?.input).toBe(guestInviteSchema);
+    expect(guestsBlock.schemas["guest_grant"]?.input).toBe(guestGrantSchema);
   });
 });
