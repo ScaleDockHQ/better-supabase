@@ -7,7 +7,8 @@
 -- existing tags, keep their own API keys,
 -- read the settings, answer inbox conversations and use the assistant.
 -- Members also read every recipe block and do the everyday writes (react,
--- upload, track time, request approval, report content); managing a block
+-- upload, track time, request approval, report content, file maintenance
+-- requests, submit expense reports); managing a block
 -- is for admins.
 -- Assigning conversations and managing inboxes is for admins. There are no
 -- platform roles, and nobody is disabled.
@@ -88,7 +89,7 @@ as $$
       'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read',
       'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'hiring.read',
       'employees.read', 'rules.read', 'assets.read', 'scores.read',
-      'moderation.report', 'enrollments.read'
+      'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit'
     ]
     else array[]::text[]
   end

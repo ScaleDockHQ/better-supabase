@@ -112,6 +112,9 @@
     "passes",
     "billable-time",
     "dispatch",
-    "shipments"
+    "shipments",
+    "leases",
+    "expenses",
+    "donations"
   ]
 }

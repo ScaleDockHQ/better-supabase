@@ -27,10 +27,12 @@ import type { DealsSqlOptions } from "./deals/options.ts";
 import type { DispatchSqlOptions } from "./dispatch/options.ts";
 import type { DocumentsSqlOptions } from "./documents/options.ts";
 import type { DomainsSqlOptions } from "./domains/options.ts";
+import type { DonationsSqlOptions } from "./donations/options.ts";
 import type { DriveSqlOptions } from "./drive/options.ts";
 import type { EmployeesSqlOptions } from "./employees/options.ts";
 import type { EngagementsSqlOptions } from "./engagements/options.ts";
 import type { EnrollmentsSqlOptions } from "./enrollments/options.ts";
+import type { ExpensesSqlOptions } from "./expenses/options.ts";
 import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions, SignaturesSqlOptions } from "./forms/options.ts";
 import type { GrantsSqlOptions } from "./grants/options.ts";
@@ -45,6 +47,7 @@ import type {
   WebhookInboxSqlOptions,
 } from "./jobs/options.ts";
 import type { KnowledgeSqlOptions } from "./knowledge/options.ts";
+import type { LeasesSqlOptions } from "./leases/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
 import type { MetricsSqlOptions } from "./metrics/options.ts";
@@ -137,10 +140,12 @@ import { dealsSqlOptions } from "./deals/options.ts";
 import { dispatchSqlOptions } from "./dispatch/options.ts";
 import { documentsSqlOptions } from "./documents/options.ts";
 import { domainsSqlOptions } from "./domains/options.ts";
+import { donationsSqlOptions } from "./donations/options.ts";
 import { driveSqlOptions } from "./drive/options.ts";
 import { employeesSqlOptions } from "./employees/options.ts";
 import { engagementsSqlOptions } from "./engagements/options.ts";
 import { enrollmentsSqlOptions } from "./enrollments/options.ts";
+import { expensesSqlOptions } from "./expenses/options.ts";
 import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions, signaturesSqlOptions } from "./forms/options.ts";
 import { grantsSqlOptions } from "./grants/options.ts";
@@ -155,6 +160,7 @@ import {
   webhookInboxSqlOptions,
 } from "./jobs/options.ts";
 import { knowledgeSqlOptions } from "./knowledge/options.ts";
+import { leasesSqlOptions } from "./leases/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
 import { metricsSqlOptions } from "./metrics/options.ts";
@@ -292,6 +298,9 @@ export interface BlockOptionsRegistry {
   readonly parties: PartiesSqlOptions;
   readonly passes: PassesSqlOptions;
   readonly "billable-time": None;
+  readonly leases: LeasesSqlOptions;
+  readonly expenses: ExpensesSqlOptions;
+  readonly donations: DonationsSqlOptions;
   readonly dispatch: DispatchSqlOptions;
   readonly shipments: ShipmentsSqlOptions;
   readonly pgtap: None;
@@ -422,6 +431,9 @@ export const BLOCK_OPTION_SCHEMAS: {
   parties: partiesSqlOptions,
   passes: passesSqlOptions,
   "billable-time": NO_OPTIONS,
+  leases: leasesSqlOptions,
+  expenses: expensesSqlOptions,
+  donations: donationsSqlOptions,
   dispatch: dispatchSqlOptions,
   shipments: shipmentsSqlOptions,
   pgtap: NO_OPTIONS,

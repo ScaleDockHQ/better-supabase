@@ -30,12 +30,14 @@ import type { dealsBlock } from "../../src/blocks/deals/manifest.ts";
 import type { dispatchBlock } from "../../src/blocks/dispatch/manifest.ts";
 import type { documentsBlock } from "../../src/blocks/documents/manifest.ts";
 import type { domainsBlock } from "../../src/blocks/domains/manifest.ts";
+import type { donationsBlock } from "../../src/blocks/donations/manifest.ts";
 import type { driveBlock } from "../../src/blocks/drive/manifest.ts";
 import type { employeesBlock } from "../../src/blocks/employees/manifest.ts";
 import type { engagementsBlock } from "../../src/blocks/engagements/manifest.ts";
 import type { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
 import type { ensureRlsBlock } from "../../src/blocks/ensure-rls/manifest.ts";
 import type { entitlementsBlock } from "../../src/blocks/entitlements/manifest.ts";
+import type { expensesBlock } from "../../src/blocks/expenses/manifest.ts";
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
 import type {
   formsBlock,
@@ -57,6 +59,7 @@ import type {
 } from "../../src/blocks/jobs/manifest.ts";
 import type { jsonbSchemasBlock } from "../../src/blocks/jsonb-schemas/manifest.ts";
 import type { knowledgeBlock } from "../../src/blocks/knowledge/manifest.ts";
+import type { leasesBlock } from "../../src/blocks/leases/manifest.ts";
 import type { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import type { ledgerBlock } from "../../src/blocks/ledger/manifest.ts";
 import type { memoryBlock } from "../../src/blocks/memory/manifest.ts";
@@ -178,6 +181,9 @@ export type AllBlocks = {
   readonly guests: typeof guestsBlock;
   readonly passes: typeof passesBlock;
   readonly "billable-time": typeof billableTimeBlock;
+  readonly leases: typeof leasesBlock;
+  readonly expenses: typeof expensesBlock;
+  readonly donations: typeof donationsBlock;
   readonly dispatch: typeof dispatchBlock;
   readonly shipments: typeof shipmentsBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;

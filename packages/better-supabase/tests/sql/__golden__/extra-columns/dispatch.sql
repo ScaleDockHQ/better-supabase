@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_120_dispatch.sql
+-- ==== schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bs-module dispatch@1 managed
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
@@ -758,7 +758,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_120_dispatch.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bs-module-data dispatch
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

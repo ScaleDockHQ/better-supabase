@@ -44,6 +44,9 @@ export const TIMESHEET_SUBJECT = "timesheet";
 /** Requests the leave module files; their subject is a leave request. */
 export const LEAVE_REQUEST_SUBJECT = "leave_request";
 
+/** Reports the expenses module submits; their subject is an expense report. */
+export const EXPENSE_REPORT_SUBJECT = "expense_report";
+
 /**
  * Tool calls the ai-chat module files; their subject is its approval row,
  * action `run`.
@@ -181,10 +184,16 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       ? ctx.of("leave")
       : undefined;
 
+  const expenses =
+    ctx.installed("expenses") && ctx.of("expenses").mode !== "custom"
+      ? ctx.of("expenses")
+      : undefined;
+
   const own = [
     ACCESS_REQUEST_SUBJECT,
     ...(timesheets === undefined ? [] : [TIMESHEET_SUBJECT]),
     ...(leave === undefined ? [] : [LEAVE_REQUEST_SUBJECT]),
+    ...(expenses === undefined ? [] : [EXPENSE_REPORT_SUBJECT]),
   ];
 
   const ownSubjects = own.map((type) => sqlString(type)).join(", ");
@@ -348,6 +357,14 @@ ${queues
       : `
   if v_req.${c("subjectType")} = ${sqlString(LEAVE_REQUEST_SUBJECT)} then
     perform ${leave.fn("approve_leave_request")}(v_req.${c("subjectId")}::uuid);
+  end if;`;
+
+  const expensesRun =
+    expenses === undefined
+      ? ""
+      : `
+  if v_req.${c("subjectType")} = ${sqlString(EXPENSE_REPORT_SUBJECT)} then
+    perform ${expenses.fn("approve_expense_report")}(v_req.${c("subjectId")}::uuid);
   end if;`;
 
   const lastComment = `(select x.${d("comment")} from ${decisions} x where x.${d("request")} = v_req.${c("id")} order by x.${d("createdAt")} desc, x.${d("id")} desc limit 1)`;
@@ -607,7 +624,7 @@ declare
   v_run jsonb;
 begin
   select * into v_req from ${requests} r where r.${c("id")} = approval_finalize.request_id;
-  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}${leaveRun}${aiRun}${supportRun}
+  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}${leaveRun}${expensesRun}${aiRun}${supportRun}
   ${record("approval.approved", "v_req", true)}
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'approved');
 end;
@@ -1048,6 +1065,7 @@ export const APPROVALS: ModuleDefinition = {
     "access-requests",
     "time-tracking",
     "leave",
+    "expenses",
     "ai-chat",
     "support-sessions",
   ],

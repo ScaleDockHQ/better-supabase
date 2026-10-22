@@ -125,6 +125,9 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "guests",
   "passes",
   "billable-time",
+  "leases",
+  "expenses",
+  "donations",
   "dispatch",
   "shipments",
 ];

@@ -31,12 +31,14 @@ import { dealsBlock } from "./deals/manifest.ts";
 import { dispatchBlock } from "./dispatch/manifest.ts";
 import { documentsBlock } from "./documents/manifest.ts";
 import { domainsBlock } from "./domains/manifest.ts";
+import { donationsBlock } from "./donations/manifest.ts";
 import { driveBlock } from "./drive/manifest.ts";
 import { employeesBlock } from "./employees/manifest.ts";
 import { engagementsBlock } from "./engagements/manifest.ts";
 import { enrollmentsBlock } from "./enrollments/manifest.ts";
 import { ensureRlsBlock } from "./ensure-rls/manifest.ts";
 import { entitlementsBlock } from "./entitlements/manifest.ts";
+import { expensesBlock } from "./expenses/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
 import { formsBlock, signaturesBlock } from "./forms/manifest.ts";
 import { grantsBlock } from "./grants/manifest.ts";
@@ -55,6 +57,7 @@ import {
 } from "./jobs/manifest.ts";
 import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
 import { knowledgeBlock } from "./knowledge/manifest.ts";
+import { leasesBlock } from "./leases/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
 import { ledgerBlock } from "./ledger/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
@@ -164,6 +167,9 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   guestsBlock,
   passesBlock,
   billableTimeBlock,
+  leasesBlock,
+  expensesBlock,
+  donationsBlock,
   dispatchBlock,
   shipmentsBlock,
   driveBlock,

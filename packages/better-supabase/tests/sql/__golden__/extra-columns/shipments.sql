@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_121_shipments.sql
+-- ==== schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bs-module shipments@1 managed
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
@@ -515,7 +515,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_121_shipments.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bs-module-data shipments
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

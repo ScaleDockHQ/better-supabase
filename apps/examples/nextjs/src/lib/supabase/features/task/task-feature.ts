@@ -7,8 +7,10 @@ import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
 import { dispatchBlock } from "better-supabase/blocks/dispatch";
+import { donationsBlock } from "better-supabase/blocks/donations";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { guestsBlock } from "better-supabase/blocks/guests";
+import { leasesBlock } from "better-supabase/blocks/leases";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { moderationBlock } from "better-supabase/blocks/moderation";
 import { passesBlock } from "better-supabase/blocks/passes";
@@ -38,6 +40,8 @@ export const taskFeature = defineRecordFeature({
     guests: guestsBlock,
     passes: passesBlock,
     billableTime: billableTimeBlock,
+    leases: leasesBlock,
+    donations: donationsBlock,
     dispatch: dispatchBlock,
     shipments: shipmentsBlock,
     relations: relationsBlock,

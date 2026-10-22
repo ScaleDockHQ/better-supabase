@@ -1792,6 +1792,7 @@
               "dispatch",
               "documents",
               "domains",
+              "donations",
               "drive",
               "drive-files",
               "employees",
@@ -1799,6 +1800,7 @@
               "enrollments",
               "ensure-rls",
               "entitlements",
+              "expenses",
               "flags",
               "forms",
               "grants",
@@ -1814,6 +1816,7 @@
               "jobs",
               "jsonb-schemas",
               "knowledge",
+              "leases",
               "leave",
               "ledger",
               "memory",
@@ -1985,6 +1988,9 @@
             "domains": {
               "$ref": "#/$defs/blocks/domains"
             },
+            "donations": {
+              "$ref": "#/$defs/blocks/donations"
+            },
             "drive": {
               "$ref": "#/$defs/blocks/drive"
             },
@@ -2005,6 +2011,9 @@
             },
             "entitlements": {
               "$ref": "#/$defs/blocks/entitlements"
+            },
+            "expenses": {
+              "$ref": "#/$defs/blocks/expenses"
             },
             "flags": {
               "$ref": "#/$defs/blocks/flags"
@@ -2050,6 +2059,9 @@
             },
             "knowledge": {
               "$ref": "#/$defs/blocks/knowledge"
+            },
+            "leases": {
+              "$ref": "#/$defs/blocks/leases"
             },
             "leave": {
               "$ref": "#/$defs/blocks/leave"
@@ -3902,6 +3914,19 @@
           }
         }
       },
+      "donations": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
       "drive": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4017,6 +4042,19 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "expenses": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -4309,6 +4347,19 @@
                 "type": "string",
                 "default": "knowledge_embed"
               }
+            }
+          }
+        }
+      },
+      "leases": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }

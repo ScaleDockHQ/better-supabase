@@ -190,6 +190,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0074: billable time prices entries from a rate card; billed entries lock until the invoice is voided.
 - 0076: one moderation item per subject; reviews and comments moderate through `moderation` (breaking).
 - 0077: `enrollments` tracks subjects through programs of steps; onboarding checklists run on it (breaking).
+- 0080: balances live only on the ledger; rent and pledges post once per period, keyed by owner and period start.
 
 ## Pre-release pins
 
