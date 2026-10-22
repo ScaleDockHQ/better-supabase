@@ -124372,8 +124372,8 @@
           {
             "name": "asset_locations_parent_idx",
             "columns": [
-              "tenant_id",
-              "parent_id"
+              "parent_id",
+              "tenant_id"
             ],
             "unique": false,
             "primary": false,
@@ -124577,8 +124577,8 @@
           {
             "name": "assets_location_idx",
             "columns": [
-              "tenant_id",
-              "location_id"
+              "location_id",
+              "tenant_id"
             ],
             "unique": false,
             "primary": false,
@@ -133946,13 +133946,14 @@
           {
             "name": "ledger_holds_account_idx",
             "columns": [
-              "account_id"
+              "account_id",
+              "status"
             ],
             "unique": false,
             "primary": false,
-            "partial": true,
+            "partial": false,
             "method": "btree",
-            "predicate": "(status = 'active'::text)"
+            "predicate": null
           },
           {
             "name": "ledger_holds_expiry_idx",
@@ -133975,6 +133976,17 @@
             "partial": false,
             "method": "btree",
             "predicate": null
+          },
+          {
+            "name": "ledger_holds_transaction_idx",
+            "columns": [
+              "transaction_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": true,
+            "method": "btree",
+            "predicate": "(transaction_id IS NOT NULL)"
           }
         ],
         "policies": [

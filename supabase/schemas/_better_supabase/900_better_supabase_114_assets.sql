@@ -62,7 +62,7 @@ create table if not exists "better_supabase"."asset_locations" (
   unique ("tenant_id", "code"),
   check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("tenant_id", "parent_id");
+create index if not exists "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "tenant_id");
 create index if not exists "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
 create index if not exists "asset_locations_point_idx" on "better_supabase"."asset_locations" using gist (point);
 create index if not exists "asset_locations_area_idx" on "better_supabase"."asset_locations" using gist (area);
@@ -93,7 +93,7 @@ create table if not exists "better_supabase"."assets" (
   check (("assignee_type" is null) = ("assignee_id" is null)),
   check (("latitude" is null) = ("longitude" is null))
 );
-create index if not exists "assets_location_idx" on "better_supabase"."assets" ("tenant_id", "location_id");
+create index if not exists "assets_location_idx" on "better_supabase"."assets" ("location_id", "tenant_id");
 create index if not exists "assets_assignee_idx" on "better_supabase"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
 create index if not exists "assets_kind_idx" on "better_supabase"."assets" ("tenant_id", "kind", "status");
 create index if not exists "assets_coordinates_idx" on "better_supabase"."assets" ("tenant_id", "latitude", "longitude") where "latitude" is not null;

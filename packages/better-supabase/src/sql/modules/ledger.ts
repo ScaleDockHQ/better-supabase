@@ -279,7 +279,8 @@ create table if not exists ${holds} (
   ${h("createdAt")} timestamptz not null default now(),
   ${h("updatedAt")} timestamptz not null default now()
 );
-create index if not exists ${name("holds", "account_idx")} on ${holds} (${h("account")}) where ${h("status")} = 'active';
+create index if not exists ${name("holds", "account_idx")} on ${holds} (${h("account")}, ${h("status")});
+create index if not exists ${name("holds", "transaction_idx")} on ${holds} (${h("transaction")}) where ${h("transaction")} is not null;
 create index if not exists ${name("holds", "expiry_idx")} on ${holds} (${h("expiresAt")}) where ${h("status")} = 'active' and ${h("expiresAt")} is not null;
 `;
 }

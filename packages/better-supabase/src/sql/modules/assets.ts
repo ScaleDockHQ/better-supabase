@@ -201,7 +201,7 @@ create index if not exists ${sqlIdent(`${ctx.of("work-items").tableName("items")
   unique (${l("tenant")}, ${l("code")}),
   check ((${l("latitude")} is null) = (${l("longitude")} is null))
 );
-create index if not exists ${name("locations", "parent_idx")} on ${locations} (${l("tenant")}, ${l("parent")});
+create index if not exists ${name("locations", "parent_idx")} on ${locations} (${l("parent")}, ${l("tenant")});
 create index if not exists ${name("locations", "coordinates_idx")} on ${locations} (${l("tenant")}, ${l("latitude")}, ${l("longitude")}) where ${l("latitude")} is not null;
 ${postgis ? `create index if not exists ${name("locations", "point_idx")} on ${locations} using gist (point);\ncreate index if not exists ${name("locations", "area_idx")} on ${locations} using gist (area);\n` : ""}
 create table if not exists ${assets} (
@@ -228,7 +228,7 @@ create table if not exists ${assets} (
   check ((${s("assigneeType")} is null) = (${s("assigneeId")} is null)),
   check ((${s("latitude")} is null) = (${s("longitude")} is null))
 );
-create index if not exists ${name("assets", "location_idx")} on ${assets} (${s("tenant")}, ${s("location")});
+create index if not exists ${name("assets", "location_idx")} on ${assets} (${s("location")}, ${s("tenant")});
 create index if not exists ${name("assets", "assignee_idx")} on ${assets} (${s("tenant")}, ${s("assigneeType")}, ${s("assigneeId")}) where ${s("assigneeType")} is not null;
 create index if not exists ${name("assets", "kind_idx")} on ${assets} (${s("tenant")}, ${s("kind")}, ${s("status")});
 create index if not exists ${name("assets", "coordinates_idx")} on ${assets} (${s("tenant")}, ${s("latitude")}, ${s("longitude")}) where ${s("latitude")} is not null;
