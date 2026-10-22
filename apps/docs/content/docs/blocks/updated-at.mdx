@@ -1,0 +1,68 @@
+---
+title: Updated at
+description: createdAt and updatedAt set by a trigger in Postgres and by the repository, without remembering them.
+---
+
+The `updated-at` block installs the `track_updated_at` trigger, which sets
+`updated_at` on every update, and a repository extension that fills
+`createdAt` and `updatedAt` before the row is sent.
+
+```bash
+better-supabase add updated-at
+```
+
+`gen` marks every table that has the columns and installs the extension in
+the generated schema, so `defineSupabase(schema)` stamps writes with no
+`.use()` call. Rename the columns in the block's options:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "updated-at": { options: { createdAt: "inserted_at", updatedAt: "modified_at" } },
+},
+```
+
+## What the extension writes
+
+- Inserts get `createdAt` and `updatedAt`.
+- Updates (including soft deletes from [trash](/docs/blocks/trash)) get
+  `updatedAt`.
+- Upserts that may update an existing row only get `updatedAt`, so the
+  original `createdAt` survives. With `ignoreDuplicates: true` both are set.
+- Values you pass yourself are refused with `invalid_request`, so a client
+  cannot backdate a row. Imports and backfills pass `{ override: true }` to
+  keep them:
+
+```ts
+await db.customers.create(
+  { ...row, createdAt: imported.createdAt },
+  { override: true },
+);
+```
+
+Generated JSON Schema and OpenAPI documents mark these columns `readOnly`.
+In a [`defineApi`](/docs/specs) document they are also left out of the
+required fields of request bodies, and a column without a comment gets a
+description: "Set by the server when the row is created." for `createdAt`
+and "Set by the server on every write." for `updatedAt`.
+
+The time comes from `defineSupabase(schema, { now })`, a function that returns
+a `Temporal.Instant`, which makes tests deterministic. See
+[Temporal](/docs/concepts/temporal). In a runtime without Temporal and
+without a `now` option, the extension leaves both columns to the column
+default and the trigger.
+
+A schema you write by hand installs the extension with `.use()`. On a
+generated schema the same call replaces the installed one:
+
+```ts
+import { updatedAtExtension } from "better-supabase/blocks/updated-at";
+
+const db = defineSupabase(schema, { now: () => clock.now() }).use(
+  updatedAtExtension(),
+);
+```
+
+<Callout title="Writes outside the app">
+  SQL functions, dashboards and other services bypass the repository. The
+  block's trigger covers them, so `updated_at` stays right either way.
+</Callout>

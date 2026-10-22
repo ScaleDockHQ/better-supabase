@@ -94,7 +94,7 @@ zod({ json: { "customers.metadata": "./src/schemas.ts#customerMetadata" } });
 ```
 
 All generated validators implement [Standard Schema](/docs/standards), so the
-validation plugin, forms and MCP inputs accept them as they are.
+validation extension, forms and MCP inputs accept them as they are.
 
 `zod({ flavor: "mini" })` writes the same validators against `zod/mini`
 (`z.nullable(...)`, `.check(z.gte(...))`, `.check(z.meta(...))`), typed as

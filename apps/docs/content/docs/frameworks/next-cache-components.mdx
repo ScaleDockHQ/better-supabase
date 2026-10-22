@@ -227,14 +227,14 @@ const Claims = v.looseObject({
     ),
     [],
   ),
-  /** The active tenant; the `memberships` plugin and RLS read it. */
+  /** The active tenant; the memberships extension and RLS read it. */
   tenant_id: v.optional(v.pipe(v.string(), v.uuid())),
   /** Plan features per tenant, e.g. `{ [tenantId]: ['exports'] }`. */
   features: v.optional(v.record(v.string(), v.array(v.string())), {}),
 });
 ```
 
-`tenant_id` is the claim the [tenant plugin](/docs/plugins/tenant) and
+`tenant_id` is the claim the [memberships extension](/docs/blocks/memberships) and
 `current_tenant_id()` read (`auth.organization.claim` in the config renames it);
 `memberships` lets the UI switch tenants without another query. Use
 `v.looseObject` so fields another hook adds, such as an authorization

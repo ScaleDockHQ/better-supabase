@@ -1,59 +1,50 @@
-# Plugins
+# Block extensions
 
-```ts title="src/lib/supabase/index.ts"
-import { defineSupabase } from "better-supabase";
-import { actor } from "better-supabase/plugins/actor";
-import { softDelete } from "better-supabase/plugins/soft-delete";
-import { tenant } from "better-supabase/plugins/tenant";
-import { timestamps } from "better-supabase/plugins/timestamps";
-import { validation } from "better-supabase/plugins/validation";
-
-import { schema } from "./generated.ts";
-import { validators } from "./generated.zod.ts";
-
-export const betterSupabase = defineSupabase(schema)
-  .use(timestamps())
-  .use(softDelete())
-  .use(tenant())
-  .use(actor())
-  .use(validation({ schemas: validators }));
-```
-
-Plugins act on tables by the flags codegen writes. Turn them on in
-`better-supabase.config.ts`, then rerun `gen`:
+Four blocks carry a repository extension next to their SQL. With the block
+in `better-supabase.config.ts`, `gen` marks every table that has the columns
+and installs the extension in the generated schema, so
+`defineSupabase(schema)` applies it with no `.use()` call:
 
 ```ts
-plugins: {
-  timestamps: true,                      // created_at, updated_at
-  softDelete: { column: 'archived_at' }, // default deleted_at
-  tenant: { column: 'organization_id' },
-  actor: true,                           // created_by, updated_by
+blocks: {
+  "updated-at": {},                                     // created_at, updated_at
+  trash: { options: { deletedAt: "archived_at" } },     // default deleted_at
+  "created-by": {},                                     // created_by, updated_by
+  memberships: {},                                      // organization_id
 }
 ```
 
-A table without the columns is left alone, and the types follow:
-`restore()` and `withDeleted` only exist on soft-delete tables.
+An app with its own tenancy sets `auth.organization.column` instead of
+installing `memberships`. With a `zod()`, `valibot()` or `standardSchema()`
+generator, the generated schema also validates every write.
 
-| Plugin         | What it does                                                                            | Don't                                 |
-| -------------- | --------------------------------------------------------------------------------------- | ------------------------------------- |
-| `timestamps()` | Sets `createdAt` and `updatedAt`                                                        | set them in `create` or `update`      |
-| `softDelete()` | Hides deleted rows, turns `delete` into an update, adds `restore`                       | filter `deletedAt: null` by hand      |
-| `tenant()`     | Scopes queries to the request's tenant and fills it on insert                           | pass `organizationId` from the client |
-| `actor()`      | Sets `createdBy` and `updatedBy`                                                        | pass the user id yourself             |
-| `validation()` | Validates writes with any Standard Schema                                               | validate the same input twice         |
-| `rules()`      | Flags unbounded reads, missing tenants, sensitive columns and admin keys in the browser | disable a rule without a reason       |
+A table without the columns is left alone, and the types follow:
+`restore()` and `withDeleted` only exist on tables with the trash column.
+
+| Block         | What its extension does                                           | Don't                                 |
+| ------------- | ----------------------------------------------------------------- | ------------------------------------- |
+| `updated-at`  | Sets `createdAt` and `updatedAt`                                  | set them in `create` or `update`      |
+| `trash`       | Hides deleted rows, turns `delete` into an update, adds `restore` | filter `deletedAt: null` by hand      |
+| `memberships` | Scopes queries to the request's organization and fills it         | pass `organizationId` from the client |
+| `created-by`  | Sets `createdBy` and `updatedBy`                                  | pass the user id yourself             |
+
+`validation()` from `better-supabase` and `guards()` from
+`better-supabase/lint` (unbounded reads, missing organizations, sensitive
+columns, admin keys in the browser) are installed with `.use()`. Installing
+an extension yourself, for example `membershipsExtension({ resolve })`,
+replaces the one the generated schema installed.
 
 ## Order
 
-Hooks run in `use()` order, with two exceptions. `softDelete()` runs first,
-so `timestamps()` and `actor()` stamp a soft delete as the update it
-becomes. `validation()` runs last, so it sees the row after `tenant()`
-filled it.
+`guards()` runs first, so it sees the query as written. The trash extension
+runs next, so updated-at and created-by stamp a soft delete as the update it
+becomes. Validation runs last, so it sees the row after the memberships
+extension filled it.
 
-RLS still decides what a user can read and write. `tenant()` makes queries
-explicit and fills the column; it doesn't replace the policy.
+RLS still decides what a user can read and write. The memberships extension
+makes queries explicit and fills the column; it doesn't replace the policy.
 
-The tenant comes from `context.tenant`, which the server's `tenant` resolver
+The organization comes from `context.tenant`, which the server's `tenant` resolver
 sets per request (the default `blocks.permissions.activeTenant: 'resolver'`), then
 the verified `tenant_id` claim (renamed with `auth.organization.claim` in
 `better-supabase.config.ts`), then `app_metadata.tenant_id`. A resolver may
@@ -68,4 +59,6 @@ writes the claim and the memberships: don't run `add tenant`, and follow
 the authorization providers reference of the `better-supabase-auth` skill
 (https://bettersupabase.com/docs/extending/authorization-providers.md).
 
-Docs: https://bettersupabase.com/docs/plugins.md
+Docs: https://bettersupabase.com/docs/blocks/memberships.md,
+https://bettersupabase.com/docs/blocks/trash.md and
+https://bettersupabase.com/docs/repository/guards.md

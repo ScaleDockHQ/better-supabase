@@ -117,7 +117,7 @@ await db.customers.update(id, {
 ```
 
 `gen` fails on a key that names no column or a column that isn't text. The
-[`storagePathColumns` rule](/docs/plugins/rules) warns when a Storage URL or
+[`storagePathColumns` guard](/docs/repository/guards) warns when a Storage URL or
 bucket path is written to a `*_url` column.
 
 ### Rows that store a bucket id
@@ -424,7 +424,7 @@ await storage.upload(
 ```
 
 The tenant comes from `{ tenant }`, else from `context`: `context.tenant`
-(which the `tenant()` plugin fills from its claims in `db.$context`), then
+(which the memberships extension fills from its claims in `db.$context`), then
 the `tenant.claim` claims. A
 connection without a tenant gets `forbidden` for every call. Cross-tenant
 admin work (account deletion does this) connects with `{ allTenants: true }`.

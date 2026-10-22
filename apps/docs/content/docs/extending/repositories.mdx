@@ -11,7 +11,7 @@ returns a plugin that adds methods to one table only:
 ```ts title="src/lib/supabase/index.ts"
 import { defineRepository, defineSupabase } from "better-supabase";
 
-const base = defineSupabase(schema).use(tenant()).use(softDelete());
+const base = defineSupabase(schema);
 
 const customers = defineRepository(base, "customers", (repo) => ({
   active: () =>
@@ -26,8 +26,8 @@ export const betterSupabase = base.use(customers);
 const rows = await ctx.db.customers.active().orThrow();
 ```
 
-`repo` is the repository as your app sees it: every plugin (tenant filters,
-soft delete, `restore()`) applies, and payload types flow through. The
+`repo` is the repository as your app sees it: every plugin and block
+extension (organization filters, soft delete, `restore()`) applies, and payload types flow through. The
 methods are typed on `db.customers` and don't exist on other tables.
 
 Each table can have one `defineRepository`; the plugin is named

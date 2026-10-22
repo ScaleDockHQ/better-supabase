@@ -54,7 +54,7 @@ an impersonating admin, the `act` claim comes back with it, so the
 admin. Pass `{ reason }` to record why.
 
 `bsb.admin(job.context)` and `admin.$with(job.context)` stamp `createdBy` and
-apply the `tenant()` plugin's filter, but they still run as the service role,
+apply the memberships extension's filter, but they still run as the service role,
 so RLS does not apply. Use them only for work no user owns.
 
 ### Claims from an access token hook

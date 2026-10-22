@@ -183,7 +183,7 @@ decide what it can read and write.
 
 Pass the request context to `enqueue` and the job records its actor and
 tenant next to the payload. The tenant is `context.tenant`, the one
-`tenant()` resolved for the connection, or the `tenant_id` claim (then
+the memberships extension resolved for the connection, or the `tenant_id` claim (then
 `app_metadata.tenant_id`). The handler gets them back as `job.context`, and
 [`bsb.forContext`](/docs/auth/server#explicit-identities) turns that into
 repositories running as that user, in that tenant, over direct Postgres:
@@ -262,13 +262,13 @@ service role.
 `forContext` fails with `forbidden` when the job recorded no user, for
 example one enqueued by a cron schedule, and never falls back to the service
 role. Work that no user owns uses `bsb.admin(job.context)` on purpose: it
-stamps `createdBy` and applies the `tenant()` filter, but bypasses RLS, so
+stamps `createdBy` and applies the memberships filter, but bypasses RLS, so
 keep it visible in code review. `admin.$with(job.context)` is the same
 service-role connection and does not apply RLS either. See
 [Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
 
 A job enqueued without a tenant runs with a context that has none, so
-`tenant()` applies its `onMissing` (a `forbidden` error by default). Workers
+the memberships extension applies its `onMissing` (by default the query is left to RLS). Workers
 that handle cross-tenant jobs on purpose pass `allTenants: true` to `work` or
 `drain`; jobs that recorded no tenant then run without the tenant scope, and
 jobs that did keep theirs. `schedule` takes the same `{ context }` as its last

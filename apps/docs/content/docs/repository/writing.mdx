@@ -66,12 +66,12 @@ changes nothing: it reads the current row with the same `where`, `select` and
 `include` and returns it (`null` with `returning: false`), or `not_found` when
 no row matches. An `updateMany` with empty `data` returns `{ count: 0 }`, or
 the matching rows with `returning: true`. This lets you build a patch from
-optional fields without a guard. When a plugin such as
-[`timestamps()`](/docs/plugins/timestamps) is installed, an empty patch still
+optional fields without a guard. When an extension such as
+[updated-at](/docs/blocks/updated-at) is installed, an empty patch still
 runs as a write, because the plugin may fill in a column; a plugin that
 leaves it empty gets `invalid_request`.
 
-On a table with [`softDelete()`](/docs/plugins/soft-delete), `deleteMany`
+On a table with a [trash](/docs/blocks/trash#in-the-repository) column, `deleteMany`
 with `returning: true` keeps `RETURNING` on the update it becomes, so it needs
 a `SELECT` policy that still shows the soft-deleted row.
 
@@ -97,9 +97,9 @@ needs PostgREST 13 or later. On an older server, set
 `maxAffected` fails with `invalid_request` before any request. The
 [Postgres executor](/docs/auth/postgres) and
 [PowerSync](/docs/repository/powersync) count the rows inside the statement or
-transaction and roll the write back. The `requireMaxAffected` rule in the
-[rules plugin](/docs/plugins/rules) and the `require-max-affected`
-[lint rule](/docs/plugins/lint) make the cap mandatory.
+transaction and roll the write back. The `requireMaxAffected` guard in
+[`guards()`](/docs/repository/guards) and the `require-max-affected`
+[lint rule](/docs/repository/lint) make the cap mandatory.
 
 ## Counting writes
 

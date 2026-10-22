@@ -31,6 +31,17 @@ const RENAMED_BLOCK_PAGES = {
   activity: "timeline",
 } as const satisfies Readonly<Record<string, string>>;
 
+// Plugin pages that moved to their blocks and to the repository section.
+const MOVED_PLUGIN_PAGES = {
+  timestamps: "blocks/updated-at",
+  actor: "blocks/created-by",
+  tenant: "blocks/memberships",
+  "soft-delete": "blocks/trash",
+  validation: "repository/validation",
+  rules: "repository/guards",
+  lint: "repository/lint",
+} as const satisfies Readonly<Record<string, string>>;
+
 const config = createNextConfig({
   // Served under /docs on bettersupabase.com, next to the marketing app.
   assetPrefix: "/docs",
@@ -73,6 +84,16 @@ const config = createNextConfig({
         destination: "/docs/cli/gen",
         permanent: true,
       },
+      {
+        source: "/docs/plugins",
+        destination: "/docs/extending/plugins",
+        permanent: true,
+      },
+      ...Object.entries(MOVED_PLUGIN_PAGES).map(([from, to]) => ({
+        source: `/docs/plugins/${from}`,
+        destination: `/docs/${to}`,
+        permanent: true,
+      })),
       ...Object.entries(RENAMED_BLOCK_PAGES).map(([from, to]) => ({
         source: `/docs/blocks/${from}`,
         destination: `/docs/blocks/${to}`,

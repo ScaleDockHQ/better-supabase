@@ -1,6 +1,7 @@
 # Core
 
-Corrections for `packages/better-supabase/src/core` and the plugins.
+Corrections for `packages/better-supabase/src/core`, the plugins and the block
+extensions.
 
 ## Column names and casing
 
@@ -25,9 +26,9 @@ table or the plugin list, not rebuilt inside a method.
 
 ## Plugin order and hook copies
 
-`rules()` must see the query as the caller wrote it, so `orderPlugins` ranks
-it before every `pre` plugin by name; a new `pre` plugin that rewrites
-queries never needs to know about it. Mutation hooks and `mutation`
+`guards()` must see the query as the caller wrote it, so it declares
+`enforce: 'first'` and `orderPlugins` runs it before every `pre` plugin; a new
+`pre` plugin that rewrites queries never needs to know about it. Mutation hooks and `mutation`
 listeners get a copy of the returned rows (`cloneRows` in
 `src/core/repository.ts`), which keeps invariant 5 without trusting each
 hook. Copy plain objects and arrays only: Temporal values are immutable and

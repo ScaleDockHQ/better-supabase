@@ -303,7 +303,7 @@ Restrictive policies only narrow access, so doctor skips them.
 ### BS204
 
 **Warning: tenant column without an index.** With the
-[tenant plugin](/docs/plugins), every query filters on the tenant column. Add
+[memberships extension](/docs/blocks/memberships), every query filters on the tenant column. Add
 an index that starts with it. Views are left out, because a query on a view
 uses the indexes of its tables.
 
@@ -518,7 +518,7 @@ advisor can't run, this check reports every table.
 ### BS217
 
 **Warning: tenant foreign key that can cross tenants.** With the
-[tenant plugin](/docs/plugins), a tenant table that references another tenant
+[memberships extension](/docs/blocks/memberships), a tenant table that references another tenant
 table by `id` alone can point at a parent in another organization: RLS checks
 each row, not the pair. Reference the tenant column as well, backed by a
 unique key on the parent:
@@ -749,8 +749,8 @@ with named arguments, and grant on the new signature in the same migration.
 
 **Warning: soft delete hidden by a select policy.** After an update, PostgREST
 reads the row back through the select policy. If that policy hides rows where
-the soft-delete column is set, `softDelete()` fails with an RLS error. Filter
-deleted rows in queries instead; the soft-delete plugin already does.
+the soft-delete column is set, the trash extension's delete fails with an RLS error. Filter
+deleted rows in queries instead; the trash extension already does.
 
 ### BS302
 
@@ -810,7 +810,7 @@ view <module> --sql` lists the signatures.
 
 **Warning: tenant claim the hook does not write.** With the `memberships` module and
 `blocks.permissions.activeTenant: 'claim'`, `current_tenant_id()` and the
-`tenant()` plugin read the active tenant from the `auth.organization.claim` claim, at the
+memberships extension read the active tenant from the `auth.organization.claim` claim, at the
 top level or in `app_metadata`. With `--as <user id>`, doctor calls the custom
 access token hook for that user and warns when neither is in the claims it
 returns. Write the claim in the hook, or, for apps that pick the tenant from
@@ -1450,7 +1450,7 @@ entitlements` refuses to render the module then; set
 **Warning: the authorization provider and the better-supabase config
 disagree.** The provider's hook writes the active tenant to
 `tokenHook.tenantClaim`. Doctor warns when `auth.organization.claim` names another
-claim, because the tenant plugin, the guards and the module's RLS would then
+claim, because the memberships extension, the guards and the module's RLS would then
 read a claim the hook never writes. It notes when `auth.claims.scope` is neither
 `tenant` nor the provider's `tenantScope`, notes when the provider sets
 `suspension` or `roleSources` while `blocks.permissions.model` is not

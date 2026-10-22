@@ -1,0 +1,110 @@
+---
+title: Memberships
+description: Scope every query to the request's organization, on top of RLS.
+---
+
+The `memberships` block owns the memberships table and the
+`tenant_ids_with()` checks the policies use. Its repository extension scopes
+queries on organization tables to the request's organization and fills the
+organization column on insert. `gen` installs the extension in the generated
+schema; an app with its own tenancy turns it on by setting
+`auth.organization.column` without the block.
+
+```ts
+const betterSupabase = defineSupabase(schema);
+const db = betterSupabase.connect(supabase, { claims }); // or { tenant: organizationId }
+```
+
+For tables with the organization column:
+
+- reads, updates and deletes get `organization_id = <organization>`,
+  including includes and relation filters;
+- inserts get the organization column filled in;
+- writing a row for another organization, or moving a row to one, fails with
+  `forbidden` before anything is sent. A numeric column matches when its text
+  equals the organization id;
+- an upsert that updates on conflict needs the organization column in its
+  conflict target (`onConflict: ["organizationId", "kvk"]` or a unique
+  constraint that includes it), so it cannot overwrite another
+  organization's row. The SQL and SQLite executors also add
+  `where <column> = excluded.<column>` to the update for every organization
+  table, with or without the extension. PostgREST has no such clause, so on
+  the default executor the table's RLS update policy is what stops a
+  cross-organization upsert.
+
+The organization it resolves becomes `db.$context.tenant`, so jobs, storage
+and cache invalidation that receive `db.$context` use the same one.
+
+## Where the organization comes from
+
+`context.tenant` first, then the JWT claim. The claim defaults to
+`auth.organization.claim` (`tenant_id`), then the same key in
+`app_metadata`: a top-level claim from a custom access token hook, or
+`app_metadata` set through the Auth admin API. Renaming the claim in the
+config renames it for the extension, `current_tenant_id()`, and the storage
+and realtime policies together. `user_metadata` is never a source, because
+users can write it. Server adapters fill the context from the verified JWT.
+
+An organization from a URL or request body is only safe after you check it
+against the user's memberships. Do that in a `resolve` function, or pass
+`{ tenant }` to `betterSupabase.connect` once it is checked. Installing the
+extension yourself replaces the one the schema installed:
+
+```ts
+import { membershipsExtension } from "better-supabase/blocks/memberships";
+
+const betterSupabase = defineSupabase(schema).use(
+  membershipsExtension({
+    header: "X-Organization",
+    resolve: (context) => checkedOrganization(context),
+  }),
+);
+```
+
+Pass your [claims type](/docs/auth#typed-claims) to check claim paths at
+compile time. Only paths to string claims, up to three levels deep, are
+accepted:
+
+```ts
+membershipsExtension<v.InferOutput<typeof Claims>>({
+  claim: "app_metadata.tenant_id",
+});
+```
+
+## Missing organization
+
+A query on an organization table without an organization is left to RLS by
+default. Set `auth.organization.onMissing: "error"` (or pass
+`onMissing: "error"`) to fail it with `forbidden` instead, including a query
+on another table whose includes or relation filters reach an organization
+table. Admin tooling passes `{ allTenants: true }` per call:
+
+```ts
+await adminDb.customers.count({ allTenants: true });
+```
+
+## In the API document
+
+[`defineApi`](/docs/specs) marks the organization column of every served
+table `readOnly`, described as "Set from the request's tenant.", and drops it
+from the required fields of request bodies. With `auth.organization.header`
+(or the `header` option) set, each operation on an organization table has
+that header as a parameter, "The tenant the request acts for.", required
+when `onMissing` is `error`. The extension doesn't read the header itself;
+`resolve` does.
+
+## One level
+
+The extension scopes queries to one column with one id. For an organization
+with environments under it, make the environment the scope: put its id in the
+claim or in `{ tenant }`, and let an
+[authorization provider](/docs/extending/authorization-providers#nested-tenancy)
+declare organization and environment as scopes with `parent`, so the policies
+check permissions at the environment level. See
+[nested tenancy](/docs/concepts/nested-tenancy) for the whole model.
+
+<Callout title="Not a replacement for RLS">
+  The extension makes queries correct and indexes usable; RLS makes them safe.
+  Keep an organization policy on every table. `better-supabase doctor` checks
+  both.
+</Callout>

@@ -1,0 +1,62 @@
+---
+title: Created by
+description: Record who created, changed and deleted each row, in Postgres and in the repository.
+---
+
+The `created-by` block installs the `track_actor` trigger, which reads
+`auth.uid()` inside the database, and a repository extension that fills
+`createdBy` and `updatedBy` from the request's actor.
+
+```bash
+better-supabase add created-by
+```
+
+`gen` marks every table that has the columns and installs the extension in
+the generated schema. The actor comes from the connection:
+
+```ts
+const db = defineSupabase(schema).connect(supabase, {
+  actor: { id: user.id, kind: "user" },
+});
+```
+
+Rename the columns in the block's options (`createdBy`, `updatedBy` and
+`impersonatedBy`, defaults `created_by`, `updated_by` and
+`impersonated_by`).
+
+## What the extension writes
+
+- Inserts get `createdBy` and `updatedBy`.
+- Updates get `updatedBy`. With [trash](/docs/blocks/trash), the delete is
+  an update, so `updatedBy` records who deleted the row.
+- Upserts that may update only get `updatedBy`.
+- Tables with an `impersonated_by` column get `impersonatedBy` on each insert
+  and update made during [impersonation](/docs/auth/impersonation): the admin
+  from `actor.impersonator`. The user's own writes leave it alone, so the row
+  keeps the last impersonating admin. That is what
+  `track_actor(table, impersonated_by => 'impersonated_by')` writes, and it
+  also keeps `created_by` on updates.
+- Anonymous requests set nothing.
+- `createdBy`, `updatedBy` and `impersonatedBy` values you pass yourself are
+  refused with `invalid_request`, so a caller cannot sign a row as someone
+  else. Pass `{ override: true }` for imports and backfills.
+
+Server adapters fill `actor` from the verified JWT. Jobs run as the user who
+enqueued them with `bsb.forContext(job.context)` (see
+[jobs](/docs/blocks/queue#actor-and-tenant)), webhooks and scripts with
+`bsb.actingAs(userId)`, and work no user owns with `bsb.admin()`, whose actor
+is `service`.
+
+To read the id from somewhere else, install the extension yourself with a
+`resolve` function; it replaces the one the schema installed:
+
+```ts
+import { createdByExtension } from "better-supabase/blocks/created-by";
+
+defineSupabase(schema).use(
+  createdByExtension({ resolve: (context) => context.actor?.id }),
+);
+```
+
+For a tamper-proof trail, the trigger and the [audit](/docs/blocks/audit)
+block record the database user, whatever the app sends.

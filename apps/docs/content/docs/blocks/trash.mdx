@@ -59,7 +59,67 @@ create policy "projects_read" on public.projects for select to authenticated
   using (deleted_at is null and organization_id in (select better_supabase.tenant_ids_with('projects.read')));
 ```
 
-The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subject`, `subject_title`) already skip rows with `deletedAt` set. The [`softDelete()`](/docs/plugins/soft-delete#which-column) plugin reads the same column, so repository reads hide trashed rows and `delete()` sets it. The two share the column and not the bin: a repository `delete()` writes no `trash_items` row and trashes no children, so use `trash` when the row should show in the trash list and restore with its batch.
+The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subject`, `subject_title`) already skip rows with `deletedAt` set, and so does the block's repository extension below.
+
+## In the repository
+
+`gen` installs the block's repository extension in the generated schema, so repository reads hide trashed rows and `delete()` sets the column:
+
+```ts
+const db = defineSupabase(schema).connect(supabase);
+
+await db.customers.delete(id); // sets deleted_at
+await db.customers.findById(id); // not_found
+await db.customers.findMany({ withDeleted: true });
+await db.customers.findMany({ onlyDeleted: true });
+await db.customers.restore(id); // clears deleted_at
+await db.customers.delete(id, { hard: true }); // really deletes
+```
+
+The extension and the block share the column and not the bin: a repository `delete()` writes no `trash_items` row and trashes no children, so call the block's `trash()` when the row should show in the trash list and restore with its batch. `restore()` and `withDeleted` only exist on tables with the column.
+
+### Which column
+
+`gen` picks one column per table. A table bound to a [`config.records`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column uses that column, so the repository, search, metrics and the trash all read the same one. Every other table uses `blocks.trash.options.deletedAt` (default `deleted_at`) when it has that column. Either column must be `timestamptz` or `timestamp`, or `gen` fails.
+
+### Where trashed rows are hidden
+
+- Reads, counts, `exists` and pagination on the table.
+- Updates: an update never touches a trashed row, so `update` returns `not_found`.
+- Includes: `organizations.findMany({ include: { customers: true } })` leaves out trashed customers.
+- Relation filters: `{ customers: { some: {...} } }` only considers live rows. `every` is rewritten so trashed rows neither satisfy nor fail it.
+
+`withDeleted` and `onlyDeleted` change the queried table only; nested includes stay filtered.
+
+### Writes
+
+Set the column through `delete` and `restore` only: a create or update that passes `deletedAt` fails with `invalid_request` unless it passes `{ override: true }`. An upsert that updates an existing row clears the column, so upserting a trashed row brings it back.
+
+In a [`defineApi`](/docs/specs) document the column is `readOnly` and left out of the required fields of request bodies. A column without a comment is described as "Set when the row is deleted. Deleted rows are not returned, and delete sets this column instead of removing the row."
+
+A soft delete returns no rows, so mutation events and cache invalidation get the primary key from the `where` instead: listeners see `intent: "softDelete"` and `keys`, and [CloudEvents](/docs/extending/events) are typed `dev.better-supabase.row.softdeleted`.
+
+### Indexes
+
+Every read adds `deleted_at is null`, so index the live rows only. A partial index skips trashed rows, stays small as they pile up, and serves the filter the extension adds:
+
+```sql
+create index on customers (organization_id, name) where deleted_at is null;
+```
+
+A unique constraint that should only hold for live rows becomes a partial unique index:
+
+```sql
+create unique index on customers (organization_id, kvk) where deleted_at is null;
+```
+
+Doctor's [BS218](/docs/cli/doctor#bs218) points at tables with the column and without a partial index.
+
+### Deletes and RLS
+
+A soft delete is an `UPDATE ... SET deleted_at = now()` without `RETURNING`. The time comes from `defineSupabase(schema, { now })`, or from the system clock in a runtime without Temporal. That matters: a common policy hides trashed rows from `SELECT`, and PostgREST checks returned rows against it, so an update that returns the row fails with `forbidden`. The extension never asks for the row back. `better-supabase doctor` flags tables where this would bite.
+
+Deleting a row that is already trashed returns `not_found`. `{ hard: true }` deletes regardless of the column.
 
 ## Purge
 

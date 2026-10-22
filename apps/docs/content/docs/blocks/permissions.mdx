@@ -715,7 +715,7 @@ resumes members with [`suspend_member` and `resume_member`](/docs/blocks/organiz
 
 ## The active tenant
 
-`current_tenant_id()` and the [`tenant()` plugin](/docs/plugins/tenant) need
+`current_tenant_id()` and the [memberships extension](/docs/blocks/memberships) need
 the tenant a request works in. `blocks.permissions.activeTenant` says where it comes
 from.
 
@@ -726,7 +726,7 @@ from.
 | `{ profileColumn, key }` | the claim, then a profile column such as `public.profiles.active_organization_id` |
 
 With `'resolver'`, pass `tenant` to the server. It runs once per request, and
-the tenant it returns becomes `context.tenant` for the `tenant()` plugin, the
+the tenant it returns becomes `context.tenant` for the memberships extension, the
 `better_supabase.tenant` setting for `ctx.sql`, and the `x-bsb-tenant` header
 for `ctx.db`. `current_tenant_id()` returns it only while the caller is a
 member, so a tampered header or slug grants nothing.
@@ -749,7 +749,7 @@ Under `createNext`, Server Components, actions and private caches have no
 request URL: the resolver gets a request with the incoming headers and a
 placeholder URL. Pass the tenant from the route params instead. It goes
 where the resolver's result goes, so `current_tenant_id()` and the
-`tenant()` plugin check it the same way, and a tenant the caller doesn't
+memberships extension check it the same way, and a tenant the caller doesn't
 belong to grants nothing:
 
 ```tsx title="src/app/[organizationId]/customers/page.tsx"
