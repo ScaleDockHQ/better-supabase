@@ -99,6 +99,7 @@ import {
   TestTubeIcon,
   TextCursorInputIcon,
   TicketPercentIcon,
+  TicketIcon,
   TimerIcon,
   TreePalmIcon,
   Trash2Icon,
@@ -198,6 +199,7 @@ export const BLOCK_ICONS = {
   reminders: AlarmClockIcon,
   calendar: CalendarDaysIcon,
   bookings: CalendarCheckIcon,
+  passes: TicketIcon,
   // Content & files
   imports: FileUpIcon,
   versions: HistoryIcon,
