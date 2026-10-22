@@ -1,5 +1,5 @@
 ---
-"better-supabase": major
+"better-supabase": minor
 ---
 
 Move the inbox onto the messaging core. Inbox conversations are core conversations of kind `inbox`, and messages and internal notes are core messages, so the inbox shares read markers, typing, mentions, files and reactions with channels and comments. See [Inbox](https://bettersupabase.com/docs/blocks/inbox) and the upgrade steps in [From 0.13 to 0.14](https://bettersupabase.com/docs/migration/0.13-to-0.14#the-inbox-on-the-messaging-core).
