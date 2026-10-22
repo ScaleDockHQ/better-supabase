@@ -496,9 +496,10 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "forms": "id" | "tenant" | "key" | "title" | "description" | "status" | "currentVersion" | "createdBy" | "createdAt" | "updatedAt";
       readonly "versions": "id" | "tenant" | "form" | "number" | "definition" | "schema" | "createdBy" | "createdAt";
-      readonly "submissions": "id" | "tenant" | "form" | "version" | "subjectType" | "subjectId" | "respondent" | "answers" | "status" | "source" | "reviewedBy" | "reviewedAt" | "createdAt" | "submittedAt" | "updatedAt";
+      readonly "submissions": "id" | "tenant" | "form" | "version" | "subjectType" | "subjectId" | "respondent" | "answers" | "status" | "source" | "reviewedBy" | "reviewedAt" | "createdAt" | "submittedAt" | "updatedAt" | "score" | "maxScore" | "passed";
+      readonly "answerKeys": "version" | "tenant" | "answers" | "createdAt";
     };
-    readonly functions: "create_form" | "delete_form_submission" | "form_condition_schema" | "form_field_schema" | "form_resolve" | "form_schema" | "form_submission_save" | "get_form" | "get_form_submission" | "get_form_version" | "list_form_submissions" | "list_forms" | "publish_form_version" | "review_form_submission" | "submit_form" | "update_form";
+    readonly functions: "create_form" | "delete_form_submission" | "form_answer_matches" | "form_answer_merge" | "form_answer_split" | "form_condition_holds" | "form_condition_schema" | "form_correct_fits" | "form_field_schema" | "form_nps" | "form_resolve" | "form_schema" | "form_score" | "form_submission_save" | "get_form" | "get_form_submission" | "get_form_version" | "list_form_submissions" | "list_forms" | "publish_form_version" | "review_form_submission" | "submit_form" | "update_form";
     readonly actions: "read" | "manage" | "submit" | "review";
     readonly hooks: "before_form_publish" | "after_form_publish" | "before_form_submission" | "after_form_submission" | "before_public_form_submission";
     readonly entities: {};

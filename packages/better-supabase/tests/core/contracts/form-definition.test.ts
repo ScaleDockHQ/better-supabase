@@ -46,6 +46,7 @@ describe("fieldSchema", () => {
         title: "K",
       },
       json: { title: "K" },
+      nps: { type: "integer", minimum: 0, maximum: 10, title: "K" },
     });
   });
 
@@ -195,5 +196,93 @@ describe("definition checks", () => {
       "field x: showIf names nope, which isn't an earlier field",
       "field o needs options",
     ]);
+  });
+
+  it("accepts a correct answer every scored type takes", () => {
+    const options = [
+      { value: "a", label: "A" },
+      { value: "b", label: "B" },
+    ];
+
+    expect(
+      formDefinitionProblems({
+        scoring: { passMark: 60 },
+        steps: [
+          {
+            key: "quiz",
+            fields: [
+              { key: "t", label: "T", type: "text", correct: "Paris" },
+              { key: "ta", label: "T", type: "textarea", correct: "x" },
+              { key: "e", label: "E", type: "email", correct: "a@b.c" },
+              { key: "u", label: "U", type: "url", correct: "https://x" },
+              { key: "d", label: "D", type: "date", correct: "2026-01-01" },
+              { key: "n", label: "N", type: "number", correct: 1.5 },
+              { key: "i", label: "I", type: "integer", correct: 4, points: 2 },
+              { key: "b", label: "B", type: "bool", correct: false },
+              { key: "o", label: "O", type: "option", options, correct: "a" },
+              {
+                key: "m",
+                label: "M",
+                type: "multi",
+                options,
+                correct: ["b", "a"],
+              },
+              { key: "c", customField: "d1", correct: "anything" },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it("refuses correct answers and points a field can't take", () => {
+    const options = [{ value: "a", label: "A" }];
+
+    expect(
+      formDefinitionProblems({
+        scoring: {},
+        steps: [
+          {
+            key: "quiz",
+            fields: [
+              { key: "p", label: "P", type: "text", points: 2 },
+              { key: "z", label: "Z", type: "text", correct: null },
+              { key: "s", label: "S", type: "nps", correct: 9 },
+              { key: "j", label: "J", type: "json", correct: {} },
+              { key: "k", label: "K", type: "consent", correct: true },
+              { key: "t", label: "T", type: "text", correct: 1 },
+              { key: "n", label: "N", type: "number", correct: "1" },
+              { key: "i", label: "I", type: "integer", correct: 1.5 },
+              { key: "b", label: "B", type: "bool", correct: "yes" },
+              { key: "o", label: "O", type: "option", options, correct: "b" },
+              { key: "m", label: "M", type: "multi", options, correct: [] },
+              { key: "m2", label: "M", type: "multi", options, correct: "a" },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([
+      "field p: points need a correct answer",
+      "field z: correct can't be null",
+      "field s: a nps field can't have a correct answer",
+      "field j: a json field can't have a correct answer",
+      "field k: a consent field can't have a correct answer",
+      "field t: correct isn't an answer the field takes",
+      "field n: correct isn't an answer the field takes",
+      "field i: correct isn't an answer the field takes",
+      "field b: correct isn't an answer the field takes",
+      "field o: correct isn't an answer the field takes",
+      "field m: correct isn't an answer the field takes",
+      "field m2: correct isn't an answer the field takes",
+    ]);
+  });
+
+  it("needs a correct answer for scoring", () => {
+    expect(
+      formDefinitionProblems({
+        scoring: { passMark: 50 },
+        steps: [{ key: "a", fields: [{ key: "x", label: "X", type: "nps" }] }],
+      }),
+    ).toEqual(["scoring needs a field with a correct answer"]);
   });
 });
