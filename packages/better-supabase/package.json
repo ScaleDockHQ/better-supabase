@@ -1597,6 +1597,21 @@
       "types": "./dist/blocks/billable-time/index.d.ts",
       "default": "./dist/blocks/billable-time/index.js"
     },
+    "./blocks/leases": {
+      "@better-supabase/source": "./src/blocks/leases/index.ts",
+      "types": "./dist/blocks/leases/index.d.ts",
+      "default": "./dist/blocks/leases/index.js"
+    },
+    "./blocks/expenses": {
+      "@better-supabase/source": "./src/blocks/expenses/index.ts",
+      "types": "./dist/blocks/expenses/index.d.ts",
+      "default": "./dist/blocks/expenses/index.js"
+    },
+    "./blocks/donations": {
+      "@better-supabase/source": "./src/blocks/donations/index.ts",
+      "types": "./dist/blocks/donations/index.d.ts",
+      "default": "./dist/blocks/donations/index.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -2850,6 +2865,18 @@
       "./blocks/billable-time": {
         "types": "./dist/blocks/billable-time/index.d.ts",
         "default": "./dist/blocks/billable-time/index.js"
+      },
+      "./blocks/leases": {
+        "types": "./dist/blocks/leases/index.d.ts",
+        "default": "./dist/blocks/leases/index.js"
+      },
+      "./blocks/expenses": {
+        "types": "./dist/blocks/expenses/index.d.ts",
+        "default": "./dist/blocks/expenses/index.js"
+      },
+      "./blocks/donations": {
+        "types": "./dist/blocks/donations/index.d.ts",
+        "default": "./dist/blocks/donations/index.js"
       },
       "./package.json": "./package.json"
     },

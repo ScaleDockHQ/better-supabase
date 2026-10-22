@@ -404,6 +404,24 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "donations": {
+    readonly tables: {
+      readonly "funds": "id" | "tenant" | "key" | "name" | "kind" | "goal" | "currency" | "startsOn" | "endsOn" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "pledges": "id" | "tenant" | "donorType" | "donorId" | "fund" | "amount" | "currency" | "frequency" | "startsOn" | "endsOn" | "status" | "provider" | "providerCustomer" | "note" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "receipts": "id" | "tenant" | "donorType" | "donorId" | "sequence" | "number" | "kind" | "year" | "amount" | "currency" | "issuedAt" | "voidedAt" | "voidReason";
+      readonly "donations": "id" | "tenant" | "donorType" | "donorId" | "fund" | "pledge" | "periodStart" | "amount" | "currency" | "receivedOn" | "method" | "status" | "provider" | "paymentReference" | "transaction" | "refundTransaction" | "receipt" | "note" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "archive_donation_fund" | "create_pledge" | "donation_settle" | "due_pledge_installments" | "get_gift" | "issue_gift_receipt" | "issue_yearly_receipt" | "list_donation_funds" | "list_donation_receipts" | "list_gifts" | "list_pledges" | "open_gift" | "record_gift" | "record_gift_payment" | "save_donation_fund" | "update_pledge" | "void_donation_receipt" | "yearly_giving_summary";
+    readonly actions: "read" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "donation": "id" | "tenant_id" | "donor_type" | "donor_id" | "fund_id" | "pledge_id" | "period_start" | "amount" | "currency" | "received_on" | "method" | "status" | "provider" | "payment_reference" | "transaction_id" | "refund_transaction_id" | "receipt_id" | "note" | "created_by" | "created_at" | "updated_at";
+      readonly "pledge": "id" | "tenant_id" | "donor_type" | "donor_id" | "fund_id" | "amount" | "currency" | "frequency" | "starts_on" | "ends_on" | "status" | "provider" | "provider_customer" | "note" | "created_by" | "created_at" | "updated_at";
+      readonly "donation_fund": "id" | "tenant_id" | "key" | "name" | "kind" | "goal" | "currency" | "starts_on" | "ends_on" | "archived_at" | "created_at" | "updated_at";
+      readonly "donation_receipt": "id" | "tenant_id" | "donor_type" | "donor_id" | "sequence" | "number" | "kind" | "year" | "amount" | "currency" | "issued_at" | "voided_at" | "void_reason";
+    };
+    readonly primary: "donation";
+  };
   readonly "drive": {
     readonly tables: {
       readonly "nodes": "id" | "tenant" | "parent" | "kind" | "name" | "attachment" | "path" | "rank" | "deletedAt" | "createdBy" | "createdAt" | "updatedAt";
@@ -480,6 +498,22 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "expenses": {
+    readonly tables: {
+      readonly "categories": "id" | "tenant" | "key" | "name" | "currency" | "limitAmount" | "receiptOver" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "reports": "id" | "tenant" | "user" | "title" | "currency" | "note" | "approval" | "submittedAt" | "approvedAt" | "approvalTransaction" | "reimbursedAt" | "reimbursement" | "cancelledAt" | "createdAt" | "updatedAt";
+      readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
+    readonly actions: "read" | "submit" | "approve" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "expense_report": "id" | "tenant_id" | "user_id" | "title" | "currency" | "note" | "approval_id" | "submitted_at" | "approved_at" | "approval_transaction_id" | "reimbursed_at" | "reimbursement_transaction_id" | "cancelled_at" | "created_at" | "updated_at";
+      readonly "expense_line": "id" | "tenant_id" | "report_id" | "category_id" | "spent_on" | "description" | "merchant" | "amount" | "created_at" | "updated_at";
+      readonly "expense_category": "id" | "tenant_id" | "key" | "name" | "currency" | "limit_amount" | "receipt_over" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "expense_report";
   };
   readonly "flags": {
     readonly tables: {
@@ -657,6 +691,21 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "leases": {
+    readonly tables: {
+      readonly "leases": "id" | "tenant" | "unit" | "partyType" | "partyId" | "title" | "status" | "startsOn" | "endsOn" | "rent" | "currency" | "frequency" | "deposit" | "depositHold" | "renewedAt" | "terminatedOn" | "terminationReason" | "metadata" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "charges": "id" | "tenant" | "lease" | "periodStart" | "periodEnd" | "amount" | "currency" | "transaction" | "createdAt";
+      readonly "maintenance": "id" | "tenant" | "unit" | "lease" | "title" | "description" | "priority" | "status" | "reportedBy" | "assignee" | "resolvedAt" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "activate_lease" | "create_lease" | "file_maintenance_request" | "get_lease" | "list_lease_charges" | "list_leases" | "list_maintenance_requests" | "post_due_rent" | "record_rent_payment" | "renew_lease" | "terminate_lease" | "update_maintenance_request";
+    readonly actions: "read" | "manage" | "maintain";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "lease": "id" | "tenant_id" | "unit_id" | "party_type" | "party_id" | "title" | "status" | "starts_on" | "ends_on" | "rent" | "currency" | "frequency" | "deposit" | "deposit_hold_id" | "renewed_at" | "terminated_on" | "termination_reason" | "metadata" | "created_by" | "created_at" | "updated_at";
+      readonly "maintenance_request": "id" | "tenant_id" | "unit_id" | "lease_id" | "title" | "description" | "priority" | "status" | "reported_by" | "assignee_id" | "resolved_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "lease";
+  };
   readonly "leave": {
     readonly tables: {
       readonly "types": "id" | "tenant" | "key" | "name" | "unit" | "paid" | "tracked" | "allowance" | "carryoverMax" | "color" | "archivedAt" | "createdAt" | "updatedAt";
@@ -676,7 +725,7 @@ export interface BlockNameRegistry {
       readonly "balances": "account" | "tenant" | "balance" | "held" | "available" | "updatedAt";
       readonly "holds": "id" | "tenant" | "account" | "amount" | "status" | "referenceType" | "referenceId" | "expiresAt" | "transaction" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "capture_ledger_hold" | "close_ledger_account" | "expire_ledger_holds" | "get_ledger_transaction" | "ledger_account_entries" | "ledger_account_for" | "ledger_append_only" | "ledger_apply_entry" | "ledger_check_balanced" | "ledger_post" | "ledger_read_grants" | "ledger_unhold" | "list_ledger_accounts" | "open_ledger_account" | "place_ledger_hold" | "post_ledger_transaction" | "release_ledger_hold" | "reverse_ledger_transaction";
+    readonly functions: "capture_ledger_hold" | "close_ledger_account" | "expire_ledger_holds" | "get_ledger_transaction" | "ledger_account_entries" | "ledger_account_for" | "ledger_append_only" | "ledger_apply_entry" | "ledger_capture" | "ledger_check_balanced" | "ledger_hold" | "ledger_post" | "ledger_read_grants" | "ledger_release" | "ledger_unhold" | "list_ledger_accounts" | "open_ledger_account" | "place_ledger_hold" | "post_ledger_transaction" | "release_ledger_hold" | "reverse_ledger_transaction";
     readonly actions: "read" | "manage" | "post";
     readonly hooks: "before_ledger_transaction_post" | "after_ledger_transaction_post";
     readonly entities: {

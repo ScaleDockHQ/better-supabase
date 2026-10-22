@@ -40,12 +40,14 @@ import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DOMAINS } from "./modules/domains.ts";
+import { DONATIONS } from "./modules/donations.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { EMPLOYEES } from "./modules/employees.ts";
 import { ENGAGEMENTS } from "./modules/engagements.ts";
 import { ENROLLMENTS } from "./modules/enrollments.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
+import { EXPENSES } from "./modules/expenses.ts";
 import { FLAGS } from "./modules/flags.ts";
 import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
@@ -61,6 +63,7 @@ import { INVOICES } from "./modules/invoices.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
+import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
 import { MEMORY } from "./modules/memory.ts";
@@ -323,6 +326,9 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(GUESTS),
       built(PASSES),
       built(BILLABLE_TIME),
+      built(LEASES),
+      built(EXPENSES),
+      built(DONATIONS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );
