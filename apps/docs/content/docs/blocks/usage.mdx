@@ -144,6 +144,12 @@ quota:
 await usage.record(organizationId, "gb_hours", { quantity: 0.25 });
 ```
 
+A tenant that the [billing](/docs/blocks/billing#billing-tenants-as-stripe-accounts)
+block bills as a Stripe Accounts v2 account is reported under the v1 customer
+Stripe links to the account, in the meter's default `stripe_customer_id`
+payload key. Its counters wait (they count as `skipped`) until the billing
+webhook has recorded that customer.
+
 `reportUsageToStripe` sends the change as it is; when your Stripe meter
 expects whole numbers, record in whole units (tokens, cents) instead.
 `within_quota` takes a whole `quantity` (1 by default), as policies check

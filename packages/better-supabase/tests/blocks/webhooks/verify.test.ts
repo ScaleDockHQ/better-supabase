@@ -90,6 +90,58 @@ describe("Stripe signatures", () => {
   });
 });
 
+describe("Stripe Connect and thin events", () => {
+  const verify = stripeInboxVerify(secret, { now });
+
+  const deliver = async (payload: unknown) => {
+    const text = JSON.stringify(payload);
+
+    const request = new Request("https://app.test", {
+      method: "POST",
+      headers: {
+        "stripe-signature": await signStripeWebhook(secret, text, at),
+      },
+    });
+
+    return verify(request, text);
+  };
+
+  it("stores a Connect event with the connected account", async () => {
+    const connect = {
+      id: "evt_connect",
+      type: "checkout.session.completed",
+      account: "acct_connected",
+      data: { object: { id: "cs_1" } },
+    };
+
+    expect(await deliver(connect)).toMatchObject({
+      ok: true,
+      data: { id: "evt_connect", payload: connect },
+    });
+  });
+
+  it("stores a thin event notification from an event destination", async () => {
+    const thin = {
+      id: "evt_thin",
+      object: "v2.core.event",
+      type: "v2.core.account[configuration.customer].updated",
+      created: "2026-10-06T12:00:00.000Z",
+      livemode: false,
+      context: "acct_connected",
+      related_object: {
+        id: "acct_1",
+        type: "v2.core.account",
+        url: "/v2/core/accounts/acct_1",
+      },
+    };
+
+    expect(await deliver(thin)).toMatchObject({
+      ok: true,
+      data: { id: "evt_thin", payload: thin },
+    });
+  });
+});
+
 describe("Stripe replay checks through seen", () => {
   const signed = async (text = body, when = at) => ({
     headers: {

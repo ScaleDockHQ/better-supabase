@@ -1,6 +1,11 @@
 import type { Result } from "../../core/result.ts";
 import type { StripeTaxId } from "../stripe.ts";
-import type { StripeEvent, SubscriptionItem } from "./types.ts";
+import type {
+  CustomerAccountOptions,
+  CustomerDetails,
+  StripeEvent,
+  SubscriptionItem,
+} from "./types.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
@@ -98,25 +103,62 @@ function deepMerge(
 }
 
 /**
+ * Who Stripe bills: a v1 customer, or an Accounts v2 account with the
+ * `customer` configuration.
+ */
+export type BillingParty =
+  | { readonly customer: string }
+  | { readonly customer_account: string };
+
+/**
  * The block's Checkout Session parameters with the app's `params` merged in
- * deeply, then the customer, `client_reference_id` and the tenant metadata (on
- * the session and, for a subscription, on `subscription_data`) set again, so
+ * deeply, then the party, `client_reference_id` and the tenant metadata (on the
+ * session and, for a subscription, on `subscription_data`) set again, so
  * `params` adds metadata without dropping the link the webhook needs.
  */
 export function checkoutParams(
   base: Readonly<Record<string, unknown>>,
   extra: Readonly<Record<string, unknown>> | undefined,
   organizationId: string,
-  customerId: string,
+  party: BillingParty,
 ): Record<string, unknown> {
   const merged = extra === undefined ? { ...base } : deepMerge(base, extra);
   const tenant = { metadata: { [ORGANIZATION_KEY]: organizationId } };
 
-  return deepMerge(merged, {
-    customer: customerId,
+  const params = deepMerge(merged, {
+    ...party,
     client_reference_id: organizationId,
     ...tenant,
     ...(merged["mode"] === "subscription" ? { subscription_data: tenant } : {}),
+  });
+
+  // Stripe refuses a session that names both.
+  delete params["customer" in party ? "customer_account" : "customer"];
+
+  return params;
+}
+
+/**
+ * The `v2.core.accounts.create` parameters for a tenant's account: the contact,
+ * the `customer` configuration and the app's `params` merged in deeply, then
+ * the tenant in `metadata` set again.
+ */
+export function accountParams(
+  organizationId: string,
+  details: CustomerDetails,
+  extra: CustomerAccountOptions["params"],
+): Record<string, unknown> {
+  const base = {
+    ...(details.email === undefined ? {} : { contact_email: details.email }),
+    ...(details.name === undefined ? {} : { display_name: details.name }),
+    configuration: { customer: {} },
+  };
+
+  const own =
+    typeof extra === "function" ? extra(organizationId, details) : extra;
+
+  return deepMerge(own === undefined ? base : deepMerge(base, own), {
+    metadata: { [ORGANIZATION_KEY]: organizationId },
   });
 }
 

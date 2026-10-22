@@ -32,6 +32,11 @@ const EVENTS: ModuleEvents<BillingEvents> = {
     payload: ["organizationId", "customerId"],
     retries: true,
   },
+  "billing.account_linked": {
+    subject: "organizations",
+    payload: ["organizationId", "accountId"],
+    retries: true,
+  },
 };
 
 const NAMES: ModuleNames = {
@@ -44,6 +49,7 @@ const NAMES: ModuleNames = {
       columns: {
         tenant: "organization_id",
         customer: "stripe_customer_id",
+        account: "stripe_customer_account_id",
         createdAt: "created_at",
       },
     },
@@ -273,12 +279,19 @@ function build(ctx: ModuleContext): string {
 
   return `${schemaPreamble(ctx)}
 -- Each tenant's Stripe customer. The entitlements module reads it as its
--- customer source when config.entitlements.customer is unset.
+-- customer source when config.entitlements.customer is unset. A tenant billed
+-- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
+-- linked cus_ id at the first checkout, and the webhook records it.
 create table if not exists ${t} (
   ${c("tenant")} ${id} primary key,
-  ${c("customer")} text not null unique check (${c("customer")} ~ '^cus_'),
+  ${c("customer")} text unique check (${c("customer")} ~ '^cus_'),
+  ${c("account")} text unique check (${c("account")} ~ '^acct_'),
   ${c("createdAt")} timestamptz not null default now()
 );
+alter table ${t} add column if not exists ${c("account")} text unique check (${c("account")} ~ '^acct_');
+alter table ${t} alter column ${c("customer")} drop not null;
+alter table ${t} drop constraint if exists bs_billing_customers_party;
+alter table ${t} add constraint bs_billing_customers_party check (${c("customer")} is not null or ${c("account")} is not null);
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select on ${t} to authenticated;
@@ -298,6 +311,19 @@ as $$
   where b.${c("tenant")} = billing_customer.tenant and ${can("billing_customer.tenant", "read")}
 $$;
 
+-- The tenant's Stripe Accounts v2 account (acct_), when it is billed as one.
+create or replace function ${fn("billing_account")}(tenant ${id})
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select b.${c("account")} from ${t} b
+  where b.${c("tenant")} = billing_account.tenant and ${can("billing_account.tenant", "read")}
+$$;
+
+-- The tenant of a customer (cus_) or an account (acct_).
 create or replace function ${fn("billing_customer_tenant")}(customer text)
 returns ${id}
 language sql
@@ -305,11 +331,14 @@ stable
 security definer
 set search_path = ''
 as $$
-  select b.${c("tenant")} from ${t} b where b.${c("customer")} = billing_customer_tenant.customer
+  select b.${c("tenant")} from ${t} b
+  where b.${c("customer")} = billing_customer_tenant.customer
+    or b.${c("account")} = billing_customer_tenant.customer
 $$;
 
--- Links tenant to customer once. Returns the customer that is linked, which
--- is the earlier one when two checkouts raced.
+-- Links tenant to customer once, or records the customer Stripe created for
+-- the tenant's account. Returns the customer that is linked, which is the
+-- earlier one when two checkouts raced.
 create or replace function ${fn("link_billing_customer")}(tenant ${id}, customer text)
 returns text
 language plpgsql
@@ -318,9 +347,10 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into ${t} (${c("tenant")}, ${c("customer")})
+  insert into ${t} as b (${c("tenant")}, ${c("customer")})
   values (link_billing_customer.tenant, link_billing_customer.customer)
-  on conflict (${c("tenant")}) do nothing;
+  on conflict (${c("tenant")}) do update set ${c("customer")} = excluded.${c("customer")}
+    where b.${c("customer")} is null;
   if found then
     ${ctx.record({
       type: "billing.customer_linked",
@@ -337,6 +367,39 @@ begin
     })}
   end if;
   return (select b.${c("customer")} from ${t} b where b.${c("tenant")} = link_billing_customer.tenant);
+end;
+$$;
+
+-- Links tenant to a Stripe Accounts v2 account once. Returns the account that
+-- is linked, which is the earlier one when two calls raced.
+create or replace function ${fn("link_billing_account")}(tenant ${id}, account text)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  insert into ${t} as b (${c("tenant")}, ${c("account")})
+  values (link_billing_account.tenant, link_billing_account.account)
+  on conflict (${c("tenant")}) do update set ${c("account")} = excluded.${c("account")}
+    where b.${c("account")} is null;
+  if found then
+    ${ctx.record({
+      type: "billing.account_linked",
+      payload:
+        "jsonb_build_object('organizationId', link_billing_account.tenant::text, 'accountId', link_billing_account.account)",
+      subject: "'organizations/' || link_billing_account.tenant::text",
+      tenant: "link_billing_account.tenant",
+      key: "'billing.account_linked:' || link_billing_account.tenant::text",
+      audit: {
+        category: "billing",
+        targetType: "billing_customer",
+        recordId: "link_billing_account.account",
+      },
+    })}
+  end if;
+  return (select b.${c("account")} from ${t} b where b.${c("tenant")} = link_billing_account.tenant);
 end;
 $$;
 
@@ -620,7 +683,7 @@ begin
 end;
 $$;
 
--- For the billing page: { customer, seats, subscription }.
+-- For the billing page: { customer, account, seats, subscription }.
 create or replace function ${fn("billing_status")}(tenant ${id})
 returns jsonb
 language plpgsql
@@ -634,6 +697,7 @@ begin
   end if;
   return jsonb_build_object(
     'customer', (select b.${c("customer")} from ${t} b where b.${c("tenant")} = billing_status.tenant),
+    'account', (select b.${c("account")} from ${t} b where b.${c("tenant")} = billing_status.tenant),
     'seats', ${fn("billing_seat_count")}(tenant),
     'subscription', ${fn("billing_subscription_item")}(tenant)
   );
@@ -652,6 +716,8 @@ grant execute on function ${fn("billing_payment_methods")}(${id}) to authenticat
 grant execute on function ${fn("billing_customer_details")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("billing_tax_ids")}(${id}) to authenticated, service_role;
 revoke execute on function ${fn("billing_customer")}(${id}) from public, anon;
+revoke execute on function ${fn("billing_account")}(${id}) from public, anon;
+revoke execute on function ${fn("link_billing_account")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("billing_customer_tenant")}(text) from public, anon, authenticated;
 revoke execute on function ${fn("link_billing_customer")}(${id}, text) from public, anon, authenticated;
 revoke execute on function ${fn("billing_seat_count")}(${id}) from public, anon, authenticated;
@@ -665,6 +731,8 @@ grant execute on function ${fn("billing_all_invoices")}(text, integer, bigint) t
 grant execute on function ${fn("billing_subscription")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("billing_all_subscriptions")}(text, integer, bigint) to authenticated, service_role;
 grant execute on function ${fn("billing_customer")}(${id}) to authenticated, service_role;
+grant execute on function ${fn("billing_account")}(${id}) to authenticated, service_role;
+grant execute on function ${fn("link_billing_account")}(${id}, text) to service_role;
 grant execute on function ${fn("billing_customer_tenant")}(text) to service_role;
 grant execute on function ${fn("link_billing_customer")}(${id}, text) to service_role;
 grant execute on function ${fn("billing_seat_count")}(${id}) to service_role;
@@ -699,6 +767,8 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     { name: "billing_customer", args: ["{id}"], returns: "text" },
     { name: "billing_customer_tenant", args: ["text"], returns: "{id}" },
     { name: "link_billing_customer", args: ["{id}", "text"], returns: "text" },
+    { name: "billing_account", args: ["{id}"], returns: "text" },
+    { name: "link_billing_account", args: ["{id}", "text"], returns: "text" },
     { name: "billing_seat_count", args: ["{id}"], returns: "integer" },
     {
       name: "billing_subscription_item",
@@ -743,7 +813,7 @@ export const BILLING: ModuleDefinition = {
   integrates: ["organizations"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -751,6 +821,12 @@ export const BILLING: ModuleDefinition = {
         "billing_plan_price takes a variant, for plans with several prices.",
       sql: (ctx) =>
         `drop function if exists ${ctx.fn("billing_plan_price")}(text, text);`,
+    },
+    {
+      from: 2,
+      description:
+        "billing_customers takes a Stripe Accounts v2 account (stripe_customer_account_id), and stripe_customer_id is null until Stripe creates the account's customer.",
+      sql: () => "",
     },
   ],
   names: NAMES,
