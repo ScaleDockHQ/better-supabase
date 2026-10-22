@@ -636,7 +636,7 @@ begin
   case search_refresh.subject_type
 ${cases}
     else
-      ${fail("SEARCH_SUBJECT_UNKNOWN", "this subject type has no search entry in config.subjects", "22023")}
+      ${fail("SEARCH_SUBJECT_UNKNOWN", "this subject type has no search entry in config.records", "22023")}
   end case;
   if not v_found then
     delete from ${docs}
@@ -780,7 +780,7 @@ export const SEARCH: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Search",
   description:
-    "A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
+    "A search_documents index kept up by triggers from each config.records search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.",
   requires: ["tenant", "access", "subjects"],
   integrates: ["share-links", "vector-search"],
   target: "schema",

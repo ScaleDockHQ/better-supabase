@@ -64,7 +64,7 @@ describe.skipIf(!source)("$rpc on an overloaded function", () => {
     const model = buildModel(
       snapshot,
       resolveConfig(
-        { schemas: [SCHEMA], casing: "camel" },
+        { database: { schemas: [SCHEMA] }, gen: { casing: "camel" } },
         libraryFixture("").pathname,
       ),
     );

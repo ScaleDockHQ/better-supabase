@@ -213,7 +213,7 @@ export async function upgrade(
   }
 
   for (const module of renamed) {
-    lines.push(`${module}: renamed after blocks.<name>.entities`);
+    lines.push(`${module}: renamed after blocks.<name>.names`);
   }
 
   for (const entry of plan) {

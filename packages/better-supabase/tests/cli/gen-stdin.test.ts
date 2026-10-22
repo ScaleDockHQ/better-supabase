@@ -31,7 +31,7 @@ describe("gen --metadata", () => {
     root = await mkdtemp(join(tmpdir(), "better-supabase-gen-stdin-"));
     await writeFile(
       join(root, "better-supabase.config.ts"),
-      `export default { casing: "camel", output: "src/db/generated.ts" };\n`,
+      `export default { gen: { casing: "camel", output: "src/db/generated.ts" } };\n`,
     );
   });
 
@@ -93,7 +93,7 @@ describe("gen --metadata", () => {
     expect(result.code).toBe(0);
 
     const config = resolveConfig(
-      { casing: "camel", output: "src/db/generated.ts" },
+      { gen: { casing: "camel", output: "src/db/generated.ts" } },
       root,
     );
 
@@ -200,7 +200,7 @@ describe("gen --metadata", () => {
 
 describe("fromMetadata", () => {
   const config = resolveConfig(
-    { casing: "camel", output: "src/db/generated.ts" },
+    { gen: { casing: "camel", output: "src/db/generated.ts" } },
     "/project",
   );
 

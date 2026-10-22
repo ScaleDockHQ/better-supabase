@@ -241,8 +241,10 @@ const root = "/project";
 
 const config = resolveConfig(
   {
-    output: "src/generated.ts",
-    json: { "events.meta": { type: "{ a: number }" } },
+    gen: {
+      output: "src/generated.ts",
+      json: { "events.meta": { type: "{ a: number }" } },
+    },
   },
   root,
 );

@@ -106,7 +106,7 @@ describe("init and add", () => {
     await rm(join(dir, "better-supabase.config.ts"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      '{"output": "src/db/generated.ts"}',
+      '{"gen": {"output": "src/db/generated.ts"}}',
     );
     const again = await run(["init", "--cwd", dir]);
     expect(again.stderr).toBe("");
@@ -173,7 +173,7 @@ describe("init and add", () => {
 
     await writeFile(
       join(dir, "apps/web/better-supabase.config.json"),
-      '{"output": "src/db/generated.ts"}',
+      '{"gen": {"output": "src/db/generated.ts"}}',
     );
     await rm(join(dir, "apps/web/better-supabase.config.ts"));
 
@@ -238,7 +238,7 @@ describe("init and add", () => {
     );
     expect(
       await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
-    ).toContain("sql: { workflow: 'migrations' },");
+    ).toContain("database: { sql: { workflow: 'migrations' } },");
   });
 
   it("keeps pg-delta off when config.toml turns it off", async () => {
@@ -677,7 +677,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
     await project(
       {},
       {
-        "better-supabase.config.ts": `export default { readSets: ['src/read-sets.ts'], blocks: ['read-sets'] };\n`,
+        "better-supabase.config.ts": `export default { gen: { readSets: ['src/read-sets.ts'] }, blocks: ['read-sets'] };\n`,
         "src/read-sets.ts": readSetModule,
       },
     );
@@ -906,7 +906,7 @@ describe("flags from the config", () => {
       },
     );
     await configure({
-      env: { output: ".env.development.local", prefix: "VITE_" },
+      tooling: { env: { output: ".env.development.local", prefix: "VITE_" } },
     });
     expect(
       (await run(["env", "--status-file", "status.json", "--cwd", dir])).code,
@@ -931,14 +931,16 @@ describe("flags from the config", () => {
 
   it("writes the signing key to keys.output", async () => {
     await project({}, { "supabase/config.toml": "[auth]\n" });
-    await configure({ keys: { output: "supabase/keys/local.json" } });
+    await configure({
+      tooling: { keys: { output: "supabase/keys/local.json" } },
+    });
     expect((await run(["keys", "--cwd", dir])).code).toBe(0);
     expect(existsSync(join(dir, "supabase/keys/local.json"))).toBe(true);
   });
 
   it("installs skills for skills.agents", async () => {
     await project({}, { ".cursor/rules/.keep": "" });
-    await configure({ skills: { agents: ["claude"] } });
+    await configure({ tooling: { skills: { agents: ["claude"] } } });
     const install = await run(["skills", "install", "--cwd", dir]);
     expect(install.stdout).toContain(".claude/skills/better-supabase/SKILL.md");
     expect(install.stdout).not.toContain(".cursor/skills");
@@ -951,15 +953,15 @@ describe("flags from the config", () => {
     ).toBe(0);
     expect(
       await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
-    ).toContain("integrations: ['hono', 'mcp'],");
+    ).toContain("adapters: ['hono', 'mcp'],");
 
     await rm(join(dir, "better-supabase.config.ts"));
     await rm(join(dir, "supabase/functions/mcp"), { recursive: true });
-    await configure({ integrations: ["mcp"] });
+    await configure({ adapters: ["mcp"] });
     const add = await run(["add", "--cwd", dir]);
     expect(add.code).toBe(0);
     expect(add.stdout).toContain("supabase/functions/mcp/index.ts");
-    expect(add.stdout).not.toContain("integrations: [");
+    expect(add.stdout).not.toContain("adapters: [");
     expect((await run(["add", "--cwd", dir])).stdout).toBe(
       "Every integration in the config is set up: mcp.\n",
     );
@@ -973,6 +975,6 @@ describe("flags from the config", () => {
       dir,
     ]);
 
-    expect(orpc.stdout).toContain("  integrations: ['mcp', 'orpc']");
+    expect(orpc.stdout).toContain("  adapters: ['mcp', 'orpc']");
   });
 });

@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
 /**
- * A link to any subject in `config.subjects`, titled and routed by
+ * A link to any subject in `config.records`, titled and routed by
  * `subject_titles`. The links rendered in one pass share one round trip, and a
  * subject the caller can't read shows as plain text.
  */

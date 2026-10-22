@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join, posix, resolve } from "node:path";
 
 import type {
-  BetterSupabaseConfig,
+  FlatConfig,
   ResolvedConfig,
   SqlWorkflow,
 } from "../../config/index.ts";
@@ -18,7 +18,7 @@ import type { Prompter } from "../prompts.ts";
 import type { Now } from "../sql/migrations.ts";
 import type { TemplateFile } from "../templates.ts";
 
-import { resolveConfig } from "../../config/index.ts";
+import { groupConfig, resolveConfig } from "../../config/index.ts";
 import {
   conventionConfig,
   designConfig,
@@ -514,13 +514,13 @@ export async function runInit(
 
   if (chosen !== null) {
     const presetConfig = resolveConfig(
-      {
+      groupConfig({
         preset: chosen.value,
         casing,
         output: generated,
         ...designKeys(chosen.resolved, chosen.design),
         ...(workflow === "pg-delta" ? {} : { sql: { workflow } }),
-      },
+      }),
       root,
     );
 
@@ -624,7 +624,7 @@ export const initCommand: AnyCommand = defineCliCommand({
 function designKeys(
   resolved: ResolvedPreset,
   design: CreateDesign | undefined,
-): Pick<BetterSupabaseConfig, "appTables" | "blocks"> {
+): Pick<FlatConfig, "appTables" | "blocks"> {
   if (design === undefined) {
     return {};
   }

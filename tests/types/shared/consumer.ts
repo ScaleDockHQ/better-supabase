@@ -194,7 +194,7 @@ export function integrations(): unknown[] {
       info: { title: "CRM", version: "1" },
       resources: { customers: true },
     }),
-    defineConfig({ generators: [zod()] }),
+    defineConfig({ gen: { generators: [zod()] } }),
     list,
     logos.path({ organizationId: "o", customerId: "c" }) satisfies Result<
       StoragePath<"customer-logos">
@@ -271,7 +271,9 @@ export function integrations(): unknown[] {
       .actingAs("u1")
       .$search("customers", { vector: [0.1, 0.2], k: 3, select: ["id"] })
       .map((rows) => rows.map((row) => row.id satisfies string)),
-    defineConfig({ vectorSearch: { notes: { column: "embedding" } } }),
+    defineConfig({
+      database: { vectorSearch: { notes: { column: "embedding" } } },
+    }),
     fromBetterResult(
       toBetterResult(
         { ok: true, data: 1, error: null },

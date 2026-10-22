@@ -355,7 +355,7 @@ function build(ctx: BlockSqlContext): string {
 
   if (renamed.length > 0) {
     throw new TypeError(
-      `blocks.credentials.columns.secrets: the managed module keeps credentials in Vault by name, so ${renamed.join(", ")} maps to nothing; adopt your own table with mode "adopt"`,
+      `blocks.credentials.columns.secrets: the managed module keeps credentials in Vault by name, so ${renamed.join(", ")} maps to nothing; adopt your own table with ownership "adopt"`,
     );
   }
 

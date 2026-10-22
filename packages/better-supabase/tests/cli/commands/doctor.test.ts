@@ -106,7 +106,9 @@ describe("doctor command", () => {
 
   it("reads only, format and output from the doctor config", async () => {
     const config: BetterSupabaseConfig = {
-      doctor: { only: ["BS208"], format: "sarif", output: "doctor.sarif" },
+      tooling: {
+        doctor: { only: ["BS208"], format: "sarif", output: "doctor.sarif" },
+      },
     };
 
     const options = () => ({
@@ -286,7 +288,7 @@ describe("doctor command", () => {
     const skipped = await doctor(
       ["--only", "BS304", "--json"],
       { snapshot },
-      { ...config, readSets: ["src/missing.ts"] },
+      { ...config, gen: { readSets: ["src/missing.ts"] } },
     );
 
     expect(findings(skipped)).toEqual([]);

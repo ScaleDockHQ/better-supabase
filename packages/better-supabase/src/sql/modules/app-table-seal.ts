@@ -59,13 +59,13 @@ export function checkSealBlocks(table: SealTable): void {
 
   if (!table.ctx.installed("field-encryption")) {
     throw new TypeError(
-      `appTables.${table.name}: an encrypted column needs the field-encryption block, which keeps its keys in Vault; add it to blocks`,
+      `tables.${table.name}: an encrypted column needs the field-encryption block, which keeps its keys in Vault; add it to blocks`,
     );
   }
 
   if (table.config.auditReads === true && !table.ctx.installed("audit")) {
     throw new TypeError(
-      `appTables.${table.name}.auditReads needs the audit block; add it to blocks`,
+      `tables.${table.name}.auditReads needs the audit block; add it to blocks`,
     );
   }
 }

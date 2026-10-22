@@ -3,13 +3,17 @@ import type { AuthorizationProvider } from "./authorization.ts";
 import type { AnyBlocksConfig } from "./blocks.ts";
 import type { ConfigReferences } from "./references.ts";
 import type { Generator } from "./types/codegen.ts";
-import type { BetterSupabaseConfig, ResolvedConfig } from "./types/config.ts";
+import type {
+  BetterSupabaseConfig,
+  FlatConfig,
+  ResolvedConfig,
+} from "./types/config.ts";
 import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { tenantNames } from "../core/entity-naming.ts";
-import { expandPreset } from "../preset/config.ts";
+import { expandFlatPreset, expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
 import { withBlockSubjects } from "./block-subjects.ts";
@@ -20,6 +24,7 @@ import {
   resolveExpose,
   resolveExposeFunction,
 } from "./expose.ts";
+import { flattenConfig } from "./groups.ts";
 
 function entitlementsOf(
   config: EntitlementsConfig = {},
@@ -30,7 +35,7 @@ function entitlementsOf(
 
   if (customer !== undefined && dot <= 0) {
     throw new TypeError(
-      `entitlements.customer must be "table.column", got "${customer}"`,
+      `auth.entitlements.customer must be "table.column", got "${customer}"`,
     );
   }
 
@@ -140,7 +145,7 @@ function withSqlDefaults(
 }
 
 function isBlockList(
-  config: NonNullable<BetterSupabaseConfig["blocks"]>,
+  config: NonNullable<FlatConfig["blocks"]>,
 ): config is readonly string[] {
   return Array.isArray(config);
 }
@@ -152,9 +157,9 @@ export const CONFIG_SCHEMA_URL =
  * Types `better-supabase.config.ts` and returns it with its literal types. With
  * `preset`, it expands the preset into `blocks` and its conventions first, and
  * the keys you set win. It checks the references between keys against the
- * config itself: block tables and app tables in `appTables` references, the
- * `buckets` in `storagePaths`, and the `blocks.access.roles` other blocks
- * name.
+ * config itself: block tables and app tables in `tables` references, the
+ * `database.buckets` in `gen.storagePaths`, and the `blocks.access.roles` other
+ * blocks name.
  */
 export function defineConfig<const C extends BetterSupabaseConfig>(
   config: C & NoInfer<ConfigReferences<C>>,
@@ -210,7 +215,7 @@ export function resolveConfig(
   input: BetterSupabaseConfig,
   root: string,
 ): ResolvedConfig {
-  const config = expandPreset(input);
+  const config = expandFlatPreset(flattenConfig(input));
   const output = config.output ?? CONFIG_DEFAULTS.output;
   // oxlint-disable-next-line typescript/no-deprecated -- the deprecated key still resolves, and maps onto specs
   const legacyOpenApi = config.openapi;

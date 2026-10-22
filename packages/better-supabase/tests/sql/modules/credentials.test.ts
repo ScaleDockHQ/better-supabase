@@ -117,7 +117,7 @@ describe("credentials module", () => {
       );
       expect(() =>
         body({ credentials: { columns: { secrets: { tenant: "org_id" } } } }),
-      ).toThrow(/mode "adopt"/);
+      ).toThrow(/ownership "adopt"/);
     });
   });
 

@@ -13,7 +13,7 @@ const ARGS = {
   out: {
     type: "string",
     description:
-      "Defaults to source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json",
+      "Defaults to database.source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json",
     valueHint: "file",
   },
   kind: {

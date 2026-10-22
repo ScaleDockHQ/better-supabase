@@ -19,7 +19,7 @@ const live = await reachable();
 const config = resolveConfig(
   {
     blocks: ["tenant", "organizations"],
-    appTables: {
+    tables: {
       boards: { columns: { name: { type: "text", nullable: false } } },
       cards: {
         columns: {
@@ -31,8 +31,8 @@ const config = resolveConfig(
           title: { type: "text", nullable: false },
         },
       },
-      drafts: { scope: "user", columns: { body: { type: "text" } } },
-      changelog: { scope: "none", columns: { body: { type: "text" } } },
+      drafts: { owner: "user", columns: { body: { type: "text" } } },
+      changelog: { owner: "none", columns: { body: { type: "text" } } },
     },
   },
   process.cwd(),

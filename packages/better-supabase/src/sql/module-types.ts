@@ -110,7 +110,7 @@ export interface BlockSql {
   readonly sql: string;
   /** Bumped when installed databases need an upgrade step. Defaults to 1. */
   readonly version?: number;
-  /** The modes `blocks.<name>.mode` accepts. Defaults to `managed` only. */
+  /** The modes `blocks.<name>.ownership` accepts. Defaults to `managed` only. */
   readonly modes?: readonly BlockMode[];
   /** The logical tables and columns `blocks.<name>.tables` and `columns` map. */
   readonly names?: BlockSqlNames;
@@ -294,7 +294,7 @@ export interface BlockSqlLayout {
   readonly modules?: AnyBlocksConfig;
   /** `sql.scope`: the scope of every block that sets none. Defaults to `tenant`. */
   readonly scope?: BlockScope;
-  /** `config.subjects`: the app-wide subject registry (ADR 0020). */
+  /** `config.records`: the app-wide subject registry (ADR 0020). */
   readonly subjects?: SubjectsConfig;
   /**
    * `config.appTables`: the tables the app owns, rendered after the blocks (ADR

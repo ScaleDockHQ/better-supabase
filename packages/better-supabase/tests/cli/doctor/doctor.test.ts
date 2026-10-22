@@ -39,7 +39,7 @@ import { moduleSnapshotFixture as fixture } from "../fixtures/library.ts";
 const base = await parseSnapshot(fixture);
 
 const AUTHZ = {
-  config: resolveConfig({ authorization: stubProvider }, "/project"),
+  config: resolveConfig({ auth: { authorization: stubProvider } }, "/project"),
 };
 
 const toml = (text: string): SupabaseToml => ({
@@ -128,7 +128,11 @@ describe("doctor rules", () => {
 
     const ctx = context(fromCatalog(catalog), {
       config: resolveConfig(
-        { realtime: { tables: ["customers", "public.notes", "missing"] } },
+        {
+          database: {
+            realtime: { tables: ["customers", "public.notes", "missing"] },
+          },
+        },
         "/project",
       ),
     });
@@ -191,11 +195,13 @@ describe("doctor rules", () => {
       context(snap, {
         config: resolveConfig(
           {
-            expose: {
-              notes: ["select", "insert", "update(title)"],
-              "public.organizations": { anon: ["select"] },
+            database: {
+              expose: {
+                notes: ["select", "insert", "update(title)"],
+                "public.organizations": { anon: ["select"] },
+              },
             },
-            tables: { tags: { exclude: true } },
+            gen: { tables: { tags: { exclude: true } } },
           },
           "/project",
         ),
@@ -229,7 +235,7 @@ describe("doctor rules", () => {
 
   it("reads grants from the catalog, whatever file wrote them", async () => {
     const exposeNotes = resolveConfig(
-      { expose: { notes: ["select", "update"] } },
+      { database: { expose: { notes: ["select", "update"] } } },
       "/project",
     );
 
@@ -284,9 +290,11 @@ describe("doctor rules", () => {
       context(snap, {
         config: resolveConfig(
           {
-            tables: {
-              tags: { serviceRole: true },
-              notes: { serviceRole: true },
+            gen: {
+              tables: {
+                tags: { serviceRole: true },
+                notes: { serviceRole: true },
+              },
             },
           },
           "/project",
@@ -337,7 +345,7 @@ describe("doctor rules", () => {
     const serviceRole = await runRules(
       context(snap, {
         config: resolveConfig(
-          { tables: { tags: { serviceRole: true } } },
+          { gen: { tables: { tags: { serviceRole: true } } } },
           "/project",
         ),
       }),
@@ -511,7 +519,9 @@ describe("doctor rules", () => {
         membership: { table: "better_supabase.memberships", deletedAt: "role" },
       };
 
-      const softDelete = { config: resolveConfig({ subjects }, "/project") };
+      const softDelete = {
+        config: resolveConfig({ records: subjects }, "/project"),
+      };
 
       const findings = await runRules(context(snap, softDelete), only);
       expect(findings[0]?.message).toContain(
@@ -521,10 +531,12 @@ describe("doctor rules", () => {
       const listed = {
         config: resolveConfig(
           {
-            subjects,
-            authorization: withProvider({
-              decidingColumns: ["better_supabase.memberships.role"],
-            }),
+            records: subjects,
+            auth: {
+              authorization: withProvider({
+                decidingColumns: ["better_supabase.memberships.role"],
+              }),
+            },
           },
           "/project",
         ),
@@ -598,9 +610,11 @@ describe("doctor rules", () => {
       const provider = {
         config: resolveConfig(
           {
-            authorization: withProvider({
-              decidingColumns: ["public.contacts.organization_id"],
-            }),
+            auth: {
+              authorization: withProvider({
+                decidingColumns: ["public.contacts.organization_id"],
+              }),
+            },
           },
           "/project",
         ),
@@ -990,7 +1004,10 @@ describe("doctor rules", () => {
       expect(await codes(context(five), "BS206")).toEqual([]);
 
       const tight = context(five, {
-        config: resolveConfig({ doctor: { policyHelperLimit: 4 } }, "/p"),
+        config: resolveConfig(
+          { tooling: { doctor: { policyHelperLimit: 4 } } },
+          "/p",
+        ),
       });
 
       const [finding] = await runRules(
@@ -1841,7 +1858,7 @@ uri = "https://example.com/hook"
       ]);
 
       const custom = resolveConfig(
-        { doctor: { claimsLimit: 512 } },
+        { tooling: { doctor: { claimsLimit: 512 } } },
         "/project",
       );
 
@@ -1855,7 +1872,10 @@ uri = "https://example.com/hook"
             true,
             {
               config: resolveConfig(
-                { authorization: stubProvider, doctor: { claimsLimit: 512 } },
+                {
+                  auth: { authorization: stubProvider },
+                  tooling: { doctor: { claimsLimit: 512 } },
+                },
                 "/project",
               ),
             },
@@ -1986,11 +2006,11 @@ uri = "https://example.com/hook"
         context(base, {
           config: resolveConfig(
             {
-              authorization: stubProvider,
+              auth: { authorization: stubProvider },
               blocks: {
                 access: { model: "provider" },
                 tenant: {
-                  mode: "adopt",
+                  ownership: "adopt",
                   tables: { memberships: "public.team_members" },
                   columns: { memberships: { role: "role_id" } },
                   options: {
@@ -2057,12 +2077,14 @@ uri = "https://example.com/hook"
       config: resolveConfig(
         {
           plugins: { softDelete: { column: "archived_at" } },
-          buckets: {
-            customerLogos: {
-              path: "{organizationId}/logo.webp",
-              fileSizeLimit: "1MiB",
+          database: {
+            buckets: {
+              customerLogos: {
+                path: "{organizationId}/logo.webp",
+                fileSizeLimit: "1MiB",
+              },
+              avatars: { path: "{userId}.png" },
             },
-            avatars: { path: "{userId}.png" },
           },
         },
         "/project",
@@ -2116,11 +2138,13 @@ uri = "https://example.com/hook"
     const ctx = context(base, {
       config: resolveConfig(
         {
-          buckets: {
-            customerLogos: {
-              path: "{organizationId}/logo.webp",
-              fileSizeLimit: "1MiB",
-              allowedMimeTypes: ["image/webp"],
+          database: {
+            buckets: {
+              customerLogos: {
+                path: "{organizationId}/logo.webp",
+                fileSizeLimit: "1MiB",
+                allowedMimeTypes: ["image/webp"],
+              },
             },
           },
         },
@@ -2346,7 +2370,7 @@ describe("doctor command", () => {
     await write(
       "better-supabase.config.json",
       JSON.stringify({
-        doctor: { ignore: ["BS303"] },
+        tooling: { doctor: { ignore: ["BS303"] } },
         plugins: { tenant: true },
       }),
     );
@@ -2463,7 +2487,7 @@ describe("doctor command", () => {
     );
     await write(
       "packages/db/better-supabase.config.json",
-      JSON.stringify({ doctor: { ignore: ["BS303"] } }),
+      JSON.stringify({ tooling: { doctor: { ignore: ["BS303"] } } }),
     );
     const cwd = join(dir, "packages/db");
     const args = ["doctor", "--snapshot", "snapshot.json", "--only", "BS103"];

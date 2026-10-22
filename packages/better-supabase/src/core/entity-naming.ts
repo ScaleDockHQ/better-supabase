@@ -219,7 +219,7 @@ export function composeNames(...names: readonly EntityNames[]): EntityNames {
 }
 
 /**
- * The tenant rename (`blocks.tenant.entities.organization`): lowercase forms,
+ * The tenant rename (`blocks.tenant.names.organization`): lowercase forms,
  * anywhere in an identifier, as the tenant rename has always worked.
  */
 export function tenantRename(
@@ -227,7 +227,7 @@ export function tenantRename(
 ): EntityRename {
   const noun =
     typeof to === "string"
-      ? entityNoun(checkEntityName("blocks.tenant.entities.organization", to))
+      ? entityNoun(checkEntityName("blocks.tenant.names.organization", to))
       : to;
 
   return { from: DEFAULT_TENANT, to: noun, cases: LOWER_CASES, bounded: false };

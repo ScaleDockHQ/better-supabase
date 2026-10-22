@@ -219,7 +219,7 @@ function scopeProblem(
 
   const own = layout.modules?.[module.name]?.scope !== undefined;
 
-  return `blocks.${module.name}: the ${module.name} module runs in ${scopes.join(" or ")} scope, not ${scope}${own ? "" : " (from sql.scope)"}. ${scopes.includes("tenant") ? `Set blocks.${module.name}.scope to "tenant" or remove the block.` : "Remove the block."}`;
+  return `blocks.${module.name}: the ${module.name} module runs in ${scopes.join(" or ")} scope, not ${scope}${own ? "" : " (from database.sql.owner)"}. ${scopes.includes("tenant") ? `Set blocks.${module.name}.owner to "tenant" or remove the block.` : "Remove the block."}`;
 }
 
 /** New modules go at the end: the position is part of the file name. */

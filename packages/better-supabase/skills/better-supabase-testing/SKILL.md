@@ -90,7 +90,7 @@ malformed `act` claim (`act: { sub: "" }`) must get a 401.
 
 ## Time values
 
-With `codecs.timestamptz: 'instant'`, rows hold `Temporal` values. Import
+With `gen.codecs.timestamptz: 'instant'`, rows hold `Temporal` values. Import
 `temporal-polyfill/global` in the test setup on Node 24, and compare with
 `.equals()` or an equality tester, because `toEqual` treats any two instants
 as equal:

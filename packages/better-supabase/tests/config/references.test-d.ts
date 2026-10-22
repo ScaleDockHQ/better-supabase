@@ -11,17 +11,17 @@ import { defineConfig } from "../../src/config/resolve.ts";
 describe("defineConfig", () => {
   it("returns the literal config", () => {
     const config = defineConfig({
-      blocks: { "work-items": { entities: { work_item: "task" } } },
+      blocks: { "work-items": { names: { work_item: "task" } } },
     });
 
     expectTypeOf(
-      config.blocks["work-items"].entities.work_item,
+      config.blocks["work-items"].names.work_item,
     ).toEqualTypeOf<"task">();
   });
 
   it("types app table references to block tables and app tables", () => {
     defineConfig({
-      appTables: {
+      tables: {
         notes: {
           columns: {
             item: {
@@ -35,7 +35,7 @@ describe("defineConfig", () => {
     });
 
     defineConfig({
-      appTables: {
+      tables: {
         notes: {
           columns: {
             item: {
@@ -49,7 +49,7 @@ describe("defineConfig", () => {
     });
 
     defineConfig({
-      appTables: {
+      tables: {
         notes: {
           columns: {
             // @ts-expect-error -- "nots" is not an app table.
@@ -83,17 +83,19 @@ describe("defineConfig", () => {
 
   it("suggests bucket names in storagePaths", () => {
     defineConfig({
-      buckets: { avatars: { path: "{userId}/avatar" } },
-      storagePaths: { "profiles.avatar": "avatars", "files.path": "legacy" },
+      database: { buckets: { avatars: { path: "{userId}/avatar" } } },
+      gen: {
+        storagePaths: { "profiles.avatar": "avatars", "files.path": "legacy" },
+      },
     });
   });
 });
 
 describe("reference types", () => {
   it("names the app tables of a literal config", () => {
-    expectTypeOf<
-      AppTableNames<{ appTables: { notes: object } }>
-    >().toEqualTypeOf<"notes" | "auth.users">();
+    expectTypeOf<AppTableNames<{ tables: { notes: object } }>>().toEqualTypeOf<
+      "notes" | "auth.users"
+    >();
     expectTypeOf<AppTableNames<object>>().toEqualTypeOf<string>();
   });
 

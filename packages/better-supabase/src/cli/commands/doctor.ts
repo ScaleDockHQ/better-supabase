@@ -57,29 +57,29 @@ const ARGS = {
   format: {
     type: "string",
     description:
-      "text, sarif (code scanning) or github (workflow annotations); also doctor.format, default text. --json for the JSON report",
+      "text, sarif (code scanning) or github (workflow annotations); also tooling.doctor.format, default text. --json for the JSON report",
     valueHint: "format",
   },
   out: {
     type: "string",
-    description: "Write the report to a file; also doctor.output",
+    description: "Write the report to a file; also tooling.doctor.output",
     valueHint: "file",
   },
   only: {
     type: "string",
     description:
-      "Run only these checks, e.g. --only BS100,BS304; also doctor.only",
+      "Run only these checks, e.g. --only BS100,BS304; also tooling.doctor.only",
     valueHint: "codes",
   },
   ignore: {
     type: "string",
-    description: "Skip checks; also doctor.ignore in the config",
+    description: "Skip checks; also tooling.doctor.ignore in the config",
     valueHint: "codes",
   },
   "fail-on": {
     type: "string",
     description:
-      "Exit 1 on findings at this level: error (the default), warning (the default with doctor.strict) or never",
+      "Exit 1 on findings at this level: error (the default), warning (the default with tooling.doctor.strict) or never",
     valueHint: "level",
   },
   metadata: {

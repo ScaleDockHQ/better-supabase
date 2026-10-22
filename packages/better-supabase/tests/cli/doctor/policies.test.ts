@@ -91,10 +91,10 @@ describe("tables without a policy that are still granted (BS115)", () => {
     });
 
     for (const config of [
-      { expose: { tags: ["select" as const] } },
-      { tables: { tags: { exclude: true } } },
-      { tables: { tags: { serviceRole: true } } },
-    ]) {
+      { database: { expose: { tags: ["select" as const] } } },
+      { gen: { tables: { tags: { exclude: true } } } },
+      { gen: { tables: { tags: { serviceRole: true } } } },
+    ] satisfies Parameters<typeof resolveConfig>[0][]) {
       expect(await run(withConfig(config), "BS115")).toEqual([]);
     }
 
@@ -321,7 +321,9 @@ describe("policy security rules", () => {
     expect(
       await run(
         withFunctions([definer], {
-          expose: { "wipe(uuid)": { execute: ["authenticated"] } },
+          database: {
+            expose: { "wipe(uuid)": { execute: ["authenticated"] } },
+          },
         }),
         "BS116",
       ),

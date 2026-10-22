@@ -32,14 +32,14 @@ describe("writeDesign", () => {
   it("says which key it can't set", () => {
     const tables = writeDesign(
       "better-supabase.config.ts",
-      source("  appTables: tables,"),
+      source("  tables: appTables,"),
       { appTables: { notes: {} } },
     );
 
     expect(tables).toEqual({
       ok: false,
       reason:
-        "appTables.notes can't be set: its appTables key isn't a literal object",
+        "tables.notes can't be set: its tables key isn't a literal object",
     });
 
     const blocks = writeDesign(

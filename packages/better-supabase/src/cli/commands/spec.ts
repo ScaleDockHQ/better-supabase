@@ -63,7 +63,7 @@ const ARGS = {
   entry: {
     type: "string",
     description:
-      "Defaults to specs.entry. Exports `api` (defineApi) or a document",
+      "Defaults to api.specs.entry. Exports `api` (defineApi) or a document",
     valueHint: "file",
   },
   yaml: { type: "boolean", description: "Write YAML instead of JSON" },
@@ -82,7 +82,7 @@ const ARGS = {
   manifest: {
     type: "string",
     description:
-      "Also write the diagnostics manifest (JSON) to this file. Defaults to specs.manifest",
+      "Also write the diagnostics manifest (JSON) to this file. Defaults to api.specs.manifest",
     valueHint: "file",
   },
   cache: {
@@ -346,7 +346,7 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
     } catch (cause) {
       return {
         code: 1,
-        error: `Could not load the topics of realtime.policies.from: ${errorText(cause)}`,
+        error: `Could not load the topics of database.realtime.policies.from: ${errorText(cause)}`,
       };
     }
   }

@@ -11,7 +11,7 @@ describe("blocks.generated.ts", () => {
   it("writes each installed block's schema, API schema and shared options", () => {
     const config = resolveConfig(
       {
-        sql: { api: "api" },
+        database: { sql: { api: "api" } },
         blocks: {
           tenant: {},
           access: {},
@@ -50,7 +50,7 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         blocks: {
-          tenant: { entities: { organization: "workspace" } },
+          tenant: { names: { organization: "workspace" } },
           organizations: {},
           tags: { functions: { create_tag: "make_tag" } },
           access: {
@@ -83,9 +83,7 @@ describe("blocks.generated.ts", () => {
         blocks: {
           tenant: {},
           access: {},
-          "work-items": {
-            entities: { work_item: "task", project: "initiative" },
-          },
+          "work-items": { names: { work_item: "task", project: "initiative" } },
         },
       },
       "/project",
@@ -111,7 +109,7 @@ describe("blocks.generated.ts", () => {
         blocks: {
           tenant: {},
           access: {},
-          "work-items": { entities: { work_item: "task" } },
+          "work-items": { names: { work_item: "task" } },
         },
       },
       "/project",
@@ -154,13 +152,13 @@ describe("blocks.generated.ts", () => {
           tenant: {},
           access: { roles: { owner: ["*"], editor: ["tasks.write"] } },
           notifications: {},
-          "work-items": { entities: { work_item: "task" } },
+          "work-items": { names: { work_item: "task" } },
           settings: {
             options: { schemas: { user: { theme: { type: "string" } } } },
           },
           usage: { options: { meters: { seats: { aggregate: "count" } } } },
         },
-        buckets: { avatars: { path: "{userId}/{name}" } },
+        database: { buckets: { avatars: { path: "{userId}/{name}" } } },
       },
       "/project",
     );
@@ -189,8 +187,8 @@ describe("blocks.generated.ts", () => {
   it("writes a url for every subject type with a template", () => {
     const config = resolveConfig(
       {
-        casing: "camel",
-        subjects: {
+        gen: { casing: "camel" },
+        records: {
           customer: {
             table: "public.customers",
             tenant: "organization_id",
@@ -198,7 +196,7 @@ describe("blocks.generated.ts", () => {
           },
           note: { table: "public.notes", tenant: false },
         },
-        appTables: {
+        tables: {
           projects: {
             columns: { name: { type: "text" } },
             subject: {
@@ -227,9 +225,9 @@ describe("blocks.generated.ts", () => {
           tenant: {},
           subjects: {},
           "work-items": {
-            entities: { work_item: { name: "task", url: "/tasks/{id}" } },
+            names: { work_item: { name: "task", url: "/tasks/{id}" } },
           },
-          deals: { entities: { deal: { url: "/crm/deals" } } },
+          deals: { names: { deal: { url: "/crm/deals" } } },
         },
       },
       "/project",
@@ -243,7 +241,10 @@ describe("blocks.generated.ts", () => {
 
   it("leaves out tenant and access in user scope", () => {
     const entries = blockConfigEntries(
-      resolveConfig({ sql: { scope: "user" }, blocks: ["tags"] }, "/project"),
+      resolveConfig(
+        { database: { sql: { owner: "user" } }, blocks: ["tags"] },
+        "/project",
+      ),
     );
 
     expect(Object.keys(entries)).toContain("tags");
@@ -252,7 +253,10 @@ describe("blocks.generated.ts", () => {
 
   it("emits a typed module next to the main generated module", () => {
     const config = resolveConfig(
-      { output: "app/lib/db/generated.ts", blocks: ["tenant", "attachments"] },
+      {
+        gen: { output: "app/lib/db/generated.ts" },
+        blocks: ["tenant", "attachments"],
+      },
       "/project",
     );
 
@@ -276,7 +280,7 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         blocks: { tenant: {}, outbox: {} },
-        appTables: {
+        tables: {
           tasks: { subject: { type: "task" }, events: true },
           notes: { events: { on: ["deleted"] } },
           files: {},

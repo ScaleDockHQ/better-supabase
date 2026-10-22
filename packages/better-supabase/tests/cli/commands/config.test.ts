@@ -22,9 +22,13 @@ describe("config", () => {
     await writeFile(
       join(dir, "better-supabase.config.mjs"),
       `export default {
-  casing: "camel",
-  source: { dbUrl: "postgresql://postgres:secret@db.example.com:5432/postgres" },
-  generators: [{ apiVersion: 1, name: "tables", generate: () => [] }],
+  database: {
+    source: { dbUrl: "postgresql://postgres:secret@db.example.com:5432/postgres" },
+  },
+  gen: {
+    casing: "camel",
+    generators: [{ apiVersion: 1, name: "tables", generate: () => [] }],
+  },
 };\n`,
     );
     const result = await run(["config", "--json", "--cwd", dir], { env: {} });
@@ -49,7 +53,7 @@ describe("config", () => {
   it("redacts the Management API token", async () => {
     await writeFile(
       join(dir, "better-supabase.config.mjs"),
-      `export default { source: { accessToken: "sbp_0123456789abcdef0123456789abcdef" } };\n`,
+      `export default { database: { source: { accessToken: "sbp_0123456789abcdef0123456789abcdef" } } };\n`,
     );
 
     for (const argv of [["config"], ["config", "--json"]]) {
@@ -68,7 +72,7 @@ describe("config", () => {
 
   it("redacts a connection string it cannot parse", () => {
     const config = resolveConfig(
-      { source: { dbUrl: "not a url" }, generators: [] },
+      { database: { source: { dbUrl: "not a url" } }, gen: { generators: [] } },
       "/project",
     );
 
@@ -78,7 +82,9 @@ describe("config", () => {
     expect(
       printableConfig(
         resolveConfig(
-          { source: { dbUrl: "postgresql://localhost/postgres" } },
+          {
+            database: { source: { dbUrl: "postgresql://localhost/postgres" } },
+          },
           "/",
         ),
       ),

@@ -20,7 +20,7 @@ export interface DealNames {
   /** `text[]` SQL of the allowed motions and priorities. */
   readonly motions: string;
   readonly priorities: string;
-  /** The `config.subjects` types a deal's company and contacts default to. */
+  /** The `config.records` types a deal's company and contacts default to. */
   readonly company: string;
   readonly contact: string;
   /** The identifier prefix without number-sequences, such as `DEAL-`. */

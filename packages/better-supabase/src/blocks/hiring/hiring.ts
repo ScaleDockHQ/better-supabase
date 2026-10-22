@@ -75,7 +75,7 @@ export interface JobInput<F extends object = Record<never, never>> {
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-/** A candidate's record in `config.subjects`, a person by default. */
+/** A candidate's record in `config.records`, a person by default. */
 export interface Candidate {
   readonly type: string;
   readonly id: string;

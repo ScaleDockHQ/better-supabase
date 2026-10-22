@@ -87,7 +87,7 @@ describe("relations", () => {
   it("names a composite tenant foreign key after its own column", async () => {
     const model = buildModel(
       await loadFixtureSnapshot(),
-      resolveConfig({ casing: "camel" }, fixtures),
+      resolveConfig({ gen: { casing: "camel" } }, fixtures),
     );
 
     const relation = (table: string, name: string) =>
@@ -114,7 +114,7 @@ describe("relations.nullableUnderRls", () => {
     buildModel(
       await loadFixtureSnapshot(),
       resolveConfig(
-        { casing: "camel", relations: { nullableUnderRls } },
+        { gen: { casing: "camel", relations: { nullableUnderRls } } },
         fixtures,
       ),
     )
@@ -173,7 +173,7 @@ describe("relation names", () => {
 
     const model = buildModel(
       snapshot,
-      resolveConfig({ casing: "camel" }, fixtures),
+      resolveConfig({ gen: { casing: "camel" } }, fixtures),
     );
 
     return (table: string) =>
@@ -223,8 +223,10 @@ describe("storagePaths", () => {
 
   it("types a column with the bucket id from a buckets key or a raw id", async () => {
     const byKey = await model({
-      buckets: { customerLogos: { path: "{organizationId}/{file}" } },
-      storagePaths: { "public.customers.logo_path": "customerLogos" },
+      database: {
+        buckets: { customerLogos: { path: "{organizationId}/{file}" } },
+      },
+      gen: { storagePaths: { "public.customers.logo_path": "customerLogos" } },
     });
 
     expect(logo(byKey)).toMatchObject({
@@ -236,7 +238,7 @@ describe("storagePaths", () => {
     );
 
     const byId = await model({
-      storagePaths: { "customers.logo_path": "logos" },
+      gen: { storagePaths: { "customers.logo_path": "logos" } },
     });
 
     expect(logo(byId)?.tsType).toBe('StoragePath<"logos">');
@@ -244,10 +246,10 @@ describe("storagePaths", () => {
 
   it("rejects unknown and non-text columns", async () => {
     await expect(
-      model({ storagePaths: { "customers.logo_url": "logos" } }),
+      model({ gen: { storagePaths: { "customers.logo_url": "logos" } } }),
     ).rejects.toThrow('storagePaths["customers.logo_url"]: no such column');
     await expect(
-      model({ storagePaths: { "customers.metadata": "logos" } }),
+      model({ gen: { storagePaths: { "customers.metadata": "logos" } } }),
     ).rejects.toThrow("is jsonb, not a text column");
   });
 });
@@ -260,7 +262,7 @@ describe("function results", () => {
     built.functions.find((entry) => entry.key === name);
 
   it("types table rows with the model row and records in the casing", async () => {
-    const camel = await model({ casing: "camel" });
+    const camel = await model({ gen: { casing: "camel" } });
     expect(fn(camel, "customers_by_status")).toMatchObject({
       returns: `(Models["customers"]['Row'])[]`,
       meta: { result: { table: "customers" } },
@@ -281,13 +283,15 @@ describe("function results", () => {
   });
 
   it("records codecs and leaves results decoding wouldn't change out of the metadata", async () => {
-    const snake = await model({ casing: "snake" });
+    const snake = await model({ gen: { casing: "snake" } });
     expect(fn(snake, "customers_by_status")?.meta.result).toBeUndefined();
     expect(fn(snake, "customer_note_counts")?.meta.result).toBeUndefined();
 
     const coded = await model({
-      casing: "snake",
-      codecs: { timestamptz: "instant", int8: "bigint" },
+      gen: {
+        casing: "snake",
+        codecs: { timestamptz: "instant", int8: "bigint" },
+      },
     });
 
     expect(fn(coded, "customer_note_counts")).toMatchObject({
@@ -379,9 +383,11 @@ describe("function result nullability", () => {
 
   it("drops null where the config says a result is never null", async () => {
     const returns = await withScalars({
-      functions: {
-        open_count: { notNull: true },
-        customer_note_counts: { notNull: ["customer_id", "note_count"] },
+      gen: {
+        functions: {
+          open_count: { notNull: true },
+          customer_note_counts: { notNull: ["customer_id", "note_count"] },
+        },
       },
     });
 
@@ -390,11 +396,11 @@ describe("function result nullability", () => {
       '{ "customer_id": string; "last_note_at": string | null; "note_count": number }[]',
     );
     await expect(
-      withScalars({ functions: { nope: { notNull: true } } }),
+      withScalars({ gen: { functions: { nope: { notNull: true } } } }),
     ).rejects.toThrow('functions.nope: no function "nope" in public');
     await expect(
       withScalars({
-        functions: { customer_note_counts: { notNull: ["missing"] } },
+        gen: { functions: { customer_note_counts: { notNull: ["missing"] } } },
       }),
     ).rejects.toThrow(
       'functions.customer_note_counts.notNull: "missing" is not a column the function returns',
@@ -416,7 +422,11 @@ describe("function result nullability", () => {
     );
 
     const configured = await withScalars(
-      { functions: { customer_note_counts: { notNull: ["customer_id"] } } },
+      {
+        gen: {
+          functions: { customer_note_counts: { notNull: ["customer_id"] } },
+        },
+      },
       tagged,
     );
 
@@ -505,7 +515,7 @@ describe("function result nullability", () => {
 
     expect(notice({})).toMatch(/customer_note_counts/u);
     expect(
-      notice({ functions: { customer_note_counts: { notNull: [] } } }),
+      notice({ gen: { functions: { customer_note_counts: { notNull: [] } } } }),
     ).not.toMatch(/customer_note_counts/u);
   });
 });
@@ -633,7 +643,7 @@ describe("CHECK not null", () => {
 
   it("makes insertOptional columns optional on insert", async () => {
     const listed = await customersWith((table) => table, {
-      tables: { customers: { insertOptional: ["kvk", "name"] } },
+      gen: { tables: { customers: { insertOptional: ["kvk", "name"] } } },
     });
 
     expect(listed("kvk").column).toMatchObject({
@@ -644,7 +654,7 @@ describe("CHECK not null", () => {
     expect(listed("name").meta?.hasDefault).toBe(true);
     await expect(
       customersWith((table) => table, {
-        tables: { customers: { insertOptional: ["nope"] } },
+        gen: { tables: { customers: { insertOptional: ["nope"] } } },
       }),
     ).rejects.toThrow(
       'tables.customers.insertOptional: "nope" is not a column of public.customers',
@@ -656,7 +666,7 @@ describe("CHECK not null", () => {
       customersWith((table) => table, {
         blocks: {
           "number-sequences": {
-            mode,
+            ownership: mode,
             options: {
               entities: {
                 customer: {
@@ -690,7 +700,7 @@ describe("metadata module", () => {
   it("writes one line per table and function and parses back to the metadata", async () => {
     const model = buildModel(
       await loadFixtureSnapshot(),
-      resolveConfig({ casing: "camel" }, fixtures),
+      resolveConfig({ gen: { casing: "camel" } }, fixtures),
     );
 
     const { js } = emitMeta(model);
@@ -744,19 +754,22 @@ describe("plugin flags", () => {
       customer: { table: "customers", deletedAt: "archived_at" },
     };
 
-    expect(await flagsOf({ subjects }, "customers")).toMatchObject({
+    expect(await flagsOf({ records: subjects }, "customers")).toMatchObject({
       softDelete: "archived_at",
     });
     expect(
       await flagsOf(
-        { subjects, plugins: { softDelete: { column: "created_at" } } },
+        {
+          records: subjects,
+          plugins: { softDelete: { column: "created_at" } },
+        },
         "customers",
       ),
     ).toMatchObject({ softDelete: "archived_at" });
     expect(
       await flagsOf(
         {
-          subjects: { customer: { table: "customers", deletedAt: "gone_at" } },
+          records: { customer: { table: "customers", deletedAt: "gone_at" } },
           plugins: { softDelete: { column: "archived_at" } },
         },
         "customers",
@@ -766,7 +779,7 @@ describe("plugin flags", () => {
 
   it("rejects a subject deletedAt that is not a timestamp", async () => {
     const config = resolveConfig(
-      { subjects: { customer: { table: "customers", deletedAt: "name" } } },
+      { records: { customer: { table: "customers", deletedAt: "name" } } },
       fixtures,
     );
 
@@ -785,7 +798,7 @@ describe("codecs", () => {
 
   it("types timestamptz columns as Temporal.Instant with the instant codec", async () => {
     expect(
-      await createdAt({ codecs: { timestamptz: "instant" } }),
+      await createdAt({ gen: { codecs: { timestamptz: "instant" } } }),
     ).toMatchObject({ codec: "instant", tsType: "Temporal.Instant" });
     expect(await createdAt({})).toMatchObject({
       codec: undefined,
@@ -794,10 +807,9 @@ describe("codecs", () => {
   });
 
   it("keeps timestamptz columns as strings with the utc codec", async () => {
-    expect(await createdAt({ codecs: { timestamptz: "utc" } })).toMatchObject({
-      codec: "utcString",
-      tsType: "string",
-    });
+    expect(
+      await createdAt({ gen: { codecs: { timestamptz: "utc" } } }),
+    ).toMatchObject({ codec: "utcString", tsType: "string" });
   });
 });
 
@@ -812,45 +824,17 @@ describe("config JSON Schema", () => {
 
     const keys: Record<keyof BetterSupabaseConfig, true> = {
       $schema: true,
-      source: true,
-      schemas: true,
-      casing: true,
-      tables: true,
-      output: true,
-      postgrestVersion: true,
-      generateFeatures: true,
-      json: true,
-      codecs: true,
-      relations: true,
-      generators: true,
-      plugins: true,
-      claims: true,
-      buckets: true,
-      topics: true,
-      realtime: true,
-      entitlements: true,
-      authorization: true,
-      vectorSearch: true,
-      subjects: true,
       preset: true,
-      sensitive: true,
-      storagePaths: true,
-      functions: true,
-      expose: true,
-      readSets: true,
-      blocks: true,
-      appTables: true,
-      sql: true,
-      seed: true,
-      openapi: true,
-      specs: true,
-      doctor: true,
+      database: true,
+      auth: true,
       gen: true,
-      env: true,
-      scaffold: true,
-      integrations: true,
-      skills: true,
-      keys: true,
+      api: true,
+      tooling: true,
+      plugins: true,
+      records: true,
+      blocks: true,
+      tables: true,
+      adapters: true,
       $env: true,
       $development: true,
       $production: true,
@@ -872,7 +856,9 @@ describe("gen", () => {
     await cp(snapshotPath, join(dir, "snapshot.json"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({ casing: "camel", output: "src/db/generated.ts" }),
+      JSON.stringify({
+        gen: { casing: "camel", output: "src/db/generated.ts" },
+      }),
     );
   });
 
@@ -950,12 +936,13 @@ describe("gen", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        casing: "camel",
-        output: "src/db/generated.ts",
+        gen: { casing: "camel", output: "src/db/generated.ts" },
         plugins: { tenant: true },
-        realtime: {
-          tables: ["customers", "public.tags", "organizations"],
-          users: { "public.tags": "organization_id" },
+        database: {
+          realtime: {
+            tables: ["customers", "public.tags", "organizations"],
+            users: { "public.tags": "organization_id" },
+          },
         },
       }),
     );
@@ -974,7 +961,7 @@ describe("gen", () => {
 
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({ realtime: { tables: ["nope"] } }),
+      JSON.stringify({ database: { realtime: { tables: ["nope"] } } }),
     );
 
     const failed = await run([
@@ -991,7 +978,9 @@ describe("gen", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        realtime: { tables: ["customers"], users: { customers: "nope" } },
+        database: {
+          realtime: { tables: ["customers"], users: { customers: "nope" } },
+        },
       }),
     );
 
@@ -1013,22 +1002,26 @@ describe("gen", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        output: "src/db/generated.ts",
-        authorization: withProvider({
-          permissions: [
-            { key: "docs.read", sqlComplete: false },
-            { key: "docs.write" },
-          ],
-        }),
-        buckets: {
-          docs: {
-            path: "{organizationId}/{file}",
-            policy: {
-              access: { read: "docs.read", write: "docs.write" },
-              scope: "organization",
-              sql: {
-                idsWith: stubProvider.functions.idsWith,
-                isPlatform: stubProvider.functions.isPlatform,
+        gen: { output: "src/db/generated.ts" },
+        auth: {
+          authorization: withProvider({
+            permissions: [
+              { key: "docs.read", sqlComplete: false },
+              { key: "docs.write" },
+            ],
+          }),
+        },
+        database: {
+          buckets: {
+            docs: {
+              path: "{organizationId}/{file}",
+              policy: {
+                access: { read: "docs.read", write: "docs.write" },
+                scope: "organization",
+                sql: {
+                  idsWith: stubProvider.functions.idsWith,
+                  isPlatform: stubProvider.functions.isPlatform,
+                },
               },
             },
           },
@@ -1158,7 +1151,10 @@ describe("sql", () => {
   it("stops before writing the tenant module when the provider's hook owns memberships", async () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({ blocks: ["invitations"], authorization: stubProvider }),
+      JSON.stringify({
+        blocks: ["invitations"],
+        auth: { authorization: stubProvider },
+      }),
     );
     const stopped = await run(["sql", "add", "tenant", "--cwd", dir]);
     expect(stopped.code).toBe(1);
@@ -1192,10 +1188,12 @@ describe("sql", () => {
       writeFile(
         join(dir, "better-supabase.config.json"),
         JSON.stringify({
-          authorization,
-          entitlements: {
-            customer: "organizations.stripe_customer_id",
-            ...(memberships ? { memberships } : {}),
+          auth: {
+            authorization,
+            entitlements: {
+              customer: "organizations.stripe_customer_id",
+              ...(memberships ? { memberships } : {}),
+            },
           },
         }),
       );

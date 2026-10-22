@@ -29,7 +29,7 @@ export function metadataColumns(
 
   if (ctx.manages) {
     throw new TypeError(
-      `${where} fills an adopted log's own columns; set mode: "adopt" or keep the values in metadata`,
+      `${where} fills an adopted log's own columns; set ownership: "adopt" or keep the values in metadata`,
     );
   }
 

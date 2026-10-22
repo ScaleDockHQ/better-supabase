@@ -5,9 +5,9 @@ import { registeredIdMatches, registeredSubjects } from "./subject-registry.ts";
 
 /**
  * SQL that is true when `type`/`id` (text expressions) names a record in
- * `config.subjects` that belongs to tenant `tenant` and that the caller can
- * read through `can_subject`. Types without a tenant column never match. The
- * module must require `subjects`.
+ * `config.records` that belongs to tenant `tenant` and that the caller can read
+ * through `can_subject`. Types without a tenant column never match. The module
+ * must require `subjects`.
  */
 export function subjectInTenant(
   ctx: BlockSqlContext,
@@ -37,7 +37,7 @@ ${subjects
 }
 
 /**
- * SQL for the tenant (as text) of record `type`/`id` in `config.subjects`, or
+ * SQL for the tenant (as text) of record `type`/`id` in `config.records`, or
  * null for an unknown record or type. Reads the table directly, so use it in
  * security definer code after checking the caller.
  */
@@ -66,7 +66,7 @@ ${subjects
 }
 
 /**
- * SQL for the title (as text) of record `type`/`id` in `config.subjects`, from
+ * SQL for the title (as text) of record `type`/`id` in `config.records`, from
  * the entry's `title` column, or null for an unknown record or a type without
  * one. Reads the table directly, so check the caller first.
  */

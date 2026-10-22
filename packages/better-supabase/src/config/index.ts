@@ -124,10 +124,34 @@ export type {
 } from "./types/tooling.ts";
 
 export type {
+  ApiConfig,
+  AppTableInput,
+  AppTablesInput,
+  AuthConfig,
   BetterSupabaseConfig,
+  BlockInput,
+  BlocksInput,
+  DatabaseConfig,
   EnvironmentConfig,
+  FlatConfig,
+  GenGroupConfig,
+  OrganizationConfig,
+  PluginFlagsInput,
   ResolvedConfig,
+  SqlInput,
+  ToolingConfig,
 } from "./types/config.ts";
+
+export {
+  CONFIG_GROUPS,
+  flattenConfig,
+  groupConfig,
+  groupEntries,
+  hasFlatTables,
+  RENAMED_BLOCK_KEYS,
+  blockEntrySource,
+  RENAMED_CONFIG_KEYS,
+} from "./groups.ts";
 
 export type {
   ColumnPrivilege,

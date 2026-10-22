@@ -80,7 +80,7 @@ function integrationLabel(name: IntegrationName): PresetValueInfo {
 }
 
 /**
- * The tenant names a preset can set (`blocks.tenant.entities.organization`), in
+ * The tenant names a preset can set (`blocks.tenant.names.organization`), in
  * code order.
  */
 export const PRESET_TENANT_NAMES = [
@@ -191,7 +191,7 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
     bits: 2,
     since: 1,
   }),
-  // `blocks.tenant.entities.organization`. New names go at the end.
+  // `blocks.tenant.names.organization`. New names go at the end.
   field({
     key: "tenantName",
     label: "Tenant name",

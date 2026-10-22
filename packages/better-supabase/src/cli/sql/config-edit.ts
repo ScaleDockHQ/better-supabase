@@ -799,8 +799,8 @@ const nested = (path: readonly string[], value: unknown): unknown =>
 
 /**
  * `source` with the key at `path` set to `value`, replacing what it has and
- * creating the objects on the way: `["appTables", "projects"]` sets one app
- * table and keeps the others. A `blocks` list becomes an object.
+ * creating the objects on the way: `["tables", "projects"]` sets one app table
+ * and keeps the others. A `blocks` list becomes an object.
  */
 export function setPathInConfig(
   source: string,

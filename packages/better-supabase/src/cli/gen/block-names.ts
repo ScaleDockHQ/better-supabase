@@ -279,7 +279,7 @@ function urlLines(
     }
   }
 
-  // `config.subjects` holds the app's types, the app tables' and the blocks'.
+  // `config.records` holds the app's types, the app tables' and the blocks'.
   for (const [type, subject] of Object.entries(config.subjects)) {
     const key = camel(type);
 
@@ -302,8 +302,8 @@ function urlLines(
     : [
         "",
         "/**",
-        " * The path of each subject type with a `url`: block entities, `subjects`",
-        " * and app table subjects.",
+        " * The path of each subject type with a `url`: block entities, `records`",
+        " * and `tables` subjects.",
         " * @public",
         " */",
         "export const urls = {",

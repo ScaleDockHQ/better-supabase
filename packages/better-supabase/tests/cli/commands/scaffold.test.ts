@@ -171,7 +171,7 @@ describe("scaffold from the config", () => {
   const configure = (api: object) =>
     writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({ scaffold: { api } }),
+      JSON.stringify({ tooling: { scaffold: { api } } }),
     );
 
   it("reads the flags from scaffold.api", async () => {
@@ -224,7 +224,7 @@ describe("scaffold from the config", () => {
 });
 
 describe("scaffold screens", () => {
-  const APP_TABLES: BetterSupabaseConfig["appTables"] = {
+  const APP_TABLES: BetterSupabaseConfig["tables"] = {
     projects: {
       columns: { name: { type: "text", nullable: false, max: 200 } },
       subject: { type: "project", title: "name" },
@@ -257,7 +257,14 @@ describe("scaffold screens", () => {
     flags: Record<string, string> = {},
   ) =>
     runScaffoldScreens(
-      resolveConfig({ casing: "camel", appTables: APP_TABLES, ...config }, dir),
+      resolveConfig(
+        {
+          tables: APP_TABLES,
+          ...config,
+          gen: { casing: "camel", ...config.gen },
+        },
+        dir,
+      ),
       { ...(table === undefined ? {} : { table }), ...flags },
     );
 
@@ -320,7 +327,11 @@ describe("scaffold screens", () => {
 
   it("scopes per user and leaves the tenant out", async () => {
     await project({ next: "16.0.0" }, false);
-    const result = await screens("projects", { sql: { scope: "user" } });
+
+    const result = await screens("projects", {
+      database: { sql: { owner: "user" } },
+    });
+
     expect(result.code).toBe(0);
     const list = await read("src/app/projects/page.tsx");
     expect(list).toContain("const { db } = await bsb.require();");
@@ -334,13 +345,12 @@ describe("scaffold screens", () => {
       "App tables: projects, tasks.",
     );
     expect(
-      (await screens("tasks", { appTables: { tasks: { scope: "none" } } }))
-        .error,
+      (await screens("tasks", { tables: { tasks: { owner: "none" } } })).error,
     ).toContain('scope "none"');
     expect(
       (
         await screens("tasks", {
-          appTables: {
+          tables: {
             tasks: { columns: { tags: { type: "text[]", nullable: false } } },
           },
         })
@@ -354,7 +364,7 @@ describe("scaffold screens", () => {
   it("maps every column type and codec to an input and a parse", async () => {
     await project({ next: "16.0.0" }, false);
 
-    const LEDGER: BetterSupabaseConfig["appTables"] = {
+    const LEDGER: BetterSupabaseConfig["tables"] = {
       entries: {
         id: "bigint",
         subject: { type: "entry", softDelete: true },
@@ -384,9 +394,9 @@ describe("scaffold screens", () => {
     } as const;
 
     const result = await screens("entries", {
-      appTables: LEDGER,
-      codecs,
-      blocks: { tenant: { entities: { organization: "workspace" } } },
+      tables: LEDGER,
+      gen: { codecs },
+      blocks: { tenant: { names: { organization: "workspace" } } },
     });
 
     expect(result.error).toBeUndefined();
@@ -417,8 +427,8 @@ describe("scaffold screens", () => {
     for (const int8 of ["bigint", "number"] as const) {
       await rm(join(dir, "src/app"), { recursive: true, force: true });
       await screens("entries", {
-        appTables: LEDGER,
-        codecs: { int8, numeric: "number", timestamptz: "instant" },
+        tables: LEDGER,
+        gen: { codecs: { int8, numeric: "number", timestamptz: "instant" } },
       });
       const parse = int8 === "bigint" ? "BigInt" : "Number";
       expect(await read("src/app/entries/actions.ts")).toContain(
@@ -438,8 +448,8 @@ describe("scaffold screens", () => {
     await project({ next: "16.0.0" }, false);
 
     const result = await screens("tasks", {
-      codecs: { timestamptz: "instant" },
-      appTables: {
+      gen: { codecs: { timestamptz: "instant" } },
+      tables: {
         tasks: { columns: { at: { type: "timestamptz", nullable: false } } },
       },
     });
@@ -459,7 +469,7 @@ describe("scaffold screens", () => {
     await project({ next: "16.0.0" }, false);
 
     const result = await runScaffoldScreens(
-      resolveConfig({ casing: "camel", appTables: APP_TABLES }, dir),
+      resolveConfig({ gen: { casing: "camel" }, tables: APP_TABLES }, dir),
       { table: "tasks", "dry-run": true },
     );
 

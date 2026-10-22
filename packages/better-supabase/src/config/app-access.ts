@@ -8,7 +8,7 @@ import { APP_COLUMN_ACCESS } from "./types/app-tables.ts";
 
 const PLACEHOLDER = /\{([^}]*)\}/gu;
 
-/** `appTables.<t>.columns.<c>.access` checked. */
+/** `tables.<t>.columns.<c>.access` checked. */
 export function accessOf(
   where: string,
   value: unknown,
@@ -82,7 +82,7 @@ function readsOf(
   table: AppTableConfig,
   tables: AppTablesConfig,
 ): readonly Use[] {
-  const at = `appTables.${name}`;
+  const at = `tables.${name}`;
   const { subject } = table;
   const versions = subject?.versions;
   const rank = subject?.rank;
@@ -157,7 +157,7 @@ export function checkColumnAccess(tables: AppTablesConfig): void {
       (versions === true || (versions !== undefined && !versions.columns))
     ) {
       throw new TypeError(
-        `appTables.${name}.subject.versions: the history would copy ${hidden.join(", ")}, which ${hidden.length === 1 ? "is" : "are"} hidden from signed-in users (access server or encrypted); list subject.versions.columns without it`,
+        `tables.${name}.subject.versions: the history would copy ${hidden.join(", ")}, which ${hidden.length === 1 ? "is" : "are"} hidden from signed-in users (access server or encrypted); list subject.versions.columns without it`,
       );
     }
 

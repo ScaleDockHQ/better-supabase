@@ -399,42 +399,59 @@ describe("shipped JSON Schemas", () => {
   it("describe a full config", async () => {
     const config = {
       $schema: "https://unpkg.com/better-supabase/schemas/config-v1.json",
-      source: { snapshot: "supabase/snapshot.json" },
-      schemas: ["public"],
-      casing: "camel",
-      output: "src/lib/supabase/generated.ts",
-      postgrestVersion: "13",
-      tables: { audit_logs: { serviceRole: true } },
-      doctor: { ignore: ["BS204"], strict: true, sources: ["app/**/*.tsx"] },
-      specs: {
-        entry: "src/lib/api.ts",
-        outputs: [
-          { format: "openapi", version: "3.2", ui: "scalar" },
-          { format: "asyncapi", output: "asyncapi.yaml", overlays: ["o.yaml"] },
-        ],
-        failOn: "warning",
+      database: {
+        source: { snapshot: "supabase/snapshot.json" },
+        schemas: ["public"],
+      },
+      gen: {
+        casing: "camel",
+        output: "src/lib/supabase/generated.ts",
+        postgrestVersion: "13",
+        tables: { audit_logs: { serviceRole: true } },
+      },
+      tooling: {
+        doctor: { ignore: ["BS204"], strict: true, sources: ["app/**/*.tsx"] },
+      },
+      api: {
+        specs: {
+          entry: "src/lib/api.ts",
+          outputs: [
+            { format: "openapi", version: "3.2", ui: "scalar" },
+            {
+              format: "asyncapi",
+              output: "asyncapi.yaml",
+              overlays: ["o.yaml"],
+            },
+          ],
+          failOn: "warning",
+        },
       },
     };
 
     expect(await errorsFor("config-v1.json", config)).toEqual([]);
     expect(
-      await errorsFor("config-v1.json", { ...config, casing: "kebab" }),
+      await errorsFor("config-v1.json", {
+        ...config,
+        gen: { ...config.gen, casing: "kebab" },
+      }),
     ).toHaveLength(1);
   });
 
   it("describe the CLI keys and the environment blocks", async () => {
     const config = {
       gen: { tasks: ["types", "sql", "spec"], watchInterval: 1000 },
-      env: { output: ".env.development.local", prefix: "NEXT_PUBLIC_" },
-      doctor: { only: ["BS100"], format: "sarif", output: "doctor.sarif" },
-      scaffold: {
-        api: { framework: "hono", tables: ["notes"], basePath: "/v1" },
+      tooling: {
+        env: { output: ".env.development.local", prefix: "NEXT_PUBLIC_" },
+        doctor: { only: ["BS100"], format: "sarif", output: "doctor.sarif" },
+        scaffold: {
+          api: { framework: "hono", tables: ["notes"], basePath: "/v1" },
+        },
+        skills: { agents: ["cursor"] },
+        keys: { output: "supabase/keys.json" },
       },
-      integrations: ["next", "client"],
-      skills: { agents: ["cursor"] },
-      keys: { output: "supabase/keys.json" },
-      specs: { manifest: "spec-manifest.json" },
-      $env: { staging: { doctor: { strict: true } } },
+      adapters: ["next", "client"],
+      api: { specs: { manifest: "spec-manifest.json" } },
+      $env: { staging: { tooling: { doctor: { strict: true } } } },
       $ci: { gen: { tasks: ["types"] } },
     };
 

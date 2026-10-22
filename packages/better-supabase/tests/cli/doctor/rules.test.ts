@@ -249,7 +249,7 @@ describe("BS107 without the tenant plugin", () => {
 
     const excluded = await run(
       "BS107",
-      context(snap, {}, { tables: { tags: { exclude: true } } }),
+      context(snap, {}, { gen: { tables: { tags: { exclude: true } } } }),
     );
 
     expect(excluded.map((finding) => finding.target)).toEqual(["public.notes"]);
@@ -333,12 +333,14 @@ describe("BS204, BS210, BS301", () => {
 
 describe("BS302 bucket drift in config.toml", () => {
   const config: BetterSupabaseConfig = {
-    buckets: {
-      docs: {
-        path: "{organizationId}/{file}",
-        public: false,
-        fileSizeLimit: "1KiB",
-        allowedMimeTypes: ["application/pdf"],
+    database: {
+      buckets: {
+        docs: {
+          path: "{organizationId}/{file}",
+          public: false,
+          fileSizeLimit: "1KiB",
+          allowedMimeTypes: ["application/pdf"],
+        },
       },
     },
   };
@@ -418,12 +420,14 @@ describe("BS302 bucket drift in config.toml", () => {
 
   it("compares versioning and lifecycle when Storage reports them", async () => {
     const versioned: BetterSupabaseConfig = {
-      buckets: {
-        docs: {
-          ...config.buckets!["docs"]!,
-          versioning: true,
-          lifecycle: {
-            rules: [{ noncurrentVersionExpiration: { noncurrentDays: 30 } }],
+      database: {
+        buckets: {
+          docs: {
+            ...config.database!.buckets!["docs"]!,
+            versioning: true,
+            lifecycle: {
+              rules: [{ noncurrentVersionExpiration: { noncurrentDays: 30 } }],
+            },
           },
         },
       },
@@ -529,7 +533,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
     const missing = await run(
       "BS304",
-      rooted({ ...config, authorization: stubProvider }),
+      rooted({ ...config, auth: { authorization: stubProvider } }),
     );
 
     expect(missing.map((finding) => finding.target)).toContain(
@@ -628,7 +632,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
   it("checks the newest module migration under the migrations workflow", async () => {
     const ctx = rooted({
-      sql: { workflow: "migrations" },
+      database: { sql: { workflow: "migrations" } },
       blocks: ["tenant", "mfa"],
     });
 
@@ -662,7 +666,11 @@ describe("generated and module files (BS303, BS304)", () => {
   });
 
   it("still checks the pgTAP files under the migrations workflow", async () => {
-    const ctx = rooted({ sql: { workflow: "migrations" }, blocks: ["pgtap"] });
+    const ctx = rooted({
+      database: { sql: { workflow: "migrations" } },
+      blocks: ["pgtap"],
+    });
+
     const files = renderBlocks(["pgtap"], moduleLayout(ctx.config));
     const test = files.find((file) => file.kind === "test");
     expect(test).toBeDefined();
@@ -819,7 +827,11 @@ describe("module upgrades (BS309, BS310)", () => {
     expect(
       await run(
         "BS309",
-        context(snap, {}, { blocks: ["tenant"], claims: { tenant: "org_id" } }),
+        context(
+          snap,
+          {},
+          { blocks: ["tenant"], auth: { organization: { claim: "org_id" } } },
+        ),
       ),
     ).toEqual([]);
     expect(await run("BS309", context(snap))).toEqual([]);
@@ -868,7 +880,11 @@ describe("module upgrades (BS309, BS310)", () => {
     expect(
       await run(
         "BS309",
-        context(snap, { sqlFiles }, { blocks: { tenant: { mode: "adopt" } } }),
+        context(
+          snap,
+          { sqlFiles },
+          { blocks: { tenant: { ownership: "adopt" } } },
+        ),
       ),
     ).toEqual([]);
   });
@@ -932,7 +948,10 @@ describe("exposed module schemas (BS312)", () => {
         context(
           base,
           { configToml: toml('[api]\nschemas = ["public"]\n') },
-          { blocks: ["tenant"], schemas: ["public", "better_supabase"] },
+          {
+            blocks: ["tenant"],
+            database: { schemas: ["public", "better_supabase"] },
+          },
         ),
       ),
     ).toEqual([]);
@@ -942,7 +961,10 @@ describe("exposed module schemas (BS312)", () => {
         context(
           base,
           {},
-          { blocks: ["tenant"], schemas: ["public", "better_supabase"] },
+          {
+            blocks: ["tenant"],
+            database: { schemas: ["public", "better_supabase"] },
+          },
         ),
       ),
     ).toHaveLength(1);
@@ -1265,7 +1287,7 @@ describe("adopted tables without a mapped column (BS330)", () => {
           context(
             base,
             { database: live([]) },
-            { blocks: { notifications: { mode: "adopt", tables } } },
+            { blocks: { notifications: { ownership: "adopt", tables } } },
           ),
         )
       ).map((finding) => finding.target);
@@ -1435,7 +1457,7 @@ describe("subject registry (BS331, BS332)", () => {
         base,
         {},
         {
-          subjects: {
+          records: {
             note: { table: "notes", title: "headline", url: "/n/{slug}" },
             ghost: { table: "public.ghosts" },
             other: { table: "elsewhere.things" },
@@ -1465,7 +1487,7 @@ describe("subject registry (BS331, BS332)", () => {
           base,
           {},
           {
-            subjects: {
+            records: {
               note: { table: "notes", title: "body", url: "/n/{id}" },
             },
           },
@@ -1475,7 +1497,7 @@ describe("subject registry (BS331, BS332)", () => {
   });
 
   it("warns about a subject table without RLS", async () => {
-    const config = { subjects: { note: { table: "notes" } } };
+    const config = { records: { note: { table: "notes" } } };
     expect(await run("BS332", context(base, {}, config))).toEqual([]);
 
     const open = snapshot((tables) => {
@@ -1523,7 +1545,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     subjects: Readonly<Record<string, unknown>>,
     registry: Readonly<Record<string, { table: string }>> = {},
   ): BetterSupabaseConfig => ({
-    subjects: registry,
+    records: registry,
     blocks: { attachments: { options: { subjects } } },
   });
 
@@ -1585,7 +1607,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            subjects: {
+            records: {
               note: { table: "notes", permissions: { read: "notes.read" } },
             },
             blocks: { attachments: {} },
@@ -1602,7 +1624,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
         withPolicies(strict, tenantOnly),
         {},
         {
-          subjects: {
+          records: {
             note: { table: "public.notes" },
             ghost: { table: "missing" },
           },
@@ -1638,7 +1660,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
             forAll,
             {},
             {
-              subjects: { note: { table: "notes" } },
+              records: { note: { table: "notes" } },
               blocks: { attachments: { options: { subjects } } },
             },
           ),
@@ -1700,7 +1722,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            subjects: {
+            records: {
               note: { table: "notes", permissions: { upload: "notes.edit" } },
             },
             blocks: { attachments: {} },
@@ -1715,7 +1737,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            subjects: { note: { table: "notes" } },
+            records: { note: { table: "notes" } },
             blocks: { attachments: {} },
           },
         ),
@@ -1987,9 +2009,12 @@ describe("migration-only module options (BS314)", () => {
         {},
         {
           blocks: {
-            invitations: { mode: "adopt", options: { tokenStorage: "plain" } },
+            invitations: {
+              ownership: "adopt",
+              options: { tokenStorage: "plain" },
+            },
             outbox: {
-              mode: "adopt",
+              ownership: "adopt",
               options: {
                 blockSource: "better-supabase/{module}",
                 defaultSource: "domain",
@@ -2061,12 +2086,15 @@ describe("legacy migra engine (BS316)", () => {
     const legacy = { configToml: toml("[db]\n"), sqlFiles: [schema] };
     const [unset] = await run("BS316", context(base, legacy));
     expect(unset!.message).toContain(
-      'To stay on migra, set `sql.workflow: "migra"` in better-supabase.config.ts.',
+      'To stay on migra, set `database.sql.workflow: "migra"` in better-supabase.config.ts.',
     );
 
     for (const workflow of ["migra", "migrations"] as const) {
       expect(
-        await run("BS316", context(base, legacy, { sql: { workflow } })),
+        await run(
+          "BS316",
+          context(base, legacy, { database: { sql: { workflow } } }),
+        ),
       ).toEqual([]);
     }
   });
@@ -2157,7 +2185,7 @@ describe("tables without an audit trigger (BS315)", () => {
                   exempt: rest.map((table) => ({ table, reason: "archive" })),
                 },
               },
-              tenant: { mode: "adopt", tables: { memberships: first } },
+              tenant: { ownership: "adopt", tables: { memberships: first } },
             },
           },
         ),
@@ -2384,7 +2412,7 @@ describe("soft-delete columns reactions read (BS213)", () => {
             base,
             {},
             {
-              subjects: {
+              records: {
                 project: { table: "projects", deletedAt: "deleted_at" },
               },
             },
@@ -2395,7 +2423,7 @@ describe("soft-delete columns reactions read (BS213)", () => {
   });
 });
 
-describe("functions.notNull entries a tag could replace (BS338)", () => {
+describe("gen.functions.notNull entries a tag could replace (BS338)", () => {
   const tagged = (comments: Record<string, string>) =>
     snapshot((_tables, catalog) => {
       catalog.functions = catalog.functions.map((fn) =>
@@ -2407,9 +2435,11 @@ describe("functions.notNull entries a tag could replace (BS338)", () => {
 
   it("suggests the tag, and reports entries that match or differ from it", async () => {
     const config = {
-      functions: {
-        customer_note_counts: { notNull: ["customer_id", "note_count"] },
-        rs_workspace_summary: { notNull: true as const },
+      gen: {
+        functions: {
+          customer_note_counts: { notNull: ["customer_id", "note_count"] },
+          rs_workspace_summary: { notNull: true as const },
+        },
       },
     };
 
@@ -2453,10 +2483,12 @@ describe("expose exclusions of missing columns (BS339)", () => {
         base,
         {},
         {
-          expose: {
-            notes: {
-              authenticated: ["select(*, -body, -token_hash)"],
-              anon: ["select(*, -token_hash)"],
+          database: {
+            expose: {
+              notes: {
+                authenticated: ["select(*, -body, -token_hash)"],
+                anon: ["select(*, -token_hash)"],
+              },
             },
           },
         },
@@ -2473,7 +2505,11 @@ describe("expose exclusions of missing columns (BS339)", () => {
     expect(
       await run(
         "BS339",
-        context(base, {}, { expose: { gone: ["select(*, -x)"] } }),
+        context(
+          base,
+          {},
+          { database: { expose: { gone: ["select(*, -x)"] } } },
+        ),
       ),
     ).toEqual([]);
   });
@@ -2719,7 +2755,7 @@ describe("realtime and auth.users (BS305, BS306, BS406)", () => {
     expect(
       await run(
         "BS305",
-        context(snap, {}, { realtime: { tables: ["notes"] } }),
+        context(snap, {}, { database: { realtime: { tables: ["notes"] } } }),
       ),
     ).toEqual([]);
     expect(await run("BS306", context(snap))).toMatchObject([

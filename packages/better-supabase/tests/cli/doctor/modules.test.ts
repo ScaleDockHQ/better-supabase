@@ -15,7 +15,7 @@ const snapshot = await parseSnapshot(fixture);
 const CUSTOM: BetterSupabaseConfig = {
   blocks: {
     access: {
-      mode: "custom",
+      ownership: "custom",
       model: "custom",
       functions: { can: "x()", tenantIdsWith: "y()", isPlatform: "z()" },
     },

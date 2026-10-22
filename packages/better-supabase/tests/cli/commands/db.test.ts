@@ -181,7 +181,7 @@ describe("db diff", () => {
     url = env,
   ): ReturnType<typeof runDbDiff> =>
     runDbDiff(
-      resolveConfig({ sql: { workflow } }, root),
+      resolveConfig({ database: { sql: { workflow } } }, root),
       parseCommandArgs(dbDiffCommand, argv),
       url,
       harness.deps,

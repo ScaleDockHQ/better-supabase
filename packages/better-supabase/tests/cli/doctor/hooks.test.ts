@@ -88,12 +88,14 @@ function context(
 
 const OWN_HOOK = resolveConfig(
   {
-    authorization: withProvider({
-      tokenHook: {
-        ...stubProvider.tokenHook,
-        function: "rbac.custom_access_token_hook",
-      },
-    }),
+    auth: {
+      authorization: withProvider({
+        tokenHook: {
+          ...stubProvider.tokenHook,
+          function: "rbac.custom_access_token_hook",
+        },
+      }),
+    },
   },
   "/project",
 );
@@ -358,7 +360,11 @@ describe("BS405 --as", () => {
 
 describe("BS407", () => {
   it("skips hooks without a body and writers the provider does not own", async () => {
-    const config = resolveConfig({ authorization: stubProvider }, "/project");
+    const config = resolveConfig(
+      { auth: { authorization: stubProvider } },
+      "/project",
+    );
+
     expect(
       await runRules(context(withHook([hookFn()]), { config }), only("BS407")),
     ).toEqual([]);

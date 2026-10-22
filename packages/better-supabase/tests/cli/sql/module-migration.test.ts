@@ -14,7 +14,11 @@ import {
 import { resolveConfig } from "../../../src/config/index.ts";
 import { moduleLayout, renderBlocks } from "../../../src/sql/index.ts";
 
-const config = resolveConfig({ sql: { workflow: "migrations" } }, "/p");
+const config = resolveConfig(
+  { database: { sql: { workflow: "migrations" } } },
+  "/p",
+);
+
 const files = renderBlocks(["tenant", "jsonb-schemas"], moduleLayout(config));
 
 describe("renderModuleMigration", () => {
@@ -98,7 +102,11 @@ describe("writeLatestMigration", () => {
   });
 
   it("writes a new migration only when the statements change, or when forced", async () => {
-    const project = resolveConfig({ sql: { workflow: "migrations" } }, root);
+    const project = resolveConfig(
+      { database: { sql: { workflow: "migrations" } } },
+      root,
+    );
+
     const now = new Date("2026-01-02T03:04:05Z");
 
     const write = (contents: string, force = false) =>

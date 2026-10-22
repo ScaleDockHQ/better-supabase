@@ -93,7 +93,7 @@ describe("tenantNames", () => {
 
   it("rejects a name that is not a lowercase identifier", () => {
     expect(() => tenantNames("Work space")).toThrow(
-      /blocks.tenant.entities.organization: "Work space" is not a lowercase identifier/,
+      /blocks.tenant.names.organization: "Work space" is not a lowercase identifier/,
     );
   });
 });

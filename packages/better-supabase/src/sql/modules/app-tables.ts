@@ -122,7 +122,7 @@ function scopeColumn(
     case "tenant": {
       if (!ctx.installed("tenant")) {
         throw new TypeError(
-          `appTables.${name}: tenant scope needs the tenant block, which checks membership; add it to blocks, or set the table's scope to "user" or "none"`,
+          `tables.${name}: tenant scope needs the tenant block, which checks membership; add it to blocks, or set the table's owner to "user" or "none"`,
         );
       }
 
@@ -216,7 +216,7 @@ function columnSql(
     column.references === undefined || table.tenantReferences.has(name)
       ? ""
       : referenceSql(
-          `appTables.${table.name}.columns.${name}`,
+          `tables.${table.name}.columns.${name}`,
           column.references,
           table.ctx,
         ),
@@ -416,7 +416,7 @@ function checkKeyColumns(table: AppTable): void {
 
       if (missing !== undefined) {
         throw new TypeError(
-          `appTables.${table.name}.${key}: the table has no column "${missing}" (${[...columns].join(", ")})`,
+          `tables.${table.name}.${key}: the table has no column "${missing}" (${[...columns].join(", ")})`,
         );
       }
     }
@@ -528,7 +528,7 @@ function grantsSql(table: AppTable): string {
   if (table.exposed) {
     if (hasColumnAccess(table.config)) {
       throw new TypeError(
-        `appTables.${table.name}: expose sets the grants, so its columns can't set access; drop access or the expose entry`,
+        `tables.${table.name}: expose sets the grants, so its columns can't set access; drop access or the expose entry`,
       );
     }
 
@@ -603,7 +603,7 @@ function eventsSql(table: AppTable): string {
 
   if (!ctx.installed("outbox")) {
     throw new TypeError(
-      `appTables.${table.name}.events needs the outbox block; add it to blocks`,
+      `tables.${table.name}.events needs the outbox block; add it to blocks`,
     );
   }
 
@@ -829,7 +829,7 @@ function tableSql(table: AppTable): string {
     !table.ctx.installed("versions")
   ) {
     throw new TypeError(
-      `appTables.${table.name}.subject.versions needs the versions block; add it to blocks`,
+      `tables.${table.name}.subject.versions needs the versions block; add it to blocks`,
     );
   }
 
@@ -876,7 +876,7 @@ function checkBlockTables(
 
     if (module !== undefined) {
       throw new TypeError(
-        `appTables.${name}: the ${module} block already keeps a table named ${name}; choose another name`,
+        `tables.${name}: the ${module} block already keeps a table named ${name}; choose another name`,
       );
     }
   }

@@ -158,7 +158,7 @@ describe("pipelines module", () => {
     ],
     [
       { task: { categories: { open: "open" } } },
-      /register "task" in config.subjects/,
+      /register "task" in config.records/,
     ],
     [{ note: { categories: { open: "open" } } }, /needs a tenant column/],
   ])("rejects %j", (subjects, message) => {

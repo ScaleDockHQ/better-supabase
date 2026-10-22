@@ -26,7 +26,7 @@ async function model(edit: Edit, config: BetterSupabaseConfig = {}) {
 
   return buildModel(
     snapshot,
-    resolveConfig({ casing: "camel", ...config }, root),
+    resolveConfig({ ...config, gen: { casing: "camel", ...config.gen } }, root),
   );
 }
 
@@ -101,11 +101,13 @@ describe("buildModel config keys", () => {
     const built = await model(
       copyTable("tags", { schema: "better_supabase" }),
       {
-        schemas: BOTH,
-        tables: {
-          "better_supabase.tags": { exclude: true },
-          tags: { casing: "snake" },
-          "nope.tags": {},
+        database: { schemas: BOTH },
+        gen: {
+          tables: {
+            "better_supabase.tags": { exclude: true },
+            tags: { casing: "snake" },
+            "nope.tags": {},
+          },
         },
       },
     );
@@ -126,8 +128,8 @@ describe("buildModel config keys", () => {
 
   it("warns about a bare key two schemas share", async () => {
     const built = await model(copyTable("tags", { schema: "app" }), {
-      schemas: ["public", "app"],
-      tables: { tags: { casing: "snake" } },
+      database: { schemas: ["public", "app"] },
+      gen: { tables: { tags: { casing: "snake" } } },
     });
 
     expect(built.warnings).toEqual([
@@ -178,7 +180,7 @@ describe("buildModel functions", () => {
 
         return addFunction("better_supabase", "log_kind", kind.id)(generator);
       },
-      { schemas: BOTH },
+      { database: { schemas: BOTH } },
     );
 
     expect(
@@ -202,7 +204,7 @@ describe("buildModel functions", () => {
           ),
         };
       },
-      { schemas: BOTH },
+      { database: { schemas: BOTH } },
     );
 
     const ping = built.functions.filter((fn) => fn.key === "ping");
@@ -367,7 +369,7 @@ describe("buildModel enums", () => {
           ],
         };
       },
-      { schemas: BOTH },
+      { database: { schemas: BOTH } },
     );
 
     expect(
@@ -430,13 +432,15 @@ describe('bucket policies with sql: "provider"', () => {
 
   it("copies the provider's templates into the bucket meta", async () => {
     const { meta } = await model(() => ({}), {
-      buckets,
-      authorization: {
-        apiVersion: 1,
-        name: "stub",
-        scopes: [{ name: "organization", idType: "uuid" }],
-        tenantScope: "organization",
-        functions: { idsWith, isPlatform },
+      database: { buckets },
+      auth: {
+        authorization: {
+          apiVersion: 1,
+          name: "stub",
+          scopes: [{ name: "organization", idType: "uuid" }],
+          tenantScope: "organization",
+          functions: { idsWith, isPlatform },
+        },
       },
     });
 
@@ -446,7 +450,7 @@ describe('bucket policies with sql: "provider"', () => {
   });
 
   it("fails without an authorization provider", async () => {
-    await expect(model(() => ({}), { buckets })).rejects.toThrow(
+    await expect(model(() => ({}), { database: { buckets } })).rejects.toThrow(
       /buckets\.docs: sql "provider" needs `authorization`/,
     );
   });
@@ -495,7 +499,7 @@ describe("buildModel comments", () => {
 
   it("marks an app table column with access server as not selectable", async () => {
     const built = await model(() => ({}), {
-      appTables: {
+      tables: {
         customers: { columns: { name: { type: "text", access: "server" } } },
       },
     });
@@ -511,7 +515,7 @@ describe("buildModel comments", () => {
 
   it("types an encrypted app table column as its configured type", async () => {
     const built = await model(() => ({}), {
-      appTables: {
+      tables: {
         customers: { columns: { name: { type: "integer", encrypted: true } } },
       },
     });
@@ -571,7 +575,7 @@ describe("views", () => {
 describe("subject types", () => {
   it("emits SubjectType and RecordRef from config.subjects", async () => {
     const input = await model(() => ({}), {
-      subjects: {
+      records: {
         task: { table: "public.tasks" },
         customer: { table: "public.customers" },
       },

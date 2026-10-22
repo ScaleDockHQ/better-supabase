@@ -545,7 +545,7 @@ create constraint trigger ${ctx.trigger("organization_owner")} after update of $
   if (guard === "external") {
     if (ctx.of("tenant").manages) {
       throw new TypeError(
-        'blocks.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so it needs an adopted table (blocks.tenant.mode "adopt").',
+        'blocks.organizations.options.assignmentGuard "external" leaves the role checks on the memberships table to another trigger, such as an authorization provider\'s assignment rules, so it needs an adopted table (blocks.tenant.ownership "adopt").',
       );
     }
 

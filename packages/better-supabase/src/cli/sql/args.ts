@@ -9,7 +9,8 @@ export const SQL_ARGS = {
   },
   "tests-dir": {
     type: "string",
-    description: "Where the pgtap module goes. Defaults to sql.testsDir",
+    description:
+      "Where the pgtap module goes. Defaults to database.sql.testsDir",
     valueHint: "dir",
   },
   "dry-run": { type: "boolean", description: "Show what would be written" },

@@ -8,7 +8,9 @@ membership tables and the access token hook the provider generates.
 
 ```ts
 export default defineConfig({
-  authorization: authorizationProvider(), // from the authorization package
+  auth: {
+    authorization: authorizationProvider(), // from the authorization package
+  },
   blocks: { access: { model: "provider" } },
 });
 ```
@@ -21,11 +23,11 @@ export default defineConfig({
   `membership_claims()` from a hook, and don't write the claims in
   `ownedClaims` yourself. Doctor reports BS407 when a hook does.
 - `add entitlements` is fine. With a provider it reads memberships through
-  the provider's `memberIds` and `memberIdsFor` (`entitlements.memberships`
+  the provider's `memberIds` and `memberIdsFor` (`auth.entitlements.memberships`
   defaults to `"provider"`). For `hasEntitlement(session, ...)`, the
   provider's hook must fill `features` from `better_supabase.feature_claims`;
   doctor reports BS408 otherwise.
-- Name the same tenant claim on both sides: `claims.tenant` must equal
+- Name the same tenant claim on both sides: `auth.organization.claim` must equal
   `authorization.tokenHook.tenantClaim` (BS409).
 - `blocks.access.model: "provider"` makes `can()`, `tenant_ids_with()`
   and `platform_can()` call the provider's `idsWith` and `isPlatform`. Every

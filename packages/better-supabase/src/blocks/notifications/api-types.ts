@@ -385,7 +385,7 @@ export interface NotificationsOptions<
    * recipient it leaves out is skipped, and a throw retries the deliveries
    * later. Defaults to `server.authorization.delivery.audience`; with
    * `server.authorization` but no such policy, to `subjectReaders(transport)`,
-   * so a notification about a `config.subjects` record only reaches recipients
+   * so a notification about a `config.records` record only reaches recipients
    * who may read it. In-app recipients are decided in SQL (`holdersOf`,
    * membership).
    */

@@ -18,8 +18,10 @@ import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeSql } from "../fixtures/fake-sql.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
-const config = (source: BetterSupabaseConfig["source"] = {}, root = "/p") =>
-  resolveConfig({ source }, root);
+const config = (
+  source: NonNullable<BetterSupabaseConfig["database"]>["source"] = {},
+  root = "/p",
+) => resolveConfig({ database: { source } }, root);
 
 describe("managementTarget", () => {
   it("reads a project ref from the flag or the config", () => {
@@ -264,7 +266,7 @@ describe("loadSnapshot", () => {
     const open = fakeConnect(db.pg);
 
     const snapshot = await loadSnapshot(
-      resolveConfig({ schemas: ["public", "api"] }, root),
+      resolveConfig({ database: { schemas: ["public", "api"] } }, root),
       {},
       { dbUrl: "postgresql://local/db" },
       open.connect,

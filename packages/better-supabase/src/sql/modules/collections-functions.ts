@@ -147,7 +147,7 @@ begin
     ${fail("COLLECTION_INVALID", "scope must be user, team or tenant", "22023")}
   end if;
   if create_collection.subject_type is null or not (create_collection.subject_type = any (${names.subjectTypes})) then
-    ${fail("COLLECTION_SUBJECT_TYPE_UNKNOWN", "not a subject type in config.subjects", "22023")}
+    ${fail("COLLECTION_SUBJECT_TYPE_UNKNOWN", "not a subject type in config.records", "22023")}
   end if;
   if v_name is null then
     ${fail("COLLECTION_NAME_REQUIRED", "a name is required", "23502")}

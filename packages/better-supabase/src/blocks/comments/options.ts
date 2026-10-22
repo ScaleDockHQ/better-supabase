@@ -4,7 +4,7 @@ import { blockOptions, option } from "../options.ts";
 
 /**
  * `blocks.comments.options`. The body limit, documents and extra columns are
- * the messaging block's options, and the records come from `config.subjects`.
+ * the messaging block's options, and the records come from `config.records`.
  */
 export type CommentsSqlOptions = {
   readonly follow?: boolean;

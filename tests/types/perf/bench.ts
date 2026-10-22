@@ -483,17 +483,22 @@ function run(profile: Profile): Run {
   writeFileSync(
     join(work, "better-supabase.config.json"),
     JSON.stringify({
-      source: { snapshot: "snapshot.json" },
-      schemas: profile.composite ? ["public", "graphql_public"] : undefined,
-      casing: "camel",
-      output: "generated.ts",
-      json: profile.composite
-        ? { [`${name(1)}.metadata`]: { type: "{ tags: string[] }" } }
-        : undefined,
+      database: {
+        source: { snapshot: "snapshot.json" },
+        schemas: profile.composite ? ["public", "graphql_public"] : undefined,
+      },
+      gen: {
+        casing: "camel",
+        output: "generated.ts",
+        json: profile.composite
+          ? { [`${name(1)}.metadata`]: { type: "{ tags: string[] }" } }
+          : undefined,
+      },
+      auth: { organization: { column: "organization_id" } },
       plugins: {
         timestamps: true,
         softDelete: { column: "archived_at" },
-        tenant: { column: "organization_id" },
+        tenant: true,
       },
     }),
   );

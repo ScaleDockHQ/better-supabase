@@ -8,7 +8,7 @@ import { tenantNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { splitTable } from "./shared.ts";
 
-/** A `config.subjects` entry, checked, with its table split and quoted. */
+/** A `config.records` entry, checked, with its table split and quoted. */
 export interface RegisteredSubject {
   readonly type: string;
   readonly config: SubjectConfig;
@@ -37,10 +37,10 @@ function column(where: string, value: unknown): string {
 }
 
 /**
- * `config.subjects`, checked: every entry with its table split and quoted. A
+ * `config.records`, checked: every entry with its table split and quoted. A
  * subject without `tenant` gets the tenant column `naming` names
- * (`organization_id`, or `workspace_id` for
- * `blocks.tenant.entities.organization: workspace`).
+ * (`organization_id`, or `workspace_id` for `blocks.tenant.names.organization:
+ * workspace`).
  */
 export function registeredSubjects(
   subjects: SubjectsConfig,

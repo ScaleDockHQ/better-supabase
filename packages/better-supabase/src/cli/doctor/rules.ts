@@ -822,7 +822,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Legacy migra diff engine",
     description:
-      "`supabase/config.toml` has no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs `supabase/schemas` with migra, which drops grants, comments and security-invoker views and needs the stack stopped. New projects from `supabase init` use pg-delta. Setting `sql.workflow` to `migra` or `migrations` silences it.",
+      "`supabase/config.toml` has no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs `supabase/schemas` with migra, which drops grants, comments and security-invoker views and needs the stack stopped. New projects from `supabase init` use pg-delta. Setting `database.sql.workflow` to `migra` or `migrations` silences it.",
     check: (context) => {
       const toml = context.configToml;
 
@@ -849,7 +849,7 @@ const OWN_RULES: readonly Rule[] = [
 
       const keep =
         context.config.sql.workflow === undefined
-          ? ' To stay on migra, set `sql.workflow: "migra"` in better-supabase.config.ts.'
+          ? ' To stay on migra, set `database.sql.workflow: "migra"` in better-supabase.config.ts.'
           : "";
 
       return [
@@ -866,7 +866,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Live query table without change broadcasts",
     description:
-      "A table in `realtime.tables` has no `bsb_realtime` trigger, so live queries never hear about its changes.",
+      "A table in `database.realtime.tables` has no `bsb_realtime` trigger, so live queries never hear about its changes.",
     check: (context) => {
       const tables = catalogOf(context).tables;
 
@@ -878,7 +878,7 @@ const OWN_RULES: readonly Rule[] = [
         if (!table) {
           return [
             {
-              message: `realtime.tables lists "${name}", which doesn't exist.`,
+              message: `database.realtime.tables lists "${name}", which doesn't exist.`,
               target: name,
             },
           ];
@@ -892,7 +892,7 @@ const OWN_RULES: readonly Rule[] = [
 
         return [
           {
-            message: `${qualified(table)} is in realtime.tables but has no broadcast trigger. Run \`better-supabase add realtime-tables\`, then \`${migrationCommand(workflowOf(context))}\`.`,
+            message: `${qualified(table)} is in database.realtime.tables but has no broadcast trigger. Run \`better-supabase add realtime-tables\`, then \`${migrationCommand(workflowOf(context))}\`.`,
             target: qualified(table),
             object: tableObject(table),
           },

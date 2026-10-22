@@ -10,6 +10,7 @@ import type { ConfigEdit } from "../sql/config-edit.ts";
 import type { Paint } from "../style.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
+import { blockEntrySource } from "../../config/index.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { applyPlan, planResult } from "../core/files.ts";
@@ -79,8 +80,12 @@ export function withAdoptedBlock(
   proposal: AdoptProposal,
 ): ConfigEdit {
   return file.endsWith(".json")
-    ? setBlockInJson(source, proposal.block, proposal.entry)
-    : setBlockInConfig(source, proposal.block, proposal.entry);
+    ? setBlockInJson(source, proposal.block, blockEntrySource(proposal.entry))
+    : setBlockInConfig(
+        source,
+        proposal.block,
+        blockEntrySource(proposal.entry),
+      );
 }
 
 /**
@@ -103,7 +108,7 @@ async function withMigrationSince(
     return edit;
   }
 
-  const path = ["doctor", "migrationSafety", "since"] as const;
+  const path = ["tooling", "doctor", "migrationSafety", "since"] as const;
 
   const next = file.endsWith(".json")
     ? setPathInJson(edit.text, path, since)
@@ -150,7 +155,7 @@ export async function runAdopt(
 
   const data = {
     block,
-    entry: proposal.entry,
+    entry: blockEntrySource(proposal.entry),
     tables: proposal.tables,
     errors: proposal.errors,
     warnings: proposal.warnings,
@@ -171,7 +176,7 @@ export async function runAdopt(
     lines.push(
       "",
       `No config file: add this to blocks yourself.`,
-      `${block}: ${JSON.stringify(proposal.entry, null, 2)}`,
+      `${block}: ${JSON.stringify(blockEntrySource(proposal.entry), null, 2)}`,
     );
 
     return {

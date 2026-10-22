@@ -361,7 +361,7 @@ export function entityRenamePlan(
     steps.push(
       ...renames.map((sql) => ({
         module,
-        description: "Renames an object after blocks.<name>.entities.",
+        description: "Renames an object after blocks.<name>.names.",
         sql,
       })),
     );
