@@ -73,3 +73,4 @@ add one, and link it from the code or config it explains.
 | [0079](0079-segments-and-assignment.md)                   | Segments materialize rules filter trees; assignment queues pick owners by round robin, weight and territory                    |
 | [0081](0081-enrichment-provider.md)                       | Enrichment stores provider profiles per record and fills only empty columns, through a versioned provider over fetch           |
 | [0083](0083-forecast-snapshots-and-field-history.md)      | Forecast snapshots copy the deals behind each number; field history is a trigger per tracked table                             |
+| [0086](0086-bookings-as-engagements.md)                   | Confirmed bookings become meeting engagements through a trigger on the bookings table                                          |

@@ -184,6 +184,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0079: segments materialize rules filter trees; assignment queues pick owners by turn, weight and territory.
 - 0081: enrichment stores provider profiles per record and fills only empty columns, through a versioned provider over `fetch`.
 - 0083: forecast snapshots copy the deals behind each number; field history is a trigger per tracked table.
+- 0086: confirmed bookings become meeting engagements through a trigger on the bookings table.
 
 ## Pre-release pins
 
