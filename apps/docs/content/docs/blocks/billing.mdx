@@ -102,6 +102,59 @@ replace them. The customer, `client_reference_id` and
 again afterwards, so your own metadata never drops the tenant link. `portal` returns `not_found`
 (`BILLING_NO_CUSTOMER`) before the tenant has a customer.
 
+### Billing tenants as Stripe accounts
+
+Stripe's Accounts v2 API models a business as one `v2.core.account` with
+configurations. The `customer` configuration lets the platform bill that
+account (Billing subscriptions, Checkout, the customer portal and invoices)
+by passing `customer_account: "acct_..."` instead of a v1 `customer`, and the
+`merchant` configuration lets the same account accept payments through
+Connect. Set `customerAccounts` to bill tenants this way:
+
+```ts title="src/lib/billing.ts"
+export const billing = createBilling({
+  stripe: stripeFromKey({ secretKey: env.STRIPE_SECRET_KEY }),
+  transport: sqlTransport(postgres.admin),
+  customerAccounts: {
+    // Optional: the account the tenant already sells through.
+    resolve: (tenant) => connectedAccountOf(tenant),
+    // Optional: more v2.core.accounts.create parameters, merged deeply.
+    params: { identity: { country: "de" } },
+  },
+});
+```
+
+`checkout` then creates the tenant's account the first time, with
+`contact_email`, `display_name`, the `customer` configuration and the tenant
+in `metadata.organization_id`, links it (`link_billing_account`, which
+records `billing.account_linked`), and opens Checkout with
+`customer_account`. `resolve` returns an existing account to reuse instead,
+which needs the `customer` configuration before Stripe bills it. `portal`
+passes `customer_account` too. `account(organizationId)` reads the linked
+account and `ensureAccount(organizationId, details)` creates or reuses it
+without a checkout. Creating an account needs `v2.core.accounts` on the
+Stripe client, which the `stripe` package has; `customerAccounts: true` uses
+the defaults.
+
+Stripe creates a v1 customer linked to the account when the first
+subscription or invoice is made, and customers can't be listed or searched by
+`customer_account`, so the block records that `cus_` id from the first
+Checkout session, subscription or invoice event that carries both ids (see
+[Stripe webhooks](#stripe-webhooks)). Until then `customer(organizationId)`
+returns `undefined`, the Sync Engine reads return nothing, and
+`ensureCustomer`, `addTaxId` and `updateCustomer` fail with `not_found`
+(`BILLING_CUSTOMER_PENDING`). After that, the readers, tax ids, seat sync and
+plan changes work on the linked customer as they do for a v1 customer. A
+tenant that already has a v1 customer keeps it: `checkout` and `portal` go on
+passing `customer` for it.
+
+`billing_customers` keeps the account in `stripe_customer_account_id`
+(`^acct_`), next to `stripe_customer_id`, which is `null` until the customer
+is recorded; a row needs one of the two. Stripe rejects some values for the
+account's profile (for example a `*.localhost` URL as
+`defaults.profile.business_url`), so pass production-like values in
+`params` when you test against a sandbox.
+
 `cancelSubscription(organizationId)` cancels the tenant's active subscription
 in Stripe right away and returns its id, or `undefined` when there is none.
 The [data lifecycle](/docs/blocks/data-lifecycle) purge calls it before it
@@ -541,18 +594,33 @@ await inbox.process((message) =>
 | `customer.subscription.created` | Links from `metadata.organization_id` if needed; emits `billing.subscription_created` and invalidates sessions |
 | `customer.subscription.updated` | Emits `billing.subscription_updated` and invalidates sessions                                                  |
 | `customer.subscription.deleted` | Emits `billing.subscription_deleted` and invalidates sessions                                                  |
+| Any other event                 | Records the customer of a tenant's account when the object carries `customer` and `customer_account`           |
 
-Other events are ignored. Session invalidation uses
+Other events are ignored. An event whose object has a `customer_account`
+resolves the tenant by its customer or its account, links the account from
+`metadata.organization_id` or `client_reference_id` when needed, and reports
+it as `accountId` on the outcome and the block event.
+
+Connect events, the ones Stripe sends for a connected account, carry
+`event.account`. They are handled like platform events by default, for apps
+that bill through a per-tenant Connect client. An app that bills on the
+platform and receives connected account events on the same endpoint or event
+destination sets `connectEvents: "ignore"`, so a connected account's own
+customers are never linked to a tenant. `stripeInboxVerify` verifies both
+kinds, and also the thin event notifications that event destinations send
+(see [Stripe webhooks](/docs/standards/webhooks#stripe-webhooks)). Session invalidation uses
 [`entitlementMembers`](/docs/blocks/entitlements), so members read the new
 plan's entitlements on their next request. `verifyStripeWebhook` checks the
 `Stripe-Signature` header with WebCrypto, without the `stripe` package.
 
 ## Block events
 
-`billing.customer_linked`, `billing.checkout_completed`,
+`billing.customer_linked`, `billing.account_linked`,
+`billing.checkout_completed`,
 `billing.subscription_created`, `billing.subscription_updated`,
 `billing.subscription_deleted` and `billing.seats_synced` carry
-`organizationId` and, where they apply, `customerId`, `subscriptionId`,
+`organizationId` and, where they apply, `customerId`, `accountId`,
+`subscriptionId`,
 `status`, `quantity`, `previousQuantity` and `stripeEventId`. Listen with
 `onBlockEvent(bs, billingEvents, "billing.*", handler)`, with
 `billingEvents` from `better-supabase/blocks/billing`.
@@ -562,15 +630,17 @@ plan's entitlements on their next request. `verifyStripeWebhook` checks the
 | Function                                                          | Granted to                      | Returns                                                                                     |
 | ----------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
 | `billing_customer(tenant)`                                        | `authenticated`, `service_role` | the customer id, for callers with `billing.read`                                            |
-| `billing_status(tenant)`                                          | `authenticated`, `service_role` | `{ customer, seats, subscription }`                                                         |
+| `billing_account(tenant)`                                         | `authenticated`, `service_role` | the Accounts v2 account id, for callers with `billing.read`                                 |
+| `billing_status(tenant)`                                          | `authenticated`, `service_role` | `{ customer, account, seats, subscription }`                                                |
 | `billing_subscription(tenant)`                                    | `authenticated`, `service_role` | the newest `stripe.subscriptions` row with `items`, for `billing.read` or platform staff    |
 | `billing_tenant_subscription(tenant)`                             | none (the owner)                | the same row without checking the caller, for your own `security definer` functions         |
 | `billing_all_subscriptions(for_status, max_rows, before_created)` | `authenticated`, `service_role` | `[{ tenant, customer, subscription }]`, for platform staff                                  |
 | `billing_all_invoices(for_status, max_rows, before_created)`      | `authenticated`, `service_role` | `[{ tenant, customer, invoice }]`, for platform staff                                       |
 | `billing_platform_customers()`                                    | `authenticated`, `service_role` | every linked customer: `tenant`, `customer`, `email`, `name`, `created`, for platform staff |
 | `billing_all_customers()`                                         | `authenticated`, `service_role` | the same rows as `jsonb`, for `allCustomers()`                                              |
-| `link_billing_customer(tenant, customer)`                         | `service_role`                  | the linked customer                                                                         |
-| `billing_customer_tenant(customer)`                               | `service_role`                  | the tenant id                                                                               |
+| `link_billing_customer(tenant, customer)`                         | `service_role`                  | the linked customer; records it on a row that has only an account                           |
+| `link_billing_account(tenant, account)`                           | `service_role`                  | the linked account                                                                          |
+| `billing_customer_tenant(customer)`                               | `service_role`                  | the tenant id of a customer or an account id                                                |
 | `billing_seat_count(tenant)`                                      | `service_role`                  | the seat count                                                                              |
 | `billing_subscription_item(tenant, price)`                        | `service_role`                  | `{ subscription, item, price, quantity, status }` or null                                   |
 | `billing_plan_price(plan, billing_interval, variant)`             | `authenticated`, `service_role` | the plan's Stripe price from `options.plans`, or null                                       |

@@ -96,3 +96,19 @@ name and avatar URL from the profiles module, through the new security
 definer functions `comment_authors(uuid[])` and `attachment_authors(uuid[])`.
 They return only authors of rows the caller may read. Without the profiles
 module, `author.name` and `author.avatarUrl` are `undefined`.
+
+## Billing stores a Stripe account next to the customer
+
+The `billing` module is at version 3. `billing_customers` gains a nullable
+`stripe_customer_account_id` column (`^acct_`), and `stripe_customer_id` is
+nullable, with a check that a row has one of the two. Existing rows keep
+their customer, and nothing changes for apps that don't set
+`customerAccounts` in `createBilling`. Run `better-supabase sql upgrade`
+(or `sql sync`), then generate a migration; the module file adds the column
+and drops the `not null` in place.
+
+Code that reads `billing_customers.stripe_customer_id` directly should
+expect `null` for a tenant billed as an account before its first checkout.
+`StripeEventOutcome` and `BillingStatus` have a new `accountId` field, so a
+test that compares either with `toEqual` needs it. See
+[billing tenants as Stripe accounts](/docs/blocks/billing#billing-tenants-as-stripe-accounts).
