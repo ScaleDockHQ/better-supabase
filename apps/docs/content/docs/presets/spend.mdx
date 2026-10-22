@@ -1,11 +1,12 @@
 ---
 title: Expenses and spend
-description: The spend preset installs expenses with receipts and policies, approvals, reimbursements on the ledger and receipt files for AI extraction.
+description: The spend preset installs expense reports with receipts and spend policies, approvals, the approved total and reimbursement on the ledger, and receipt files for AI extraction.
 ---
 
-The `spend` preset is for an app in the style of Ramp or Expensify. An
-employee submits an expense with its receipt, the policy checks it, a manager
-approves it, and the reimbursement is paid through the ledger.
+The `spend` preset is for an app in the style of Ramp or Expensify. A member
+files an expense report with its receipts, the category's spend policy checks
+it on submit, an approver decides it, and the reimbursement is paid through
+the ledger.
 
 ## Config
 
@@ -24,26 +25,27 @@ export default defineConfig({ preset: "spend" });
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                                   | Role in the app                                             |
-| --------------------------------------- | ----------------------------------------------------------- |
-| [expenses](/docs/blocks/expenses)       | Expenses, receipts, policies and reimbursements             |
-| [approvals](/docs/blocks/approvals)     | Manager and finance approval steps                          |
-| [attachments](/docs/blocks/attachments) | Receipt images and PDFs                                     |
-| [ai-files](/docs/blocks/ai-files)       | Receipt files handed to a model to read the amount and date |
+| Block                                   | Role in the app                                               |
+| --------------------------------------- | ------------------------------------------------------------- |
+| [expenses](/docs/blocks/expenses)       | Reports, lines, categories, spend policies and reimbursements |
+| [approvals](/docs/blocks/approvals)     | The approval each submitted report waits on                   |
+| [attachments](/docs/blocks/attachments) | Receipt images and PDFs on each line                          |
+| [ai-files](/docs/blocks/ai-files)       | Receipt files handed to a model to read the amount and date   |
 
-The expenses block posts to the [ledger](/docs/blocks/ledger), which the
+The expenses block posts on the [ledger](/docs/blocks/ledger), which the
 preset installs as one of its requirements.
 
 ## How the blocks connect
 
-An expense holds its amount in minor units and its receipt as an
-attachment. The policy decides whether it needs approval, and the approval
-request runs its steps before the expense is reimbursed. A reimbursement is
-a ledger transaction, so what the company owes each employee is a ledger
-balance.
+`submit` checks each line against its category's spend policy, then the
+report waits on its approval. When the approval is final, each category's
+total posts on its expense account against the member's payable account, and
+`reimburse` settles the payable account from expense cash. Each posting has
+a key per report, so it can't post twice, and what the organization owes a
+member is a ledger balance ([expenses](/docs/blocks/expenses)).
 
 ## With ReUI
 
-- Data Grid for expenses, with Filters on status, category and amount.
-- A file upload with a preview of the receipt next to the expense form.
-- Badge variants for the expense status (submitted, approved, paid).
+- Data Grid for reports, with Filters on status, category and amount.
+- A file upload with a preview of the receipt next to the line form.
+- Badge variants for the report status (submitted, approved, reimbursed).

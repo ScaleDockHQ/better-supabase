@@ -1,6 +1,6 @@
 ---
 title: Compliance
-description: The compliance preset installs controls with recurring evidence, evidence files, policy documents with acknowledgements and reminders.
+description: The compliance preset installs frameworks and controls with recurring evidence tasks, evidence files, versioned policies that members acknowledge and a posture per framework.
 ---
 
 The `compliance` preset is for an app in the style of Vanta or Drata. A
@@ -25,22 +25,25 @@ and `npx better-supabase apply --preset compliance` adds it to one you have
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                                   | Role in the app                                   |
-| --------------------------------------- | ------------------------------------------------- |
-| [controls](/docs/blocks/controls)       | Controls, frameworks and recurring evidence tasks |
-| [attachments](/docs/blocks/attachments) | Evidence files                                    |
-| [documents](/docs/blocks/documents)     | Policies, written together                        |
-| signatures                              | Policy acknowledgements on a frozen version       |
-| [reminders](/docs/blocks/reminders)     | Evidence due dates and policy reviews             |
+| Block                                   | Role in the app                                             |
+| --------------------------------------- | ----------------------------------------------------------- |
+| [controls](/docs/blocks/controls)       | Frameworks, controls, evidence tasks and versioned policies |
+| [attachments](/docs/blocks/attachments) | Evidence files                                              |
 
-The `audit` block from `saas` keeps who changed a control or its evidence.
+The controls block requires [versions](/docs/blocks/versions), which the
+preset installs with it, and the `audit` block from `saas` keeps who changed
+a control or its evidence.
 
 ## How the blocks connect
 
-A control has evidence tasks that recur, and each piece of evidence is an
-attachment on the task. A policy is a document; publishing it freezes a
-version, and each employee signs that version as their acknowledgement.
-Reminders warn the owner before evidence or a policy review is due.
+A control belongs to a framework such as SOC 2 or ISO 27001. `addEvidence`
+attaches a file or a note to it, valid until a date, and `saveEvidenceTask`
+plans evidence that has to be collected again every `intervalDays`, with an
+assignee. A control's status follows from its evidence and tasks: it fails
+when a task is overdue or all its evidence has lapsed, and `posture` rolls
+the statuses up per framework. `publishPolicy` freezes a policy as a version,
+and each member acknowledges that version with `acknowledgePolicy`
+([controls](/docs/blocks/controls)).
 
 ## With ReUI
 

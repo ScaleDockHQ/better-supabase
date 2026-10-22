@@ -1,10 +1,10 @@
 ---
 title: Construction
-description: The construction preset installs punch lists and RFIs as work items, sites in assets, daily logs as forms, drawings with versions and markup, and submittal approvals.
+description: The construction preset installs punch lists and RFIs as work items, sites in assets, daily logs as forms, drawings with revisions, comments and submittal approvals.
 ---
 
 The `construction` preset is for an app in the style of Procore. A project
-team keeps the drawings and their revisions, marks them up, raises punch
+team keeps the drawings and their revisions, discusses them, raises punch
 list items and requests for information (RFIs), files a daily log from site,
 and routes submittals for approval.
 
@@ -32,15 +32,16 @@ whatever they require:
 | [forms](/docs/blocks/forms)             | Daily logs and inspection checklists                       |
 | [attachments](/docs/blocks/attachments) | Drawings, photos and submittal files                       |
 | [versions](/docs/blocks/versions)       | Drawing revisions                                          |
-| [comments](/docs/blocks/comments)       | Markup anchored to a region of a drawing                   |
+| [comments](/docs/blocks/comments)       | Discussion on a drawing, an RFI or a punch list item       |
 | [approvals](/docs/blocks/approvals)     | Submittal review by the architect and engineer             |
 
 ## How the blocks connect
 
-A drawing is an attachment with its revisions as versions. A comment
-anchored to a page and region of the drawing is the markup, and a punch
-list item can link back to it. An RFI is a work item with its own pipeline,
-and a submittal is an approval request on the submitted files.
+A drawing is an attachment on a site or a room in `assets`, and each
+revision is a frozen version, so every earlier revision stays readable. An RFI is a work item with its own
+pipeline, and a submittal is an approval request on the submitted files,
+decided by the architect and the engineer in turn. A daily log is a form
+submission linked to the site.
 
 ## With ReUI
 

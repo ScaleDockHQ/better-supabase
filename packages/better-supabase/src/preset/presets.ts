@@ -279,7 +279,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "property",
     title: "Property management",
     description:
-      "SaaS plus units in assets, leases with recurring charges on the ledger, tenants as parties with a guest portal, invoices and maintenance work items.",
+      "SaaS plus units in assets, leases with rent and deposits on the ledger and maintenance requests, tenants as parties with a guest portal, comments and attachments.",
     group: "verticals",
     blocks: [
       ...SAAS,
@@ -288,8 +288,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "ledger",
       "parties",
       "guests",
-      "invoices",
-      "work-items",
+      "comments",
       "attachments",
       "reminders",
     ],
@@ -298,14 +297,14 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "field-service",
     title: "Field service",
     description:
-      "SaaS plus a dispatch board for technicians, jobs as work items on assets, quotes to invoices, checklists as forms and a signature on completion.",
+      "SaaS plus a dispatch board of work orders at customer assets, parts from inventory, quotes to invoices, checklists as forms and a signature on completion.",
     group: "verticals",
     blocks: [
       ...SAAS,
       "parties",
-      "work-items",
       "dispatch",
       "assets",
+      "inventory",
       "quotes",
       "invoices",
       "forms",
@@ -317,7 +316,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "clinic",
     title: "Clinic and therapy",
     description:
-      "SaaS plus appointments, intake forms, note templates, consent signatures, encrypted custom fields, a read-access log and a client portal.",
+      "SaaS plus appointments, intake forms, note templates, consent signatures, field encryption for sensitive values, a client portal and reminders.",
     group: "verticals",
     blocks: [
       ...SAAS,
@@ -327,6 +326,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "templates",
       "signatures",
       "custom-fields",
+      "field-encryption",
       "guests",
       "reminders",
     ],
@@ -335,7 +335,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "lms",
     title: "Courses and learning",
     description:
-      "SaaS plus courses with lessons and scored quizzes, enrollments with progress, comments and attachments.",
+      "SaaS plus courses with lessons, quizzes graded by forms and certificates, enrollments with progress, comments and attachments.",
     group: "verticals",
     blocks: [
       ...SAAS,
@@ -350,7 +350,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "events",
     title: "Events and ticketing",
     description:
-      "SaaS plus tickets in a catalog, orders, bookings for capacity, QR passes with check-in, a waitlist and reminders.",
+      "SaaS plus tickets in a catalog, orders, bookings for capacity, QR passes signed with signing keys and checked in, a waitlist and reminders.",
     group: "verticals",
     blocks: [
       ...SAAS,
@@ -358,6 +358,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "orders",
       "bookings",
       "passes",
+      "signing-keys",
       "waitlist",
       "reminders",
     ],
@@ -392,7 +393,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "contracts",
     title: "Contracts",
     description:
-      "SaaS plus a contract lifecycle with renewals and obligations, counterparties, signatures, versions, approvals and reminders.",
+      "SaaS plus a contract lifecycle with renewals and obligations, counterparties as parties, signatures on a frozen version and reminders.",
     group: "verticals",
     blocks: [
       ...SAAS,
@@ -400,7 +401,6 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "parties",
       "signatures",
       "versions",
-      "approvals",
       "reminders",
     ],
   },
@@ -408,7 +408,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "customer-success",
     title: "Customer success",
     description:
-      "SaaS plus accounts as parties, health scores, metrics, rules, NPS forms, playbooks as enrollments and engagements.",
+      "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and engagements.",
     group: "verticals",
     blocks: [
       ...SAAS,
@@ -426,9 +426,9 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "logistics",
     title: "Logistics and fleet",
     description:
-      "SaaS plus orders, shipments with carrier tracking events, vehicles and depots in assets, and a dispatch board for routes.",
+      "SaaS plus shippers as parties, orders, shipments with carrier labels and tracking, and depots and vehicles in assets.",
     group: "verticals",
-    blocks: [...SAAS, "parties", "orders", "shipments", "assets", "dispatch"],
+    blocks: [...SAAS, "parties", "orders", "shipments", "assets"],
   },
   pos: {
     name: "pos",
@@ -450,21 +450,29 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "fitness",
     title: "Fitness and memberships",
     description:
-      "SaaS plus class schedules, recurring bookings with class credits on the ledger, and passes with check-in.",
+      "SaaS plus class schedules, bookings, and passes with check-in and class credits, signed with signing keys, plus reminders.",
     group: "verticals",
-    blocks: [...SAAS, "calendar", "bookings", "passes", "ledger", "reminders"],
+    blocks: [
+      ...SAAS,
+      "calendar",
+      "bookings",
+      "passes",
+      "signing-keys",
+      "reminders",
+    ],
   },
   nonprofit: {
     name: "nonprofit",
     title: "Nonprofit fundraising",
     description:
-      "SaaS plus donors as parties, donations and recurring gifts on the ledger, campaign targets and saved views for segments.",
+      "SaaS plus donors as parties, gifts and pledges on the ledger, numbered tax receipts, campaign targets and saved views for segments.",
     group: "verticals",
     blocks: [
       ...SAAS,
       "parties",
       "donations",
       "ledger",
+      "number-sequences",
       "targets",
       "saved-views",
     ],
@@ -490,16 +498,9 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "compliance",
     title: "Compliance",
     description:
-      "SaaS plus controls with recurring evidence, evidence files, policy documents with acknowledgements and reminders.",
+      "SaaS plus frameworks and controls with evidence, recurring evidence tasks and versioned policies that members acknowledge, with evidence files.",
     group: "verticals",
-    blocks: [
-      ...SAAS,
-      "controls",
-      "attachments",
-      "documents",
-      "signatures",
-      "reminders",
-    ],
+    blocks: [...SAAS, "controls", "attachments"],
   },
   construction: {
     name: "construction",

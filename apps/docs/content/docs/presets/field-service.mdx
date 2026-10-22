@@ -1,12 +1,13 @@
 ---
 title: Field service
-description: The field-service preset installs a dispatch board, jobs on customer assets, quotes to invoices, job checklists and a signature on completion.
+description: The field-service preset installs a dispatch board of work orders, customer sites in assets, parts from inventory, quotes to invoices, checklists and signatures.
 ---
 
 The `field-service` preset is for an app in the style of ServiceTitan or
-Jobber. An office quotes a job, schedules it on the dispatch board, and a
-technician works through the day plan, fills in the checklist on site, has
-the customer sign and leaves an invoice behind.
+Jobber. The office quotes a job, a dispatcher puts the work order in a
+technician's slot on the board, and the technician works through the day
+plan, fills in the checklist on site, records the parts used and has the
+customer sign.
 
 ## Config
 
@@ -25,28 +26,33 @@ have ([CLI](/docs/cli/presets)).
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                                   | Role in the app                                           |
-| --------------------------------------- | --------------------------------------------------------- |
-| [parties](/docs/blocks/parties)         | Customers and their sites' contacts                       |
-| [work-items](/docs/blocks/work-items)   | Jobs, with the customer's equipment they concern          |
-| [dispatch](/docs/blocks/dispatch)       | The schedule board, routes and each technician's day plan |
-| [assets](/docs/blocks/assets)           | Customer sites and the equipment installed there          |
-| [quotes](/docs/blocks/quotes)           | Quotes the customer accepts through a public link         |
-| [invoices](/docs/blocks/invoices)       | Invoices from accepted quotes, with payments              |
-| [forms](/docs/blocks/forms)             | Job checklists and inspection forms                       |
-| signatures                              | The customer's signature on the completed job             |
-| [attachments](/docs/blocks/attachments) | Photos before and after the work                          |
+| Block                                   | Role in the app                                               |
+| --------------------------------------- | ------------------------------------------------------------- |
+| [parties](/docs/blocks/parties)         | Customers and their contacts                                  |
+| [dispatch](/docs/blocks/dispatch)       | Work orders, the schedule board, day plans and parts used     |
+| [assets](/docs/blocks/assets)           | Customer sites and the equipment installed there              |
+| [inventory](/docs/blocks/inventory)     | Van and warehouse stock the parts come from                   |
+| [quotes](/docs/blocks/quotes)           | Quotes the customer accepts through a public link             |
+| [invoices](/docs/blocks/invoices)       | Invoices from accepted quotes, with payments                  |
+| [forms](/docs/blocks/forms)             | Job checklists and inspection forms                           |
+| signatures                              | The customer's signature on a frozen version of the job sheet |
+| [attachments](/docs/blocks/attachments) | Photos before and after the work                              |
 
 ## How the blocks connect
 
-A job is a work item that names the asset it concerns. Dispatch assigns the
-job to a technician and a time slot, so the board and the technician's day
-plan read the same assignment. A quote the customer accepts becomes an
-invoice, and the job's checklist is a form submission linked to the job.
-The signature freezes the version of the job sheet the customer signed.
+A work order sits at an asset location or an address. `board` returns the
+scheduled work orders per technician and day with the backlog, and
+`technicianDay` returns one technician's jobs in route order. The
+technician moves a job to en route, on site and done, and records each part
+with the catalog variant and stock location it came from, since `catalog`
+and `inventory` are installed ([dispatch](/docs/blocks/dispatch)).
+
+A quote the customer accepts becomes an invoice. The checklist is a form
+submission linked to the work order, and the signature is taken on a frozen
+version, so what the customer signed never changes.
 
 ## With ReUI
 
 - Event Calendar for the dispatch board, one row per technician.
-- Data Grid for jobs, with Filters on status, technician and date.
-- Stepper for the on-site flow: checklist, photos, signature.
+- Data Grid for the backlog, with Filters on priority and customer.
+- Stepper for the on-site flow: checklist, parts, photos, signature.

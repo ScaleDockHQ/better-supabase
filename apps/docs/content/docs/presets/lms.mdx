@@ -1,12 +1,12 @@
 ---
 title: Courses and learning
-description: The lms preset installs courses with lessons and scored quizzes, enrollments with progress, comments and attachments.
+description: The lms preset installs courses with modules, lessons and quizzes graded by forms, enrollments with progress, certificates, comments and attachments.
 ---
 
 The `lms` preset is for an app in the style of Teachable or Canvas. An
-instructor builds a course from lessons and quizzes, learners enroll and work
-through it, quizzes are scored, and each learner's progress and completion
-is kept per lesson.
+instructor builds a course from modules and lessons, some of them quizzes,
+learners enroll and work through it, quizzes are graded in the database, and
+a completed course can issue a certificate anyone can verify.
 
 ## Config
 
@@ -25,22 +25,26 @@ export default defineConfig({ preset: "lms" });
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                                   | Role in the app                                  |
-| --------------------------------------- | ------------------------------------------------ |
-| [courses](/docs/blocks/courses)         | Courses, lessons and quizzes                     |
-| [enrollments](/docs/blocks/enrollments) | A learner's enrollment, with progress per lesson |
-| [forms](/docs/blocks/forms)             | Quizzes, with scoring                            |
-| [comments](/docs/blocks/comments)       | Questions and discussion on a lesson             |
-| [attachments](/docs/blocks/attachments) | Lesson files and assignment uploads              |
+| Block                                   | Role in the app                                        |
+| --------------------------------------- | ------------------------------------------------------ |
+| [courses](/docs/blocks/courses)         | Courses, modules, lessons, completion and certificates |
+| [enrollments](/docs/blocks/enrollments) | Each learner's enrollment, with progress per lesson    |
+| [forms](/docs/blocks/forms)             | Quiz lessons, scored against a pass mark               |
+| [comments](/docs/blocks/comments)       | Questions and discussion on a lesson                   |
+| [attachments](/docs/blocks/attachments) | Lesson files and assignment uploads                    |
 
-The `entitlements` block from `saas` decides who may enroll in a paid
+The `entitlements` block from `saas` can decide who may enroll in a paid
 course.
 
 ## How the blocks connect
 
-A course runs on an enrollments program, with a step per lesson, so a
-learner's progress and completion are enrollment progress. A quiz is a form
-with scoring, and a passing score completes its lesson step.
+A course's required lessons are the steps of its enrollment program, so a
+learner's progress is enrollment progress, and finishing the last required
+lesson completes the enrollment. A quiz lesson is a form: Postgres scores
+the submission inside `submit` against answer keys no client can read, so a
+learner can't send their own grade. When the course issues certificates,
+completion creates one with a random code, and `verifyCertificate(code)`
+checks it for anyone, signed in or not ([courses](/docs/blocks/courses)).
 
 ## With ReUI
 

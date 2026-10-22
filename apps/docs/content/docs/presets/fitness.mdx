@@ -1,23 +1,32 @@
 ---
 title: Fitness and memberships
-description: The fitness preset installs class schedules, recurring bookings with class credits on the ledger, and passes with check-in.
+description: The fitness preset installs class schedules, bookings with recurring series, membership passes with class credits signed by signing keys, check-in and reminders.
 ---
 
-The `fitness` preset is for an app in the style of Mindbody. A studio
-publishes a class schedule, members book a class or a recurring slot and pay
-with class credits from their membership, and the front desk checks them in
-with a pass.
+The `fitness` preset is for an app in the style of Mindbody or Glofox. A
+studio schedules its classes, a member books a class with a credit from
+their pack, checks in at the door with a QR pass, and gets a reminder before
+class.
 
 ## Config
+
+Recurring series and class credits are block options, off by default, so the
+preset leaves them to your config:
 
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
 
-export default defineConfig({ preset: "fitness" });
+export default defineConfig({
+  preset: "fitness",
+  blocks: {
+    bookings: { options: { recurring: true } },
+    passes: { options: { credits: true, creditRefundBefore: "12 hours" } },
+  },
+});
 ```
 
-`npx better-supabase init --preset fitness` starts a new project from it,
-and `npx better-supabase apply --preset fitness` adds it to one you have
+`npx better-supabase init --preset fitness` starts a new project from it, and
+`npx better-supabase apply --preset fitness` adds it to one you have
 ([CLI](/docs/cli/presets)).
 
 ## Blocks
@@ -25,26 +34,26 @@ and `npx better-supabase apply --preset fitness` adds it to one you have
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                               | Role in the app                                      |
-| ----------------------------------- | ---------------------------------------------------- |
-| [calendar](/docs/blocks/calendar)   | The class schedule and instructors' calendars        |
-| [bookings](/docs/blocks/bookings)   | Class bookings, recurring bookings and class credits |
-| [passes](/docs/blocks/passes)       | Membership passes checked in at the front desk       |
-| [ledger](/docs/blocks/ledger)       | Each member's class credit balance                   |
-| [reminders](/docs/blocks/reminders) | Class reminders                                      |
+| Block                                     | Role in the app                                     |
+| ----------------------------------------- | --------------------------------------------------- |
+| [calendar](/docs/blocks/calendar)         | Instructors' calendars and availability             |
+| [bookings](/docs/blocks/bookings)         | Classes on rooms and instructors, and weekly series |
+| [passes](/docs/blocks/passes)             | Membership passes, class packs and check-in         |
+| [signing-keys](/docs/blocks/signing-keys) | The studio's key that signs each pass               |
+| [reminders](/docs/blocks/reminders)       | Reminders before a class                            |
 
-Memberships are plans in the `billing` block from `saas`.
+Memberships are billed through `billing` from `saas`.
 
 ## How the blocks connect
 
-A class is a bookable resource with a capacity. A member's credits are a
-ledger account: buying a pack posts credits in, and each booking spends one,
-so a cancelled booking returns it as another balanced transaction. A check-in
-with a pass counts against the class's capacity, so a drop-in fills a seat
-too.
+With `recurring`, a weekly class or a standing appointment is one series of
+bookings. With `credits`, a pass with `usesAllowed` is a class pack:
+`bookWithCredit` books the class through the bookings block's slot check and
+takes one credit in the same transaction, and a cancellation before
+`creditRefundBefore` gives the credit back ([passes](/docs/blocks/passes)).
 
 ## With ReUI
 
-- Event Calendar for the class schedule.
-- Data Grid for members, with their credit balance and Filters on plan.
-- A check-in page that scans a pass and shows the result as a Badge.
+- Event Calendar for the class timetable.
+- Card for a member's pass with its QR code and credits left.
+- Data Grid for a class's attendees, with check-in as a Badge.

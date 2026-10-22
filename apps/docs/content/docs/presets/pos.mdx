@@ -1,19 +1,25 @@
 ---
 title: Restaurants and POS
-description: The pos preset installs a menu in the catalog, orders with a kitchen board, inventory, table bookings, promotions and loyalty points on the ledger.
+description: The pos preset installs a menu in the catalog, orders with an optional kitchen display, stock in inventory, table reservations, promotions and the ledger.
 ---
 
-The `pos` preset is for an app in the style of Toast or Square. Staff take
-an order from the menu, the kitchen display shows it as it moves from new to
-ready, stock goes down as dishes sell, guests book tables, and regulars earn
-loyalty points.
+The `pos` preset is for an app in the style of Toast or Square for
+restaurants. Staff take an order from the menu, the kitchen prepares its
+lines at their stations, stock goes down as items sell, guests reserve
+tables, and the day's takings land on the ledger.
 
 ## Config
+
+Turn on the kitchen display with the orders block's `kitchen` option; it is
+off by default, so the preset leaves it to your config:
 
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
 
-export default defineConfig({ preset: "pos" });
+export default defineConfig({
+  preset: "pos",
+  blocks: { orders: { options: { kitchen: true } } },
+});
 ```
 
 `npx better-supabase init --preset pos` starts a new project from it, and
@@ -25,24 +31,25 @@ export default defineConfig({ preset: "pos" });
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                                 | Role in the app                                        |
-| ------------------------------------- | ------------------------------------------------------ |
-| [catalog](/docs/blocks/catalog)       | The menu: dishes, options and prices                   |
-| [orders](/docs/blocks/orders)         | Orders, payments and the kitchen board of order states |
-| [inventory](/docs/blocks/inventory)   | Stock per location, reserved as orders come in         |
-| [bookings](/docs/blocks/bookings)     | Table reservations, with no double booking             |
-| [promotions](/docs/blocks/promotions) | Happy hours and discount codes                         |
-| [ledger](/docs/blocks/ledger)         | Loyalty points and gift cards as account kinds         |
+| Block                                 | Role in the app                                          |
+| ------------------------------------- | -------------------------------------------------------- |
+| [catalog](/docs/blocks/catalog)       | Menu items and their variants with prices                |
+| [orders](/docs/blocks/orders)         | Tickets at the till, and kitchen stations with `kitchen` |
+| [inventory](/docs/blocks/inventory)   | Stock that goes down as items sell                       |
+| [bookings](/docs/blocks/bookings)     | Table reservations                                       |
+| [promotions](/docs/blocks/promotions) | Happy hours and discount codes                           |
+| [ledger](/docs/blocks/ledger)         | Takings and payouts                                      |
 
 ## How the blocks connect
 
-An order prices its lines from the catalog, applies promotions and reserves
-stock in inventory. The kitchen board reads the order states and updates
-live as the kitchen moves an order along. Loyalty points and gift cards are
-ledger accounts, so earning and redeeming are balanced transactions.
+An order's lines are catalog variants. With `kitchen`, `orders.kitchen.send`
+routes each line to its station with a note, and the line moves through its
+preparation states on a kitchen display that refreshes on the kitchen event
+([orders](/docs/blocks/orders#kitchen)). A table is a bookable resource, so a
+reservation can't double book it.
 
 ## With ReUI
 
-- Kanban for the kitchen board, one column per order state.
-- Card grid for the menu on the order screen.
-- Event Calendar for table reservations.
+- Kanban for the kitchen display, one column per preparation state.
+- A card grid of menu items for the till.
+- Event Calendar for the table reservations of a service.

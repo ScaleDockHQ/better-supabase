@@ -39,8 +39,11 @@ whatever they require:
 
 A ticket is a work item with an SLA policy by priority, and it names the
 asset it affects. A change request waits on its approval before the work
-starts. During an outage, an incident links the tickets it causes through
-relations, and its updates appear on the public status page.
+starts. During an outage, an incident names the components it affects and
+links the tickets it causes through relations. Its public updates and each
+component's daily uptime appear on the organization's status page, which
+`publicStatusPage(slug, days)` returns to anyone, signed in or not, with only
+public fields ([incidents](/docs/blocks/incidents)).
 
 ## With ReUI
 

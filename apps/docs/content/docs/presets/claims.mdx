@@ -37,9 +37,12 @@ whatever they require:
 ## How the blocks connect
 
 A claim is your own table, registered as a subject, with a state machine on
-its status column. The final approval of a payout runs the transition to
-`approved`, so a claim can't be paid without it. SLA clocks start when the
-claim is reported and pause while it waits on the claimant.
+its status column. Mark the edge to `approved` with `requiresApproval`, and
+give the approvals policy for claims `run: { transition: "approved" }`: the
+final approval of the payout then runs the transition, and nobody can move a
+claim to `approved` without it ([approvals](/docs/blocks/approvals#run-the-approved-action)).
+SLA clocks start when the claim is reported and pause while it waits on the
+claimant.
 
 ```ts title="better-supabase.config.ts"
 import { defineConfig } from "better-supabase/config";
@@ -47,25 +50,27 @@ import { defineConfig } from "better-supabase/config";
 export default defineConfig({
   preset: "claims",
   subjects: {
-    claim: { table: "public.claims", idType: "uuid", title: "number" },
+    claim: {
+      table: "public.claims",
+      idType: "uuid",
+      tenant: "organization_id",
+    },
   },
   blocks: {
     "state-machine": {
       options: {
         machines: {
           claim: {
-            table: "public.claims",
             column: "status",
             initial: "reported",
-            tenant: "organization_id",
             transitions: {
               reported: ["investigating", "rejected"],
               investigating: ["approved", "rejected"],
               approved: ["paid"],
               paid: ["closed"],
               rejected: ["closed"],
-              closed: [],
             },
+            requiresApproval: { investigating: ["approved"] },
           },
         },
       },
