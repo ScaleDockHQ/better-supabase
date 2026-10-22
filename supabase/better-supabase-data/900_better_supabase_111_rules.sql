@@ -1,4 +1,4 @@
--- better-supabase module: rules (0.8.0)
+-- better-supabase module: rules
 -- @bs-module-data rules
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`
 -- after the schema migration to put them in a migration.

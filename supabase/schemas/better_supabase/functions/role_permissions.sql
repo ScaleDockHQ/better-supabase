@@ -7,7 +7,8 @@
 -- existing tags, keep their own API keys,
 -- read the settings, answer inbox conversations and use the assistant.
 -- Members also read every recipe block and do the everyday writes (react,
--- upload, track time, request approval); managing a block is for admins.
+-- upload, track time, request approval, report content); managing a block
+-- is for admins.
 -- Assigning conversations and managing inboxes is for admins. There are no
 -- platform roles, and nobody is disabled.
 -- `rolePermissions` in apps/examples/nextjs/src/features/user/user-permissions.ts
@@ -62,7 +63,8 @@ as $$
       'webhooks.read', 'webhooks.manage', 'organization.export',
       'rules.read', 'rules.edit', 'rules.publish', 'rules.admin',
       'assets.read', 'assets.manage', 'assets.assign',
-      'scores.read', 'scores.manage', 'scores.compute'
+      'scores.read', 'scores.manage', 'scores.compute',
+      'moderation.read', 'moderation.report', 'moderation.manage', 'moderation.ban'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
@@ -84,7 +86,8 @@ as $$
       'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write',
       'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read',
       'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'hiring.read',
-      'employees.read', 'rules.read', 'assets.read', 'scores.read'
+      'employees.read', 'rules.read', 'assets.read', 'scores.read',
+      'moderation.report'
     ]
     else array[]::text[]
   end

@@ -1,4 +1,4 @@
--- better-supabase module: rules (0.9.0)
+-- better-supabase module: rules
 -- @bs-module rules@1 managed
 -- Tenant-editable rules: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the app runs. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
