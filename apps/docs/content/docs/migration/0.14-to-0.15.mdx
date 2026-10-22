@@ -298,3 +298,12 @@ because the names are too common to rewrite safely:
 The rule builder and saved-view controllers keep `save`, the settings client
 keeps `setUser` and `setOrganization`, and domain verbs such as `approve`,
 `send` and `publish` stay.
+
+## Blocks install as instances
+
+Each key in `blocks` is now an instance. A config keyed by block name keeps
+working unchanged. To install a block twice, add a key with `block` set to
+the block's name; when a block depends on a block you installed twice, name
+the instance it uses in `uses`. See [Instances](/docs/blocks#instances).
+`resolveConfig` reports a core block, such as `memberships`, that is renamed
+or installed twice.

@@ -2,7 +2,7 @@ import type { PresetName } from "../../preset/presets.ts";
 import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
 import type { AuthorizationProvider } from "../authorization.ts";
-import type { BlocksConfig } from "../blocks.ts";
+import type { BlockConfigOf, BlockName, NamedInstance } from "../blocks.ts";
 import type { ExposeConfig } from "../expose.ts";
 import type { AppTableConfig } from "./app-tables.ts";
 import type {
@@ -71,10 +71,13 @@ export type BlockInput<T extends LegacyBlockKeys> = Omit<
   readonly callbacks?: T["hooks"];
 };
 
-/** `blocks` keyed by block name, as the config writes it. */
+/**
+ * `blocks` keyed by instance, as the config writes it: a block name installs
+ * that block, and any other key names an instance with `block`.
+ */
 export type BlocksInput = {
-  readonly [M in keyof BlocksConfig]?: BlockInput<NonNullable<BlocksConfig[M]>>;
-};
+  readonly [M in BlockName]?: BlockInput<BlockConfigOf<M>>;
+} & { readonly [instance: string]: NamedInstance | undefined };
 
 /** One `tables.<name>` entry: an app table with `owner`. */
 export type AppTableInput = Omit<AppTableConfig, "scope"> & {

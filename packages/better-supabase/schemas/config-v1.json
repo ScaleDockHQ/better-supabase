@@ -1852,7 +1852,159 @@
         },
         {
           "type": "object",
-          "additionalProperties": false,
+          "additionalProperties": {
+            "$ref": "#/$defs/moduleConfig",
+            "type": "object",
+            "required": ["block"],
+            "properties": {
+              "block": {
+                "enum": [
+                  "access-requests",
+                  "activities",
+                  "admission-passes",
+                  "agents",
+                  "ai-cache",
+                  "ai-chat",
+                  "ai-files",
+                  "ai-keys",
+                  "ai-schedules",
+                  "announcements",
+                  "api-keys",
+                  "approvals",
+                  "assets",
+                  "assignment",
+                  "attachments",
+                  "audit",
+                  "automations",
+                  "billable-time",
+                  "billing",
+                  "bookings",
+                  "bulk-actions",
+                  "calendar",
+                  "catalog",
+                  "channels",
+                  "chat-sdk-state",
+                  "collections",
+                  "comments",
+                  "compliance",
+                  "connectors",
+                  "contacts",
+                  "contracts",
+                  "courses",
+                  "created-by",
+                  "credentials",
+                  "custom-fields",
+                  "data-api-grants",
+                  "data-lifecycle",
+                  "deals",
+                  "dispatch",
+                  "documents",
+                  "domains",
+                  "donations",
+                  "drive",
+                  "drive-files",
+                  "employees",
+                  "enrichment",
+                  "enrollments",
+                  "entitlements",
+                  "expenses",
+                  "feature-flags",
+                  "field-encryption",
+                  "field-history",
+                  "forecasts",
+                  "forms",
+                  "goals",
+                  "guests",
+                  "hiring",
+                  "idempotency",
+                  "impersonation",
+                  "imports",
+                  "inbox",
+                  "incidents",
+                  "inventory",
+                  "invitations",
+                  "invoices",
+                  "jsonb-schemas",
+                  "knowledge",
+                  "lead-scoring",
+                  "leases",
+                  "leave",
+                  "ledger",
+                  "linked-identities",
+                  "mail-sync",
+                  "memberships",
+                  "memory",
+                  "messaging",
+                  "metrics",
+                  "mfa",
+                  "moderation",
+                  "notifications",
+                  "numbering",
+                  "oauth-server",
+                  "onboarding",
+                  "orders",
+                  "organizations",
+                  "outbox",
+                  "permissions",
+                  "pgtap",
+                  "pipelines",
+                  "posts",
+                  "profiles",
+                  "promotions",
+                  "push",
+                  "queue",
+                  "quotes",
+                  "rank",
+                  "rate-limit",
+                  "reactions",
+                  "read-sets",
+                  "realtime-tables",
+                  "relations",
+                  "reminders",
+                  "reserved-slugs",
+                  "reviews",
+                  "rls-guard",
+                  "saved-views",
+                  "scores",
+                  "search",
+                  "security-events",
+                  "segments",
+                  "sequences",
+                  "service-accounts",
+                  "session-revocation",
+                  "settings",
+                  "share-links",
+                  "shipments",
+                  "signatures",
+                  "signing-keys",
+                  "sla",
+                  "sso",
+                  "state-machine",
+                  "streams",
+                  "subjects",
+                  "tags",
+                  "tasks",
+                  "teams",
+                  "templates",
+                  "time-tracking",
+                  "timeline",
+                  "trash",
+                  "updated-at",
+                  "usage",
+                  "vector-search",
+                  "vercel-marketplace",
+                  "versions",
+                  "waitlist",
+                  "webhook-inbox",
+                  "webhooks-in",
+                  "webhooks-out",
+                  "workflow-editor",
+                  "workflow-sdk",
+                  "workflows"
+                ]
+              }
+            }
+          },
           "properties": {
             "access-requests": {
               "$ref": "#/$defs/blocks/access-requests"
@@ -2775,6 +2927,35 @@
     "moduleConfig": {
       "type": "object",
       "properties": {
+        "block": {
+          "type": "string",
+          "description": "The block this entry installs. Defaults to the key; any other key is a second instance of the block it names."
+        },
+        "on": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            }
+          ],
+          "description": "The record types an attachable block attaches to, as names or keyed by name with settings. Defaults to every record type."
+        },
+        "uses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Dependency block to the instance it uses, needed when that dependency is installed more than once."
+        },
         "ownership": {
           "enum": ["managed", "adopt", "custom"],
           "type": "string",
@@ -2930,6 +3111,32 @@
     "permissionsBlock": {
       "type": "object",
       "properties": {
+        "block": {
+          "type": "string"
+        },
+        "on": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            }
+          ]
+        },
+        "uses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "ownership": {
           "enum": ["managed", "adopt", "custom"],
           "type": "string",

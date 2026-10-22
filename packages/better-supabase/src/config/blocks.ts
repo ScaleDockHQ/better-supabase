@@ -67,13 +67,41 @@ export type EntitiesConfig<Names extends BlockSqlNameSet = AnyModuleNames> =
         });
 
 /**
+ * `blocks.<instance>.on`: the record types an attachable block attaches to, as
+ * a list of type names or keyed by type name with settings for each.
+ */
+export type InstanceOn =
+  | readonly string[]
+  | Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+
+/**
+ * What makes a `blocks` entry an instance: the block it installs, the record
+ * types it attaches to and the instances its dependencies resolve to.
+ */
+export interface InstanceKeys {
+  /**
+   * The block this entry installs. Defaults to the key, so `tags: {}` is the
+   * `tags` block; `labels: { block: "tags" }` installs it a second time.
+   */
+  readonly block?: string;
+  /** The record types it attaches to. Defaults to every record type. */
+  readonly on?: InstanceOn;
+  /**
+   * Dependency block to the instance it uses, e.g. `{ pipelines:
+   * "maintenanceStages" }`. Needed only when the dependency is installed more
+   * than once.
+   */
+  readonly uses?: Readonly<Record<string, string>>;
+}
+
+/**
  * Options every module takes; `Options` types `options`
  * (`blocks.<module>.options`) and `Names` the names the other keys accept.
  */
 export interface BlockConfig<
   Options extends object = Readonly<Record<string, unknown>>,
   Names extends BlockSqlNameSet = AnyModuleNames,
-> {
+> extends InstanceKeys {
   readonly mode?: BlockMode;
   /**
    * Schema of the module's functions and managed tables. Defaults to
@@ -284,16 +312,31 @@ export interface AccessBlockConfig<
   readonly activeTenant?: ActiveTenantSource;
 }
 
+/** A block name, a key of the block options registry. */
+export type BlockName = Extract<keyof BlockOptionsRegistry, string>;
+
+/** One block's config, with `options` and names typed from the block. */
+export type BlockConfigOf<M extends BlockName> = M extends "permissions"
+  ? AccessBlockConfig<BlockOptionsRegistry[M], NamesOf<M>>
+  : BlockConfig<BlockOptionsRegistry[M], NamesOf<M>>;
+
 /**
- * `blocks` in the config, keyed by module name. Each block's `options` is typed
- * from its manifest's options schema, and a name that is no SQL module is a
- * type error.
+ * An instance under its own key: the block it names in `block`, checked by
+ * `defineConfig` against that block's options and names.
+ */
+export interface NamedInstance extends InstanceKeys {
+  readonly block?: BlockName;
+  readonly [key: string]: unknown;
+}
+
+/**
+ * `blocks` in the config, keyed by instance. A key that is a block name
+ * installs that block, with `options` typed from its manifest's options schema;
+ * any other key names an instance and sets `block`.
  */
 export type BlocksConfig = {
-  readonly [M in keyof BlockOptionsRegistry]?: M extends "permissions"
-    ? AccessBlockConfig<BlockOptionsRegistry[M], NamesOf<M>>
-    : BlockConfig<BlockOptionsRegistry[M], NamesOf<M>>;
-};
+  readonly [M in BlockName]?: BlockConfigOf<M>;
+} & { readonly [instance: string]: NamedInstance | undefined };
 
 /**
  * `blocks` keyed by any module name, as the resolved config and the SQL

@@ -232,6 +232,6 @@ export function expandFlatPreset(config: FlatConfig): FlatConfig {
     ...(config.sql === undefined && base.sql === undefined
       ? {}
       : { sql: { ...base.sql, ...config.sql } }),
-    blocks,
+    blocks: asBlocksConfig(blocks),
   };
 }
