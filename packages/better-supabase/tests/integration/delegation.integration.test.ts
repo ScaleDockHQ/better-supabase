@@ -84,11 +84,14 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
     const session = await BlockSession.open(pool);
 
     try {
-      await session.install(["organizations", "jobs", "actor", "access"], {
-        modules: {
-          permissions: { scopes: { "posts:write": ["members.invite"] } },
+      await session.install(
+        ["organizations", "queue", "created-by", "permissions"],
+        {
+          modules: {
+            permissions: { scopes: { "posts:write": ["members.invite"] } },
+          },
         },
-      });
+      );
       const author = await session.user("author");
 
       const table = await postsTable(
@@ -146,7 +149,7 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
     const session = await BlockSession.open(pool);
 
     try {
-      await session.install(["actor"]);
+      await session.install(["created-by"]);
       const user = { id: crypto.randomUUID(), email: "scope@example.test" };
 
       const allows = async (claims: object, scope = "posts:write") => {

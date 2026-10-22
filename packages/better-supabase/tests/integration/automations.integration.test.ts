@@ -225,7 +225,7 @@ describe.skipIf(!live)("rules module", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "outbox", "rules"]);
+      await s.install(["organizations", "outbox", "automations"]);
       await s.service();
       await createAutomationsAdmin({ transport: sqlTransport(s.sql) })
         .syncFields(expenses)
@@ -259,7 +259,7 @@ describe.skipIf(!live)("rules module", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "outbox", "rules"]);
+      await s.install(["organizations", "outbox", "automations"]);
       const owner = await s.user("owner");
       const editor = await s.user("admin");
       const member = await s.user("member");

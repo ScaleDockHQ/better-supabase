@@ -31,7 +31,7 @@ const MODULES = [
 ];
 
 const layout = (readAll = true): BlockSqlLayout => ({
-  subjects: withBlockSubjects({}, ["parties", "deals"], {}),
+  subjects: withBlockSubjects({}, ["contacts", "deals"], {}),
   modules: { deals: { options: { readAll } } },
 });
 
