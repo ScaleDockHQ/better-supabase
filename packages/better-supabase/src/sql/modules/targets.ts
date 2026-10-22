@@ -17,6 +17,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
+import { invoiceLedger } from "./invoices-ledger.ts";
 
 const NAMES: ModuleNames = {
   options: ["extraColumns"],
@@ -79,18 +80,11 @@ function metrics(
   }
 
   if (ctx.installed("invoices")) {
-    const invoices = ctx.of("invoices");
-
-    const i = (column: string): string =>
-      `i.${invoices.col("invoices", column)}`;
-
-    const p = (column: string): string =>
-      `p.${invoices.col("payments", column)}`;
-
-    out["invoices.paid_amount"] =
-      `(select coalesce(sum(${p("amount")}), 0) from ${invoices.table("payments")} p
-      join ${invoices.table("invoices")} i on ${i("id")} = ${p("invoice")}
-      where ${p("tenant")} = x.${c("tenant")} and ${i("currency")} = x.${c("currency")} and ${window(p("paidAt"))})`;
+    out["invoices.paid_amount"] = invoiceLedger(ctx.of("invoices")).received(
+      `x.${c("tenant")}`,
+      `x.${c("currency")}`,
+      window,
+    );
   }
 
   return out;

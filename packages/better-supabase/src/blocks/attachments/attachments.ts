@@ -9,6 +9,8 @@ import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { EventSink } from "../../events/index.ts";
 import type { SubjectRef } from "../../schema/types.ts";
+import type { ImageTransform, TransformOptions } from "../../storage/bucket.ts";
+import type { TtlPreset } from "../../storage/ttl.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { UploadClaimStorage } from "../upload-claim.ts";
@@ -25,8 +27,10 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalSubjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult, err, ok } from "../../core/result.ts";
+import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
+import { ttlSeconds } from "../../storage/ttl.ts";
+import { transformFor } from "../../storage/variants.ts";
 import {
   blockCall,
   errorText,
@@ -56,7 +60,7 @@ export interface AttachmentBucket {
   createSignedUrl(
     path: string,
     expiresIn: number,
-    options?: { download?: string | boolean },
+    options?: { download?: string | boolean; transform?: TransformOptions },
   ): PromiseLike<StorageReply<{ readonly signedUrl: string }>>;
   download(path: string): PromiseLike<StorageReply<Blob>>;
   remove(paths: string[]): PromiseLike<StorageReply<unknown>>;
@@ -123,13 +127,22 @@ export interface Attachment {
   readonly subject: SubjectRef | undefined;
   readonly bucket: string;
   /**
-   * The object path in the bucket, `{organizationId}/attachments/{id}` unless
-   * `options.path` says otherwise.
+   * The current version's object path in the bucket:
+   * `{organizationId}/attachments/{id}` unless `options.path` says otherwise,
+   * with `-v<version>` from version 2 on.
    */
   readonly path: string;
   readonly name: string;
   readonly mimeType: string;
   readonly size: number;
+  /** Starts at 1; `replace` adds one, `restore` goes back to an earlier one. */
+  readonly version: number;
+  /** The image's width in pixels, as the uploader measured it. */
+  readonly width: number | undefined;
+  /** The image's height in pixels, as the uploader measured it. */
+  readonly height: number | undefined;
+  /** The document's page count, as the uploader counted it. */
+  readonly pages: number | undefined;
   readonly status: AttachmentStatus;
   /** What the scanner reported, such as the signature it matched. */
   readonly scanDetail: string | undefined;
@@ -157,6 +170,67 @@ export interface NewAttachment {
    * record.
    */
   readonly metadata?: Readonly<Record<string, unknown>>;
+  /** The image's width in pixels, for previews and layout before loading. */
+  readonly width?: number;
+  /** The image's height in pixels. */
+  readonly height?: number;
+  /** The document's page count. */
+  readonly pages?: number;
+}
+
+/** A new version of a file for `replace`: what changes with the bytes. */
+export type AttachmentReplacement = Omit<NewAttachment, "metadata">;
+
+/** An earlier version of a file, kept when it was replaced. */
+export interface AttachmentVersion {
+  readonly attachmentId: string;
+  readonly version: number;
+  readonly bucket: string;
+  readonly path: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly size: number;
+  readonly width: number | undefined;
+  readonly height: number | undefined;
+  readonly pages: number | undefined;
+  readonly status: AttachmentStatus;
+  readonly scanDetail: string | undefined;
+  readonly uploadedBy: string | undefined;
+  readonly uploadedAt: Temporal.Instant | undefined;
+  readonly scannedAt: Temporal.Instant | undefined;
+  /** When the version stopped being the current one. */
+  readonly archivedAt: Temporal.Instant;
+}
+
+/** What `images().signedUrl` takes: `useImage` passes its options here. */
+export interface AttachmentImageUrlOptions<V extends string = never> {
+  /** Seconds or a preset. Defaults to the client's `downloadTtl`. */
+  readonly ttl?: number | TtlPreset;
+  readonly transform?: ImageTransform<V>;
+}
+
+/**
+ * Image previews of attachments, shaped for `useImage(source, attachment,
+ * transform)` from `better-supabase/react`: a signed, resized URL per pixel
+ * density, behind the same scan gate as `download`.
+ */
+export interface AttachmentImages<V extends string = never> {
+  readonly bucket: {
+    readonly id: string;
+    readonly public: false;
+    readonly variants: Readonly<Record<V, TransformOptions>>;
+  };
+  /** Attachments are private: an `invalid_request` error. */
+  publicUrl(target: Attachment | string): Result<string>;
+  /**
+   * A signed URL of the image resized by `transform`. `ATTACHMENT_NOT_SCANNED`
+   * until the scan passes, `ATTACHMENT_NOT_IMAGE` for a file that is not
+   * `image/*`. A target given by id is read first.
+   */
+  signedUrl(
+    target: Attachment | string,
+    options?: AttachmentImageUrlOptions<V>,
+  ): AsyncResult<string>;
 }
 
 export interface AttachmentUpload<F extends object = Record<never, never>> {
@@ -203,10 +277,41 @@ export interface Attachments<F extends object = Record<never, never>> {
    */
   download(
     id: string,
-    options?: { readonly as?: string | boolean },
+    options?: {
+      readonly as?: string | boolean;
+      /** An earlier version from `versions(id)`; default the current one. */
+      readonly version?: number;
+    },
   ): AsyncResult<AttachmentDownload<F>>;
-  /** Deletes the file, then the record (the uploader, or `attachments.manage`). */
+  /**
+   * Deletes every version's file, then the record (the uploader, or
+   * `attachments.manage`).
+   */
   remove(id: string): AsyncResult<boolean>;
+  /**
+   * Starts a new version of the file (its uploader with `attachments.upload`,
+   * or `attachments.manage`): the current one becomes an earlier version, and
+   * the new one waits for its upload to the signed URL, `confirm` and the scan.
+   * Emits `attachment.replaced`.
+   */
+  replace(
+    id: string,
+    file: AttachmentReplacement,
+  ): AsyncResult<AttachmentUpload<F>>;
+  /** The file's earlier versions, newest first. */
+  versions(id: string): AsyncResult<readonly AttachmentVersion[]>;
+  /**
+   * Makes an earlier version current again; the current one becomes an earlier
+   * version. Emits `attachment.restored`.
+   */
+  restore(id: string, version: number): AsyncResult<Attachment & F>;
+  /**
+   * Image previews for `useImage`, with the app's named variants (`{ thumb: {
+   * width: 160, height: 160, resize: "cover" } }`).
+   */
+  images<V extends string = never>(
+    variants?: Readonly<Record<V, TransformOptions>>,
+  ): AttachmentImages<V>;
   /**
    * Creates the record on `subject` (`null` for none), uploads `file` from the
    * server and confirms it, for files the server makes or fetches (an export, a
@@ -245,6 +350,9 @@ function statusOf(value: unknown): AttachmentStatus {
   return status;
 }
 
+const optionalCount = (value: unknown): number | undefined =>
+  value === null || value === undefined ? undefined : Number(value);
+
 /** An attachments row, as `get_attachment` and `create_attachment` return it. */
 export function attachmentOf(value: unknown): Attachment {
   const row = recordOf(value, "attachments");
@@ -258,6 +366,10 @@ export function attachmentOf(value: unknown): Attachment {
     name: textOf(row["name"]),
     mimeType: textOf(row["mime_type"]),
     size: Number(row["size"]),
+    version: Number(row["version"] ?? 1),
+    width: optionalCount(row["width"]),
+    height: optionalCount(row["height"]),
+    pages: optionalCount(row["pages"]),
     status: statusOf(row["status"]),
     scanDetail: optionalText(row["scan_detail"]),
     metadata: isRecord(row["metadata"]) ? row["metadata"] : {},
@@ -268,6 +380,36 @@ export function attachmentOf(value: unknown): Attachment {
     scannedAt: optionalInstant(row["scanned_at"]),
   };
 }
+
+/** An `attachment_versions` row, as `list_attachment_versions` returns it. */
+export function attachmentVersionOf(value: unknown): AttachmentVersion {
+  const row = recordOf(value, "attachment_versions");
+
+  return {
+    attachmentId: textOf(row["attachment_id"]),
+    version: Number(row["version"]),
+    bucket: textOf(row["bucket"]),
+    path: textOf(row["object_path"]),
+    name: textOf(row["name"]),
+    mimeType: textOf(row["mime_type"]),
+    size: Number(row["size"]),
+    width: optionalCount(row["width"]),
+    height: optionalCount(row["height"]),
+    pages: optionalCount(row["pages"]),
+    status: statusOf(row["status"]),
+    scanDetail: optionalText(row["scan_detail"]),
+    uploadedBy: optionalText(row["uploaded_by"]),
+    uploadedAt: optionalInstant(row["uploaded_at"]),
+    scannedAt: optionalInstant(row["scanned_at"]),
+    archivedAt: toInstant(textOf(row["archived_at"])),
+  };
+}
+
+/** The parts of a file version `download` reads. */
+type FileVersion = Pick<
+  Attachment,
+  "bucket" | "path" | "status" | "uploadedAt"
+>;
 
 const CLAIM_HINTS = {
   notUploaded: "ATTACHMENT_NOT_UPLOADED",
@@ -343,6 +485,9 @@ const NEW_ATTACHMENT: ReadonlySet<string> = new Set([
   "mimeType",
   "size",
   "metadata",
+  "width",
+  "height",
+  "pages",
 ]);
 
 export function createAttachments<
@@ -396,7 +541,9 @@ export function createAttachments<
     options.storage.from(attachment.bucket);
 
   /** Why a file can't be read yet, or `undefined` once it can. */
-  const gate = (attachment: Attachment): DbError | undefined => {
+  const gate = (
+    attachment: Pick<Attachment, "status" | "uploadedAt">,
+  ): DbError | undefined => {
     const readable =
       attachment.status === "clean" ||
       (!requireScan &&
@@ -413,6 +560,28 @@ export function createAttachments<
           { hint: "ATTACHMENT_NOT_SCANNED" },
         );
   };
+
+  const listVersions = (
+    id: string,
+  ): AsyncResult<readonly AttachmentVersion[]> =>
+    call("list_attachment_versions", { id }, (value) =>
+      recordsOf(value, "list_attachment_versions").map(attachmentVersionOf),
+    );
+
+  const versionOf = (id: string, version: number): AsyncResult<FileVersion> =>
+    listVersions(id).andThen((earlier) => {
+      const found = earlier.find((each) => each.version === version);
+
+      return Promise.resolve(
+        found === undefined
+          ? err(
+              dbError("not_found", "The file has no version with this number", {
+                hint: "ATTACHMENT_VERSION_NOT_FOUND",
+              }),
+            )
+          : ok(found),
+      );
+    });
 
   const discard = async (
     created: Attachment,
@@ -442,6 +611,9 @@ export function createAttachments<
               subject_type: subject?.type,
               subject_id: subject?.id,
               metadata: attachment.metadata,
+              width: attachment.width,
+              height: attachment.height,
+              pages: attachment.pages,
               ...more,
             },
             (value) => value,
@@ -491,20 +663,109 @@ export function createAttachments<
       ),
     download: (id, download = {}) =>
       find(id).andThen((attachment) => {
-        const blocked = gate(attachment);
+        const { version } = download;
 
-        if (blocked) {
-          return Promise.resolve(err(blocked));
-        }
+        const file =
+          version === undefined || version === attachment.version
+            ? AsyncResult.ok<FileVersion>(attachment)
+            : versionOf(id, version);
 
-        return stored(
-          bucket(attachment).createSignedUrl(
-            attachment.path,
-            ttl,
-            download.as === undefined ? undefined : { download: download.as },
-          ),
-        ).map((url) => ({ attachment, signedUrl: url.signedUrl }));
+        return file.andThen((chosen) => {
+          const blocked = gate(chosen);
+
+          if (blocked) {
+            return Promise.resolve(err(blocked));
+          }
+
+          return stored(
+            options.storage
+              .from(chosen.bucket)
+              .createSignedUrl(
+                chosen.path,
+                ttl,
+                download.as === undefined
+                  ? undefined
+                  : { download: download.as },
+              ),
+          ).map((url) => ({ attachment, signedUrl: url.signedUrl }));
+        });
       }),
+    replace: (id, file) =>
+      call(
+        "replace_attachment",
+        {
+          id,
+          name: file.name,
+          mime_type: file.mimeType,
+          size: file.size,
+          width: file.width,
+          height: file.height,
+          pages: file.pages,
+        },
+        (value) => value,
+      )
+        .andThen(typed)
+        .andThen((replaced) =>
+          stored(bucket(replaced).createSignedUploadUrl(replaced.path)).map(
+            (url) => ({
+              attachment: replaced,
+              signedUrl: url.signedUrl,
+              token: url.token,
+            }),
+          ),
+        ),
+    versions: listVersions,
+    restore: (id, version) =>
+      call(
+        "restore_attachment_version",
+        { id, version },
+        (value) => value,
+      ).andThen(typed),
+    images: <V extends string = never>(
+      // SAFETY: without variants V is never, so the empty record has every key.
+      variants = {} as Readonly<Record<V, TransformOptions>>,
+    ): AttachmentImages<V> => ({
+      bucket: { id: "attachments", public: false, variants },
+      publicUrl: () =>
+        err(
+          dbError("invalid_request", "Attachments have no public URL", {
+            hint: "ATTACHMENT_PRIVATE",
+          }),
+        ),
+      signedUrl: (target, url = {}) =>
+        (typeof target === "string"
+          ? find(target)
+          : AsyncResult.ok<Attachment>(target)
+        ).andThen((attachment) => {
+          const blocked =
+            gate(attachment) ??
+            (attachment.mimeType.startsWith("image/")
+              ? undefined
+              : dbError("invalid_request", "The file is not an image", {
+                  hint: "ATTACHMENT_NOT_IMAGE",
+                }));
+
+          if (blocked) {
+            return Promise.resolve(err(blocked));
+          }
+
+          let transform: TransformOptions | undefined;
+
+          try {
+            transform = transformFor("attachments", variants, url.transform);
+          } catch (cause) {
+            return Promise.resolve(err(toDbError(cause)));
+          }
+
+          return stored(
+            bucket(attachment).createSignedUrl(
+              attachment.path,
+              url.ttl === undefined ? ttl : ttlSeconds(url.ttl),
+              transform === undefined ? undefined : { transform },
+            ),
+          ).map((signed) => signed.signedUrl);
+        }),
+    }),
     put: (subject, attachment, file) =>
       create(subject, attachment).andThen(async (created) => {
         const target = bucket(created);
@@ -546,7 +807,14 @@ export function createAttachments<
     remove: (id) =>
       find(id)
         .andThen((attachment) =>
-          stored(bucket(attachment).remove([attachment.path])),
+          listVersions(id).andThen((earlier) =>
+            stored(
+              bucket(attachment).remove([
+                attachment.path,
+                ...earlier.map((version) => version.path),
+              ]),
+            ),
+          ),
         )
         .andThen(() =>
           call("delete_attachment", { id }, (value) => value === true),

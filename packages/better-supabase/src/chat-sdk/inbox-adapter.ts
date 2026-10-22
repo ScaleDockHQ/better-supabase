@@ -22,6 +22,7 @@ import {
 
 import type { Inbox } from "../blocks/inbox/inbox.ts";
 import type { InboxMessage } from "../blocks/inbox/types.ts";
+import type { MessageFile } from "../blocks/messaging/messaging.ts";
 import type { IdentityRef } from "../core/contracts/authorization-hooks.ts";
 import type { StreamStore } from "../streams/store.ts";
 import type { BotJobsOptions } from "./identity.ts";
@@ -84,6 +85,12 @@ export interface InboxAdapterOptions {
    * stays a visitor and gets no ticket.
    */
   readonly identities?: Omit<BotJobsOptions<unknown, unknown>, "enqueue">;
+  /**
+   * Reads a scanned attachment, such as from Storage with the service role. The
+   * bot gets each clean file with its attachment id in `fetchMetadata`; with
+   * `download` it can also read the bytes.
+   */
+  readonly download?: (file: MessageFile) => Promise<ArrayBuffer>;
 }
 
 export interface InboxAdapter extends Adapter<string, InboxMessage> {
@@ -140,31 +147,31 @@ function bodyOf(message: AdapterPostableMessage): {
 const emojiOf = (value: EmojiValue | string): string =>
   typeof value === "string" ? value : defaultEmojiResolver.toGChat(value);
 
-function attachmentsOf(message: InboxMessage): Attachment[] {
+function attachmentsOf(
+  message: InboxMessage,
+  download: InboxAdapterOptions["download"],
+): Attachment[] {
   return message.attachments.flatMap((file) => {
-    const url = file.url;
-
-    if (url === undefined) {
+    if (file.status !== "clean") {
       return [];
     }
 
-    const type = file.contentType?.startsWith("image/")
+    const type = file.mimeType?.startsWith("image/")
       ? "image"
-      : file.contentType?.startsWith("video/")
+      : file.mimeType?.startsWith("video/")
         ? "video"
-        : file.contentType?.startsWith("audio/")
+        : file.mimeType?.startsWith("audio/")
           ? "audio"
           : "file";
 
     return [
       {
         type,
-        url,
-        ...(file.name === undefined ? {} : { name: file.name }),
-        ...(file.contentType === undefined
-          ? {}
-          : { mimeType: file.contentType }),
+        name: file.name,
+        fetchMetadata: { attachmentId: file.id },
+        ...(file.mimeType === undefined ? {} : { mimeType: file.mimeType }),
         ...(file.size === undefined ? {} : { size: file.size }),
+        ...(download === undefined ? {} : { fetchData: () => download(file) }),
       },
     ];
   });
@@ -238,13 +245,13 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
         ...(raw.authorType === "system" ? { isSystem: true } : {}),
       },
       metadata: {
-        dateSent: new Date(raw.createdAt.epochMilliseconds),
-        edited: raw.editedAt !== null,
-        ...(raw.editedAt === null
+        dateSent: new Date((raw.sentAt ?? raw.createdAt).epochMilliseconds),
+        edited: raw.editedAt !== undefined,
+        ...(raw.editedAt === undefined
           ? {}
           : { editedAt: new Date(raw.editedAt.epochMilliseconds) }),
       },
-      attachments: attachmentsOf(raw),
+      attachments: attachmentsOf(raw, options.download),
     });
   };
 
@@ -288,9 +295,15 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
 
     const parsed = parseMessage(message);
 
-    if (ticketJobs !== undefined && message.authorId !== null) {
+    const contactId =
+      ticketJobs === undefined
+        ? undefined
+        : (await inbox.conversations.get(message.conversationId).orThrow())
+            ?.contactId;
+
+    if (ticketJobs !== undefined && contactId !== undefined) {
       const { result } = await ticketJobs.enqueue(
-        inboxIdentityOf(message.authorId),
+        inboxIdentityOf(contactId),
         parsed,
       );
 
@@ -424,7 +437,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       return {
         messages: visible.map(parseMessage),
         ...(oldest !== undefined && page.length >= limit
-          ? { nextCursor: oldest.createdAt.toString() }
+          ? { nextCursor: (oldest.sentAt ?? oldest.createdAt).toString() }
           : {}),
       };
     },

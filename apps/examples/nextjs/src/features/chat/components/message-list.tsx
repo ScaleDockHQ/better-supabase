@@ -1,0 +1,175 @@
+// #region recipe:message-list
+"use client";
+
+import type { Message } from "better-supabase/blocks/messaging";
+
+import { useMessages } from "better-supabase/blocks/messaging/react";
+import { MessagesSquareIcon, RotateCwIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+import { useRef } from "react";
+
+import { Alert, AlertAction, AlertTitle } from "@/components/reui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import { MessageComposer } from "./message-composer";
+import { MessageItem } from "./message-item";
+import { PresenceAvatars } from "./presence-avatars";
+
+/**
+ * A channel's top-level messages, live over Realtime: older pages on demand,
+ * who is typing, and the composer. Replies open in a thread.
+ */
+export function MessageList({
+  conversationId,
+  name,
+  topic,
+  onOpenThread,
+}: {
+  conversationId: string;
+  name: string;
+  topic?: string | undefined;
+  onOpenThread: (root: Message) => void;
+}) {
+  const t = useExtracted("chat");
+  const errorMessage = useErrorMessage();
+  const input = useRef<HTMLTextAreaElement>(null);
+
+  const {
+    messages,
+    hasOlder,
+    typing,
+    error,
+    send,
+    setTyping,
+    loadOlder,
+    refresh,
+  } = useMessages({ conversationId });
+
+  return (
+    <Card size="sm" className="min-h-0">
+      <CardHeader>
+        <CardTitle>#{name}</CardTitle>
+        {topic ? <CardDescription>{topic}</CardDescription> : null}
+        <CardAction>
+          <PresenceAvatars
+            subject={{ type: "conversation", id: conversationId }}
+          />
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+        {error ? (
+          <Alert variant="destructive" aria-live="polite">
+            <AlertTitle>{errorMessage(error)}</AlertTitle>
+            <AlertAction>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void refresh()}
+              >
+                <RotateCwIcon aria-hidden />
+                {t("Retry")}
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : null}
+        {messages === undefined ? (
+          <div
+            className="flex flex-col gap-4"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <span className="sr-only">{t("Loading messages")}</span>
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
+          </div>
+        ) : messages.length === 0 ? (
+          <Empty className="flex-1">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <MessagesSquareIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("No messages yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Say hello to start the conversation.")}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => input.current?.focus()}
+              >
+                {t("Write a message")}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="flex flex-col gap-4 pr-3">
+              {hasOlder ? (
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  className="self-center"
+                  onClick={() => void loadOlder()}
+                >
+                  {t("Load older messages")}
+                </Button>
+              ) : null}
+              <ol className="flex flex-col gap-4" data-testid="messages">
+                {messages.map((message) => (
+                  <MessageItem
+                    key={message.id}
+                    message={message}
+                    onOpenThread={onOpenThread}
+                  />
+                ))}
+              </ol>
+            </div>
+          </ScrollArea>
+        )}
+      </CardContent>
+      <CardFooter className="flex-col items-stretch gap-1">
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {typing.length > 0
+            ? t(
+                "{count, plural, one {Someone is typing} other {# people are typing}}",
+                { count: typing.length },
+              )
+            : null}
+        </p>
+        <MessageComposer
+          conversationId={conversationId}
+          inputRef={input}
+          placeholder={t("Message #{name}", { name })}
+          onSend={send}
+          onTyping={setTyping}
+        />
+      </CardFooter>
+    </Card>
+  );
+}
+// #endregion recipe:message-list

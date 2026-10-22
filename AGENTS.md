@@ -180,6 +180,30 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0061: `gen` writes block schemas, name constants, nuqs parsers and factories; their libraries stay optional peers.
 - 0062: one messaging core; channels first, then comments and the inbox move onto it (breaking).
 - 0063: the activity feed moves out of comments into its own `activity` block.
+- 0064: blocks compose through sections and flows; library logic, generated bindings and recipe UI.
+- 0065: balances live in one double-entry `ledger`; inventory stock, leave balances and invoice payments move onto it (breaking).
+- 0066: `assets` stores coordinates as numbers; PostGIS geography columns and area lookups are the `postgis` option.
+- 0067: votes are reactions of kind `vote`; `scores` computes versioned scores from tenant-editable models (breaking).
+- 0068: calendar free/busy runs in SQL; appointment schedules are bookings resources with a host.
+- 0069: document suggestions wait outside the update log until an editor accepts them; named versions are version labels.
+- 0070: guests reach granted records through `ctx.scope.guest`, never as members; providers answer through `portalSubjects`.
+- 0071: drive labels are tags; file approvals target one attachment, and both follow the drive grants.
+- 0072: a record merge moves every module's rows through handlers marked `better-supabase:subject-merge`.
+- 0073: admission passes carry a signed token; the database keeps the nonce and decides every scan.
+- 0074: billable time prices entries from a rate card; billed entries lock until the invoice is voided.
+- 0075: record presence, record mentions and saved items build on the subject registry.
+- 0076: one moderation item per subject; reviews and comments moderate through `moderation` (breaking).
+- 0077: `enrollments` tracks subjects through programs of steps; onboarding checklists run on it (breaking).
+- 0078: member mailboxes sync into engagements through a versioned `MailProvider` over `fetch`.
+- 0079: segments materialize rules filter trees; assignment queues pick owners by turn, weight and territory.
+- 0080: balances live only on the ledger; rent and pledges post once per period, keyed by owner and period start.
+- 0081: enrichment stores provider profiles per record and fills only empty columns, through a versioned provider over `fetch`.
+- 0082: shipments go through a versioned `ShipmentCarrier`; tracking arrives by a signed, idempotent webhook ingest.
+- 0083: forecast snapshots copy the deals behind each number; field history is a trigger per tracked table.
+- 0084: the public status page is one security definer function anon may call, returning only public fields.
+- 0085: `courses` enrolls learners through `enrollments` (`course:<id>`); quizzes are graded by `forms` in SQL.
+- 0086: recurring bookings place each occurrence through `place_booking`; class credits are a ledger refunded on early cancel.
+- 0090: confirmed bookings become meeting engagements through a trigger on the bookings table.
 
 ## Pre-release pins
 

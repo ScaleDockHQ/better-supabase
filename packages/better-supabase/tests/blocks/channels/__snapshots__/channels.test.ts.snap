@@ -1,0 +1,119 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`createChannels > calls every function with snake_case arguments 1`] = `
+[
+  [
+    "create_channel",
+    {
+      "attrs": {
+        "purpose": "News",
+        "subjectId": "cu1",
+        "subjectType": "customer",
+        "topic": "Everything",
+        "visibility": "public",
+      },
+      "members": [
+        "u2",
+      ],
+      "name": "general",
+      "tenant": "org",
+    },
+  ],
+  [
+    "create_channel",
+    {
+      "attrs": {},
+      "members": [],
+      "name": "plain",
+      "tenant": "org",
+    },
+  ],
+  [
+    "update_channel",
+    {
+      "attrs": {
+        "topic": null,
+      },
+      "channel": "c1",
+    },
+  ],
+  [
+    "archive_channel",
+    {
+      "archived": true,
+      "channel": "c1",
+    },
+  ],
+  [
+    "archive_channel",
+    {
+      "archived": false,
+      "channel": "c1",
+    },
+  ],
+  [
+    "join_channel",
+    {
+      "channel": "c1",
+    },
+  ],
+  [
+    "leave_channel",
+    {
+      "channel": "c1",
+    },
+  ],
+  [
+    "invite_to_channel",
+    {
+      "channel": "c1",
+      "users": [
+        "u2",
+        "u3",
+      ],
+    },
+  ],
+  [
+    "list_channels",
+    {
+      "browse": false,
+      "include_archived": false,
+      "tenant": "org",
+    },
+  ],
+  [
+    "list_channels",
+    {
+      "browse": true,
+      "include_archived": true,
+      "tenant": "org",
+    },
+  ],
+  [
+    "get_channel",
+    {
+      "channel": "c1",
+    },
+  ],
+  [
+    "get_channel",
+    {
+      "channel": "nope",
+    },
+  ],
+  [
+    "find_channel",
+    {
+      "name": "General",
+      "tenant": "org",
+    },
+  ],
+  [
+    "channels_for_record",
+    {
+      "subject_id": "cu1",
+      "subject_type": "customer",
+    },
+  ],
+]
+`;

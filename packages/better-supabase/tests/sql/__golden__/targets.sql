@@ -305,9 +305,10 @@ as $$
       where w."tenant_id" = x."tenant_id" and w."state" = 'completed' and w."closed_at"::date between x."period_start" and x."period_end"
         and (x."team_id" is null or w."team_id" = x."team_id")
         and (x."owner_user_id" is null or exists (select 1 from "better_supabase"."work_item_assignees" a where a."work_item_id" = w."id" and a."user_id" = x."owner_user_id")))
-        when 'invoices.paid_amount' then (select coalesce(sum(p."amount"), 0) from "better_supabase"."invoice_payments" p
-      join "better_supabase"."invoices" i on i."id" = p."invoice_id"
-      where p."tenant_id" = x."tenant_id" and i."currency" = x."currency" and p."paid_at"::date between x."period_start" and x."period_end")
+        when 'invoices.paid_amount' then (select coalesce(sum(e."amount"), 0) from "better_supabase"."ledger_entries" e
+      join "better_supabase"."ledger_accounts" a on a."id" = e."account_id"
+      join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+      where a."tenant_id" = x."tenant_id" and a."managed_by" = 'invoices' and a."code" = 'invoices:cash:' || x."currency" and y."effective_at"::date between x."period_start" and x."period_end")
         else x."actual"
       end as value) v
     where x."tenant_id" = target_progress.tenant and x."archived_at" is null

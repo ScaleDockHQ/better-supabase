@@ -8,6 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 import type { InvoiceNames } from "./invoices-functions.ts";
 
+import { guestOr } from "../guest-sql.ts";
 import {
   lineTableSpec,
   TOTAL_COLUMNS,
@@ -16,6 +17,7 @@ import {
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
 import { invoiceFunctions } from "./invoices-functions.ts";
+import { invoicePaymentsUpgrade } from "./invoices-ledger.ts";
 
 const INVOICE = [
   "organizationId",
@@ -100,21 +102,6 @@ const NAMES: ModuleNames = {
       },
     },
     lines: lineTableSpec("invoice_lines"),
-    payments: {
-      name: "invoice_payments",
-      lifecycle: { tenant: "tenant", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        invoice: "invoice_id",
-        amount: "amount",
-        paidAt: "paid_at",
-        method: "method",
-        reference: "reference",
-        recordedBy: "recorded_by",
-        createdAt: "created_at",
-      },
-    },
   },
 };
 
@@ -125,7 +112,6 @@ function tables(ctx: ModuleContext, n: InvoiceNames): string {
 
   const { t, c } = n;
   const i = (column: string): string => c("invoices", column);
-  const p = (column: string): string => c("payments", column);
 
   return `
 create table if not exists ${t("invoices")} (
@@ -171,25 +157,12 @@ create index if not exists invoices_company_idx on ${t("invoices")} (${i("compan
 ${lockTable(t("invoices"), { read: true })}
 drop policy if exists invoices_read on ${t("invoices")};
 create policy invoices_read on ${t("invoices")} for select to authenticated
-using (${ctx.scope.check(i("tenant"), n.read)});
+using (${guestOr(ctx.scope.check(i("tenant"), n.read), [
+    ctx.scope.guest(i("tenant"), "'invoice'", `${i("id")}::text`, "read"),
+    ctx.scope.guestParty(i("tenant"), i("companyType"), i("companyId")),
+    ctx.scope.guestParty(i("tenant"), i("contactType"), i("contactId")),
+  ])});
 
-create table if not exists ${t("payments")} (
-  ${p("id")} uuid primary key default gen_random_uuid(),
-  ${p("tenant")} ${ctx.idType} not null,
-  ${p("invoice")} uuid not null references ${t("invoices")} (${i("id")}) on delete cascade,
-  ${p("amount")} bigint not null check (${p("amount")} <> 0),
-  ${p("paidAt")} timestamptz not null default now(),
-  ${p("method")} text,
-  ${p("reference")} text,
-  ${p("recordedBy")} uuid,
-  ${p("createdAt")} timestamptz not null default now()
-);
-create index if not exists invoice_payments_invoice_idx on ${t("payments")} (${p("invoice")}, ${p("paidAt")});
-create unique index if not exists invoice_payments_reference_idx on ${t("payments")} (${p("tenant")}, ${p("reference")}) where ${p("reference")} is not null;
-${lockTable(t("payments"), { read: true })}
-drop policy if exists invoice_payments_read on ${t("payments")};
-create policy invoice_payments_read on ${t("payments")} for select to authenticated
-using (${ctx.scope.check(p("tenant"), n.read)});
 `;
 }
 
@@ -274,7 +247,7 @@ export const INVOICES: ModuleDefinition = {
   title: "Invoices",
   description:
     "Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.",
-  requires: ["tenant", "access", "subjects"],
+  requires: ["tenant", "access", "subjects", "ledger"],
   integrates: [
     "outbox",
     "audit",
@@ -285,7 +258,15 @@ export const INVOICES: ModuleDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Moves invoice_payments onto ledger transactions with the same ids and drops the table.",
+      sql: invoicePaymentsUpgrade,
+    },
+  ],
   names: NAMES,
   contract,
   build,

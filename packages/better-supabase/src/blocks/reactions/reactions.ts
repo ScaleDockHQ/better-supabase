@@ -45,6 +45,24 @@ export interface ReactionCount {
   readonly actors: readonly string[];
 }
 
+/** A subject's votes. */
+export interface VoteTally {
+  /** Up votes minus down votes. */
+  readonly score: number;
+  readonly up: number;
+  readonly down: number;
+  /** The signed-in user's vote: `1`, `-1`, or `0` for none. */
+  readonly vote: -1 | 0 | 1;
+}
+
+/** `1` votes up, `-1` down, `0` clears the vote. */
+export type VoteValue = -1 | 0 | 1;
+
+export interface VoteOptions {
+  /** The service role votes for this actor (default `service`). */
+  readonly actor?: string;
+}
+
 export interface CustomEmoji {
   readonly id: string;
   /** Without the colons: `party-parrot` is used as `:party-parrot:`. */
@@ -85,6 +103,22 @@ export interface Reactions {
   summary(
     subjects: readonly SubjectRef[],
   ): AsyncResult<Readonly<Record<string, readonly ReactionCount[]>>>;
+  /**
+   * Sets the caller's vote on `subject` and returns its tally. Votes use the
+   * `create` permission and the subject's read rules, like `react`.
+   */
+  vote(
+    subject: SubjectRef,
+    value: VoteValue,
+    options?: VoteOptions,
+  ): AsyncResult<VoteTally>;
+  /**
+   * The vote tallies of `subjects` (up to 200 of each type), keyed by
+   * `subjectKey(subject)`.
+   */
+  votes(
+    subjects: readonly SubjectRef[],
+  ): AsyncResult<Readonly<Record<string, VoteTally>>>;
   /** The tenant's custom emoji, by shortcode. */
   customEmoji(): AsyncResult<readonly CustomEmoji[]>;
   /** Adds a custom emoji, or replaces the image of an existing shortcode. */
@@ -110,6 +144,23 @@ function countsOf(value: unknown, fn: string): readonly ReactionCount[] {
       ? row["actors"].map((actor) => textOf(actor))
       : [],
   }));
+}
+
+function voteOf(value: unknown): -1 | 0 | 1 {
+  const vote = Number(value);
+
+  return vote === 1 || vote === -1 ? vote : 0;
+}
+
+function tallyOf(value: unknown, fn: string): VoteTally {
+  const row = recordOf(value, fn);
+
+  return {
+    score: Number(row["score"] ?? 0),
+    up: Number(row["up"] ?? 0),
+    down: Number(row["down"] ?? 0),
+    vote: voteOf(row["vote"]),
+  };
 }
 
 function emojiOf(value: unknown, fn: string): CustomEmoji {
@@ -163,6 +214,39 @@ export function createReactions(options: ReactionsOptions): Reactions {
               Object.fromEntries(
                 Object.entries(recordOf(value, "reaction_summary")).map(
                   ([id, counts]) => [id, countsOf(counts, "reaction_summary")],
+                ),
+              ),
+          ),
+        ),
+      ),
+    vote: (subject, value, vote = {}) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "vote",
+          {
+            tenant: organizationId,
+            subject_type: subject.type,
+            subject_id: subject.id,
+            value,
+            actor: vote.actor ?? null,
+          },
+          (result) => tallyOf(result, "vote"),
+        ),
+      ),
+    votes: (subjects) =>
+      tenant().andThen((organizationId) =>
+        bySubjectType(subjects, (type, ids) =>
+          call(
+            "vote_summary",
+            {
+              tenant: organizationId,
+              subject_type: type,
+              subject_ids: [...ids],
+            },
+            (value) =>
+              Object.fromEntries(
+                Object.entries(recordOf(value, "vote_summary")).map(
+                  ([id, tally]) => [id, tallyOf(tally, "vote_summary")],
                 ),
               ),
           ),

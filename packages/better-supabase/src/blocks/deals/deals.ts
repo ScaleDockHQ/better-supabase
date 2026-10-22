@@ -5,6 +5,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { DealForecast } from "../deal-forecast.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, isMoney } from "../../commerce/money.ts";
@@ -12,13 +13,13 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { forecastOf } from "../deal-forecast.ts";
 import {
   amountsError,
   amountText,
   currencyMismatch,
   moneyOf,
   optionalAmountText,
-  optionalMoneyOf,
   unknownCurrency,
 } from "../money-codec.ts";
 import { lineArg, totalsOf } from "../sales-lines.ts";
@@ -217,26 +218,7 @@ export interface DealLineInput {
   readonly product?: DealParty;
 }
 
-/** The forecast call for one currency. */
-export interface DealForecast {
-  readonly currency: string;
-  readonly won: Money;
-  readonly commit: Money;
-  readonly bestCase: Money;
-  readonly pipeline: Money;
-  readonly notCalled: Money;
-  readonly omit: Money;
-  /** Open deals that close after the period. */
-  readonly later: Money;
-  readonly target?: Money;
-  /** Won plus commit over the target. */
-  readonly attainment?: number;
-  readonly gap?: Money;
-  readonly owners: readonly (Omit<
-    DealForecast,
-    "owners" | "currency" | "target" | "attainment" | "gap"
-  > & { readonly ownerId?: string })[];
-}
+export type { DealForecast } from "../deal-forecast.ts";
 
 /** The checks a forecast review runs on an open deal. */
 export interface DealHealth {
@@ -515,40 +497,6 @@ function valueArg(value: unknown): unknown {
   return value;
 }
 
-function sums(row: Readonly<Record<string, unknown>>, currency: string) {
-  const at = (key: string): Money =>
-    moneyOf(row[key], currency, `deal_forecast ${key}`);
-
-  return {
-    won: at("won"),
-    commit: at("commit"),
-    bestCase: at("bestCase"),
-    pipeline: at("pipeline"),
-    notCalled: at("notCalled"),
-    omit: at("omit"),
-    later: at("later"),
-  };
-}
-
-function forecastOf(value: unknown): DealForecast {
-  const row = recordOf(value, "deal_forecast");
-  const currency = textOf(row["currency"]);
-
-  return compact<DealForecast>({
-    currency,
-    ...sums(row, currency),
-    target: optionalMoneyOf(row["target"], currency, "deal_forecast target"),
-    attainment: num(row["attainment"]),
-    gap: optionalMoneyOf(row["gap"], currency, "deal_forecast gap"),
-    owners: recordsOf(row["owners"], "deal_forecast owners").map((owner) =>
-      compact<DealForecast["owners"][number]>({
-        ownerId: optionalText(owner["ownerId"]),
-        ...sums(owner, currency),
-      }),
-    ),
-  });
-}
-
 /**
  * The deals block: deals on pipelines, with batched cell edits that reject per
  * change, won and lost through the pipeline's stages, contacts, a team, line
@@ -735,7 +683,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
               target: optionalAmountText(period.target),
               owner: period.ownerId ?? null,
             },
-            forecastOf,
+            (value) => forecastOf(value),
           )
         : AsyncResult.err(invalid);
     },

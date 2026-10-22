@@ -34,8 +34,14 @@ describe.skipIf(!live)("provider subject scopes on CentraKit's tables", () => {
       );
       const subjects = [granted?.id, hidden?.id];
       await s.client.query(
-        `insert into better_supabase.comments (organization_id, subject_type, subject_id, body, author_id)
-         values ($1, 'project', $2, 'seen', $4), ($1, 'project', $3, 'unseen', $4)`,
+        `with conversation as (
+           insert into better_supabase.conversations (tenant_id, kind, access, subject_type, subject_id)
+           values ($1, 'subject', 'subject', 'project', $2), ($1, 'subject', 'subject', 'project', $3)
+           returning id, subject_id
+         )
+         insert into better_supabase.messages (tenant_id, conversation_id, body, author_id, sent_at)
+         select $1, c.id, case c.subject_id when $2 then 'seen' else 'unseen' end, $4, now()
+         from conversation c`,
         [organization, ...subjects, USERS.owner],
       );
       await s.client.query(
@@ -49,7 +55,9 @@ describe.skipIf(!live)("provider subject scopes on CentraKit's tables", () => {
       await s.client.query("set local role authenticated");
       expect(
         await s.rows(
-          "select body from better_supabase.comments where subject_id = any($1)",
+          `select m.body from better_supabase.messages m
+           join better_supabase.conversations c on c.id = m.conversation_id
+           where c.subject_id = any($1)`,
           [subjects],
         ),
       ).toEqual([{ body: "seen" }]);

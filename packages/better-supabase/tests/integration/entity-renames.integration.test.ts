@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { SqlClient } from "../../src/postgres/executor.ts";
 
+import { createAttachments } from "../../src/blocks/attachments/attachments.ts";
 import { defineBlocks } from "../../src/blocks/create-blocks.ts";
 import { outboxBlock } from "../../src/blocks/outbox/manifest.ts";
 import { renameBlock } from "../../src/blocks/rename-block.ts";
@@ -84,6 +85,7 @@ const config = resolveConfig(
       pipelines: { schema: SCRATCH },
       outbox: { schema: SCRATCH },
       "work-items": { schema: SCRATCH, entities: { work_item: "task" } },
+      attachments: { schema: SCRATCH, options: { requireScan: false } },
     },
   },
   "/project",
@@ -144,10 +146,17 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     await client.query("begin");
     await client.query(`create schema ${SCRATCH}`);
 
-    for (const file of renderModules(config.blockNames, {
+    const files = renderModules(config.blockNames, {
       modules: config.blocks,
       subjects: config.subjects,
-    })) {
+    });
+
+    // attachment_subject_readable is SQL-language and names the `tasks` table,
+    // which work-items creates after it.
+    for (const file of [
+      ...files.filter((file) => file.module !== "attachments"),
+      ...files.filter((file) => file.module === "attachments"),
+    ]) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }
@@ -276,6 +285,63 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
       tenant: TENANT,
       before: false,
       after: true,
+    });
+  });
+
+  it("keeps a renamed task's files and checklist", async () => {
+    const attachments = createAttachments({
+      transport: sqlTransport(inTransaction(client)),
+      schema: SCRATCH,
+      storage: {
+        from: () => ({
+          createSignedUploadUrl: (path) =>
+            Promise.resolve({
+              data: { signedUrl: `https://storage.test/${path}`, token: "t" },
+              error: null,
+            }),
+          createSignedUrl: (path) =>
+            Promise.resolve({
+              data: { signedUrl: `https://storage.test/${path}` },
+              error: null,
+            }),
+          download: () => Promise.resolve({ data: new Blob([]), error: null }),
+          remove: () => Promise.resolve({ data: [], error: null }),
+        }),
+      },
+      tenant: TENANT,
+    });
+
+    const file = { name: "brief.pdf", mimeType: "application/pdf", size: 10 };
+    const loose = await attachments.upload(null, file).orThrow();
+
+    const task = await built.tasks
+      .create(TENANT, { title: "Brief", attachmentIds: [loose.attachment.id] })
+      .orThrow();
+
+    const direct = await attachments
+      .upload({ type: "task", id: task.id }, file)
+      .orThrow();
+
+    const listed = await attachments
+      .list({ type: "task", id: task.id })
+      .orThrow();
+
+    const step = await built.tasks
+      .saveChecklistItem(task.id, { title: "Read it" })
+      .orThrow();
+
+    const read = await built.tasks.get(task.id).orThrow();
+
+    expect({
+      files: listed.map((attachment) => attachment.id).toSorted(),
+      subjects: listed.map((attachment) => attachment.subject?.type),
+      step: step.title,
+      checklist: read?.checklist,
+    }).toEqual({
+      files: [loose.attachment.id, direct.attachment.id].toSorted(),
+      subjects: ["task", "task"],
+      step: "Read it",
+      checklist: { total: 1, done: 0 },
     });
   });
 

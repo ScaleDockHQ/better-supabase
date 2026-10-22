@@ -488,7 +488,10 @@ function onlyWrapped(
  * to a tenant the caller acts in, with no `or` around it: equal to
  * `current_tenant_id()`, passed to `can('tenant', column, ...)`, or in `(select
  * tenant_ids_with(...))` or `(select member_<tenant>_ids())`. A write can't
- * name a tenant the caller isn't in then.
+ * name a tenant the caller isn't in then. The guest branch `ctx.scope.guest`
+ * adds (`or (column, ...) in (select g.tenant ... portal_subjects(...) g)`)
+ * pins it to a tenant the caller is a guest of, so it doesn't count as an
+ * `or`.
  */
 function pinnedToTenant(
   table: CatalogTable,
@@ -511,6 +514,11 @@ function pinnedToTenant(
     "i",
   );
 
+  const guest = new RegExp(
+    `\\bor\\s+\\(*\\(?${col}\\)?(?:::text)?\\s*,(?:[^()]|\\([^()]*\\))*\\)\\s+in\\s+\\(\\s*select\\s+g\\.tenant\\b[^()]*from\\s+better_supabase\\.portal_(?:subjects|parties)\\([^()]*\\)\\s+g(?:\\([^()]*\\))?\\)`,
+    "gi",
+  );
+
   const applying = table.policies.filter(
     (policy) =>
       policy.permissive &&
@@ -521,9 +529,9 @@ function pinnedToTenant(
   return (
     applying.length > 0 &&
     applying.every((policy) => {
-      const check = policy.check ?? policy.using;
+      const check = (policy.check ?? policy.using)?.replaceAll(guest, "");
 
-      return check !== null && !/\bor\b/i.test(check) && pin.test(check);
+      return check !== undefined && !/\bor\b/i.test(check) && pin.test(check);
     })
   );
 }
@@ -773,7 +781,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "API roles can write the columns that grant access",
     description:
-      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)`, `tenant_ids_with(...)` or the membership helper `member_organization_ids()`), a subject's `deletedAt` column in `config.subjects` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them.",
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)`, `tenant_ids_with(...)` or the membership helper `member_organization_ids()`, alone or next to a guest's grant from `portal_subjects()`), a subject's `deletedAt` column in `config.subjects` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),

@@ -29,12 +29,34 @@ const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
 const UUID_TEXT =
   "'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'";
 
+const SUGGESTION_PAYLOAD = [
+  "organizationId",
+  "subjectType",
+  "subjectId",
+  "id",
+  "name",
+  "suggestionId",
+  "authorId",
+  "status",
+] as const;
+
 const EVENTS: ModuleEvents<DocumentsEvents> = {
   "document.created": {
     subject: "documents",
     payload: ["organizationId", "subjectType", "subjectId", "id", "name"],
   },
+  "document.suggested": { subject: "documents", payload: SUGGESTION_PAYLOAD },
+  "document.suggestion_accepted": {
+    subject: "documents",
+    payload: SUGGESTION_PAYLOAD,
+  },
+  "document.suggestion_rejected": {
+    subject: "documents",
+    payload: SUGGESTION_PAYLOAD,
+  },
 };
+
+const SUGGESTION_STATUSES = ["open", "accepted", "rejected", "withdrawn"];
 
 const NAMES: ModuleNames = {
   entities: {
@@ -43,6 +65,10 @@ const NAMES: ModuleNames = {
       singular: "document",
       primary: true,
       subject: { title: "name", permissions: { read: "read", write: "write" } },
+    },
+    document_suggestion: {
+      table: "suggestions",
+      singular: "document_suggestion",
     },
   },
   events: EVENTS,
@@ -86,6 +112,23 @@ const NAMES: ModuleNames = {
         createdAt: "created_at",
       },
     },
+    suggestions: {
+      name: "document_suggestions",
+      lifecycle: { tenant: "tenant", user: "createdBy" },
+      columns: {
+        id: "id",
+        document: "document_id",
+        tenant: "tenant_id",
+        update: "payload",
+        summary: "summary",
+        status: "status",
+        createdBy: "created_by",
+        createdAt: "created_at",
+        decidedBy: "decided_by",
+        decidedAt: "decided_at",
+        note: "note",
+      },
+    },
   },
 };
 
@@ -116,9 +159,12 @@ function build(ctx: ModuleContext): string {
   const c = (column: string): string => ctx.col("documents", column);
   const u = (column: string): string => ctx.col("updates", column);
   const s = (column: string): string => ctx.col("snapshots", column);
+  const suggestions = ctx.table("suggestions");
+  const g = (column: string): string => ctx.col("suggestions", column);
   const fn = (name: string): string => ctx.fn(name);
   const read = ctx.permission("read", OPERATIONS["documents.read"]);
   const write = ctx.permission("write", OPERATIONS["documents.write"]);
+  const suggest = ctx.permission("suggest", OPERATIONS["documents.suggest"]);
   const manage = ctx.permission("manage", OPERATIONS["documents.manage"]);
   const subjects = subjectsOption(ctx);
   const topic = documentsTopic(ctx);
@@ -150,6 +196,31 @@ function build(ctx: ModuleContext): string {
   const canWrite = (row: string): string =>
     `(${ctx.can("tenant", `${row}.${c("tenant")}`, write)} and ${readable(row)} and ${subjectWritable(ctx, subjects, { type: `${row}.${c("subjectType")}`, tenant: `${row}.${c("tenant")}` })})`;
 
+  const canSuggestOnly = (row: string): string =>
+    `(${canRead(row)} and ${ctx.can("tenant", `${row}.${c("tenant")}`, suggest)})`;
+
+  const canSuggest = (row: string): string =>
+    `(${canWrite(row)} or ${canSuggestOnly(row)})`;
+
+  const suggestionJson = (row: string): string =>
+    `jsonb_build_object('id', ${row}.${g("id")}, 'documentId', ${row}.${g("document")}, 'summary', ${row}.${g("summary")}, 'status', ${row}.${g("status")}, 'createdBy', ${row}.${g("createdBy")}, 'createdAt', ${row}.${g("createdAt")}, 'decidedBy', ${row}.${g("decidedBy")}, 'decidedAt', ${row}.${g("decidedAt")}, 'note', ${row}.${g("note")}, 'update', ${b64(`${row}.${g("update")}`)})`;
+
+  const suggestionEvent = (type: keyof DocumentsEvents): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', v_doc.${c("tenant")}::text, 'subjectType', v_doc.${c("subjectType")}, 'subjectId', v_doc.${c("subjectId")}, 'id', v_doc.${c("id")}, 'name', v_doc.${c("name")}, 'suggestionId', v_suggestion.${g("id")}, 'authorId', v_suggestion.${g("createdBy")}, 'status', v_suggestion.${g("status")})`,
+      subject: `'documents/' || v_doc.${c("id")}::text`,
+      tenant: `v_doc.${c("tenant")}`,
+      audit:
+        type === "document.suggested"
+          ? false
+          : {
+              category: "data",
+              targetType: "document",
+              recordId: `v_doc.${c("id")}::text`,
+            },
+    });
+
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'name', ${row}.${c("name")}, 'topic', ${sqlString(`${topic}:`)} || ${row}.${c("id")}::text, 'createdAt', ${row}.${c("createdAt")}, 'updatedAt', ${row}.${c("updatedAt")})`;
 
@@ -168,6 +239,31 @@ function build(ctx: ModuleContext): string {
     `jsonb_build_object('documentId', v_doc.${c("id")})`,
     `'documents.compact:' || v_doc.${c("id")}::text`,
   );
+
+  // Needs v_doc, v_seq and v_since in the calling function.
+  const append = (bytes: string, actor: string): string =>
+    `insert into ${updates} (${u("document")}, ${u("tenant")}, ${u("update")}, ${u("actor")})
+  values (v_doc.${c("id")}, v_doc.${c("tenant")}, ${bytes}, ${actor})
+  returning ${u("seq")} into v_seq;
+  update ${documents} d set ${c("updatedAt")} = now() where d.${c("id")} = v_doc.${c("id")};
+  select count(*) into v_since from ${updates} x
+  where x.${u("document")} = v_doc.${c("id")}
+    and x.${u("seq")} > coalesce((select y.${s("seq")} from ${snapshots} y where y.${s("document")} = v_doc.${c("id")}), 0);
+  if v_since = ${String(compactAfter)} then
+    ${compactJob}
+  end if;`;
+
+  const decodeUpdate = (input: string): string => `begin
+    v_bytes := decode(${input}, 'base64');
+  exception when others then
+    ${fail("DOCUMENT_UPDATE_INVALID", "the update must be base64", "22023")}
+  end;
+  if v_bytes is null or length(v_bytes) = 0 then
+    ${fail("DOCUMENT_UPDATE_INVALID", "the update is empty", "22023")}
+  end if;
+  if length(v_bytes) > ${String(maxBytes)} then
+    ${fail("DOCUMENT_UPDATE_TOO_LARGE", `an update can be at most ${String(maxBytes)} bytes`, "54000")}
+  end if;`;
 
   const tables = ctx.manages
     ? `create table if not exists ${documents} (
@@ -206,6 +302,22 @@ create table if not exists ${snapshots} (
   ${s("createdAt")} timestamptz not null default now()
 );
 ${lockTable(snapshots, { read: false })}
+
+create table if not exists ${suggestions} (
+  ${g("id")} uuid primary key default gen_random_uuid(),
+  ${g("document")} uuid not null references ${documents} (${c("id")}) on delete cascade,
+  ${g("tenant")} ${ctx.idType} not null,
+  ${g("update")} bytea not null,
+  ${g("summary")} text check (length(${g("summary")}) between 1 and 500),
+  ${g("status")} text not null default 'open' check (${g("status")} in (${SUGGESTION_STATUSES.map(sqlString).join(", ")})),
+  ${g("createdBy")} uuid,
+  ${g("createdAt")} timestamptz not null default now(),
+  ${g("decidedBy")} uuid,
+  ${g("decidedAt")} timestamptz,
+  ${g("note")} text check (length(${g("note")}) between 1 and 500)
+);
+create index if not exists ${sqlIdent(`${ctx.tableName("suggestions").name}_${ctx.naming.rename("document")}_idx`)} on ${suggestions} (${g("document")}, ${g("status")}, ${g("createdAt")});
+${lockTable(suggestions, { read: false })}
 `
     : "";
 
@@ -254,7 +366,7 @@ begin
     ${notFound}
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x.${v("id")}, 'number', x.${v("number")}, 'label', x.${v("label")}, 'createdBy', x.${v("createdBy")}, 'createdAt', x.${v("createdAt")}) order by x.${v("number")} desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x.${v("id")}, 'number', x.${v("number")}, 'label', x.${v("label")}, 'source', x.${v("source")}, 'frozen', x.${v("frozen")}, 'createdBy', x.${v("createdBy")}, 'createdAt', x.${v("createdAt")}) order by x.${v("number")} desc), '[]'::jsonb)
     from ${versions.table("versions")} x
     where x.${v("subjectType")} = 'document' and x.${v("subjectId")} = v_doc.${c("id")}::text
   );
@@ -289,6 +401,43 @@ begin
 end;
 $$;
 ${userGrant(`${fn("get_document_version")}(uuid, uuid)`)}
+
+-- Names a version, which keeps it out of retention; a null or blank label
+-- removes the name. Editors of the document can name its versions.
+create or replace function ${fn("name_document_version")}(document_id uuid, version_id uuid, label text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_doc ${documents}%rowtype;
+  v_frozen boolean;
+begin
+  select * into v_doc from ${documents} d where d.${c("id")} = name_document_version.document_id;
+  if not found or not (${SERVICE_CALLER} or ${canRead("v_doc")}) then
+    ${notFound}
+  end if;
+  if not (${SERVICE_CALLER} or ${canWrite("v_doc")}) then
+    ${fail("DOCUMENT_FORBIDDEN", "not allowed to name versions of this document")}
+  end if;
+  select x.${v("frozen")} into v_frozen from ${versions.table("versions")} x
+  where x.${v("id")} = name_document_version.version_id
+    and x.${v("subjectType")} = 'document' and x.${v("subjectId")} = v_doc.${c("id")}::text
+  for update;
+  if v_frozen is null then
+    ${fail("DOCUMENT_VERSION_NOT_FOUND", "version not found", "P0002")}
+  end if;
+  if v_frozen then
+    ${fail("DOCUMENT_VERSION_FROZEN", "a frozen version keeps its name", "55000")}
+  end if;
+  update ${versions.table("versions")} x set ${v("label")} = nullif(trim(name_document_version.label), '')
+  where x.${v("id")} = name_document_version.version_id;
+  return true;
+end;
+$$;
+${userGrant(`${fn("name_document_version")}(uuid, uuid, text)`)}
 `;
 
   return `${schemaPreamble(ctx)}
@@ -399,6 +548,7 @@ begin
   select * into v_snapshot from ${snapshots} x where x.${s("document")} = v_doc.${c("id")};
   return ${json("v_doc")} || jsonb_build_object(
     'canWrite', v_write,
+    'canSuggest', v_write or ${canSuggestOnly("v_doc")},
     'snapshot', case when v_snapshot.${s("document")} is null then null else ${b64(`v_snapshot.${s("state")}`)} end,
     'snapshotSeq', coalesce(v_snapshot.${s("seq")}, 0),
     'updates', ${fn("document_updates_after")}(v_doc.${c("id")}, coalesce(v_snapshot.${s("seq")}, 0))
@@ -442,31 +592,123 @@ begin
   if not (${SERVICE_CALLER} or ${canWrite("v_doc")}) then
     ${fail("DOCUMENT_FORBIDDEN", "not allowed to edit this document")}
   end if;
-  begin
-    v_bytes := decode(push_document_update.payload, 'base64');
-  exception when others then
-    ${fail("DOCUMENT_UPDATE_INVALID", "the update must be base64", "22023")}
-  end;
-  if v_bytes is null or length(v_bytes) = 0 then
-    ${fail("DOCUMENT_UPDATE_INVALID", "the update is empty", "22023")}
-  end if;
-  if length(v_bytes) > ${String(maxBytes)} then
-    ${fail("DOCUMENT_UPDATE_TOO_LARGE", `an update can be at most ${String(maxBytes)} bytes`, "54000")}
-  end if;
-  insert into ${updates} (${u("document")}, ${u("tenant")}, ${u("update")}, ${u("actor")})
-  values (v_doc.${c("id")}, v_doc.${c("tenant")}, v_bytes, auth.uid())
-  returning ${u("seq")} into v_seq;
-  update ${documents} d set ${c("updatedAt")} = now() where d.${c("id")} = v_doc.${c("id")};
-  select count(*) into v_since from ${updates} x
-  where x.${u("document")} = v_doc.${c("id")}
-    and x.${u("seq")} > coalesce((select y.${s("seq")} from ${snapshots} y where y.${s("document")} = v_doc.${c("id")}), 0);
-  if v_since = ${String(compactAfter)} then
-    ${compactJob}
-  end if;
+  ${decodeUpdate("push_document_update.payload")}
+  ${append("v_bytes", "auth.uid()")}
   return v_seq;
 end;
 $$;
 ${userGrant(`${fn("push_document_update")}(uuid, text)`)}
+
+-- Stores a Yjs update (base64) as a suggestion instead of appending it.
+-- Editors and readers with the suggest permission can suggest.
+create or replace function ${fn("suggest_document_change")}(document_id uuid, payload text, summary text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_doc ${documents}%rowtype;
+  v_suggestion ${suggestions}%rowtype;
+  v_bytes bytea;
+begin
+  select * into v_doc from ${documents} d where d.${c("id")} = suggest_document_change.document_id;
+  if not found or not (${SERVICE_CALLER} or ${canRead("v_doc")}) then
+    ${notFound}
+  end if;
+  if not (${SERVICE_CALLER} or ${canSuggest("v_doc")}) then
+    ${fail("DOCUMENT_FORBIDDEN", "not allowed to suggest changes to this document")}
+  end if;
+  ${decodeUpdate("suggest_document_change.payload")}
+  insert into ${suggestions} (${g("document")}, ${g("tenant")}, ${g("update")}, ${g("summary")}, ${g("createdBy")})
+  values (v_doc.${c("id")}, v_doc.${c("tenant")}, v_bytes, nullif(trim(suggest_document_change.summary), ''), auth.uid())
+  returning * into v_suggestion;
+  ${suggestionEvent("document.suggested")}
+  return ${suggestionJson("v_suggestion")};
+end;
+$$;
+${userGrant(`${fn("suggest_document_change")}(uuid, text, text)`)}
+
+-- Suggestions on a document, oldest first; status 'all' lists every one.
+create or replace function ${fn("list_document_suggestions")}(document_id uuid, status text default 'open')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_doc ${documents}%rowtype;
+begin
+  select * into v_doc from ${documents} d where d.${c("id")} = list_document_suggestions.document_id;
+  if not found or not (${SERVICE_CALLER} or ${canRead("v_doc")}) then
+    ${notFound}
+  end if;
+  return (
+    select coalesce(jsonb_agg(${suggestionJson("x")} order by x.${g("createdAt")}, x.${g("id")}), '[]'::jsonb)
+    from ${suggestions} x
+    where x.${g("document")} = v_doc.${c("id")}
+      and (coalesce(list_document_suggestions.status, 'all') = 'all' or x.${g("status")} = list_document_suggestions.status)
+  );
+end;
+$$;
+${userGrant(`${fn("list_document_suggestions")}(uuid, text)`)}
+
+-- Accepting appends the suggestion to the update log with its author as the
+-- actor and returns the sequence number as 'seq'. Editors accept or reject;
+-- the author withdraws.
+create or replace function ${fn("decide_document_suggestion")}(suggestion_id uuid, decision text, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_doc ${documents}%rowtype;
+  v_suggestion ${suggestions}%rowtype;
+  v_seq bigint;
+  v_since bigint;
+begin
+  select * into v_suggestion from ${suggestions} x where x.${g("id")} = decide_document_suggestion.suggestion_id for update;
+  if found then
+    select * into v_doc from ${documents} d where d.${c("id")} = v_suggestion.${g("document")};
+  end if;
+  if v_suggestion.${g("id")} is null or not (${SERVICE_CALLER} or ${canRead("v_doc")} or v_suggestion.${g("createdBy")} = auth.uid()) then
+    ${fail("DOCUMENT_SUGGESTION_NOT_FOUND", "suggestion not found", "P0002")}
+  end if;
+  if decide_document_suggestion.decision is null or decide_document_suggestion.decision not in ('accepted', 'rejected', 'withdrawn') then
+    ${fail("DOCUMENT_SUGGESTION_INVALID", "decide with accepted, rejected or withdrawn", "22023")}
+  end if;
+  if decide_document_suggestion.decision = 'withdrawn' then
+    if not (${SERVICE_CALLER} or v_suggestion.${g("createdBy")} = auth.uid()) then
+      ${fail("DOCUMENT_FORBIDDEN", "only the author can withdraw a suggestion")}
+    end if;
+  elsif not (${SERVICE_CALLER} or ${canWrite("v_doc")}) then
+    ${fail("DOCUMENT_FORBIDDEN", "not allowed to decide suggestions on this document")}
+  end if;
+  if v_suggestion.${g("status")} <> 'open' then
+    ${fail("DOCUMENT_SUGGESTION_CLOSED", "the suggestion was already decided", "55000")}
+  end if;
+  if decide_document_suggestion.decision = 'accepted' then
+    ${append(`v_suggestion.${g("update")}`, `v_suggestion.${g("createdBy")}`)}
+  end if;
+  update ${suggestions} x
+    set ${g("status")} = decide_document_suggestion.decision, ${g("decidedBy")} = auth.uid(), ${g("decidedAt")} = now(),
+      ${g("note")} = nullif(trim(decide_document_suggestion.note), '')
+    where x.${g("id")} = v_suggestion.${g("id")}
+    returning * into v_suggestion;
+  if v_suggestion.${g("status")} = 'accepted' then
+    ${suggestionEvent("document.suggestion_accepted")}
+  elsif v_suggestion.${g("status")} = 'rejected' then
+    ${suggestionEvent("document.suggestion_rejected")}
+  end if;
+  return ${suggestionJson("v_suggestion")} || jsonb_build_object('seq', v_seq);
+end;
+$$;
+${userGrant(`${fn("decide_document_suggestion")}(uuid, text, text)`)}
 
 -- Updates after a sequence number, for a client that reconnects. When they
 -- were compacted away, the snapshot comes back too.
@@ -612,7 +854,7 @@ export const DOCUMENTS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Collaborative documents",
   description:
-    "Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, and saved states through the versions module.",
+    "Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.",
   requires: ["tenant", "access"],
   integrates: ["outbox", "audit", "jobs", "versions"],
   target: "schema",

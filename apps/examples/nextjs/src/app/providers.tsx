@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BetterSupabaseProvider } from "better-supabase/react";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useState } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,7 +17,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <BetterSupabaseProvider client={bs} queryClient={queryClient}>
-        <TooltipProvider>{children}</TooltipProvider>
+        <NuqsAdapter>
+          <TooltipProvider>{children}</TooltipProvider>
+        </NuqsAdapter>
       </BetterSupabaseProvider>
     </QueryClientProvider>
   );

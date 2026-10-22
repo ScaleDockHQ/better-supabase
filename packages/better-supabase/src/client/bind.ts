@@ -13,7 +13,7 @@ import { userContext } from "../auth/impersonation.ts";
 import { claimedTenant } from "../bindings/keys.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
-import { createQueries } from "../query/index.ts";
+import { createQueries } from "../query/queries.ts";
 import { identityKey } from "../query/user-change.ts";
 
 export interface AuthUser {

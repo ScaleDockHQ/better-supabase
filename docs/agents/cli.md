@@ -53,6 +53,18 @@ has to keep.
 - Text meant to be copied (`next` commands, docs, skills, file headers) says
   `better-supabase`, never `bsb`.
 
+## Generated features
+
+`gen` writes `features/<subject>/` next to the main module
+(`src/cli/gen/features.ts`) when `generateFeatures` is on and a section
+block is installed. The framework list comes from `detectProject`, so a test
+passes `frameworks` to `render` instead of writing a `package.json`. The
+files are ignored by oxlint and oxfmt (`**/lib/supabase/features/**`), so
+keep them valid without the formatter: no `object` parameters and no aliased
+methods, which the examples' typecheck catches. After a change, run
+`pnpm build` in the package and `pnpm exec better-supabase gen` in
+`apps/examples/nextjs`, the one example with section blocks.
+
 ## Docs
 
 - Each command's docs section has a `Side effects:` line, or a

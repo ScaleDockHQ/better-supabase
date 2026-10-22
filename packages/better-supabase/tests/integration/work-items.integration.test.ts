@@ -322,4 +322,170 @@ describe.skipIf(!live)("work items", () => {
       await s.close();
     }
   });
+
+  it("keeps checklists, watchers, attachments and a repeat rule", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const dev = await s.user("dev");
+      const other = await s.user("other");
+      await s.install([...MODULES, "attachments", "reminders"], layout());
+      const org = await s.organization(owner, { member: dev, member2: other });
+      const items = createWorkItems({ transport: sqlTransport(s.sql) });
+
+      await s.service();
+
+      const file = async (user: string): Promise<string> => {
+        const { rows } = await s.client.query<{ id: string }>(
+          "insert into better_supabase.attachments (organization_id, bucket, name, mime_type, size, status, uploaded_by) values ($1, 'attachments', 'spec.pdf', 'application/pdf', 10, 'clean', $2) returning id::text",
+          [org, user],
+        );
+
+        return rows[0]?.id ?? "";
+      };
+
+      const mine = await file(dev.id);
+      const theirs = await file(other.id);
+      const later = await file(dev.id);
+
+      await s.as(dev);
+
+      const due = Temporal.Instant.from("2026-11-02T09:00:00Z");
+
+      expect(
+        hint(
+          await items.create(org, { title: "Report", attachmentIds: [theirs] }),
+        ),
+      ).toBe("WORK_ITEM_ATTACHMENTS_INVALID");
+
+      const item = await items
+        .create(
+          org,
+          {
+            title: "Weekly report",
+            dueAt: due,
+            startAt: due.subtract({ hours: 2 }),
+            attachmentIds: [mine],
+          },
+          [dev.id],
+        )
+        .orThrow();
+
+      expect(item.checklist).toEqual({ total: 0, done: 0 });
+
+      const subjectOf = (id: string) =>
+        s.value<string | null>(
+          "(select subject_type || ':' || subject_id from better_supabase.attachments where id = $1)",
+          [id],
+        );
+
+      expect(await subjectOf(mine)).toBe(`work_item:${item.id}`);
+
+      const linked = await items
+        .update([
+          { workItemId: item.id, field: "attachments", value: [later] },
+          { workItemId: item.id, field: "attachments", value: [theirs] },
+        ])
+        .orThrow();
+
+      expect(linked.accepted).toHaveLength(1);
+      expect(linked.rejected.map((change) => change.hint)).toEqual([
+        "WORK_ITEM_ATTACHMENTS_INVALID",
+      ]);
+      expect(await subjectOf(later)).toBe(`work_item:${item.id}`);
+
+      const draft = await items
+        .saveChecklistItem(item.id, { title: "Draft" })
+        .orThrow();
+
+      const send = await items
+        .saveChecklistItem(item.id, { title: "Send", done: true })
+        .orThrow();
+
+      expect(send.rank > draft.rank).toBe(true);
+      expect(send).toMatchObject({ done: true, doneBy: dev.id });
+      await items
+        .saveChecklistItem(item.id, { done: true }, draft.id)
+        .orThrow();
+      await items
+        .saveChecklistItem(item.id, { done: false }, send.id)
+        .orThrow();
+      expect(hint(await items.saveChecklistItem(item.id, { title: "" }))).toBe(
+        "WORK_ITEM_CHECKLIST_ITEM_INVALID",
+      );
+
+      await s.asRole(dev);
+
+      const checklist = await items.checklist(item.id).orThrow();
+      expect(checklist.map((entry) => [entry.title, entry.done])).toEqual([
+        ["Draft", true],
+        ["Send", false],
+      ]);
+      expect(checklist[1]?.doneAt).toBeUndefined();
+      expect((await items.get(item.id).orThrow())?.checklist).toEqual({
+        total: 2,
+        done: 1,
+      });
+
+      await s.as(dev);
+      expect(
+        hint(await items.setRecurrence(item.id, { rrule: "every monday" })),
+      ).toBe("WORK_ITEM_RECURRENCE_INVALID");
+
+      const rule = await items
+        .setRecurrence(item.id, {
+          rrule: "RRULE:FREQ=WEEKLY;BYDAY=MO",
+          tzid: "Europe/Amsterdam",
+        })
+        .orThrow();
+
+      expect(rule).toMatchObject({
+        rrule: "FREQ=WEEKLY;BYDAY=MO",
+        tzid: "Europe/Amsterdam",
+      });
+      expect(rule?.dtstart.equals(due)).toBe(true);
+
+      await s.as(other);
+      expect(await items.watch(item.id, "all").orThrow()).toBe(true);
+      expect(await items.watchers(item.id).orThrow()).toEqual(
+        expect.arrayContaining([
+          { userId: dev.id, level: "participating" },
+          { userId: other.id, level: "all" },
+        ]),
+      );
+      expect(await items.watch(item.id, "ignore").orThrow()).toBe(true);
+      expect(
+        (await items.watchers(item.id).orThrow()).map((w) => w.userId),
+      ).toEqual([dev.id]);
+      await s.asRole(other);
+      expect((await items.repeat(item.id, due)).ok).toBe(false);
+
+      await s.service();
+
+      const next = due.add({ hours: 24 * 7 });
+      const copy = await items.repeat(item.id, next).orThrow();
+
+      expect(copy).toMatchObject({
+        title: "Weekly report",
+        recursFromId: item.id,
+        assigneeIds: [dev.id],
+        checklist: { total: 2, done: 0 },
+      });
+      expect(copy.dueAt?.equals(next)).toBe(true);
+      expect(copy.startAt?.equals(next.subtract({ hours: 2 }))).toBe(true);
+      expect(copy.recurrence?.rrule).toBe("FREQ=WEEKLY;BYDAY=MO");
+      expect((await items.get(item.id).orThrow())?.recurrence).toBeUndefined();
+      expect((await items.repeat(item.id, next).orThrow()).id).toBe(copy.id);
+
+      await s.as(dev);
+      expect(await items.removeChecklistItem(draft.id).orThrow()).toBe(true);
+      expect(await items.removeChecklistItem(draft.id).orThrow()).toBe(false);
+      expect(
+        (await items.setRecurrence(copy.id, null).orThrow()) ?? null,
+      ).toBeNull();
+    } finally {
+      await s.close();
+    }
+  });
 });

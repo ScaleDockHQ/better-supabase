@@ -409,70 +409,24 @@ export const PRESET_CATALOG: PresetCatalog = {
     },
     {
       "name": "comments",
-      "title": "Comments and activity",
+      "title": "Comments",
       "category": "collaboration",
       "requires": [
         "tenant",
-        "access"
+        "access",
+        "subjects",
+        "messaging"
       ],
       "integrates": [
-        "jsonb-schemas",
         "notifications",
-        "profiles",
-        "subjects",
-        "audit",
-        "workflows"
+        "work-items",
+        "reactions",
+        "attachments"
       ],
       "manifest": "comments",
       "scopes": [
-        "tenant",
-        "user",
-        "none"
-      ],
-      "extraColumns": "comments",
-      "entities": {
-        "specs": {
-          "comment": {
-            "table": "comments",
-            "singular": "comment",
-            "primary": true,
-            "subject": {
-              "title": "body",
-              "deletedAt": "deletedAt",
-              "permissions": {
-                "read": "read",
-                "write": "create",
-                "upload": "create"
-              }
-            }
-          }
-        },
-        "tables": {
-          "comments": {
-            "name": "comments",
-            "columns": {
-              "id": "id",
-              "tenant": "organization_id",
-              "subjectType": "subject_type",
-              "subjectId": "subject_id",
-              "author": "author_id",
-              "body": "body",
-              "document": "document",
-              "mentions": "mentions",
-              "parent": "parent_id",
-              "createdAt": "created_at",
-              "editedAt": "edited_at",
-              "deletedAt": "deleted_at"
-            }
-          }
-        },
-        "keys": {
-          "read": "comments.read",
-          "create": "comments.create",
-          "moderate": "comments.moderate",
-          "activity": "activity.read"
-        }
-      }
+        "tenant"
+      ]
     },
     {
       "name": "attachments",
@@ -517,7 +471,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdAt": "created_at",
               "uploadedAt": "uploaded_at",
               "scannedAt": "scanned_at",
-              "metadata": "metadata"
+              "metadata": "metadata",
+              "version": "version",
+              "width": "width",
+              "height": "height",
+              "pages": "pages"
             }
           }
         },
@@ -567,7 +525,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "growth",
       "requires": [
         "tenant",
-        "access"
+        "access",
+        "enrollments"
       ],
       "integrates": [
         "outbox"
@@ -695,7 +654,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant",
         "access",
         "updated-at",
-        "teams"
+        "teams",
+        "messaging",
+        "attachments"
       ],
       "integrates": [
         "jobs",
@@ -915,7 +876,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [
-        "outbox"
+        "outbox",
+        "drive"
       ],
       "manifest": "tags",
       "scopes": [
@@ -1053,7 +1015,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "access"
       ],
-      "integrates": [],
+      "integrates": [
+        "comments",
+        "messaging",
+        "attachments",
+        "work-items",
+        "approvals",
+        "reminders",
+        "sla"
+      ],
       "manifest": "subjects",
       "scopes": [
         "tenant"
@@ -1182,7 +1152,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "share-links",
         "reminders",
-        "outbox"
+        "outbox",
+        "leave"
       ],
       "manifest": "calendar",
       "scopes": [
@@ -1238,6 +1209,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "subjectType": "subject_type",
               "subjectId": "subject_id",
               "color": "color",
+              "kind": "kind",
+              "transparency": "transparency",
+              "autoDecline": "auto_decline",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -1334,8 +1308,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "comments",
-        "inbox"
+        "messaging"
       ],
       "manifest": "reactions",
       "scopes": [
@@ -1359,7 +1332,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "subjectId": "subject_id",
               "actor": "actor",
               "user": "user_id",
+              "kind": "kind",
               "emoji": "emoji",
+              "value": "value",
               "createdAt": "created_at"
             }
           }
@@ -1384,11 +1359,13 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "notifications",
         "jobs",
+        "drive",
         "teams",
         "state-machine",
         "access-requests",
         "time-tracking",
         "leave",
+        "expenses",
         "ai-chat",
         "support-sessions"
       ],
@@ -1448,6 +1425,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "write": "write"
               }
             }
+          },
+          "document_suggestion": {
+            "table": "suggestions",
+            "singular": "document_suggestion"
           }
         },
         "tables": {
@@ -1463,11 +1444,28 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
+          },
+          "suggestions": {
+            "name": "document_suggestions",
+            "columns": {
+              "id": "id",
+              "document": "document_id",
+              "tenant": "tenant_id",
+              "update": "payload",
+              "summary": "summary",
+              "status": "status",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "note": "note"
+            }
           }
         },
         "keys": {
           "read": "documents.read",
           "write": "documents.write",
+          "suggest": "documents.suggest",
           "manage": "documents.manage"
         }
       }
@@ -1579,7 +1577,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "tenant",
         "access",
-        "catalog"
+        "catalog",
+        "ledger"
       ],
       "integrates": [
         "outbox"
@@ -1632,7 +1631,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "versions",
         "trash",
         "teams",
-        "share-links"
+        "share-links",
+        "tags",
+        "approvals"
       ],
       "manifest": "drive",
       "scopes": [
@@ -1930,7 +1931,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "notifications"
+        "notifications",
+        "ai-files",
+        "jobs",
+        "bookings",
+        "parties"
       ],
       "manifest": "engagements",
       "scopes": [
@@ -2108,7 +2113,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "notifications",
-        "number-sequences"
+        "number-sequences",
+        "attachments",
+        "reminders"
       ],
       "manifest": "work-items",
       "scopes": [
@@ -2151,6 +2158,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "iteration": {
             "table": "iterations",
             "singular": "iteration"
+          },
+          "checklist_item": {
+            "table": "checklist",
+            "singular": "checklist_item"
           }
         },
         "tables": {
@@ -2182,6 +2193,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "locked": "locked",
               "rank": "rank",
               "archivedAt": "archived_at",
+              "recursFrom": "recurs_from",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -2212,6 +2224,21 @@ export const PRESET_CATALOG: PresetCatalog = {
               "name": "name",
               "startsOn": "starts_on",
               "endsOn": "ends_on",
+              "createdAt": "created_at"
+            }
+          },
+          "checklist": {
+            "name": "work_item_checklist_items",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "item": "work_item_id",
+              "title": "title",
+              "done": "done",
+              "doneAt": "done_at",
+              "doneBy": "done_by",
+              "rank": "rank",
+              "createdBy": "created_by",
               "createdAt": "created_at"
             }
           }
@@ -2252,7 +2279,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "tenant",
         "access",
-        "subjects"
+        "subjects",
+        "ledger"
       ],
       "integrates": [
         "outbox",
@@ -2479,12 +2507,65 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "moderation",
+      "title": "Moderation",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "messaging",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "moderation",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "moderation_item": {
+            "table": "items",
+            "singular": "moderation_item",
+            "primary": true
+          }
+        },
+        "tables": {
+          "items": {
+            "name": "moderation_items",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "author": "author_id",
+              "status": "status",
+              "openReports": "open_reports",
+              "reason": "reason",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "moderation.read",
+          "report": "moderation.report",
+          "manage": "moderation.manage",
+          "ban": "moderation.ban"
+        }
+      }
+    },
+    {
       "name": "reviews",
       "title": "Reviews",
       "category": "commerce",
       "requires": [
         "tenant",
-        "access"
+        "access",
+        "moderation"
       ],
       "integrates": [
         "catalog",
@@ -2507,7 +2588,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "tenant",
         "access",
-        "approvals"
+        "approvals",
+        "ledger"
       ],
       "integrates": [
         "outbox",
@@ -2545,6 +2627,2087 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "vercel-marketplace",
       "tenantNameClashes": [
         "team"
+      ]
+    },
+    {
+      "name": "ledger",
+      "title": "Ledger",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "ledger",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "ledger_account": {
+            "table": "accounts",
+            "singular": "ledger_account",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "ledger_transaction": {
+            "table": "transactions",
+            "singular": "ledger_transaction"
+          },
+          "ledger_hold": {
+            "table": "holds",
+            "singular": "ledger_hold"
+          }
+        },
+        "tables": {
+          "accounts": {
+            "name": "ledger_accounts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "code": "code",
+              "name": "name",
+              "unit": "unit",
+              "scale": "scale",
+              "holderType": "holder_type",
+              "holderId": "holder_id",
+              "owner": "owner_id",
+              "allowNegative": "allow_negative",
+              "readPermission": "read_permission",
+              "managedBy": "managed_by",
+              "metadata": "metadata",
+              "closedAt": "closed_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "transactions": {
+            "name": "ledger_transactions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "referenceType": "reference_type",
+              "referenceId": "reference_id",
+              "memo": "memo",
+              "key": "idempotency_key",
+              "reverses": "reverses",
+              "metadata": "metadata",
+              "effectiveAt": "effective_at",
+              "actor": "actor_id",
+              "createdAt": "created_at"
+            }
+          },
+          "holds": {
+            "name": "ledger_holds",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "amount": "amount",
+              "status": "status",
+              "referenceType": "reference_type",
+              "referenceId": "reference_id",
+              "expiresAt": "expires_at",
+              "transaction": "transaction_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "ledger.read",
+          "manage": "ledger.manage",
+          "post": "ledger.post"
+        }
+      }
+    },
+    {
+      "name": "assets",
+      "title": "Assets and locations",
+      "category": "work",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "bookings",
+        "work-items",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "assets",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "asset": {
+            "table": "assets",
+            "singular": "asset",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "asset_location": {
+            "table": "locations",
+            "singular": "asset_location",
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          }
+        },
+        "tables": {
+          "assets": {
+            "name": "assets",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "location": "location_id",
+              "kind": "kind",
+              "name": "name",
+              "tag": "tag",
+              "serial": "serial_number",
+              "status": "status",
+              "assigneeType": "assignee_type",
+              "assigneeId": "assignee_id",
+              "latitude": "latitude",
+              "longitude": "longitude",
+              "metadata": "metadata",
+              "retiredAt": "retired_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "locations": {
+            "name": "asset_locations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "parent": "parent_id",
+              "kind": "kind",
+              "name": "name",
+              "code": "code",
+              "address": "address",
+              "latitude": "latitude",
+              "longitude": "longitude",
+              "metadata": "metadata",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "assets.read",
+          "manage": "assets.manage",
+          "assign": "assets.assign"
+        }
+      }
+    },
+    {
+      "name": "scores",
+      "title": "Scores",
+      "category": "growth",
+      "requires": [
+        "tenant",
+        "access",
+        "rules"
+      ],
+      "integrates": [
+        "reactions",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "scores",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "score_model": {
+            "table": "models",
+            "singular": "score_model",
+            "primary": true
+          }
+        },
+        "tables": {
+          "models": {
+            "name": "score_models",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "description": "description",
+              "subjectType": "subject_type",
+              "rules": "rules",
+              "metrics": "metrics",
+              "bands": "bands",
+              "enabled": "enabled",
+              "version": "version",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "scores.read",
+          "manage": "scores.manage",
+          "compute": "scores.compute"
+        }
+      }
+    },
+    {
+      "name": "enrollments",
+      "title": "Enrollments",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "enrollments",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "enrollment_program": {
+            "table": "programs",
+            "singular": "enrollment_program",
+            "primary": true
+          },
+          "enrollment": {
+            "table": "enrollments",
+            "singular": "enrollment"
+          }
+        },
+        "tables": {
+          "programs": {
+            "name": "enrollment_programs",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "description": "description",
+              "subjectTypes": "subject_types",
+              "steps": "steps",
+              "enabled": "enabled",
+              "version": "version",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "enrollments": {
+            "name": "enrollments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "program": "program",
+              "programVersion": "program_version",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "user": "user_id",
+              "steps": "steps",
+              "completedSteps": "completed_steps",
+              "status": "status",
+              "enrolledBy": "enrolled_by",
+              "enrolledAt": "enrolled_at",
+              "completedAt": "completed_at",
+              "cancelledAt": "cancelled_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "enrollments.read",
+          "enroll": "enrollments.enroll",
+          "manage": "enrollments.manage"
+        }
+      }
+    },
+    {
+      "name": "guests",
+      "title": "Guests",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "invoices",
+        "bookings",
+        "parties"
+      ],
+      "manifest": "guests",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "guest": {
+            "table": "guests",
+            "singular": "guest",
+            "primary": true
+          },
+          "guest_grant": {
+            "table": "grants",
+            "singular": "guest_grant"
+          }
+        },
+        "tables": {
+          "guests": {
+            "name": "guests",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "email": "email",
+              "name": "name",
+              "user": "user_id",
+              "partyType": "party_type",
+              "partyId": "party_id",
+              "status": "status",
+              "tokenHash": "token_hash",
+              "invitedBy": "invited_by",
+              "expiresAt": "expires_at",
+              "acceptedAt": "accepted_at",
+              "revokedAt": "revoked_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "grants": {
+            "name": "guest_grants",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "guest": "guest_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "actions": "actions",
+              "grantedBy": "granted_by",
+              "expiresAt": "expires_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "guests.read",
+          "manage": "guests.manage"
+        }
+      }
+    },
+    {
+      "name": "passes",
+      "title": "Passes",
+      "category": "scheduling",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "bookings",
+        "signing-keys"
+      ],
+      "manifest": "passes",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "pass": {
+            "table": "passes",
+            "singular": "pass",
+            "plural": "passes",
+            "primary": true
+          },
+          "pass_check_in": {
+            "table": "checkIns",
+            "singular": "pass_check_in"
+          }
+        },
+        "tables": {
+          "passes": {
+            "name": "passes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "holderUser": "holder_user_id",
+              "holderName": "holder_name",
+              "holderEmail": "holder_email",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "booking": "booking_id",
+              "resource": "resource_id",
+              "usesAllowed": "uses_allowed",
+              "uses": "uses",
+              "validFrom": "valid_from",
+              "validUntil": "valid_until",
+              "status": "status",
+              "nonce": "nonce",
+              "issuedBy": "issued_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at",
+              "revokedAt": "revoked_at"
+            }
+          },
+          "checkIns": {
+            "name": "pass_check_ins",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "pass": "pass_id",
+              "resource": "resource_id",
+              "booking": "booking_id",
+              "gate": "gate",
+              "method": "method",
+              "admitted": "admitted",
+              "reason": "reason",
+              "checkedInBy": "checked_in_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "passes.read",
+          "manage": "passes.manage",
+          "checkIn": "passes.check_in"
+        }
+      }
+    },
+    {
+      "name": "billable-time",
+      "title": "Billable time",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "time-tracking",
+        "invoices"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "billable-time",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "time_rate": {
+            "table": "rates",
+            "singular": "time_rate",
+            "plural": "time_rates",
+            "primary": true
+          }
+        },
+        "tables": {
+          "rates": {
+            "name": "time_rates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "rate": "rate",
+              "currency": "currency",
+              "effectiveFrom": "effective_from",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "billable_time.read",
+          "manage": "billable_time.manage",
+          "invoice": "billable_time.invoice"
+        }
+      }
+    },
+    {
+      "name": "leases",
+      "title": "Leases",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "assets",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "leases",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "leases",
+      "entities": {
+        "specs": {
+          "lease": {
+            "table": "leases",
+            "singular": "lease",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "maintenance_request": {
+            "table": "maintenance",
+            "singular": "maintenance_request",
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "maintain"
+              }
+            }
+          }
+        },
+        "tables": {
+          "leases": {
+            "name": "lease_agreements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "unit": "unit_id",
+              "partyType": "party_type",
+              "partyId": "party_id",
+              "title": "title",
+              "status": "status",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "rent": "rent",
+              "currency": "currency",
+              "frequency": "frequency",
+              "deposit": "deposit",
+              "depositHold": "deposit_hold_id",
+              "renewedAt": "renewed_at",
+              "terminatedOn": "terminated_on",
+              "terminationReason": "termination_reason",
+              "metadata": "metadata",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "maintenance": {
+            "name": "maintenance_requests",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "unit": "unit_id",
+              "lease": "lease_id",
+              "title": "title",
+              "description": "description",
+              "priority": "priority",
+              "status": "status",
+              "reportedBy": "reported_by",
+              "assignee": "assignee_id",
+              "resolvedAt": "resolved_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "leases.read",
+          "manage": "leases.manage",
+          "maintain": "leases.maintain"
+        }
+      }
+    },
+    {
+      "name": "expenses",
+      "title": "Expenses",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access",
+        "approvals",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "attachments"
+      ],
+      "manifest": "expenses",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "reports",
+      "entities": {
+        "specs": {
+          "expense_report": {
+            "table": "reports",
+            "singular": "expense_report",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "expense_line": {
+            "table": "lines",
+            "singular": "expense_line",
+            "subject": {
+              "title": "description",
+              "permissions": {
+                "read": "read",
+                "write": "manage",
+                "upload": "submit"
+              }
+            }
+          },
+          "expense_category": {
+            "table": "categories",
+            "singular": "expense_category",
+            "plural": "expense_categories"
+          }
+        },
+        "tables": {
+          "reports": {
+            "name": "expense_reports",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "title": "title",
+              "currency": "currency",
+              "note": "note",
+              "approval": "approval_id",
+              "submittedAt": "submitted_at",
+              "approvedAt": "approved_at",
+              "approvalTransaction": "approval_transaction_id",
+              "reimbursedAt": "reimbursed_at",
+              "reimbursement": "reimbursement_transaction_id",
+              "cancelledAt": "cancelled_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "lines": {
+            "name": "expense_lines",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "report": "report_id",
+              "category": "category_id",
+              "spentOn": "spent_on",
+              "description": "description",
+              "merchant": "merchant",
+              "amount": "amount",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "categories": {
+            "name": "expense_categories",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "currency": "currency",
+              "limitAmount": "limit_amount",
+              "receiptOver": "receipt_over",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "expenses.read",
+          "submit": "expenses.submit",
+          "approve": "expenses.approve",
+          "manage": "expenses.manage"
+        }
+      }
+    },
+    {
+      "name": "donations",
+      "title": "Donations",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "ledger"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "number-sequences"
+      ],
+      "manifest": "donations",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "donations",
+      "entities": {
+        "specs": {
+          "donation": {
+            "table": "donations",
+            "singular": "donation",
+            "primary": true
+          },
+          "pledge": {
+            "table": "pledges",
+            "singular": "pledge"
+          },
+          "donation_fund": {
+            "table": "funds",
+            "singular": "donation_fund",
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "donation_receipt": {
+            "table": "receipts",
+            "singular": "donation_receipt"
+          }
+        },
+        "tables": {
+          "donations": {
+            "name": "donations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "donorType": "donor_type",
+              "donorId": "donor_id",
+              "fund": "fund_id",
+              "pledge": "pledge_id",
+              "periodStart": "period_start",
+              "amount": "amount",
+              "currency": "currency",
+              "receivedOn": "received_on",
+              "method": "method",
+              "status": "status",
+              "provider": "provider",
+              "paymentReference": "payment_reference",
+              "transaction": "transaction_id",
+              "refundTransaction": "refund_transaction_id",
+              "receipt": "receipt_id",
+              "note": "note",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "pledges": {
+            "name": "pledges",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "donorType": "donor_type",
+              "donorId": "donor_id",
+              "fund": "fund_id",
+              "amount": "amount",
+              "currency": "currency",
+              "frequency": "frequency",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "status": "status",
+              "provider": "provider",
+              "providerCustomer": "provider_customer",
+              "note": "note",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "funds": {
+            "name": "donation_funds",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "kind": "kind",
+              "goal": "goal",
+              "currency": "currency",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "receipts": {
+            "name": "donation_receipts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "donorType": "donor_type",
+              "donorId": "donor_id",
+              "sequence": "sequence",
+              "number": "number",
+              "kind": "kind",
+              "year": "year",
+              "amount": "amount",
+              "currency": "currency",
+              "issuedAt": "issued_at",
+              "voidedAt": "voided_at",
+              "voidReason": "void_reason"
+            }
+          }
+        },
+        "keys": {
+          "read": "donations.read",
+          "manage": "donations.manage"
+        }
+      }
+    },
+    {
+      "name": "dispatch",
+      "title": "Dispatch",
+      "category": "work",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "assets",
+        "bookings",
+        "catalog",
+        "inventory"
+      ],
+      "manifest": "dispatch",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "workOrders",
+      "entities": {
+        "specs": {
+          "work_order": {
+            "table": "workOrders",
+            "singular": "work_order",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "dispatch_route": {
+            "table": "routes",
+            "singular": "dispatch_route"
+          },
+          "work_order_part": {
+            "table": "parts",
+            "singular": "work_order_part"
+          }
+        },
+        "tables": {
+          "workOrders": {
+            "name": "work_orders",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "description": "description",
+              "priority": "priority",
+              "status": "status",
+              "technician": "technician_id",
+              "startsAt": "starts_at",
+              "endsAt": "ends_at",
+              "location": "location_id",
+              "asset": "asset_id",
+              "booking": "booking_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "address": "address",
+              "enRouteAt": "en_route_at",
+              "arrivedAt": "arrived_at",
+              "completedAt": "completed_at",
+              "cancelledAt": "cancelled_at",
+              "cancelReason": "cancel_reason",
+              "completionNote": "completion_note",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "routes": {
+            "name": "dispatch_routes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "technician": "technician_id",
+              "routeDate": "route_date",
+              "plannedBy": "planned_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "parts": {
+            "name": "work_order_parts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "workOrder": "work_order_id",
+              "name": "name",
+              "quantity": "quantity",
+              "unit": "unit",
+              "asset": "asset_id",
+              "variant": "variant_id",
+              "location": "location_id",
+              "recordedBy": "recorded_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "dispatch.read",
+          "manage": "dispatch.manage",
+          "work": "dispatch.work"
+        }
+      }
+    },
+    {
+      "name": "shipments",
+      "title": "Shipments",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "assets"
+      ],
+      "manifest": "shipments",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "shipments",
+      "entities": {
+        "specs": {
+          "shipment": {
+            "table": "shipments",
+            "singular": "shipment",
+            "primary": true,
+            "subject": {
+              "title": "reference",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "shipment_package": {
+            "table": "packages",
+            "singular": "shipment_package"
+          },
+          "shipment_tracking_event": {
+            "table": "trackingEvents",
+            "singular": "shipment_tracking_event"
+          }
+        },
+        "tables": {
+          "shipments": {
+            "name": "shipments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "reference": "reference",
+              "status": "status",
+              "fromAddress": "from_address",
+              "toAddress": "to_address",
+              "fromLocation": "from_location_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "carrier": "carrier",
+              "service": "service",
+              "trackingNumber": "tracking_number",
+              "trackingUrl": "tracking_url",
+              "labelId": "label_id",
+              "labelUrl": "label_url",
+              "labelFormat": "label_format",
+              "labelCost": "label_cost",
+              "currency": "currency",
+              "labeledAt": "labeled_at",
+              "deliveredAt": "delivered_at",
+              "cancelledAt": "cancelled_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "packages": {
+            "name": "shipment_packages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "shipment": "shipment_id",
+              "position": "position",
+              "weight": "weight_grams",
+              "length": "length_mm",
+              "width": "width_mm",
+              "height": "height_mm",
+              "reference": "reference"
+            }
+          },
+          "trackingEvents": {
+            "name": "shipment_tracking_events",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "shipment": "shipment_id",
+              "externalId": "external_id",
+              "status": "status",
+              "occurredAt": "occurred_at",
+              "description": "description",
+              "location": "location",
+              "source": "source",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "shipments.read",
+          "manage": "shipments.manage"
+        }
+      }
+    },
+    {
+      "name": "contracts",
+      "title": "Contracts",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "versions",
+        "signatures",
+        "reminders"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "contracts",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "contracts",
+      "entities": {
+        "specs": {
+          "contract": {
+            "table": "contracts",
+            "singular": "contract",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "obligation": {
+            "table": "obligations",
+            "singular": "obligation"
+          }
+        },
+        "tables": {
+          "contracts": {
+            "name": "contracts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "description": "description",
+              "counterpartyType": "counterparty_type",
+              "counterpartyId": "counterparty_id",
+              "owner": "owner_id",
+              "status": "status",
+              "value": "value",
+              "currency": "currency",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "autoRenew": "auto_renew",
+              "renewalMonths": "renewal_months",
+              "noticeDays": "notice_days",
+              "renewedCount": "renewed_count",
+              "signatureRequest": "signature_request_id",
+              "signedAt": "signed_at",
+              "terminatedAt": "terminated_at",
+              "terminationReason": "termination_reason",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "obligations": {
+            "name": "contract_obligations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "contract": "contract_id",
+              "title": "title",
+              "description": "description",
+              "dueOn": "due_on",
+              "owner": "owner_id",
+              "status": "status",
+              "completedAt": "completed_at",
+              "completedBy": "completed_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "contracts.read",
+          "write": "contracts.write",
+          "manage": "contracts.manage"
+        }
+      }
+    },
+    {
+      "name": "controls",
+      "title": "Compliance controls",
+      "category": "admin",
+      "requires": [
+        "tenant",
+        "access",
+        "versions"
+      ],
+      "integrates": [
+        "attachments",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "controls",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "controls",
+      "entities": {
+        "specs": {
+          "control": {
+            "table": "controls",
+            "singular": "control",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "control_framework": {
+            "table": "frameworks",
+            "singular": "control_framework"
+          },
+          "evidence_task": {
+            "table": "tasks",
+            "singular": "evidence_task"
+          },
+          "policy": {
+            "table": "policies",
+            "singular": "policy",
+            "plural": "policies",
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          }
+        },
+        "tables": {
+          "controls": {
+            "name": "controls",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "framework": "framework_id",
+              "code": "code",
+              "title": "title",
+              "description": "description",
+              "owner": "owner_id",
+              "applicable": "applicable",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "frameworks": {
+            "name": "control_frameworks",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "version": "version",
+              "description": "description",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "tasks": {
+            "name": "evidence_tasks",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "control": "control_id",
+              "title": "title",
+              "assignee": "assignee_id",
+              "intervalDays": "interval_days",
+              "dueOn": "due_on",
+              "lastCollectedAt": "last_collected_at",
+              "notifiedFor": "notified_for",
+              "active": "active",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "policies": {
+            "name": "policies",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "title": "title",
+              "owner": "owner_id",
+              "requiresAck": "requires_acknowledgement",
+              "currentVersion": "current_version_id",
+              "versionNumber": "version_number",
+              "publishedAt": "published_at",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "controls.read",
+          "manage": "controls.manage",
+          "collect": "controls.collect",
+          "acknowledge": "controls.acknowledge"
+        }
+      }
+    },
+    {
+      "name": "incidents",
+      "title": "Incidents",
+      "category": "developer",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "incidents",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "incidents",
+      "entities": {
+        "specs": {
+          "incident": {
+            "table": "incidents",
+            "singular": "incident",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "status_component": {
+            "table": "components",
+            "singular": "status_component"
+          },
+          "postmortem": {
+            "table": "postmortems",
+            "singular": "postmortem"
+          },
+          "status_page": {
+            "table": "pages",
+            "singular": "status_page"
+          }
+        },
+        "tables": {
+          "incidents": {
+            "name": "incidents",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "description": "description",
+              "severity": "severity",
+              "status": "status",
+              "public": "public",
+              "commander": "commander_id",
+              "startedAt": "started_at",
+              "resolvedAt": "resolved_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "components": {
+            "name": "status_components",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "description": "description",
+              "group": "group_name",
+              "public": "public",
+              "status": "status",
+              "position": "position",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "postmortems": {
+            "name": "incident_postmortems",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "incident": "incident_id",
+              "summary": "summary",
+              "impact": "impact",
+              "rootCause": "root_cause",
+              "resolution": "resolution",
+              "actionItems": "action_items",
+              "status": "status",
+              "publishedAt": "published_at",
+              "author": "author_id",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "pages": {
+            "name": "status_pages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "slug": "slug",
+              "title": "title",
+              "description": "description",
+              "published": "published",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "incidents.read",
+          "write": "incidents.write",
+          "manage": "incidents.manage"
+        }
+      }
+    },
+    {
+      "name": "courses",
+      "title": "Courses",
+      "category": "content",
+      "requires": [
+        "tenant",
+        "access",
+        "enrollments"
+      ],
+      "integrates": [
+        "forms",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "courses",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "courses",
+      "entities": {
+        "specs": {
+          "course": {
+            "table": "courses",
+            "singular": "course",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "summary"
+                ]
+              }
+            }
+          },
+          "course_module": {
+            "table": "modules",
+            "singular": "course_module"
+          },
+          "course_lesson": {
+            "table": "lessons",
+            "singular": "course_lesson"
+          },
+          "course_certificate": {
+            "table": "certificates",
+            "singular": "course_certificate"
+          }
+        },
+        "tables": {
+          "courses": {
+            "name": "courses",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "title": "title",
+              "summary": "summary",
+              "status": "status",
+              "certificate": "issues_certificate",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "modules": {
+            "name": "course_modules",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "course": "course_id",
+              "title": "title",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "lessons": {
+            "name": "course_lessons",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "course": "course_id",
+              "module": "module_id",
+              "title": "title",
+              "kind": "kind",
+              "body": "body",
+              "mediaUrl": "media_url",
+              "form": "form_id",
+              "required": "required",
+              "minutes": "duration_minutes",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "certificates": {
+            "name": "course_certificates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "course": "course_id",
+              "enrollment": "enrollment_id",
+              "user": "user_id",
+              "code": "code",
+              "issuedAt": "issued_at",
+              "revokedAt": "revoked_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "courses.read",
+          "enroll": "courses.enroll",
+          "manage": "courses.manage"
+        }
+      }
+    },
+    {
+      "name": "messaging",
+      "title": "Messaging",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects"
+      ],
+      "integrates": [
+        "notifications",
+        "jobs",
+        "profiles",
+        "attachments",
+        "reactions",
+        "data-lifecycle",
+        "inbox",
+        "moderation"
+      ],
+      "manifest": "messaging",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "messages",
+      "entities": {
+        "specs": {
+          "message": {
+            "table": "messages",
+            "singular": "message",
+            "primary": true,
+            "subject": {
+              "title": "body",
+              "deletedAt": "deletedAt",
+              "permissions": {
+                "read": "read",
+                "write": "send",
+                "upload": "send"
+              },
+              "search": {
+                "title": "body",
+                "body": []
+              }
+            }
+          },
+          "conversation": {
+            "table": "conversations",
+            "singular": "conversation",
+            "subject": {
+              "title": "title",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "send",
+                "upload": "send"
+              }
+            }
+          }
+        },
+        "tables": {
+          "messages": {
+            "name": "messages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "conversation": "conversation_id",
+              "parent": "parent_id",
+              "thread": "thread_id",
+              "author": "author_id",
+              "kind": "kind",
+              "body": "body",
+              "document": "document",
+              "anchor": "anchor",
+              "mentions": "mentions",
+              "mentionScope": "mention_scope",
+              "broadcast": "broadcast",
+              "replyCount": "reply_count",
+              "lastReplyAt": "last_reply_at",
+              "replyUsers": "reply_user_ids",
+              "pinnedAt": "pinned_at",
+              "pinnedBy": "pinned_by",
+              "resolvedAt": "resolved_at",
+              "resolvedBy": "resolved_by",
+              "scheduledFor": "scheduled_for",
+              "sentAt": "sent_at",
+              "editedAt": "edited_at",
+              "deletedAt": "deleted_at",
+              "createdAt": "created_at"
+            }
+          },
+          "conversations": {
+            "name": "conversations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind",
+              "access": "access",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "title": "title",
+              "memberKey": "member_key",
+              "createdBy": "created_by",
+              "lastMessageAt": "last_message_at",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "messages.read",
+          "send": "messages.send",
+          "moderate": "messages.moderate"
+        }
+      }
+    },
+    {
+      "name": "channels",
+      "title": "Channels",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "messaging"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "data-lifecycle"
+      ],
+      "manifest": "channels",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "channel": {
+            "table": "channels",
+            "singular": "channel",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": [
+                  "topic",
+                  "purpose"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "channels": {
+            "name": "channels",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "visibility": "visibility",
+              "topic": "topic",
+              "purpose": "purpose",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "messages.read",
+          "create": "channels.create",
+          "manage": "channels.manage"
+        }
+      }
+    },
+    {
+      "name": "activity",
+      "title": "Activity feed",
+      "category": "collaboration",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "notifications",
+        "subjects",
+        "audit",
+        "workflows"
+      ],
+      "manifest": "activity",
+      "scopes": [
+        "tenant",
+        "user",
+        "none"
+      ]
+    },
+    {
+      "name": "mail-sync",
+      "title": "Mail sync",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "parties",
+        "engagements",
+        "data-lifecycle"
+      ],
+      "manifest": "mail-sync",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "mail_thread": {
+            "table": "threads",
+            "singular": "mail_thread",
+            "primary": true
+          },
+          "mail_account": {
+            "table": "accounts",
+            "singular": "mail_account"
+          },
+          "mail_message": {
+            "table": "messages",
+            "singular": "mail_message"
+          }
+        },
+        "tables": {
+          "threads": {
+            "name": "mail_threads",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "externalId": "external_id",
+              "subject": "subject",
+              "snippet": "snippet",
+              "lastMessageAt": "last_message_at",
+              "messageCount": "message_count",
+              "engagement": "engagement_id",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "accounts": {
+            "name": "mail_accounts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "provider": "provider",
+              "address": "address",
+              "credentialRef": "credential_ref",
+              "share": "share",
+              "status": "status",
+              "cursor": "sync_cursor",
+              "lastSyncedAt": "last_synced_at",
+              "lastError": "last_error",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "messages": {
+            "name": "mail_messages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "account": "account_id",
+              "thread": "thread_id",
+              "externalId": "external_id",
+              "rfcId": "rfc_message_id",
+              "direction": "direction",
+              "fromAddress": "from_address",
+              "fromName": "from_name",
+              "to": "to_addresses",
+              "cc": "cc_addresses",
+              "subject": "subject",
+              "snippet": "snippet",
+              "bodyText": "body_text",
+              "bodyHtml": "body_html",
+              "sentAt": "sent_at",
+              "templateVersion": "template_version_id",
+              "trackingHash": "tracking_hash",
+              "openedAt": "opened_at",
+              "openCount": "open_count",
+              "clickedAt": "clicked_at",
+              "clickCount": "click_count",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "mail.read",
+          "connect": "mail.connect",
+          "send": "mail.send",
+          "manage": "mail.manage"
+        }
+      }
+    },
+    {
+      "name": "segments",
+      "title": "Segments",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "rules"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "data-lifecycle"
+      ],
+      "manifest": "segments",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "segment": {
+            "table": "segments",
+            "singular": "segment",
+            "primary": true
+          }
+        },
+        "tables": {
+          "segments": {
+            "name": "segments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "description": "description",
+              "subjectType": "subject_type",
+              "conditions": "conditions",
+              "memberCount": "member_count",
+              "refreshedAt": "refreshed_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "segments.read",
+          "edit": "segments.edit"
+        }
+      }
+    },
+    {
+      "name": "assignment",
+      "title": "Assignment",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "rules"
+      ],
+      "integrates": [
+        "outbox",
+        "data-lifecycle"
+      ],
+      "manifest": "assignment",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "assignment_queue": {
+            "table": "queues",
+            "singular": "assignment_queue",
+            "primary": true
+          }
+        },
+        "tables": {
+          "queues": {
+            "name": "assignment_queues",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "subjectType": "subject_type",
+              "strategy": "strategy",
+              "conditions": "conditions",
+              "rank": "rank",
+              "enabled": "enabled",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "assignment.read",
+          "manage": "assignment.manage",
+          "assign": "assignment.assign"
+        }
+      }
+    },
+    {
+      "name": "enrichment",
+      "title": "Enrichment",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "parties"
+      ],
+      "integrates": [
+        "outbox",
+        "data-lifecycle"
+      ],
+      "manifest": "enrichment",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "enrichment": {
+            "table": "enrichments",
+            "singular": "enrichment",
+            "primary": true
+          }
+        },
+        "tables": {
+          "enrichments": {
+            "name": "enrichments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "company": "company_id",
+              "person": "person_id",
+              "provider": "provider",
+              "status": "status",
+              "data": "data",
+              "filled": "filled",
+              "fetchedAt": "fetched_at",
+              "requestedBy": "requested_by"
+            }
+          }
+        },
+        "keys": {
+          "read": "enrichment.read",
+          "run": "enrichment.run"
+        }
+      }
+    },
+    {
+      "name": "forecasts",
+      "title": "Forecasts",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "deals"
+      ],
+      "integrates": [
+        "outbox",
+        "data-lifecycle"
+      ],
+      "manifest": "forecasts",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "snapshot": {
+            "table": "snapshots",
+            "singular": "forecast_snapshot",
+            "primary": true
+          }
+        },
+        "tables": {
+          "snapshots": {
+            "name": "forecast_snapshots",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "pipeline": "pipeline_id",
+              "since": "period_start",
+              "until": "period_end",
+              "currency": "currency",
+              "target": "target",
+              "totals": "totals",
+              "dealCount": "deal_count",
+              "takenBy": "taken_by",
+              "takenAt": "taken_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "forecasts.read",
+          "snapshot": "forecasts.snapshot"
+        }
+      }
+    },
+    {
+      "name": "field-history",
+      "title": "Field history",
+      "category": "database",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects"
+      ],
+      "integrates": [
+        "data-lifecycle"
+      ],
+      "manifest": "field-history",
+      "scopes": [
+        "tenant"
       ]
     },
     {
@@ -2801,6 +4964,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "AttachmentFileInput"
+        },
+        {
+          "name": "AttachmentImages"
+        },
+        {
+          "name": "AttachmentImageUrlOptions"
+        },
+        {
+          "name": "AttachmentReplacement"
+        },
+        {
           "name": "Attachments",
           "fields": true
         },
@@ -2814,7 +4989,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AttachmentScannerOptions"
         },
         {
+          "name": "AttachmentScanState"
+        },
+        {
+          "name": "AttachmentSend"
+        },
+        {
           "name": "AttachmentsEvents"
+        },
+        {
+          "name": "AttachmentsOptimisticAction"
         },
         {
           "name": "AttachmentsOptions"
@@ -2826,8 +5010,35 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AttachmentStorage"
         },
         {
+          "name": "AttachmentsWrites"
+        },
+        {
           "name": "AttachmentUpload",
           "fields": true
+        },
+        {
+          "name": "AttachmentUploadActions"
+        },
+        {
+          "name": "AttachmentUploadController"
+        },
+        {
+          "name": "AttachmentUploadControllerOptions"
+        },
+        {
+          "name": "AttachmentUploadItem"
+        },
+        {
+          "name": "AttachmentUploadSnapshot"
+        },
+        {
+          "name": "AttachmentUploadStatus"
+        },
+        {
+          "name": "AttachmentUploadTicket"
+        },
+        {
+          "name": "AttachmentVersion"
         },
         {
           "name": "NewAttachment"
@@ -2854,6 +5065,21 @@ export const PRESET_CATALOG: PresetCatalog = {
               "metadata": {
                 "kind": "json",
                 "optional": true
+              },
+              "width": {
+                "kind": "integer",
+                "minimum": 1,
+                "optional": true
+              },
+              "height": {
+                "kind": "integer",
+                "minimum": 1,
+                "optional": true
+              },
+              "pages": {
+                "kind": "integer",
+                "minimum": 1,
+                "optional": true
               }
             },
             "jsonSchema": {
@@ -2874,7 +5100,19 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "integer",
                   "minimum": 0
                 },
-                "metadata": {}
+                "metadata": {},
+                "width": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "pages": {
+                  "type": "integer",
+                  "minimum": 1
+                }
               },
               "required": [
                 "name",
@@ -2886,12 +5124,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
+      "sections": {
+        "attachments": [
+          "remove"
+        ]
+      },
       "events": {
         "type": "AttachmentsEvents",
         "types": [
           "object.uploaded",
           "attachment.uploaded",
-          "attachment.scanned"
+          "attachment.scanned",
+          "attachment.replaced",
+          "attachment.restored"
         ]
       }
     },
@@ -2957,7 +5202,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "booking.reserved",
           "booking.confirmed",
           "booking.cancelled",
-          "booking.expired"
+          "booking.expired",
+          "booking.rescheduled"
         ]
       }
     },
@@ -3016,6 +5262,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarEventInput"
         },
         {
+          "name": "CalendarEventKind"
+        },
+        {
           "name": "CalendarEvents"
         },
         {
@@ -3035,6 +5284,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CalendarSnapshot"
+        },
+        {
+          "name": "CalendarTransparency"
         },
         {
           "name": "EventCalendarEvent"
@@ -3121,6 +5373,29 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "event",
+                  "out_of_office",
+                  "focus_time"
+                ],
+                "optional": true
+              },
+              "transparency": {
+                "kind": "enum",
+                "values": [
+                  "opaque",
+                  "transparent"
+                ],
+                "optional": true,
+                "description": "`transparent` events don't make anyone busy."
+              },
+              "autoDecline": {
+                "kind": "boolean",
+                "optional": true,
+                "description": "On an out-of-office or focus-time block: decline the invitations it covers."
+              },
               "uid": {
                 "kind": "string",
                 "optional": true,
@@ -3202,6 +5477,26 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "string",
                     "null"
                   ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "event",
+                    "out_of_office",
+                    "focus_time"
+                  ]
+                },
+                "transparency": {
+                  "type": "string",
+                  "enum": [
+                    "opaque",
+                    "transparent"
+                  ],
+                  "description": "`transparent` events don't make anyone busy."
+                },
+                "autoDecline": {
+                  "type": "boolean",
+                  "description": "On an out-of-office or focus-time block: decline the invitations it covers."
                 },
                 "uid": {
                   "type": "string",
@@ -3281,6 +5576,29 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "event",
+                  "out_of_office",
+                  "focus_time"
+                ],
+                "optional": true
+              },
+              "transparency": {
+                "kind": "enum",
+                "values": [
+                  "opaque",
+                  "transparent"
+                ],
+                "optional": true,
+                "description": "`transparent` events don't make anyone busy."
+              },
+              "autoDecline": {
+                "kind": "boolean",
+                "optional": true,
+                "description": "On an out-of-office or focus-time block: decline the invitations it covers."
+              },
               "uid": {
                 "kind": "string",
                 "optional": true,
@@ -3362,6 +5680,26 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "string",
                     "null"
                   ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "event",
+                    "out_of_office",
+                    "focus_time"
+                  ]
+                },
+                "transparency": {
+                  "type": "string",
+                  "enum": [
+                    "opaque",
+                    "transparent"
+                  ],
+                  "description": "`transparent` events don't make anyone busy."
+                },
+                "autoDecline": {
+                  "type": "boolean",
+                  "description": "On an out-of-office or focus-time block: decline the invitations it covers."
                 },
                 "uid": {
                   "type": "string",
@@ -3500,7 +5838,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "collectionsBlock",
         "subpath": "better-supabase/blocks/collections"
       },
-      "consumes": {},
+      "consumes": {
+        "notifier": "optional"
+      },
       "provides": [],
       "events": {
         "type": "CollectionsEvents",
@@ -3508,7 +5848,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "collection.created",
           "collection.archived",
           "collection.entry_added",
-          "collection.entry_removed"
+          "collection.entry_removed",
+          "saved_item.reminded"
         ]
       }
     },
@@ -3524,173 +5865,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
-      "entityTypes": [
-        {
-          "name": "Comment",
-          "fields": true
-        },
-        {
-          "name": "CommentDraft"
-        },
-        {
-          "name": "CommentEdit",
-          "fields": true
-        },
-        {
-          "name": "Comments",
-          "fields": true
-        },
-        {
-          "name": "CommentsActions"
-        },
-        {
-          "name": "CommentsController"
-        },
-        {
-          "name": "CommentsControllerOptions"
-        },
-        {
-          "name": "CommentsEvents"
-        },
-        {
-          "name": "CommentsOptions"
-        },
-        {
-          "name": "CommentsSnapshot"
-        },
-        {
-          "name": "CommentSubject"
-        },
-        {
-          "name": "ListCommentsOptions"
-        },
-        {
-          "name": "NewComment",
-          "fields": true
-        }
-      ],
-      "entitySchemas": {
-        "comment": {
-          "input": {
-            "title": "NewComment",
-            "fields": {
-              "body": {
-                "kind": "string",
-                "minLength": 1
-              },
-              "document": {
-                "kind": "unknown",
-                "optional": true,
-                "description": "A rich-text document (any JSON)."
-              },
-              "mentions": {
-                "kind": "uuid",
-                "optional": true,
-                "array": true
-              },
-              "parentId": {
-                "kind": "uuid",
-                "optional": true
-              },
-              "fields": {
-                "kind": "json",
-                "optional": true,
-                "description": "The extra columns to set, keyed by database name."
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "NewComment",
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "document": {
-                  "description": "A rich-text document (any JSON)."
-                },
-                "mentions": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "parentId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "fields": {
-                  "description": "The extra columns to set, keyed by database name."
-                }
-              },
-              "required": [
-                "body"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "change": {
-            "title": "CommentEdit",
-            "fields": {
-              "body": {
-                "kind": "string",
-                "minLength": 1
-              },
-              "document": {
-                "kind": "unknown",
-                "optional": true,
-                "description": "`null` removes the document."
-              },
-              "mentions": {
-                "kind": "uuid",
-                "optional": true,
-                "array": true
-              },
-              "fields": {
-                "kind": "json",
-                "optional": true,
-                "description": "The extra columns to set, keyed by database name."
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "CommentEdit",
-              "type": "object",
-              "properties": {
-                "body": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "document": {
-                  "description": "`null` removes the document."
-                },
-                "mentions": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "uuid"
-                  }
-                },
-                "fields": {
-                  "description": "The extra columns to set, keyed by database name."
-                }
-              },
-              "required": [
-                "body"
-              ],
-              "additionalProperties": false
-            }
-          }
-        }
-      },
-      "events": {
-        "type": "CommentsEvents",
-        "types": [
-          "comment.created",
-          "comment.mentioned",
-          "comment.deleted"
+      "sections": {
+        "comments": [
+          "add",
+          "remove"
         ]
       }
     },
@@ -4183,6 +6361,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "DocumentState"
         },
         {
+          "name": "DocumentSuggestion"
+        },
+        {
+          "name": "DocumentSuggestionStatus"
+        },
+        {
           "name": "DocumentUpdate"
         },
         {
@@ -4195,7 +6379,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "DocumentsEvents",
         "types": [
-          "document.created"
+          "document.created",
+          "document.suggested",
+          "document.suggestion_accepted",
+          "document.suggestion_rejected"
         ]
       }
     },
@@ -4263,6 +6450,4005 @@ export const PRESET_CATALOG: PresetCatalog = {
           "leave.approved",
           "leave.cancelled",
           "leave.adjusted"
+        ]
+      }
+    },
+    {
+      "name": "ledger",
+      "sql": [
+        "ledger"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "ledgerBlock",
+        "subpath": "better-supabase/blocks/ledger"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "LedgerAccount"
+        },
+        {
+          "name": "LedgerAccountEntry"
+        },
+        {
+          "name": "LedgerAccountEventData"
+        },
+        {
+          "name": "LedgerAccountInput"
+        },
+        {
+          "name": "LedgerAccountListOptions"
+        },
+        {
+          "name": "LedgerHold"
+        },
+        {
+          "name": "LedgerHoldEventData"
+        },
+        {
+          "name": "LedgerHoldInput"
+        },
+        {
+          "name": "LedgerHoldStatus"
+        },
+        {
+          "name": "LedgerTransaction"
+        },
+        {
+          "name": "LedgerTransactionEventData"
+        },
+        {
+          "name": "LedgerTransactionInput"
+        }
+      ],
+      "sections": {
+        "ledger": []
+      },
+      "events": {
+        "type": "LedgerEvents",
+        "types": [
+          "ledger_account.opened",
+          "ledger_account.closed",
+          "ledger_transaction.posted",
+          "ledger_transaction.reversed",
+          "ledger_hold.placed",
+          "ledger_hold.captured",
+          "ledger_hold.released"
+        ]
+      }
+    },
+    {
+      "name": "assets",
+      "sql": [
+        "assets"
+      ],
+      "category": "work",
+      "client": {
+        "export": "assetsBlock",
+        "subpath": "better-supabase/blocks/assets"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Asset"
+        },
+        {
+          "name": "AssetAssignee"
+        },
+        {
+          "name": "AssetAssignment"
+        },
+        {
+          "name": "AssetDetail"
+        },
+        {
+          "name": "AssetEventData"
+        },
+        {
+          "name": "AssetInput"
+        },
+        {
+          "name": "AssetLinks"
+        },
+        {
+          "name": "AssetLinkTarget"
+        },
+        {
+          "name": "AssetListOptions"
+        },
+        {
+          "name": "AssetLocation"
+        },
+        {
+          "name": "AssetLocationDetail"
+        },
+        {
+          "name": "AssetLocationEventData"
+        },
+        {
+          "name": "AssetLocationInput"
+        },
+        {
+          "name": "AssetLocationPatch"
+        },
+        {
+          "name": "AssetLocationStep"
+        },
+        {
+          "name": "AssetPatch"
+        },
+        {
+          "name": "Assets"
+        },
+        {
+          "name": "AssetsEvents"
+        },
+        {
+          "name": "AssetsNear"
+        },
+        {
+          "name": "AssetsNearOptions"
+        },
+        {
+          "name": "AssetsOptions"
+        },
+        {
+          "name": "AssetsSqlOptions"
+        },
+        {
+          "name": "AssetStatus"
+        }
+      ],
+      "sections": {
+        "assets": []
+      },
+      "events": {
+        "type": "AssetsEvents",
+        "types": [
+          "asset_location.created",
+          "asset_location.updated",
+          "asset_location.archived",
+          "asset.created",
+          "asset.updated",
+          "asset.assigned",
+          "asset.released"
+        ]
+      }
+    },
+    {
+      "name": "scores",
+      "sql": [
+        "scores"
+      ],
+      "category": "growth",
+      "client": {
+        "export": "scoresBlock",
+        "subpath": "better-supabase/blocks/scores"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ScoreModel"
+        },
+        {
+          "name": "ScoreModelDetail"
+        },
+        {
+          "name": "ScoreModelEventData"
+        },
+        {
+          "name": "ScoreModelInput"
+        },
+        {
+          "name": "ScoreModelVersion"
+        }
+      ],
+      "sections": {
+        "scores": []
+      },
+      "events": {
+        "type": "ScoresEvents",
+        "types": [
+          "score_model.saved",
+          "score_model.deleted",
+          "score.changed"
+        ]
+      }
+    },
+    {
+      "name": "moderation",
+      "sql": [
+        "moderation"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "moderationBlock",
+        "subpath": "better-supabase/blocks/moderation"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ModerationItem"
+        },
+        {
+          "name": "ModerationItemDetail"
+        }
+      ],
+      "sections": {
+        "moderation": []
+      },
+      "events": {
+        "type": "ModerationEvents",
+        "types": [
+          "moderation_report.created",
+          "moderation_item.decided",
+          "moderation_ban.created",
+          "moderation_ban.lifted"
+        ]
+      }
+    },
+    {
+      "name": "enrollments",
+      "sql": [
+        "enrollments"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "enrollmentsBlock",
+        "subpath": "better-supabase/blocks/enrollments"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Enrollment"
+        },
+        {
+          "name": "EnrollmentEventData"
+        },
+        {
+          "name": "EnrollmentProgram"
+        },
+        {
+          "name": "EnrollmentProgramEventData"
+        },
+        {
+          "name": "EnrollmentProgramInput"
+        },
+        {
+          "name": "EnrollmentProgress"
+        },
+        {
+          "name": "Enrollments"
+        },
+        {
+          "name": "EnrollmentsEvents"
+        },
+        {
+          "name": "EnrollmentsFilter"
+        },
+        {
+          "name": "EnrollmentsOptions"
+        },
+        {
+          "name": "EnrollmentsSqlOptions"
+        },
+        {
+          "name": "EnrollmentStatus"
+        },
+        {
+          "name": "EnrollmentStep"
+        }
+      ],
+      "sections": {
+        "enrollments": []
+      },
+      "events": {
+        "type": "EnrollmentsEvents",
+        "types": [
+          "enrollment_program.saved",
+          "enrollment_program.deleted",
+          "enrollment.created",
+          "enrollment.step_completed",
+          "enrollment.completed",
+          "enrollment.cancelled"
+        ]
+      }
+    },
+    {
+      "name": "guests",
+      "sql": [
+        "guests"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "guestsBlock",
+        "subpath": "better-supabase/blocks/guests"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Guest"
+        },
+        {
+          "name": "GuestAcceptedEventData"
+        },
+        {
+          "name": "GuestAction"
+        },
+        {
+          "name": "GuestGrant"
+        },
+        {
+          "name": "GuestGrantEventData"
+        },
+        {
+          "name": "GuestGrantInput"
+        },
+        {
+          "name": "GuestInvite"
+        },
+        {
+          "name": "GuestInvitedEventData"
+        },
+        {
+          "name": "GuestInviteInput"
+        },
+        {
+          "name": "GuestListOptions"
+        },
+        {
+          "name": "GuestMembership"
+        },
+        {
+          "name": "GuestRevokedEventData"
+        },
+        {
+          "name": "Guests"
+        },
+        {
+          "name": "GuestSectionGrantInput"
+        },
+        {
+          "name": "GuestsEvents"
+        },
+        {
+          "name": "GuestsOptions"
+        },
+        {
+          "name": "GuestStatus"
+        },
+        {
+          "name": "GuestsWrites"
+        },
+        {
+          "name": "RecordGuestGrant"
+        }
+      ],
+      "entitySchemas": {
+        "guest": {
+          "input": {
+            "title": "GuestInviteInput",
+            "fields": {
+              "email": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "party": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the guest acts for: `{ type, id }`."
+              },
+              "expiresAt": {
+                "kind": "instant",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "GuestInviteInput",
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "party": {
+                  "description": "The record the guest acts for: `{ type, id }`."
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "email"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "guest_grant": {
+          "input": {
+            "title": "GuestGrantInput",
+            "fields": {
+              "actions": {
+                "kind": "enum",
+                "values": [
+                  "read",
+                  "comment",
+                  "upload"
+                ],
+                "optional": true,
+                "array": true,
+                "description": "`read` is always added."
+              },
+              "expiresAt": {
+                "kind": "instant",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "GuestGrantInput",
+              "type": "object",
+              "properties": {
+                "actions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "read",
+                      "comment",
+                      "upload"
+                    ]
+                  },
+                  "description": "`read` is always added."
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "guests": [
+          "grant",
+          "revoke"
+        ]
+      },
+      "events": {
+        "type": "GuestsEvents",
+        "types": [
+          "guest.invited",
+          "guest.accepted",
+          "guest.revoked",
+          "guest_grant.created",
+          "guest_grant.revoked"
+        ]
+      }
+    },
+    {
+      "name": "passes",
+      "sql": [
+        "passes"
+      ],
+      "category": "scheduling",
+      "client": {
+        "export": "passesBlock",
+        "subpath": "better-supabase/blocks/passes"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "IssuedPass"
+        },
+        {
+          "name": "Pass"
+        },
+        {
+          "name": "PassAdmittedEventData"
+        },
+        {
+          "name": "PassCheckIn"
+        },
+        {
+          "name": "PassCheckInListOptions"
+        },
+        {
+          "name": "PassCheckInOptions"
+        },
+        {
+          "name": "PassCreditBooking"
+        },
+        {
+          "name": "PassCreditBookingInput"
+        },
+        {
+          "name": "PassCreditEntry"
+        },
+        {
+          "name": "PassCreditEventData"
+        },
+        {
+          "name": "Passes"
+        },
+        {
+          "name": "PassesEvents"
+        },
+        {
+          "name": "PassesOptions"
+        },
+        {
+          "name": "PassesSqlOptions"
+        },
+        {
+          "name": "PassesWrites"
+        },
+        {
+          "name": "PassInput"
+        },
+        {
+          "name": "PassIssuedEventData"
+        },
+        {
+          "name": "PassListOptions"
+        },
+        {
+          "name": "PassManualCheckInOptions"
+        },
+        {
+          "name": "PassMethod"
+        },
+        {
+          "name": "PassOccupancy"
+        },
+        {
+          "name": "PassRejectedEventData"
+        },
+        {
+          "name": "PassRejection"
+        },
+        {
+          "name": "PassRevokedEventData"
+        },
+        {
+          "name": "PassScan"
+        },
+        {
+          "name": "PassSectionInput"
+        },
+        {
+          "name": "PassStatus"
+        },
+        {
+          "name": "PassTokenClaims"
+        }
+      ],
+      "entitySchemas": {
+        "pass": {
+          "input": {
+            "title": "PassInput",
+            "fields": {
+              "kind": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "holderUserId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "holderName": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "holderEmail": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the pass is for: `{ type, id }`."
+              },
+              "bookingId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "resourceId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "usesAllowed": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "validFrom": {
+                "kind": "instant",
+                "optional": true
+              },
+              "validUntil": {
+                "kind": "instant",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PassInput",
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "holderUserId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "holderName": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "holderEmail": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "subject": {
+                  "description": "The record the pass is for: `{ type, id }`."
+                },
+                "bookingId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "resourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "usesAllowed": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000
+                },
+                "validFrom": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "validUntil": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "passes": [
+          "issue",
+          "revoke"
+        ]
+      },
+      "events": {
+        "type": "PassesEvents",
+        "types": [
+          "pass.issued",
+          "pass.revoked",
+          "pass.admitted",
+          "pass.rejected",
+          "pass.credit_used",
+          "pass.credit_refunded"
+        ]
+      }
+    },
+    {
+      "name": "billable-time",
+      "sql": [
+        "billable-time"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "billableTimeBlock",
+        "subpath": "better-supabase/blocks/billable-time"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "TimeRate"
+        },
+        {
+          "name": "TimeRateInput"
+        },
+        {
+          "name": "TimeRateListOptions"
+        },
+        {
+          "name": "TimeRateLookup"
+        },
+        {
+          "name": "TimeRateSectionInput"
+        }
+      ],
+      "entitySchemas": {
+        "time_rate": {
+          "input": {
+            "title": "TimeRateInput",
+            "fields": {
+              "rate": {
+                "kind": "custom"
+              },
+              "userId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the rate applies to: `{ type, id }`."
+              },
+              "effectiveFrom": {
+                "kind": "plainDate",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "TimeRateInput",
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "userId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subject": {
+                  "description": "The record the rate applies to: `{ type, id }`."
+                },
+                "effectiveFrom": {
+                  "type": "string",
+                  "format": "date"
+                }
+              },
+              "required": [
+                "rate"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "billableTime": [
+          "setRate",
+          "invoice"
+        ]
+      },
+      "events": {
+        "type": "BillableTimeEvents",
+        "types": [
+          "time.invoiced"
+        ]
+      }
+    },
+    {
+      "name": "leases",
+      "sql": [
+        "leases"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "leasesBlock",
+        "subpath": "better-supabase/blocks/leases"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Lease",
+          "fields": true
+        },
+        {
+          "name": "LeaseCharge"
+        },
+        {
+          "name": "LeaseChargedEventData"
+        },
+        {
+          "name": "LeaseEventData"
+        },
+        {
+          "name": "LeaseInput",
+          "fields": true
+        },
+        {
+          "name": "LeaseListOptions"
+        },
+        {
+          "name": "LeasePaidEventData"
+        },
+        {
+          "name": "LeaseRenewal"
+        },
+        {
+          "name": "Leases",
+          "fields": true
+        },
+        {
+          "name": "LeasesEvents"
+        },
+        {
+          "name": "LeasesOptions"
+        },
+        {
+          "name": "LeaseStatus"
+        },
+        {
+          "name": "LeaseTermination"
+        },
+        {
+          "name": "MaintenanceRequest"
+        },
+        {
+          "name": "MaintenanceRequestEventData"
+        },
+        {
+          "name": "MaintenanceRequestInput"
+        }
+      ],
+      "entitySchemas": {
+        "lease": {
+          "input": {
+            "title": "LeaseInput",
+            "fields": {
+              "unitId": {
+                "kind": "uuid",
+                "description": "The asset let."
+              },
+              "party": {
+                "kind": "json",
+                "description": "The party renting the unit: `{ type, id }`."
+              },
+              "startsOn": {
+                "kind": "plainDate"
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "rent": {
+                "kind": "custom"
+              },
+              "frequency": {
+                "kind": "enum",
+                "values": [
+                  "weekly",
+                  "monthly",
+                  "quarterly",
+                  "yearly"
+                ],
+                "optional": true
+              },
+              "deposit": {
+                "kind": "custom",
+                "optional": true
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "metadata": {
+                "kind": "json",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "LeaseInput",
+              "type": "object",
+              "properties": {
+                "unitId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "The asset let."
+                },
+                "party": {
+                  "description": "The party renting the unit: `{ type, id }`."
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "rent": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "frequency": {
+                  "type": "string",
+                  "enum": [
+                    "weekly",
+                    "monthly",
+                    "quarterly",
+                    "yearly"
+                  ]
+                },
+                "deposit": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "metadata": {},
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "unitId",
+                "party",
+                "startsOn",
+                "rent"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "maintenance_request": {
+          "input": {
+            "title": "MaintenanceRequestInput",
+            "fields": {
+              "unitId": {
+                "kind": "uuid"
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 5000
+              },
+              "priority": {
+                "kind": "enum",
+                "values": [
+                  "low",
+                  "normal",
+                  "high",
+                  "urgent"
+                ],
+                "optional": true
+              },
+              "leaseId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MaintenanceRequestInput",
+              "type": "object",
+              "properties": {
+                "unitId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "normal",
+                    "high",
+                    "urgent"
+                  ]
+                },
+                "leaseId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "unitId",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "leases": []
+      },
+      "events": {
+        "type": "LeasesEvents",
+        "types": [
+          "lease.created",
+          "lease.activated",
+          "lease.renewed",
+          "lease.terminated",
+          "lease.charged",
+          "lease.paid",
+          "maintenance_request.filed",
+          "maintenance_request.updated"
+        ]
+      }
+    },
+    {
+      "name": "expenses",
+      "sql": [
+        "expenses"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "expensesBlock",
+        "subpath": "better-supabase/blocks/expenses"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ExpenseCategory"
+        },
+        {
+          "name": "ExpenseCategoryInput"
+        },
+        {
+          "name": "ExpenseLine"
+        },
+        {
+          "name": "ExpenseLineInput"
+        },
+        {
+          "name": "ExpenseLineUpdate"
+        },
+        {
+          "name": "ExpenseReport",
+          "fields": true
+        },
+        {
+          "name": "ExpenseReportEventData"
+        },
+        {
+          "name": "ExpenseReportInput",
+          "fields": true
+        },
+        {
+          "name": "ExpenseReportListOptions"
+        },
+        {
+          "name": "ExpenseReportPostedEventData"
+        },
+        {
+          "name": "ExpenseReportStatus"
+        },
+        {
+          "name": "ExpenseReportSubmittedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "expense_report": {
+          "input": {
+            "title": "ExpenseReportInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "currency": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 3,
+                "description": "A three-letter currency code; every line is in it."
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ExpenseReportInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3,
+                  "description": "A three-letter currency code; every line is in it."
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "title",
+                "currency"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "expense_line": {
+          "input": {
+            "title": "ExpenseLineInput",
+            "fields": {
+              "categoryId": {
+                "kind": "uuid"
+              },
+              "spentOn": {
+                "kind": "plainDate"
+              },
+              "amount": {
+                "kind": "custom"
+              },
+              "description": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "merchant": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ExpenseLineInput",
+              "type": "object",
+              "properties": {
+                "categoryId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "spentOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "amount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "merchant": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "categoryId",
+                "spentOn",
+                "amount",
+                "description"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "expense_category": {
+          "input": {
+            "title": "ExpenseCategoryInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "description": "Lowercase letters, digits and underscores."
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "limit": {
+                "kind": "custom",
+                "optional": true
+              },
+              "receiptOver": {
+                "kind": "custom",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ExpenseCategoryInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "description": "Lowercase letters, digits and underscores."
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "limit": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "receiptOver": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ExpensesEvents",
+        "types": [
+          "expense_report.created",
+          "expense_report.submitted",
+          "expense_report.approved",
+          "expense_report.reimbursed",
+          "expense_report.cancelled"
+        ]
+      }
+    },
+    {
+      "name": "donations",
+      "sql": [
+        "donations"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "donationsBlock",
+        "subpath": "better-supabase/blocks/donations"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "DonationEventData"
+        },
+        {
+          "name": "DonationFund"
+        },
+        {
+          "name": "DonationFundInput"
+        },
+        {
+          "name": "DonationPaymentOutcome",
+          "fields": true
+        },
+        {
+          "name": "DonationReceipt"
+        },
+        {
+          "name": "DonationReceiptEventData"
+        },
+        {
+          "name": "Donations",
+          "fields": true
+        },
+        {
+          "name": "DonationsEvents"
+        },
+        {
+          "name": "DonationsOptions"
+        },
+        {
+          "name": "Pledge"
+        },
+        {
+          "name": "PledgeChargeOutcome",
+          "fields": true
+        },
+        {
+          "name": "PledgeEventData"
+        },
+        {
+          "name": "PledgeFrequency"
+        },
+        {
+          "name": "PledgeInput"
+        },
+        {
+          "name": "PledgeInstallment"
+        },
+        {
+          "name": "PledgeListOptions"
+        },
+        {
+          "name": "PledgeStatus"
+        },
+        {
+          "name": "PledgeUpdate"
+        }
+      ],
+      "entitySchemas": {
+        "donation": {
+          "input": {
+            "title": "GiftInput",
+            "fields": {
+              "donor": {
+                "kind": "json",
+                "description": "The donor, a registered subject: `{ type, id }`."
+              },
+              "amount": {
+                "kind": "custom"
+              },
+              "fundId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "receivedOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "method": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 40
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              },
+              "pledgeId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "periodStart": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "GiftInput",
+              "type": "object",
+              "properties": {
+                "donor": {
+                  "description": "The donor, a registered subject: `{ type, id }`."
+                },
+                "amount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "fundId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "receivedOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "method": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "pledgeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "periodStart": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "fields": {
+                  "description": "The extra columns to set."
+                }
+              },
+              "required": [
+                "donor",
+                "amount"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "pledge": {
+          "input": {
+            "title": "PledgeInput",
+            "fields": {
+              "donor": {
+                "kind": "json",
+                "description": "The donor, a registered subject: `{ type, id }`."
+              },
+              "amount": {
+                "kind": "custom"
+              },
+              "frequency": {
+                "kind": "enum",
+                "values": [
+                  "weekly",
+                  "monthly",
+                  "quarterly",
+                  "yearly"
+                ],
+                "optional": true
+              },
+              "fundId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "provider": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 100
+              },
+              "providerCustomer": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PledgeInput",
+              "type": "object",
+              "properties": {
+                "donor": {
+                  "description": "The donor, a registered subject: `{ type, id }`."
+                },
+                "amount": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "frequency": {
+                  "type": "string",
+                  "enum": [
+                    "weekly",
+                    "monthly",
+                    "quarterly",
+                    "yearly"
+                  ]
+                },
+                "fundId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "provider": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "providerCustomer": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "donor",
+                "amount"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "donation_fund": {
+          "input": {
+            "title": "DonationFundInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "description": "Lowercase letters, digits and underscores."
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "fund",
+                  "campaign"
+                ],
+                "optional": true
+              },
+              "goal": {
+                "kind": "custom",
+                "optional": true
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "DonationFundInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "description": "Lowercase letters, digits and underscores."
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "fund",
+                    "campaign"
+                  ]
+                },
+                "goal": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "giving": []
+      },
+      "events": {
+        "type": "DonationsEvents",
+        "types": [
+          "donation.received",
+          "donation.failed",
+          "donation.refunded",
+          "pledge.created",
+          "pledge.updated",
+          "donation_receipt.issued",
+          "donation_receipt.voided"
+        ]
+      }
+    },
+    {
+      "name": "dispatch",
+      "sql": [
+        "dispatch"
+      ],
+      "category": "work",
+      "client": {
+        "export": "dispatchBlock",
+        "subpath": "better-supabase/blocks/dispatch"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "DispatchRoute"
+        },
+        {
+          "name": "DispatchRoutePlannedEventData"
+        },
+        {
+          "name": "WorkOrder",
+          "fields": true
+        },
+        {
+          "name": "WorkOrderCreatedEventData"
+        },
+        {
+          "name": "WorkOrderInput",
+          "fields": true
+        },
+        {
+          "name": "WorkOrderListOptions"
+        },
+        {
+          "name": "WorkOrderPart"
+        },
+        {
+          "name": "WorkOrderPartInput"
+        },
+        {
+          "name": "WorkOrderPartUsedEventData"
+        },
+        {
+          "name": "WorkOrderPatch",
+          "fields": true
+        },
+        {
+          "name": "WorkOrderPriority"
+        },
+        {
+          "name": "WorkOrderScheduledEventData"
+        },
+        {
+          "name": "WorkOrderSectionInput"
+        },
+        {
+          "name": "WorkOrderSlot"
+        },
+        {
+          "name": "WorkOrderStatus"
+        },
+        {
+          "name": "WorkOrderStatusChangedEventData"
+        },
+        {
+          "name": "WorkOrderTransition"
+        },
+        {
+          "name": "WorkOrderUnscheduledEventData"
+        },
+        {
+          "name": "WorkOrderUpdatedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "work_order": {
+          "input": {
+            "title": "WorkOrderInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "priority": {
+                "kind": "enum",
+                "values": [
+                  "low",
+                  "normal",
+                  "high",
+                  "urgent"
+                ],
+                "optional": true
+              },
+              "locationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "assetId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "bookingId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the job is for: `{ type, id }`."
+              },
+              "address": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "technicianId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "startsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "endsAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkOrderInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "normal",
+                    "high",
+                    "urgent"
+                  ]
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "assetId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "bookingId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subject": {
+                  "description": "The record the job is for: `{ type, id }`."
+                },
+                "address": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "technicianId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "startsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "endsAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "work_order_part": {
+          "input": {
+            "title": "WorkOrderPartInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "quantity": {
+                "kind": "unknown",
+                "description": "A decimal above zero with at most three places."
+              },
+              "unit": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 20
+              },
+              "assetId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "variantId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "locationId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkOrderPartInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "quantity": {
+                  "description": "A decimal above zero with at most three places."
+                },
+                "unit": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20
+                },
+                "assetId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "variantId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "name",
+                "quantity"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "dispatch": [
+          "create",
+          "cancel"
+        ]
+      },
+      "events": {
+        "type": "DispatchEvents",
+        "types": [
+          "work_order.created",
+          "work_order.updated",
+          "work_order.scheduled",
+          "work_order.unscheduled",
+          "work_order.status_changed",
+          "work_order.part_used",
+          "dispatch_route.planned"
+        ]
+      }
+    },
+    {
+      "name": "shipments",
+      "sql": [
+        "shipments"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "shipmentsBlock",
+        "subpath": "better-supabase/blocks/shipments"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Shipment",
+          "fields": true
+        },
+        {
+          "name": "ShipmentAddress"
+        },
+        {
+          "name": "ShipmentCancelledEventData"
+        },
+        {
+          "name": "ShipmentCarrier"
+        },
+        {
+          "name": "ShipmentCreatedEventData"
+        },
+        {
+          "name": "ShipmentInput",
+          "fields": true
+        },
+        {
+          "name": "ShipmentLabel"
+        },
+        {
+          "name": "ShipmentLabelChoice"
+        },
+        {
+          "name": "ShipmentLabeledEventData"
+        },
+        {
+          "name": "ShipmentLabelRequest"
+        },
+        {
+          "name": "ShipmentListOptions"
+        },
+        {
+          "name": "ShipmentPackage"
+        },
+        {
+          "name": "ShipmentParcel"
+        },
+        {
+          "name": "ShipmentRate"
+        },
+        {
+          "name": "ShipmentRateRequest"
+        },
+        {
+          "name": "Shipments",
+          "fields": true
+        },
+        {
+          "name": "ShipmentSectionInput"
+        },
+        {
+          "name": "ShipmentsEvents"
+        },
+        {
+          "name": "ShipmentsOptions"
+        },
+        {
+          "name": "ShipmentsSqlOptions"
+        },
+        {
+          "name": "ShipmentStatus"
+        },
+        {
+          "name": "ShipmentStatusChangedEventData"
+        },
+        {
+          "name": "ShipmentsWrites"
+        }
+      ],
+      "entitySchemas": {
+        "shipment": {
+          "input": {
+            "title": "ShipmentInput",
+            "fields": {
+              "from": {
+                "kind": "json",
+                "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+              },
+              "to": {
+                "kind": "json",
+                "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+              },
+              "packages": {
+                "kind": "json",
+                "array": true,
+                "description": "1 to 50 `{ weightGrams, lengthMm?, widthMm?, heightMm?, reference? }`, in whole grams and millimeters."
+              },
+              "reference": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "fromLocationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record it ships for: `{ type, id }`."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ShipmentInput",
+              "type": "object",
+              "properties": {
+                "from": {
+                  "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+                },
+                "to": {
+                  "description": "`{ line1, city, country, name?, company?, line2?, postalCode?, state?, phone?, email? }`, with a two-letter country."
+                },
+                "packages": {
+                  "type": "array",
+                  "items": {},
+                  "description": "1 to 50 `{ weightGrams, lengthMm?, widthMm?, heightMm?, reference? }`, in whole grams and millimeters."
+                },
+                "reference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "fromLocationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subject": {
+                  "description": "The record it ships for: `{ type, id }`."
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "packages"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "shipment_tracking_event": {
+          "input": {
+            "title": "TrackingEventInput",
+            "fields": {
+              "id": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "label_created",
+                  "in_transit",
+                  "out_for_delivery",
+                  "delivered",
+                  "exception",
+                  "returned"
+                ]
+              },
+              "occurredAt": {
+                "kind": "instant"
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 1000
+              },
+              "location": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "TrackingEventInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "label_created",
+                    "in_transit",
+                    "out_for_delivery",
+                    "delivered",
+                    "exception",
+                    "returned"
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "location": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "id",
+                "status",
+                "occurredAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "shipments": [
+          "create",
+          "cancel"
+        ]
+      },
+      "events": {
+        "type": "ShipmentsEvents",
+        "types": [
+          "shipment.created",
+          "shipment.labeled",
+          "shipment.status_changed",
+          "shipment.cancelled"
+        ]
+      }
+    },
+    {
+      "name": "contracts",
+      "sql": [
+        "contracts"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "contractsBlock",
+        "subpath": "better-supabase/blocks/contracts"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Contract",
+          "fields": true
+        },
+        {
+          "name": "ContractAction"
+        },
+        {
+          "name": "ContractChanges",
+          "fields": true
+        },
+        {
+          "name": "ContractEventData"
+        },
+        {
+          "name": "ContractInput",
+          "fields": true
+        },
+        {
+          "name": "ContractListOptions"
+        },
+        {
+          "name": "ContractObligation"
+        },
+        {
+          "name": "ContractRenewals"
+        },
+        {
+          "name": "ContractRenewedEventData"
+        },
+        {
+          "name": "Contracts",
+          "fields": true
+        },
+        {
+          "name": "ContractsEvents"
+        },
+        {
+          "name": "ContractSignatureInput"
+        },
+        {
+          "name": "ContractsOptions"
+        },
+        {
+          "name": "ContractStatus"
+        },
+        {
+          "name": "ContractStatusChangedEventData"
+        },
+        {
+          "name": "ObligationEventData"
+        },
+        {
+          "name": "ObligationInput"
+        },
+        {
+          "name": "ObligationListOptions"
+        },
+        {
+          "name": "ObligationStatus"
+        }
+      ],
+      "entitySchemas": {
+        "contract": {
+          "input": {
+            "title": "ContractInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "counterparty": {
+                "kind": "json",
+                "optional": true,
+                "description": "The counterparty, a registered subject: `{ type, id }`."
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "value": {
+                "kind": "custom",
+                "optional": true
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "autoRenew": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "renewalMonths": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 120
+              },
+              "noticeDays": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 3650
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ContractInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "counterparty": {
+                  "description": "The counterparty, a registered subject: `{ type, id }`."
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "value": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "autoRenew": {
+                  "type": "boolean"
+                },
+                "renewalMonths": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 120
+                },
+                "noticeDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3650
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "ContractChanges",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "counterparty": {
+                "kind": "json",
+                "optional": true,
+                "description": "The counterparty, a registered subject: `{ type, id }`."
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "value": {
+                "kind": "custom",
+                "optional": true
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "autoRenew": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "renewalMonths": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 120
+              },
+              "noticeDays": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 3650
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ContractChanges",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "counterparty": {
+                  "description": "The counterparty, a registered subject: `{ type, id }`."
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "value": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "autoRenew": {
+                  "type": "boolean"
+                },
+                "renewalMonths": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 120
+                },
+                "noticeDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3650
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "obligation": {
+          "input": {
+            "title": "ObligationInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 4000
+              },
+              "dueOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "obligationId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ObligationInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                "dueOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "obligationId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "contracts": []
+      },
+      "events": {
+        "type": "ContractsEvents",
+        "types": [
+          "contract.created",
+          "contract.updated",
+          "contract.status_changed",
+          "contract.renewed",
+          "obligation.saved",
+          "obligation.status_changed"
+        ]
+      }
+    },
+    {
+      "name": "controls",
+      "sql": [
+        "controls"
+      ],
+      "category": "admin",
+      "client": {
+        "export": "controlsBlock",
+        "subpath": "better-supabase/blocks/controls"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Control",
+          "fields": true
+        },
+        {
+          "name": "ControlDetail",
+          "fields": true
+        },
+        {
+          "name": "ControlEvidence"
+        },
+        {
+          "name": "ControlEvidenceAddedEventData"
+        },
+        {
+          "name": "ControlEvidenceInput"
+        },
+        {
+          "name": "ControlFramework"
+        },
+        {
+          "name": "ControlFrameworkInput"
+        },
+        {
+          "name": "ControlInput",
+          "fields": true
+        },
+        {
+          "name": "ControlListOptions"
+        },
+        {
+          "name": "ControlPosture"
+        },
+        {
+          "name": "Controls",
+          "fields": true
+        },
+        {
+          "name": "ControlSavedEventData"
+        },
+        {
+          "name": "ControlsEvents"
+        },
+        {
+          "name": "ControlsOptions"
+        },
+        {
+          "name": "ControlStatus"
+        },
+        {
+          "name": "EvidenceTask"
+        },
+        {
+          "name": "EvidenceTaskInput"
+        },
+        {
+          "name": "EvidenceTaskListOptions"
+        },
+        {
+          "name": "EvidenceTaskMissedEventData"
+        },
+        {
+          "name": "Policy"
+        },
+        {
+          "name": "PolicyAcknowledgedEventData"
+        },
+        {
+          "name": "PolicyAcknowledgements"
+        },
+        {
+          "name": "PolicyInput"
+        },
+        {
+          "name": "PolicyListOptions"
+        },
+        {
+          "name": "PolicyPublishedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "control_framework": {
+          "input": {
+            "title": "ControlFrameworkInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "version": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 64
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ControlFrameworkInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "version": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "control": {
+          "input": {
+            "title": "ControlInput",
+            "fields": {
+              "frameworkId": {
+                "kind": "uuid"
+              },
+              "code": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "applicable": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "controlId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ControlInput",
+              "type": "object",
+              "properties": {
+                "frameworkId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "applicable": {
+                  "type": "boolean"
+                },
+                "controlId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "frameworkId",
+                "code",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "evidence_task": {
+          "input": {
+            "title": "EvidenceTaskInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "intervalDays": {
+                "kind": "integer",
+                "minimum": 1,
+                "maximum": 3650
+              },
+              "dueOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "assigneeId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "active": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "evidenceTaskId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "EvidenceTaskInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "intervalDays": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 3650
+                },
+                "dueOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "assigneeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "evidenceTaskId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "title",
+                "intervalDays"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "policy": {
+          "input": {
+            "title": "PolicyInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "requiresAcknowledgement": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "policyId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PolicyInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requiresAcknowledgement": {
+                  "type": "boolean"
+                },
+                "policyId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ControlsEvents",
+        "types": [
+          "control.saved",
+          "control.evidence_added",
+          "evidence_task.missed",
+          "policy.published",
+          "policy.acknowledged"
+        ]
+      }
+    },
+    {
+      "name": "incidents",
+      "sql": [
+        "incidents"
+      ],
+      "category": "developer",
+      "client": {
+        "export": "incidentsBlock",
+        "subpath": "better-supabase/blocks/incidents"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Incident",
+          "fields": true
+        },
+        {
+          "name": "IncidentChanges",
+          "fields": true
+        },
+        {
+          "name": "IncidentDetail",
+          "fields": true
+        },
+        {
+          "name": "IncidentImpact"
+        },
+        {
+          "name": "IncidentImpactInput"
+        },
+        {
+          "name": "IncidentInput",
+          "fields": true
+        },
+        {
+          "name": "IncidentListOptions"
+        },
+        {
+          "name": "IncidentOpenedEventData"
+        },
+        {
+          "name": "IncidentResolvedEventData"
+        },
+        {
+          "name": "Incidents",
+          "fields": true
+        },
+        {
+          "name": "IncidentsEvents"
+        },
+        {
+          "name": "IncidentSeverity"
+        },
+        {
+          "name": "IncidentsOptions"
+        },
+        {
+          "name": "IncidentStatus"
+        },
+        {
+          "name": "IncidentUpdate"
+        },
+        {
+          "name": "IncidentUpdatedEventData"
+        },
+        {
+          "name": "IncidentUpdateInput"
+        },
+        {
+          "name": "Postmortem"
+        },
+        {
+          "name": "PostmortemInput"
+        },
+        {
+          "name": "PostmortemPublishedEventData"
+        },
+        {
+          "name": "PostmortemStatus"
+        },
+        {
+          "name": "PublicIncident"
+        },
+        {
+          "name": "PublicStatusComponent"
+        },
+        {
+          "name": "PublicStatusPage"
+        },
+        {
+          "name": "StatusComponent"
+        },
+        {
+          "name": "StatusComponentChangedEventData"
+        },
+        {
+          "name": "StatusComponentInput"
+        },
+        {
+          "name": "StatusPage"
+        },
+        {
+          "name": "StatusPageInput"
+        }
+      ],
+      "entitySchemas": {
+        "incident": {
+          "input": {
+            "title": "IncidentInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "severity": {
+                "kind": "enum",
+                "values": [
+                  "sev1",
+                  "sev2",
+                  "sev3",
+                  "sev4"
+                ],
+                "optional": true
+              },
+              "public": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "commanderId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "message": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "impacts": {
+                "kind": "json",
+                "optional": true,
+                "array": true,
+                "description": "The affected components: `[{ componentId, impact }]`."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "IncidentInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "sev1",
+                    "sev2",
+                    "sev3",
+                    "sev4"
+                  ]
+                },
+                "public": {
+                  "type": "boolean"
+                },
+                "commanderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "message": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "impacts": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The affected components: `[{ componentId, impact }]`."
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "IncidentChanges",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "severity": {
+                "kind": "enum",
+                "values": [
+                  "sev1",
+                  "sev2",
+                  "sev3",
+                  "sev4"
+                ],
+                "optional": true
+              },
+              "public": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "commanderId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "IncidentChanges",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "sev1",
+                    "sev2",
+                    "sev3",
+                    "sev4"
+                  ]
+                },
+                "public": {
+                  "type": "boolean"
+                },
+                "commanderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "status_component": {
+          "input": {
+            "title": "StatusComponentInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              },
+              "group": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "public": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "position": {
+                "kind": "integer",
+                "optional": true
+              },
+              "componentId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "StatusComponentInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "group": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "public": {
+                  "type": "boolean"
+                },
+                "position": {
+                  "type": "integer"
+                },
+                "componentId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "postmortem": {
+          "input": {
+            "title": "PostmortemInput",
+            "fields": {
+              "summary": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "impact": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "rootCause": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "resolution": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "actionItems": {
+                "kind": "json",
+                "optional": true,
+                "array": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PostmortemInput",
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "impact": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "rootCause": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "resolution": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "actionItems": {
+                  "type": "array",
+                  "items": {}
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "status_page": {
+          "input": {
+            "title": "StatusPageInput",
+            "fields": {
+              "slug": {
+                "kind": "string",
+                "minLength": 2,
+                "maxLength": 63
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              },
+              "published": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "StatusPageInput",
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 63
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "published": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "slug",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "IncidentsEvents",
+        "types": [
+          "incident.opened",
+          "incident.updated",
+          "incident.resolved",
+          "postmortem.published",
+          "status_component.changed"
+        ]
+      }
+    },
+    {
+      "name": "courses",
+      "sql": [
+        "courses"
+      ],
+      "category": "content",
+      "client": {
+        "export": "coursesBlock",
+        "subpath": "better-supabase/blocks/courses"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Course",
+          "fields": true
+        },
+        {
+          "name": "CourseCertificate"
+        },
+        {
+          "name": "CourseCertificateCheck"
+        },
+        {
+          "name": "CourseCertificateEventData"
+        },
+        {
+          "name": "CourseEventData"
+        },
+        {
+          "name": "CourseInput",
+          "fields": true
+        },
+        {
+          "name": "CourseLearner"
+        },
+        {
+          "name": "CourseLearnerEventData"
+        },
+        {
+          "name": "CourseLearnerSectionInput"
+        },
+        {
+          "name": "CourseLearnersFilter"
+        },
+        {
+          "name": "CourseLearnerStatus"
+        },
+        {
+          "name": "CourseLearnersWrites"
+        },
+        {
+          "name": "CourseLesson"
+        },
+        {
+          "name": "CourseLessonCompletedEventData"
+        },
+        {
+          "name": "CourseLessonInput"
+        },
+        {
+          "name": "CourseLessonKind"
+        },
+        {
+          "name": "CourseLessonView"
+        },
+        {
+          "name": "CourseModule"
+        },
+        {
+          "name": "CourseModuleInput"
+        },
+        {
+          "name": "CourseOutline",
+          "fields": true
+        },
+        {
+          "name": "CourseOutlineLesson"
+        },
+        {
+          "name": "CourseOutlineModule"
+        },
+        {
+          "name": "CourseQuiz"
+        },
+        {
+          "name": "CourseQuizResult"
+        },
+        {
+          "name": "Courses",
+          "fields": true
+        },
+        {
+          "name": "CoursesEvents"
+        },
+        {
+          "name": "CoursesOptions"
+        },
+        {
+          "name": "CoursesSqlOptions"
+        },
+        {
+          "name": "CourseStatus"
+        }
+      ],
+      "entitySchemas": {
+        "course": {
+          "input": {
+            "title": "CourseInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "key": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 63
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "summary": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 2000
+              },
+              "status": {
+                "kind": "enum",
+                "values": [
+                  "draft",
+                  "published",
+                  "archived"
+                ],
+                "optional": true
+              },
+              "certificate": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CourseInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "draft",
+                    "published",
+                    "archived"
+                  ]
+                },
+                "certificate": {
+                  "type": "boolean"
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "course_lesson": {
+          "input": {
+            "title": "CourseLessonInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "moduleId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "content",
+                  "video",
+                  "quiz"
+                ],
+                "optional": true
+              },
+              "body": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "The lesson's content, such as a rich-text document."
+              },
+              "mediaUrl": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 2000
+              },
+              "formId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "required": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "minutes": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "rank": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CourseLessonInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "moduleId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "content",
+                    "video",
+                    "quiz"
+                  ]
+                },
+                "body": {
+                  "description": "The lesson's content, such as a rich-text document."
+                },
+                "mediaUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                },
+                "formId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "minutes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 10000
+                },
+                "rank": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "CoursesEvents",
+        "types": [
+          "course.saved",
+          "course.deleted",
+          "course.enrolled",
+          "course.unenrolled",
+          "course.completed",
+          "course_lesson.completed",
+          "course_certificate.issued",
+          "course_certificate.revoked"
         ]
       }
     },
@@ -4525,7 +10711,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "engagementsBlock",
         "subpath": "better-supabase/blocks/engagements"
       },
-      "consumes": {},
+      "consumes": {
+        "files": "optional"
+      },
       "provides": [],
       "entityTypes": [
         {
@@ -4533,8 +10721,23 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "EngagementActionItem"
+        },
+        {
           "name": "EngagementInput",
           "fields": true
+        },
+        {
+          "name": "EngagementNotes"
+        },
+        {
+          "name": "EngagementNotesInput"
+        },
+        {
+          "name": "EngagementRecording"
+        },
+        {
+          "name": "EngagementRecordingStatus"
         },
         {
           "name": "Engagements",
@@ -4808,7 +11011,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "engagement.logged",
           "engagement.updated",
           "engagement.completed",
-          "engagement.deleted"
+          "engagement.deleted",
+          "engagement.recorded",
+          "engagement.transcribed",
+          "engagement.summarized"
         ]
       }
     },
@@ -4887,7 +11093,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "content",
       "client": {
         "export": "signaturesBlock",
-        "subpath": "better-supabase/blocks/forms"
+        "subpath": "better-supabase/blocks/signatures"
       },
       "consumes": {},
       "provides": [],
@@ -4991,6 +11197,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "inbox_conversation.assigned",
           "inbox_conversation.resolved",
           "inbox_conversation.reopened",
+          "inbox_conversation.unsnoozed",
           "inbox_message.received"
         ]
       }
@@ -5140,6 +11347,953 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": []
     },
     {
+      "name": "messaging",
+      "sql": [
+        "messaging"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "messagingBlock",
+        "subpath": "better-supabase/blocks/messaging"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Conversation"
+        },
+        {
+          "name": "ConversationAccess"
+        },
+        {
+          "name": "ConversationKind"
+        },
+        {
+          "name": "ConversationsActions"
+        },
+        {
+          "name": "ConversationsController"
+        },
+        {
+          "name": "ConversationsControllerOptions"
+        },
+        {
+          "name": "ConversationsSnapshot"
+        },
+        {
+          "name": "ConversationSummary"
+        },
+        {
+          "name": "Message",
+          "fields": true
+        },
+        {
+          "name": "MessageCursor"
+        },
+        {
+          "name": "MessageDraft"
+        },
+        {
+          "name": "MessageEdit"
+        },
+        {
+          "name": "MessageEdition",
+          "fields": true
+        },
+        {
+          "name": "MessageFile"
+        },
+        {
+          "name": "MessageKind"
+        },
+        {
+          "name": "MessageListOptions"
+        },
+        {
+          "name": "MessageReaction"
+        },
+        {
+          "name": "MessagesActions"
+        },
+        {
+          "name": "MessagesController"
+        },
+        {
+          "name": "MessagesControllerOptions"
+        },
+        {
+          "name": "MessagesSnapshot"
+        },
+        {
+          "name": "NewMessage",
+          "fields": true
+        },
+        {
+          "name": "OpenConversation"
+        },
+        {
+          "name": "SummaryMessage"
+        }
+      ],
+      "entitySchemas": {
+        "message": {
+          "input": {
+            "title": "NewMessage",
+            "fields": {
+              "body": {
+                "kind": "string"
+              },
+              "document": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "A rich-text document (any JSON)."
+              },
+              "anchor": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "Where on the record a top-level message points."
+              },
+              "mentionIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "parentId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "broadcast": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "scheduledFor": {
+                "kind": "instant",
+                "optional": true
+              },
+              "attachmentIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "NewMessage",
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "document": {
+                  "description": "A rich-text document (any JSON)."
+                },
+                "anchor": {
+                  "description": "Where on the record a top-level message points."
+                },
+                "mentionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "parentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "broadcast": {
+                  "type": "boolean"
+                },
+                "scheduledFor": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "attachmentIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "required": [
+                "body"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "MessageEdition",
+            "fields": {
+              "body": {
+                "kind": "string",
+                "minLength": 1
+              },
+              "document": {
+                "kind": "unknown",
+                "optional": true,
+                "description": "`null` removes the document."
+              },
+              "mentionIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MessageEdition",
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "document": {
+                  "description": "`null` removes the document."
+                },
+                "mentionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "fields": {
+                  "description": "The extra columns to set, keyed by database name."
+                }
+              },
+              "required": [
+                "body"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "MessagingEvents",
+        "types": [
+          "conversation.created",
+          "conversation.archived",
+          "conversation.member_added",
+          "conversation.member_removed",
+          "message.sent",
+          "message.edited",
+          "message.deleted",
+          "message.pinned",
+          "message.resolved"
+        ]
+      }
+    },
+    {
+      "name": "channels",
+      "sql": [
+        "channels"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "channelsBlock",
+        "subpath": "better-supabase/blocks/channels"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Channel"
+        },
+        {
+          "name": "ChannelChange"
+        },
+        {
+          "name": "Channels"
+        },
+        {
+          "name": "ChannelsEvents"
+        },
+        {
+          "name": "ChannelsOptions"
+        },
+        {
+          "name": "ChannelVisibility"
+        },
+        {
+          "name": "NewChannel"
+        }
+      ],
+      "entitySchemas": {
+        "channel": {
+          "input": {
+            "title": "NewChannel",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
+              },
+              "topic": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true
+              },
+              "purpose": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record to link: { type, id }."
+              },
+              "memberIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "NewChannel",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
+                },
+                "topic": {
+                  "type": "string",
+                  "maxLength": 250
+                },
+                "purpose": {
+                  "type": "string",
+                  "maxLength": 250
+                },
+                "subject": {
+                  "description": "The record to link: { type, id }."
+                },
+                "memberIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "ChannelChange",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "optional": true
+              },
+              "visibility": {
+                "kind": "enum",
+                "values": [
+                  "public",
+                  "private"
+                ],
+                "optional": true
+              },
+              "topic": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true,
+                "nullable": true
+              },
+              "purpose": {
+                "kind": "string",
+                "maxLength": 250,
+                "optional": true,
+                "nullable": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ChannelChange",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "private"
+                  ]
+                },
+                "topic": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 250
+                },
+                "purpose": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 250
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ChannelsEvents",
+        "types": [
+          "channel.created",
+          "channel.updated"
+        ]
+      }
+    },
+    {
+      "name": "activity",
+      "sql": [
+        "activity"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "activityBlock",
+        "subpath": "better-supabase/blocks/activity"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "mail-sync",
+      "sql": [
+        "mail-sync"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "mailSyncBlock",
+        "subpath": "better-supabase/blocks/mail-sync"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "MailAccount"
+        },
+        {
+          "name": "MailAccountInput"
+        },
+        {
+          "name": "MailMessage"
+        },
+        {
+          "name": "MailThread"
+        },
+        {
+          "name": "MailThreadDetail"
+        }
+      ],
+      "entitySchemas": {
+        "mail_account": {
+          "input": {
+            "title": "MailAccountInput",
+            "fields": {
+              "provider": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "address": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 320
+              },
+              "credentialRef": {
+                "kind": "json",
+                "description": "The member's OAuth grant: { provider, tenant, ... }."
+              },
+              "share": {
+                "kind": "enum",
+                "values": [
+                  "records",
+                  "private"
+                ],
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MailAccountInput",
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "address": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "credentialRef": {
+                  "description": "The member's OAuth grant: { provider, tenant, ... }."
+                },
+                "share": {
+                  "type": "string",
+                  "enum": [
+                    "records",
+                    "private"
+                  ]
+                }
+              },
+              "required": [
+                "provider",
+                "address",
+                "credentialRef"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "mail_message": {
+          "input": {
+            "title": "MailDraft",
+            "fields": {
+              "to": {
+                "kind": "json",
+                "array": true,
+                "description": "The recipients: { address, name? }."
+              },
+              "cc": {
+                "kind": "json",
+                "array": true,
+                "optional": true
+              },
+              "bcc": {
+                "kind": "json",
+                "array": true,
+                "optional": true
+              },
+              "subject": {
+                "kind": "string",
+                "maxLength": 998
+              },
+              "text": {
+                "kind": "string",
+                "optional": true
+              },
+              "html": {
+                "kind": "string",
+                "optional": true
+              },
+              "threadId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "templateVersionId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "track": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MailDraft",
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The recipients: { address, name? }."
+                },
+                "cc": {
+                  "type": "array",
+                  "items": {}
+                },
+                "bcc": {
+                  "type": "array",
+                  "items": {}
+                },
+                "subject": {
+                  "type": "string",
+                  "maxLength": 998
+                },
+                "text": {
+                  "type": "string"
+                },
+                "html": {
+                  "type": "string"
+                },
+                "threadId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "templateVersionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "track": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "to",
+                "subject"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "MailSyncEvents",
+        "types": [
+          "mail_account.connected",
+          "mail_account.disconnected",
+          "mail_message.received",
+          "mail_message.sent",
+          "mail_message.opened",
+          "mail_message.clicked"
+        ]
+      }
+    },
+    {
+      "name": "segments",
+      "sql": [
+        "segments"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "segmentsBlock",
+        "subpath": "better-supabase/blocks/segments"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Segment"
+        },
+        {
+          "name": "SegmentInput"
+        },
+        {
+          "name": "SegmentMember"
+        },
+        {
+          "name": "SegmentMembership"
+        },
+        {
+          "name": "SegmentRefresh"
+        },
+        {
+          "name": "SegmentRefreshReport"
+        },
+        {
+          "name": "Segments"
+        },
+        {
+          "name": "SegmentsOptions"
+        },
+        {
+          "name": "SegmentsSqlOptions"
+        }
+      ],
+      "entitySchemas": {
+        "segment": {
+          "input": {
+            "title": "SegmentInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subjectType": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "optional": true
+              },
+              "description": {
+                "kind": "string",
+                "maxLength": 2000,
+                "optional": true
+              },
+              "conditions": {
+                "kind": "json",
+                "optional": true,
+                "description": "A FilterQuery over the subject type's rule fields."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "SegmentInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "conditions": {
+                  "description": "A FilterQuery over the subject type's rule fields."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "assignment",
+      "sql": [
+        "assignment"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "assignmentBlock",
+        "subpath": "better-supabase/blocks/assignment"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "AssignmentQueue"
+        },
+        {
+          "name": "AssignmentQueueInput"
+        }
+      ],
+      "entitySchemas": {
+        "assignment_queue": {
+          "input": {
+            "title": "AssignmentQueueInput",
+            "fields": {
+              "id": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "optional": true
+              },
+              "subjectType": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "optional": true
+              },
+              "strategy": {
+                "kind": "enum",
+                "values": [
+                  "round_robin",
+                  "weighted"
+                ],
+                "optional": true
+              },
+              "conditions": {
+                "kind": "json",
+                "optional": true,
+                "description": "The territory, a FilterQuery over the rule fields."
+              },
+              "rank": {
+                "kind": "integer",
+                "optional": true
+              },
+              "enabled": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AssignmentQueueInput",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "round_robin",
+                    "weighted"
+                  ]
+                },
+                "conditions": {
+                  "description": "The territory, a FilterQuery over the rule fields."
+                },
+                "rank": {
+                  "type": "integer"
+                },
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "enrichment",
+      "sql": [
+        "enrichment"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "enrichmentBlock",
+        "subpath": "better-supabase/blocks/enrichment"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Enrichment"
+        },
+        {
+          "name": "EnrichmentEvents"
+        },
+        {
+          "name": "EnrichmentOptions"
+        },
+        {
+          "name": "EnrichmentProvider"
+        },
+        {
+          "name": "EnrichmentReport"
+        },
+        {
+          "name": "EnrichmentResult"
+        },
+        {
+          "name": "EnrichmentSubject"
+        }
+      ],
+      "events": {
+        "type": "EnrichmentEvents",
+        "types": [
+          "party.enriched"
+        ]
+      }
+    },
+    {
+      "name": "field-history",
+      "sql": [
+        "field-history"
+      ],
+      "category": "database",
+      "client": {
+        "export": "fieldHistoryBlock",
+        "subpath": "better-supabase/blocks/field-history"
+      },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "forecasts",
+      "sql": [
+        "forecasts"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "forecastsBlock",
+        "subpath": "better-supabase/blocks/forecasts"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ForecastSnapshot"
+        },
+        {
+          "name": "ForecastSnapshotDeal"
+        }
+      ],
+      "events": {
+        "type": "ForecastsEvents",
+        "types": [
+          "forecast.snapshotted"
+        ]
+      }
+    },
+    {
       "name": "metrics",
       "sql": [
         "metrics"
@@ -5261,7 +12415,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fulfillment.shipped",
           "fulfillment.delivered",
           "return.requested",
-          "return.received"
+          "return.received",
+          "order.prepared",
+          "order.served"
         ]
       }
     },
@@ -5881,6 +13037,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "relations": [
+          "link",
+          "unlink"
+        ]
+      },
       "events": {
         "type": "RelationsEvents",
         "types": [
@@ -6086,6 +13248,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "shareLinks": [
+          "create",
+          "revoke"
+        ]
+      },
       "events": {
         "type": "ShareLinksEvents",
         "types": [
@@ -6148,6 +13316,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "sla": [
+          "start"
+        ]
+      },
       "events": {
         "type": "SlaEvents",
         "types": [
@@ -6255,6 +13428,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "tags": [
+          "apply",
+          "remove"
+        ]
+      },
       "events": {
         "type": "TagsEvents",
         "types": [
@@ -6435,6 +13614,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "sections": {
+        "versions": [
+          "snapshot",
+          "restore"
+        ]
+      },
       "events": {
         "type": "VersionsEvents",
         "types": [
@@ -6524,8 +13709,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/work-items"
       },
       "consumes": {},
-      "provides": [],
+      "provides": [
+        "sink"
+      ],
       "entityTypes": [
+        {
+          "name": "ChecklistItem"
+        },
+        {
+          "name": "ChecklistItemInput"
+        },
         {
           "name": "Iteration"
         },
@@ -6544,6 +13737,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "WorkItemChangeResult"
         },
         {
+          "name": "WorkItemChecklistOptimisticAction"
+        },
+        {
           "name": "WorkItemField"
         },
         {
@@ -6557,6 +13753,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "WorkItemNode"
         },
         {
+          "name": "WorkItemRecurrence"
+        },
+        {
+          "name": "WorkItemRecurrenceSinkOptions"
+        },
+        {
           "name": "WorkItems",
           "fields": true
         },
@@ -6568,6 +13770,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "WorkItemState"
+        },
+        {
+          "name": "WorkItemWatcher"
+        },
+        {
+          "name": "WorkItemWatchLevel"
         }
       ],
       "entitySchemas": {
@@ -6637,6 +13845,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "uuid",
                 "optional": true
               },
+              "attachmentIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
               "fields": {
                 "kind": "json",
                 "optional": true,
@@ -6705,6 +13918,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "stageId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "attachmentIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
                 },
                 "fields": {
                   "description": "The extra columns to set."
@@ -6868,6 +14088,9 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "sections": {
+        "checklist": []
       },
       "events": {
         "type": "WorkItemsEvents",

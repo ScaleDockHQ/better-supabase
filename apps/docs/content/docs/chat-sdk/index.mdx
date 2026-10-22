@@ -36,8 +36,9 @@ the app's own dependency.
    the platform adapter and records the delivery.
 4. In `bot` mode, a contact's message queues an `inbox_bot` job instead,
    and `inboxAdapter().dispatch()` runs your bot's handlers on it.
-5. `maintain()` on a cron reopens snoozed conversations, replays events a
-   crashed request left, purges old events and deletes expired state.
+5. `maintain()` on a cron reopens snoozed conversations, sends the scheduled
+   replies whose time came, replays events a crashed request left, purges
+   old events and deletes expired state.
 
 A minimal bot on the widget:
 

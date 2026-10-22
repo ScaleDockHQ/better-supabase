@@ -1,6 +1,6 @@
--- better-supabase module: orders (0.9.0)
+-- better-supabase module: orders
 -- @bs-module orders@1 managed
--- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds.
+-- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1158,8 +1158,7 @@ begin
   perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
   perform "better_supabase"."release_reservation"(v_line.reservation);
   perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
-          insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
-          values (v_order.tenant, v_line.variant, v_line.location, -v_line.quantity, 'sale', 'order', v_order.id::text);
+          perform "better_supabase"."move_stock"(v_order.tenant, v_line.variant, v_line.location, -v_line.quantity, 'sale', 'order', v_order.id::text, null);
         exception when sqlstate '23514' then
           update "better_supabase"."order_lines" x set "backordered" = true where x."id" = v_line.id;
         end;
@@ -1632,8 +1631,7 @@ begin
     update "better_supabase"."order_lines" x set "quantity_returned" = x."quantity_returned" + v_line.quantity where x."id" = v_line.line;
     if receive_return.restock and v_line.variant is not null and coalesce(receive_return.location, v_line.location) is not null
       and exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = v_line.variant and cv."track_inventory") then
-      insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
-      values (v_order.tenant, v_line.variant, coalesce(receive_return.location, v_line.location), v_line.quantity, 'return', 'order_return', receive_return.return_id::text);
+      perform "better_supabase"."move_stock"(v_order.tenant, v_line.variant, coalesce(receive_return.location, v_line.location), v_line.quantity, 'return', 'order_return', receive_return.return_id::text, null);
     end if;
     v_units := v_units + v_line.quantity;
   end loop;
@@ -1815,6 +1813,443 @@ end;
 $$;
 revoke execute on function "better_supabase"."complete_refund"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."complete_refund"(uuid, text, text) to service_role;
+
+-- Kitchen stations (grill, bar, cold) a line is prepared at, and the
+-- products routed to each. Lines of an unrouted product go to the default.
+create table if not exists "better_supabase"."kitchen_stations" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null check (length("name") between 1 and 200),
+  "position" integer not null default 0,
+  "is_default" boolean not null default false,
+  "active" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "key")
+);
+create unique index if not exists kitchen_stations_default_idx on "better_supabase"."kitchen_stations" ("tenant_id") where "is_default";
+alter table "better_supabase"."kitchen_stations" enable row level security;
+revoke all on "better_supabase"."kitchen_stations" from anon, authenticated;
+grant select on "better_supabase"."kitchen_stations" to authenticated;
+grant all on "better_supabase"."kitchen_stations" to service_role;
+drop policy if exists kitchen_stations_read on "better_supabase"."kitchen_stations";
+create policy kitchen_stations_read on "better_supabase"."kitchen_stations" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.prepare')));
+
+create table if not exists "better_supabase"."kitchen_routes" (
+  "product_id" uuid primary key references "better_supabase"."products" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "station_id" uuid not null references "better_supabase"."kitchen_stations" ("id") on delete cascade
+);
+create index if not exists kitchen_routes_station_idx on "better_supabase"."kitchen_routes" ("station_id");
+alter table "better_supabase"."kitchen_routes" enable row level security;
+revoke all on "better_supabase"."kitchen_routes" from anon, authenticated;
+grant select on "better_supabase"."kitchen_routes" to authenticated;
+grant all on "better_supabase"."kitchen_routes" to service_role;
+drop policy if exists kitchen_routes_read on "better_supabase"."kitchen_routes";
+create policy kitchen_routes_read on "better_supabase"."kitchen_routes" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.prepare')));
+
+-- Where each line of an order sent to the kitchen is: queued, preparing,
+-- ready or served, with when it reached each state.
+create table if not exists "better_supabase"."order_line_preparations" (
+  "order_line_id" uuid primary key references "better_supabase"."order_lines" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
+  "station_id" uuid references "better_supabase"."kitchen_stations" ("id") on delete set null,
+  "state" text not null default 'queued' check ("state" in ('queued', 'preparing', 'ready', 'served')),
+  "note" text check (length("note") <= 500),
+  "queued_at" timestamptz not null default now(),
+  "started_at" timestamptz,
+  "ready_at" timestamptz,
+  "served_at" timestamptz,
+  "updated_at" timestamptz not null default now(),
+  "updated_by" uuid
+);
+create index if not exists order_line_preparations_order_idx on "better_supabase"."order_line_preparations" ("order_id");
+create index if not exists order_line_preparations_station_idx on "better_supabase"."order_line_preparations" ("station_id");
+create index if not exists order_line_preparations_open_idx on "better_supabase"."order_line_preparations" ("tenant_id", "queued_at") where "state" <> 'served';
+alter table "better_supabase"."order_line_preparations" enable row level security;
+revoke all on "better_supabase"."order_line_preparations" from anon, authenticated;
+grant select on "better_supabase"."order_line_preparations" to authenticated;
+grant all on "better_supabase"."order_line_preparations" to service_role;
+drop policy if exists order_line_preparations_read on "better_supabase"."order_line_preparations";
+create policy order_line_preparations_read on "better_supabase"."order_line_preparations" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.prepare')));
+
+-- Pings kitchen:{tenant} with the line, its order, station and state, so a
+-- kitchen display and an order board refetch what moved.
+create or replace function "better_supabase"."order_line_preparations_changed"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and old."state" = new."state" and old."station_id" is not distinct from new."station_id" then
+    return null;
+  end if;
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
+    perform realtime.send(jsonb_build_object('lineId', new."order_line_id", 'orderId', new."order_id", 'stationId', new."station_id", 'state', new."state"), 'preparation', 'kitchen:' || new."tenant_id"::text, true);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."order_line_preparations_changed"() from public, anon, authenticated;
+drop trigger if exists "bs_order_line_preparations_broadcast" on "better_supabase"."order_line_preparations";
+create trigger "bs_order_line_preparations_broadcast" after insert or update on "better_supabase"."order_line_preparations"
+  for each row execute function "better_supabase"."order_line_preparations_changed"();
+do $$
+begin
+  if to_regclass('realtime.messages') is not null then
+    drop policy if exists "bs_kitchen_receive" on realtime.messages;
+    create policy "bs_kitchen_receive" on realtime.messages for select to authenticated
+      using (
+        realtime.messages.extension = 'broadcast'
+        and (select realtime.topic()) like 'kitchen:%'
+        and substr((select realtime.topic()), 9) in (
+          select t::text from better_supabase.tenant_ids_with('orders.read') t
+          union all
+          select t::text from better_supabase.tenant_ids_with('orders.prepare') t
+        )
+      );
+  end if;
+end;
+$$;
+
+-- Creates or changes a station. attrs: key, name, position, default, active
+-- and productIds, which replaces the products routed to it.
+create or replace function "better_supabase"."save_kitchen_station"(tenant uuid, station uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_kitchen_station.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to run this kitchen' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if jsonb_typeof(attrs) is distinct from 'object' then
+    raise exception 'attrs must be an object' using errcode = '22023', hint = 'ORDERS_KITCHEN_STATION_INVALID';
+  end if;
+  if attrs ? 'productIds' and jsonb_typeof(attrs -> 'productIds') is distinct from 'array' then
+    raise exception 'productIds must be a list' using errcode = '22023', hint = 'ORDERS_KITCHEN_STATION_INVALID';
+  end if;
+  if coalesce((attrs ->> 'default')::boolean, false) then
+    update "better_supabase"."kitchen_stations" s set "is_default" = false
+    where s."tenant_id" = save_kitchen_station.tenant and s."is_default" and s."id" is distinct from save_kitchen_station.station;
+  end if;
+  if save_kitchen_station.station is null then
+    insert into "better_supabase"."kitchen_stations" ("tenant_id", "key", "name", "position", "is_default", "active")
+    values (save_kitchen_station.tenant, attrs ->> 'key', coalesce(attrs ->> 'name', attrs ->> 'key'), coalesce((attrs ->> 'position')::integer, 0), coalesce((attrs ->> 'default')::boolean, false), coalesce((attrs ->> 'active')::boolean, true))
+    returning "id" into v_id;
+  else
+    update "better_supabase"."kitchen_stations" s set
+      "key" = coalesce(attrs ->> 'key', s."key"),
+      "name" = coalesce(attrs ->> 'name', s."name"),
+      "position" = coalesce((attrs ->> 'position')::integer, s."position"),
+      "is_default" = coalesce((attrs ->> 'default')::boolean, s."is_default"),
+      "active" = coalesce((attrs ->> 'active')::boolean, s."active"),
+      "updated_at" = now()
+    where s."id" = save_kitchen_station.station and s."tenant_id" = save_kitchen_station.tenant
+    returning s."id" into v_id;
+    if v_id is null then
+      raise exception 'no such kitchen station' using errcode = 'P0002', hint = 'ORDERS_KITCHEN_STATION_NOT_FOUND';
+    end if;
+  end if;
+  if attrs ? 'productIds' then
+    if exists (
+      select 1 from jsonb_array_elements_text(attrs -> 'productIds') e(value)
+      where not exists (
+        select 1 from "better_supabase"."products" p
+        where p."id"::text = e.value and p."tenant_id"::text = save_kitchen_station.tenant::text
+      )
+    ) then
+      raise exception 'productIds must name products of this organization' using errcode = '22023', hint = 'ORDERS_KITCHEN_STATION_INVALID';
+    end if;
+    delete from "better_supabase"."kitchen_routes" r where r."station_id" = v_id;
+    insert into "better_supabase"."kitchen_routes" ("product_id", "tenant_id", "station_id")
+    select distinct e.value::uuid, save_kitchen_station.tenant, v_id
+    from jsonb_array_elements_text(attrs -> 'productIds') e(value)
+    on conflict ("product_id") do update set "station_id" = excluded."station_id";
+  end if;
+  return (select jsonb_build_object('id', s."id", 'organizationId', s."tenant_id", 'key', s."key", 'name', s."name", 'position', s."position", 'isDefault', s."is_default", 'active', s."active", 'productIds', coalesce((select jsonb_agg(r."product_id" order by r."product_id") from "better_supabase"."kitchen_routes" r where r."station_id" = s."id"), '[]'::jsonb), 'createdAt', s."created_at", 'updatedAt', s."updated_at") from "better_supabase"."kitchen_stations" s where s."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."save_kitchen_station"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_kitchen_station"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_kitchen_station"(station uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select s."tenant_id" into v_tenant from "better_supabase"."kitchen_stations" s where s."id" = delete_kitchen_station.station;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to run this kitchen' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."kitchen_stations" s where s."id" = delete_kitchen_station.station;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_kitchen_station"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_kitchen_station"(uuid) to authenticated, service_role;
+
+-- A tenant's stations in display order, with their routed products.
+create or replace function "better_supabase"."kitchen_stations"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', s."id", 'organizationId', s."tenant_id", 'key', s."key", 'name', s."name", 'position', s."position", 'isDefault', s."is_default", 'active', s."active", 'productIds', coalesce((select jsonb_agg(r."product_id" order by r."product_id") from "better_supabase"."kitchen_routes" r where r."station_id" = s."id"), '[]'::jsonb), 'createdAt', s."created_at", 'updatedAt', s."updated_at") order by s."position", s."name"), '[]'::jsonb)
+  from "better_supabase"."kitchen_stations" s
+  where s."tenant_id" = kitchen_stations.tenant
+$$;
+revoke execute on function "better_supabase"."kitchen_stations"(uuid) from public, anon;
+grant execute on function "better_supabase"."kitchen_stations"(uuid) to authenticated, service_role;
+
+-- Sends an order's lines to the kitchen: each line not sent yet is queued at
+-- its product's active station, or the default one. notes maps a line id to
+-- a note for the cook. Sending again queues only lines added since.
+create or replace function "better_supabase"."send_order_to_kitchen"(order_id uuid, notes jsonb)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = send_order_to_kitchen.order_id;
+  if v_order.id is null then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.prepare'), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to run this kitchen' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_order.status in ('cancelled', 'refunded') then
+    raise exception 'a cancelled or refunded order can''t go to the kitchen' using errcode = '22023', hint = 'ORDERS_KITCHEN_CLOSED';
+  end if;
+  if notes is not null and jsonb_typeof(notes) <> 'object' then
+    raise exception 'notes must map line ids to text' using errcode = '22023', hint = 'ORDERS_KITCHEN_NOTES_INVALID';
+  end if;
+  insert into "better_supabase"."order_line_preparations" ("order_line_id", "tenant_id", "order_id", "station_id", "note", "updated_by")
+  select l."id", v_order.tenant, v_order.id,
+    coalesce(
+      (select s."id" from "better_supabase"."kitchen_routes" r join "better_supabase"."kitchen_stations" s on s."id" = r."station_id" where r."product_id" = l."product_id" and s."active"),
+      (select s."id" from "better_supabase"."kitchen_stations" s where s."tenant_id" = v_order.tenant and s."is_default" and s."active")
+    ),
+    left(nullif(trim(send_order_to_kitchen.notes ->> l."id"::text), ''), 500),
+    auth.uid()
+  from "better_supabase"."order_lines" l
+  where l."order_id" = v_order.id
+  on conflict ("order_line_id") do nothing;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."send_order_to_kitchen"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."send_order_to_kitchen"(uuid, jsonb) to authenticated, service_role;
+
+-- Moves one line to state. Moving back (a recalled dish) clears the later
+-- times. Every line ready emits order.prepared, every line served
+-- order.served, once per order.
+create or replace function "better_supabase"."set_line_preparation"(line uuid, state text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_order_id uuid;
+  v_order record;
+  v_least integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select p."tenant_id", p."order_id" into v_tenant, v_order_id
+  from "better_supabase"."order_line_preparations" p where p."order_line_id" = set_line_preparation.line;
+  if v_tenant is null then
+    raise exception 'the line was not sent to the kitchen' using errcode = 'P0002', hint = 'ORDERS_PREPARATION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'orders.prepare'), false) or coalesce(better_supabase.can('tenant', v_tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to run this kitchen' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if array_position(array['queued', 'preparing', 'ready', 'served'], set_line_preparation.state) is null then
+    raise exception 'state must be queued, preparing, ready or served' using errcode = '22023', hint = 'ORDERS_PREPARATION_STATE_INVALID';
+  end if;
+  update "better_supabase"."order_line_preparations" p set
+    "started_at" = case when array_position(array['queued', 'preparing', 'ready', 'served'], set_line_preparation.state) >= 2 then coalesce(p."started_at", now()) end,
+    "ready_at" = case when array_position(array['queued', 'preparing', 'ready', 'served'], set_line_preparation.state) >= 3 then coalesce(p."ready_at", now()) end,
+    "served_at" = case when array_position(array['queued', 'preparing', 'ready', 'served'], set_line_preparation.state) >= 4 then coalesce(p."served_at", now()) end,
+    "state" = set_line_preparation.state,
+    "updated_at" = now(),
+    "updated_by" = auth.uid()
+  where p."order_line_id" = set_line_preparation.line;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_order_id;
+  select min(array_position(array['queued', 'preparing', 'ready', 'served'], p."state")) into v_least from "better_supabase"."order_line_preparations" p where p."order_id" = v_order_id;
+  if v_least >= array_position(array['queued', 'preparing', 'ready', 'served'], 'ready') then
+    perform "better_supabase".emit_event('order.prepared', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer), 'orders/' || v_order.id::text, (v_order.tenant)::text, 'order.prepared:' || v_order.id::text, 'better-supabase/orders');
+  end if;
+  if v_least = array_position(array['queued', 'preparing', 'ready', 'served'], 'served') then
+    perform "better_supabase".emit_event('order.served', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer), 'orders/' || v_order.id::text, (v_order.tenant)::text, 'order.served:' || v_order.id::text, 'better-supabase/orders');
+  end if;
+  return (
+    select jsonb_build_object('lineId', p."order_line_id", 'orderId', p."order_id", 'stationId', p."station_id", 'title', l."title", 'sku', l."sku", 'quantity', l."quantity", 'position', l."position", 'state', p."state", 'note', p."note", 'queuedAt', p."queued_at", 'startedAt', p."started_at", 'readyAt', p."ready_at", 'servedAt', p."served_at")
+    from "better_supabase"."order_line_preparations" p join "better_supabase"."order_lines" l on l."id" = p."order_line_id"
+    where p."order_line_id" = set_line_preparation.line
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."set_line_preparation"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."set_line_preparation"(uuid, text) to authenticated, service_role;
+
+-- Moves every line of an order (at one station, or all) that is behind
+-- state up to it: a cook bumps a ticket, a runner marks it served.
+create or replace function "better_supabase"."bump_kitchen_ticket"(order_id uuid, station uuid, state text)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_least integer;
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = bump_kitchen_ticket.order_id;
+  if v_order.id is null then
+    raise exception 'order not found' using errcode = 'P0002', hint = 'ORDERS_ORDER_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.prepare'), false) or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to run this kitchen' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if array_position(array['queued', 'preparing', 'ready', 'served'], bump_kitchen_ticket.state) is null then
+    raise exception 'state must be queued, preparing, ready or served' using errcode = '22023', hint = 'ORDERS_PREPARATION_STATE_INVALID';
+  end if;
+  update "better_supabase"."order_line_preparations" p set
+    "started_at" = case when array_position(array['queued', 'preparing', 'ready', 'served'], bump_kitchen_ticket.state) >= 2 then coalesce(p."started_at", now()) end,
+    "ready_at" = case when array_position(array['queued', 'preparing', 'ready', 'served'], bump_kitchen_ticket.state) >= 3 then coalesce(p."ready_at", now()) end,
+    "served_at" = case when array_position(array['queued', 'preparing', 'ready', 'served'], bump_kitchen_ticket.state) >= 4 then coalesce(p."served_at", now()) end,
+    "state" = bump_kitchen_ticket.state,
+    "updated_at" = now(),
+    "updated_by" = auth.uid()
+  where p."order_id" = v_order.id
+    and (bump_kitchen_ticket.station is null or p."station_id" = bump_kitchen_ticket.station)
+    and array_position(array['queued', 'preparing', 'ready', 'served'], p."state") < array_position(array['queued', 'preparing', 'ready', 'served'], bump_kitchen_ticket.state);
+  get diagnostics v_count = row_count;
+  if v_count > 0 then
+    select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_order.id;
+  select min(array_position(array['queued', 'preparing', 'ready', 'served'], p."state")) into v_least from "better_supabase"."order_line_preparations" p where p."order_id" = v_order.id;
+  if v_least >= array_position(array['queued', 'preparing', 'ready', 'served'], 'ready') then
+    perform "better_supabase".emit_event('order.prepared', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer), 'orders/' || v_order.id::text, (v_order.tenant)::text, 'order.prepared:' || v_order.id::text, 'better-supabase/orders');
+  end if;
+  if v_least = array_position(array['queued', 'preparing', 'ready', 'served'], 'served') then
+    perform "better_supabase".emit_event('order.served', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer), 'orders/' || v_order.id::text, (v_order.tenant)::text, 'order.served:' || v_order.id::text, 'better-supabase/orders');
+  end if;
+  end if;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."bump_kitchen_ticket"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."bump_kitchen_ticket"(uuid, uuid, text) to authenticated, service_role;
+
+-- A kitchen display's tickets: per order, its lines at station (every
+-- station when null) in states, oldest ticket first.
+create or replace function "better_supabase"."kitchen_queue"(tenant uuid, station uuid, states text[], page_size integer)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(ticket order by ticket ->> 'sentAt', ticket ->> 'orderId'), '[]'::jsonb)
+  from (
+    select jsonb_build_object(
+      'orderId', o."id",
+      'number', o."number",
+      'sentAt', min(p."queued_at"),
+      'lines', jsonb_agg(jsonb_build_object('lineId', p."order_line_id", 'orderId', p."order_id", 'stationId', p."station_id", 'title', l."title", 'sku', l."sku", 'quantity', l."quantity", 'position', l."position", 'state', p."state", 'note', p."note", 'queuedAt', p."queued_at", 'startedAt', p."started_at", 'readyAt', p."ready_at", 'servedAt', p."served_at") order by l."position", l."id")
+    ) as ticket
+    from "better_supabase"."order_line_preparations" p
+    join "better_supabase"."order_lines" l on l."id" = p."order_line_id"
+    join "better_supabase"."orders" o on o."id" = p."order_id"
+    where p."tenant_id" = kitchen_queue.tenant
+      and (kitchen_queue.station is null or p."station_id" = kitchen_queue.station)
+      and p."state" = any (coalesce(kitchen_queue.states, array['queued', 'preparing', 'ready']))
+    group by o."id", o."number"
+    order by min(p."queued_at"), o."id"
+    limit least(greatest(coalesce(kitchen_queue.page_size, 100), 1), 500)
+  ) tickets
+$$;
+revoke execute on function "better_supabase"."kitchen_queue"(uuid, uuid, text[], integer) from public, anon;
+grant execute on function "better_supabase"."kitchen_queue"(uuid, uuid, text[], integer) to authenticated, service_role;
+
+-- An order-state board: each order sent to the kitchen since since, in the
+-- state of its least advanced line, with how many lines are in each state.
+create or replace function "better_supabase"."order_board"(tenant uuid, since timestamptz, page_size integer)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(card order by card ->> 'sentAt', card ->> 'orderId'), '[]'::jsonb)
+  from (
+    select jsonb_build_object(
+      'orderId', o."id",
+      'number', o."number",
+      'customerId', o."customer_id",
+      'status', o."status",
+      'state', (array['queued', 'preparing', 'ready', 'served'])[min(array_position(array['queued', 'preparing', 'ready', 'served'], p."state"))],
+      'sentAt', min(p."queued_at"),
+      'readyAt', case when bool_and(p."ready_at" is not null) then max(p."ready_at") end,
+      'servedAt', case when bool_and(p."served_at" is not null) then max(p."served_at") end,
+      'counts', jsonb_build_object(
+        'queued', count(*) filter (where p."state" = 'queued'),
+        'preparing', count(*) filter (where p."state" = 'preparing'),
+        'ready', count(*) filter (where p."state" = 'ready'),
+        'served', count(*) filter (where p."state" = 'served')
+      )
+    ) as card
+    from "better_supabase"."order_line_preparations" p
+    join "better_supabase"."orders" o on o."id" = p."order_id"
+    where p."tenant_id" = order_board.tenant
+    group by o."id", o."number", o."customer_id", o."status"
+    having min(p."queued_at") >= coalesce(order_board.since, now() - interval '1 day')
+    order by min(p."queued_at"), o."id"
+    limit least(greatest(coalesce(order_board.page_size, 200), 1), 1000)
+  ) cards
+$$;
+revoke execute on function "better_supabase"."order_board"(uuid, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."order_board"(uuid, timestamptz, integer) to authenticated, service_role;
 
 -- blocks.orders.api: entry points for the Data API.
 create schema if not exists "api";
@@ -2064,6 +2499,78 @@ set search_path = ''
 as $$ select "better_supabase"."complete_refund"($1, $2, $3) $$;
 revoke execute on function "api"."complete_refund"(uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."complete_refund"(uuid, text, text) to service_role;
+
+create or replace function "api"."save_kitchen_station"(tenant uuid, station uuid, attrs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_kitchen_station"($1, $2, $3) $$;
+revoke execute on function "api"."save_kitchen_station"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."save_kitchen_station"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."delete_kitchen_station"(station uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_kitchen_station"($1) $$;
+revoke execute on function "api"."delete_kitchen_station"(uuid) from public, anon;
+grant execute on function "api"."delete_kitchen_station"(uuid) to authenticated, service_role;
+
+create or replace function "api"."kitchen_stations"(tenant uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."kitchen_stations"($1) $$;
+revoke execute on function "api"."kitchen_stations"(uuid) from public, anon;
+grant execute on function "api"."kitchen_stations"(uuid) to authenticated, service_role;
+
+create or replace function "api"."send_order_to_kitchen"(order_id uuid, notes jsonb)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."send_order_to_kitchen"($1, $2) $$;
+revoke execute on function "api"."send_order_to_kitchen"(uuid, jsonb) from public, anon;
+grant execute on function "api"."send_order_to_kitchen"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."set_line_preparation"(line uuid, state text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_line_preparation"($1, $2) $$;
+revoke execute on function "api"."set_line_preparation"(uuid, text) from public, anon;
+grant execute on function "api"."set_line_preparation"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."bump_kitchen_ticket"(order_id uuid, station uuid, state text)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."bump_kitchen_ticket"($1, $2, $3) $$;
+revoke execute on function "api"."bump_kitchen_ticket"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."bump_kitchen_ticket"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."kitchen_queue"(tenant uuid, station uuid, states text[], page_size integer)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."kitchen_queue"($1, $2, $3, $4) $$;
+revoke execute on function "api"."kitchen_queue"(uuid, uuid, text[], integer) from public, anon;
+grant execute on function "api"."kitchen_queue"(uuid, uuid, text[], integer) to authenticated, service_role;
+
+create or replace function "api"."order_board"(tenant uuid, since timestamptz, page_size integer)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."order_board"($1, $2, $3) $$;
+revoke execute on function "api"."order_board"(uuid, timestamptz, integer) from public, anon;
+grant execute on function "api"."order_board"(uuid, timestamptz, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

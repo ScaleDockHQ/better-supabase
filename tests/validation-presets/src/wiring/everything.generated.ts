@@ -31,13 +31,30 @@ import { documentsBlock } from "better-supabase/blocks/documents";
 import { domainsBlock } from "better-supabase/blocks/domains";
 import { reviewsBlock } from "better-supabase/blocks/reviews";
 import { leaveBlock } from "better-supabase/blocks/leave";
+import { ledgerBlock } from "better-supabase/blocks/ledger";
+import { assetsBlock } from "better-supabase/blocks/assets";
+import { scoresBlock } from "better-supabase/blocks/scores";
+import { moderationBlock } from "better-supabase/blocks/moderation";
+import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
+import { guestsBlock } from "better-supabase/blocks/guests";
+import { passesBlock } from "better-supabase/blocks/passes";
+import { billableTimeBlock } from "better-supabase/blocks/billable-time";
+import { leasesBlock } from "better-supabase/blocks/leases";
+import { expensesBlock } from "better-supabase/blocks/expenses";
+import { donationsBlock } from "better-supabase/blocks/donations";
+import { dispatchBlock } from "better-supabase/blocks/dispatch";
+import { shipmentsBlock } from "better-supabase/blocks/shipments";
+import { contractsBlock } from "better-supabase/blocks/contracts";
+import { controlsBlock } from "better-supabase/blocks/controls";
+import { incidentsBlock } from "better-supabase/blocks/incidents";
+import { coursesBlock } from "better-supabase/blocks/courses";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { flagsBlock } from "better-supabase/blocks/flags";
 import { formsBlock } from "better-supabase/blocks/forms";
-import { signaturesBlock } from "better-supabase/blocks/forms";
+import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { hiringBlock } from "better-supabase/blocks/hiring";
 import { identitiesBlock } from "better-supabase/blocks/identities";
 import { importsBlock } from "better-supabase/blocks/imports";
@@ -50,6 +67,15 @@ import { rateLimitBlock } from "better-supabase/blocks/jobs";
 import { webhookInboxBlock } from "better-supabase/blocks/jobs";
 import { knowledgeBlock } from "better-supabase/blocks/knowledge";
 import { memoryBlock } from "better-supabase/blocks/memory";
+import { messagingBlock } from "better-supabase/blocks/messaging";
+import { channelsBlock } from "better-supabase/blocks/channels";
+import { activityBlock } from "better-supabase/blocks/activity";
+import { mailSyncBlock } from "better-supabase/blocks/mail-sync";
+import { segmentsBlock } from "better-supabase/blocks/segments";
+import { assignmentBlock } from "better-supabase/blocks/assignment";
+import { enrichmentBlock } from "better-supabase/blocks/enrichment";
+import { fieldHistoryBlock } from "better-supabase/blocks/field-history";
+import { forecastsBlock } from "better-supabase/blocks/forecasts";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
@@ -128,6 +154,23 @@ export const blockSet = defineBlocks(blockConfig, {
   domains: domainsBlock,
   reviews: reviewsBlock,
   leave: leaveBlock,
+  ledger: ledgerBlock,
+  assets: assetsBlock,
+  scores: scoresBlock,
+  moderation: moderationBlock,
+  enrollments: enrollmentsBlock,
+  guests: guestsBlock,
+  passes: passesBlock,
+  billableTime: billableTimeBlock,
+  leases: leasesBlock,
+  expenses: expensesBlock,
+  donations: donationsBlock,
+  dispatch: dispatchBlock,
+  shipments: shipmentsBlock,
+  contracts: contractsBlock,
+  controls: controlsBlock,
+  incidents: incidentsBlock,
+  courses: coursesBlock,
   drive: driveBlock,
   employees: employeesBlock,
   engagements: engagementsBlock,
@@ -147,6 +190,15 @@ export const blockSet = defineBlocks(blockConfig, {
   webhookInbox: webhookInboxBlock,
   knowledge: knowledgeBlock,
   memory: memoryBlock,
+  messaging: messagingBlock,
+  channels: channelsBlock,
+  activity: activityBlock,
+  mailSync: mailSyncBlock,
+  segments: segmentsBlock,
+  assignment: assignmentBlock,
+  enrichment: enrichmentBlock,
+  fieldHistory: fieldHistoryBlock,
+  forecasts: forecastsBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numberSequences: numberSequencesBlock,

@@ -43,17 +43,30 @@ const NO_BLOCK_CALL: readonly string[] = [];
 const NO_FIELDS: readonly string[] = [
   // Role and catalog rows are the access model; the client reads permission keys.
   "access",
+  // Entries are written from the outbox by the activity sink; they record app events.
+  "activity",
   // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
   // Provider keys and batch jobs the block writes itself.
   "ai-providers",
+  // Locations and assets carry app data in `metadata`.
+  "assets",
+  // Queues and picks route records to members; app data lives on the records.
+  "assignment",
   // An append-only log written by audit_event and triggers; adopted
   // columns already come back under `columns`.
   "audit",
+  // A rate is a price on the rate card; it carries no app fields.
+  "billable-time",
   // Customer rows mirror Stripe and are written by the webhook sync.
   "billing",
   // Run records of the block's own bulk jobs.
   "bulk",
+  // A channel names a conversation; app data goes on its linked record or on messages.
+  "channels",
+  // Comments are messages, so app columns go on blocks.messaging.options.extraColumns;
+  // a comment task only links a message to a work item.
+  "comments",
   // The block is itself the app's extra fields.
   "custom-fields",
   // Export and deletion requests are the module's bookkeeping, not app records.
@@ -62,6 +75,17 @@ const NO_FIELDS: readonly string[] = [
   "documents",
   // A hostname row is routing state the proxy reads; the organization holds app data.
   "domains",
+  // Results describe parties; app data lives on the companies and people.
+  "enrichment",
+  // Programs and enrollments track steps of a subject the app owns; the
+  // subject's data stays in its own table.
+  "enrollments",
+  // History rows copy a record's columns; app data lives on the record.
+  "field-history",
+  // Snapshots copy deals; app data lives on the deals.
+  "forecasts",
+  // Guests and grants are access rows; who the guest is lives in their party.
+  "guests",
   // Linked accounts and verification codes are auth bookkeeping.
   "identities",
   // Runs log an import; the imported rows land in the app's own tables.
@@ -72,25 +96,38 @@ const NO_FIELDS: readonly string[] = [
   "incoming-webhooks",
   // Documents carry app data in metadata, which search filters on.
   "knowledge",
+  // Accounts and entries are double-entry bookkeeping other blocks post to;
+  // per-account data goes in `metadata`.
+  "ledger",
+  // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
+  "mail-sync",
   // The model writes memories through memory commands, which carry no app columns.
   "memory",
   // Points are metric samples written by the sink.
   "metrics",
+  // Items, reports and bans point at the app's subjects; the content stays in
+  // its own table.
+  "moderation",
   // Gapless counters the module owns; an app reads numbers, not these rows.
   "number-sequences",
   // Clients, grants and codes are protocol state; RFC 7591 metadata beyond the columns goes in metadata.
   "oauth-server",
-  // Progress rows per checklist step; the steps live in `defineChecklist`.
-  "onboarding",
   // An event log; the app's data goes in each event's payload.
   "outbox",
+  // A pass is an admission credential; what it admits to lives on its booking or record.
+  "passes",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.
   "reactions",
   // Rules hold a filter tree and action references the editor writes; the
   // app's data lives on the subjects the rules test.
   "rules",
+  // Models hold rule trees and metrics; the app's data lives on the scored
+  // subjects, which pass their fields to compute_score.
+  "scores",
   // A derived index the sink rebuilds from each subject's own row.
   "search",
+  // A segment is a saved filter; app data lives on the records it matches.
+  "segments",
   // Values of app-defined keys, typed by `defineSettings` schemas.
   "settings",
   // Stream rows mirror the SSF stream configuration a receiver sends; nothing for an app to extend.

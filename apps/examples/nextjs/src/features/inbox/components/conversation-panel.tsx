@@ -5,26 +5,42 @@ import { useAction } from "better-supabase/react";
 import {
   CheckCheckIcon,
   CheckIcon,
+  MoonIcon,
   RotateCcwIcon,
   UserCheckIcon,
   UserMinusIcon,
   UserRoundIcon,
 } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/hooks";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 
-import type { MessageRow } from "../inbox-types";
+import type { ConversationRow, MessageRow } from "../inbox-types";
 
-import { assign, loadThread, setStatus, takeOver } from "../inbox-actions";
+import {
+  assign,
+  loadMessage,
+  loadThread,
+  setStatus,
+  snooze,
+  takeOver,
+} from "../inbox-actions";
 import { unwrap } from "../inbox-load";
 import { Composer } from "./composer";
+import { LaterItems } from "./later-items";
+import { ScheduledReplies } from "./scheduled-replies";
 
 export function ConversationPanel({
   conversationId,
@@ -36,23 +52,35 @@ export function ConversationPanel({
   const errorMessage = useErrorMessage();
   const userId = useAuth().user?.id ?? null;
 
+  // A full load also brings the header; a ping fetches only its message.
+  const [conversation, setConversation] = useState<ConversationRow | null>();
+  const [scheduledVersion, setScheduledVersion] = useState(0);
+
   const thread = useConversation({
     conversationId,
-    load: async () => [unwrap(await loadThread({ conversationId }))],
-  });
+    load: async () => {
+      const loaded = unwrap(await loadThread({ conversationId }));
+      setConversation(loaded.conversation);
 
-  const loaded = thread.items?.[0];
-  const conversation = loaded?.conversation ?? null;
+      return loaded.messages;
+    },
+    get: async (messageId) => unwrap(await loadMessage({ messageId })),
+  });
 
   const onError = (error: Parameters<typeof errorMessage>[0]) => {
     toast.error(errorMessage(error));
   };
 
-  const assignAction = useAction(assign, { onError });
-  const mode = useAction(takeOver, { onError });
-  const status = useAction(setStatus, { onError });
+  const onSuccess = () => {
+    void thread.refresh();
+  };
 
-  if (loaded === undefined) {
+  const assignAction = useAction(assign, { onError, onSuccess });
+  const mode = useAction(takeOver, { onError, onSuccess });
+  const status = useAction(setStatus, { onError, onSuccess });
+  const snoozeAction = useAction(snooze, { onError, onSuccess });
+
+  if (thread.items === undefined || conversation === undefined) {
     return (
       <div className="space-y-2 rounded-xl border p-4" aria-busy="true">
         {Array.from({ length: 4 }, (_, index) => (
@@ -71,6 +99,12 @@ export function ConversationPanel({
   }
 
   const resolved = conversation.status === "resolved";
+
+  const snoozedUntil =
+    conversation.status === "snoozed" && conversation.snoozedUntil !== null
+      ? new Date(conversation.snoozedUntil)
+      : null;
+
   const mine = userId !== null && conversation.assigneeId === userId;
 
   const contactReadAt =
@@ -81,7 +115,11 @@ export function ConversationPanel({
   const seen = (message: MessageRow): boolean =>
     contactReadAt !== null && Date.parse(message.createdAt) <= contactReadAt;
 
-  const busy = assignAction.pending || mode.pending || status.pending;
+  const busy =
+    assignAction.pending ||
+    mode.pending ||
+    status.pending ||
+    snoozeAction.pending;
 
   return (
     <section
@@ -98,9 +136,20 @@ export function ConversationPanel({
             {conversation.inboxName ? ` · ${conversation.inboxName}` : ""}
           </p>
         </div>
-        <Badge variant={resolved ? "secondary" : "default"}>
-          {resolved ? t("Resolved") : t("Open")}
-        </Badge>
+        {snoozedUntil === null ? (
+          <Badge variant={resolved ? "secondary" : "default"}>
+            {resolved ? t("Resolved") : t("Open")}
+          </Badge>
+        ) : (
+          <Badge variant="secondary">
+            {t("Snoozed until {time}", {
+              time: format.dateTime(snoozedUntil, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }),
+            })}
+          </Badge>
+        )}
         <Badge variant="outline">
           {conversation.botMode === "bot"
             ? t("Bot answers")
@@ -130,6 +179,24 @@ export function ConversationPanel({
             {t("Take over from the bot")}
           </Button>
         ) : null}
+        {resolved ? null : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={busy}
+              render={<Button size="sm" variant="outline" />}
+            >
+              <MoonIcon />
+              {t("Snooze")}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <LaterItems
+                onSelect={(until) => {
+                  void snoozeAction.run({ conversationId, until });
+                }}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <Button
           size="sm"
           variant={resolved ? "outline" : "default"}
@@ -143,7 +210,7 @@ export function ConversationPanel({
         </Button>
       </header>
       <ol className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {loaded.messages.map((message) => {
+        {thread.items.map((message) => {
           const outbound = message.authorType !== "contact";
 
           return (
@@ -193,10 +260,17 @@ export function ConversationPanel({
           {t("Someone is typing…")}
         </output>
       ) : null}
+      <ScheduledReplies
+        key={scheduledVersion}
+        conversationId={conversationId}
+      />
       <Composer
         conversationId={conversationId}
         onTyping={thread.setTyping}
         onSent={thread.refresh}
+        onScheduled={() => {
+          setScheduledVersion((current) => current + 1);
+        }}
       />
     </section>
   );

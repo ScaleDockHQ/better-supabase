@@ -7,33 +7,14 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
-import {
-  schemaPreamble,
-  SERVICE_CALLER,
-  revokeTable,
-  fail,
-  raise,
-} from "../shared.ts";
+import { schemaPreamble, SERVICE_CALLER, fail, raise } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
+import { enrollmentTables } from "./enrollments.ts";
 
-const NAMES: ModuleNames = {
-  options: ["checklists"],
-  tables: {
-    progress: {
-      name: "onboarding_progress",
-      lifecycle: { user: "user", tenant: "tenant" },
-      columns: {
-        id: "id",
-        checklist: "checklist",
-        step: "step",
-        user: "user_id",
-        tenant: "organization_id",
-        completedBy: "completed_by",
-        completedAt: "completed_at",
-      },
-    },
-  },
-};
+const NAMES: ModuleNames = { options: ["checklists"], tables: {} };
+
+/** The prefix of the enrollment program each checklist runs as. */
+const PROGRAM = "onboarding:";
 
 const ID = /^[a-z][a-z0-9_.-]{0,63}$/;
 const EVENT = /^[a-z][a-z0-9_.:-]{0,127}$/;
@@ -151,14 +132,46 @@ function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
   return steps;
 }
 
+/** `(checklist, scope, steps)` rows, the steps in order. */
+function checklistRows(steps: readonly StepOption[]): string {
+  const lists = new Map<string, { scope: string; steps: string[] }>();
+
+  for (const s of steps) {
+    const list = lists.get(s.checklist) ?? { scope: s.scope, steps: [] };
+    list.steps.push(s.step);
+    lists.set(s.checklist, list);
+  }
+
+  return lists.size === 0
+    ? "select null::text as checklist, null::text as scope, null::text[] as steps where false"
+    : `values ${[...lists].map(([checklist, list]) => `(${sqlString(checklist)}, ${sqlString(list.scope)}, array[${list.steps.map(sqlString).join(", ")}]::text[])`).join(", ")}`;
+}
+
+/** The enrollments the checklists run on, checked to be managed. */
+function enrollmentsOf(ctx: ModuleContext): ModuleContext {
+  const enrolled = ctx.of("enrollments");
+
+  if (!enrolled.manages) {
+    throw new TypeError(
+      "blocks.onboarding: onboarding checklists run on the enrollments tables, so install enrollments in managed mode",
+    );
+  }
+
+  return enrolled;
+}
+
 function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
 
+  const enrolled = enrollmentsOf(ctx);
   const id = ctx.idType;
-  const p = ctx.table("progress");
-  const c = (logical: string): string => ctx.col("progress", logical);
+  const enrollments = enrolled.table("enrollments");
+  const e = (column: string): string => enrolled.col("enrollments", column);
+  const s = (column: string): string => enrolled.col("steps", column);
+  const ensure = enrolled.fn("enrollment_ensure");
+  const mark = enrolled.fn("enrollment_mark");
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("onboarding");
 
@@ -166,14 +179,18 @@ function build(ctx: ModuleContext): string {
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, ctx.permission(action, permissions[action]))})`;
 
   const steps = checklistSteps(ctx);
+  const lists = checklistRows(steps);
 
   const stepRows =
     steps.length === 0
       ? "select null::text as checklist, null::text as step, null::text as scope where false"
-      : `values ${steps.map((s) => `(${sqlString(s.checklist)}, ${sqlString(s.step)}, ${sqlString(s.scope)})`).join(", ")}`;
+      : `values ${steps.map((step) => `(${sqlString(step.checklist)}, ${sqlString(step.step)}, ${sqlString(step.scope)})`).join(", ")}`;
 
   const lookup = (checklist: string, step: string): string =>
     `(select s.scope from (${stepRows}) as s(checklist, step, scope) where s.checklist = ${checklist} and (${step} is null or s.step = ${step}) limit 1)`;
+
+  const stepsOf = (checklist: string): string =>
+    `(select c.steps from (${lists}) as c(checklist, scope, steps) where c.checklist = ${checklist})`;
 
   const scopeCheck = (fnName: string): string => `
   v_scope := ${lookup(`${fnName}.checklist`, `${fnName}.step`)};
@@ -190,39 +207,23 @@ function build(ctx: ModuleContext): string {
     ${fail("ONBOARDING_FORBIDDEN", "Sign in first")}
   end if;`;
 
-  const subject = (fnName: string): string =>
-    `x.${c("checklist")} = ${fnName}.checklist
-      and (case when v_scope = 'organization' then x.${c("tenant")} = ${fnName}.tenant else x.${c("user")} = auth.uid() end)`;
+  // The enrollment of the checklist's subject: the organization, or the
+  // caller for a user checklist (without a tenant).
+  const subject = (
+    fnName: string,
+  ): string => `x.${e("program")} = ${sqlString(PROGRAM)} || ${fnName}.checklist
+    and x.${e("tenant")} is not distinct from (case when v_scope = 'organization' then ${fnName}.tenant end)
+    and x.${e("subjectType")} = v_scope
+    and x.${e("subjectId")} = (case when v_scope = 'organization' then ${fnName}.tenant::text else auth.uid()::text end)`;
+
+  const ensureFor = (fnName: string): string =>
+    `${ensure}(case when v_scope = 'organization' then ${fnName}.tenant end, ${sqlString(PROGRAM)} || ${fnName}.checklist, null, ${stepsOf(`${fnName}.checklist`)}, v_scope, case when v_scope = 'organization' then ${fnName}.tenant::text else auth.uid()::text end, auth.uid())`;
 
   return `${schemaPreamble(ctx)}
--- Completed onboarding steps, one row per step and subject: a user for a
--- user checklist, an organization for an organization checklist. The
--- checklists live in the app (defineChecklist); the functions check steps
--- against options.checklists.
-create table if not exists ${p} (
-  ${c("id")} uuid primary key default gen_random_uuid(),
-  ${c("checklist")} text not null,
-  ${c("step")} text not null,
-  ${c("user")} uuid references auth.users (id) on delete cascade,
-  ${c("tenant")} ${id},
-  ${c("completedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
-  ${c("completedAt")} timestamptz not null default now(),
-  check ((${c("user")} is null) <> (${c("tenant")} is null)),
-  unique nulls not distinct (${c("checklist")}, ${c("step")}, ${c("user")}, ${c("tenant")})
-);
-create index if not exists onboarding_progress_user_idx on ${p} (${c("user")});
-create index if not exists onboarding_progress_tenant_idx on ${p} (${c("tenant")});
-create index if not exists onboarding_progress_completed_by_idx on ${p} (${c("completedBy")});
-alter table ${p} enable row level security;
-${revokeTable(p)}
-grant select on ${p} to authenticated;
-grant all on ${p} to service_role;
-drop policy if exists "onboarding_progress_read" on ${p};
-create policy "onboarding_progress_read" on ${p} for select to authenticated
-  using (
-    ${c("user")} = (select auth.uid())
-    or ${ctx.scope.check(c("tenant"), ctx.permission("read", permissions.read))}
-  );
+-- Each checklist runs as the enrollment program onboarding:<checklist>: the
+-- organization is enrolled in an organization checklist, the user (without a
+-- tenant) in a user checklist. The checklists live in the app
+-- (defineChecklist); the functions check steps against options.checklists.
 
 -- [{ step, completedAt, completedBy }] of one checklist for the caller, or
 -- for tenant when it is an organization checklist (onboarding.read).
@@ -252,11 +253,12 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
-      'step', x.${c("step")},
-      'completedAt', x.${c("completedAt")},
-      'completedBy', x.${c("completedBy")}
-    ) order by x.${c("completedAt")}), '[]'::jsonb)
-    from ${p} x
+      'step', y.${s("step")},
+      'completedAt', y.${s("completedAt")},
+      'completedBy', y.${s("completedBy")}
+    ) order by y.${s("completedAt")}, array_position(x.${e("steps")}, y.${s("step")})), '[]'::jsonb)
+    from ${enrollments} x
+    join ${enrolled.table("steps")} y on y.${s("enrollment")} = x.${e("id")}
     where ${subject("onboarding_progress")}
   );
 end;
@@ -270,25 +272,13 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_column
 declare
   v_scope text;
-  v_count integer;
 begin${scopeCheck("complete_onboarding_step")}
   if v_scope = 'organization' and not ${can("complete_onboarding_step.tenant", "complete")} then
     ${fail("ONBOARDING_FORBIDDEN", "You may not complete this organization's onboarding")}
   end if;
-  insert into ${p} (${c("checklist")}, ${c("step")}, ${c("user")}, ${c("tenant")}, ${c("completedBy")})
-  values (
-    complete_onboarding_step.checklist,
-    complete_onboarding_step.step,
-    case when v_scope = 'user' then auth.uid() end,
-    case when v_scope = 'organization' then complete_onboarding_step.tenant end,
-    auth.uid()
-  )
-  on conflict do nothing;
-  get diagnostics v_count = row_count;
-  return v_count > 0;
+  return ${mark}(${ensureFor("complete_onboarding_step")}, complete_onboarding_step.step, true, auth.uid());
 end;
 $$;
 
@@ -301,15 +291,16 @@ set search_path = ''
 as $$
 declare
   v_scope text;
-  v_count integer;
+  v_id uuid;
 begin${scopeCheck("reset_onboarding_step")}
   if v_scope = 'organization' and not ${can("reset_onboarding_step.tenant", "complete")} then
     ${fail("ONBOARDING_FORBIDDEN", "You may not change this organization's onboarding")}
   end if;
-  delete from ${p} x
-  where x.${c("step")} = reset_onboarding_step.step and ${subject("reset_onboarding_step")};
-  get diagnostics v_count = row_count;
-  return v_count > 0;
+  select x.${e("id")} into v_id from ${enrollments} x where ${subject("reset_onboarding_step")};
+  if v_id is null then
+    return false;
+  end if;
+  return ${mark}(${ensureFor("reset_onboarding_step")}, reset_onboarding_step.step, false, auth.uid());
 end;
 $$;
 
@@ -319,7 +310,7 @@ revoke execute on function ${fn("reset_onboarding_step")}(text, text, ${id}) fro
 grant execute on function ${fn("onboarding_progress")}(text, ${id}) to authenticated, service_role;
 grant execute on function ${fn("complete_onboarding_step")}(text, text, ${id}) to authenticated, service_role;
 grant execute on function ${fn("reset_onboarding_step")}(text, text, ${id}) to authenticated, service_role;
-${eventSteps(ctx, steps)}`;
+${eventSteps(ctx, steps, lists)}`;
 }
 
 /**
@@ -327,7 +318,11 @@ ${eventSteps(ctx, steps)}`;
  * written: user steps for the event's actor, organization steps for its
  * tenant.
  */
-function eventSteps(ctx: ModuleContext, steps: readonly StepOption[]): string {
+function eventSteps(
+  ctx: ModuleContext,
+  steps: readonly StepOption[],
+  lists: string,
+): string {
   const rows = steps.flatMap((s) => s.events.map((event) => ({ ...s, event })));
 
   if (rows.length === 0) {
@@ -340,6 +335,7 @@ function eventSteps(ctx: ModuleContext, steps: readonly StepOption[]): string {
 
   const outbox = ctx.of("outbox");
   const events = outbox.table("events");
+  const enrolled = ctx.of("enrollments");
 
   const actor = outbox.has("events", "actor")
     ? `new.${outbox.col("events", "actor")}`
@@ -349,8 +345,6 @@ function eventSteps(ctx: ModuleContext, steps: readonly StepOption[]): string {
     ? `new.${outbox.col("events", "tenant")}`
     : `null::${ctx.idType}`;
 
-  const p = ctx.table("progress");
-  const c = (logical: string): string => ctx.col("progress", logical);
   const trigger = ctx.trigger("onboarding_events");
   const types = [...new Set(rows.map((r) => r.event))];
 
@@ -368,16 +362,30 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  r record;
 begin
-  insert into ${p} (${c("checklist")}, ${c("step")}, ${c("user")}, ${c("tenant")}, ${c("completedBy")})
-  select s.checklist, s.step,
-    case when s.scope = 'user' then ${actor} end,
-    case when s.scope = 'organization' then ${tenant} end,
-    ${actor}
-  from (values ${values}) as s(checklist, step, scope, event)
-  where s.event = new.${outbox.col("events", "type")}
-    and (case when s.scope = 'user' then ${actor} is not null else ${tenant} is not null end)
-  on conflict do nothing;
+  for r in
+    select s.checklist, s.step, s.scope
+    from (values ${values}) as s(checklist, step, scope, event)
+    where s.event = new.${outbox.col("events", "type")}
+      and (case when s.scope = 'user' then ${actor} is not null else ${tenant} is not null end)
+  loop
+    perform ${enrolled.fn("enrollment_mark")}(
+      ${enrolled.fn("enrollment_ensure")}(
+        case when r.scope = 'organization' then ${tenant} end,
+        ${sqlString(PROGRAM)} || r.checklist,
+        null,
+        (select c.steps from (${lists}) as c(checklist, scope, steps) where c.checklist = r.checklist),
+        r.scope,
+        case when r.scope = 'organization' then ${tenant}::text else ${actor}::text end,
+        ${actor}
+      ),
+      r.step,
+      true,
+      ${actor}
+    );
+  end loop;
   return null;
 exception when others then
   raise warning 'better-supabase: onboarding step from % failed: %', new.${outbox.col("events", "type")}, sqlerrm;
@@ -389,6 +397,62 @@ drop trigger if exists ${trigger} on ${events};
 create trigger ${trigger} after insert on ${events}
   for each row when (new.${outbox.col("events", "type")} in (${types.map(sqlString).join(", ")}))
   execute function ${ctx.fn("onboarding_from_event")}();`;
+}
+
+/**
+ * Moves the completed steps of version 1 (onboarding_progress) onto
+ * enrollments: one enrollment per checklist and subject with the checklist's
+ * configured steps, then drops the table.
+ */
+function enrollmentsUpgrade(ctx: ModuleContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const enrolled = enrollmentsOf(ctx);
+  const enrollments = enrolled.table("enrollments");
+  const steps = enrolled.table("steps");
+  const e = (column: string): string => enrolled.col("enrollments", column);
+  const s = (column: string): string => enrolled.col("steps", column);
+  const old = `${ctx.schema}.onboarding_progress`;
+  const lists = checklistRows(checklistSteps(ctx));
+
+  const subjectType =
+    "case when x.organization_id is null then 'user' else 'organization' end";
+
+  const subjectId = "coalesce(x.organization_id::text, x.user_id::text)";
+  const count = `(select count(*)::integer from ${steps} y where y.${s("enrollment")} = x.${e("id")} and y.${s("step")} = any(x.${e("steps")}))`;
+  const done = `(${count} >= cardinality(x.${e("steps")}) and cardinality(x.${e("steps")}) > 0)`;
+
+  return `${enrollmentTables(enrolled)}
+do $upgrade$
+begin
+  if to_regclass(${sqlString(`${ctx.schemaName}.onboarding_progress`)}) is null then
+    return;
+  end if;
+  insert into ${enrollments} (${e("tenant")}, ${e("program")}, ${e("subjectType")}, ${e("subjectId")}, ${e("user")}, ${e("steps")}, ${e("enrolledAt")})
+  select x.organization_id, ${sqlString(PROGRAM)} || x.checklist, ${subjectType}, ${subjectId}, x.user_id,
+    coalesce(c.steps, array_agg(distinct x.step order by x.step)), min(x.completed_at)
+  from ${old} x
+  left join (${lists}) as c(checklist, scope, steps) on c.checklist = x.checklist
+  group by x.organization_id, x.user_id, x.checklist, c.steps
+  on conflict do nothing;
+  insert into ${steps} (${s("enrollment")}, ${s("tenant")}, ${s("step")}, ${s("completedBy")}, ${s("completedAt")})
+  select y.${e("id")}, x.organization_id, x.step, x.completed_by, x.completed_at
+  from ${old} x
+  join ${enrollments} y on y.${e("tenant")} is not distinct from x.organization_id
+    and y.${e("program")} = ${sqlString(PROGRAM)} || x.checklist
+    and y.${e("subjectType")} = ${subjectType}
+    and y.${e("subjectId")} = ${subjectId}
+  on conflict do nothing;
+  update ${enrollments} x
+  set ${e("completedSteps")} = ${count},
+    ${e("status")} = case when ${done} then 'completed' else 'active' end,
+    ${e("completedAt")} = case when ${done} then (select max(y.${s("completedAt")}) from ${steps} y where y.${s("enrollment")} = x.${e("id")}) end
+  where x.${e("program")} like ${sqlString(`${PROGRAM}%`)};
+  drop table ${old};
+end;
+$upgrade$;`;
 }
 
 function contract(): readonly ModuleContractFunction[] {
@@ -412,12 +476,20 @@ export const ONBOARDING: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Onboarding",
   description:
-    "Onboarding checklists per user or organization: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.",
-  requires: ["tenant", "access"],
+    "Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.",
+  requires: ["tenant", "access", "enrollments"],
   integrates: ["outbox"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Onboarding checklists run on enrollments: each checklist and subject becomes an enrollment in the program onboarding:<checklist> with its completed steps, and onboarding_progress is dropped.",
+      sql: enrollmentsUpgrade,
+    },
+  ],
   names: NAMES,
   contract,
   build,

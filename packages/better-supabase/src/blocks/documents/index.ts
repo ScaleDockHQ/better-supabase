@@ -1,13 +1,17 @@
 export {
   createDocuments,
+  type DecidedSuggestion,
   type DocumentInfo,
   type DocumentRef,
   type Documents,
   type DocumentsOptions,
   type DocumentState,
+  type DocumentSuggestion,
+  type DocumentSuggestionStatus,
   type DocumentUpdate,
   type DocumentVersion,
   type OpenedDocument,
+  type SuggestionDecision,
 } from "./documents.ts";
 
 export {

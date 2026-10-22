@@ -69,16 +69,16 @@ describe("attachments module", () => {
     );
     expect(sql).toContain(`coalesce("organization_id"::text, '-')`);
     expect(sql).toContain(
-      `when 'note' then exists (select 1 from "public"."notes" s where s."id"::text = subject_id)`,
+      `when 'note' then exists (select 1 from "public"."notes" s where s."id"::text = attachment_subject_readable.subject_id)`,
     );
     expect(sql).toContain(
       `("organization_id" is null or coalesce(better_supabase.can(`,
     );
     expect(sqlOf(["attachments"])).not.toContain("drop not null");
     expect(() =>
-      renderModules(["comments"], {
+      renderModules(["reactions"], {
         modules: {
-          comments: {
+          reactions: {
             options: { subjects: { note: { table: "notes", tenant: false } } },
           },
         },
@@ -132,6 +132,25 @@ describe("attachments module", () => {
     expect(scoped).toContain(
       `or a."subject_id" in (select t.id::text from authz.ids_project('attachments.manage') as t(id))`,
     );
+
+    const withScope = (scope: unknown, provider: boolean) => () =>
+      renderModules(["attachments"], {
+        modules: {
+          ...(provider ? { access: { model: "provider" } } : {}),
+          attachments: {
+            options: { subjects: { project: { table: "projects", scope } } },
+          },
+        },
+        ...(provider ? { accessProvider: moduleProvider } : {}),
+      });
+
+    expect(withScope(1, true)).toThrow(/must be the name of a provider scope/);
+    expect(withScope("project", false)).toThrow(
+      /needs blocks.access.model "provider"/,
+    );
+    expect(withScope("organization", true)).toThrow(
+      /"organization" is not a scope stub declares below its tenant scope "organization". Scopes: project/,
+    );
   });
 
   it("takes upload and manage keys from the subject registry, and lets the block override them", () => {
@@ -179,8 +198,8 @@ describe("attachments module", () => {
     expect(overridden).toContain("'contracts.admin'");
   });
 
-  it("checks the comments key for files on a comment", () => {
-    const modules = ["comments", "attachments"];
+  it("checks the messaging key for files on a message or a comment thread", () => {
+    const modules = ["messaging", "comments", "attachments"];
 
     const sql = renderModules(modules, {
       subjects: withBlockSubjects({}, modules, {}),
@@ -190,7 +209,7 @@ describe("attachments module", () => {
       .join("\n");
 
     expect(sql).toContain(
-      `case "subject_type" when 'comment' then 'comments.create' else 'attachments.upload' end`,
+      `case "subject_type" when 'message' then 'messages.send' when 'conversation' then 'messages.send' else 'attachments.upload' end`,
     );
   });
 
@@ -274,5 +293,31 @@ describe("attachments module", () => {
     ] as const) {
       expect(() => sqlOf(["attachments"], options)).toThrow(message);
     }
+  });
+
+  it("rejects a version-like path, renders without metadata and nothing in custom mode", () => {
+    expect(() =>
+      sqlOf(["attachments"], { path: "{organization_id}/files/{id}-v2" }),
+    ).toThrow(/-v and digits/);
+
+    const bare = renderModules(["attachments"], {
+      modules: {
+        attachments: { columns: { attachments: { metadata: null } } },
+      },
+    })
+      .filter((file) => file.module === "attachments")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(bare).toContain("create_attachment");
+    expect(bare).not.toContain("create_attachment.metadata");
+    expect(
+      renderModules(["attachments"], {
+        modules: { attachments: { mode: "custom" } },
+      })
+        .filter((file) => file.module === "attachments")
+        .map((file) => file.contents)
+        .join("\n"),
+    ).not.toContain("create or replace function");
   });
 });

@@ -7,7 +7,7 @@ import type { ModuleLayout } from "../../src/sql/module-types.ts";
 import {
   createSignatures,
   sqlTransport,
-} from "../../src/blocks/forms/index.ts";
+} from "../../src/blocks/signatures/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();

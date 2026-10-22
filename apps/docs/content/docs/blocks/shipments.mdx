@@ -1,0 +1,225 @@
+---
+title: Shipments
+description: Ship packages between addresses, buy labels through a versioned carrier interface, and keep a tracking timeline that a signed carrier webhook updates without duplicates.
+---
+
+`shipments` records what you send and where it is. You create a shipment with
+its packages and two addresses, ask your carriers for rates, buy a label, and
+follow the tracking timeline until it is delivered. The status always follows
+the latest tracking event, whether it came from a carrier poll, a signed
+webhook or a person.
+
+```bash
+better-supabase add shipments
+```
+
+```ts
+import { createShipments } from "better-supabase/blocks/shipments";
+```
+
+The module requires `tenant` and `access`. With `assets` a shipment can name
+the asset location it ships from, with `outbox` every change records an
+event, and with `audit` the writes are audited. Carriers plug in through the
+versioned `ShipmentCarrier` interface; the block ships no carrier SDK (see
+[ADR 0082](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0082-shipment-carriers.md)).
+
+## Tables
+
+| Table                      | Holds                                                                                                                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shipments`                | One shipment: `reference`, `status`, the `from_address` and `to_address`, the record it is for, and once labeled the `carrier`, `service`, `tracking_number`, label and its cost |
+| `shipment_packages`        | The packages, by `position`: `weight_grams` and the sizes in millimeters                                                                                                         |
+| `shipment_tracking_events` | The timeline: the carrier's event id, `status`, `occurred_at`, `description`, `location` and the `source` (`carrier`, `webhook` or `manual`)                                     |
+
+Every table is read through the functions only. Members with
+`shipments.read` read shipments (members hold it by default), and
+`shipments.manage` creates, labels and cancels them.
+
+## Create and label a shipment
+
+```ts
+import { createShipments } from "better-supabase/blocks/shipments";
+import { money } from "better-supabase/commerce";
+
+const shipments = createShipments({
+  transport,
+  tenant: organizationId,
+  carriers: [myCarrier],
+});
+
+const shipment = await shipments
+  .create({
+    from: { line1: "Dock 4", city: "Rotterdam", country: "NL" },
+    to: { name: "Jane", line1: "Main St 1", city: "Berlin", country: "DE" },
+    packages: [
+      { weightGrams: 1200, lengthMm: 300, widthMm: 200, heightMm: 100 },
+    ],
+  })
+  .orThrow();
+
+const rates = await shipments.rates(shipment.id).orThrow();
+const labeled = await shipments
+  .buyLabel(shipment.id, {
+    carrier: rates[0].carrier,
+    service: rates[0].service,
+  })
+  .orThrow();
+```
+
+A new shipment is a `draft`. `rates` asks every carrier and returns the
+quotes cheapest first, grouped by currency. `buyLabel` buys the label with
+the idempotency key `label:<shipment id>`, so a retry never buys twice, and
+stores it on the shipment, which moves to `label_created`. When storing
+fails, the block voids the label it just bought. A shipment without a
+`reference` gets a generated one (`SHP-` and ten characters).
+
+| Method                               | Returns                                                    |
+| ------------------------------------ | ---------------------------------------------------------- |
+| `create(input)`                      | the draft shipment with its packages                       |
+| `get(id)`                            | the shipment, or `null`                                    |
+| `list({ status, subject, carrier })` | the organization's shipments, newest first                 |
+| `rates(id, { currency })`            | every carrier's quotes                                     |
+| `buyLabel(id, choice)`               | the shipment with its label                                |
+| `refresh(id)`                        | the events the carrier added since, and the shipment       |
+| `recordTracking(id, events)`         | the events recorded by hand, and the shipment              |
+| `ingest(carrier, request)`           | one entry per tracking number in a verified webhook        |
+| `cancel(id)`                         | the cancelled shipment, after the carrier voided its label |
+| `trackingEvents(id)`                 | the timeline, oldest first                                 |
+
+The [shipments section](/docs/blocks/records) lists a record's shipments on
+its page, with `create` and `cancel` writes.
+
+## Tracking
+
+Each tracking event carries the carrier's id, and the database records an id
+once per shipment, so a re-polled event or a redelivered webhook changes
+nothing. After every write the shipment takes the status of the event that
+happened last (not the one recorded last), unless it was cancelled.
+Delivery stamps `deliveredAt`.
+
+| Status             | Meaning                                   |
+| ------------------ | ----------------------------------------- |
+| `draft`            | no label yet                              |
+| `label_created`    | labeled, not picked up                    |
+| `in_transit`       | on its way                                |
+| `out_for_delivery` | on the truck to the recipient             |
+| `delivered`        | at the recipient                          |
+| `exception`        | held up: a wrong address, damage, customs |
+| `returned`         | on its way back, or back                  |
+| `cancelled`        | cancelled before it left                  |
+
+Only a `draft` or a `label_created` shipment can be cancelled; with a label,
+`cancel` voids it at the carrier first.
+
+## Ingest carrier webhooks
+
+A carrier that pushes tracking updates implements `parseWebhook`, which
+verifies the signature with the carrier's secret before it reads the body.
+Point the carrier at a route and pass the request to `ingest` on a client
+with the service transport:
+
+```ts title="app/api/carriers/[carrier]/route.ts"
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ carrier: string }> },
+) {
+  const { carrier } = await params;
+  const result = await serviceShipments.ingest(carrier, request);
+
+  if (!result.ok) {
+    return Response.json(result.error, {
+      status: result.error.kind === "unauthorized" ? 401 : 400,
+    });
+  }
+
+  return new Response(null, { status: 204 });
+}
+```
+
+`ingest` runs `ingest_tracking_events`, which only the service role may
+call, because the route has verified the signature and the request carries
+no user. It finds the shipment by carrier and tracking number, so the route
+needs no tenant. A tracking number no shipment has comes back with
+`recorded: 0`, and a forged signature with `unauthorized`.
+
+## Write a carrier
+
+```ts
+import type { ShipmentCarrier } from "better-supabase/blocks/shipments";
+
+export const myCarrier: ShipmentCarrier = {
+  apiVersion: 1,
+  name: "my-carrier",
+  rates: (request, options) => quote(request, options),
+  createLabel: (request, options) => buy(request, options),
+  // The events so far, oldest first.
+  track: (trackingNumber, options) => events(trackingNumber, options),
+  cancel: (label, options) => voidLabel(label, options),
+  // Verifies the signature, then reads the updates.
+  parseWebhook: (input) => updates(input),
+};
+```
+
+Every method returns a `Result`: `invalid_input` for a request the carrier
+can't ship, `not_found` for an unknown tracking number, `conflict` for a
+label it can no longer void and `unauthorized` for a forged webhook. Honor
+`idempotencyKey` in `createLabel` and `cancel`. `invalidShipmentRequest`
+checks addresses and packages the way the block does, and
+`trackingUpdatesOf` reads the `{ trackingNumber, events }` webhook body. Run
+`testShipmentCarrier` from `better-supabase/testing` against your carrier in
+its tests (see [conformance](/docs/extending/conformance)).
+
+`flatRateCarrier` is a carrier without a network: fixed prices per service,
+labels with generated tracking numbers, and webhooks signed with
+[Standard Webhooks](/docs/blocks/webhooks-in). Use it for local development,
+tests and pickup-only shops.
+
+```ts
+const carrier = flatRateCarrier({
+  services: {
+    standard: {
+      amount: money(495, "EUR"),
+      additional: money(200, "EUR"),
+      estimatedDays: 3,
+    },
+  },
+  webhookSecret: env.CARRIER_WEBHOOK_SECRET,
+});
+```
+
+## UI recipes
+
+The `shipment-tracking` [UI recipe](/docs/registry/ui-recipes) renders a
+shipment's packages, label and tracking timeline, with buttons to buy a label
+and refresh. It is in the Next.js example.
+
+## Errors
+
+| Hint                           | Cause                                                                      |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| `SHIPMENT_FORBIDDEN`           | the caller lacks `shipments.read` or `shipments.manage`                    |
+| `SHIPMENT_NOT_FOUND`           | no shipment with this id that the caller can read                          |
+| `SHIPMENT_INVALID`             | the reference isn't 1 to 100 characters                                    |
+| `SHIPMENT_ADDRESS_INVALID`     | an address lacks `line1`, `city` or a two-letter `country`                 |
+| `SHIPMENT_EMPTY`               | the shipment has no packages, or more than 50                              |
+| `SHIPMENT_PACKAGE_INVALID`     | a package has no weight, or a size that isn't whole millimeters above zero |
+| `SHIPMENT_SUBJECT_INVALID`     | only one of the record type and id was passed                              |
+| `SHIPMENT_SUBJECT_NOT_FOUND`   | the record doesn't exist in the organization                               |
+| `SHIPMENT_LOCATION_NOT_FOUND`  | the location doesn't exist in the organization                             |
+| `SHIPMENT_ASSETS_MISSING`      | a location was named without the assets block                              |
+| `SHIPMENT_CARRIER_UNKNOWN`     | no carrier with this name was passed to `createShipments`                  |
+| `SHIPMENT_SERVICE_UNKNOWN`     | the carrier doesn't offer the service                                      |
+| `SHIPMENT_NOT_DRAFT`           | the shipment already has a label                                           |
+| `SHIPMENT_LABEL_INVALID`       | the label the carrier returned is missing a field                          |
+| `SHIPMENT_TRACKING_TAKEN`      | another shipment has the carrier and tracking number                       |
+| `SHIPMENT_NOT_LABELED`         | tracking was asked for a shipment without a label                          |
+| `SHIPMENT_TRACKING_INVALID`    | an event lacks an id, a known status or an ISO 8601 `occurredAt`           |
+| `SHIPMENT_TRACKING_UNKNOWN`    | the carrier doesn't know the tracking number                               |
+| `SHIPMENT_WEBHOOK_UNSUPPORTED` | the carrier has no `parseWebhook`                                          |
+| `SHIPMENT_SHIPPED`             | the shipment has left and can't be cancelled                               |
+
+## Events
+
+`shipment.created`, `shipment.labeled`, `shipment.status_changed` and
+`shipment.cancelled`. The [events page](/docs/extending/events) lists their
+payloads.

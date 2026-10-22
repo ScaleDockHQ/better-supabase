@@ -514,14 +514,25 @@ function presetManifest(
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("")}Events`;
 
+  const sections = Object.fromEntries(
+    Object.entries(manifest.client === null ? {} : (block.sections ?? {})).map(
+      ([name, section]) => [name, Object.keys(section.writes ?? {})],
+    ),
+  );
+
+  const withSections =
+    Object.keys(sections).length === 0
+      ? withSchemas
+      : { ...withSchemas, sections };
+
   return manifest.client !== null &&
     block.events.types.length > 0 &&
     (types.get(subpath) ?? []).includes(eventsType)
     ? {
-        ...withSchemas,
+        ...withSections,
         events: { type: eventsType, types: [...block.events.types] },
       }
-    : withSchemas;
+    : withSections;
 }
 
 const PORT_NAMES: readonly PortName[] = [

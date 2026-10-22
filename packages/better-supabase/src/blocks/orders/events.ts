@@ -15,6 +15,8 @@ export type OrdersEvents = {
   readonly "fulfillment.delivered": CommerceSubjectEventData;
   readonly "return.requested": CommerceSubjectEventData;
   readonly "return.received": CommerceSubjectEventData;
+  readonly "order.prepared": CommerceSubjectEventData;
+  readonly "order.served": CommerceSubjectEventData;
 };
 
 /** The `orders` block's event types, for its manifest and `onBlockEvent`. */
@@ -29,4 +31,6 @@ export const ordersEvents: Events<OrdersEvents> = defineEvents({
   "fulfillment.delivered": event<CommerceSubjectEventData>(),
   "return.requested": event<CommerceSubjectEventData>(),
   "return.received": event<CommerceSubjectEventData>(),
+  "order.prepared": event<CommerceSubjectEventData>(),
+  "order.served": event<CommerceSubjectEventData>(),
 });

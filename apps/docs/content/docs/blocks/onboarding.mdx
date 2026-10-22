@@ -10,12 +10,14 @@ app calls `complete`, or on its own when the outbox records one of the event
 types it lists.
 
 ```bash
-better-supabase add onboarding   # adds tenant and access as well
+better-supabase add onboarding   # adds tenant, access and enrollments as well
 ```
 
-| Table                 | Holds                                                                                                   |
-| --------------------- | ------------------------------------------------------------------------------------------------------- |
-| `onboarding_progress` | One row per completed step: `checklist`, `step`, the `user_id` or `organization_id`, and `completed_by` |
+Each checklist runs on [enrollments](/docs/blocks/enrollments) as the program
+`onboarding:<checklist>`: the organization is enrolled in an organization
+checklist, and each user, without an organization, in a user checklist. The
+completed steps are `enrollment_steps` rows, so an admin page that lists
+enrollments shows onboarding next to your own programs.
 
 | Permission            | Lets a member                                       | Default roles              |
 | --------------------- | --------------------------------------------------- | -------------------------- |
@@ -64,7 +66,8 @@ export default defineConfig({
 Steps with `events` need the [outbox](/docs/blocks/outbox). An organization
 step completes for the event's tenant; a user step completes for its actor.
 Run `better-supabase add onboarding` again after you change a
-checklist's steps.
+checklist's steps. An enrollment takes the new steps the next time a step of
+it completes or resets, and its progress counts only the current steps.
 
 ## Progress
 
@@ -107,7 +110,7 @@ const onboarding = createOnboarding({
 });
 ```
 
-The progress rows take no app columns: the steps live in `defineChecklist`.
+The enrollments take no app columns: the steps live in `defineChecklist`.
 
 ## In React
 

@@ -11,6 +11,7 @@ import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
 import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
 import { ACCESS } from "./modules/access.ts";
+import { ACTIVITY } from "./modules/activity.ts";
 import { ACTOR } from "./modules/actor.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
 import { AI_CACHE } from "./modules/ai-cache.ts";
@@ -21,46 +22,67 @@ import { AI_TASKS } from "./modules/ai-tasks.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { APPROVALS } from "./modules/approvals.ts";
+import { ASSETS } from "./modules/assets.ts";
+import { ASSIGNMENT } from "./modules/assignment.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
+import { BILLABLE_TIME } from "./modules/billable-time.ts";
 import { BILLING } from "./modules/billing.ts";
 import { BOOKINGS } from "./modules/bookings.ts";
 import { BULK } from "./modules/bulk.ts";
 import { CALENDAR } from "./modules/calendar.ts";
 import { CATALOG } from "./modules/catalog.ts";
+import { CHANNELS } from "./modules/channels.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
+import { CONTRACTS } from "./modules/contracts.ts";
+import { CONTROLS } from "./modules/controls.ts";
+import { COURSES } from "./modules/courses.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
 import { DEALS } from "./modules/deals.ts";
+import { DISPATCH } from "./modules/dispatch.ts";
 import { DOCUMENTS } from "./modules/documents.ts";
 import { DOMAINS } from "./modules/domains.ts";
+import { DONATIONS } from "./modules/donations.ts";
 import { DRIVE, DRIVE_FILES } from "./modules/drive.ts";
 import { EMPLOYEES } from "./modules/employees.ts";
 import { ENGAGEMENTS } from "./modules/engagements.ts";
+import { ENRICHMENT } from "./modules/enrichment.ts";
+import { ENROLLMENTS } from "./modules/enrollments.ts";
 import { ENSURE_RLS } from "./modules/ensure-rls.ts";
 import { ENTITLEMENTS } from "./modules/entitlements.ts";
+import { EXPENSES } from "./modules/expenses.ts";
+import { FIELD_HISTORY } from "./modules/field-history.ts";
 import { FLAGS } from "./modules/flags.ts";
+import { FORECASTS } from "./modules/forecasts.ts";
 import { FORMS } from "./modules/forms.ts";
 import { GRANTS } from "./modules/grants.ts";
+import { GUESTS } from "./modules/guests.ts";
 import { HIRING } from "./modules/hiring.ts";
 import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
+import { INCIDENTS } from "./modules/incidents.ts";
 import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { INVOICES } from "./modules/invoices.ts";
 import { JOBS } from "./modules/jobs.ts";
 import { JSONB_SCHEMAS } from "./modules/jsonb-schemas.ts";
 import { KNOWLEDGE } from "./modules/knowledge.ts";
+import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
+import { LEDGER } from "./modules/ledger.ts";
+import { MAIL_SYNC } from "./modules/mail-sync.ts";
 import { MEMORY } from "./modules/memory.ts";
+import { MESSAGING } from "./modules/messaging.ts";
 import { METRICS } from "./modules/metrics.ts";
 import { MFA } from "./modules/mfa.ts";
+import { MODERATION } from "./modules/moderation.ts";
 import { NOTIFICATIONS } from "./modules/notifications.ts";
 import { NUMBER_SEQUENCES } from "./modules/number-sequences.ts";
 import { OAUTH_SERVER } from "./modules/oauth-server.ts";
@@ -69,6 +91,7 @@ import { ORDERS } from "./modules/orders.ts";
 import { ORGANIZATIONS } from "./modules/organizations.ts";
 import { OUTBOX } from "./modules/outbox.ts";
 import { PARTIES } from "./modules/parties.ts";
+import { PASSES } from "./modules/passes.ts";
 import { PGTAP } from "./modules/pgtap.ts";
 import { PIPELINES } from "./modules/pipelines.ts";
 import { PROFILES } from "./modules/profiles.ts";
@@ -86,12 +109,15 @@ import { RESERVED_SLUGS } from "./modules/reserved-slugs.ts";
 import { REVIEWS } from "./modules/reviews.ts";
 import { RULES } from "./modules/rules.ts";
 import { SAVED_VIEWS } from "./modules/saved-views.ts";
+import { SCORES } from "./modules/scores.ts";
 import { SEARCH } from "./modules/search.ts";
+import { SEGMENTS } from "./modules/segments.ts";
 import { SERVICE_PRINCIPALS } from "./modules/service-principals.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
 import { SHARED_SIGNALS } from "./modules/shared-signals.ts";
+import { SHIPMENTS } from "./modules/shipments.ts";
 import { SIGNATURES } from "./modules/signatures.ts";
 import { SIGNING_KEYS } from "./modules/signing-keys.ts";
 import { SLA } from "./modules/sla.ts";
@@ -303,10 +329,36 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(SHARED_SIGNALS),
       built(OAUTH_SERVER),
       built(DOMAINS),
+      built(MODERATION),
       built(REVIEWS),
       built(LEAVE),
       built(RULES),
       built(VERCEL_MARKETPLACE),
+      built(LEDGER),
+      built(ASSETS),
+      built(SCORES),
+      built(ENROLLMENTS),
+      built(GUESTS),
+      built(PASSES),
+      built(BILLABLE_TIME),
+      built(LEASES),
+      built(EXPENSES),
+      built(DONATIONS),
+      built(DISPATCH),
+      built(SHIPMENTS),
+      built(CONTRACTS),
+      built(CONTROLS),
+      built(INCIDENTS),
+      built(COURSES),
+      built(MESSAGING),
+      built(CHANNELS),
+      built(ACTIVITY),
+      built(MAIL_SYNC),
+      built(SEGMENTS),
+      built(ASSIGNMENT),
+      built(ENRICHMENT),
+      built(FORECASTS),
+      built(FIELD_HISTORY),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

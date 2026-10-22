@@ -11,7 +11,7 @@
     "preset": {
       "type": "string",
       "minLength": 1,
-      "description": "A named preset (minimal, saas, consumer, crm, projects, helpdesk, commerce, marketplace, scheduling, people, drive, docs, invoicing, forms, ai, ai-chat, ai-agents, developer-api, automation, enterprise, admin, everything), a code from app.bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win."
+      "description": "A named preset (minimal, saas, consumer, crm, projects, helpdesk, chat, commerce, marketplace, scheduling, people, drive, docs, invoicing, forms, ai, ai-chat, ai-agents, developer-api, automation, enterprise, admin, everything), a code from app.bettersupabase.com/create, or its URL. defineConfig expands it into blocks and its conventions, and the keys you set win."
     },
     "source": {
       "type": "object",
@@ -95,6 +95,9 @@
       "type": "string",
       "description": "PostgREST major version written to database.types.ts.",
       "default": "13"
+    },
+    "generateFeatures": {
+      "type": "boolean"
     },
     "json": {
       "type": "object",
@@ -879,6 +882,12 @@
               "type": "string"
             },
             "permitted": {
+              "type": "string"
+            },
+            "portalSubjects": {
+              "type": "string"
+            },
+            "portalParties": {
               "type": "string"
             }
           },
@@ -1753,6 +1762,7 @@
             "enum": [
               "access",
               "access-requests",
+              "activity",
               "actor",
               "agents",
               "ai-cache",
@@ -1763,47 +1773,68 @@
               "announcements",
               "api-keys",
               "approvals",
+              "assets",
+              "assignment",
               "attachments",
               "audit",
+              "billable-time",
               "billing",
               "bookings",
               "bulk",
               "calendar",
               "catalog",
+              "channels",
               "chat-sdk-state",
               "collections",
               "comments",
               "connectors",
+              "contracts",
+              "controls",
+              "courses",
               "credentials",
               "custom-fields",
               "data-lifecycle",
               "deals",
+              "dispatch",
               "documents",
               "domains",
+              "donations",
               "drive",
               "drive-files",
               "employees",
               "engagements",
+              "enrichment",
+              "enrollments",
               "ensure-rls",
               "entitlements",
+              "expenses",
+              "field-history",
               "flags",
+              "forecasts",
               "forms",
               "grants",
+              "guests",
               "hiring",
               "idempotency",
               "identities",
               "imports",
               "inbox",
+              "incidents",
               "inventory",
               "invitations",
               "invoices",
               "jobs",
               "jsonb-schemas",
               "knowledge",
+              "leases",
               "leave",
+              "ledger",
+              "mail-sync",
               "memory",
+              "messaging",
               "metrics",
               "mfa",
+              "moderation",
               "notifications",
               "number-sequences",
               "oauth-server",
@@ -1812,6 +1843,7 @@
               "organizations",
               "outbox",
               "parties",
+              "passes",
               "pgtap",
               "pipelines",
               "profiles",
@@ -1829,12 +1861,15 @@
               "reviews",
               "rules",
               "saved-views",
+              "scores",
               "search",
+              "segments",
               "service-principals",
               "sessions",
               "settings",
               "share-links",
               "shared-signals",
+              "shipments",
               "signatures",
               "signing-keys",
               "sla",
@@ -1876,6 +1911,9 @@
             "access-requests": {
               "$ref": "#/$defs/blocks/access-requests"
             },
+            "activity": {
+              "$ref": "#/$defs/blocks/activity"
+            },
             "actor": {
               "$ref": "#/$defs/blocks/actor"
             },
@@ -1906,11 +1944,20 @@
             "approvals": {
               "$ref": "#/$defs/blocks/approvals"
             },
+            "assets": {
+              "$ref": "#/$defs/blocks/assets"
+            },
+            "assignment": {
+              "$ref": "#/$defs/blocks/assignment"
+            },
             "attachments": {
               "$ref": "#/$defs/blocks/attachments"
             },
             "audit": {
               "$ref": "#/$defs/blocks/audit"
+            },
+            "billable-time": {
+              "$ref": "#/$defs/blocks/billable-time"
             },
             "billing": {
               "$ref": "#/$defs/blocks/billing"
@@ -1927,6 +1974,9 @@
             "catalog": {
               "$ref": "#/$defs/blocks/catalog"
             },
+            "channels": {
+              "$ref": "#/$defs/blocks/channels"
+            },
             "chat-sdk-state": {
               "$ref": "#/$defs/blocks/chat-sdk-state"
             },
@@ -1938,6 +1988,15 @@
             },
             "connectors": {
               "$ref": "#/$defs/blocks/connectors"
+            },
+            "contracts": {
+              "$ref": "#/$defs/blocks/contracts"
+            },
+            "controls": {
+              "$ref": "#/$defs/blocks/controls"
+            },
+            "courses": {
+              "$ref": "#/$defs/blocks/courses"
             },
             "credentials": {
               "$ref": "#/$defs/blocks/credentials"
@@ -1951,11 +2010,17 @@
             "deals": {
               "$ref": "#/$defs/blocks/deals"
             },
+            "dispatch": {
+              "$ref": "#/$defs/blocks/dispatch"
+            },
             "documents": {
               "$ref": "#/$defs/blocks/documents"
             },
             "domains": {
               "$ref": "#/$defs/blocks/domains"
+            },
+            "donations": {
+              "$ref": "#/$defs/blocks/donations"
             },
             "drive": {
               "$ref": "#/$defs/blocks/drive"
@@ -1969,20 +2034,38 @@
             "engagements": {
               "$ref": "#/$defs/blocks/engagements"
             },
+            "enrichment": {
+              "$ref": "#/$defs/blocks/enrichment"
+            },
+            "enrollments": {
+              "$ref": "#/$defs/blocks/enrollments"
+            },
             "ensure-rls": {
               "$ref": "#/$defs/blocks/ensure-rls"
             },
             "entitlements": {
               "$ref": "#/$defs/blocks/entitlements"
             },
+            "expenses": {
+              "$ref": "#/$defs/blocks/expenses"
+            },
+            "field-history": {
+              "$ref": "#/$defs/blocks/field-history"
+            },
             "flags": {
               "$ref": "#/$defs/blocks/flags"
+            },
+            "forecasts": {
+              "$ref": "#/$defs/blocks/forecasts"
             },
             "forms": {
               "$ref": "#/$defs/blocks/forms"
             },
             "grants": {
               "$ref": "#/$defs/blocks/grants"
+            },
+            "guests": {
+              "$ref": "#/$defs/blocks/guests"
             },
             "hiring": {
               "$ref": "#/$defs/blocks/hiring"
@@ -1998,6 +2081,9 @@
             },
             "inbox": {
               "$ref": "#/$defs/blocks/inbox"
+            },
+            "incidents": {
+              "$ref": "#/$defs/blocks/incidents"
             },
             "inventory": {
               "$ref": "#/$defs/blocks/inventory"
@@ -2017,17 +2103,32 @@
             "knowledge": {
               "$ref": "#/$defs/blocks/knowledge"
             },
+            "leases": {
+              "$ref": "#/$defs/blocks/leases"
+            },
             "leave": {
               "$ref": "#/$defs/blocks/leave"
             },
+            "ledger": {
+              "$ref": "#/$defs/blocks/ledger"
+            },
+            "mail-sync": {
+              "$ref": "#/$defs/blocks/mail-sync"
+            },
             "memory": {
               "$ref": "#/$defs/blocks/memory"
+            },
+            "messaging": {
+              "$ref": "#/$defs/blocks/messaging"
             },
             "metrics": {
               "$ref": "#/$defs/blocks/metrics"
             },
             "mfa": {
               "$ref": "#/$defs/blocks/mfa"
+            },
+            "moderation": {
+              "$ref": "#/$defs/blocks/moderation"
             },
             "notifications": {
               "$ref": "#/$defs/blocks/notifications"
@@ -2052,6 +2153,9 @@
             },
             "parties": {
               "$ref": "#/$defs/blocks/parties"
+            },
+            "passes": {
+              "$ref": "#/$defs/blocks/passes"
             },
             "pgtap": {
               "$ref": "#/$defs/blocks/pgtap"
@@ -2104,8 +2208,14 @@
             "saved-views": {
               "$ref": "#/$defs/blocks/saved-views"
             },
+            "scores": {
+              "$ref": "#/$defs/blocks/scores"
+            },
             "search": {
               "$ref": "#/$defs/blocks/search"
+            },
+            "segments": {
+              "$ref": "#/$defs/blocks/segments"
             },
             "service-principals": {
               "$ref": "#/$defs/blocks/service-principals"
@@ -2121,6 +2231,9 @@
             },
             "shared-signals": {
               "$ref": "#/$defs/blocks/shared-signals"
+            },
+            "shipments": {
+              "$ref": "#/$defs/blocks/shipments"
             },
             "signatures": {
               "$ref": "#/$defs/blocks/signatures"
@@ -2546,6 +2659,9 @@
         },
         "postgrestVersion": {
           "$ref": "#/properties/postgrestVersion"
+        },
+        "generateFeatures": {
+          "$ref": "#/properties/generateFeatures"
         },
         "json": {
           "$ref": "#/properties/json"
@@ -3172,6 +3288,17 @@
           }
         }
       },
+      "activity": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "actor": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3381,6 +3508,33 @@
           }
         }
       },
+      "assets": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "postgis": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      },
+      "assignment": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "attachments": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3504,6 +3658,17 @@
           }
         }
       },
+      "billable-time": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "billing": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3537,7 +3702,11 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {},
+              "recurring": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -3589,6 +3758,17 @@
           }
         }
       },
+      "channels": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "chat-sdk-state": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3621,22 +3801,11 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
-              "maxBodyLength": {
-                "type": "number",
-                "default": 10000
-              },
-              "documentSchema": {},
-              "notify": {
-                "type": "boolean",
-                "default": true
-              },
               "follow": {
                 "type": "boolean",
                 "default": true
               },
-              "mentionGroups": {},
-              "extraColumns": {}
+              "mentionGroups": {}
             }
           }
         }
@@ -3661,6 +3830,49 @@
                 "type": "string",
                 "default": "1 hour"
               },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "contracts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reminderDays": {
+                "type": "number",
+                "default": 14
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "controls": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "courses": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
               "extraColumns": {}
             }
           }
@@ -3758,6 +3970,27 @@
           }
         }
       },
+      "dispatch": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {},
+              "timeZone": {
+                "type": "string",
+                "default": "UTC"
+              },
+              "defaultDuration": {
+                "type": "string",
+                "default": "1 hour"
+              }
+            }
+          }
+        }
+      },
       "documents": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3798,6 +4031,19 @@
                 "type": "string",
                 "default": "_better-supabase"
               }
+            }
+          }
+        }
+      },
+      "donations": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }
@@ -3877,7 +4123,41 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "recordings": {
+                "type": "boolean",
+                "default": false
+              },
+              "bookings": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "enrichment": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "enrollments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxSteps": {
+                "type": "number",
+                "default": 100
+              }
             }
           }
         }
@@ -3904,6 +4184,32 @@
           }
         }
       },
+      "expenses": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "field-history": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subjects": {}
+            }
+          }
+        }
+      },
       "flags": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3915,6 +4221,17 @@
               "contexts": {},
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "forecasts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -3944,6 +4261,17 @@
             "properties": {
               "fromPolicies": {}
             }
+          }
+        }
+      },
+      "guests": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -4028,10 +4356,24 @@
               },
               "botQueue": {},
               "outboundQueue": {},
+              "scheduleQueue": {},
               "notify": {
                 "type": "boolean",
                 "default": true
               }
+            }
+          }
+        }
+      },
+      "incidents": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }
@@ -4186,6 +4528,19 @@
           }
         }
       },
+      "leases": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
       "leave": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4211,6 +4566,35 @@
           }
         }
       },
+      "ledger": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
+      "mail-sync": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "engagementType": {
+                "type": "string"
+              },
+              "matchDomains": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
       "memory": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4226,6 +4610,36 @@
                 "type": "number",
                 "default": 100000
               }
+            }
+          }
+        }
+      },
+      "messaging": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "topic": {
+                "type": "string",
+                "default": "messages"
+              },
+              "threadDepth": {},
+              "maxBodyLength": {
+                "type": "number",
+                "default": 40000
+              },
+              "editWindow": {
+                "type": "number",
+                "default": 0
+              },
+              "scheduleQueue": {
+                "type": "string",
+                "default": "messaging"
+              },
+              "extraColumns": {}
             }
           }
         }
@@ -4255,6 +4669,36 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "moderation": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "autoHideThreshold": {
+                "type": "number",
+                "default": 3
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "spam",
+                  "abuse",
+                  "harassment",
+                  "off_topic",
+                  "illegal",
+                  "other"
+                ]
+              }
+            }
           }
         }
       },
@@ -4364,7 +4808,11 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "kitchen": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -4479,6 +4927,34 @@
               "companyLifecycles": {},
               "personLifecycles": {},
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "passes": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "checkInOpens": {
+                "type": "string",
+                "default": "1 hour"
+              },
+              "dropInLength": {
+                "type": "string",
+                "default": "2 hours"
+              },
+              "credits": {
+                "type": "boolean",
+                "default": false
+              },
+              "creditRefundBefore": {
+                "type": "string",
+                "default": "12 hours"
+              }
             }
           }
         }
@@ -4816,6 +5292,26 @@
           }
         }
       },
+      "scores": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxRules": {
+                "type": "number",
+                "default": 100
+              },
+              "maxMetrics": {
+                "type": "number",
+                "default": 50
+              }
+            }
+          }
+        }
+      },
       "search": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4831,6 +5327,21 @@
               "dimensions": {
                 "type": "number",
                 "default": 0
+              }
+            }
+          }
+        }
+      },
+      "segments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxMembers": {
+                "type": "number"
               }
             }
           }
@@ -4912,6 +5423,19 @@
                 "type": "string",
                 "default": "7 days"
               }
+            }
+          }
+        }
+      },
+      "shipments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }

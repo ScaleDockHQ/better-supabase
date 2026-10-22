@@ -8,6 +8,8 @@ import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
+import type { LedgerEvents } from "better-supabase/blocks/ledger";
+import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { InventoryEvents } from "better-supabase/blocks/inventory";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
@@ -39,6 +41,14 @@ export const blockConfig = {
     options: {},
   },
   catalog: {
+    schema: "better_supabase",
+    options: {},
+  },
+  ledger: {
+    schema: "better_supabase",
+    options: {},
+  },
+  enrollments: {
     schema: "better_supabase",
     options: {},
   },
@@ -122,6 +132,11 @@ export const permissions = {
     manage: "catalog.manage",
     read: "catalog.read",
   },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
   inventory: {
     manage: "inventory.manage",
     read: "inventory.read",
@@ -132,6 +147,15 @@ export const permissions = {
     invite: "members.invite",
     revoke: "members.invite",
     view: "members.invite",
+  },
+  ledger: {
+    read: "ledger.read",
+    manage: "ledger.manage",
+    post: "ledger.post",
+  },
+  ledger_account: {
+    read: "ledger.read",
+    write: "ledger.manage",
   },
   notifications: {
     send: "notifications.send",
@@ -144,6 +168,7 @@ export const permissions = {
   orders: {
     manage: "orders.manage",
     read: "orders.read",
+    prepare: "orders.prepare",
   },
   organizations: {
     update: "organization.update",
@@ -181,13 +206,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CatalogEvents & InventoryEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PromotionsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CatalogEvents & LedgerEvents & EnrollmentsEvents & InventoryEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PromotionsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -208,6 +233,12 @@ export const blockEvents: Events<BlockEvents> = {
     "billing.subscription_deleted",
     "billing.subscription_updated",
     "catalog.price_changed",
+    "enrollment.cancelled",
+    "enrollment.completed",
+    "enrollment.created",
+    "enrollment.step_completed",
+    "enrollment_program.deleted",
+    "enrollment_program.saved",
     "fulfillment.delivered",
     "fulfillment.shipped",
     "invitation.accepted",
@@ -216,6 +247,13 @@ export const blockEvents: Events<BlockEvents> = {
     "invitation.resent",
     "invitation.revoked",
     "invitation.updated",
+    "ledger_account.closed",
+    "ledger_account.opened",
+    "ledger_hold.captured",
+    "ledger_hold.placed",
+    "ledger_hold.released",
+    "ledger_transaction.posted",
+    "ledger_transaction.reversed",
     "notification.bounced",
     "notification.clicked",
     "notification.complained",
@@ -229,7 +267,9 @@ export const blockEvents: Events<BlockEvents> = {
     "order.fulfilled",
     "order.paid",
     "order.placed",
+    "order.prepared",
     "order.refunded",
+    "order.served",
     "organization.created",
     "organization.deleted",
     "organization.member_added",
@@ -294,6 +334,12 @@ export const blockEventSchemas = {
   "billing.subscription_deleted": true,
   "billing.subscription_updated": true,
   "catalog.price_changed": true,
+  "enrollment.cancelled": true,
+  "enrollment.completed": true,
+  "enrollment.created": true,
+  "enrollment.step_completed": true,
+  "enrollment_program.deleted": true,
+  "enrollment_program.saved": true,
   "fulfillment.delivered": true,
   "fulfillment.shipped": true,
   "invitation.accepted": true,
@@ -302,6 +348,13 @@ export const blockEventSchemas = {
   "invitation.resent": true,
   "invitation.revoked": true,
   "invitation.updated": true,
+  "ledger_account.closed": true,
+  "ledger_account.opened": true,
+  "ledger_hold.captured": true,
+  "ledger_hold.placed": true,
+  "ledger_hold.released": true,
+  "ledger_transaction.posted": true,
+  "ledger_transaction.reversed": true,
   "notification.bounced": true,
   "notification.clicked": true,
   "notification.complained": true,
@@ -315,7 +368,9 @@ export const blockEventSchemas = {
   "order.fulfilled": true,
   "order.paid": true,
   "order.placed": true,
+  "order.prepared": true,
   "order.refunded": true,
+  "order.served": true,
   "organization.created": true,
   "organization.deleted": true,
   "organization.member_added": true,

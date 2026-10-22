@@ -152,6 +152,9 @@ export const RECIPE_ROUTES: readonly RecipeRoute[] = [
   { slug: "employee-directory", path: "/en/people" },
   { slug: "hiring-board", path: "/en/people/hiring" },
   { slug: "timesheet", path: "/en/people/time" },
+  { slug: "dispatch-board", path: "/en/field/dispatch" },
+  { slug: "technician-day", path: "/en/field/day" },
+  { slug: "shipment-tracking", path: "/en/field/shipments" },
   { slug: "calendar-view", path: "/en/calendar" },
   { slug: "reminders-list", path: "/en/calendar" },
   {
@@ -174,6 +177,8 @@ export const RECIPE_ROUTES: readonly RecipeRoute[] = [
   { slug: "inventory-table", path: "/en/shop/inventory" },
   { slug: "order-detail", path: "/en/shop", prepare: createDraftOrder },
   { slug: "promotion-code-field", path: "/en/shop", prepare: createDraftOrder },
+  { slug: "kitchen-display", path: "/en/shop/kitchen" },
+  { slug: "order-state-board", path: "/en/shop/kitchen/board" },
   { slug: "drive-explorer", path: "/en/drive" },
   {
     slug: "grants-editor",

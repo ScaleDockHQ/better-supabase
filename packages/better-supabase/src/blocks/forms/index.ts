@@ -3,6 +3,7 @@ export {
   type Form,
   type FormDetail,
   type FormInput,
+  type FormNps,
   type Forms,
   type FormsOptions,
   type FormStatus,
@@ -11,6 +12,10 @@ export {
   type FormSubmissionStatus,
   type FormUpdate,
   type FormVersion,
+  type NpsBucket,
+  type NpsCounts,
+  type NpsOptions,
+  type NpsPeriod,
   type PublicForm,
   type PublicSubmission,
   type PublicSubmitOptions,
@@ -35,20 +40,12 @@ export {
 } from "./questionnaire.ts";
 
 export {
-  createSignatures,
-  type Signature,
-  type SignatureMethod,
-  type SignatureOrder,
-  type SignatureRequest,
-  type SignatureRequestDetail,
-  type SignatureRequestInput,
-  type SignatureRequestListOptions,
-  type SignatureRequestStatus,
-  type Signatures,
-  type SignaturesOptions,
-  type SignatureVerification,
-  type SignInput,
-} from "./signatures.ts";
+  formScore,
+  npsCategory,
+  npsScore,
+  type FormScore,
+  type NpsCategory,
+} from "./scoring.ts";
 
 export {
   answersSchema,
@@ -60,6 +57,8 @@ export {
   FORM_DEFINITION_SCHEMA,
   FORM_FIELD_TYPES,
   FORM_SCHEMA_DIALECT,
+  NPS_MAX,
+  UNSCORED_FIELD_TYPES,
   formDefinitionProblems,
   formSchema,
   isFormDefinition,
@@ -70,6 +69,7 @@ export {
   type FormJson,
   type FormJsonSchema,
   type FormOption,
+  type FormScoring,
   type FormStep,
 } from "../../core/contracts/form-definition.ts";
 
@@ -90,8 +90,8 @@ export type {
   QuestionnaireSnapshot,
 } from "./client.ts";
 
-export { formsBlock, signaturesBlock } from "./manifest.ts";
+export { formsBlock } from "./manifest.ts";
 
-export { formsEvents, signaturesEvents } from "./events.ts";
+export { formsEvents } from "./events.ts";
 
-export type { FormsEvents, SignaturesEvents } from "./events.ts";
+export type { FormsEvents } from "./events.ts";

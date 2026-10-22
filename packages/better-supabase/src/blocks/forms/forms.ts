@@ -9,6 +9,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { FormScore } from "./scoring.ts";
 import type { FormAnswers } from "./validate.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
@@ -122,6 +123,46 @@ export interface FormSubmission {
   readonly createdAt: Temporal.Instant;
   readonly submittedAt?: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /**
+   * The grade Postgres gave a submission to a scored version; `undefined` for a
+   * draft or a form without correct answers.
+   */
+  readonly score?: FormScore;
+}
+
+/** The NPS counts of one period, or of every answer. */
+export interface NpsCounts {
+  readonly responses: number;
+  readonly promoters: number;
+  readonly passives: number;
+  readonly detractors: number;
+  /** From -100 to 100, to one decimal; `undefined` without responses. */
+  readonly score?: number;
+}
+
+export interface NpsPeriod extends NpsCounts {
+  /** The period's first instant (UTC). */
+  readonly start: Temporal.Instant;
+}
+
+/** `nps`: the counts over every answer, and per period with a `bucket`. */
+export interface FormNps extends NpsCounts {
+  /** The `nps` field the counts are for. */
+  readonly field: string;
+  readonly periods: readonly NpsPeriod[];
+}
+
+export type NpsBucket = "day" | "week" | "month" | "quarter" | "year";
+
+export interface NpsOptions {
+  /** Default: the current version's first `nps` field. */
+  readonly field?: string;
+  /** Submissions from this instant on. */
+  readonly since?: Temporal.Instant;
+  /** Submissions before this instant. */
+  readonly until?: Temporal.Instant;
+  /** Adds `periods`, by UTC day, week, month, quarter or year. */
+  readonly bucket?: NpsBucket;
 }
 
 export interface PublicSubmission {
@@ -213,6 +254,11 @@ export interface Forms<F extends object = Record<never, never>> {
     status: "accepted" | "rejected" | "submitted",
   ): AsyncResult<FormSubmission>;
   deleteSubmission(id: string): AsyncResult<boolean>;
+  /**
+   * The Net Promoter Score of the form's submitted and accepted answers, for
+   * reviewers.
+   */
+  nps(formId: string, options?: NpsOptions): AsyncResult<FormNps>;
 }
 
 const FORM_STATUSES: readonly FormStatus[] = [
@@ -310,6 +356,51 @@ function submissionOf(value: unknown, fn: string): FormSubmission {
     ...optional("reviewedBy", optionalText(row["reviewedBy"])),
     ...optional("reviewedAt", optionalInstant(row["reviewedAt"])),
     ...optional("submittedAt", optionalInstant(row["submittedAt"])),
+    ...optional("score", scoreOf(row)),
+  };
+}
+
+function scoreOf(
+  row: Readonly<Record<string, unknown>>,
+): FormScore | undefined {
+  if (row["score"] === null || row["score"] === undefined) {
+    return undefined;
+  }
+
+  const passed = row["passed"];
+
+  return {
+    score: Number(row["score"]),
+    maxScore: Number(row["maxScore"]),
+    ...(typeof passed === "boolean" ? { passed } : {}),
+  };
+}
+
+function npsCountsOf(row: Readonly<Record<string, unknown>>): NpsCounts {
+  return {
+    responses: Number(row["responses"]),
+    promoters: Number(row["promoters"]),
+    passives: Number(row["passives"]),
+    detractors: Number(row["detractors"]),
+    ...optional(
+      "score",
+      row["score"] === null || row["score"] === undefined
+        ? undefined
+        : Number(row["score"]),
+    ),
+  };
+}
+
+function npsOf(value: unknown): FormNps {
+  const row = recordOf(value, "form_nps");
+
+  return {
+    ...npsCountsOf(row),
+    field: textOf(row["field"]),
+    periods: recordsOf(row["periods"], "form_nps").map((period) => ({
+      ...npsCountsOf(period),
+      start: requiredInstant(period["start"], "start"),
+    })),
   };
 }
 
@@ -491,6 +582,18 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
         "delete_form_submission",
         { submission_id: id },
         (value) => value === true,
+      ),
+    nps: (formId, nps = {}) =>
+      call(
+        "form_nps",
+        {
+          form_id: formId,
+          field: nps.field ?? null,
+          since: instantArg(nps.since) ?? null,
+          until: instantArg(nps.until) ?? null,
+          bucket: nps.bucket ?? null,
+        },
+        npsOf,
       ),
   };
 

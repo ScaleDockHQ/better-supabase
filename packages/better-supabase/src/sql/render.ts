@@ -22,6 +22,7 @@ import { moduleVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
 import { checkModules, resolveModules, SQL_MODULES } from "./registry.ts";
+import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
 import { deprecationWrappers } from "./upgrade.ts";
 
 /**
@@ -48,8 +49,10 @@ function moduleSql(
   ctx: ModuleContext,
   layout: ModuleLayout,
 ) {
-  return withColumnTypeFunction(
-    applyActorWriteGuards(module.build(ctx, layout), layout),
+  return withSubjectMergeFunction(
+    withColumnTypeFunction(
+      applyActorWriteGuards(module.build(ctx, layout), layout),
+    ),
   );
 }
 

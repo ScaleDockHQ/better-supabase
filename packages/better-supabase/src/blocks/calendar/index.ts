@@ -10,6 +10,20 @@ export {
 } from "./calendar.ts";
 
 export {
+  commonFreeTime,
+  freeBusyOf,
+  workingHoursOf,
+  type BusyRange,
+  type CalendarEventKind,
+  type CalendarTransparency,
+  type CommonFreeTimeOptions,
+  type FreeBusy,
+  type WeeklyHours,
+  type WorkingHours,
+  type WorkingHoursInput,
+} from "./availability.ts";
+
+export {
   fromEventCalendarUpdate,
   seriesOf,
   toEventCalendarEvents,

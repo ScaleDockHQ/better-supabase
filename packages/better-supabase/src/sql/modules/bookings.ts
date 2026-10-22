@@ -9,9 +9,9 @@ import type { ModuleDefinition } from "../module-types.ts";
 import type { Parts } from "./bookings-public.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { guestOr } from "../guest-sql.ts";
 import {
   addExtraColumns,
-  extraFieldsJson,
   fail,
   lockTable,
   schemaPreamble,
@@ -23,13 +23,21 @@ import {
 import { moduleOperations } from "./access-model.ts";
 import {
   allowed,
+  bookingJson as bookingJsonOf,
   calendarMirror,
   live,
   publicBooking,
   record,
+  recurringOn,
   reminderMirror,
   slotsJson,
 } from "./bookings-public.ts";
+import {
+  SERIES_TABLES,
+  seriesContract,
+  seriesFunctions,
+  seriesTables,
+} from "./bookings-series.ts";
 
 /** The queue a hold enqueues to expire itself once `hold_expires_at` passes. */
 const BOOKING_EXPIRE_QUEUE = "bookings.expire-holds";
@@ -41,6 +49,7 @@ const EVENTS: ModuleEvents<BookingsEvents> = {
   "booking.confirmed": { subject: "bookings", payload: PAYLOAD },
   "booking.cancelled": { subject: "bookings", payload: PAYLOAD },
   "booking.expired": { subject: "bookings", payload: PAYLOAD },
+  "booking.rescheduled": { subject: "bookings", payload: PAYLOAD },
 };
 
 const NAMES: ModuleNames = {
@@ -51,7 +60,7 @@ const NAMES: ModuleNames = {
     "after_booking_confirm",
     "after_booking_cancel",
   ],
-  options: ["extraColumns"],
+  options: ["extraColumns", "recurring"],
   tables: {
     resources: {
       name: "booking_resources",
@@ -64,10 +73,12 @@ const NAMES: ModuleNames = {
         capacity: "capacity",
         tz: "tz",
         calendar: "calendar_id",
+        host: "host_user_id",
+        checkBusy: "check_busy",
         active: "active",
         createdAt: "created_at",
       },
-      optional: ["calendar"],
+      optional: ["calendar", "host", "checkBusy"],
     },
     availability: {
       name: "booking_availability",
@@ -137,9 +148,11 @@ const NAMES: ModuleNames = {
         updatedAt: "updated_at",
         cancelledAt: "cancelled_at",
         cancelReason: "cancel_reason",
+        series: "series_id",
       },
-      optional: ["notes", "calendarEvent", "createdBy"],
+      optional: ["notes", "calendarEvent", "createdBy", "series"],
     },
+    ...SERIES_TABLES,
   },
 };
 
@@ -159,9 +172,13 @@ create table if not exists ${p.resources} (
   ${r("capacity")} integer not null default 1 check (${r("capacity")} between 1 and 1000),
   ${r("tz")} text not null default 'UTC',
   ${r("calendar")} uuid,
+  ${r("host")} uuid,
+  ${r("checkBusy")} boolean not null default false,
   ${r("active")} boolean not null default true,
   ${r("createdAt")} timestamptz not null default now()
 );
+alter table ${p.resources} add column if not exists ${r("host")} uuid;
+alter table ${p.resources} add column if not exists ${r("checkBusy")} boolean not null default false;
 ${lockTable(p.resources, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("resources").name}_tenant_idx`)} on ${p.resources} (${r("tenant")});
 drop policy if exists booking_resources_read on ${p.resources};
@@ -250,8 +267,8 @@ create index if not exists bookings_hold_idx on ${p.bookings} (${b("holdExpiresA
 ${lockTable(p.bookings, { read: true })}
 drop policy if exists bookings_read on ${p.bookings};
 create policy bookings_read on ${p.bookings} for select to authenticated
-using (${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid()));
-`;
+using (${guestOr(`${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid())`, [ctx.scope.guest(b("tenant"), "'booking'", `${b("id")}::text`, "read")])});
+${recurringOn(ctx) ? seriesTables(p) : ""}`;
 }
 
 function setup(p: Parts): string {
@@ -270,6 +287,24 @@ function setup(p: Parts): string {
             "calendarId",
             r("calendar"),
             "nullif(v_item ->> 'calendarId', '')::uuid",
+          ] as const,
+        ]
+      : []),
+    ...(ctx.has("resources", "host")
+      ? [
+          [
+            "hostUserId",
+            r("host"),
+            "nullif(v_item ->> 'hostUserId', '')::uuid",
+          ] as const,
+        ]
+      : []),
+    ...(ctx.has("resources", "checkBusy")
+      ? [
+          [
+            "checkBusy",
+            r("checkBusy"),
+            "(v_item ->> 'checkBusy')::boolean",
           ] as const,
         ]
       : []),
@@ -310,6 +345,7 @@ function setup(p: Parts): string {
       [r("capacity")]: "1",
       [r("tz")]: "'UTC'",
       [r("active")]: "true",
+      [r("checkBusy")]: "false",
       [s("bufferBefore")]: "interval '0'",
       [s("bufferAfter")]: "interval '0'",
       [s("resourceKinds")]: "'{}'::text[]",
@@ -468,6 +504,35 @@ ${userGrant(`${fn("save_booking_service")}(${ctx.idType}, jsonb)`)}
 `;
 }
 
+/**
+ * Fills `v_busy` with the busy ranges of the resource's host from the calendar
+ * block, without the events that mirror this resource's own bookings, which the
+ * seat check already counts.
+ */
+function hostBusy(p: Parts): string {
+  const { ctx, b } = p;
+
+  if (
+    !ctx.has("resources", "host") ||
+    !ctx.has("resources", "checkBusy") ||
+    !ctx.installed("calendar") ||
+    ctx.of("calendar").mode === "custom"
+  ) {
+    return "";
+  }
+
+  const mirrored = ctx.has("bookings", "calendarEvent")
+    ? ` and not exists (select 1 from ${p.bookings} bk where bk.${b("calendarEvent")} = bb.event_id and bk.${b("resource")} = v_resource.id)`
+    : "";
+
+  return `v_busy := '{}'::tstzmultirange;
+    if v_resource.host is not null then
+      select coalesce(range_agg(tstzrange(bb.starts_at, bb.ends_at)), '{}'::tstzmultirange) into v_busy
+      from ${ctx.of("calendar").fn("calendar_busy_blocks")}(v_service.tenant, array[v_resource.host], v_floor - v_service.before, booking_slots.range_end + v_service.after) bb
+      where bb.starts_at < bb.ends_at${mirrored};
+    end if;`;
+}
+
 function slots(p: Parts): string {
   const { ctx, r, av, x, s, b } = p;
   const fn = (name: string) => ctx.fn(name);
@@ -477,8 +542,10 @@ function slots(p: Parts): string {
 -- of the service's kinds, its weekly hours in its own time zone, plus the
 -- exceptions that open it, minus the ones that close it. Slots start at the
 -- opening time and every step (default the duration) after it, and a slot is
--- open while a seat's bookings, buffers included, leave room for it.
--- local_start is the start in tz (default the resource's zone).
+-- open while a seat's bookings, buffers included, leave room for it. A
+-- resource with a host and check_busy also needs the host free in the
+-- calendar (events, out of office, focus time, leave) over the slot and its
+-- buffers. local_start is the start in tz (default the resource's zone).
 create or replace function ${fn("booking_slots")}(service uuid, range_start timestamptz, range_end timestamptz, tz text, only_resource uuid)
 returns table (resource_id uuid, starts_at timestamptz, ends_at timestamptz, local_start timestamp, seats integer)
 language plpgsql
@@ -497,6 +564,7 @@ declare
   v_at timestamptz;
   v_block tstzrange;
   v_free integer;
+  v_busy tstzmultirange := '{}'::tstzmultirange;
 begin
   select sv.${s("tenant")} as tenant, sv.${s("duration")} as duration, sv.${s("bufferBefore")} as before, sv.${s("bufferAfter")} as after,
       sv.${s("resourceKinds")} as kinds, sv.${s("step")} as step, sv.${s("minNotice")} as notice
@@ -508,7 +576,7 @@ begin
   v_step := coalesce(v_service.step, v_service.duration);
   v_floor := greatest(booking_slots.range_start, now() + v_service.notice);
   for v_resource in
-    select rs.${r("id")} as id, rs.${r("tz")} as tz, rs.${r("capacity")} as capacity
+    select rs.${r("id")} as id, rs.${r("tz")} as tz, rs.${r("capacity")} as capacity${hostBusy(p) ? `, case when rs.${r("checkBusy")} then rs.${r("host")} end as host` : ""}
     from ${p.resources} rs
     where rs.${r("tenant")} = v_service.tenant and rs.${r("active")}
       and (cardinality(v_service.kinds) = 0 or rs.${r("kind")} = any (v_service.kinds))
@@ -523,7 +591,7 @@ begin
       ) d
       join ${p.availability} a on a.${av("resource")} = v_resource.id and a.${av("weekday")} = extract(isodow from d.day)::integer;
     v_open := v_open + coalesce((select range_agg(e.${x("during")}) from ${p.exceptions} e where e.${x("resource")} = v_resource.id and e.${x("available")}), '{}'::tstzmultirange);
-    v_open := v_open - coalesce((select range_agg(e.${x("during")}) from ${p.exceptions} e where e.${x("resource")} = v_resource.id and not e.${x("available")}), '{}'::tstzmultirange);
+    v_open := v_open - coalesce((select range_agg(e.${x("during")}) from ${p.exceptions} e where e.${x("resource")} = v_resource.id and not e.${x("available")}), '{}'::tstzmultirange);${hostBusy(p) ? `\n    ${hostBusy(p)}` : ""}
     for v_window in select w from unnest(v_open) w loop
       v_at := lower(v_window);
       if v_at < v_floor then
@@ -538,7 +606,7 @@ begin
           where bk.${b("resource")} = v_resource.id and bk.${b("seat")} = seat.seat
             and ${live(p, "bk")} and bk.${b("blocked")} && v_block
         );
-        if v_free > 0 then
+        if v_free > 0 and not (v_busy && v_block) then
           resource_id := v_resource.id;
           starts_at := v_at;
           ends_at := v_at + v_service.duration;
@@ -597,8 +665,7 @@ function lifecycle(p: Parts): string {
     perform ${jobs.fn("enqueue_job")}(queue => '${BOOKING_EXPIRE_QUEUE}', payload => jsonb_build_object('bookingId', v_id), delay => ceil(extract(epoch from (v_expires - now())))::integer + 1, dedupe_key => 'bookings:expire:' || v_id::text, dedupe_running => false);
   end if;`;
 
-  const bookingJson = (alias: string) =>
-    `jsonb_build_object('id', ${alias}.${b("id")}, 'resourceId', ${alias}.${b("resource")}, 'serviceId', ${alias}.${b("service")}, 'seat', ${alias}.${b("seat")}, 'startsAt', lower(${alias}.${b("during")}), 'endsAt', upper(${alias}.${b("during")}), 'status', ${alias}.${b("status")}, 'holdExpiresAt', ${alias}.${b("holdExpiresAt")}, 'customerName', ${alias}.${b("customerName")}, 'customerEmail', ${alias}.${b("customerEmail")}, 'customerUserId', ${alias}.${b("customerUser")}${ctx.has("bookings", "notes") ? `, 'notes', ${alias}.${b("notes")}` : ""}, 'createdAt', ${alias}.${b("createdAt")}, 'cancelledAt', ${alias}.${b("cancelledAt")}, 'cancelReason', ${alias}.${b("cancelReason")}${extraFieldsJson(alias, p.extras)})`;
+  const bookingJson = (alias: string): string => bookingJsonOf(p, alias);
 
   const declareMirror = `v_calendar uuid;
   v_tz text;
@@ -883,7 +950,7 @@ function build(ctx: ModuleContext): string {
   };
 
   return `${schemaPreamble(ctx)}
-${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${publicBooking(p)}`;
+${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -943,6 +1010,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
           },
         ]
       : []),
+    ...(recurringOn(ctx) ? seriesContract() : []),
   ];
 }
 
@@ -951,7 +1019,7 @@ export const BOOKINGS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Bookings",
   description:
-    "Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.",
+    "Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.",
   requires: ["tenant", "access"],
   integrates: [
     "jobs",

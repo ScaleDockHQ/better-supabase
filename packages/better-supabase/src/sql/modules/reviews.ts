@@ -27,6 +27,7 @@ import {
 } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
 import { storefrontOption } from "./catalog-functions.ts";
+import { moderationTables } from "./moderation.ts";
 
 const WHERE = "blocks.reviews.options";
 
@@ -80,8 +81,6 @@ const NAMES: ModuleNames = {
         reply: "reply",
         repliedBy: "replied_by",
         repliedAt: "replied_at",
-        moderatedBy: "moderated_by",
-        moderatedAt: "moderated_at",
         publishedAt: "published_at",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -105,6 +104,9 @@ const NAMES: ModuleNames = {
 
 /** The subject type of a catalog product. */
 const PRODUCT_SUBJECT = "product";
+
+/** The subject type of a review's moderation item. */
+const REVIEW_SUBJECT = "review";
 
 /** The keys the review reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
@@ -256,6 +258,9 @@ function build(ctx: ModuleContext): string {
   const idType = ctx.idType;
 
   const readable = fn("review_subject_readable");
+  const moderated = ctx.of("moderation");
+  const mi = (column: string): string => moderated.col("items", column);
+  const items = moderated.table("items");
 
   const readableCheck = readableCase(ctx, {
     type: "review_subject_readable.subject_type",
@@ -355,8 +360,6 @@ function build(ctx: ModuleContext): string {
   ${r("reply")} text check (${r("reply")} is null or length(${r("reply")}) <= ${String(maxBody)}),
   ${r("repliedBy")} uuid,
   ${r("repliedAt")} timestamptz,
-  ${r("moderatedBy")} uuid,
-  ${r("moderatedAt")} timestamptz,
   ${r("publishedAt")} timestamptz,
   ${r("createdAt")} timestamptz not null default now(),
   ${r("updatedAt")} timestamptz not null default now(),
@@ -385,15 +388,18 @@ ${lockTable(stats)}
 ${tables}
 -- Whether the caller may read and review a subject: an active product on a
 -- published public storefront or in a catalog the caller reads, or a
--- registered subject in an organization the caller belongs to.
+-- registered subject in an organization the caller belongs to. plpgsql, so
+-- a subject table a later module creates (messages) binds late.
 create or replace function ${readable}(tenant ${idType}, subject_type text, subject_id text)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select ${readableSql}
+begin
+  return ${readableSql};
+end;
 $$;
 revoke execute on function ${readable}(${idType}, text, text) from public, anon, authenticated;
 
@@ -433,6 +439,10 @@ as $$
 begin
   if tg_op in ('UPDATE', 'DELETE') then
     perform ${refresh}(old.${r("tenant")}, old.${r("subjectType")}, old.${r("subjectId")});
+  end if;
+  if tg_op = 'DELETE' then
+    delete from ${items} x
+    where x.${mi("tenant")} = old.${r("tenant")} and x.${mi("subjectType")} = ${sqlString(REVIEW_SUBJECT)} and x.${mi("subjectId")} = old.${r("id")}::text;
   end if;
   if tg_op in ('INSERT', 'UPDATE') then
     perform ${refresh}(new.${r("tenant")}, new.${r("subjectType")}, new.${r("subjectId")});
@@ -490,8 +500,9 @@ begin
     set ${r("rating")} = excluded.${r("rating")}, ${r("title")} = excluded.${r("title")}, ${r("body")} = excluded.${r("body")},
       ${r("authorName")} = excluded.${r("authorName")}, ${r("verified")} = excluded.${r("verified")},
       ${r("status")} = excluded.${r("status")}, ${r("publishedAt")} = excluded.${r("publishedAt")},
-      ${r("rejectionReason")} = null, ${r("moderatedBy")} = null, ${r("moderatedAt")} = null, ${r("updatedAt")} = now()
+      ${r("rejectionReason")} = null, ${r("updatedAt")} = now()
   returning * into v_row;${writeExtraColumns(reviews, extras, "submit_review.fields", `x.${r("id")} = v_row.${r("id")}`, "v_row")}
+  perform ${moderated.fn("moderation_track")}(v_row.${r("tenant")}, ${sqlString(REVIEW_SUBJECT)}, v_row.${r("id")}::text, v_me, ${moderation === "post" ? "'visible'" : "'pending'"});
   ${record("review.submitted", "v_row")}
   ${moderation === "post" ? record("review.published", "v_row") : ""}
   ${ctx.hook("after_review_submit", [["uuid", `v_row.${r("id")}`]])}
@@ -528,7 +539,68 @@ $$;
 revoke execute on function ${fn("delete_review")}(uuid) from public, anon;
 grant execute on function ${fn("delete_review")}(uuid) to authenticated, service_role;
 
--- Publishes a pending or rejected review.
+-- Projects a review's moderation item onto the review: visible publishes it,
+-- hidden and removed reject it with the item's reason. A decision (from
+-- publish_review, reject_review or the moderation block) records
+-- review.published or review.rejected and tells the author.
+create or replace function ${fn("reviews_moderated")}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${reviews}%rowtype;${claims}
+begin
+  update ${reviews} x
+  set ${r("status")} = case new.${mi("status")} when 'visible' then 'published' when 'pending' then 'pending' else 'rejected' end,
+    ${r("publishedAt")} = case when new.${mi("status")} = 'visible' then coalesce(x.${r("publishedAt")}, now()) end,
+    ${r("rejectionReason")} = case when new.${mi("status")} in ('hidden', 'removed') then new.${mi("reason")} end,
+    ${r("updatedAt")} = now()
+  where x.${r("id")}::text = new.${mi("subjectId")} and x.${r("tenant")} = new.${mi("tenant")}
+  returning * into v_row;
+  if v_row.${r("id")} is null or new.${mi("decidedAt")} is null or old.${mi("status")} = new.${mi("status")} then
+    return null;
+  end if;
+  if new.${mi("status")} = 'visible' then
+    ${record("review.published", "v_row", "published a review")}${notifyAuthor("review.published", "Your review was published")}
+  elsif old.${mi("status")} not in ('hidden', 'removed') then
+    ${record("review.rejected", "v_row", "rejected a review")}${notifyAuthor("review.rejected", "Your review was not published")}
+  end if;
+  return null;
+end;
+$$;
+${triggerGrant(`${fn("reviews_moderated")}()`)}
+drop trigger if exists ${ctx.trigger("reviews_moderated")} on ${items};
+create trigger ${ctx.trigger("reviews_moderated")}
+  after update of ${mi("status")}, ${mi("decidedAt")} on ${items}
+  for each row when (new.${mi("subjectType")} = ${sqlString(REVIEW_SUBJECT)})
+  execute function ${fn("reviews_moderated")}();
+
+-- The moderation item of a review, created when the review predates it.
+create or replace function ${fn("review_moderation_item")}(review_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${reviews}%rowtype;
+  v_item uuid;
+begin
+  select * into v_row from ${reviews} x where x.${r("id")} = review_moderation_item.review_id;
+  select x.${mi("id")} into v_item from ${items} x
+  where x.${mi("tenant")} = v_row.${r("tenant")} and x.${mi("subjectType")} = ${sqlString(REVIEW_SUBJECT)} and x.${mi("subjectId")} = v_row.${r("id")}::text;
+  if v_item is null then
+    v_item := ${moderated.fn("moderation_track")}(v_row.${r("tenant")}, ${sqlString(REVIEW_SUBJECT)}, v_row.${r("id")}::text, v_row.${r("author")},
+      case when v_row.${r("status")} = 'published' then 'visible' else 'pending' end);
+  end if;
+  return v_item;
+end;
+$$;
+revoke execute on function ${fn("review_moderation_item")}(uuid) from public, anon, authenticated;
+
+-- Publishes a pending or rejected review: approves its moderation item.
 create or replace function ${fn("publish_review")}(review_id uuid)
 returns jsonb
 language plpgsql
@@ -536,25 +608,22 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${reviews}%rowtype;${claims}
+  v_row ${reviews}%rowtype;
 begin
   ${loadForManage("publish_review")}
   if v_row.${r("status")} = 'published' then
     return ${full("v_row")};
   end if;
-  update ${reviews} x
-  set ${r("status")} = 'published', ${r("publishedAt")} = now(), ${r("rejectionReason")} = null,
-    ${r("moderatedBy")} = auth.uid(), ${r("moderatedAt")} = now(), ${r("updatedAt")} = now()
-  where x.${r("id")} = v_row.${r("id")}
-  returning * into v_row;
-  ${record("review.published", "v_row", "published a review")}${notifyAuthor("review.published", "Your review was published")}
+  perform ${moderated.fn("moderation_apply")}(${fn("review_moderation_item")}(v_row.${r("id")}), 'approve', null, false);
+  select * into v_row from ${reviews} x where x.${r("id")} = publish_review.review_id;
   return ${full("v_row")};
 end;
 $$;
 revoke execute on function ${fn("publish_review")}(uuid) from public, anon;
 grant execute on function ${fn("publish_review")}(uuid) to authenticated, service_role;
 
--- Rejects a review with an optional reason the author sees.
+-- Rejects a review with an optional reason the author sees: hides its
+-- moderation item.
 create or replace function ${fn("reject_review")}(review_id uuid, reason text default null)
 returns jsonb
 language plpgsql
@@ -562,15 +631,11 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${reviews}%rowtype;${claims}
+  v_row ${reviews}%rowtype;
 begin
   ${loadForManage("reject_review")}
-  update ${reviews} x
-  set ${r("status")} = 'rejected', ${r("publishedAt")} = null, ${r("rejectionReason")} = nullif(trim(reject_review.reason), ''),
-    ${r("moderatedBy")} = auth.uid(), ${r("moderatedAt")} = now(), ${r("updatedAt")} = now()
-  where x.${r("id")} = v_row.${r("id")}
-  returning * into v_row;
-  ${record("review.rejected", "v_row", "rejected a review")}${notifyAuthor("review.rejected", "Your review was not published")}
+  perform ${moderated.fn("moderation_apply")}(${fn("review_moderation_item")}(v_row.${r("id")}), 'hide', reject_review.reason, false);
+  select * into v_row from ${reviews} x where x.${r("id")} = reject_review.review_id;
   return ${full("v_row")};
 end;
 $$;
@@ -756,14 +821,73 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   ];
 }
 
+/** The items, as rows the moderation module would have written. */
+function itemRows(ctx: ModuleContext, decided: boolean): string {
+  const moderated = ctx.of("moderation");
+  const mi = (column: string): string => moderated.col("items", column);
+  const r = (column: string): string => ctx.col("reviews", column);
+  const decision = decided ? "x.moderated_by, x.moderated_at" : "null, null";
+
+  return `insert into ${moderated.table("items")} (${mi("tenant")}, ${mi("subjectType")}, ${mi("subjectId")}, ${mi("author")}, ${mi("status")}, ${mi("reason")}, ${mi("decidedBy")}, ${mi("decidedAt")}, ${mi("createdAt")}, ${mi("updatedAt")})
+  select x.${r("tenant")}, ${sqlString(REVIEW_SUBJECT)}, x.${r("id")}::text, x.${r("author")},
+    case x.${r("status")} when 'published' then 'visible' when 'rejected' then 'hidden' else 'pending' end,
+    case when x.${r("status")} = 'rejected' then x.${r("rejectionReason")} end, ${decision}, x.${r("createdAt")}, x.${r("updatedAt")}
+  from ${ctx.table("reviews")} x
+  on conflict (${mi("tenant")}, ${mi("subjectType")}, ${mi("subjectId")}) do nothing;`;
+}
+
+/** Moves the moderation columns of version 1 onto moderation items. */
+function moderationUpgrade(ctx: ModuleContext): string {
+  if (!ctx.manages) {
+    return "";
+  }
+
+  const moderated = ctx.of("moderation");
+  const mi = (column: string): string => moderated.col("items", column);
+  const ma = (column: string): string => moderated.col("actions", column);
+  const { schema, name } = ctx.tableName("reviews");
+
+  return `${moderationTables(moderated)}
+do $upgrade$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = ${sqlString(schema)} and table_name = ${sqlString(name)} and column_name = 'moderated_by'
+  ) then
+    return;
+  end if;
+  ${itemRows(ctx, true)}
+  insert into ${moderated.table("actions")} (${ma("tenant")}, ${ma("item")}, ${ma("action")}, ${ma("fromStatus")}, ${ma("toStatus")}, ${ma("reason")}, ${ma("actor")}, ${ma("createdAt")})
+  select x.${mi("tenant")}, x.${mi("id")}, case x.${mi("status")} when 'visible' then 'approve' else 'hide' end, 'pending', x.${mi("status")}, x.${mi("reason")}, x.${mi("decidedBy")}, x.${mi("decidedAt")}
+  from ${moderated.table("items")} x
+  where x.${mi("subjectType")} = ${sqlString(REVIEW_SUBJECT)} and x.${mi("decidedAt")} is not null;
+  alter table ${ctx.table("reviews")} drop column moderated_by, drop column moderated_at;
+end;
+$upgrade$;`;
+}
+
+/** Moderation items for the reviews written before moderation tracked them. */
+function moderationBackfill(ctx: ModuleContext): string {
+  if (!ctx.manages) {
+    return "";
+  }
+
+  return `-- Puts the reviews written before the moderation module under it.
+${itemRows(ctx, false)}`;
+}
+
 export const REVIEWS: ModuleDefinition = {
-  internal: ["review_subject_readable", "review_stats_refresh"],
+  internal: [
+    "review_subject_readable",
+    "review_stats_refresh",
+    "review_moderation_item",
+  ],
   name: "reviews",
   scopes: ["tenant"],
   title: "Reviews",
   description:
-    "Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing, with a per-subject aggregate public storefronts can read.",
-  requires: ["tenant", "access"],
+    "Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.",
+  requires: ["tenant", "access", "moderation"],
   integrates: [
     "catalog",
     "orders",
@@ -774,8 +898,17 @@ export const REVIEWS: ModuleDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Review moderation moves onto the moderation block: each review gets a moderation item with its status, reason and last decision, and moderated_by and moderated_at are dropped.",
+      sql: moderationUpgrade,
+    },
+  ],
   names: NAMES,
   contract,
   build,
+  data: moderationBackfill,
 };

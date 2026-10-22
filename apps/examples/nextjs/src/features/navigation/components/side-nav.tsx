@@ -9,9 +9,11 @@ import {
   ClockIcon,
   CalendarIcon,
   CalendarCheckIcon,
+  CalendarRangeIcon,
   SquareKanbanIcon,
   TableIcon,
   ShieldCheckIcon,
+  ShieldHalfIcon,
   ContactRoundIcon,
   KanbanIcon,
   FileTextIcon,
@@ -22,6 +24,7 @@ import {
   FolderKanbanIcon,
   NotebookTextIcon,
   ClipboardListIcon,
+  PresentationIcon,
   LayoutTemplateIcon,
   FileUpIcon,
   Trash2Icon,
@@ -31,11 +34,13 @@ import {
   CalendarClockIcon,
   CpuIcon,
   InboxIcon,
+  MessagesSquareIcon,
   BotIcon,
   ChartColumnIcon,
   KeyRoundIcon,
   LibraryIcon,
   LayoutDashboardIcon,
+  ListTodoIcon,
   ScrollTextIcon,
   SettingsIcon,
   UsersIcon,
@@ -43,6 +48,8 @@ import {
   WaypointsIcon,
   ListFilterIcon,
   WorkflowIcon,
+  RouteIcon,
+  TruckIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -63,6 +70,7 @@ import { activeNavId, navItems } from "../nav-items";
 
 const ICONS = {
   dashboard: LayoutDashboardIcon,
+  myWork: ListTodoIcon,
   customers: UsersIcon,
   people: IdCardIcon,
   hiring: BriefcaseIcon,
@@ -80,17 +88,23 @@ const ICONS = {
   shop: StoreIcon,
   inventory: BoxesIcon,
   orders: ReceiptIcon,
+  dispatch: CalendarRangeIcon,
+  myDay: RouteIcon,
+  shipments: TruckIcon,
   drive: FolderIcon,
   documents: NotebookTextIcon,
   forms: ClipboardListIcon,
+  courses: PresentationIcon,
   templates: LayoutTemplateIcon,
   imports: FileUpIcon,
   trash: Trash2Icon,
   metrics: ChartColumnIcon,
+  compliance: ShieldHalfIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
   workflowBuilder: WaypointsIcon,
   inbox: InboxIcon,
+  chat: MessagesSquareIcon,
   assistant: BotIcon,
   knowledge: LibraryIcon,
   agentActivity: ActivityIcon,
@@ -111,6 +125,10 @@ function useNavLabel() {
     switch (id) {
       case "dashboard": {
         return t("Dashboard");
+      }
+
+      case "myWork": {
+        return t("My work");
       }
 
       case "customers": {
@@ -181,6 +199,18 @@ function useNavLabel() {
         return t("Orders");
       }
 
+      case "dispatch": {
+        return t("Dispatch");
+      }
+
+      case "myDay": {
+        return t("My day");
+      }
+
+      case "shipments": {
+        return t("Shipments");
+      }
+
       case "drive": {
         return t("Drive");
       }
@@ -191,6 +221,10 @@ function useNavLabel() {
 
       case "forms": {
         return t("Forms");
+      }
+
+      case "courses": {
+        return t("Courses");
       }
 
       case "templates": {
@@ -209,6 +243,10 @@ function useNavLabel() {
         return t("Metrics");
       }
 
+      case "compliance": {
+        return t("Compliance");
+      }
+
       case "notifications": {
         return t("Notifications");
       }
@@ -223,6 +261,10 @@ function useNavLabel() {
 
       case "inbox": {
         return t("Inbox");
+      }
+
+      case "chat": {
+        return t("Chat");
       }
 
       case "assistant": {

@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import "@chat-adapter/tests/setup";
 
 import type { InboxMessage } from "../../src/blocks/inbox/types.ts";
+import type { MessageFile } from "../../src/blocks/messaging/index.ts";
 import type { IdentityTarget } from "../../src/core/contracts/authorization-hooks.ts";
 
 import { createInbox } from "../../src/blocks/inbox/index.ts";
@@ -35,9 +36,9 @@ const messages: Record<string, unknown> = {
 };
 
 const answers = {
-  get_message: (args: Record<string, unknown>) =>
+  get_inbox_message: (args: Record<string, unknown>) =>
     messages[String(args["message"])] ?? null,
-  send_message: ({ input }: { input: Record<string, unknown> }) => ({
+  send_inbox_message: ({ input }: { input: Record<string, unknown> }) => ({
     ...messageRow,
     id: "sent",
     author_type: "bot",
@@ -46,13 +47,13 @@ const answers = {
     format: input["format"],
     metadata: input["metadata"],
   }),
-  edit_message: { ...messageRow, body: "edited", edited_at: AT },
+  edit_inbox_message: { ...messageRow, body: "edited", edited_at: AT },
   remove_message: true,
-  react_to_message: {},
+  react_to_inbox_message: [],
   set_typing: true,
   mark_conversation_read: AT,
   get_conversation: conversationRow,
-  list_messages: [
+  list_inbox_messages: [
     { ...messageRow, id: "a", created_at: "2026-01-01T00:00:00Z" },
     { ...messageRow, id: "b", kind: "note" },
     {
@@ -65,26 +66,34 @@ const answers = {
       metadata: { author_name: "Ops" },
       attachments: [
         {
-          url: "https://x.test/a.png",
-          content_type: "image/png",
+          id: "f1",
           name: "a.png",
+          mimeType: "image/png",
           size: 1,
+          status: "clean",
         },
-        { url: "https://x.test/v.mp4", content_type: "video/mp4" },
-        { url: "https://x.test/s.mp3", content_type: "audio/mpeg" },
-        { url: "https://x.test/f.pdf" },
-        { path: "private/only.pdf" },
+        { id: "f2", name: "v.mp4", mimeType: "video/mp4", status: "clean" },
+        { id: "f3", name: "s.mp3", mimeType: "audio/mpeg", status: "clean" },
+        { id: "f4", name: "f.pdf", size: null, status: "clean" },
+        { id: "f5", name: "scan.pdf", status: "pending" },
       ],
     },
   ],
 };
 
-function setup(options: { verify?: boolean; streams?: boolean } = {}) {
+function setup(
+  options: {
+    verify?: boolean;
+    streams?: boolean;
+    download?: (file: MessageFile) => Promise<ArrayBuffer>;
+  } = {},
+) {
   const { transport, call } = fakeTransport(answers);
 
   const adapter = inboxAdapter({
     inbox: createInbox({ transport }),
     userName: "helper",
+    ...(options.download === undefined ? {} : { download: options.download }),
     ...(options.verify === undefined
       ? {}
       : { verify: () => options.verify === true }),
@@ -207,7 +216,7 @@ describe("inboxAdapter", () => {
     await adapter.markAsRead?.("inbox:c1", "m1");
 
     const sends = call.mock.calls
-      .filter(([, fn]) => fn === "send_message")
+      .filter(([, fn]) => fn === "send_inbox_message")
       .map(([, , args]) => args["input"]);
 
     expect(sends.map((args) => [args["body"], args["format"]])).toEqual([
@@ -222,7 +231,7 @@ describe("inboxAdapter", () => {
     });
 
     const reacts = call.mock.calls
-      .filter(([, fn]) => fn === "react_to_message")
+      .filter(([, fn]) => fn === "react_to_inbox_message")
       .map(([, , args]) => args);
 
     expect(reacts).toMatchObject([
@@ -267,6 +276,13 @@ describe("inboxAdapter", () => {
       "audio",
       "file",
     ]);
+    expect(last?.attachments[0]).toMatchObject({
+      name: "a.png",
+      mimeType: "image/png",
+      size: 1,
+      fetchMetadata: { attachmentId: "f1" },
+    });
+    expect(last?.attachments[0]?.fetchData).toBeUndefined();
     expect(
       (await adapter.fetchMessages("inbox:c1")).nextCursor,
     ).toBeUndefined();
@@ -278,6 +294,18 @@ describe("inboxAdapter", () => {
     expect(adapter.renderFormatted({ type: "root", children: [] })).toBe("");
     expect(adapter.isDM?.("inbox:c1")).toBe(true);
     expect(adapter.channelIdFromThreadId("inbox:c1")).toBe("inbox");
+  });
+
+  it("downloads clean files through download", async () => {
+    const bytes = new ArrayBuffer(2);
+    const download = vi.fn(async () => bytes);
+    const { adapter } = setup({ download });
+    const page = await adapter.fetchMessages("inbox:c1");
+    const file = page.messages.at(-1)?.attachments[0];
+    expect(await file?.fetchData?.()).toBe(bytes);
+    expect(download).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "f1", status: "clean" }),
+    );
   });
 
   it("streams a reply and posts it", async () => {
@@ -324,7 +352,11 @@ describe("inboxAdapter", () => {
 });
 
 function identitySetup(target: IdentityTarget | null) {
-  const { transport } = fakeTransport({ get_message: messageRow });
+  const { transport } = fakeTransport({
+    get_inbox_message: messageRow,
+    get_conversation: conversationRow,
+  });
+
   const principalByIdentity = vi.fn(() => target);
   const ticketFor = vi.fn((userId: string) => `ticket:${userId}`);
 

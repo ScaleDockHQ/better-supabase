@@ -13,6 +13,10 @@ export {
   type CreateCollectionInput,
   MAX_COLLECTION_IDS,
   type RenameCollectionInput,
+  type SavedItem,
+  type SavedItemCursor,
+  type SavedItemPage,
+  type SaveForLaterInput,
   type Star,
 } from "./collections.ts";
 

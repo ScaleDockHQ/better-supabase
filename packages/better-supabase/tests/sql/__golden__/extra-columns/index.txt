@@ -5,7 +5,6 @@ profiles
 notifications
 api-keys
 flags
-comments
 attachments
 waitlist
 announcements
@@ -52,3 +51,13 @@ employees
 collections
 reviews
 leave
+leases
+expenses
+donations
+dispatch
+shipments
+contracts
+controls
+incidents
+courses
+messaging

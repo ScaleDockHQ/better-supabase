@@ -10,6 +10,7 @@ import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { ConnectorsEvents } from "better-supabase/blocks/connectors";
+import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
@@ -55,6 +56,10 @@ export const blockConfig = {
     options: {},
   },
   credentials: {
+    schema: "better_supabase",
+    options: {},
+  },
+  enrollments: {
     schema: "better_supabase",
     options: {},
   },
@@ -150,6 +155,11 @@ export const permissions = {
     use: "ai.create",
     manage: "ai.admin",
   },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
@@ -196,13 +206,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "workflow.admin" | "workflow.read" | "workflow.run";
+export type PermissionKey = "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "workflow.admin" | "workflow.read" | "workflow.run";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AgentsEvents & ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & ConnectorsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & WorkflowsEvents;
+export type BlockEvents = AgentsEvents & ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & ConnectorsEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -238,6 +248,12 @@ export const blockEvents: Events<BlockEvents> = {
     "connector.saved",
     "connector_grant.created",
     "connector_grant.revoked",
+    "enrollment.cancelled",
+    "enrollment.completed",
+    "enrollment.created",
+    "enrollment.step_completed",
+    "enrollment_program.deleted",
+    "enrollment_program.saved",
     "invitation.accepted",
     "invitation.created",
     "invitation.declined",
@@ -311,6 +327,12 @@ export const blockEventSchemas = {
   "connector.saved": true,
   "connector_grant.created": true,
   "connector_grant.revoked": true,
+  "enrollment.cancelled": true,
+  "enrollment.completed": true,
+  "enrollment.created": true,
+  "enrollment.step_completed": true,
+  "enrollment_program.deleted": true,
+  "enrollment_program.saved": true,
   "invitation.accepted": true,
   "invitation.created": true,
   "invitation.declined": true,

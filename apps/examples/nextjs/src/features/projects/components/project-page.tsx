@@ -159,7 +159,7 @@ export async function ProjectPage({
               authors={Object.fromEntries(
                 members.data.map((member) => [member.userId, member.name]),
               )}
-              canComment={can(session, "comments.create")}
+              canComment={can(session, "messages.send")}
             />
           </CardContent>
         </Card>

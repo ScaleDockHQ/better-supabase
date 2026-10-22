@@ -33,6 +33,10 @@ Shipping in 0.9.
   crosses PostgREST as text and decodes strictly, and doctor BS223 flags
   functions that return a bare `bigint` or `numeric`. See
   [ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md).
+- **Courses and scored forms** (`better-supabase/blocks/courses` and
+  `better-supabase/blocks/forms`): courses of modules and lessons on
+  enrollments, quizzes graded in SQL, certificates, and NPS rollups per form.
+  See [Courses](/docs/blocks/courses).
 
 ## Next
 
@@ -62,24 +66,24 @@ records the activity block.
 The features that show up in almost every SaaS vertical, and where
 better-supabase stands on each:
 
-| Feature                                              | Today                                  | Planned                                                                |
-| ---------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
-| Records, custom fields, app tables                   | app tables, custom-fields, parties     | nothing new                                                            |
-| Views (grid, board, calendar, timeline)              | saved-views and the `record-*` recipes | list loaders with section columns                                      |
-| Comments                                             | threads, mentions, reactions           | attachments, resolve, edit history, pins, assign-to, unread, anchors   |
-| Team chat (channels, DMs, threads, unread, typing)   | missing                                | the `channels` block on the messaging core                             |
-| Tasks                                                | assignees, subtasks, dependencies      | checklists, recurrence, watchers, attachments on create and update     |
-| Files                                                | scanning, the drive                    | versions, previews through image variants, an upload controller        |
-| Follow, notify, unread state                         | notifications                          | per-thread read markers                                                |
-| Activity timeline                                    | engagements and the comments feed      | its own `activity` block and `loadTimeline`                            |
-| Presence                                             | documents only                         | a shared helper used by channels, comments and documents               |
-| Record mentions (smart chips)                        | users only                             | `@[Title](subject:type/id)` checked with the subject's permission      |
-| Email sync, sequences, tracking, enrichment, scoring | missing                                | `mail-sync`, `sequences`, `segments`, `assignment`, an enrichment port |
-| Forecast snapshots, field history                    | forecast calls, state-machine history  | snapshots on deals, a generic field history module                     |
-| Calendar extras and appointment schedules            | missing                                | working hours, out of office, focus time, free/busy, schedules         |
-| Inbox snooze and scheduled send                      | missing                                | both, on the messaging core                                            |
-| Document suggestion mode and named versions          | missing                                | both, with anchored comments                                           |
-| Search, templates, automations, approvals, audit, AI | present                                | nothing new                                                            |
+| Feature                                              | Today                                                             | Planned                                                              |
+| ---------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Records, custom fields, app tables                   | app tables, custom-fields, parties                                | nothing new                                                          |
+| Views (grid, board, calendar, timeline)              | saved-views and the `record-*` recipes                            | list loaders with section columns                                    |
+| Comments                                             | threads, mentions, reactions                                      | attachments, resolve, edit history, pins, assign-to, unread, anchors |
+| Team chat (channels, DMs, threads, unread, typing)   | the `messaging` and `channels` blocks                             | nothing new                                                          |
+| Tasks                                                | assignees, subtasks, dependencies                                 | checklists, recurrence, watchers, attachments on create and update   |
+| Files                                                | scanning, the drive                                               | versions, previews through image variants, an upload controller      |
+| Follow, notify, unread state                         | notifications                                                     | per-thread read markers                                              |
+| Activity timeline                                    | engagements and the comments feed                                 | its own `activity` block and `loadTimeline`                          |
+| Presence                                             | documents only                                                    | a shared helper used by channels, comments and documents             |
+| Record mentions (smart chips)                        | users only                                                        | `@[Title](subject:type/id)` checked with the subject's permission    |
+| Email sync, sequences, tracking, enrichment, scoring | the `mail-sync`, `segments`, `assignment` and `enrichment` blocks | sequences on enrollments, scoring on scores                          |
+| Forecast snapshots, field history                    | the `forecasts` and `field-history` blocks                        | nothing new                                                          |
+| Calendar extras and appointment schedules            | missing                                                           | working hours, out of office, focus time, free/busy, schedules       |
+| Inbox snooze and scheduled send                      | missing                                                           | both, on the messaging core                                          |
+| Document suggestion mode and named versions          | missing                                                           | both, with anchored comments                                         |
+| Search, templates, automations, approvals, audit, AI | present                                                           | nothing new                                                          |
 
 Twenty more verticals (property management, field service, clinics,
 courses, events, legal, expenses, contracts, customer success, communities,
@@ -135,9 +139,8 @@ verticals become thin blocks and presets on top of them.
 15. **Shared primitives (breaking where they absorb existing tables):**
     ledger, assets and locations, votes and scores, moderation, enrollments,
     guest and portal access, merge, file anchors, passes and billable time.
-16. **Vertical blocks and presets:** leases, dispatch, expenses, contracts,
-    courses, posts, shipments, donations, incidents and controls, field
-    encryption, and nineteen vertical presets.
+16. **Vertical blocks and presets:** dispatch, posts, shipments,
+    field encryption, and nineteen vertical presets.
 
 ## Later
 

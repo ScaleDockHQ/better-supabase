@@ -1,14 +1,8 @@
+export type { CommentsOptimisticAction, CommentsWrites } from "./section.ts";
+
 export {
-  type ActivityDescription,
-  type ActivityEntry,
-  type ActivityHistoryOptions,
-  type ActivityFacet,
-  activityListQuery,
-  activitySink,
-  type ActivitySinkOptions,
-  type ActivitySort,
-  type ActivitySource,
   type Comment,
+  type CommentAssignment,
   type CommentEdit,
   type Comments,
   type CommentsOptions,
@@ -18,7 +12,17 @@ export {
   type NewComment,
 } from "./comments.ts";
 
-export type { CommentSubject } from "../../sql/modules/comments.ts";
+export type { MessageEdit } from "../messaging/messaging.ts";
+
+export { conversationTopic } from "../messaging/messaging.ts";
+
+export { fileAnchor, isFileAnchor } from "../messaging/anchors.ts";
+
+export type {
+  AnchorRegion,
+  FileAnchor,
+  FileAnchorAt,
+} from "../messaging/anchors.ts";
 
 export {
   dbTransport,
@@ -32,9 +36,7 @@ export type { Author } from "../../core/block-authors.ts";
 
 export { commentsBlock } from "./manifest.ts";
 
-export { commentsEvents } from "./events.ts";
-
-export type { CommentsEvents } from "./events.ts";
+export { commentsOptimistic, commentsSection } from "./section.ts";
 
 export {
   type CommentDraft,
@@ -46,3 +48,5 @@ export {
 } from "./client.ts";
 
 export { commentChangeSchema, commentInputSchema } from "./schemas.ts";
+
+export type { CommentsSqlOptions } from "./options.ts";

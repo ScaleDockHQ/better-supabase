@@ -246,4 +246,194 @@ describe("collections block", () => {
     ).toBe("k");
     expect((await collections.reorderStar(deal, { next: "!" })).ok).toBe(false);
   });
+
+  describe("save for later", () => {
+    const SAVED = {
+      id: "s1",
+      organizationId: "o",
+      userId: "u1",
+      subjectType: "message",
+      subjectId: "m1",
+      note: "Reply after the call",
+      remindAt: "2026-10-23T09:00:00Z",
+      remindedAt: null,
+      completedAt: null,
+      createdAt: "2026-10-22T09:00:00Z",
+      title: "Can you check the quote?",
+      url: null,
+    };
+
+    it("saves a record with a note and reminder, then lists and completes it", async () => {
+      const t = transport({
+        save_for_later: () => SAVED,
+        list_saved_items: () => [
+          SAVED,
+          {
+            ...SAVED,
+            id: "s2",
+            note: null,
+            remindAt: null,
+            completedAt: "2026-10-22T10:00:00Z",
+          },
+        ],
+        complete_saved_item: () => true,
+        remove_saved_item: () => false,
+      });
+
+      const collections = createCollections({ transport: t });
+      const message = { type: "message", id: "m1" };
+
+      const saved = await collections
+        .saveForLater("o", message, {
+          note: "Reply after the call",
+          remindAt: Temporal.Instant.from("2026-10-23T09:00:00Z"),
+        })
+        .orThrow();
+
+      expect(t.calls[0]).toEqual([
+        "save_for_later",
+        {
+          tenant: "o",
+          subject_type: "message",
+          subject_id: "m1",
+          note: "Reply after the call",
+          remind_at: "2026-10-23T09:00:00Z",
+        },
+      ]);
+      expect(saved).toEqual({
+        id: "s1",
+        organizationId: "o",
+        userId: "u1",
+        subjectType: "message",
+        subjectId: "m1",
+        note: "Reply after the call",
+        remindAt: Temporal.Instant.from("2026-10-23T09:00:00Z"),
+        completed: false,
+        createdAt: Temporal.Instant.from("2026-10-22T09:00:00Z"),
+        title: "Can you check the quote?",
+      });
+
+      await collections.saveForLater("o", message);
+      expect(t.calls[1]?.[1]).toMatchObject({ note: null, remind_at: null });
+
+      const page = await collections.saved("o", { limit: 2 }).orThrow();
+      expect(page.items[1]).toMatchObject({
+        id: "s2",
+        completed: true,
+        completedAt: Temporal.Instant.from("2026-10-22T10:00:00Z"),
+      });
+      expect(page.items[1]?.note).toBeUndefined();
+      expect(page.next).toEqual({
+        createdAt: Temporal.Instant.from("2026-10-22T09:00:00Z"),
+        id: "s2",
+      });
+      expect(t.calls[2]?.[1]).toEqual({
+        tenant: "o",
+        completed: false,
+        before: null,
+        before_id: null,
+        max_rows: 2,
+      });
+
+      const completed = await collections
+        .saved("o", {
+          completed: true,
+          ...(page.next && { cursor: page.next }),
+        })
+        .orThrow();
+
+      expect(completed.next).toBeUndefined();
+      expect(t.calls[3]?.[1]).toEqual({
+        tenant: "o",
+        completed: true,
+        before: "2026-10-22T09:00:00Z",
+        before_id: "s2",
+        max_rows: null,
+      });
+
+      expect(await collections.completeSaved("s1").orThrow()).toBe(true);
+      expect(t.calls[4]).toEqual([
+        "complete_saved_item",
+        { item: "s1", completed: true },
+      ]);
+      await collections.completeSaved("s1", false);
+      expect(t.calls[5]?.[1]).toEqual({ item: "s1", completed: false });
+      expect(await collections.removeSaved("s1").orThrow()).toBe(false);
+      expect(t.calls[6]).toEqual(["remove_saved_item", { item: "s1" }]);
+    });
+
+    it("claims due reminders and notifies the member who saved each", async () => {
+      const due = [
+        { ...SAVED, remindedAt: "2026-10-23T09:00:05Z" },
+        { ...SAVED, id: "s2", note: null },
+      ];
+
+      const t = transport({ remind_due_saved_items: () => due });
+      const sent: [string, unknown][] = [];
+
+      const collections = createCollections({
+        transport: t,
+        notifier: {
+          send: (type, input) => {
+            sent.push([type, input]);
+          },
+        },
+        notification: "saved_item_reminder",
+      });
+
+      const items = await collections.remindDue({ limit: 10 }).orThrow();
+      expect(t.calls[0]).toEqual(["remind_due_saved_items", { max_rows: 10 }]);
+      expect(items[0]?.remindedAt).toEqual(
+        Temporal.Instant.from("2026-10-23T09:00:05Z"),
+      );
+      expect(sent).toEqual([
+        [
+          "saved_item_reminder",
+          {
+            recipients: ["u1"],
+            tenant: "o",
+            key: "saved_item:s1:2026-10-23T09:00:00Z",
+            subject: { type: "message", id: "m1" },
+            data: { savedItemId: "s1", note: "Reply after the call" },
+          },
+        ],
+        [
+          "saved_item_reminder",
+          {
+            recipients: ["u1"],
+            tenant: "o",
+            key: "saved_item:s2:2026-10-23T09:00:00Z",
+            subject: { type: "message", id: "m1" },
+            data: { savedItemId: "s2", note: null },
+          },
+        ],
+      ]);
+
+      await createCollections({ transport: t }).remindDue().orThrow();
+      expect(t.calls[1]?.[1]).toEqual({ max_rows: null });
+      expect(sent).toHaveLength(2);
+    });
+
+    it("fails remindDue with the notifier's error", async () => {
+      const t = transport({ remind_due_saved_items: () => [SAVED] });
+      const error = { kind: "unexpected", message: "down", status: 500 };
+
+      const result = await createCollections({
+        transport: t,
+        notifier: { send: () => ({ ok: false, error }) },
+        notification: "saved_item_reminder",
+      }).remindDue();
+
+      expect(result.ok).toBe(false);
+      expect(result.ok ? undefined : result.error.message).toBe("down");
+
+      const ignored = await createCollections({
+        transport: t,
+        notifier: { send: () => ({ ok: false, error: "not a DbError" }) },
+        notification: "saved_item_reminder",
+      }).remindDue();
+
+      expect(ignored.ok).toBe(true);
+    });
+  });
 });

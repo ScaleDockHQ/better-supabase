@@ -5,6 +5,10 @@ import type {
   AiTaskRun,
   AiTaskRunner,
 } from "../../src/blocks/ai-tasks/ai-tasks.ts";
+import type {
+  NoteTaker,
+  Transcriber,
+} from "../../src/blocks/engagements/recordings.ts";
 import type { Embedder } from "../../src/blocks/knowledge/knowledge.ts";
 import type { WorkflowGraph } from "../../src/blocks/workflow-builder/graph.ts";
 import type {
@@ -20,6 +24,8 @@ import {
   testBuilderStarter,
   testEmbedder,
   testGraphCompiler,
+  testNoteTaker,
+  testTranscriber,
 } from "../../src/testing/index.ts";
 
 const failed = (report: { checks: readonly { name: string; ok: boolean }[] }) =>
@@ -131,5 +137,79 @@ describe("testBuilderStarter", () => {
     await expect(testBuilderStarter(start, { call })).rejects.toThrow(
       /started a new run/,
     );
+  });
+});
+
+describe("testTranscriber", () => {
+  const transcriber: Transcriber = {
+    apiVersion: 1,
+    model: "fake-stt",
+    transcribe: async (input, options) => {
+      options?.signal?.throwIfAborted();
+      const bytes = await input.read();
+
+      return {
+        segments: [
+          { speaker: "A", startMs: 0, endMs: 10, text: `${bytes.length}` },
+          { startMs: 10, endMs: 20, text: "two" },
+        ],
+      };
+    },
+  };
+
+  it("passes a conforming transcriber", async () => {
+    expect(failed(await testTranscriber(transcriber))).toEqual([]);
+  });
+
+  it("fails unordered turns, inverted times and ignored signals", async () => {
+    const broken: Transcriber = {
+      model: "",
+      transcribe: async () => ({
+        segments: [
+          { startMs: 30, endMs: 20, text: "late" },
+          { startMs: 0, endMs: 5, text: "early" },
+        ],
+      }),
+    };
+
+    const report = await testTranscriber(broken, {
+      input: {
+        file: { id: "f", filename: "a.mp3", mediaType: "audio/mpeg" },
+        url: "https://example.com/a.mp3",
+        read: async () => new Uint8Array([1]),
+      },
+    }).catch((error: unknown) => error);
+
+    expect(report).toBeInstanceOf(ConformanceError);
+  });
+});
+
+describe("testNoteTaker", () => {
+  const noteTaker: NoteTaker = {
+    apiVersion: 1,
+    model: "fake-notes",
+    summarize: async (input, options) => {
+      options?.signal?.throwIfAborted();
+
+      return {
+        summary: `${input.transcript.length} turns`,
+        actionItems: [{ text: "Send the proposal" }],
+      };
+    },
+  };
+
+  it("passes a conforming note taker", async () => {
+    expect(failed(await testNoteTaker(noteTaker))).toEqual([]);
+  });
+
+  it("fails an empty summary and ignored signals", async () => {
+    const broken: NoteTaker = {
+      model: "m",
+      summarize: async () => ({ summary: " ", actionItems: [{ text: "" }] }),
+    };
+
+    await expect(
+      testNoteTaker(broken, { input: { engagement: {}, transcript: [] } }),
+    ).rejects.toBeInstanceOf(ConformanceError);
   });
 });

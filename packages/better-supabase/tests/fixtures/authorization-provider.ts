@@ -12,6 +12,8 @@ type StubProvider = AuthorizationProvider & {
       | "actorMayWrite"
       | "permitted"
       | "teamIdsOf"
+      | "portalSubjects"
+      | "portalParties"
     >
   >;
   readonly memberships: NonNullable<AuthorizationProvider["memberships"]>;

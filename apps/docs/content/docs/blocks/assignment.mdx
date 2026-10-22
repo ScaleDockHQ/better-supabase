@@ -1,0 +1,117 @@
+---
+title: Assignment
+description: Route new leads, deals or tickets to an owner with round robin or weighted queues, each limited to a territory of matching records.
+---
+
+The `assignment` block picks an owner for a record. Each queue covers one
+subject type and an optional territory, a [rules](/docs/blocks/rules) filter
+tree such as "country is NL". `assign` tries the enabled queues by `rank`
+and gives the record to the next member of the first queue whose territory
+matches. It logs every pick and writes a `subject.assigned` event; writing
+the owner onto the record stays with the app, so one block works for
+companies, deals and tickets alike.
+
+```bash
+better-supabase add assignment   # adds tenant, access and rules as well
+```
+
+| Permission          | Lets a member                                | Default roles            |
+| ------------------- | -------------------------------------------- | ------------------------ |
+| `assignment.read`   | list the queues and read a record's history  | `member`, `admin`        |
+| `assignment.manage` | create, change and remove queues and members | `admin` (`assignment.*`) |
+| `assignment.assign` | assign a record                              | `admin` (`assignment.*`) |
+
+The service role can always assign, so a job or webhook that receives a new
+lead routes it without a member session.
+
+## Queues
+
+```ts
+import {
+  createAssignment,
+  rpcTransport,
+} from "better-supabase/blocks/assignment";
+
+const assignment = createAssignment({ transport: rpcTransport(supabase) });
+
+const benelux = await assignment
+  .saveQueue(organizationId, {
+    name: "Benelux leads",
+    subjectType: "company",
+    strategy: "weighted",
+    rank: 0,
+    conditions: {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        {
+          id: "r1",
+          type: "rule",
+          path: ["country"],
+          operator: "is_any_of",
+          value: ["NL", "BE", "LU"],
+        },
+      ],
+    },
+  })
+  .orThrow();
+
+await assignment
+  .setMembers(benelux.id, [
+    { userId: senior.id, weight: 3 },
+    { userId: junior.id, weight: 1 },
+  ])
+  .orThrow();
+```
+
+A territory uses the subject type's rule fields (see
+[Segments](/docs/blocks/segments#fields)); `conditions: null` takes every
+record. `round_robin` gives the record to the member who waited longest.
+`weighted` uses smooth weighted round robin, so with weights 3 and 1 the
+first member gets three of every four records, spread out rather than in a
+row. `setMembers` replaces the members (at most 200, each a member of the
+organization); members who stay keep their place in the rotation, and
+`active: false` keeps a member in the queue without giving them records.
+`assignmentQueueInputSchema` validates what `saveQueue` takes.
+
+## Assign
+
+```ts
+const pick = await createAssignment({ transport: rpcTransport(admin) })
+  .assign(organizationId, {
+    type: "company",
+    id: company.id,
+    fields: { country: company.address?.country },
+  })
+  .orThrow();
+
+if (pick !== undefined) {
+  await parties.saveCompany(organizationId, {
+    id: company.id,
+    ownerId: pick.userId,
+  });
+}
+```
+
+`fields` holds the values the territories test, keyed by the rule fields'
+`column`. `assign` returns `{ queueId, userId, strategy }`, or `undefined`
+when no enabled queue with an active member matches. Two picks at once on
+the same queue wait for each other, so a rotation never skips or repeats a
+member. `history(organizationId, { type, id })` lists a record's picks, the
+newest first; a pick keeps its time after its queue or user is removed.
+
+## Events
+
+Every pick writes `subject.assigned` to the [outbox](/docs/blocks/outbox)
+with the queue, the user and the strategy. Handle it to set the owner
+column, notify the new owner or start a follow-up task. See
+[Events](/docs/extending/events).
+
+| Error code                  | When                                                   |
+| --------------------------- | ------------------------------------------------------ |
+| `ASSIGNMENT_FORBIDDEN`      | the caller lacks the permission                        |
+| `ASSIGNMENT_NAME_TAKEN`     | another queue in the organization has the name         |
+| `ASSIGNMENT_INVALID`        | a bad name, strategy or weight                         |
+| `ASSIGNMENT_MEMBER_INVALID` | a user is not a member of the queue's organization     |
+| `ASSIGNMENT_FIELDS_MISSING` | the territory's subject type has no synced rule fields |

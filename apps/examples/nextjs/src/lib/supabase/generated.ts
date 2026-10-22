@@ -807,7 +807,7 @@ export const buckets = {
 } as const;
 
 /** The app's subject types, from `config.subjects`. */
-export const subjectTypes = ["comment", "company", "person", "deal", "engagement", "work_item", "employee", "product", "product_variant", "calendar_event", "document", "customer", "drive_node", "application", "project", "task"] as const;
+export const subjectTypes = ["message", "conversation", "channel", "company", "person", "deal", "course", "engagement", "work_item", "employee", "ledger_account", "product", "product_variant", "calendar_event", "asset", "asset_location", "lease", "maintenance_request", "expense_report", "expense_line", "donation_fund", "work_order", "shipment", "contract", "control", "policy", "incident", "document", "customer", "drive_node", "application", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type SubjectRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };

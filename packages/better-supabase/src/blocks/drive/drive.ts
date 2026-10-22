@@ -6,6 +6,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { ApprovalStatus } from "../approvals/approvals.ts";
 import type {
   Attachment,
   AttachmentDownload,
@@ -111,6 +112,40 @@ export interface DriveNode<F extends object = Record<never, never>> {
   readonly role: string | undefined;
   readonly starredAt: Temporal.Instant | undefined;
   readonly openedAt: Temporal.Instant | undefined;
+  /** The tags on the node, with the tags block installed. */
+  readonly labels: readonly DriveLabel[] | undefined;
+  /**
+   * The latest approval request for the file's current version, with the
+   * approvals block installed; `undefined` when there is none.
+   */
+  readonly approval: DriveApprovalState | undefined;
+}
+
+/** A tag on a node. */
+export interface DriveLabel {
+  readonly id: string;
+  readonly name: string;
+  readonly color: string | undefined;
+}
+
+export interface DriveApprovalState {
+  readonly id: string;
+  readonly status: ApprovalStatus;
+  readonly createdAt: Temporal.Instant;
+  readonly decidedAt: Temporal.Instant | undefined;
+}
+
+/** An approval request for one stored version of a file. */
+export interface DriveApproval extends DriveApprovalState {
+  /** The attachment the request is for. */
+  readonly attachmentId: string;
+  /** Its revision number, with the versions block installed. */
+  readonly revision: number | undefined;
+  /** Whether that version is the file's content now. */
+  readonly current: boolean;
+  readonly step: number;
+  readonly reason: string | undefined;
+  readonly requestedBy: string | undefined;
 }
 
 /** A folder above a node, root first. */
@@ -322,6 +357,28 @@ export interface Drive<F extends object = Record<never, never>> {
     token: string,
     options?: { readonly nodeId?: string },
   ): AsyncResult<DriveLinkView<F>>;
+  /** Puts a tag on the node as a label, or takes it off (`applied: false`). */
+  label(
+    id: string,
+    tagId: string,
+    applied?: boolean,
+  ): AsyncResult<DriveNode<F>>;
+  /** The nodes that carry a label and the caller can read, folders first. */
+  labeled(
+    organizationId: string,
+    tagId: string,
+    options?: DrivePage,
+  ): AsyncResult<readonly DriveNode<F>[]>;
+  /**
+   * Asks for approval of one version of a file: `attachmentId`, or the current
+   * one. The request stays with those bytes.
+   */
+  requestApproval(
+    id: string,
+    options?: { readonly attachmentId?: string; readonly reason?: string },
+  ): AsyncResult<DriveApproval>;
+  /** The file's approval requests, newest first. */
+  approvals(id: string): AsyncResult<readonly DriveApproval[]>;
   /**
    * Service role: deletes revisions' files no revision or node uses any more,
    * and removes their objects through `storage`.
@@ -332,6 +389,15 @@ export interface Drive<F extends object = Record<never, never>> {
 }
 
 const KINDS: readonly DriveNodeKind[] = ["folder", "file"];
+
+const APPROVAL_STATUSES: readonly ApprovalStatus[] = [
+  "pending",
+  "approved",
+  "rejected",
+  "cancelled",
+  "expired",
+];
+
 const PRINCIPALS: readonly DrivePrincipalType[] = ["user", "team", "role"];
 
 function fileOf(value: unknown): DriveFile | undefined {
@@ -367,6 +433,45 @@ function nodeOf(value: unknown, fn: string): DriveNode {
     role: optionalText(row["role"]),
     starredAt: optionalInstant(row["starredAt"]),
     openedAt: optionalInstant(row["openedAt"]),
+    labels: Array.isArray(row["labels"])
+      ? recordsOf(row["labels"], fn).map((label) => ({
+          id: textOf(label["id"]),
+          name: textOf(label["name"]),
+          color: optionalText(label["color"]),
+        }))
+      : undefined,
+    approval: isRecord(row["approval"])
+      ? approvalStateOf(row["approval"])
+      : undefined,
+  };
+}
+
+function approvalStateOf(
+  row: Readonly<Record<string, unknown>>,
+): DriveApprovalState {
+  return {
+    id: textOf(row["id"]),
+    status: enumOrThrow(row["status"], APPROVAL_STATUSES, "approval status"),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    decidedAt: optionalInstant(row["decidedAt"]),
+  };
+}
+
+function approvalOf(value: unknown, fn: string): DriveApproval {
+  const row = recordOf(value, fn);
+  const revision = row["revision"];
+
+  return {
+    ...approvalStateOf(row),
+    attachmentId: textOf(row["attachmentId"]),
+    revision:
+      revision === null || revision === undefined
+        ? undefined
+        : Number(revision),
+    current: row["current"] === true,
+    step: Number(row["step"]),
+    reason: optionalText(row["reason"]),
+    requestedBy: optionalText(row["requestedBy"]),
   };
 }
 
@@ -494,6 +599,8 @@ const NODE_METHODS = [
   "starred",
   "recent",
   "link",
+  "label",
+  "labeled",
 ] as const satisfies readonly (keyof Drive)[];
 
 const isNode = (value: Readonly<Record<string, unknown>>): boolean =>
@@ -854,6 +961,32 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         recent: true,
         page_size: list.pageSize ?? null,
       }),
+    label: (id, tagId, applied = true) =>
+      call("drive_label", { node: id, tag: tagId, applied }, (value) =>
+        nodeOf(value, "drive_label"),
+      ),
+    labeled: (organizationId, tagId, list = {}) =>
+      page("drive_labeled", {
+        tenant: organizationId,
+        tag: tagId,
+        page_size: list.pageSize ?? null,
+      }),
+    requestApproval: (id, request = {}) =>
+      call(
+        "drive_request_approval",
+        {
+          node: id,
+          attachment: request.attachmentId ?? null,
+          reason: request.reason ?? null,
+        },
+        (value) => approvalOf(value, "drive_request_approval"),
+      ),
+    approvals: (id) =>
+      call("drive_approvals", { node: id }, (value) =>
+        recordsOf(value, "drive_approvals").map((row) =>
+          approvalOf(row, "drive_approvals"),
+        ),
+      ),
     link: (token, link = {}) =>
       call("drive_link", { token, node: link.nodeId ?? null }, linkOf),
     prune: (prune = {}) =>

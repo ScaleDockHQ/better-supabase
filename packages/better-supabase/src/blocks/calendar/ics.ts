@@ -1,3 +1,5 @@
+import type { CalendarTransparency } from "./availability.ts";
+
 import { temporal } from "../../core/temporal-required.ts";
 
 /** How an attendee takes part (RFC 5545 `ROLE`), in lowercase. */
@@ -42,6 +44,8 @@ export interface IcsEvent {
   /** `RECURRENCE-ID`: the occurrence of the series this event overrides. */
   readonly originalStart?: Temporal.Instant;
   readonly attendees: readonly CalendarAttendee[];
+  /** `TRANSP:TRANSPARENT` reads as `transparent`; absent means opaque. */
+  readonly transparency?: CalendarTransparency;
 }
 
 export interface ParsedIcs {
@@ -252,6 +256,7 @@ function eventOf(
   let description: string | undefined;
   let location: string | undefined;
   let status: CalendarEventStatus = "confirmed";
+  let transparent = false;
   let rrule: string | undefined;
   let originalStart: Temporal.Instant | undefined;
   const exdates: Temporal.Instant[] = [];
@@ -302,6 +307,11 @@ function eventOf(
       case "STATUS": {
         const value = line.value.trim().toLowerCase();
         status = STATUSES.find((item) => item === value) ?? "confirmed";
+        break;
+      }
+
+      case "TRANSP": {
+        transparent = line.value.trim().toUpperCase() === "TRANSPARENT";
         break;
       }
 
@@ -371,6 +381,7 @@ function eventOf(
     exdates,
     ...(originalStart === undefined ? {} : { originalStart }),
     attendees,
+    ...(transparent ? { transparency: "transparent" as const } : {}),
   };
 }
 
@@ -438,6 +449,7 @@ export function parseIcs(text: string): ParsedIcs {
 
 /** The event fields `toIcs` writes. `CalendarEvent` has all of them. */
 export interface IcsSource {
+  readonly transparency?: CalendarTransparency;
   readonly uid: string;
   readonly title: string;
   readonly description?: string;
@@ -640,6 +652,10 @@ function eventLines(event: IcsSource, stamp: Temporal.Instant): string[] {
   }
 
   lines.push(`STATUS:${event.status.toUpperCase()}`);
+
+  if (event.transparency === "transparent") {
+    lines.push("TRANSP:TRANSPARENT");
+  }
 
   for (const attendee of event.attendees ?? []) {
     const cn =

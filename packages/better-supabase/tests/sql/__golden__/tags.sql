@@ -486,7 +486,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', tag.tenant, 'tags.apply'), false) or coalesce(better_supabase.can('tenant', tag.tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  if not (true) then
+  if not ((case when tag.subject_type = 'drive_node' then coalesce(case when tag.subject_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((tag.subject_id)::uuid, 'editor') end, false) else true end)) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;
   select "kind" into v_kind from "better_supabase"."tags" where "id" = tag.tag_id and "tenant_id" = tag.tenant;
@@ -627,7 +627,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', untag.tenant, 'tags.apply'), false) or coalesce(better_supabase.can('tenant', untag.tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  if not (true) then
+  if not ((case when untag.subject_type = 'drive_node' then coalesce(case when untag.subject_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((untag.subject_id)::uuid, 'editor') end, false) else true end)) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;
   delete from "better_supabase"."taggings" g
@@ -679,7 +679,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.read'), false) or coalesce(better_supabase.can('tenant', subject_tags.tenant, 'tags.manage'), false)) then
     raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
-  if not (true) then
+  if not ((case when subject_tags.subject_type = 'drive_node' then coalesce(case when subject_tags.subject_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then "better_supabase"."drive_can"((subject_tags.subject_id)::uuid, 'viewer') end, false) else true end)) then
     raise exception 'not allowed to read this record''s tags' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
   end if;
   select array_agg(g."tag_id") into v_ids from "better_supabase"."taggings" g

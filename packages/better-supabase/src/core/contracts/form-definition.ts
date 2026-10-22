@@ -30,7 +30,8 @@ export type FormFieldType =
   | "consent"
   | "option"
   | "multi"
-  | "json";
+  | "json"
+  | "nps";
 
 export const FORM_FIELD_TYPES: readonly FormFieldType[] = [
   "text",
@@ -45,7 +46,18 @@ export const FORM_FIELD_TYPES: readonly FormFieldType[] = [
   "option",
   "multi",
   "json",
+  "nps",
 ];
+
+/** The field types that can't have a `correct` answer. */
+export const UNSCORED_FIELD_TYPES: readonly FormFieldType[] = [
+  "consent",
+  "json",
+  "nps",
+];
+
+/** The highest answer to an `nps` field; the lowest is 0. */
+export const NPS_MAX = 10;
 
 /**
  * When a step or field shows: an earlier field's answer `equals` a value, is
@@ -83,6 +95,15 @@ export interface FormField {
    * and `required` into the field; the field's own keys win.
    */
   readonly customField?: string;
+  /**
+   * The answer that earns the field's points: a choice's value, an array of
+   * values for `multi` (in any order), or the exact value of the other types.
+   * Text compares without case and surrounding spaces. Publishing moves it to
+   * an answer key respondents can't read.
+   */
+  readonly correct?: FormJson;
+  /** What a correct answer earns. Default 1; needs `correct`. */
+  readonly points?: number;
 }
 
 export interface FormStep {
@@ -93,8 +114,19 @@ export interface FormStep {
   readonly fields: readonly FormField[];
 }
 
+/** How a scored form grades a submission. */
+export interface FormScoring {
+  /**
+   * The share of the points a submission needs to pass, from 0 to 100. Without
+   * it a scored submission gets a score but no pass or fail.
+   */
+  readonly passMark?: number;
+}
+
 export interface FormDefinition {
   readonly steps: readonly FormStep[];
+  /** Needs a field with a `correct` answer. */
+  readonly scoring?: FormScoring;
 }
 
 /** The dialect every generated schema declares (`SPEC_PINS.jsonSchema`). */
@@ -190,11 +222,18 @@ export const FORM_DEFINITION_SCHEMA: FormJsonSchema = {
                   pattern:
                     "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                 },
+                correct: {},
+                points: { type: "number", minimum: 0, maximum: 10_000 },
               },
             },
           },
         },
       },
+    },
+    scoring: {
+      type: "object",
+      additionalProperties: false,
+      properties: { passMark: { type: "number", minimum: 0, maximum: 100 } },
     },
   },
 };
@@ -311,6 +350,10 @@ export function fieldSchema(field: FormField): FormJsonSchema {
       return { ...annotations };
     }
 
+    case "nps": {
+      return { type: "integer", minimum: 0, maximum: NPS_MAX, ...annotations };
+    }
+
     default: {
       const unknown: never = type;
       throw new TypeError(`unknown form field type ${String(unknown)}`);
@@ -387,8 +430,9 @@ export function isFormDefinition(value: unknown): value is FormDefinition {
 /**
  * What the definition's shape can't say: duplicate keys, conditions on a field
  * that isn't earlier in the form, a field without a label and type (and no
- * `customField`), and a choice field without options. Empty when the definition
- * is fine.
+ * `customField`), a choice field without options, and a `correct` answer the
+ * field can't take (or `points` or `scoring` without one). Empty when the
+ * definition is fine.
  */
 export function formDefinitionProblems(
   definition: FormDefinition,
@@ -396,6 +440,7 @@ export function formDefinitionProblems(
   const problems: string[] = [];
   const steps = new Set<string>();
   const fields = new Set<string>();
+  let scored = false;
 
   const refers = (condition: FormCondition | undefined, where: string) => {
     if (condition !== undefined && !fields.has(condition.field)) {
@@ -437,8 +482,98 @@ export function formDefinitionProblems(
       ) {
         problems.push(`field ${field.key} needs options`);
       }
+
+      problems.push(...scoringProblems(field));
+      scored ||= field.correct !== undefined;
     }
   }
 
+  if (definition.scoring !== undefined && !scored) {
+    problems.push("scoring needs a field with a correct answer");
+  }
+
   return problems;
+}
+
+/** Whether `correct` is an answer a field of `type` with these choices takes. */
+function correctFits(
+  type: FormFieldType,
+  correct: FormJson,
+  values: readonly string[],
+): boolean {
+  switch (type) {
+    case "text":
+    case "textarea":
+    case "email":
+    case "url":
+    case "date": {
+      return typeof correct === "string";
+    }
+
+    case "number": {
+      return typeof correct === "number";
+    }
+
+    case "integer": {
+      return typeof correct === "number" && Number.isInteger(correct);
+    }
+
+    case "bool": {
+      return typeof correct === "boolean";
+    }
+
+    case "option": {
+      return typeof correct === "string" && values.includes(correct);
+    }
+
+    case "multi": {
+      return (
+        Array.isArray(correct) &&
+        correct.length > 0 &&
+        correct.every(
+          (value) => typeof value === "string" && values.includes(value),
+        )
+      );
+    }
+
+    case "consent":
+    case "json":
+    case "nps": {
+      return false;
+    }
+
+    default: {
+      const unknown: never = type;
+      throw new TypeError(`unknown form field type ${String(unknown)}`);
+    }
+  }
+}
+
+/** A field's `correct` and `points` problems, as `form_resolve` reports them. */
+function scoringProblems(field: FormField): readonly string[] {
+  const { correct, type } = field;
+
+  if (correct === undefined) {
+    return field.points === undefined
+      ? []
+      : [`field ${field.key}: points need a correct answer`];
+  }
+
+  if (correct === null) {
+    return [`field ${field.key}: correct can't be null`];
+  }
+
+  if (type === undefined) {
+    return [];
+  }
+
+  if (UNSCORED_FIELD_TYPES.includes(type)) {
+    return [`field ${field.key}: a ${type} field can't have a correct answer`];
+  }
+
+  const values = (field.options ?? []).map((option) => option.value);
+
+  return correctFits(type, correct, values)
+    ? []
+    : [`field ${field.key}: correct isn't an answer the field takes`];
 }

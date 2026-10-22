@@ -1,0 +1,149 @@
+---
+title: Scores
+description: Tenant-editable scoring models that add rule points and weighted metrics into a versioned score with bands on any record. Lead scoring and account health are models.
+---
+
+`scores` keeps scoring models per organization and the scores they give
+records. A model names a subject type and adds up two kinds of points: rules,
+each a filter tree over the [rules](/docs/blocks/rules) field catalog worth a
+number of points when it matches, and metrics, each a number field of the
+record (or its vote score from [reactions](/docs/blocks/reactions)) times a
+weight, with an optional cap. Bands name ranges of the total, such as `hot`
+from 50 and `warm` from 20.
+
+Lead scoring and account health are two models, not two features: a `lead`
+model over parties that rewards a qualified stage and company size, and a
+`health` model that adds usage and subtracts open tickets.
+
+Reading needs `scores.read`, changing models needs `scores.manage`, and
+computing a score needs `scores.compute` or the service role. Admins get all
+three and members get `scores.read`.
+
+```bash
+better-supabase add scores
+```
+
+The module needs `tenant`, `access` and `rules`. It reads vote scores when
+[reactions](/docs/blocks/reactions) is installed, records `score_model.*`
+events to the outbox and the audit log, and emits `score.changed`.
+
+```ts
+import { createScores } from "better-supabase/blocks/scores";
+
+const scores = createScores({ transport, tenant: organizationId });
+
+await scores
+  .saveModel({
+    key: "lead",
+    name: "Lead score",
+    subjectType: "party",
+    rules: [
+      {
+        id: "qualified",
+        label: "Qualified",
+        conditions: qualified,
+        points: 20,
+      },
+      { id: "enterprise", conditions: bigRevenue, points: 30 },
+    ],
+    metrics: [
+      { id: "size", source: "field", field: "employees", weight: 0.5, cap: 25 },
+      { id: "votes", source: "votes", weight: 2 },
+    ],
+    bands: [
+      { label: "hot", min: 50 },
+      { label: "warm", min: 20 },
+      { label: "cold", min: -1000 },
+    ],
+  })
+  .orThrow();
+
+const score = await scores
+  .compute("lead", { type: "party", id: party.id }, party)
+  .orThrow();
+// { score: 81, band: "hot", changed: true, breakdown: { rules, metrics } }
+```
+
+`qualified` and `bigRevenue` are `FilterQuery` trees, the same ones the
+[rule builder](/docs/blocks/rules#editor) edits. Sync the subject type's
+fields with `createRulesAdmin().syncFields()` first; a model can only test
+fields the catalog has, and a `field` metric must name a `number` field.
+
+## Models
+
+`saveModel` creates a model from `key`, `name` and `subjectType`, or with an
+`id` changes the keys you pass. The key is unique in the organization and the
+subject type can't change. Pass the `version` you read to fail with
+`SCORES_MODEL_CONFLICT` when someone saved in between.
+
+Changing rules, metrics or bands raises `version` and saves the definition, so
+`model(id)` returns every version with who saved it. Renaming or turning a
+model off keeps the version. `models()` lists models by key, `deleteModel(id)`
+removes a model with its versions and scores, and `enabled: false` stops new
+computations without losing the history.
+
+| Option       | Default | What it limits                 |
+| ------------ | ------- | ------------------------------ |
+| `maxRules`   | 100     | The rules one model may hold   |
+| `maxMetrics` | 50      | The metrics one model may hold |
+
+A model holds at most 10 bands.
+
+## Computing
+
+`compute(modelKey, subject, fields)` scores one record. `fields` holds the
+record's values the way the rules block reads them (the same object
+`rules.run` takes), and `timeZone` decides relative dates, UTC by default. The
+total is the matched rules' points plus each metric's value times its weight,
+capped at `cap` in both directions; an empty field counts as 0. The first band
+whose `min` the total reaches names it.
+
+A score that differs from the current one, or that comes from a newer model
+version, becomes the record's current score and emits `score.changed` with
+the previous score and band. An unchanged score returns the current row with
+`changed: false`, so you can recompute on every change of the record without
+growing the history. The old scores stay as history.
+
+Compute from the place that changes the record: a Server Action after an
+update, or an outbox sink on the record's events. With the service role you
+can compute for any organization.
+
+## Reading scores
+
+| Method                              | Returns                                                   |
+| ----------------------------------- | --------------------------------------------------------- |
+| `forSubject(subject)`               | The record's current score under each model, by model key |
+| `history(modelKey, subject)`        | The record's scores under one model, newest first         |
+| `top(modelKey, { band, minScore })` | The highest current scores, for a "hot leads" list        |
+
+Each score has its `breakdown`: every rule with whether it matched and its
+points, and every metric with its value and points, so a UI can say why a
+lead is hot.
+
+`scoresSection` loads `forSubject` for a record page, and reloads on
+`score.changed`. See [Record sections](/docs/blocks/records).
+
+## Events
+
+| Event                                      | Data                                                                                                                  |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `score_model.saved`, `score_model.deleted` | `organizationId`, `id`, `key`, `subjectType`, `version`                                                               |
+| `score.changed`                            | `organizationId`, `modelId`, `modelKey`, `subjectType`, `subjectId`, `score`, `previousScore`, `band`, `previousBand` |
+
+A rule on `score.changed` can route a lead that turns hot, or notify an
+account owner when health drops a band.
+
+## With ReUI
+
+There is no prebuilt scores UI. Show `band` as a `Badge` (`success-light` for
+the top band) next to the record title, and list `breakdown.rules` and
+`breakdown.metrics` in a `Popover` to explain the number. Edit a model's
+rules with the rule builder recipe from the [rules page](/docs/blocks/rules#editor),
+one filter tree per rule with a points input beside it.
+
+## Why it works this way
+
+Models are data, so an organization tunes its own scoring without a deploy,
+and every version stays readable for the scores it produced. The record passes
+its fields in, as with rules, so the module never reads your tables and works
+for any subject type.

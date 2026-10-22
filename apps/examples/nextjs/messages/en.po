@@ -82,6 +82,41 @@ msgctxt "calendar.-SCdYi"
 msgid "Your organization's events by month."
 msgstr "Your organization's events by month."
 
+#: src/app/[locale]/(app)/compliance/page.tsx
+msgctxt "compliance.NIi2K2"
+msgid "Compliance"
+msgstr "Compliance"
+
+#: src/app/[locale]/(app)/compliance/page.tsx
+msgctxt "compliance.aN_4X-"
+msgid "How each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
+msgstr "How each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
+#: src/app/[locale]/(app)/courses/[courseId]/page.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.m0TXM9"
+msgid "All courses"
+msgstr "All courses"
+
+#: src/app/[locale]/(app)/courses/page.tsx
+msgctxt "courses.R85gsW"
+msgid "Courses"
+msgstr "Courses"
+
+#: src/app/[locale]/(app)/courses/page.tsx
+msgctxt "courses.VtDU2z"
+msgid "Take the courses your organization publishes."
+msgstr "Take the courses your organization publishes."
+
+#: src/app/[locale]/(app)/chat/page.tsx
+msgctxt "chat.WTrOy3"
+msgid "Chat"
+msgstr "Chat"
+
+#: src/app/[locale]/(app)/chat/page.tsx
+msgctxt "chat.CFR1hG"
+msgid "Channels for your team, with threads, mentions and files, kept live over Realtime."
+msgstr "Channels for your team, with threads, mentions and files, kept live over Realtime."
+
 #: src/app/[locale]/(app)/crm/contacts/[id]/page.tsx
 #: src/features/crm/components/contact-detail.tsx
 msgctxt "crm.IUQwPp"
@@ -188,6 +223,37 @@ msgctxt "app.FazwRl"
 msgid "Try again"
 msgstr "Try again"
 
+#: src/app/[locale]/(app)/field/day/page.tsx
+msgctxt "field.XdSd3o"
+msgid "My day"
+msgstr "My day"
+
+#: src/app/[locale]/(app)/field/day/page.tsx
+msgctxt "field.G24OIU"
+msgid "Your stops for the day and the next step of each."
+msgstr "Your stops for the day and the next step of each."
+
+#: src/app/[locale]/(app)/field/dispatch/page.tsx
+msgctxt "field.g_6veL"
+msgid "Dispatch"
+msgstr "Dispatch"
+
+#: src/app/[locale]/(app)/field/dispatch/page.tsx
+msgctxt "field.6OAxn7"
+msgid "Schedule work orders into technicians' days and keep the backlog moving."
+msgstr "Schedule work orders into technicians' days and keep the backlog moving."
+
+#: src/app/[locale]/(app)/field/shipments/page.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field._VTdwj"
+msgid "Shipments"
+msgstr "Shipments"
+
+#: src/app/[locale]/(app)/field/shipments/page.tsx
+msgctxt "field.7grP0Y"
+msgid "Track packages from label to delivery."
+msgstr "Track packages from label to delivery."
+
 #: src/app/[locale]/(app)/forbidden.tsx
 msgctxt "app.yO2v_w"
 msgid "You don't have access"
@@ -280,6 +346,16 @@ msgstr "Metrics"
 msgctxt "metrics.VSqjtd"
 msgid "Your organization's numbers over the last 30 days."
 msgstr "Your organization's numbers over the last 30 days."
+
+#: src/app/[locale]/(app)/my-work/page.tsx
+msgctxt "myWork.h-qaH6"
+msgid "My work"
+msgstr "My work"
+
+#: src/app/[locale]/(app)/my-work/page.tsx
+msgctxt "myWork.RpSk5k"
+msgid "What waits on you in this organization."
+msgstr "What waits on you in this organization."
 
 #: src/app/[locale]/(app)/notifications/page.tsx
 msgctxt "notifications.NAidKb"
@@ -383,6 +459,29 @@ msgstr "Inventory"
 msgctxt "shop.kZCZuj"
 msgid "Stock per product and location. Adjust a count after a delivery or a stocktake."
 msgstr "Stock per product and location. Adjust a count after a delivery or a stocktake."
+
+#: src/app/[locale]/(app)/shop/kitchen/board/page.tsx
+#: src/app/[locale]/(app)/shop/kitchen/page.tsx
+msgctxt "shop.OHCfOg"
+msgid "Order board"
+msgstr "Order board"
+
+#: src/app/[locale]/(app)/shop/kitchen/board/page.tsx
+msgctxt "shop.28eybb"
+msgid "Today's kitchen orders by state. Drag an order forward to move all of its lines."
+msgstr "Today's kitchen orders by state. Drag an order forward to move all of its lines."
+
+#: src/app/[locale]/(app)/shop/kitchen/board/page.tsx
+#: src/app/[locale]/(app)/shop/kitchen/page.tsx
+#: src/app/[locale]/(app)/shop/page.tsx
+msgctxt "shop.uwVj77"
+msgid "Kitchen"
+msgstr "Kitchen"
+
+#: src/app/[locale]/(app)/shop/kitchen/page.tsx
+msgctxt "shop.dHqIrB"
+msgid "The open tickets at each station. Move a ticket along as it's prepared."
+msgstr "The open tickets at each station. Move a ticket along as it's prepared."
 
 #: src/app/[locale]/(app)/shop/orders/[id]/page.tsx
 msgctxt "shop.lNZuWl"
@@ -2351,11 +2450,13 @@ msgid "All day"
 msgstr "All day"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.dM-p3_"
 msgid "From"
 msgstr "From"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.9j3hXO"
 msgid "To"
 msgstr "To"
@@ -2366,6 +2467,7 @@ msgid "Location"
 msgstr "Location"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.47FYwb"
 msgid "Cancel"
 msgstr "Cancel"
@@ -2444,6 +2546,732 @@ msgstr "No events coming up"
 msgctxt "calendar.SxCBpE"
 msgid "Add an event, then set a reminder for it here."
 msgstr "Add an event, then set a reminder for it here."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.CrEhnK"
+msgid "No end date"
+msgstr "No end date"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.r68ulP"
+msgid "Renews, notice passed"
+msgstr "Renews, notice passed"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.-3oUIX"
+msgid "Notice passed"
+msgstr "Notice passed"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.tkoBM1"
+msgid "Notice in {days, number} days"
+msgstr "Notice in {days, number} days"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.eehNZO"
+msgid "Auto-renews"
+msgstr "Auto-renews"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.aVrws_"
+msgid "Contract renewals"
+msgstr "Contract renewals"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.4GKQKq"
+msgid "Active contracts, the nearest notice deadline first. A contract that auto-renews extends itself unless someone gives notice before the deadline."
+msgstr "Active contracts, the nearest notice deadline first. A contract that auto-renews extends itself unless someone gives notice before the deadline."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.lXkTYj"
+msgid "The contracts didn't load"
+msgstr "The contracts didn't load"
+
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.PmqZKj"
+msgid "No active contracts"
+msgstr "No active contracts"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.p8eLNP"
+msgid "A contract becomes active once every signer has signed. Draft one from a customer's record."
+msgstr "A contract becomes active once every signer has signed. Draft one from a customer's record."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.GmW-DP"
+msgid "Open customers"
+msgstr "Open customers"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.nV7Cv-"
+msgid "Contract"
+msgstr "Contract"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.GufXy5"
+msgid "Value"
+msgstr "Value"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.04xGLE"
+msgid "Ends"
+msgstr "Ends"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.u75FWG"
+msgid "Notice by"
+msgstr "Notice by"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.NRVEF5"
+msgid "Renewal"
+msgstr "Renewal"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.F1fkR9"
+msgid "The control posture didn't load"
+msgstr "The control posture didn't load"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.Z2grkH"
+msgid "No frameworks yet"
+msgstr "No frameworks yet"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.cVqZZ3"
+msgid "Add a framework such as SOC 2 or ISO 27001 with the controls block, then link evidence to each control."
+msgstr "Add a framework such as SOC 2 or ISO 27001 with the controls block, then link evidence to each control."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.GNiGeO"
+msgid "Read the controls guide"
+msgstr "Read the controls guide"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.BgYrIK"
+msgid "{passing, number} of {applicable, number} controls passing"
+msgstr "{passing, number} of {applicable, number} controls passing"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.NrYcZf"
+msgid "Controls passing"
+msgstr "Controls passing"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.b8oEdI"
+msgid "{count, number} passing"
+msgstr "{count, number} passing"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.P5PLAQ"
+msgid "{count, number} failing"
+msgstr "{count, number} failing"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.GBTCb5"
+msgid "{count, number} not started"
+msgstr "{count, number} not started"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.CjoNmW"
+msgid "{count, number} overdue tasks"
+msgstr "{count, number} overdue tasks"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.pKHQpG"
+msgid "Overdue evidence"
+msgstr "Overdue evidence"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0oUYk6"
+msgid "Recurring tasks whose evidence is past due. Collecting evidence moves the task to its next due date."
+msgstr "Recurring tasks whose evidence is past due. Collecting evidence moves the task to its next due date."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.06A-9M"
+msgid "Every evidence task is on schedule."
+msgstr "Every evidence task is on schedule."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0wJ7N-"
+msgid "Task"
+msgstr "Task"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.NZ9-vv"
+msgid "Control"
+msgstr "Control"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.g9pEhE"
+msgid "Due"
+msgstr "Due"
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.1GGd_a"
+msgid "You're enrolled"
+msgstr "You're enrolled"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.nz3jzj"
+msgid "Enroll"
+msgstr "Enroll"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.oIBOCc"
+msgid "Course completed"
+msgstr "Course completed"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.IzT3_x"
+msgid "Lesson marked done"
+msgstr "Lesson marked done"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.knUjT2"
+msgid "Mark as done"
+msgstr "Mark as done"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.EKtClK"
+msgid "Getting started"
+msgstr "Getting started"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.PwaN2o"
+msgid "Welcome"
+msgstr "Welcome"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.cZLCLy"
+msgid "This lesson shows how a learner moves through a course."
+msgstr "This lesson shows how a learner moves through a course."
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.uhBRmg"
+msgid "Next steps"
+msgstr "Next steps"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.p6DmIN"
+msgid "Mark this lesson done to complete the course."
+msgstr "Mark this lesson done to complete the course."
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.3WD3Jo"
+msgid "Create a sample course"
+msgstr "Create a sample course"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.zV57h1"
+msgid "The courses didn't load"
+msgstr "The courses didn't load"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.BDHWkf"
+msgid "No courses yet"
+msgstr "No courses yet"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.3FgZ2I"
+msgid "Create a sample course to try the learner flow."
+msgstr "Create a sample course to try the learner flow."
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.M-Gw6A"
+msgid "An admin publishes courses for your team."
+msgstr "An admin publishes courses for your team."
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Back to the dashboard"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.w7tf2z"
+msgid "Published"
+msgstr "Published"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.xisgo1"
+msgid "The course didn't load"
+msgstr "The course didn't load"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.MOK_yK"
+msgid "Reading"
+msgstr "Reading"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.kBJUtE"
+msgid "Video"
+msgstr "Video"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.OuR_Ij"
+msgid "Quiz"
+msgstr "Quiz"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.acrOoz"
+msgid "Continue"
+msgstr "Continue"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.q7sJ6u"
+msgid "No lessons yet"
+msgstr "No lessons yet"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.5WezOu"
+msgid "Lessons show up here once a manager adds them."
+msgstr "Lessons show up here once a manager adds them."
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.n7xPkB"
+msgid "{count, plural, one {# lesson} other {# lessons}}"
+msgstr "{count, plural, one {# lesson} other {# lessons}}"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.zqV6aP"
+msgid "Not done"
+msgstr "Not done"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.8jbBlb"
+msgid "{minutes, number} min"
+msgstr "{minutes, number} min"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.InWqys"
+msgid "Optional"
+msgstr "Optional"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.dcRwV1"
+msgid "Your progress"
+msgstr "Your progress"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.TEKO3x"
+msgid "Enroll to track your progress."
+msgstr "Enroll to track your progress."
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.EFVK4r"
+msgid "{done, number} of {total, number} lessons done"
+msgstr "{done, number} of {total, number} lessons done"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.FMhPQ6"
+msgid "Certificate"
+msgstr "Certificate"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.rEPdIs"
+msgid "Course outline"
+msgstr "Course outline"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses._nxvFr"
+msgid "The lesson didn't load"
+msgstr "The lesson didn't load"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.duWP55"
+msgid "Last score: {score, number} of {max, number}"
+msgstr "Last score: {score, number} of {max, number}"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.8KXPSX"
+msgid "This quiz has no questions"
+msgstr "This quiz has no questions"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.1A31Gt"
+msgid "A manager publishes the quiz form first."
+msgstr "A manager publishes the quiz form first."
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.UQOBcC"
+msgid "Open the video"
+msgstr "Open the video"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.0IyBwp"
+msgid "{score, number} of {max, number}"
+msgstr "{score, number} of {max, number}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.lC6PSg"
+msgid "Passed: {score}"
+msgstr "Passed: {score}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.GVXFN1"
+msgid "Not passed yet: {score}"
+msgstr "Not passed yet: {score}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.uC6AEf"
+msgid "Pick one"
+msgstr "Pick one"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.LotwiE"
+msgid "Submit answers"
+msgstr "Submit answers"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.hTxGRa"
+msgid "Working hours saved"
+msgstr "Working hours saved"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.pb74he"
+msgid "Working hours"
+msgstr "Working hours"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.Y-CeYn"
+msgid "Monday to Friday, in your time zone. Free/busy and find-a-time use them."
+msgstr "Monday to Friday, in your time zone. Free/busy and find-a-time use them."
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.jvo0vs"
+msgid "Save"
+msgstr "Save"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.LUrJwE"
+msgid "Channels"
+msgstr "Channels"
+
+#: src/features/chat/components/channel-sidebar.tsx
+#: src/features/chat/components/message-list.tsx
+#: src/features/chat/components/thread-panel.tsx
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.ZQ3u01"
+msgid "Loading channels"
+msgstr "Loading channels"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.tTtG9x"
+msgid "No channels yet"
+msgstr "No channels yet"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.giNTcA"
+msgid "Create one, or browse the channels others made."
+msgstr "Create one, or browse the channels others made."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.FHrxIZ"
+msgid "Browse channels"
+msgstr "Browse channels"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.nU1Blb"
+msgid "Every public channel, and the private ones you are in."
+msgstr "Every public channel, and the private ones you are in."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.K1gPE8"
+msgid "No channels to join"
+msgstr "No channels to join"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.DJh2pj"
+msgid "Close this and create the first one."
+msgstr "Close this and create the first one."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.otTBkE"
+msgid "{count, plural, one {# member} other {# members}}"
+msgstr "{count, plural, one {# member} other {# members}}"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.JfG49w"
+msgid "Open"
+msgstr "Open"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.P6PLpi"
+msgid "Join"
+msgstr "Join"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.fuDLDJ"
+msgid "Create a channel"
+msgstr "Create a channel"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.RKBape"
+msgid "A place for one team, project or topic."
+msgstr "A place for one team, project or topic."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.HAlOn1"
+msgid "Name"
+msgstr "Name"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.zFz4EZ"
+msgid "Lowercase letters, digits, - and _."
+msgstr "Lowercase letters, digits, - and _."
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.UdtpV7"
+msgid "Topic"
+msgstr "Topic"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.2FW4am"
+msgid "Private: only the people you add see it"
+msgstr "Private: only the people you add see it"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/chat/components/channel-sidebar.tsx
+msgctxt "chat.VzzYJk"
+msgid "Create"
+msgstr "Create"
+
+#: src/features/chat/components/chat-view.tsx
+msgctxt "chat.PpF3UH"
+msgid "Pick a channel"
+msgstr "Pick a channel"
+
+#: src/features/chat/components/chat-view.tsx
+msgctxt "chat.zs1bwT"
+msgid "Choose one on the left, or create a new one with +."
+msgstr "Choose one on the left, or create a new one with +."
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.3JmHTA"
+msgid "{name} did not upload. Try again."
+msgstr "{name} did not upload. Try again."
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.T7Ry38"
+msgid "Message"
+msgstr "Message"
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.T0e6Lh"
+msgid "Remove {name}"
+msgstr "Remove {name}"
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.8d3exg"
+msgid "Attach files"
+msgstr "Attach files"
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.8JqG5l"
+msgid "Drop or paste files to attach them."
+msgstr "Drop or paste files to attach them."
+
+#: src/features/chat/components/message-composer.tsx
+msgctxt "chat.9WRlF4"
+msgid "Send"
+msgstr "Send"
+
+#: src/features/chat/components/message-item.tsx
+#: src/features/chat/components/presence-avatars.tsx
+msgctxt "chat.XDWEZM"
+msgid "Someone"
+msgstr "Someone"
+
+#: src/features/chat/components/message-item.tsx
+msgctxt "chat.Zx1w1e"
+msgid "edited"
+msgstr "edited"
+
+#: src/features/chat/components/message-item.tsx
+msgctxt "chat.NeaJFD"
+msgid "This message was deleted."
+msgstr "This message was deleted."
+
+#: src/features/chat/components/message-item.tsx
+msgctxt "chat.SPsY9a"
+msgid "{count, plural, one {# reply} other {# replies}}"
+msgstr "{count, plural, one {# reply} other {# replies}}"
+
+#: src/features/chat/components/message-item.tsx
+msgctxt "chat.Wi833r"
+msgid "Reply in thread"
+msgstr "Reply in thread"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.6mYHLB"
+msgid "Loading messages"
+msgstr "Loading messages"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.zu9kMq"
+msgid "No messages yet"
+msgstr "No messages yet"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.bMU3Sg"
+msgid "Say hello to start the conversation."
+msgstr "Say hello to start the conversation."
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.gA50sn"
+msgid "Write a message"
+msgstr "Write a message"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.Jb8lBw"
+msgid "Load older messages"
+msgstr "Load older messages"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.ZzCfh0"
+msgid "{count, plural, one {Someone is typing} other {# people are typing}}"
+msgstr "{count, plural, one {Someone is typing} other {# people are typing}}"
+
+#: src/features/chat/components/message-list.tsx
+msgctxt "chat.jQ74Cd"
+msgid "Message #{name}"
+msgstr "Message #{name}"
+
+#: src/features/chat/components/presence-avatars.tsx
+msgctxt "chat.ECg3v5"
+msgid "{count, plural, one {# other viewer} other {# other viewers}}"
+msgstr "{count, plural, one {# other viewer} other {# other viewers}}"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.6dmn4m"
+msgid "Thread"
+msgstr "Thread"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.1IcOZT"
+msgid "Close the thread"
+msgstr "Close the thread"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.ioWtYk"
+msgid "Loading the thread"
+msgstr "Loading the thread"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.rrg2At"
+msgid "No replies yet"
+msgstr "No replies yet"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.U6sE7j"
+msgid "Replies stay here, out of the channel."
+msgstr "Replies stay here, out of the channel."
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.9HU8vw"
+msgid "Reply"
+msgstr "Reply"
+
+#: src/features/chat/components/thread-panel.tsx
+msgctxt "chat.QXhiaM"
+msgid "Reply in the thread"
+msgstr "Reply in the thread"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.RrCui3"
+msgid "Summary"
+msgstr "Summary"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.SJDV5W"
+msgid "Summarize again"
+msgstr "Summarize again"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.3GDhyi"
+msgid "Summarizing the thread"
+msgstr "Summarizing the thread"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.a3jzLr"
+msgid "{count, plural, one {# message} other {# messages}}"
+msgstr "{count, plural, one {# message} other {# messages}}"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.osuyeD"
+msgid "Out of date"
+msgstr "Out of date"
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat._0i3Qv"
+msgid "Catch up on this thread without reading every reply."
+msgstr "Catch up on this thread without reading every reply."
+
+#: src/features/chat/components/thread-summary.tsx
+msgctxt "chat.IQWhFZ"
+msgid "Summarize"
+msgstr "Summarize"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
@@ -3442,6 +4270,11 @@ msgid "Files"
 msgstr "Files"
 
 #: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.7hEmx-"
+msgid "Drop or paste files to upload. They download after the virus scan."
+msgstr "Drop or paste files to upload. They download after the virus scan."
+
+#: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.2Ne0Nv"
 msgid "Files download after the virus scan marks them clean."
 msgstr "Files download after the virus scan marks them clean."
@@ -3462,9 +4295,19 @@ msgid "Attach contracts, quotes or anything else about this customer."
 msgstr "Attach contracts, quotes or anything else about this customer."
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.5iaKnS"
-msgid "Upload unfinished"
-msgstr "Upload unfinished"
+msgctxt "customers.lrdlY6"
+msgid "File uploaded"
+msgstr "File uploaded"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hsYvDX"
+msgid "Uploading"
+msgstr "Uploading"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.QLkzoS"
+msgid "Saving"
+msgstr "Saving"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.oCixBp"
@@ -3472,14 +4315,44 @@ msgid "Waiting for scan"
 msgstr "Waiting for scan"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.IZFEUg"
-msgid "Ready"
-msgstr "Ready"
+msgctxt "customers.LwdDVa"
+msgid "Uploaded"
+msgstr "Uploaded"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.qUJTsT"
 msgid "Blocked"
 msgstr "Blocked"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.vXCeIi"
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.minycD"
+msgid "Upload progress for {name}"
+msgstr "Upload progress for {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hRJjA7"
+msgid "Retry {name}"
+msgstr "Retry {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.OPIp6Z"
+msgid "Dismiss {name}"
+msgstr "Dismiss {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.5iaKnS"
+msgid "Upload unfinished"
+msgstr "Upload unfinished"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.IZFEUg"
+msgid "Ready"
+msgstr "Ready"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.pRoW6a"
@@ -3492,24 +4365,14 @@ msgid "Download {name}"
 msgstr "Download {name}"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.C_zqJE"
-msgid "The upload failed. Try again."
-msgstr "The upload failed. Try again."
+msgctxt "customers.w6J38y"
+msgid "Upload more"
+msgstr "Upload more"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.lrdlY6"
-msgid "File uploaded"
-msgstr "File uploaded"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.hsYvDX"
-msgid "Uploading"
-msgstr "Uploading"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.6oOCCL"
-msgid "Upload file"
-msgstr "Upload file"
+msgctxt "customers.2jjdVz"
+msgid "Upload files"
+msgstr "Upload files"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.88bXgO"
@@ -3545,16 +4408,19 @@ msgid "No comments yet."
 msgstr "No comments yet."
 
 #: src/features/customers/components/comment-thread.tsx
+#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.XDWEZM"
 msgid "Someone"
 msgstr "Someone"
 
 #: src/features/customers/components/comment-thread.tsx
+#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.LgbKvU"
 msgid "Comment"
 msgstr "Comment"
 
 #: src/features/customers/components/comment-thread.tsx
+#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.Y8zV4A"
 msgid "Write a comment"
 msgstr "Write a comment"
@@ -3690,6 +4556,41 @@ msgstr "Notes"
 msgctxt "customers.dyyiUt"
 msgid "Last note"
 msgstr "Last note"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.gyrIEl"
+msgid "File"
+msgstr "File"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.I3b4hn"
+msgid "Version"
+msgstr "Version"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.zWkvNO"
+msgid "Timeline"
+msgstr "Timeline"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.n9pcfi"
+msgid "Comments, files and versions, newest first."
+msgstr "Comments, files and versions, newest first."
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.0ABUGx"
+msgid "The timeline didn't load"
+msgstr "The timeline didn't load"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.jx4Zxs"
+msgid "Nothing happened yet"
+msgstr "Nothing happened yet"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.WGEKkb"
+msgid "Comments, files and versions show up here."
+msgstr "Comments, files and versions show up here."
 
 #: src/features/customers/components/reactions-bar.tsx
 msgctxt "customers.XgWvGA"
@@ -4370,9 +5271,24 @@ msgid "You can read this document. Ask an admin for edit access."
 msgstr "You can read this document. Ask an admin for edit access."
 
 #: src/features/documents/components/document-editor.tsx
+msgctxt "documents.UziXES"
+msgid "Your edits become a suggestion that an editor accepts."
+msgstr "Your edits become a suggestion that an editor accepts."
+
+#: src/features/documents/components/document-editor.tsx
 msgctxt "documents.pfzLED"
 msgid "Changes save as you type and show up for everyone editing."
 msgstr "Changes save as you type and show up for everyone editing."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.pBQ5bd"
+msgid "Editing"
+msgstr "Editing"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.N-xlF3"
+msgid "Suggesting"
+msgstr "Suggesting"
 
 #: src/features/documents/components/document-editor.tsx
 msgctxt "documents.9a9-ww"
@@ -4398,6 +5314,51 @@ msgstr "Write the notes here."
 msgctxt "documents.moUq9i"
 msgid "Plain text. Everyone who can read the customer can read it."
 msgstr "Plain text. Everyone who can read the customer can read it."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.y5bka7"
+msgid "Submit suggestion"
+msgstr "Submit suggestion"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.mkAc9X"
+msgid "The suggestions didn't load"
+msgstr "The suggestions didn't load"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.O359cZ"
+msgid "No open suggestions"
+msgstr "No open suggestions"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.gQ-Wnb"
+msgid "Suggested edits wait here until an editor accepts them."
+msgstr "Suggested edits wait here until an editor accepts them."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.FN-iLO"
+msgid "Suggest a change"
+msgstr "Suggest a change"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.Hv0XJn"
+msgid "Suggestions"
+msgstr "Suggestions"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.-CvNGk"
+msgid "Suggested edit"
+msgstr "Suggested edit"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.VzIOKf"
+msgid "Reject"
+msgstr "Reject"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.sjzLbX"
+msgid "Accept"
+msgstr "Accept"
 
 #: src/features/documents/components/document-list.tsx
 msgctxt "documents.JZAFzY"
@@ -4456,6 +5417,31 @@ msgid "Retry"
 msgstr "Retry"
 
 #: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.uPFUUe"
+msgid "Awaiting approval"
+msgstr "Awaiting approval"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.5qaD7s"
+msgid "Rejected"
+msgstr "Rejected"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.oy7udF"
+msgid "Approval cancelled"
+msgstr "Approval cancelled"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.3dBHaS"
+msgid "Approval expired"
+msgstr "Approval expired"
+
+#: src/features/drive/components/drive-explorer.tsx
 msgctxt "drive.UVALem"
 msgid "My drive"
 msgstr "My drive"
@@ -4509,6 +5495,11 @@ msgid "{size} KB"
 msgstr "{size} KB"
 
 #: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.Yc3a19"
+msgid "Approval requested for {name}"
+msgstr "Approval requested for {name}"
+
+#: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.icI5MO"
 msgid "Actions for {name}"
 msgstr "Actions for {name}"
@@ -4517,6 +5508,11 @@ msgstr "Actions for {name}"
 msgctxt "drive.5q3qC0"
 msgid "Download"
 msgstr "Download"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.0JzFLp"
+msgid "Request approval"
+msgstr "Request approval"
 
 #: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.iXNbPf"
@@ -4649,6 +5645,401 @@ msgstr "Share with"
 msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Access"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.s7o6zU"
+msgid "Leave for the stop"
+msgstr "Leave for the stop"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.W_6tSY"
+msgid "Arrived"
+msgstr "Arrived"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.tQpQon"
+msgid "Mark done"
+msgstr "Mark done"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.DgAp1f"
+msgid "Week of {range}"
+msgstr "Week of {range}"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.B1qonS"
+msgid "Scheduled work per technician, in {zone}."
+msgstr "Scheduled work per technician, in {zone}."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.m74Rqi"
+msgid "Scheduled work per technician."
+msgstr "Scheduled work per technician."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.GAjQnO"
+msgid "Previous week"
+msgstr "Previous week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.iMjjOH"
+msgid "Next week"
+msgstr "Next week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.oZZk8W"
+msgid "The schedule board didn't load"
+msgstr "The schedule board didn't load"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.CXAGzs"
+msgid "Nothing scheduled this week"
+msgstr "Nothing scheduled this week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.8rezaW"
+msgid "Work orders show here once they have a technician."
+msgstr "Work orders show here once they have a technician."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.LiYMhZ"
+msgid "Show next week"
+msgstr "Show next week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.FoMO5v"
+msgid "Technician"
+msgstr "Technician"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.mX1AFw"
+msgid "Backlog"
+msgstr "Backlog"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.a7n80f"
+msgid "Work orders without a slot, most urgent first."
+msgstr "Work orders without a slot, most urgent first."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.i7CstZ"
+msgid "The backlog didn't load"
+msgstr "The backlog didn't load"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.KV_tdf"
+msgid "The backlog is empty"
+msgstr "The backlog is empty"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.aeOe_6"
+msgid "Every open work order has a slot."
+msgstr "Every open work order has a slot."
+
+#: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.MEvKnW"
+msgid "Job"
+msgstr "Job"
+
+#: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.e6Ph5-"
+msgid "Address"
+msgstr "Address"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.8lCjAM"
+msgid "Priority"
+msgstr "Priority"
+
+#: src/features/field/components/field-load-error.tsx
+msgctxt "field.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/field/components/field-load-error.tsx
+msgctxt "field.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.eTrzQC"
+msgid "Shipment created"
+msgstr "Shipment created"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.HkTa1T"
+msgid "New shipment"
+msgstr "New shipment"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.UMshQz"
+msgid "One package from the warehouse, saved as a draft."
+msgstr "One package from the warehouse, saved as a draft."
+
+#: src/features/field/components/new-shipment-dialog.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.8Rkoyb"
+msgid "Recipient"
+msgstr "Recipient"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.LVbG7l"
+msgid "Street and number"
+msgstr "Street and number"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.3EnruA"
+msgid "Postal code"
+msgstr "Postal code"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.TE4fIS"
+msgid "City"
+msgstr "City"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.H36vgV"
+msgid "Country code"
+msgstr "Country code"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.SHl88G"
+msgid "Weight in grams"
+msgstr "Weight in grams"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.47FYwb"
+msgid "Cancel"
+msgstr "Cancel"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.VzzYJk"
+msgid "Create"
+msgstr "Create"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.Wp_i6x"
+msgid "Work order added to the backlog"
+msgstr "Work order added to the backlog"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.WHfMpv"
+msgid "New work order"
+msgstr "New work order"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.1zY8SM"
+msgid "It waits in the backlog until you schedule it."
+msgstr "It waits in the backlog until you schedule it."
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.2_2yg-"
+msgid "Add"
+msgstr "Add"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.yNSJTr"
+msgid "Label created"
+msgstr "Label created"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.oLBci1"
+msgid "In transit"
+msgstr "In transit"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.UdVzmc"
+msgid "Out for delivery"
+msgstr "Out for delivery"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.DMqnF4"
+msgid "Delivered"
+msgstr "Delivered"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.YAnsyA"
+msgid "Exception"
+msgstr "Exception"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.wm96Jx"
+msgid "Returned"
+msgstr "Returned"
+
+#: src/features/field/components/shipment-tracking.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.3wsVWF"
+msgid "Cancelled"
+msgstr "Cancelled"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.xd9-PX"
+msgid "The status follows the latest tracking event."
+msgstr "The status follows the latest tracking event."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.7CeqzL"
+msgid "The shipments didn't load"
+msgstr "The shipments didn't load"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.TsxaHw"
+msgid "No shipments yet"
+msgstr "No shipments yet"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.LLrtsC"
+msgid "Create a shipment, then buy its label from a carrier."
+msgstr "Create a shipment, then buy its label from a carrier."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.mcUhhf"
+msgid "Reference"
+msgstr "Reference"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.BzQPM-"
+msgid "Destination"
+msgstr "Destination"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.yT_GAp"
+msgid "Tracking number"
+msgstr "Tracking number"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.-jwfm8"
+msgid "Tracking for {reference}"
+msgstr "Tracking for {reference}"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.aAuZgr"
+msgid "Events from {carrier}, newest first."
+msgstr "Events from {carrier}, newest first."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.TLGw7J"
+msgid "Events show once the shipment has a label."
+msgstr "Events show once the shipment has a label."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.hH74PI"
+msgid "No tracking events yet"
+msgstr "No tracking events yet"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.oLP7kH"
+msgid "The carrier's webhook adds events as the package moves."
+msgstr "The carrier's webhook adds events as the package moves."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.1A8Z_l"
+msgid "Check again"
+msgstr "Check again"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.AE_HJl"
+msgid "Your stops in the order of the planned route."
+msgstr "Your stops in the order of the planned route."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.SGzIa0"
+msgid "Your stops by start time."
+msgstr "Your stops by start time."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.RMO5xM"
+msgid "Previous day"
+msgstr "Previous day"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.3XCLrO"
+msgid "Next day"
+msgstr "Next day"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.D-LF9w"
+msgid "Your day didn't load"
+msgstr "Your day didn't load"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.fWAPAL"
+msgid "No stops on this day"
+msgstr "No stops on this day"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.-PlOyW"
+msgid "Work orders scheduled for you show here."
+msgstr "Work orders scheduled for you show here."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.g-EdHj"
+msgid "Show the next day"
+msgstr "Show the next day"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.tXYVJd"
+msgid "{from} to {to}"
+msgstr "{from} to {to}"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.4MnrK6"
+msgid "Unscheduled"
+msgstr "Unscheduled"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.cXAlMR"
+msgid "Scheduled"
+msgstr "Scheduled"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.UHCOTT"
+msgid "En route"
+msgstr "En route"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.bC-TWQ"
+msgid "On site"
+msgstr "On site"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.477I0g"
+msgid "Low"
+msgstr "Low"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.myq2ZL"
+msgid "Normal"
+msgstr "Normal"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.AxMhQr"
+msgid "High"
+msgstr "High"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.yN7aqf"
+msgid "Urgent"
+msgstr "Urgent"
 
 #: src/features/flags/components/beta-content.tsx
 msgctxt "beta.hKwqKr"
@@ -5211,6 +6602,11 @@ msgid "Import another file"
 msgstr "Import another file"
 
 #: src/features/inbox/components/composer.tsx
+msgctxt "inbox.X4M1tJ"
+msgid "Reply scheduled"
+msgstr "Reply scheduled"
+
+#: src/features/inbox/components/composer.tsx
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.qMePPG"
 msgid "Note"
@@ -5235,6 +6631,11 @@ msgstr "Write a reply"
 msgctxt "inbox.0kc5kM"
 msgid "Internal note"
 msgstr "Internal note"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.7tFha1"
+msgid "Send later"
+msgstr "Send later"
 
 #: src/features/inbox/components/composer.tsx
 msgctxt "inbox.KgAlAZ"
@@ -5282,6 +6683,11 @@ msgid "Open"
 msgstr "Open"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.9OHSlH"
+msgid "Snoozed until {time}"
+msgstr "Snoozed until {time}"
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.Vja_gq"
 msgid "Bot answers"
 msgstr "Bot answers"
@@ -5305,6 +6711,11 @@ msgstr "Assign to me"
 msgctxt "inbox.vpzvF9"
 msgid "Take over from the bot"
 msgstr "Take over from the bot"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.9qc7BX"
+msgid "Snooze"
+msgstr "Snooze"
 
 #: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.8ujEro"
@@ -5430,6 +6841,46 @@ msgstr "Open Help in the header to start one as a customer."
 msgctxt "inbox.bW7B87"
 msgid "New"
 msgstr "New"
+
+#: src/features/inbox/components/later-items.tsx
+msgctxt "inbox._qJpQY"
+msgid "In 1 hour"
+msgstr "In 1 hour"
+
+#: src/features/inbox/components/later-items.tsx
+msgctxt "inbox.MtrTNy"
+msgid "Tomorrow"
+msgstr "Tomorrow"
+
+#: src/features/inbox/components/later-items.tsx
+msgctxt "inbox.iMjjOH"
+msgid "Next week"
+msgstr "Next week"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.TMrzNl"
+msgid "The scheduled replies didn't load"
+msgstr "The scheduled replies didn't load"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.yGEFsz"
+msgid "Scheduled replies"
+msgstr "Scheduled replies"
+
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.pC2KQV"
+msgid "Cancel scheduled reply"
+msgstr "Cancel scheduled reply"
 
 #: src/features/jobs/components/job-run-controls.tsx
 msgctxt "jobs.IJu8c2"
@@ -5628,10 +7079,80 @@ msgctxt "metrics.8O8AYG"
 msgid "{previous} in the 30 days before"
 msgstr "{previous} in the 30 days before"
 
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.iZDRGO"
+msgid "Assigned"
+msgstr "Assigned"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.Kl6x-n"
+msgid "Approval"
+msgstr "Approval"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.QOAy_W"
+msgid "Reminder"
+msgstr "Reminder"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.fxmNTh"
+msgid "Mention"
+msgstr "Mention"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.XVpKQC"
+msgid "SLA warning"
+msgstr "SLA warning"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.9-ZvGz"
+msgid "Waiting on you"
+msgstr "Waiting on you"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.tBjNEd"
+msgid "Assigned work, approvals, due reminders, mentions and SLA warnings."
+msgstr "Assigned work, approvals, due reminders, mentions and SLA warnings."
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.6A7ifa"
+msgid "My work didn't load"
+msgstr "My work didn't load"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.otPGOJ"
+msgid "Nothing waiting on you"
+msgstr "Nothing waiting on you"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.kjeh0s"
+msgid "Work assigned to you and requests for you show up here."
+msgstr "Work assigned to you and requests for you show up here."
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.do5cUm"
+msgid "Open the work board"
+msgstr "Open the work board"
+
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.hzSNj4"
 msgid "Dashboard"
 msgstr "Dashboard"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.h-qaH6"
+msgid "My work"
+msgstr "My work"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.TkYZBT"
@@ -5719,6 +7240,21 @@ msgid "Orders"
 msgstr "Orders"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.g_6veL"
+msgid "Dispatch"
+msgstr "Dispatch"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.XdSd3o"
+msgid "My day"
+msgstr "My day"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation._VTdwj"
+msgid "Shipments"
+msgstr "Shipments"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.1YAWJ3"
 msgid "Drive"
 msgstr "Drive"
@@ -5732,6 +7268,11 @@ msgstr "Documents"
 msgctxt "navigation.yGsZm0"
 msgid "Forms"
 msgstr "Forms"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.R85gsW"
+msgid "Courses"
+msgstr "Courses"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.A3ptul"
@@ -5754,6 +7295,11 @@ msgid "Metrics"
 msgstr "Metrics"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.NIi2K2"
+msgid "Compliance"
+msgstr "Compliance"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Notifications"
@@ -5772,6 +7318,11 @@ msgstr "Workflow builder"
 msgctxt "navigation.VCMKbt"
 msgid "Inbox"
 msgstr "Inbox"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.WTrOy3"
+msgid "Chat"
+msgstr "Chat"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.wSAvhu"
@@ -8462,6 +10013,8 @@ msgid "The stock levels didn't load"
 msgstr "The stock levels didn't load"
 
 #: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
@@ -8470,6 +10023,8 @@ msgid "Try again in a moment."
 msgstr "Try again in a moment."
 
 #: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
@@ -8548,6 +10103,105 @@ msgctxt "shop.ED7X19"
 msgid "In stock"
 msgstr "In stock"
 
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.Kb1t2A"
+msgid "The kitchen didn't load"
+msgstr "The kitchen didn't load"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.m7hs5E"
+msgid "Stations"
+msgstr "Stations"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.kpZZ7x"
+msgid "All stations"
+msgstr "All stations"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.ckrEp1"
+msgid "No open tickets"
+msgstr "No open tickets"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.-q8LW3"
+msgid "Send a paid order to the kitchen and its lines show up here."
+msgstr "Send a paid order to the kitchen and its lines show up here."
+
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.39vjfP"
+msgid "Open orders"
+msgstr "Open orders"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.Cnm0QA"
+msgid "Queued"
+msgstr "Queued"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.n09Z0M"
+msgid "Preparing"
+msgstr "Preparing"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.IZFEUg"
+msgid "Ready"
+msgstr "Ready"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.1UpQL6"
+msgid "Served"
+msgstr "Served"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.mOFG3K"
+msgid "Start"
+msgstr "Start"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.O2X2mS"
+msgid "Mark ready"
+msgstr "Mark ready"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.Ce-KSx"
+msgid "Serve"
+msgstr "Serve"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.HQo5qK"
+msgid "Order {number}"
+msgstr "Order {number}"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.G5YxOb"
+msgid "Sent at {time}"
+msgstr "Sent at {time}"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.yv-FF_"
+msgid "Move {title} to {state}"
+msgstr "Move {title} to {state}"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.yUcWBK"
+msgid "The board didn't load"
+msgstr "The board didn't load"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.YOvr0P"
+msgid "Nothing in the kitchen today"
+msgstr "Nothing in the kitchen today"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.Kj8l4l"
+msgid "Orders show up here once they're sent to the kitchen."
+msgstr "Orders show up here once they're sent to the kitchen."
+
 #: src/features/shop/components/order-detail.tsx
 msgctxt "shop.kYqrr0"
 msgid "The order didn't load"
@@ -8587,12 +10241,6 @@ msgstr "Shipping"
 msgctxt "shop.AwzkSM"
 msgid "Tax"
 msgstr "Tax"
-
-#: src/features/shop/components/order-detail.tsx
-#: src/features/shop/components/order-list.tsx
-msgctxt "shop.HQo5qK"
-msgid "Order {number}"
-msgstr "Order {number}"
 
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
@@ -8744,6 +10392,21 @@ msgctxt "shop.zL6NHU"
 msgid "Not placed"
 msgstr "Not placed"
 
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.OK8i3s"
+msgid "{ready, number} of {lines, number} ready, sent at {time}"
+msgstr "{ready, number} of {lines, number} ready, sent at {time}"
+
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.Yrt5OC"
+msgid "An order only moves forward on this board."
+msgstr "An order only moves forward on this board."
+
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.agJ_Ux"
+msgid "No orders here."
+msgstr "No orders here."
+
 #: src/features/shop/components/order-status-badge.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
 msgctxt "shop.W6nwjo"
@@ -8806,6 +10469,16 @@ msgid "Marked as delivered"
 msgstr "Marked as delivered"
 
 #: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.IBEhkd"
+msgid "Already in the kitchen"
+msgstr "Already in the kitchen"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop._bAyIb"
+msgid "{count, plural, one {# line} other {# lines}} sent to the kitchen"
+msgstr "{count, plural, one {# line} other {# lines}} sent to the kitchen"
+
+#: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.01-5kQ"
 msgid "Mark as paid"
 msgstr "Mark as paid"
@@ -8819,6 +10492,11 @@ msgstr "Cancel order"
 msgctxt "shop.BR3V4w"
 msgid "Create fulfillment"
 msgstr "Create fulfillment"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.8xFh5A"
+msgid "Send to kitchen"
+msgstr "Send to kitchen"
 
 #: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.paB5lo"
@@ -9290,6 +10968,126 @@ msgstr "Metadata uploaded as XML"
 msgctxt "sso.jUqYir"
 msgid "Added {date}"
 msgstr "Added {date}"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.HLDzpl"
+msgid "The status page didn't load"
+msgstr "The status page didn't load"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.Dnob31"
+msgid "Operational"
+msgstr "Operational"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.dudqv_"
+msgid "Maintenance"
+msgstr "Maintenance"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.SsC4IV"
+msgid "Degraded performance"
+msgstr "Degraded performance"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.Fh9xh1"
+msgid "Partial outage"
+msgstr "Partial outage"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.sSIbEd"
+msgid "Major outage"
+msgstr "Major outage"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.RVjGF7"
+msgid "All systems operational"
+msgstr "All systems operational"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.caRJuT"
+msgid "Scheduled maintenance in progress"
+msgstr "Scheduled maintenance in progress"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.9M-5lH"
+msgid "Some systems are affected"
+msgstr "Some systems are affected"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status._GKH_w"
+msgid "Investigating"
+msgstr "Investigating"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.7cv4Uf"
+msgid "Identified"
+msgstr "Identified"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.1P6GMj"
+msgid "Monitoring"
+msgstr "Monitoring"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.W6nSYE"
+msgid "Resolved"
+msgstr "Resolved"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.AcAA5x"
+msgid "Components"
+msgstr "Components"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.LfjXKs"
+msgid "Uptime over the last {days, number} days."
+msgstr "Uptime over the last {days, number} days."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.N8Mlqy"
+msgid "No components yet"
+msgstr "No components yet"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.o1tnzb"
+msgid "Components appear here once the team marks them public. Check back later."
+msgstr "Components appear here once the team marks them public. Check back later."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status._2ICQ5"
+msgid "{percent, number}% uptime"
+msgstr "{percent, number}% uptime"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.mtr3R4"
+msgid "Incidents"
+msgstr "Incidents"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.U8Td13"
+msgid "Open incidents and those resolved in the last {days, number} days."
+msgstr "Open incidents and those resolved in the last {days, number} days."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.wgm9yH"
+msgid "No incidents reported."
+msgstr "No incidents reported."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.wnbY9R"
+msgid "Affects {components}"
+msgstr "Affects {components}"
 
 #: src/features/subjects/components/subject-chip.tsx
 msgctxt "subjects.UpwcFd"
@@ -10301,6 +12099,11 @@ msgstr "It starts in the first stage of your workflow."
 msgctxt "work.9a9-ww"
 msgid "Title"
 msgstr "Title"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work.CrGNTq"
+msgid "Enter a title."
+msgstr "Enter a title."
 
 #: src/features/work/components/create-work-item-dialog.tsx
 #: src/features/work/components/team-picker.tsx

@@ -3,8 +3,12 @@ title: Inbox
 description: A shared inbox for support conversations from an in-app widget, Slack, WhatsApp, SMS and other channels, with assignment, internal notes, read receipts, bot handoff and realtime updates.
 ---
 
-The `inbox` [SQL module](/docs/blocks/sql) stores inboxes, contacts,
-conversations and messages per organization. `createInbox` from
+The `inbox` [SQL module](/docs/blocks/sql) stores inboxes and contacts per
+organization and keeps its conversations and messages on the
+[messaging core](/docs/blocks/messaging): each conversation is a core
+conversation of kind `inbox`, each message and note a core message, and the
+inbox adds its own fields (status, assignee, bot mode, direction, delivery)
+in `inbox_conversations` and `inbox_message_details`. `createInbox` from
 `better-supabase/blocks/inbox` reads and writes them, and the hooks in
 `better-supabase/blocks/inbox/react` keep a list, a thread and an in-app
 widget current over Supabase Realtime. Channel messages reach the same
@@ -14,7 +18,9 @@ tables through the [Chat SDK adapters](/docs/chat-sdk).
 pnpm better-supabase add inbox
 ```
 
-The module needs the [access contract](/docs/blocks/access). With the
+The module needs the [access contract](/docs/blocks/access), the
+[messaging](/docs/blocks/messaging) block and the
+[attachments](/docs/blocks/attachments) block. With the
 [jobs](/docs/blocks/jobs) module installed, an inbound message to a bot
 conversation queues a bot job and an outbound message on a channel queues a
 delivery job; without it, nothing is queued and the app delivers the
@@ -117,23 +123,36 @@ await inbox.conversations.resolve(conversation.id).orThrow();
 | `conversations.handoff(id, reason)`, `setBotMode`                  | Moves a bot conversation to staff and tells them                             |
 | `conversations.markRead`, `typing`, `events`, `counts`             | Read state, typing pings, the conversation's history, open and unread counts |
 | `messages.send`, `note`, `list`, `get`, `edit`, `remove`, `react`  | Messages and notes; `remove` leaves a tombstone                              |
+| `messages.createUpload`, `confirmUpload`                           | A file upload: an attachment row, then its id in `attachments`               |
+| `files.pending`, `stored`, `failed`                                | Service only: channel files to fetch, upload and confirm                     |
 | `templates.upsert`, `delete`                                       | Approved channel templates, such as WhatsApp's                               |
 | `purgeContact(contactId)`                                          | Erases a contact and its conversations; returns attachment paths to delete   |
 
-With the [reactions](/docs/blocks/reactions) module installed,
-`messages.react` stores reactions in its table (subject type
-`inbox_message`) and keeps the message's `reactions` field as a copy, so
-reactions on messages and on other subjects share custom emoji, events and
-the realtime topic.
+A note is a message with `kind: "note"`: staff with `inbox.read` read it,
+and a contact never does. Each message has the core fields (`mentionIds`,
+`sentAt`, `editedAt`, `deletedAt`, `attachments`, `reactions`), and a
+contact's messages have no `authorId`; the contact is the conversation's
+`contactId`.
+
+`messages.react` needs the [reactions](/docs/blocks/reactions) block and
+stores the reaction on the core message (subject type `message`), so
+reactions in the inbox, in channels and on comments share custom emoji,
+events and counts. Without the block it fails with the hint
+`INBOX_REACTIONS_MISSING`.
 
 `contactReadAt` is the last time the contact read the conversation, only
 for staff, so a thread can show a read receipt. A message body is limited
-to `maxBodyLength` characters (20000 by default), and attachments live in
-the private `inbox-files` bucket under the conversation's path, readable by
-the staff and the contact of that conversation.
+to `maxBodyLength` characters (20000 by default).
 
-`purgeContact` deletes the rows; remove the paths it returns from Storage
-afterwards, since a SQL function can't delete Storage objects.
+Files are rows of the attachments block on the message, readable by the
+staff and the contact of that conversation once the scan marks them clean.
+A file a contact sends on a channel arrives as a URL; the message keeps a
+pending attachment, and the chat-sdk `importFiles` (or your own loop over
+`files.pending`) fetches it, uploads it and confirms it.
+
+`purgeContact` deletes the rows and returns the `{ bucket, path }` of each
+stored file; remove them from Storage afterwards, since a SQL function
+can't delete Storage objects.
 
 ## Bots and outgoing messages
 
@@ -145,12 +164,75 @@ handlers in [Chat SDK adapters](/docs/chat-sdk) run the bot and post the
 reply on its channel. A staff reply or `handoff` switches the conversation
 to `human`, so the bot stops answering.
 
+## Snooze and scheduled replies
+
+Snooze a conversation until a time in the future, or schedule a staff reply
+to go out later:
+
+```ts
+const tomorrow = Temporal.Now.instant().add({ hours: 24 });
+
+await inbox.conversations.snooze(conversation.id, tomorrow).orThrow();
+const scheduled = await inbox.messages
+  .schedule(conversation.id, { body: "Following up as promised." }, tomorrow)
+  .orThrow();
+
+await inbox.messages.reschedule(scheduled.id, tomorrow.add({ hours: 1 }));
+await inbox.messages.cancelScheduled(scheduled.id);
+```
+
+| Method                                               | Does                                                                 |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `conversations.snooze(id, until)`                    | Hides the conversation until `until`; a past time fails with `22023` |
+| `messages.schedule(id, input, at)`                   | A staff reply for later: messages only, no notes, `at` in the future |
+| `messages.scheduled(conversationId?)`                | The caller's scheduled replies, soonest first                        |
+| `messages.reschedule(id, at)`, `cancelScheduled(id)` | Moves or deletes the caller's scheduled reply                        |
+| `publishDue(maxRows?)`                               | Service only: sends the replies whose time came, as their authors    |
+| `wakeSnoozed()`                                      | Service only: reopens the conversations whose snooze ended           |
+
+Only the author sees a scheduled reply before it is sent, and it needs
+`inbox.reply`. When it is due, `publishDue` sends it through the same path
+as `messages.send` (deliveries, the outbound job, the bot hand-off) as the
+author; a reply whose author has lost `inbox.reply` is dropped. Waking a
+conversation sets it to `open`, logs `unsnoozed` in its events, emits
+`inbox_conversation.unsnoozed` and notifies the assignee, or the inbox's
+members while nobody is assigned (`inbox.snooze_ended`).
+
+With the [jobs](/docs/blocks/jobs) block, snoozing and scheduling each
+queue a delayed job on `inbox_schedule` (`scheduleQueue`) for the right
+time: `{ type: "inbox.wake", conversation_id }` or
+`{ type: "inbox.publish", scheduled_id }`. A handler calls `wakeSnoozed()`
+or `publishDue()` on a service client; a job left by a reschedule finds
+nothing due and does nothing. Without jobs, run both from a cron;
+`maintain()` in the [Chat SDK adapters](/docs/chat-sdk/channels) calls
+them.
+
+```ts title="app/api/jobs/drain/route.ts"
+import "server-only";
+
+import { jobs } from "@/lib/jobs";
+import { serviceInbox } from "@/lib/inbox";
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: {
+    inbox_schedule: async () => {
+      await serviceInbox.wakeSnoozed().orThrow();
+      await serviceInbox.publishDue().orThrow();
+    },
+  },
+});
+```
+
 ## Realtime
 
-Changes broadcast without row data on private topics: `inbox:<conversationId>`
-for a thread (`message`, `typing`, `read` and `conversation`) and
-`inbox:org:<organizationId>` for the lists. The hooks reload through your
-server action when a broadcast arrives.
+Changes broadcast without row data on private topics. A thread uses the
+messaging topic `messages:<conversationId>`, whose pings name the message
+that changed, and `typing` pings carry `{ conversationId, userId, typing }`.
+The lists use `inbox:org:<organizationId>`. `useInbox` reloads the list
+through your server action when a broadcast arrives; `useConversation` and
+`useInboxWidget` fetch only the pinged message through `get` and reload the
+whole thread only after a reconnect.
 
 ```tsx title="components/conversation-list.tsx"
 "use client";
@@ -178,11 +260,11 @@ export function ConversationList({
 }
 ```
 
-| Hook                                        | Returns                                                          |
-| ------------------------------------------- | ---------------------------------------------------------------- |
-| `useInbox({ organizationId, load })`        | `items`, `status`, `error` and `refresh` for a conversation list |
-| `useConversation({ conversationId, load })` | The messages as `items`, who is `typing` and a `setTyping`       |
-| `useInboxWidget({ open, send, load })`      | An in-app widget: `submit`, `reset` and the open conversation    |
+| Hook                                             | Returns                                                          |
+| ------------------------------------------------ | ---------------------------------------------------------------- |
+| `useInbox({ organizationId, load })`             | `items`, `status`, `error` and `refresh` for a conversation list |
+| `useConversation({ conversationId, load, get })` | The messages as `items`, who is `typing` and a `setTyping`       |
+| `useInboxWidget({ open, send, load, get })`      | An in-app widget: `submit`, `reset` and the open conversation    |
 
 `useInboxWidget` keeps the open conversation id under `storageKey` in the
 client's storage port: `localStorage` on the web, and the store passed to
@@ -282,19 +364,21 @@ export function Component(props: { organizationId: string }) {
 
 With the outbox installed the module emits `inbox_message.received`,
 `inbox_conversation.opened`, `inbox_conversation.assigned`,
-`inbox_conversation.resolved` and `inbox_conversation.reopened`, each with
+`inbox_conversation.resolved`, `inbox_conversation.reopened` and
+`inbox_conversation.unsnoozed`, each with
 the conversation, organization, inbox, contact, assignee and status.
 
 ## Options
 
-| Option                               | Default          | Meaning                                         |
-| ------------------------------------ | ---------------- | ----------------------------------------------- |
-| `blocks.inbox.options.topic`         | `inbox`          | The Realtime topic prefix; pass it to the hooks |
-| `blocks.inbox.options.bucket`        | `inbox-files`    | The private Storage bucket for attachments      |
-| `blocks.inbox.options.maxBodyLength` | `20000`          | The longest message body                        |
-| `blocks.inbox.options.botQueue`      | `inbox_bot`      | The job queue for bot replies                   |
-| `blocks.inbox.options.outboundQueue` | `inbox_outbound` | The job queue for channel deliveries            |
-| `blocks.inbox.options.notify`        | `true`           | Notifications for assignments and mentions      |
+| Option                               | Default          | Meaning                                                 |
+| ------------------------------------ | ---------------- | ------------------------------------------------------- |
+| `blocks.inbox.options.topic`         | `inbox`          | The prefix of the organization topic                    |
+| `blocks.inbox.options.bucket`        | `inbox-files`    | Where files from before 0.14 live, for imports          |
+| `blocks.inbox.options.maxBodyLength` | `20000`          | The longest message body                                |
+| `blocks.inbox.options.botQueue`      | `inbox_bot`      | The job queue for bot replies                           |
+| `blocks.inbox.options.outboundQueue` | `inbox_outbound` | The job queue for channel deliveries                    |
+| `blocks.inbox.options.scheduleQueue` | `inbox_schedule` | The job queue for snooze wake-ups and scheduled replies |
+| `blocks.inbox.options.notify`        | `true`           | Notifications for assignments and mentions              |
 
 ## Example
 

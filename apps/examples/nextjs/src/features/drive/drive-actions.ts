@@ -173,3 +173,23 @@ export const downloadDriveFile = bs.action(
     return ok({ url: download.data.signedUrl });
   },
 );
+
+/** Asks for approval of the file's current version. */
+export const requestDriveApproval = bs.action(
+  {
+    input: v.object({ id: Id }),
+    requireTenant: true,
+    authorize: (session) => can(session, "drive.create"),
+  },
+  async ({ id }, { supabase, auth }) => {
+    const requested = await driveOf(supabase).requestApproval(id);
+
+    if (!requested.ok) {
+      return requested;
+    }
+
+    refreshCaller(auth);
+
+    return ok({ id: requested.data.id, revision: requested.data.revision });
+  },
+);

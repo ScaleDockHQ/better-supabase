@@ -37,6 +37,7 @@ import { loadCalendarMonth, settle } from "../calendar-queries";
 import { CalendarLoadError } from "./calendar-load-error";
 import { CreateCalendarButton } from "./create-calendar-button";
 import { CreateEventDialog } from "./create-event-dialog";
+import { WorkingHoursDialog } from "./working-hours-dialog";
 
 const SHOWN_PER_DAY = 3;
 
@@ -151,6 +152,7 @@ export async function CalendarView({
           >
             <ChevronRightIcon />
           </Link>
+          {calendars.length > 0 ? <WorkingHoursDialog /> : null}
           {canWrite && calendars.length > 0 ? (
             <CreateEventDialog
               calendars={calendars}

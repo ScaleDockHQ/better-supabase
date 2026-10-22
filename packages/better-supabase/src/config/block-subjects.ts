@@ -226,6 +226,14 @@ function subjectsOf(
  * companies and people, products, employees), under their renamed type, then
  * `subjects`. Throws when `subjects` already has a block's type.
  */
+/** The subject types one installed block registers, by renamed entity. */
+export function blockSubjectTypes(
+  module: string,
+  blocks: AnyBlocksConfig,
+): readonly string[] {
+  return Object.keys(subjectsOf(module, blocks));
+}
+
 export function withBlockSubjects(
   subjects: SubjectsConfig,
   blockNames: readonly string[],
