@@ -69,5 +69,14 @@ describe("workItemChecklistSection", () => {
         (row) => row.id,
       ),
     ).toEqual(["c"]);
+    expect(
+      workItemChecklistOptimistic(
+        state,
+        // SAFETY: an action outside the union reaches the exhaustive default.
+        { type: "unknown" } as unknown as Parameters<
+          typeof workItemChecklistOptimistic
+        >[1],
+      ),
+    ).toEqual({ type: "unknown" });
   });
 });

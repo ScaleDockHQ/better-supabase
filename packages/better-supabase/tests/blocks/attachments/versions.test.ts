@@ -312,8 +312,22 @@ describe("attachmentsOptimistic update", () => {
     const first = await attachments.get("a1").orThrow();
     const replaced = { ...first, version: 2 };
 
+    const other = { ...first, id: "a2" };
+
     expect(
-      attachmentsOptimistic([first], { type: "update", attachment: replaced }),
-    ).toEqual([replaced]);
+      attachmentsOptimistic([other, first], {
+        type: "update",
+        attachment: replaced,
+      }),
+    ).toEqual([other, replaced]);
+    expect(
+      attachmentsOptimistic(
+        [first],
+        // SAFETY: an action outside the union reaches the exhaustive default.
+        { type: "unknown" } as unknown as Parameters<
+          typeof attachmentsOptimistic
+        >[1],
+      ),
+    ).toEqual({ type: "unknown" });
   });
 });

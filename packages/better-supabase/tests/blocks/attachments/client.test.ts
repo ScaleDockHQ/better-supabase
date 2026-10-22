@@ -305,6 +305,100 @@ describe("createAttachmentUploadController", () => {
   });
 });
 
+describe("createAttachmentUploadController after a dismiss", () => {
+  const deferred = <T>() => {
+    let resolve: (value: T) => void = () => undefined;
+
+    const promise = new Promise<T>((done) => {
+      resolve = done;
+    });
+
+    return { promise, resolve };
+  };
+
+  it("ignores a late start, progress, confirm and refresh", async () => {
+    const started = deferred<ReturnType<typeof ok<AttachmentUploadTicket>>>();
+    const confirmed = deferred<ReturnType<typeof ok<AttachmentScanState>>>();
+    const refreshed = deferred<ReturnType<typeof err>>();
+    let progress: ((fraction: number) => void) | undefined;
+    const ticket = { id: "a1", signedUrl: "https://s/upload/a1" };
+
+    const start = vi
+      .fn()
+      .mockReturnValueOnce(started.promise)
+      .mockResolvedValue(ok(ticket));
+
+    const confirm = vi
+      .fn()
+      .mockReturnValueOnce(confirmed.promise)
+      .mockResolvedValue(ok({ status: "pending" }));
+
+    const controller = createAttachmentUploadController({
+      start,
+      confirm,
+      refresh: () => refreshed.promise,
+      send: (_ticket, _body, report) => {
+        progress = report;
+
+        return Promise.resolve(ok(null));
+      },
+      pollInterval: 1,
+    });
+
+    const { view, unmount } = mount(controller);
+    const key = () => view().uploads[0]?.key ?? "";
+
+    view().add([{ file: file(), name: "late-start.png" }]);
+    view().dismiss(key());
+    started.resolve(ok(ticket));
+    await flush();
+    expect(view().uploads).toEqual([]);
+
+    view().add([{ file: file(), name: "late-confirm.png" }]);
+    await flush();
+    const late = key();
+    view().dismiss(late);
+    progress?.(0.5);
+    confirmed.resolve(ok({ status: "clean" }));
+    await flush();
+    expect(view().uploads).toEqual([]);
+
+    view().add([{ file: file(), name: "late-refresh.png" }]);
+    await vi.waitFor(() => {
+      expect(view().uploads[0]?.status).toBe("scanning");
+    });
+    view().retry(key());
+    view().retry("missing");
+    await new Promise((resolve) => {
+      setTimeout(resolve, 5);
+    });
+    view().dismiss(key());
+    refreshed.resolve(err(dbError("network", "down")));
+    await flush();
+    expect(view().uploads).toEqual([]);
+    unmount();
+  });
+
+  it("defaults to XMLHttpRequest and a two-second poll", async () => {
+    vi.stubGlobal("XMLHttpRequest", undefined);
+
+    const controller = createAttachmentUploadController({
+      start: () =>
+        Promise.resolve(ok({ id: "a1", signedUrl: "https://s/upload/a1" })),
+      confirm: () => Promise.resolve(ok(null)),
+    });
+
+    const { view, unmount } = mount(controller);
+
+    view().add([{ file: file(), name: "a.png" }]);
+    await vi.waitFor(() => {
+      expect(view().uploads[0]?.status).toBe("error");
+    });
+    unmount();
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("xhrSend", () => {
   const ticket = { id: "a1", signedUrl: "https://s/upload/a1" };
 
