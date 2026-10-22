@@ -27,12 +27,14 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
+import { approvalsContract } from "./approvals-contract.ts";
 import {
   approvalPolicies,
   policyCase,
   validateRuns,
 } from "./approvals-policies.ts";
 import { approverCheck } from "./approver.ts";
+import { driveSubjectGuard } from "./drive-kit.ts";
 import { providerMembers } from "./tenant.ts";
 
 /** Requests the access-requests module files; their subject is its row. */
@@ -43,6 +45,9 @@ export const TIMESHEET_SUBJECT = "timesheet";
 
 /** Requests the leave module files; their subject is a leave request. */
 export const LEAVE_REQUEST_SUBJECT = "leave_request";
+
+/** Reports the expenses module submits; their subject is an expense report. */
+export const EXPENSE_REPORT_SUBJECT = "expense_report";
 
 /**
  * Tool calls the ai-chat module files; their subject is its approval row,
@@ -181,10 +186,16 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       ? ctx.of("leave")
       : undefined;
 
+  const expenses =
+    ctx.installed("expenses") && ctx.of("expenses").mode !== "custom"
+      ? ctx.of("expenses")
+      : undefined;
+
   const own = [
     ACCESS_REQUEST_SUBJECT,
     ...(timesheets === undefined ? [] : [TIMESHEET_SUBJECT]),
     ...(leave === undefined ? [] : [LEAVE_REQUEST_SUBJECT]),
+    ...(expenses === undefined ? [] : [EXPENSE_REPORT_SUBJECT]),
   ];
 
   const ownSubjects = own.map((type) => sqlString(type)).join(", ");
@@ -213,15 +224,31 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       ? "false"
       : `${column} in (${linked.map((type) => sqlString(type)).join(", ")})`;
 
+  const drive = driveSubjectGuard(ctx);
+
+  const subjectAccess = (
+    args: {
+      readonly type: string;
+      readonly id: string;
+      readonly tenant: string;
+    },
+    access: "read" | "write",
+  ): string => {
+    const listed = subjectReadable(ctx, subjects, args);
+
+    return drive === undefined
+      ? listed
+      : drive.guard(args.type, args.id, access, listed);
+  };
+
   const declared = (row: string): string =>
-    `(${row}.${c("subjectType")} ${own.length === 1 ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectReadable(
-      ctx,
-      subjects,
+    `(${row}.${c("subjectType")} ${own.length === 1 ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectAccess(
       {
         type: `${row}.${c("subjectType")}`,
         id: `${row}.${c("subjectId")}`,
         tenant: `${row}.${c("tenant")}`,
       },
+      "read",
     )})`;
 
   const readable = (row: string): string =>
@@ -348,6 +375,14 @@ ${queues
       : `
   if v_req.${c("subjectType")} = ${sqlString(LEAVE_REQUEST_SUBJECT)} then
     perform ${leave.fn("approve_leave_request")}(v_req.${c("subjectId")}::uuid);
+  end if;`;
+
+  const expensesRun =
+    expenses === undefined
+      ? ""
+      : `
+  if v_req.${c("subjectType")} = ${sqlString(EXPENSE_REPORT_SUBJECT)} then
+    perform ${expenses.fn("approve_expense_report")}(v_req.${c("subjectId")}::uuid);
   end if;`;
 
   const lastComment = `(select x.${d("comment")} from ${decisions} x where x.${d("request")} = v_req.${c("id")} order by x.${d("createdAt")} desc, x.${d("id")} desc limit 1)`;
@@ -607,7 +642,7 @@ declare
   v_run jsonb;
 begin
   select * into v_req from ${requests} r where r.${c("id")} = approval_finalize.request_id;
-  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}${leaveRun}${aiRun}${supportRun}
+  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}${leaveRun}${expensesRun}${aiRun}${supportRun}
   ${record("approval.approved", "v_req", true)}
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'approved');
 end;
@@ -708,7 +743,7 @@ begin
   if v_policy is null then
     ${fail("APPROVAL_POLICY_UNKNOWN", "no approval policy for this subject type and action", "22023")}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectReadable(ctx, subjects, { type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectAccess({ type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" }, "write")})) then
     ${fail("APPROVAL_FORBIDDEN", "not allowed to request approval for this record")}
   end if;
   ${extras.length === 0 ? "return " : "v_result := "}${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);${
@@ -1006,29 +1041,9 @@ ${subjectCascades(ctx, subjects, `delete from ${requests} r where r.${c("subject
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
-  const extra = extraFieldsArg(
-    ctx.extraColumns("requests", REQUEST_KEYS),
-  ).contract;
-
-  return [
-    {
-      name: "request_approval",
-      args: ["{id}", "text", "text", "text", "text", "jsonb", ...extra],
-      returns: "jsonb",
-    },
-    {
-      name: "decide_approval",
-      args: ["uuid", "text", "text"],
-      returns: "jsonb",
-    },
-    {
-      name: "delegate_approval",
-      args: ["uuid", "uuid", "text"],
-      returns: "jsonb",
-    },
-    { name: "cancel_approval", args: ["uuid"], returns: "jsonb" },
-    { name: "is_approved", args: ["text", "text", "text"], returns: "boolean" },
-  ];
+  return approvalsContract(
+    extraFieldsArg(ctx.extraColumns("requests", REQUEST_KEYS)).contract,
+  );
 }
 
 export const APPROVALS: ModuleDefinition = {
@@ -1043,11 +1058,13 @@ export const APPROVALS: ModuleDefinition = {
     "audit",
     "notifications",
     "jobs",
+    "drive",
     "teams",
     "state-machine",
     "access-requests",
     "time-tracking",
     "leave",
+    "expenses",
     "ai-chat",
     "support-sessions",
   ],

@@ -26,11 +26,13 @@ describe("resolvePreset", () => {
     const resolved = resolvePreset(preset(["comments"]));
     expect(resolved.blocks.map((block) => [block.name, block.reason])).toEqual([
       ["updated-at", "required by tenant"],
-      ["tenant", "required by access and comments"],
-      ["access", "required by comments"],
+      ["tenant", "required by access, comments and messaging"],
+      ["access", "required by comments, subjects and messaging"],
       ["comments", "selected"],
+      ["subjects", "required by comments and messaging"],
+      ["messaging", "required by comments"],
     ]);
-    expect(resolved.blocks.at(-1)).toMatchObject({
+    expect(resolved.blocks.find((block) => block.selected)).toMatchObject({
       selected: true,
       requiredBy: [],
       category: "collaboration",
@@ -40,6 +42,8 @@ describe("resolvePreset", () => {
     expect(resolved.manifests.map((manifest) => manifest.name)).toEqual([
       "access",
       "comments",
+      "messaging",
+      "subjects",
       "tenant",
       "updated-at",
     ]);
@@ -95,17 +99,21 @@ describe("resolvePreset", () => {
     ).toBeUndefined();
   });
 
-  it("runs tags, comments and notifications without tenants per user or in one space", () => {
+  it("runs tags and notifications without tenants per user or in one space, but not comments", () => {
     for (const scope of ["user", "none"] as const) {
       const resolved = resolvePreset(
-        preset(["tags", "comments", "notifications"], { scope }),
+        preset(["tags", "notifications"], { scope }),
       );
 
       expect(resolved.conflicts).toEqual([]);
+      expect(resolvePreset(preset(["comments"], { scope })).conflicts).toEqual([
+        {
+          block: "comments",
+          reason: `it needs tenants, and scope "${scope}" has none`,
+        },
+      ]);
       const names = resolved.blocks.map((block) => block.name);
-      expect(names).toEqual(
-        expect.arrayContaining(["tags", "comments", "notifications"]),
-      );
+      expect(names).toEqual(expect.arrayContaining(["tags", "notifications"]));
       expect(names).not.toContain("tenant");
       expect(names).not.toContain("access");
     }

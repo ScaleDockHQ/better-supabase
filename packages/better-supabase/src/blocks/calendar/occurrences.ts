@@ -1,3 +1,7 @@
+import type {
+  CalendarEventKind,
+  CalendarTransparency,
+} from "./availability.ts";
 import type { CalendarAttendee, CalendarEventStatus } from "./ics.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
@@ -27,6 +31,11 @@ export interface CalendarEvent {
   readonly subjectType?: string;
   readonly subjectId?: string;
   readonly color?: string;
+  /** Absent when the table has no `kind` column; read it as `event`. */
+  readonly kind?: CalendarEventKind;
+  readonly transparency?: CalendarTransparency;
+  /** An out-of-office or focus-time block that declines new invitations. */
+  readonly autoDecline?: boolean;
   readonly attendees: readonly CalendarAttendee[];
   readonly updatedAt?: Temporal.Instant;
 }

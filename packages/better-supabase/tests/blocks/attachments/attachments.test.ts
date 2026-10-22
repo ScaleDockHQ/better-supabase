@@ -596,6 +596,7 @@ describe("createAttachments", () => {
     expect(storage.calls).toEqual([["remove", ["org-1/attachments/a1"]]]);
     expect(calls.map(([fn]) => fn)).toEqual([
       "get_attachment",
+      "list_attachment_versions",
       "delete_attachment",
     ]);
 

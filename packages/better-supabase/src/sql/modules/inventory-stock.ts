@@ -43,6 +43,40 @@ export function guard(
   end if;`;
 }
 
+/**
+ * A call of `move_stock`, which posts a stock movement to the ledger and
+ * applies it to the level. Returns the ledger transaction id (`uuid`).
+ */
+export function moveStock(
+  inventory: ModuleContext,
+  values: {
+    readonly tenant: string;
+    readonly variant: string;
+    readonly location: string;
+    readonly quantity: string;
+    readonly reason: string;
+    readonly referenceType?: string;
+    readonly referenceId?: string;
+    readonly note?: string;
+  },
+): string {
+  return `${inventory.fn("move_stock")}(${values.tenant}, ${values.variant}, ${values.location}, ${values.quantity}, ${values.reason}, ${values.referenceType ?? "null"}, ${values.referenceId ?? "null"}, ${values.note ?? "null"})`;
+}
+
+/**
+ * Whether the ledger has a stock account for a variant `match` accepts; `match`
+ * gets the account's variant id as a `uuid` expression.
+ */
+export function stockHistory(
+  inventory: ModuleContext,
+  match: (variant: string) => string,
+): string {
+  const ledger = inventory.of("ledger");
+  const a = columns(ledger, "accounts");
+
+  return `exists (select 1 from ${ledger.table("accounts")} sa where sa.${a("managedBy")} = 'inventory' and sa.${a("kind")} = 'stock' and ${match(`(case when sa.${a("kind")} = 'stock' then (sa.${a("metadata")} ->> 'variantId')::uuid end)`)})`;
+}
+
 /** Column accessors for one logical table. */
 export const columns =
   (ctx: ModuleContext, table: string) =>
@@ -141,8 +175,10 @@ export function locationFunctions(
   const { fn } = names;
   const locations = ctx.table("locations");
   const l = columns(ctx, "locations");
-  const m = columns(ctx, "movements");
   const r = columns(ctx, "reservations");
+  const ledger = ctx.of("ledger");
+  const la = columns(ledger, "accounts");
+  const le = columns(ledger, "entries");
 
   return `
 -- Creates a location (location null) or updates one, with the extra columns
@@ -227,7 +263,9 @@ begin
     return false;
   end if;
   ${guard(names.scope, names.manage, "v_tenant")}
-  if exists (select 1 from ${ctx.table("movements")} x where x.${m("location")} = delete_location.location)
+  if exists (select 1 from ${ledger.table("accounts")} x join ${ledger.table("entries")} y on y.${le("account")} = x.${la("id")}
+      where x.${la("tenant")} = v_tenant and x.${la("managedBy")} = 'inventory' and x.${la("kind")} = 'stock'
+        and x.${la("metadata")} ->> 'locationId' = delete_location.location::text)
     or exists (select 1 from ${ctx.table("reservations")} x where x.${r("location")} = delete_location.location and x.${r("status")} = 'active') then
     ${fail("INVENTORY_LOCATION_IN_USE", "the location has stock history; deactivate it instead", "23503")}
   end if;
@@ -245,9 +283,7 @@ export function stockFunctions(
 ): string {
   const { fn } = names;
   const levels = ctx.table("levels");
-  const movements = ctx.table("movements");
   const lv = columns(ctx, "levels");
-  const m = columns(ctx, "movements");
   const reasons = ADJUST_REASONS.map((reason) => `'${reason}'`).join(", ");
 
   return `
@@ -281,9 +317,7 @@ begin
     ["integer", "adjust_stock.quantity"],
     ["text", "adjust_stock.reason"],
   ])}
-  insert into ${movements} (${m("tenant")}, ${m("variant")}, ${m("location")}, ${m("quantity")}, ${m("reason")}, ${m("note")})
-  values (v_tenant, adjust_stock.variant, adjust_stock.location, adjust_stock.quantity, adjust_stock.reason, adjust_stock.note)
-  returning ${m("id")} into v_movement;
+  v_movement := ${moveStock(ctx, { tenant: "v_tenant", variant: "adjust_stock.variant", location: "adjust_stock.location", quantity: "adjust_stock.quantity", reason: "adjust_stock.reason", note: "adjust_stock.note" })};
   select x.${lv("onHand")}, x.${lv("available")} into v_on_hand, v_available from ${levels} x
   where x.${lv("variant")} = adjust_stock.variant and x.${lv("location")} = adjust_stock.location;
   ${ctx.record({
@@ -323,9 +357,7 @@ begin
   select count_stock.counted - x.${lv("onHand")} into v_delta from ${levels} x
   where x.${lv("variant")} = count_stock.variant and x.${lv("location")} = count_stock.location;
   if v_delta <> 0 then
-    insert into ${movements} (${m("tenant")}, ${m("variant")}, ${m("location")}, ${m("quantity")}, ${m("reason")}, ${m("note")})
-    values (v_tenant, count_stock.variant, count_stock.location, v_delta, 'count', count_stock.note)
-    returning ${m("id")} into v_movement;
+    v_movement := ${moveStock(ctx, { tenant: "v_tenant", variant: "count_stock.variant", location: "count_stock.location", quantity: "v_delta", reason: "'count'", note: "count_stock.note" })};
     select x.${lv("available")} into v_available from ${levels} x
     where x.${lv("variant")} = count_stock.variant and x.${lv("location")} = count_stock.location;
     ${ctx.record({
@@ -375,10 +407,8 @@ export function reservationFunctions(
 ): string {
   const { fn } = names;
   const levels = ctx.table("levels");
-  const movements = ctx.table("movements");
   const reservations = ctx.table("reservations");
   const lv = columns(ctx, "levels");
-  const m = columns(ctx, "movements");
   const r = columns(ctx, "reservations");
 
   const releaseLevel = (
@@ -505,9 +535,7 @@ begin
   ${releaseLevel("v_row.variant", "v_row.location", "v_row.quantity")}
   update ${reservations} x set ${r("status")} = 'committed', ${r("updatedAt")} = now()
   where x.${r("id")} = commit_reservation.reservation;
-  insert into ${movements} (${m("tenant")}, ${m("variant")}, ${m("location")}, ${m("quantity")}, ${m("reason")}, ${m("referenceType")}, ${m("referenceId")})
-  values (v_row.tenant, v_row.variant, v_row.location, -v_row.quantity, 'sale', v_row.reference_type, v_row.reference_id)
-  returning ${m("id")} into v_movement;
+  v_movement := ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_row.variant", location: "v_row.location", quantity: "-v_row.quantity", reason: "'sale'", referenceType: "v_row.reference_type", referenceId: "v_row.reference_id" })};
   ${ctx.record({
     type: "reservation.committed",
     payload: `jsonb_build_object('organizationId', v_row.tenant, 'id', commit_reservation.reservation, 'variantId', v_row.variant, 'locationId', v_row.location, 'quantity', v_row.quantity::text)`,

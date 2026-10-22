@@ -56,7 +56,7 @@ describe.skipIf(!live)("project management recipe", () => {
 
       await watchers.relay();
       expect(await received(s, member, subjectId)).toEqual([
-        "subject.commented",
+        "comment.posted",
         "subject.moved",
         "subject.moved",
       ]);

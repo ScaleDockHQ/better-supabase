@@ -17,15 +17,3 @@ export const formsSqlOptions: BlockOptionsSchema<FormsSqlOptions> =
     publicLimit: option.unknown(),
     extraColumns: option.unknown(),
   });
-
-/** `blocks.signatures.options`. */
-export type SignaturesSqlOptions = {
-  readonly subjects?: unknown;
-  readonly extraColumns?: unknown;
-};
-
-export const signaturesSqlOptions: BlockOptionsSchema<SignaturesSqlOptions> =
-  blockOptions<SignaturesSqlOptions>({
-    subjects: option.unknown(),
-    extraColumns: option.unknown(),
-  });

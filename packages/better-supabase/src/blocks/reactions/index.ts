@@ -7,6 +7,9 @@ export {
   type ReactionsOptions,
   reactionsTopic,
   type ReactOptions,
+  type VoteOptions,
+  type VoteTally,
+  type VoteValue,
 } from "./reactions.ts";
 
 export {

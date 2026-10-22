@@ -5,6 +5,7 @@ import type {
   ConversationActions,
   ConversationControllerOptions,
   ConversationSnapshot,
+  Identified,
   InboxControllerOptions,
   InboxListActions,
   InboxListSnapshot,
@@ -28,6 +29,7 @@ export type {
   ConversationActions,
   ConversationControllerOptions,
   ConversationSnapshot,
+  Identified,
   InboxControllerOptions,
   InboxListActions,
   InboxListSnapshot,
@@ -58,7 +60,7 @@ export function useInbox<T>(
  * is disposed with the owner. `auth` and `ports` default to the client of
  * `<BetterSupabaseProvider client={bs}>`.
  */
-export function useConversation<T>(
+export function useConversation<T extends Identified>(
   options: BlockOptions<ConversationControllerOptions<T>>,
 ): SolidController<ConversationSnapshot<T>, ConversationActions> {
   return useBlockController<
@@ -74,7 +76,7 @@ export function useConversation<T>(
  * is disposed with the owner. `auth` and `ports` default to the client of
  * `<BetterSupabaseProvider client={bs}>`.
  */
-export function useInboxWidget<T>(
+export function useInboxWidget<T extends Identified>(
   options: BlockOptions<InboxWidgetControllerOptions<T>>,
 ): SolidController<InboxWidgetSnapshot<T>, InboxWidgetActions> {
   return useBlockController<

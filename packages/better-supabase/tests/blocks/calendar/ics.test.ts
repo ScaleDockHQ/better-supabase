@@ -227,3 +227,33 @@ describe("toIcs", () => {
     expect(out).not.toContain("BEGIN:VTIMEZONE");
   });
 });
+
+describe("TRANSP", () => {
+  it("reads TRANSPARENT and writes it back", () => {
+    const parsed = parseIcs(
+      [
+        "BEGIN:VCALENDAR",
+        "BEGIN:VEVENT",
+        "UID:free@example.test",
+        "DTSTART:20260101T090000Z",
+        "DTEND:20260101T100000Z",
+        "TRANSP:TRANSPARENT",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:busy@example.test",
+        "DTSTART:20260101T090000Z",
+        "TRANSP:OPAQUE",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n"),
+    );
+
+    expect(parsed.events.map((event) => event.transparency)).toEqual([
+      "transparent",
+      undefined,
+    ]);
+
+    const out = toIcs(parsed.events, { now: at("2026-01-01T00:00:00Z") });
+    expect(out.match(/TRANSP:TRANSPARENT/gu)).toHaveLength(1);
+  });
+});

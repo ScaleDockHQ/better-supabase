@@ -36,16 +36,13 @@ describe("leave module", () => {
     ).toThrow(/"funday" is not one of/);
   });
 
-  it("keeps a signed ledger per member, type and year", () => {
+  it("keeps a ledger account per member, type and year", () => {
     const sql = sqlOf(BASE);
     expect(sql).toContain(
-      `check ("kind" in ('grant', 'accrual', 'taken', 'adjustment', 'carryover', 'expiry'))`,
+      `'leave:' || leave_post.type_id::text || ':' || leave_post.user_id::text || ':' || leave_post.period::text`,
     );
-    expect(sql).toContain(
-      `"amount" numeric(8, 2) not null check ("amount" <> 0)`,
-    );
-    expect(sql).toContain(
-      `create unique index if not exists "leave_ledger_key_idx" on "better_supabase"."leave_ledger" ("tenant_id", "user_id", "type_id", "idempotency_key") where "idempotency_key" is not null;`,
+    expect(sql).not.toContain(
+      `create table if not exists "better_supabase"."leave_ledger"`,
     );
   });
 
@@ -89,13 +86,10 @@ describe("leave module", () => {
   it("carries a year's balance up to carryoverMax and expires the rest", () => {
     const sql = sqlOf(BASE);
     expect(sql).toContain(
-      `('carryover', b.carry, close_leave_year.period + 1)`,
+      `'carryover', -v_row.carry, close_leave_year.period,`,
     );
     expect(sql).toContain(
-      `('expiry', -(b.balance - b.carry), close_leave_year.period)`,
-    );
-    expect(sql).toContain(
-      "do nothing;\n  get diagnostics v_written = row_count;",
+      `'expiry', -(v_row.balance - v_row.carry), close_leave_year.period,`,
     );
   });
 

@@ -5,6 +5,8 @@ description: Approval requests with steps per subject type and action, approvers
 
 `approvals` files a request for an action on a subject (send an invoice, publish a page), asks each step's approvers in turn, and runs what the policy unlocks once the last step is approved. Requests snapshot their policy, so a config change leaves pending requests alone. Filing a request needs `approvals.request` and read access to the subject, reading other people's requests needs `approvals.read`, and cancelling someone else's request needs `approvals.manage`. Who may decide a step comes from the policy, not from a permission key.
 
+With the [drive](/docs/blocks/drive#labels-and-approvals) installed, requests on `drive_node` follow the node's grants: listing them needs read access to the node, and filing one needs write access. `drive.requestApproval` files them for one revision of a file.
+
 ```bash
 better-supabase add approvals
 ```

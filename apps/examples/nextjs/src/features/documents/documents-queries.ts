@@ -20,6 +20,7 @@ export interface DocumentTarget {
   readonly customerId: string;
   readonly customerName: string;
   readonly canWrite: boolean;
+  readonly canSuggest: boolean;
 }
 
 export type Loaded<T> =
@@ -91,6 +92,7 @@ async function loadTarget(
     customerId: customer.id,
     customerName: customer.name,
     canWrite: can(session, "documents.write"),
+    canSuggest: can(session, "documents.suggest"),
   };
 }
 

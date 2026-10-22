@@ -3,7 +3,10 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
-import { driveSubject } from "../../src/blocks/drive/index.ts";
+import { createApprovals } from "../../src/blocks/approvals/index.ts";
+import { createDrive, driveSubject } from "../../src/blocks/drive/index.ts";
+import { createTags } from "../../src/blocks/tags/index.ts";
+import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -385,6 +388,160 @@ describe.skipIf(!live)("drive", () => {
       );
 
       expect(purged.objects).toHaveLength(2);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("labels nodes and approves one version of a file", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install([...MODULES, "tags", "notifications", "approvals"], {
+        ...layout,
+        modules: {
+          approvals: {
+            options: {
+              policies: {
+                drive_node: {
+                  approve: {
+                    steps: [{ approvers: { role: "owner" } }],
+                    selfApproval: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const tenant = await s.organization(owner, { member });
+      const transport = sqlTransport(s.sql);
+      const drive = createDrive({ transport });
+      const tags = createTags({ transport, tenant });
+      const approvals = createApprovals({ transport, tenant });
+
+      const upload = async (node: string, attachment: string) => {
+        await s.service();
+        await s.client.query(
+          "insert into storage.objects (bucket_id, name, owner_id) select bucket, object_path, $2 from better_supabase.attachments where id = $1",
+          [attachment, owner.id],
+        );
+        await s.asRole(owner);
+        await s.value("better_supabase.drive_commit($1, $2)", [
+          node,
+          attachment,
+        ]);
+      };
+
+      await s.asRole(owner);
+
+      const created = await s.value<{ node: Node; attachment: { id: string } }>(
+        "better_supabase.drive_create_file($1, null, 'brief.pdf', 'application/pdf', 10)",
+        [tenant],
+      );
+
+      const file = created.node.id;
+      await upload(file, created.attachment.id);
+
+      const second = await s.value<{ attachment: { id: string } }>(
+        "better_supabase.drive_upload_revision($1, 'application/pdf', 12)",
+        [file],
+      );
+
+      await upload(file, second.attachment.id);
+
+      await s.as(owner);
+      const final = await tags.create("label", "Final").orThrow();
+      const labeled = await drive.label(file, final.id).orThrow();
+      expect(labeled.labels?.map((label) => label.name)).toEqual(["Final"]);
+      expect(
+        (await drive.labeled(tenant, final.id).orThrow()).map(
+          (node) => node.id,
+        ),
+      ).toEqual([file]);
+
+      const request = await drive
+        .requestApproval(file, {
+          attachmentId: created.attachment.id,
+          reason: "Sign off v1",
+        })
+        .orThrow();
+
+      expect(request).toMatchObject({
+        status: "pending",
+        attachmentId: created.attachment.id,
+        revision: 1,
+        current: false,
+      });
+      expect((await drive.get(file).orThrow()).approval).toBeUndefined();
+
+      await s.asRole(member);
+      expect(
+        await s.hint("select better_supabase.drive_label($1, $2)", [
+          file,
+          final.id,
+        ]),
+      ).toBe("DRIVE_NOT_FOUND");
+      expect(
+        await s.hint("select better_supabase.tag($1, 'drive_node', $2, $3)", [
+          tenant,
+          file,
+          final.id,
+        ]),
+      ).toBe("TAG_SUBJECT_FORBIDDEN");
+      expect(
+        await s.value<unknown[]>(
+          "better_supabase.list_approvals($1, null, false, 'drive_node', $2)",
+          [tenant, file],
+        ),
+      ).toEqual([]);
+
+      await s.asRole(owner);
+      await s.value("better_supabase.drive_share($1, 'user', $2, 'viewer')", [
+        file,
+        member.id,
+      ]);
+      await s.asRole(member);
+      expect(
+        (
+          await s.value<Node & { labels: { name: string }[] }>(
+            "better_supabase.drive_get($1)",
+            [file],
+          )
+        ).labels.map((label) => label.name),
+      ).toEqual(["Final"]);
+      expect(
+        await s.hint("select better_supabase.drive_request_approval($1)", [
+          file,
+        ]),
+      ).toBe("DRIVE_FORBIDDEN");
+
+      await s.as(owner);
+      await approvals.approve(request.id).orThrow();
+
+      const [decided] = await drive.approvals(file).orThrow();
+      expect(decided).toMatchObject({ status: "approved", current: false });
+
+      const revisions = await drive.revisions(file).orThrow();
+
+      const restored = await drive
+        .restoreRevision(
+          file,
+          revisions.find((revision) => revision.number === 1)!.id,
+        )
+        .orThrow();
+
+      expect(restored.approval?.status).toBe("approved");
+
+      await s.value("better_supabase.drive_delete($1)", [file]);
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.taggings where subject_id = $1)",
+          [file],
+        ),
+      ).toBe(0);
     } finally {
       await s.close();
     }

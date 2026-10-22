@@ -103,3 +103,168 @@ describe("createSubjects", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe("createSubjects summary", () => {
+  const summaryTransport = (reply: unknown) => {
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
+    return {
+      calls,
+      transport: {
+        call(
+          _schema: string,
+          fn: string,
+          args: Readonly<Record<string, unknown>>,
+        ) {
+          calls.push({ fn, args: { ...args } });
+
+          return Promise.resolve(reply);
+        },
+      },
+    };
+  };
+
+  it("reads the title, counts and unread state in one call", async () => {
+    const fake = summaryTransport({
+      type: "customer",
+      id: "1",
+      title: "Acme",
+      url: "/customers/1",
+      counts: { comments: 3, attachments: 0, bad: "x" },
+      unread: { comments: true, attachments: false, bad: 1 },
+    });
+
+    const subjects = createSubjects({ transport: fake.transport });
+
+    const summary = await subjects
+      .summary({ type: "customer", id: "1" }, ["comments", "attachments"], {
+        seenAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+      })
+      .orThrow();
+
+    expect(summary).toEqual({
+      type: "customer",
+      id: "1",
+      title: "Acme",
+      url: "/customers/1",
+      counts: { comments: 3, attachments: 0 },
+      unread: { comments: true, attachments: false },
+    });
+    expect(fake.calls).toEqual([
+      {
+        fn: "record_summary",
+        args: {
+          subject_type: "customer",
+          subject_id: "1",
+          sections: ["comments", "attachments"],
+          seen_at: "2026-01-01T00:00:00Z",
+        },
+      },
+    ]);
+  });
+
+  it("is undefined when the caller can't read the subject", async () => {
+    const fake = summaryTransport(null);
+    const subjects = createSubjects({ transport: fake.transport });
+
+    const summary = await subjects
+      .summary({ type: "customer", id: "1" }, ["comments"])
+      .orThrow();
+
+    expect(summary).toBeUndefined();
+    expect(fake.calls[0]?.args["seen_at"]).toBeNull();
+  });
+
+  it("keeps empty counts when the reply has none", async () => {
+    const fake = summaryTransport({ type: "customer", id: "1" });
+    const subjects = createSubjects({ transport: fake.transport });
+
+    const summary = await subjects
+      .summary({ type: "customer", id: "1" }, [])
+      .orThrow();
+
+    expect(summary).toEqual({
+      type: "customer",
+      id: "1",
+      counts: {},
+      unread: {},
+    });
+  });
+});
+
+describe("createSubjects myWork", () => {
+  const workTransport = (reply: unknown) => {
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
+    return {
+      calls,
+      transport: {
+        call(
+          _schema: string,
+          fn: string,
+          args: Readonly<Record<string, unknown>>,
+        ) {
+          calls.push({ fn, args: { ...args } });
+
+          return Promise.resolve(reply);
+        },
+      },
+    };
+  };
+
+  it("reads typed items and drops malformed ones", async () => {
+    const fake = workTransport([
+      {
+        kind: "assigned",
+        subject: { type: "work_item", id: "w1" },
+        ref: "w1",
+        title: "Ship it",
+        url: null,
+        at: "2026-12-01T00:00:00+00:00",
+      },
+      {
+        kind: "mention",
+        subject: { type: "customer", id: "c1" },
+        ref: "m1",
+        url: "/customers/c1",
+      },
+      { kind: "bogus", subject: { type: "x", id: "1" }, ref: "1" },
+      { kind: "sla", subject: null, ref: "2" },
+      { kind: "sla", subject: { type: "x", id: "1" } },
+      "nope",
+    ]);
+
+    const subjects = createSubjects({ transport: fake.transport });
+
+    const work = await subjects
+      .myWork({ tenant: "t1", pageSize: 10 })
+      .orThrow();
+
+    expect(work).toEqual([
+      {
+        kind: "assigned",
+        subject: { type: "work_item", id: "w1" },
+        ref: "w1",
+        title: "Ship it",
+        at: Temporal.Instant.from("2026-12-01T00:00:00Z"),
+      },
+      {
+        kind: "mention",
+        subject: { type: "customer", id: "c1" },
+        ref: "m1",
+        url: "/customers/c1",
+      },
+    ]);
+    expect(fake.calls).toEqual([
+      { fn: "my_work", args: { tenant: "t1", page_size: 10 } },
+    ]);
+  });
+
+  it("defaults to every organization and 50 items", async () => {
+    const fake = workTransport(null);
+    const subjects = createSubjects({ transport: fake.transport });
+
+    expect(await subjects.myWork().orThrow()).toEqual([]);
+    expect(fake.calls[0]?.args).toEqual({ tenant: null, page_size: 50 });
+  });
+});

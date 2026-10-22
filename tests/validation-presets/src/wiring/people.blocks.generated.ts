@@ -10,6 +10,7 @@ import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
 import type { DocumentsEvents } from "better-supabase/blocks/documents";
+import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { HiringEvents } from "better-supabase/blocks/hiring";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
@@ -50,6 +51,10 @@ export const blockConfig = {
     options: {},
   },
   documents: {
+    schema: "better_supabase",
+    options: {},
+  },
+  enrollments: {
     schema: "better_supabase",
     options: {},
   },
@@ -160,6 +165,7 @@ export const permissions = {
   documents: {
     read: "documents.read",
     write: "documents.write",
+    suggest: "documents.suggest",
     manage: "documents.manage",
   },
   employee: {
@@ -170,6 +176,11 @@ export const permissions = {
     read: "employees.read",
     write: "employees.write",
     viewSensitive: "employees.view_sensitive",
+  },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
   },
   hiring: {
     read: "hiring.read",
@@ -223,13 +234,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "documents.manage" | "documents.read" | "documents.write" | "employees.read" | "employees.view_sensitive" | "employees.write" | "hiring.manage" | "hiring.read" | "hiring.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "employees.read" | "employees.view_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CalendarEvents & DocumentsEvents & EmployeesEvents & HiringEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & SettingsEvents & TeamsEvents & TimeTrackingEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CalendarEvents & DocumentsEvents & EnrollmentsEvents & EmployeesEvents & HiringEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & SettingsEvents & TeamsEvents & TimeTrackingEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -263,10 +274,19 @@ export const blockEvents: Events<BlockEvents> = {
     "calendar_event.deleted",
     "calendar_event.updated",
     "document.created",
+    "document.suggested",
+    "document.suggestion_accepted",
+    "document.suggestion_rejected",
     "employee.created",
     "employee.manager_changed",
     "employee.offboarded",
     "employee.updated",
+    "enrollment.cancelled",
+    "enrollment.completed",
+    "enrollment.created",
+    "enrollment.step_completed",
+    "enrollment_program.deleted",
+    "enrollment_program.saved",
     "interview.scheduled",
     "invitation.accepted",
     "invitation.created",
@@ -352,10 +372,19 @@ export const blockEventSchemas = {
   "calendar_event.deleted": true,
   "calendar_event.updated": true,
   "document.created": true,
+  "document.suggested": true,
+  "document.suggestion_accepted": true,
+  "document.suggestion_rejected": true,
   "employee.created": true,
   "employee.manager_changed": true,
   "employee.offboarded": true,
   "employee.updated": true,
+  "enrollment.cancelled": true,
+  "enrollment.completed": true,
+  "enrollment.created": true,
+  "enrollment.step_completed": true,
+  "enrollment_program.deleted": true,
+  "enrollment_program.saved": true,
   "interview.scheduled": true,
   "invitation.accepted": true,
   "invitation.created": true,

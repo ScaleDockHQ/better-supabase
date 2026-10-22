@@ -3,7 +3,9 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
+import { createComments } from "../../src/blocks/comments/index.ts";
 import { createParties } from "../../src/blocks/parties/index.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -144,6 +146,54 @@ describe.skipIf(!live)("parties", () => {
           .saveCompany(org, { name: "Intruder" })
           .then((r) => (r.ok ? "ok" : r.error.hint)),
       ).toBe("PARTY_FORBIDDEN");
+    } finally {
+      await s.close();
+    }
+  });
+});
+
+describe.skipIf(!live)("parties merge", () => {
+  const pool = new Pool({ connectionString: dbUrl, max: 2 });
+
+  afterAll(() => pool.end());
+
+  it("moves the dropped company's comments to the kept one", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      await s.install([...MODULES, "comments"], {
+        subjects: withBlockSubjects({}, ["parties", "comments"], {}),
+      });
+      const org = await s.organization(owner);
+      const parties = createParties({ transport: sqlTransport(s.sql) });
+
+      const comments = createComments({
+        transport: sqlTransport(s.sql),
+        tenant: org,
+      });
+
+      await s.as(owner);
+
+      const keep = await parties.saveCompany(org, { name: "Acme" }).orThrow();
+
+      const drop = await parties
+        .saveCompany(org, { name: "Acme Inc" })
+        .orThrow();
+
+      await comments
+        .create({ type: "company", id: drop.id }, { body: "Called them" })
+        .orThrow();
+      await parties.mergeCompanies(keep.id, drop.id).orThrow();
+
+      expect(
+        (await comments.list({ type: "company", id: keep.id }).orThrow()).map(
+          (row) => row.body,
+        ),
+      ).toEqual(["Called them"]);
+      expect(
+        await comments.list({ type: "company", id: drop.id }).orThrow(),
+      ).toEqual([]);
     } finally {
       await s.close();
     }

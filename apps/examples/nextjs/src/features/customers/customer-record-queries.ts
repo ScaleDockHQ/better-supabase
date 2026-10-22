@@ -1,44 +1,38 @@
 import "server-only";
-import { tenantOf } from "better-supabase/next";
+import type { SectionResult } from "better-supabase/records";
+
+import { toDbError } from "better-supabase";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
-import { blocks } from "@/lib/blocks";
+import { customerRecord } from "@/lib/supabase/features/customer/customer-server";
 import { bs } from "@/lib/supabase/server";
 
-import { customerAttachments } from "./customer-attachments";
-
-/** What the cards on the customer page render: the rows, or a failed read. */
-export type Loaded<T> =
-  | { readonly kind: "ok"; readonly data: T }
-  | { readonly kind: "error" };
-
-const SUBJECT = "customer";
-
 /**
- * A failed read throws inside the cached loader, so it is never cached and
- * Retry (`refresh()`) reads again; here it becomes the card's error state.
+ * What a card on the customer page renders: the rows, or a failed read. The
+ * page renders no card for a hidden section.
  */
-async function settle<T>(load: () => Promise<T>): Promise<Loaded<T>> {
-  try {
-    return { kind: "ok", data: await load() };
-  } catch (error) {
-    unstable_rethrow(error);
+export type Loaded<T> = Exclude<SectionResult<T>, { readonly kind: "hidden" }>;
 
-    return { kind: "error" };
-  }
+/** A hidden section reads as an empty list on the cards that always render. */
+function visible<T>(result: SectionResult<readonly T[]>): Loaded<readonly T[]> {
+  return result.kind === "hidden" ? { kind: "ok", data: [] } : result;
 }
 
-async function caller() {
-  const { session, supabase, db } = await bs.cached();
-  const organizationId = tenantOf(session);
-
-  if (!organizationId) {
-    throw new Error("No active organization");
-  }
-
-  return { organizationId, supabase, db };
+function mapped<T, U>(
+  result: SectionResult<readonly T[]>,
+  map: (row: T) => U,
+): SectionResult<readonly U[]> {
+  return result.kind === "ok"
+    ? { kind: "ok", data: result.data.map(map) }
+    : result;
 }
+
+const epoch = (iso: string): number =>
+  Temporal.Instant.from(iso).epochMilliseconds;
+
+const epochOrNull = (iso: string | null | undefined): number | null =>
+  iso === null || iso === undefined ? null : epoch(iso);
 
 export interface ShareLinkRow {
   readonly id: string;
@@ -50,30 +44,29 @@ export interface ShareLinkRow {
   readonly expired: boolean;
 }
 
-async function loadShareLinks(
+/** The share links the caller created or may read, revoked ones last. */
+export async function getShareLinks(
   customerId: string,
-): Promise<readonly ShareLinkRow[]> {
-  "use cache: private";
-  const { organizationId, supabase } = await caller();
+): Promise<Loaded<readonly ShareLinkRow[]>> {
+  const { sections } = await customerRecord.load(customerId, {
+    sections: ["shareLinks"],
+  });
 
   const now = Temporal.Now.instant().epochMilliseconds;
 
-  const links = await blocks(supabase, organizationId)
-    .shareLinks.list({ type: SUBJECT, id: customerId })
-    .orThrow();
+  return visible(
+    mapped(sections.shareLinks, (link) => {
+      const expiresAt = epochOrNull(link.expiresAt);
 
-  return links.map((link) => ({
-    id: link.id,
-    role: link.role,
-    expiresAt: link.expiresAt?.epochMilliseconds ?? null,
-    revokedAt: link.revokedAt?.epochMilliseconds ?? null,
-    expired: link.expiresAt !== null && link.expiresAt.epochMilliseconds <= now,
-  }));
-}
-
-/** The share links the caller created or may read, revoked ones last. */
-export function getShareLinks(customerId: string) {
-  return settle(() => loadShareLinks(customerId));
+      return {
+        id: link.id,
+        role: link.role,
+        expiresAt,
+        revokedAt: epochOrNull(link.revokedAt),
+        expired: expiresAt !== null && expiresAt <= now,
+      };
+    }),
+  );
 }
 
 export interface AttachmentRow {
@@ -86,29 +79,22 @@ export interface AttachmentRow {
   readonly createdAt: number;
 }
 
-async function loadAttachments(
+/** The customer's files, newest first. */
+export async function getAttachments(
   customerId: string,
-): Promise<readonly AttachmentRow[]> {
-  "use cache: private";
-  const { organizationId, supabase } = await caller();
+): Promise<SectionResult<readonly AttachmentRow[]>> {
+  const { sections } = await customerRecord.load(customerId, {
+    sections: ["attachments"],
+  });
 
-  const files = await customerAttachments(supabase, organizationId)
-    .list({ type: SUBJECT, id: customerId })
-    .orThrow();
-
-  return files.map((file) => ({
+  return mapped(sections.attachments, (file) => ({
     id: file.id,
     name: file.name,
     size: file.size,
     status: file.status,
     uploaded: file.uploadedAt !== undefined,
-    createdAt: file.createdAt.epochMilliseconds,
+    createdAt: epoch(file.createdAt),
   }));
-}
-
-/** The customer's files, newest first. */
-export function getAttachments(customerId: string) {
-  return settle(() => loadAttachments(customerId));
 }
 
 export interface CustomerOption {
@@ -130,37 +116,49 @@ export interface Relations {
   readonly options: readonly CustomerOption[];
 }
 
-async function loadRelations(customerId: string): Promise<Relations> {
-  "use cache: private";
-  const { organizationId, supabase, db } = await caller();
-
-  const [links, customers] = await Promise.all([
-    blocks(supabase, organizationId)
-      .relations.of({ type: SUBJECT, id: customerId })
-      .orThrow(),
-    db.customers
-      .findMany({
-        select: ["id", "name"],
-        orderBy: { name: "asc" },
-        limit: 200,
-      })
-      .orThrow(),
+/** The records linked to the customer, and the customers it can link to. */
+export async function getRelations(
+  customerId: string,
+): Promise<Loaded<Relations>> {
+  const [{ sections }, { db }] = await Promise.all([
+    customerRecord.load(customerId, { sections: ["relations"] }),
+    bs.context(),
   ]);
 
-  return {
-    links: links.map((link) => ({
+  const links = visible(
+    mapped(sections.relations, (link) => ({
       id: link.id,
       kind: link.kind,
       subjectType: link.subject.type,
       subjectId: link.subject.id,
     })),
-    options: customers.filter((row) => row.id !== customerId),
-  };
-}
+  );
 
-/** The records linked to the customer, and the customers it can link to. */
-export function getRelations(customerId: string) {
-  return settle(() => loadRelations(customerId));
+  if (links.kind === "error") {
+    return links;
+  }
+
+  try {
+    const customers = await db.customers
+      .findMany({
+        select: ["id", "name"],
+        orderBy: { name: "asc" },
+        limit: 200,
+      })
+      .orThrow();
+
+    return {
+      kind: "ok",
+      data: {
+        links: links.data,
+        options: customers.filter((row) => row.id !== customerId),
+      },
+    };
+  } catch (error) {
+    unstable_rethrow(error);
+
+    return { kind: "error", error: toDbError(error) };
+  }
 }
 
 export interface VersionRow {
@@ -171,28 +169,24 @@ export interface VersionRow {
   readonly createdAt: number;
 }
 
-async function loadVersions(
-  customerId: string,
-): Promise<readonly VersionRow[]> {
-  "use cache: private";
-  const { organizationId, supabase } = await caller();
-
-  const versions = await blocks(supabase, organizationId)
-    .versions.list({ type: SUBJECT, id: customerId }, { pageSize: 20 })
-    .orThrow();
-
-  return versions.map((version) => ({
-    id: version.id,
-    number: version.number,
-    label: version.label ?? null,
-    source: version.source,
-    createdAt: version.createdAt.epochMilliseconds,
-  }));
-}
-
 /** The customer's saved versions, newest first. */
-export function getVersions(customerId: string) {
-  return settle(() => loadVersions(customerId));
+export async function getVersions(
+  customerId: string,
+): Promise<Loaded<readonly VersionRow[]>> {
+  const { sections } = await customerRecord.load(customerId, {
+    sections: ["versions"],
+    options: { versions: { pageSize: 20 } },
+  });
+
+  return visible(
+    mapped(sections.versions, (version) => ({
+      id: version.id,
+      number: version.number,
+      label: version.label ?? null,
+      source: version.source,
+      createdAt: epoch(version.createdAt),
+    })),
+  );
 }
 
 export interface SlaClockRow {
@@ -204,26 +198,61 @@ export interface SlaClockRow {
   readonly secondsLeft: number | null;
 }
 
-async function loadSlaClocks(
+/** The customer's SLA clocks, with the time left on each open one. */
+export async function getSlaClocks(
   customerId: string,
-): Promise<readonly SlaClockRow[]> {
-  "use cache: private";
-  const { organizationId, supabase } = await caller();
+): Promise<Loaded<readonly SlaClockRow[]>> {
+  const { sections } = await customerRecord.load(customerId, {
+    sections: ["sla"],
+  });
 
-  const clocks = await blocks(supabase, organizationId)
-    .sla.clocks({ type: SUBJECT, id: customerId })
-    .orThrow();
-
-  return clocks.map((clock) => ({
-    id: clock.id,
-    metric: clock.metric,
-    state: clock.state,
-    dueAt: clock.dueAt.epochMilliseconds,
-    secondsLeft: clock.secondsLeft ?? null,
-  }));
+  return visible(
+    mapped(sections.sla, (clock) => ({
+      id: clock.id,
+      metric: clock.metric,
+      state: clock.state,
+      dueAt: epoch(clock.dueAt),
+      secondsLeft: clock.secondsLeft ?? null,
+    })),
+  );
 }
 
-/** The customer's SLA clocks, with the time left on each open one. */
-export function getSlaClocks(customerId: string) {
-  return settle(() => loadSlaClocks(customerId));
+export interface TimelineRow {
+  readonly id: string;
+  readonly kind: "comment" | "attachment" | "version" | (string & {});
+  /** Epoch milliseconds. */
+  readonly at: number;
+  readonly actor: string | null;
+}
+
+const TIMELINE_LIMIT = 20;
+
+/**
+ * The customer's latest comments, files and versions in one list, newest first.
+ * A failed section fails the card only when nothing else loaded.
+ */
+export async function getTimeline(
+  customerId: string,
+): Promise<Loaded<readonly TimelineRow[]>> {
+  const timeline = await customerRecord.timeline(customerId, {
+    limit: TIMELINE_LIMIT,
+  });
+
+  const failed = Object.values(timeline.skipped).find(
+    (result) => result.kind === "error",
+  );
+
+  if (failed?.kind === "error" && timeline.entries.length === 0) {
+    return failed;
+  }
+
+  return {
+    kind: "ok",
+    data: timeline.entries.map((entry) => ({
+      id: `${entry.section}:${entry.id}`,
+      kind: entry.kind,
+      at: epoch(entry.at),
+      actor: entry.actor ?? null,
+    })),
+  };
 }

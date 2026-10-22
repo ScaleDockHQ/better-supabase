@@ -1,0 +1,141 @@
+---
+title: Ledger
+description: Double-entry accounts in a currency or a custom unit, balanced transactions, running balances and holds. Inventory stock, leave balances and invoice payments post through it, and credits, loyalty points, gift cards and trust balances are account kinds.
+---
+
+`ledger` keeps double-entry accounts per organization. An account holds an
+amount in one unit: an ISO 4217 currency in minor units (`Money`, see
+[commerce](/docs/concepts/commerce)), or a custom unit such as `points`,
+`item` or `days` at a fixed number of decimal places. Every change is a
+transaction whose entries sum to zero per unit, so value only moves between
+accounts. Entries can't be changed or deleted: a correction is a reversal.
+
+Reading every account needs `ledger.read`, posting needs `ledger.post`, and
+opening and closing accounts needs `ledger.manage`. Admins get all three.
+An account can also name a `readPermission` (such as `parties.read`) that
+grants reading it, and an `ownerId` who can always read it, so a member sees
+their own balance without `ledger.read`.
+
+```bash
+better-supabase add ledger
+```
+
+The module needs `tenant` and `access`. [Inventory](/docs/blocks/inventory),
+[leave](/docs/blocks/leave) and [invoices](/docs/blocks/invoices) require it
+and install it with them.
+
+```ts
+import { createLedger } from "better-supabase/blocks/ledger";
+import { money } from "better-supabase/commerce";
+
+const ledger = createLedger({ transport, tenant: organizationId });
+
+const credits = await ledger
+  .openAccount({
+    kind: "credit",
+    code: `credit:${partyId}`,
+    name: "Store credit",
+    unit: "EUR",
+    holder: { type: "party", id: partyId },
+    readPermission: "parties.read",
+  })
+  .orThrow();
+
+const promotions = await ledger
+  .openAccount({
+    kind: "credit_source",
+    code: "credit:promotions",
+    name: "Promotions",
+    unit: "EUR",
+    allowNegative: true,
+  })
+  .orThrow();
+
+await ledger
+  .post({
+    kind: "credit.grant",
+    lines: [
+      { accountId: credits.id, amount: money(2500n, "EUR") },
+      { accountId: promotions.id, amount: money(-2500n, "EUR") },
+    ],
+    idempotencyKey: `welcome:${partyId}`,
+  })
+  .orThrow();
+```
+
+## Accounts
+
+An account has a `kind` and a `code` that is unique in the organization. The
+kind is free text: `credit`, `loyalty`, `gift_card` and `trust` balances are
+accounts of those kinds, each against a source account the app opens once.
+`holder` ties an account to a record (`{ type, id }`), and
+`holderAccounts(subject)` lists a record's accounts with their balances; the
+[ledger section](/docs/blocks/records) renders them on the record page.
+
+`balance` is the sum of the account's entries, `held` what active holds
+reserve, and `available` the balance less what is held. Amounts come back as
+`bigint` in the account's unit; `ledgerMoney(account)` turns a currency
+account's balance into `Money`. An account refuses a posting that takes its
+available balance below zero (`LEDGER_INSUFFICIENT`) unless it was opened
+with `allowNegative`.
+
+`closeAccount(accountId)` closes an account with a zero balance and no active
+holds. Accounts another block manages (`managedBy` is set) refuse postings
+from the client (`LEDGER_ACCOUNT_MANAGED`): only that block's functions post
+to them.
+
+## Transactions
+
+`post(input)` writes a transaction of at least two lines that sum to zero per
+unit (`LEDGER_UNBALANCED`). `kind` is lowercase words joined by dots, such as
+`credit.grant`. `reference` links the transaction to a record, `effectiveAt`
+dates it (default now), and an `idempotencyKey` makes a second post return
+the first transaction. `reverse(transactionId)` posts the opposite entries
+once. `entries(accountId)` pages an account's entries newest first, and
+`transaction(id)` reads one transaction with its entries.
+
+## Holds
+
+`hold(accountId, { amount, expiresAt })` reserves part of the available
+balance, such as a gift card amount during checkout. `capture(holdId,
+{ toAccountId, amount })` moves held funds to another account in one
+transaction and releases the rest, and `release(holdId)` gives the amount
+back. Holds past `expiresAt` are released by `expire_ledger_holds`, which the
+service role calls from a cron.
+
+## Blocks that post to the ledger
+
+| Block     | Accounts                                                                   | Transaction kinds                        |
+| --------- | -------------------------------------------------------------------------- | ---------------------------------------- |
+| inventory | `stock:<variant>:<location>` per variant and location, plus counters       | `stock.receipt`, `stock.sale` and so on  |
+| leave     | `leave:<type>:<user>:<year>` per member, type and year, plus pool accounts | `leave.accrual`, `leave.taken` and so on |
+| invoices  | `invoice:<id>` receivable per invoice, `invoices:cash:<currency>`          | `invoice.payment`, `invoice.refund`      |
+
+Their functions keep the same names and results; the ledger is where the
+amounts live.
+
+## Errors
+
+| Hint                           | Cause                                                          |
+| ------------------------------ | -------------------------------------------------------------- |
+| `LEDGER_FORBIDDEN`             | the caller lacks the permission for this                       |
+| `LEDGER_ACCOUNT_CODE_TAKEN`    | an account with this code already exists                       |
+| `LEDGER_ACCOUNT_NOT_FOUND`     | no open account with this id in the organization               |
+| `LEDGER_ACCOUNT_MANAGED`       | the account belongs to another block                           |
+| `LEDGER_ACCOUNT_NOT_EMPTY`     | only an account with a zero balance and no holds can be closed |
+| `LEDGER_KIND_INVALID`          | the kind isn't lowercase words joined by dots                  |
+| `LEDGER_LINES_INVALID`         | fewer than two lines, a zero amount, or an invalid hold amount |
+| `LEDGER_UNBALANCED`            | the lines don't sum to zero per unit                           |
+| `LEDGER_INSUFFICIENT`          | the account doesn't have enough available                      |
+| `LEDGER_ALREADY_REVERSED`      | the transaction is a reversal or is already reversed           |
+| `LEDGER_TRANSACTION_NOT_FOUND` | no transaction with this id                                    |
+| `LEDGER_HOLD_NOT_FOUND`        | no hold with this id                                           |
+| `LEDGER_HOLD_CLOSED`           | the hold was already captured, released or expired             |
+| `LEDGER_APPEND_ONLY`           | an update or delete on entries or transactions                 |
+
+## Events
+
+`ledger_account.opened` and `ledger_account.closed`,
+`ledger_transaction.posted` and `ledger_transaction.reversed`, and
+`ledger_hold.placed`, `ledger_hold.captured` and `ledger_hold.released`. The
+[events page](/docs/extending/events) lists their payloads.

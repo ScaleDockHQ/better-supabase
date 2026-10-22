@@ -457,13 +457,14 @@ describe("useInbox", () => {
 describe("useConversation", () => {
   it("tracks messages, typing and the channel status", async () => {
     const { browser, client, emit, channels } = fakeBrowser(signedIn(USER));
-    let rows = ["m1"];
+    let rows = [{ id: "m1" }];
 
     const view = renderHook(
       () =>
         useConversation({
           conversationId: "c1",
           load: async () => rows,
+          get: async (id) => ({ id }),
           typingMs: 20,
         }),
       undefined,
@@ -472,21 +473,21 @@ describe("useConversation", () => {
 
     await flush();
     await flush();
-    expect(view.result.items).toEqual(["m1"]);
+    expect(view.result.items).toEqual([{ id: "m1" }]);
     expect(view.result.status).toBe("subscribed");
-    expect(client.channel).toHaveBeenCalledWith("inbox:c1", {
+    expect(client.channel).toHaveBeenCalledWith("messages:c1", {
       config: { private: true, broadcast: { self: false } },
     });
 
-    emit("inbox:c1", "typing", { user_id: OTHER });
-    emit("inbox:c1", "typing", { user_id: USER });
-    emit("inbox:c1", "typing", "junk");
-    emit("inbox:c1", "typing", {});
+    emit("messages:c1", "typing", { userId: OTHER });
+    emit("messages:c1", "typing", { userId: USER });
+    emit("messages:c1", "typing", "junk");
+    emit("messages:c1", "typing", {});
     expect(view.result.typing).toEqual([OTHER]);
-    emit("inbox:c1", "typing", { user_id: OTHER, typing: false });
+    emit("messages:c1", "typing", { userId: OTHER, typing: false });
     expect(view.result.typing).toEqual([]);
-    emit("inbox:c1", "typing", { user_id: OTHER, typing: true });
-    emit("inbox:c1", "typing", { user_id: OTHER, typing: true });
+    emit("messages:c1", "typing", { userId: OTHER, typing: true });
+    emit("messages:c1", "typing", { userId: OTHER, typing: true });
     await wait(40);
     expect(view.result.typing).toEqual([]);
 
@@ -494,26 +495,25 @@ describe("useConversation", () => {
     expect(sendOf(client)).toHaveBeenCalledWith({
       type: "broadcast",
       event: "typing",
-      payload: { user_id: USER, typing: true },
+      payload: { conversationId: "c1", userId: USER, typing: true },
     });
 
-    rows = ["m1", "m2"];
-    emit("inbox:c1", "message", {});
+    emit("messages:c1", "message", { messageId: "m2" });
     await flush();
-    expect(view.result.items).toEqual(["m1", "m2"]);
+    expect(view.result.items).toEqual([{ id: "m1" }, { id: "m2" }]);
 
-    const status = channels.get("inbox:c1")?.status;
+    const status = channels.get("messages:c1")?.status;
     status?.("CHANNEL_ERROR");
     expect(view.result.status).toBe("error");
     status?.("TIMED_OUT");
     status?.("CLOSED");
     expect(view.result.status).toBe("closed");
-    rows = ["m1", "m2", "m3"];
+    rows = [{ id: "m1" }, { id: "m2" }, { id: "m3" }];
     status?.("SUBSCRIBED");
     await flush();
     expect(view.result.items).toHaveLength(3);
 
-    emit("inbox:c1", "typing", { user_id: OTHER });
+    emit("messages:c1", "typing", { userId: OTHER });
     view.unmount();
     await flush();
     expect(client.removeChannel).toHaveBeenCalledOnce();
@@ -523,7 +523,12 @@ describe("useConversation", () => {
     const { browser, client } = fakeBrowser(SIGNED_OUT);
 
     const view = renderHook(
-      () => useConversation({ conversationId: "c1", load: async () => [] }),
+      () =>
+        useConversation({
+          conversationId: "c1",
+          load: async () => [],
+          get: async () => null,
+        }),
       undefined,
       { client: browser },
     );
@@ -531,7 +536,12 @@ describe("useConversation", () => {
     view.result.setTyping(true);
     const waiting = fakeBrowser(signedIn(USER));
     renderHook(
-      () => useConversation({ conversationId: null, load: async () => [] }),
+      () =>
+        useConversation({
+          conversationId: null,
+          load: async () => [],
+          get: async () => null,
+        }),
       undefined,
       { client: waiting.browser },
     ).unmount();
@@ -545,7 +555,12 @@ describe("useConversation", () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
 
     const view = renderHook(
-      () => useConversation({ conversationId: "c1", load: async () => [] }),
+      () =>
+        useConversation({
+          conversationId: "c1",
+          load: async () => [],
+          get: async () => null,
+        }),
       undefined,
       { client: browser },
     );
@@ -574,10 +589,10 @@ describe("useInboxWidget", () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     const open = vi.fn(async () => "c9");
     const send = vi.fn(async () => undefined);
-    const load = vi.fn(async (id: string) => [`${id}:m`]);
+    const load = vi.fn(async (id: string) => [{ id: `${id}:m` }]);
 
     const view = renderHook(
-      () => useInboxWidget({ open, send, load }),
+      () => useInboxWidget({ open, send, load, get: async () => null }),
       undefined,
       { client: browser },
     );
@@ -592,8 +607,8 @@ describe("useInboxWidget", () => {
     expect(open).toHaveBeenCalledWith("hello");
     expect(storage.items.get("better-supabase:inbox-widget")).toBe("c9");
     expect(view.result.conversationId).toBe("c9");
-    expect(view.result.items).toEqual(["c9:m"]);
-    expect(client.channel.mock.calls.at(-1)?.[0]).toBe("inbox:c9");
+    expect(view.result.items).toEqual([{ id: "c9:m" }]);
+    expect(client.channel.mock.calls.at(-1)?.[0]).toBe("messages:c9");
 
     await view.result.submit("again");
     expect(send).toHaveBeenCalledWith("c9", "again");
@@ -608,12 +623,13 @@ describe("useInboxWidget", () => {
     storage.setItem("widget", "c3");
     vi.stubGlobal("localStorage", storage);
     const { browser } = fakeBrowser(signedIn(USER));
-    const load = vi.fn(async () => ["x"]);
+    const load = vi.fn(async () => [{ id: "x" }]);
 
     const options = {
       open: async () => "c4",
       send: async () => undefined,
       load,
+      get: async () => null,
     };
 
     const resumed = renderHook(

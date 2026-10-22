@@ -1,6 +1,6 @@
--- better-supabase module: bookings (0.9.0)
+-- better-supabase module: bookings
 -- @bs-module bookings@1 managed
--- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
+-- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -49,9 +49,13 @@ create table if not exists "better_supabase"."booking_resources" (
   "capacity" integer not null default 1 check ("capacity" between 1 and 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
+  "host_user_id" uuid,
+  "check_busy" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now()
 );
+alter table "better_supabase"."booking_resources" add column if not exists "host_user_id" uuid;
+alter table "better_supabase"."booking_resources" add column if not exists "check_busy" boolean not null default false;
 alter table "better_supabase"."booking_resources" enable row level security;
 revoke all on "better_supabase"."booking_resources" from anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
@@ -155,7 +159,41 @@ grant select on "better_supabase"."bookings" to authenticated;
 grant all on "better_supabase"."bookings" to service_role;
 drop policy if exists bookings_read on "better_supabase"."bookings";
 create policy bookings_read on "better_supabase"."bookings" for select to authenticated
+using (("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_user_id" = (select auth.uid())) or (("tenant_id")::text, ('booking')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g));
+
+-- A recurring booking: the rule that made it and the occurrences it booked
+-- (bookings.series_id). starts_at is the first occurrence; later ones keep its
+-- local time in tz, so they move with daylight saving.
+create table if not exists "better_supabase"."booking_series" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "service_id" uuid not null references "better_supabase"."booking_services" ("id") on delete restrict,
+  "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
+  "rule" jsonb not null check (jsonb_typeof("rule") = 'object'),
+  "starts_at" timestamptz not null,
+  "tz" text not null,
+  "customer_name" text,
+  "customer_email" text,
+  "customer_user_id" uuid,
+  "status" text not null default 'active' check ("status" in ('active', 'ended', 'cancelled')),
+  "ends_at" timestamptz,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+create index if not exists "booking_series_tenant_idx" on "better_supabase"."booking_series" ("tenant_id", "starts_at");
+create index if not exists "booking_series_service_idx" on "better_supabase"."booking_series" ("service_id");
+create index if not exists "booking_series_resource_idx" on "better_supabase"."booking_series" ("resource_id");
+create index if not exists "booking_series_customer_idx" on "better_supabase"."booking_series" ("customer_user_id");
+alter table "better_supabase"."booking_series" enable row level security;
+revoke all on "better_supabase"."booking_series" from anon, authenticated;
+grant select on "better_supabase"."booking_series" to authenticated;
+grant all on "better_supabase"."booking_series" to service_role;
+drop policy if exists booking_series_read on "better_supabase"."booking_series";
+create policy booking_series_read on "better_supabase"."booking_series" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_user_id" = (select auth.uid()));
+alter table "better_supabase"."bookings" add column if not exists "series_id" uuid references "better_supabase"."booking_series" ("id") on delete set null;
+create index if not exists bookings_series_idx on "better_supabase"."bookings" ("series_id", "during");
 
 create or replace function "better_supabase"."save_booking_resource"(tenant uuid, item jsonb)
 returns jsonb
@@ -179,11 +217,11 @@ begin
     raise exception 'tz must be an IANA time zone' using errcode = '22023', hint = 'BOOKING_TZ_INVALID';
   end if;
   if v_id is null then
-    insert into "better_supabase"."booking_resources" ("tenant_id", "name", "kind", "capacity", "tz", "active", "calendar_id")
-    values (v_tenant, case when v_item ? 'name' then v_item ->> 'name' else null end, case when v_item ? 'kind' then v_item ->> 'kind' else 'staff' end, case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else 1 end, case when v_item ? 'tz' then v_item ->> 'tz' else 'UTC' end, case when v_item ? 'active' then (v_item ->> 'active')::boolean else true end, case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else null end)
+    insert into "better_supabase"."booking_resources" ("tenant_id", "name", "kind", "capacity", "tz", "active", "calendar_id", "host_user_id", "check_busy")
+    values (v_tenant, case when v_item ? 'name' then v_item ->> 'name' else null end, case when v_item ? 'kind' then v_item ->> 'kind' else 'staff' end, case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else 1 end, case when v_item ? 'tz' then v_item ->> 'tz' else 'UTC' end, case when v_item ? 'active' then (v_item ->> 'active')::boolean else true end, case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else null end, case when v_item ? 'hostUserId' then nullif(v_item ->> 'hostUserId', '')::uuid else null end, case when v_item ? 'checkBusy' then (v_item ->> 'checkBusy')::boolean else false end)
     returning "id" into v_id;
   else
-    update "better_supabase"."booking_resources" set "name" = case when v_item ? 'name' then v_item ->> 'name' else "name" end, "kind" = case when v_item ? 'kind' then v_item ->> 'kind' else "kind" end, "capacity" = case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else "capacity" end, "tz" = case when v_item ? 'tz' then v_item ->> 'tz' else "tz" end, "active" = case when v_item ? 'active' then (v_item ->> 'active')::boolean else "active" end, "calendar_id" = case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else "calendar_id" end
+    update "better_supabase"."booking_resources" set "name" = case when v_item ? 'name' then v_item ->> 'name' else "name" end, "kind" = case when v_item ? 'kind' then v_item ->> 'kind' else "kind" end, "capacity" = case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else "capacity" end, "tz" = case when v_item ? 'tz' then v_item ->> 'tz' else "tz" end, "active" = case when v_item ? 'active' then (v_item ->> 'active')::boolean else "active" end, "calendar_id" = case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else "calendar_id" end, "host_user_id" = case when v_item ? 'hostUserId' then nullif(v_item ->> 'hostUserId', '')::uuid else "host_user_id" end, "check_busy" = case when v_item ? 'checkBusy' then (v_item ->> 'checkBusy')::boolean else "check_busy" end
     where "id" = v_id and "tenant_id" = v_tenant;
     if not found then
       raise exception 'not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
@@ -330,8 +368,10 @@ grant execute on function "better_supabase"."save_booking_service"(uuid, jsonb) 
 -- of the service's kinds, its weekly hours in its own time zone, plus the
 -- exceptions that open it, minus the ones that close it. Slots start at the
 -- opening time and every step (default the duration) after it, and a slot is
--- open while a seat's bookings, buffers included, leave room for it.
--- local_start is the start in tz (default the resource's zone).
+-- open while a seat's bookings, buffers included, leave room for it. A
+-- resource with a host and check_busy also needs the host free in the
+-- calendar (events, out of office, focus time, leave) over the slot and its
+-- buffers. local_start is the start in tz (default the resource's zone).
 create or replace function "better_supabase"."booking_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text, only_resource uuid)
 returns table (resource_id uuid, starts_at timestamptz, ends_at timestamptz, local_start timestamp, seats integer)
 language plpgsql
@@ -350,6 +390,7 @@ declare
   v_at timestamptz;
   v_block tstzrange;
   v_free integer;
+  v_busy tstzmultirange := '{}'::tstzmultirange;
 begin
   select sv."tenant_id" as tenant, sv."duration" as duration, sv."buffer_before" as before, sv."buffer_after" as after,
       sv."resource_kinds" as kinds, sv."step" as step, sv."min_notice" as notice
@@ -361,7 +402,7 @@ begin
   v_step := coalesce(v_service.step, v_service.duration);
   v_floor := greatest(booking_slots.range_start, now() + v_service.notice);
   for v_resource in
-    select rs."id" as id, rs."tz" as tz, rs."capacity" as capacity
+    select rs."id" as id, rs."tz" as tz, rs."capacity" as capacity, case when rs."check_busy" then rs."host_user_id" end as host
     from "better_supabase"."booking_resources" rs
     where rs."tenant_id" = v_service.tenant and rs."active"
       and (cardinality(v_service.kinds) = 0 or rs."kind" = any (v_service.kinds))
@@ -377,6 +418,12 @@ begin
       join "better_supabase"."booking_availability" a on a."resource_id" = v_resource.id and a."weekday" = extract(isodow from d.day)::integer;
     v_open := v_open + coalesce((select range_agg(e."during") from "better_supabase"."booking_exceptions" e where e."resource_id" = v_resource.id and e."available"), '{}'::tstzmultirange);
     v_open := v_open - coalesce((select range_agg(e."during") from "better_supabase"."booking_exceptions" e where e."resource_id" = v_resource.id and not e."available"), '{}'::tstzmultirange);
+    v_busy := '{}'::tstzmultirange;
+    if v_resource.host is not null then
+      select coalesce(range_agg(tstzrange(bb.starts_at, bb.ends_at)), '{}'::tstzmultirange) into v_busy
+      from "better_supabase"."calendar_busy_blocks"(v_service.tenant, array[v_resource.host], v_floor - v_service.before, booking_slots.range_end + v_service.after) bb
+      where bb.starts_at < bb.ends_at and not exists (select 1 from "better_supabase"."bookings" bk where bk."calendar_event_id" = bb.event_id and bk."resource_id" = v_resource.id);
+    end if;
     for v_window in select w from unnest(v_open) w loop
       v_at := lower(v_window);
       if v_at < v_floor then
@@ -391,7 +438,7 @@ begin
           where bk."resource_id" = v_resource.id and bk."seat" = seat.seat
             and (bk."status" = 'confirmed' or (bk."status" = 'hold' and bk."hold_expires_at" > now())) and bk."blocked" && v_block
         );
-        if v_free > 0 then
+        if v_free > 0 and not (v_busy && v_block) then
           resource_id := v_resource.id;
           starts_at := v_at;
           ends_at := v_at + v_service.duration;
@@ -589,7 +636,7 @@ begin
         using v_id;
     end if;
   end;
-  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason") || jsonb_build_object('accessToken', v_token);
+  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'seriesId', v_booking."series_id", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason") || jsonb_build_object('accessToken', v_token);
 end;
 $$;
 revoke execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
@@ -656,7 +703,7 @@ begin
   end if;
   if change_booking.to_status = 'confirmed' then
     if v_booking."status" = 'confirmed' then
-      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
+      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'seriesId', v_booking."series_id", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
     end if;
     if v_booking."status" <> 'hold' or v_booking."hold_expires_at" <= now() then
       raise exception 'the hold has expired or was cancelled' using errcode = '22023', hint = 'BOOKING_HOLD_EXPIRED';
@@ -693,7 +740,7 @@ begin
   end;
   elsif change_booking.to_status = 'cancelled' then
     if v_booking."status" = 'cancelled' then
-      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
+      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'seriesId', v_booking."series_id", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
     end if;
     update "better_supabase"."bookings" bk set "status" = 'cancelled', "hold_expires_at" = null, "cancelled_at" = now(), "cancel_reason" = change_booking.reason, "updated_at" = now()
     where bk."id" = v_id returning * into v_booking;
@@ -714,7 +761,7 @@ begin
   else
     raise exception 'change a booking to confirmed or cancelled' using errcode = '22023', hint = 'BOOKING_STATUS_INVALID';
   end if;
-  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
+  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'seriesId', v_booking."series_id", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
 end;
 $$;
 revoke execute on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
@@ -751,7 +798,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_user_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") order by lower(bk."during"), bk."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_user_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") order by lower(bk."during"), bk."id"), '[]'::jsonb)
   from "better_supabase"."bookings" bk
   where bk."tenant_id" = list_bookings.tenant
     and bk."during" && tstzrange(list_bookings.range_start, list_bookings.range_end)
@@ -960,6 +1007,355 @@ $$;
 revoke all on function "better_supabase"."public_change_booking"(uuid, text, text) from public;
 grant execute on function "better_supabase"."public_change_booking"(uuid, text, text) to anon, authenticated, service_role;
 
+-- The starts of a rule's occurrences from first_start: { freq: daily or
+-- weekly, interval, weekdays (1 is Monday, weekly only), count or until }.
+-- Each start keeps first_start's local time in tz. At most
+-- 366 starts, within 730 days.
+create or replace function "better_supabase"."booking_series_starts"(rule jsonb, first_start timestamptz, tz text)
+returns setof timestamptz
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_freq text := booking_series_starts.rule ->> 'freq';
+  v_interval integer;
+  v_days integer[];
+  v_count integer;
+  v_until timestamptz;
+  v_local timestamp;
+  v_week0 date;
+  v_date date;
+  v_at timestamptz;
+  v_n integer := 0;
+begin
+  if jsonb_typeof(booking_series_starts.rule) is distinct from 'object' or v_freq is null or v_freq not in ('daily', 'weekly') then
+    raise exception 'rule.freq is daily or weekly' using errcode = '22023', hint = 'BOOKING_RULE_INVALID';
+  end if;
+  if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = booking_series_starts.tz) then
+    raise exception 'tz must be an IANA time zone' using errcode = '22023', hint = 'BOOKING_TZ_INVALID';
+  end if;
+  begin
+    v_interval := coalesce((booking_series_starts.rule ->> 'interval')::integer, 1);
+    v_count := (booking_series_starts.rule ->> 'count')::integer;
+    v_until := (booking_series_starts.rule ->> 'until')::timestamptz;
+    v_days := array(select jsonb_array_elements_text(coalesce(booking_series_starts.rule -> 'weekdays', '[]'::jsonb))::integer);
+  exception when others then
+    raise exception 'rule.interval and rule.count are integers, rule.until a timestamp and rule.weekdays a list of 1 to 7' using errcode = '22023', hint = 'BOOKING_RULE_INVALID';
+  end;
+  if v_interval not between 1 and 52 then
+    raise exception 'rule.interval is between 1 and 52' using errcode = '22023', hint = 'BOOKING_RULE_INVALID';
+  end if;
+  if v_count is null and v_until is null then
+    raise exception 'a rule needs count or until' using errcode = '22023', hint = 'BOOKING_RULE_INVALID';
+  end if;
+  if v_count is not null and v_count not between 1 and 366 then
+    raise exception 'rule.count is between 1 and 366' using errcode = '22023', hint = 'BOOKING_RULE_INVALID';
+  end if;
+  if v_until is not null and v_until < booking_series_starts.first_start then
+    raise exception 'rule.until is before the first occurrence' using errcode = '22023', hint = 'BOOKING_RULE_INVALID';
+  end if;
+  if exists (select 1 from unnest(v_days) d where d not between 1 and 7) then
+    raise exception 'rule.weekdays are 1 (Monday) to 7 (Sunday)' using errcode = '22023', hint = 'BOOKING_RULE_INVALID';
+  end if;
+  v_local := booking_series_starts.first_start at time zone booking_series_starts.tz;
+  if cardinality(v_days) = 0 then
+    v_days := array[extract(isodow from v_local)::integer];
+  end if;
+  v_week0 := v_local::date - (extract(isodow from v_local)::integer - 1);
+  for v_offset in 0..730 loop
+    v_date := v_local::date + v_offset;
+    if (v_freq = 'daily' and v_offset % v_interval = 0)
+      or (v_freq = 'weekly' and extract(isodow from v_date)::integer = any (v_days) and ((v_date - v_week0) / 7) % v_interval = 0) then
+      v_at := (v_date + v_local::time) at time zone booking_series_starts.tz;
+      exit when v_until is not null and v_at > v_until;
+      return next v_at;
+      v_n := v_n + 1;
+      exit when v_n >= coalesce(v_count, 366);
+    end if;
+  end loop;
+end;
+$$;
+revoke execute on function "better_supabase"."booking_series_starts"(jsonb, timestamptz, text) from public, anon;
+grant execute on function "better_supabase"."booking_series_starts"(jsonb, timestamptz, text) to authenticated, service_role;
+
+-- Books every occurrence of a rule from starts_at, each through place_booking,
+-- so each one must be an open slot and the exclusion constraint settles races.
+-- A taken occurrence fails the whole series (BOOKING_SERIES_CONFLICT), or is
+-- skipped and listed with skip_conflicts. The occurrences are confirmed.
+create or replace function "better_supabase"."book_series"(service uuid, resource uuid, starts_at timestamptz, rule jsonb, customer jsonb, skip_conflicts boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_customer jsonb := coalesce(book_series.customer, '{}'::jsonb);
+  v_user uuid := auth.uid();
+  v_tenant uuid;
+  v_tz text;
+  v_series "better_supabase"."booking_series"%rowtype;
+  v_at timestamptz;
+  v_booking jsonb;
+  v_booked jsonb := '[]'::jsonb;
+  v_skipped jsonb := '[]'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id" into v_tenant from "better_supabase"."booking_services" where "id" = book_series.service and "active";
+  if not found then
+    raise exception 'service not found' using errcode = 'P0002', hint = 'BOOKING_SERVICE_NOT_FOUND';
+  end if;
+  if (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'bookings.manage'), false)) then
+    v_user := coalesce(nullif(v_customer ->> 'userId', '')::uuid, v_user);
+  elsif not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'bookings.create'), false)) then
+    raise exception 'not allowed to book' using errcode = '42501', hint = 'BOOKING_FORBIDDEN';
+  else
+    v_customer := v_customer || jsonb_build_object('email', coalesce(v_customer ->> 'email', auth.email()));
+  end if;
+  select "tz" into v_tz from "better_supabase"."booking_resources" where "id" = book_series.resource and "tenant_id" = v_tenant and "active";
+  if not found then
+    raise exception 'resource not found' using errcode = 'P0002', hint = 'BOOKING_RESOURCE_NOT_FOUND';
+  end if;
+  v_tz := coalesce(nullif(book_series.rule ->> 'tz', ''), v_tz);
+  insert into "better_supabase"."booking_series" ("tenant_id", "service_id", "resource_id", "rule", "starts_at", "tz", "customer_name", "customer_email", "customer_user_id", "created_by")
+  values (v_tenant, book_series.service, book_series.resource, book_series.rule - 'tz', book_series.starts_at, v_tz, v_customer ->> 'name', lower(v_customer ->> 'email'), v_user, auth.uid())
+  returning * into v_series;
+  for v_at in select t from "better_supabase"."booking_series_starts"(book_series.rule, book_series.starts_at, v_tz) t loop
+    begin
+      v_booking := "better_supabase"."place_booking"(book_series.service, book_series.resource, v_at, v_customer, true, v_user);
+      update "better_supabase"."bookings" set "series_id" = v_series."id" where "id" = (v_booking ->> 'id')::uuid;
+      v_booked := v_booked || jsonb_build_array((v_booking - 'accessToken') || jsonb_build_object('seriesId', v_series."id"));
+    exception when sqlstate '23P01' then
+      if not coalesce(book_series.skip_conflicts, false) then
+        raise exception 'an occurrence is not an open slot' using errcode = '23P01', hint = 'BOOKING_SERIES_CONFLICT';
+      end if;
+      v_skipped := v_skipped || jsonb_build_array(v_at);
+    end;
+  end loop;
+  if jsonb_array_length(v_booked) = 0 then
+    raise exception 'no occurrence is an open slot' using errcode = '23P01', hint = 'BOOKING_SERIES_CONFLICT';
+  end if;
+  update "better_supabase"."booking_series" set "ends_at" = ((v_booked -> -1) ->> 'endsAt')::timestamptz where "id" = v_series."id"
+  returning * into v_series;
+  return jsonb_build_object('series', jsonb_build_object('id', v_series."id", 'organizationId', v_series."tenant_id"::text, 'serviceId', v_series."service_id", 'resourceId', v_series."resource_id", 'rule', v_series."rule", 'startsAt', v_series."starts_at", 'tz', v_series."tz", 'customerName', v_series."customer_name", 'customerEmail', v_series."customer_email", 'customerUserId', v_series."customer_user_id", 'status', v_series."status", 'endsAt', v_series."ends_at", 'createdAt', v_series."created_at"), 'bookings', v_booked, 'skipped', v_skipped);
+end;
+$$;
+revoke execute on function "better_supabase"."book_series"(uuid, uuid, timestamptz, jsonb, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."book_series"(uuid, uuid, timestamptz, jsonb, jsonb, boolean) to authenticated, service_role;
+
+-- Moves a live booking to starts_at, keeping its id. The booking frees its
+-- seat for the check (cancel reason bs:moving), so the new time must be
+-- an open slot apart from the booking itself; a taken time puts it back.
+create or replace function "better_supabase"."move_booking"(booking uuid, starts_at timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_old "better_supabase"."bookings"%rowtype;
+  v_booking "better_supabase"."bookings"%rowtype;
+  v_capacity integer;
+  v_length interval;
+  v_before interval;
+  v_after interval;
+  v_moved boolean := false;
+  v_calendar uuid;
+  v_tz text;
+  v_title text;
+  v_event uuid;
+begin
+  select * into v_old from "better_supabase"."bookings" bk where bk."id" = move_booking.booking for update;
+  if not found then
+    raise exception 'booking not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
+  end if;
+  if v_old."status" = 'cancelled' then
+    raise exception 'a cancelled booking can''t move' using errcode = '22023', hint = 'BOOKING_STATUS_INVALID';
+  end if;
+  v_booking := v_old;
+  if lower(v_old."during") = move_booking.starts_at then
+    return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'seriesId', v_booking."series_id", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
+  end if;
+  v_length := upper(v_old."during") - lower(v_old."during");
+  v_before := lower(v_old."during") - lower(v_old."blocked");
+  v_after := upper(v_old."blocked") - upper(v_old."during");
+  update "better_supabase"."bookings" bk set "status" = 'cancelled', "hold_expires_at" = null, "cancelled_at" = now(), "cancel_reason" = 'bs:moving'
+  where bk."id" = v_old."id";
+  if not exists (
+    select 1 from "better_supabase"."booking_slots"(v_old."service_id", move_booking.starts_at, move_booking.starts_at + v_length, null, v_old."resource_id") t
+    where t.starts_at = move_booking.starts_at
+  ) then
+    raise exception 'that time is not an open slot' using errcode = '23P01', hint = 'BOOKING_SLOT_UNAVAILABLE';
+  end if;
+  select rs."capacity" into v_capacity from "better_supabase"."booking_resources" rs where rs."id" = v_old."resource_id";
+  for v_seat in 1..v_capacity loop
+    begin
+      update "better_supabase"."bookings" bk set "status" = v_old."status", "hold_expires_at" = v_old."hold_expires_at", "cancelled_at" = null, "cancel_reason" = null,
+        "seat" = v_seat,
+        "during" = tstzrange(move_booking.starts_at, move_booking.starts_at + v_length),
+        "blocked" = tstzrange(move_booking.starts_at - v_before, move_booking.starts_at + v_length + v_after),
+        "updated_at" = now()
+      where bk."id" = v_old."id"
+      returning * into v_booking;
+      v_moved := true;
+      exit;
+    exception when exclusion_violation then
+      null;
+    end;
+  end loop;
+  if not v_moved then
+    raise exception 'that time was just taken' using errcode = '23P01', hint = 'BOOKING_SLOT_UNAVAILABLE';
+  end if;
+  if v_booking."status" = 'confirmed' then
+    if v_old."calendar_event_id" is not null then
+    delete from "better_supabase"."calendar_events" where "id" = v_old."calendar_event_id";
+  end if;
+    delete from "better_supabase"."reminders" where "subject_type" = 'booking' and "subject_id" = v_booking."id"::text;
+  delete from "better_supabase"."recurrence_rules" where "subject_type" = 'booking' and "subject_id" = v_booking."id"::text;
+    select r."calendar_id", r."tz", sv."name" into v_calendar, v_tz, v_title
+  from "better_supabase"."booking_resources" r join "better_supabase"."booking_services" sv on sv."id" = v_booking."service_id"
+  where r."id" = v_booking."resource_id";
+  if v_calendar is not null then
+    insert into "better_supabase"."calendar_events" ("tenant_id", "calendar_id", "uid", "title", "starts_at", "ends_at", "tz", "status", "subject_type", "subject_id")
+    values (v_booking."tenant_id", v_calendar, 'booking-' || v_booking."id"::text, coalesce(v_booking."customer_name", v_title), lower(v_booking."during"), upper(v_booking."during"), v_tz, 'confirmed', 'booking', v_booking."id"::text)
+    on conflict ("calendar_id", "uid", "original_start") do update set "starts_at" = excluded."starts_at", "ends_at" = excluded."ends_at"
+    returning "id" into v_event;
+    update "better_supabase"."bookings" set "calendar_event_id" = v_event where "id" = v_booking."id";
+  end if;
+    delete from "better_supabase"."reminders" where "subject_type" = 'booking' and "subject_id" = v_booking."id"::text;
+  delete from "better_supabase"."recurrence_rules" where "subject_type" = 'booking' and "subject_id" = v_booking."id"::text;
+  insert into "better_supabase"."recurrence_rules" ("tenant_id", "subject_type", "subject_id", "dtstart", "tzid", "rrule")
+  select v_booking."tenant_id", 'booking', v_booking."id"::text, lower(v_booking."during"), r."tz", 'FREQ=DAILY;COUNT=1'
+  from "better_supabase"."booking_resources" r where r."id" = v_booking."resource_id";
+  insert into "better_supabase"."reminders" ("tenant_id", "subject_type", "subject_id", "user_id", "offset_minutes")
+  select v_booking."tenant_id", 'booking', v_booking."id"::text, v_booking."customer_user_id", o
+  from "better_supabase"."booking_services" sv, unnest(sv."reminder_offsets") o
+  where sv."id" = v_booking."service_id";
+  end if;
+  perform "better_supabase".emit_event('booking.rescheduled', jsonb_build_object('organizationId', v_booking."tenant_id", 'id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id"), 'bookings/' || v_booking."id"::text, (v_booking."tenant_id")::text, null, 'better-supabase/bookings');
+  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_user_id", 'notes', v_booking."notes", 'seriesId', v_booking."series_id", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
+end;
+$$;
+revoke execute on function "better_supabase"."move_booking"(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function "better_supabase"."move_booking"(uuid, timestamptz) to service_role;
+
+-- Moves one occurrence, or this one and every later live one in its series
+-- by the same amount (scope 'following'), in one transaction.
+create or replace function "better_supabase"."reschedule_booking"(booking uuid, starts_at timestamptz, scope text default 'one')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_booking "better_supabase"."bookings"%rowtype;
+  v_shift interval;
+  v_id uuid;
+  v_moved jsonb := '[]'::jsonb;
+begin
+  select * into v_booking from "better_supabase"."bookings" bk where bk."id" = reschedule_booking.booking;
+  if not found or not ((auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false)) or (v_booking."customer_user_id" = auth.uid() and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))) then
+    raise exception 'booking not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
+  end if;
+  if reschedule_booking.scope is null or reschedule_booking.scope not in ('one', 'following') then
+    raise exception 'scope is one or following' using errcode = '22023', hint = 'BOOKING_SCOPE_INVALID';
+  end if;
+  if reschedule_booking.scope = 'one' or v_booking."series_id" is null then
+    return jsonb_build_array("better_supabase"."move_booking"(v_booking."id", reschedule_booking.starts_at));
+  end if;
+  v_shift := reschedule_booking.starts_at - lower(v_booking."during");
+  -- Later occurrences move first when the shift is positive, so a series never
+  -- collides with itself.
+  for v_id in
+    select bk."id" from "better_supabase"."bookings" bk
+    where bk."series_id" = v_booking."series_id" and bk."status" <> 'cancelled'
+      and lower(bk."during") >= lower(v_booking."during")
+    order by case when v_shift > interval '0' then lower(bk."during") end desc, lower(bk."during")
+  loop
+    v_moved := v_moved || jsonb_build_array("better_supabase"."move_booking"(v_id, (select lower(x."during") from "better_supabase"."bookings" x where x."id" = v_id) + v_shift));
+  end loop;
+  return (select jsonb_agg(m order by (m ->> 'startsAt')::timestamptz) from jsonb_array_elements(v_moved) m);
+end;
+$$;
+revoke execute on function "better_supabase"."reschedule_booking"(uuid, timestamptz, text) from public, anon;
+grant execute on function "better_supabase"."reschedule_booking"(uuid, timestamptz, text) to authenticated, service_role;
+
+-- Cancels one occurrence, or this one and every later live one in its series
+-- (scope 'following'); the series then ends before it, or is cancelled when
+-- nothing is left. Returns how many bookings it cancelled.
+create or replace function "better_supabase"."cancel_booking_series"(booking uuid, scope text default 'following', reason text default null)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_booking "better_supabase"."bookings"%rowtype;
+  v_id uuid;
+  v_count integer := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_booking from "better_supabase"."bookings" bk where bk."id" = cancel_booking_series.booking;
+  if not found or not ((auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false)) or (v_booking."customer_user_id" = auth.uid() and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.create'), false)))) then
+    raise exception 'booking not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
+  end if;
+  if cancel_booking_series.scope is null or cancel_booking_series.scope not in ('one', 'following') then
+    raise exception 'scope is one or following' using errcode = '22023', hint = 'BOOKING_SCOPE_INVALID';
+  end if;
+  for v_id in
+    select bk."id" from "better_supabase"."bookings" bk
+    where bk."status" <> 'cancelled'
+      and (bk."id" = v_booking."id"
+        or (cancel_booking_series.scope = 'following' and bk."series_id" = v_booking."series_id"
+          and lower(bk."during") >= lower(v_booking."during")))
+    order by lower(bk."during")
+  loop
+    perform "better_supabase"."change_booking"(v_id, 'cancelled', cancel_booking_series.reason, null);
+    v_count := v_count + 1;
+  end loop;
+  if cancel_booking_series.scope = 'following' and v_booking."series_id" is not null then
+    update "better_supabase"."booking_series" sr set
+      "status" = case when exists (
+        select 1 from "better_supabase"."bookings" bk where bk."series_id" = sr."id" and bk."status" <> 'cancelled'
+      ) then 'ended' else 'cancelled' end,
+      "ends_at" = (select max(upper(bk."during")) from "better_supabase"."bookings" bk where bk."series_id" = sr."id" and bk."status" <> 'cancelled'),
+      "updated_at" = now()
+    where sr."id" = v_booking."series_id";
+  end if;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."cancel_booking_series"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."cancel_booking_series"(uuid, text, text) to authenticated, service_role;
+
+-- A series with its occurrences, as the caller: the policies show it to the
+-- tenant's readers and to its customer.
+create or replace function "better_supabase"."get_booking_series"(series_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', sr."id", 'organizationId', sr."tenant_id"::text, 'serviceId', sr."service_id", 'resourceId', sr."resource_id", 'rule', sr."rule", 'startsAt', sr."starts_at", 'tz', sr."tz", 'customerName', sr."customer_name", 'customerEmail', sr."customer_email", 'customerUserId', sr."customer_user_id", 'status', sr."status", 'endsAt', sr."ends_at", 'createdAt', sr."created_at") || jsonb_build_object('bookings', coalesce((
+    select jsonb_agg(jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_user_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") order by lower(bk."during"))
+    from "better_supabase"."bookings" bk where bk."series_id" = sr."id"
+  ), '[]'::jsonb))
+  from "better_supabase"."booking_series" sr
+  where sr."id" = get_booking_series.series_id
+$$;
+revoke execute on function "better_supabase"."get_booking_series"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_booking_series"(uuid) to authenticated, service_role;
+
 -- blocks.bookings.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1152,6 +1548,60 @@ set search_path = ''
 as $$ select "better_supabase"."public_change_booking"($1, $2, $3) $$;
 revoke execute on function "api"."public_change_booking"(uuid, text, text) from public;
 grant execute on function "api"."public_change_booking"(uuid, text, text) to anon, authenticated, service_role;
+
+create or replace function "api"."booking_series_starts"(rule jsonb, first_start timestamptz, tz text)
+returns setof timestamptz
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."booking_series_starts"($1, $2, $3) $$;
+revoke execute on function "api"."booking_series_starts"(jsonb, timestamptz, text) from public, anon;
+grant execute on function "api"."booking_series_starts"(jsonb, timestamptz, text) to authenticated, service_role;
+
+create or replace function "api"."book_series"(service uuid, resource uuid, starts_at timestamptz, rule jsonb, customer jsonb, skip_conflicts boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."book_series"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."book_series"(uuid, uuid, timestamptz, jsonb, jsonb, boolean) from public, anon;
+grant execute on function "api"."book_series"(uuid, uuid, timestamptz, jsonb, jsonb, boolean) to authenticated, service_role;
+
+create or replace function "api"."move_booking"(booking uuid, starts_at timestamptz)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."move_booking"($1, $2) $$;
+revoke execute on function "api"."move_booking"(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function "api"."move_booking"(uuid, timestamptz) to service_role;
+
+create or replace function "api"."reschedule_booking"(booking uuid, starts_at timestamptz, scope text default 'one')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."reschedule_booking"($1, $2, $3) $$;
+revoke execute on function "api"."reschedule_booking"(uuid, timestamptz, text) from public, anon;
+grant execute on function "api"."reschedule_booking"(uuid, timestamptz, text) to authenticated, service_role;
+
+create or replace function "api"."cancel_booking_series"(booking uuid, scope text default 'following', reason text default null)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."cancel_booking_series"($1, $2, $3) $$;
+revoke execute on function "api"."cancel_booking_series"(uuid, text, text) from public, anon;
+grant execute on function "api"."cancel_booking_series"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."get_booking_series"(series_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_booking_series"($1) $$;
+revoke execute on function "api"."get_booking_series"(uuid) from public, anon;
+grant execute on function "api"."get_booking_series"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

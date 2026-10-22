@@ -603,6 +603,92 @@ describe("drive client", () => {
     ]);
   });
 
+  it("labels nodes and files approvals for one version", async () => {
+    const approval = {
+      id: "r1",
+      status: "pending",
+      step: 0,
+      reason: "Sign off",
+      requestedBy: "u1",
+      createdAt: "2026-10-03T00:00:00Z",
+      decidedAt: null,
+      attachmentId: "a1",
+      revision: 1,
+      current: false,
+    };
+
+    const labeled = {
+      ...FILE,
+      labels: [
+        { id: "t1", name: "Final", color: "green" },
+        { id: "t2", name: "Draft", color: null },
+      ],
+      approval: {
+        ...approval,
+        status: "approved",
+        decidedAt: approval.createdAt,
+      },
+    };
+
+    const fake = transport({
+      drive_label: () => labeled,
+      drive_labeled: () => [labeled],
+      drive_request_approval: () => approval,
+      drive_approvals: () => [
+        { ...approval, revision: null, current: true },
+        approval,
+      ],
+    });
+
+    const drive = createDrive({ transport: fake });
+    const node = await drive.label("n1", "t1").orThrow();
+    expect(node.labels?.map((label) => label.name)).toEqual(["Final", "Draft"]);
+    expect(node.labels?.[1]?.color).toBeUndefined();
+    expect(node.approval?.status).toBe("approved");
+    expect(node.approval?.decidedAt?.toString()).toBe("2026-10-03T00:00:00Z");
+    await drive.label("n1", "t1", false).orThrow();
+    expect(await drive.labeled("o", "t1").orThrow()).toHaveLength(1);
+
+    const requested = await drive
+      .requestApproval("n1", { attachmentId: "a1", reason: "Sign off" })
+      .orThrow();
+
+    expect(requested).toMatchObject({
+      attachmentId: "a1",
+      revision: 1,
+      current: false,
+      step: 0,
+    });
+    await drive.requestApproval("n1").orThrow();
+
+    const [latest, first] = await drive.approvals("n1").orThrow();
+    expect(latest?.revision).toBeUndefined();
+    expect(latest?.current).toBe(true);
+    expect(first?.reason).toBe("Sign off");
+    expect(fake.calls.map(([, fn, args]) => [fn, args])).toEqual([
+      ["drive_label", { node: "n1", tag: "t1", applied: true }],
+      ["drive_label", { node: "n1", tag: "t1", applied: false }],
+      ["drive_labeled", { tenant: "o", tag: "t1", page_size: null }],
+      [
+        "drive_request_approval",
+        { node: "n1", attachment: "a1", reason: "Sign off" },
+      ],
+      [
+        "drive_request_approval",
+        { node: "n1", attachment: null, reason: null },
+      ],
+      ["drive_approvals", { node: "n1" }],
+    ]);
+
+    const plain = createDrive({
+      transport: transport({ drive_get: () => FILE }),
+    });
+
+    const file = await plain.get("n1").orThrow();
+    expect(file.labels).toBeUndefined();
+    expect(file.approval).toBeUndefined();
+  });
+
   it("rejects a node of an unknown kind", async () => {
     const drive = createDrive({
       transport: transport({ drive_get: () => ({ ...FILE, kind: "link" }) }),

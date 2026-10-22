@@ -35,6 +35,8 @@ const node = (
   role: undefined,
   starredAt: undefined,
   openedAt: undefined,
+  labels: undefined,
+  approval: undefined,
 });
 
 describe("fileTypeCategory", () => {

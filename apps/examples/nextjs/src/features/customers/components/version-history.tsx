@@ -53,6 +53,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { snapshotCustomerVersions } from "@/lib/supabase/features/customer/customer-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, VersionRow } from "../customer-record-queries";
@@ -60,7 +61,6 @@ import type { Loaded, VersionRow } from "../customer-record-queries";
 import {
   compareCustomerVersions,
   restoreCustomerVersion,
-  saveCustomerVersion,
 } from "../customer-record-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
@@ -201,7 +201,7 @@ function SaveVersionButton({ customerId }: { customerId: string }) {
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
-  const save = useAction(saveCustomerVersion, {
+  const save = useAction(snapshotCustomerVersions, {
     onSuccess: () => {
       toast.success(t("Version saved"));
     },
@@ -216,7 +216,7 @@ function SaveVersionButton({ customerId }: { customerId: string }) {
       variant="outline"
       disabled={save.pending}
       onClick={() => {
-        void save.run({ customerId });
+        void save.run({ id: customerId, input: {} });
       }}
     >
       <HistoryIcon />

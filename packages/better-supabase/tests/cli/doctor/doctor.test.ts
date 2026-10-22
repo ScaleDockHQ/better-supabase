@@ -470,6 +470,35 @@ describe("doctor rules", () => {
       );
     });
 
+    const guestBranch = (tuple: string) =>
+      `COALESCE(better_supabase.can('tenant'::text, org_id, 'members.manage'::text), false) OR ((${tuple}) IN ( SELECT g.tenant,\n    g.subject_type,\n    g.subject_id\n   FROM better_supabase.portal_subjects('comment'::text) g(tenant, subject_type, subject_id)))`;
+
+    it.each([
+      ["(org_id)::text, 'member'::text, (user_id)::text", "role."],
+      ["(user_id)::text, 'member'::text, (org_id)::text", "org_id, role."],
+    ])(
+      "treats a guest branch led by %s as pinning only when the tenant column leads",
+      async (tuple, flagged) => {
+        const check = guestBranch(tuple);
+
+        const snap = withTable("memberships", (memberships) => {
+          memberships.primaryKey = ["user_id"];
+          memberships.policies = [
+            ...memberships.policies,
+            { ...updatePolicy, using: check, check },
+          ];
+          memberships.grants = [
+            { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+          ];
+        });
+
+        const findings = await runRules(context(snap), only);
+        expect(findings[0]?.message).toContain(
+          `authenticated may update ${flagged}`,
+        );
+      },
+    );
+
     it("leaves out a subject's deletedAt column unless the provider lists it", async () => {
       const snap = withTable("memberships", (memberships) => {
         memberships.policies = [...memberships.policies, updatePolicy];

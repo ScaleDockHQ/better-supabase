@@ -92,10 +92,8 @@ describe("entity schemas", () => {
 
   it("validates the collaboration blocks' inputs", async () => {
     const comment = await commentInputSchema["~standard"].validate({
-      organizationId: ID,
-      subjectType: "deal",
-      subjectId: ID,
-      body: "",
+      body: 42,
+      mentionIds: [ID],
     });
 
     const engagement = await engagementInputSchema["~standard"].validate({
@@ -112,7 +110,7 @@ describe("entity schemas", () => {
     expect(comment.issues?.map((issue) => issue.path)).toEqual([["body"]]);
     expect(engagement.issues?.map((issue) => issue.path)).toEqual([["title"]]);
     expect(event.issues?.map((issue) => issue.path)).toEqual([["status"]]);
-    expect(Object.keys(commentsBlock.schemas)).toEqual(["comment"]);
+    expect(commentsBlock.schemas).toEqual({});
     expect(Object.keys(attachmentsBlock.schemas)).toEqual(["attachment"]);
     expect(Object.keys(engagementsBlock.schemas)).toEqual(["engagement"]);
     expect(Object.keys(calendarBlock.schemas)).toEqual(["calendar_event"]);

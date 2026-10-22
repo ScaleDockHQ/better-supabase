@@ -1,17 +1,19 @@
 import type { InboxSql } from "./inbox-names.ts";
 
 import { serviceGrant, pageSize } from "../shared.ts";
-import { forbidden, missing } from "./inbox-functions.ts";
-import { topics } from "./inbox-names.ts";
+import { forbidden, missing } from "./inbox-names.ts";
 
 /**
- * The service calls: deliveries, stored webhook events, sweeps, templates and
- * typing.
+ * The service calls: deliveries, stored webhook events, file imports, sweeps
+ * and templates.
  */
 export function inboxServiceFunctions(q: InboxSql): string {
   const { id, fn } = q;
   const cv = q.cols("conversations");
-  const ms = q.cols("messages");
+  const dt = q.cols("details");
+  const cm = q.core.cols("messages");
+  const at = q.ctx.of("attachments");
+  const a = (column: string): string => at.col("attachments", column);
   const dl = q.cols("deliveries");
   const ie = q.cols("inbound");
   const tp = q.cols("templates");
@@ -23,52 +25,7 @@ export function inboxServiceFunctions(q: InboxSql): string {
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
 
-  return `-- One message with its first delivery, under the caller's RLS.
-create or replace function ${fn("get_message")}(message uuid)
-returns jsonb
-language sql
-stable
-set search_path = ''
-as $$
-  select to_jsonb(m) || jsonb_build_object('delivery', (
-    select jsonb_build_object('status', d.${dl("status")}, 'channel', d.${dl("channel")}, 'error', d.${dl("error")}, 'updated_at', d.${dl("updatedAt")})
-    from ${T("deliveries")} d where d.${dl("message")} = m.${ms("id")}
-    order by d.${dl("createdAt")} limit 1
-  ))
-  from ${T("messages")} m where m.${ms("id")} = get_message.message;
-$$;
-${authed(`${fn("get_message")}(uuid)`)}
-
--- A typing ping on the conversation's topic, from staff, the contact or
--- the service (actor names the bot).
-create or replace function ${fn("set_typing")}(conversation uuid, typing boolean default true, actor text default null)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_who text;
-begin
-  if ${service} then
-    v_who := coalesce(actor, 'bot');
-  elsif ${fn("inbox_conversation_allowed")}(conversation::text, true) then
-    v_who := (select auth.uid())::text;
-  else
-    ${forbidden("not allowed to write in this conversation")}
-  end if;
-  perform realtime.send(
-    jsonb_build_object('user_id', v_who, 'typing', coalesce(typing, true)),
-    'typing',
-    ${topics(q).conversation("conversation")},
-    true
-  );
-  return true;
-end;
-$$;
-${authed(`${fn("set_typing")}(uuid, boolean, text)`)}
-
--- After posting an outbound message on its channel: records the platform's
+  return `-- After posting an outbound message on its channel: records the platform's
 -- id and the status.
 create or replace function ${fn("record_delivery")}(message uuid, channel text, external_id text default null, status text default 'sent', error text default null)
 returns jsonb
@@ -80,8 +37,8 @@ declare
   v_row ${T("deliveries")}%rowtype;
 begin
   insert into ${T("deliveries")} as d (${dl("tenant")}, ${dl("message")}, ${dl("channel")}, ${dl("externalId")}, ${dl("status")}, ${dl("error")}, ${dl("attempts")})
-  select m.${ms("tenant")}, m.${ms("id")}, record_delivery.channel, record_delivery.external_id, coalesce(record_delivery.status, 'sent'), record_delivery.error, 1
-  from ${T("messages")} m where m.${ms("id")} = record_delivery.message
+  select m.${dt("tenant")}, m.${dt("message")}, record_delivery.channel, record_delivery.external_id, coalesce(record_delivery.status, 'sent'), record_delivery.error, 1
+  from ${T("details")} m where m.${dt("message")} = record_delivery.message
   on conflict (${dl("message")}, ${dl("channel")}) do update set
     ${dl("externalId")} = coalesce(excluded.${dl("externalId")}, d.${dl("externalId")}),
     ${dl("status")} = excluded.${dl("status")},
@@ -199,23 +156,6 @@ end;
 $$;
 ${serviceGrant(`${fn("purge_inbound_events")}(interval, integer)`)}
 
--- Reopens snoozed conversations whose time came, for a periodic job.
-create or replace function ${fn("wake_snoozed_conversations")}()
-returns integer
-language plpgsql
-set search_path = ''
-as $$
-declare
-  v_count integer;
-begin
-  update ${T("conversations")} set ${cv("status")} = 'open', ${cv("snoozedUntil")} = null
-  where ${cv("status")} = 'snoozed' and ${cv("snoozedUntil")} <= now();
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-${serviceGrant(`${fn("wake_snoozed_conversations")}()`)}
-
 create or replace function ${fn("upsert_message_template")}(tenant ${id}, input jsonb)
 returns jsonb
 language plpgsql
@@ -265,9 +205,9 @@ $$;
 ${authed(`${fn("delete_message_template")}(uuid)`)}
 
 -- Erases a contact for a data subject request: the contact, its identities
--- and its conversations with their messages, deliveries and events. Returns
--- { conversations, messages, attachments }; attachments are the storage
--- paths the caller still has to remove.
+-- and its conversations with their messages, files, deliveries and events.
+-- Returns { conversations, messages, attachments }; attachments are the
+-- { bucket, path } of the stored files the caller still has to remove.
 create or replace function ${fn("purge_contact")}(contact uuid)
 returns jsonb
 language plpgsql
@@ -276,7 +216,7 @@ set search_path = ''
 as $$
 declare
   v_tenant ${id};
-  v_conversations integer;
+  v_ids uuid[];
   v_messages integer;
   v_paths jsonb;
 begin
@@ -287,20 +227,73 @@ begin
   if not (${service} or ${q.can("v_tenant", "manage")}) then
     ${forbidden("not allowed to erase contacts")}
   end if;
-  select count(*)::integer into v_conversations from ${T("conversations")} v where v.${cv("contact")} = purge_contact.contact;
-  select coalesce(jsonb_agg(a ->> 'path') filter (where a ? 'path'), '[]'::jsonb)
-  into v_paths
-  from ${T("messages")} m
-  join ${T("conversations")} v on v.${cv("id")} = m.${ms("conversation")}
-  left join lateral jsonb_array_elements(m.${ms("attachments")}) a on true
-  where v.${cv("contact")} = purge_contact.contact;
-  select count(*)::integer into v_messages
-  from ${T("messages")} m
-  join ${T("conversations")} v on v.${cv("id")} = m.${ms("conversation")}
-  where v.${cv("contact")} = purge_contact.contact;
+  v_ids := array(select v.${cv("id")} from ${T("conversations")} v where v.${cv("contact")} = purge_contact.contact);
+  select count(*)::integer into v_messages from ${q.core.t("messages")} m where m.${cm("conversation")} = any (v_ids);
+  with gone as (
+    delete from ${at.table("attachments")} x
+    where (x.${a("subjectType")} = ${q.core.conversation} and x.${a("subjectId")} = any (array(select i::text from unnest(v_ids) i)))
+      or (x.${a("subjectType")} = ${q.core.message} and x.${a("subjectId")} in (
+        select m.${cm("id")}::text from ${q.core.t("messages")} m where m.${cm("conversation")} = any (v_ids)))
+    returning x.${a("bucket")} as bucket, x.${a("path")} as path, x.${a("uploadedAt")} as uploaded_at
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('bucket', g.bucket, 'path', g.path)) filter (where g.uploaded_at is not null), '[]'::jsonb)
+  into v_paths from gone g;
+  delete from ${q.core.t("conversations")} k where k.${q.core.cols("conversations")("id")} = any (v_ids);
   delete from ${T("contacts")} c where c.${ct("id")} = purge_contact.contact;
-  return jsonb_build_object('conversations', v_conversations, 'messages', v_messages, 'attachments', v_paths);
+  return jsonb_build_object('conversations', cardinality(v_ids), 'messages', v_messages, 'attachments', v_paths);
 end;
 $$;
-${authed(`${fn("purge_contact")}(uuid)`)}`;
+${authed(`${fn("purge_contact")}(uuid)`)}
+
+-- Files a channel sent that still wait for their import, oldest first:
+-- { id, conversation_id, message_id, tenant_id, bucket, object_path, name,
+-- mime_type, source }. source is the channel's file ({ url, name,
+-- content_type, size }) or, for files copied from an older inbox,
+-- { bucket, path }. Upload the bytes to bucket and object_path, then call
+-- confirm_attachment as the service, or inbox_file_failed.
+create or replace function ${fn("pending_inbox_files")}(max integer default 50)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', x.${a("id")},
+    'conversation_id', d.${dt("conversation")},
+    'message_id', d.${dt("message")},
+    'tenant_id', x.${a("tenant")},
+    'bucket', x.${a("bucket")},
+    'object_path', x.${a("path")},
+    'name', x.${a("name")},
+    'mime_type', x.${a("mimeType")},
+    'source', x.${a("detail")}::jsonb -> 'source'
+  ) order by x.${a("createdAt")}, x.${a("id")}), '[]'::jsonb)
+  from (
+    select * from ${at.table("attachments")} y
+    where y.${a("status")} = 'pending' and y.${a("uploadedAt")} is null
+      and y.${a("subjectType")} = ${q.core.message}
+      and y.${a("detail")} is not null and y.${a("detail")} like '{"source"%'
+    order by y.${a("createdAt")}, y.${a("id")}
+    limit ${pageSize("max", 50, 500)}
+  ) x
+  join ${T("details")} d on d.${dt("message")}::text = x.${a("subjectId")};
+$$;
+${serviceGrant(`${fn("pending_inbox_files")}(integer)`)}
+
+-- Marks a channel file that could not be imported, with the reason.
+create or replace function ${fn("inbox_file_failed")}(attachment uuid, detail text default null)
+returns boolean
+language plpgsql
+set search_path = ''
+as $$
+begin
+  update ${at.table("attachments")} x set
+    ${a("status")} = 'failed',
+    ${a("detail")} = coalesce(inbox_file_failed.detail, 'import failed'),
+    ${a("scannedAt")} = now()
+  where x.${a("id")} = inbox_file_failed.attachment and x.${a("status")} = 'pending' and x.${a("uploadedAt")} is null;
+  return found;
+end;
+$$;
+${serviceGrant(`${fn("inbox_file_failed")}(uuid, text)`)}`;
 }

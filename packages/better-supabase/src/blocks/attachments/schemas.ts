@@ -12,5 +12,8 @@ export const attachmentInputSchema: EntitySchema<NewAttachment> =
       mimeType: { kind: "string", minLength: 1 },
       size: { kind: "integer", minimum: 0 },
       metadata: { kind: "json", optional: true },
+      width: { kind: "integer", minimum: 1, optional: true },
+      height: { kind: "integer", minimum: 1, optional: true },
+      pages: { kind: "integer", minimum: 1, optional: true },
     },
   });

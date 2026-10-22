@@ -8,6 +8,8 @@ import {
   FORM_DEFINITION_SCHEMA,
   FORM_MAX_LENGTH,
   FORM_SCHEMA_DIALECT,
+  NPS_MAX,
+  UNSCORED_FIELD_TYPES,
 } from "../../core/contracts/form-definition.ts";
 import { sqlString } from "../../core/template.ts";
 
@@ -118,6 +120,7 @@ begin
     when 'option' then jsonb_build_object('type', 'string', 'enum', v_values)
     when 'multi' then jsonb_build_object('type', 'array', 'items', jsonb_build_object('type', 'string', 'enum', v_values), 'uniqueItems', true)
       || jsonb_strip_nulls(jsonb_build_object('minItems', coalesce(field -> 'min', v_floor), 'maxItems', field -> 'max'))
+    when 'nps' then '{"type": "integer", "minimum": 0, "maximum": ${String(NPS_MAX)}}'::jsonb
     else '{}'::jsonb
   end;
   return v_out || jsonb_strip_nulls(jsonb_build_object('title', field -> 'label', 'description', field -> 'help'));
@@ -207,6 +210,7 @@ declare
   v_options jsonb;
   v_step_keys text[] := '{}';
   v_keys text[] := '{}';
+  v_scored boolean := false;
 begin
   v_errors := extensions.jsonschema_validation_errors(${sqlString(JSON.stringify(FORM_DEFINITION_SCHEMA))}::json, definition::json);
   if cardinality(v_errors) > 0 then
@@ -252,17 +256,194 @@ begin
         end;
         exit steps when v_problem is not null;
       end if;
+      if v_field ? 'correct' then
+        v_scored := true;
+        if v_field -> 'correct' = 'null'::jsonb then
+          v_problem := format('field %s: correct can''t be null', v_field ->> 'key');
+          exit steps;
+        end if;
+        if (v_field ->> 'type') in (${UNSCORED_FIELD_TYPES.map(sqlString).join(", ")}) then
+          v_problem := format('field %s: a %s field can''t have a correct answer', v_field ->> 'key', v_field ->> 'type');
+          exit steps;
+        end if;
+        if not ${fn("form_correct_fits")}(v_field) then
+          v_problem := format('field %s: correct isn''t an answer the field takes', v_field ->> 'key');
+          exit steps;
+        end if;
+      elsif v_field ? 'points' then
+        v_problem := format('field %s: points need a correct answer', v_field ->> 'key');
+        exit steps;
+      end if;
       v_fields := v_fields || jsonb_build_array(v_field);
     end loop;
     v_steps := v_steps || jsonb_build_array(jsonb_set(v_step, '{fields}', v_fields));
   end loop;
+  if v_problem is null and definition ? 'scoring' and not v_scored then
+    v_problem := 'scoring needs a field with a correct answer';
+  end if;
   if v_problem is not null then
     v_errors := array[v_problem];
     ${definitionInvalid("v_errors")}
   end if;
-  return jsonb_build_object('steps', v_steps);
+  return jsonb_build_object('steps', v_steps)
+    || case when definition ? 'scoring' then jsonb_build_object('scoring', definition -> 'scoring') else '{}'::jsonb end;
 end;
 $$;
 revoke execute on function ${fn("form_resolve")}(${ctx.idType}, jsonb) from public, anon, authenticated;
+`;
+}
+
+/**
+ * The SQL twins of the scoring in `blocks/forms/scoring.ts` and the correct
+ * answer check in `formDefinitionProblems`. `form_score` grades answers against
+ * a version's answer key, so the client never sends a score.
+ */
+export function formScoringFunctions(ctx: ModuleContext): string {
+  const fn = (name: string): string => ctx.fn(name);
+
+  return `-- Whether a field's correct answer is one it takes. Mirrors correctFits in
+-- core/contracts/form-definition.ts.
+create or replace function ${fn("form_correct_fits")}(field jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case field ->> 'type'
+    when 'text' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'textarea' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'email' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'url' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'date' then jsonb_typeof(field -> 'correct') = 'string'
+    when 'number' then jsonb_typeof(field -> 'correct') = 'number'
+    when 'integer' then case when jsonb_typeof(field -> 'correct') = 'number'
+      then (field ->> 'correct')::numeric = trunc((field ->> 'correct')::numeric) else false end
+    when 'bool' then jsonb_typeof(field -> 'correct') = 'boolean'
+    when 'option' then jsonb_typeof(field -> 'correct') = 'string'
+      and exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = field -> 'correct')
+    when 'multi' then jsonb_typeof(field -> 'correct') = 'array'
+      and jsonb_array_length(field -> 'correct') > 0
+      and not exists (
+        select 1 from jsonb_array_elements(field -> 'correct') v
+        where jsonb_typeof(v) <> 'string'
+          or not exists (select 1 from jsonb_array_elements(coalesce(field -> 'options', '[]'::jsonb)) o where o -> 'value' = v))
+    else false
+  end
+$$;
+revoke execute on function ${fn("form_correct_fits")}(jsonb) from public, anon, authenticated;
+
+-- Whether a showIf condition holds for the answers. Mirrors conditionHolds in
+-- blocks/forms/questionnaire.ts.
+create or replace function ${fn("form_condition_holds")}(condition jsonb, answers jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when not answers ? (condition ->> 'field') then false
+    when condition ? 'equals' then answers -> (condition ->> 'field') = condition -> 'equals'
+    when condition ? 'in' then exists (select 1 from jsonb_array_elements(condition -> 'in') x where x = answers -> (condition ->> 'field'))
+    else not (answers -> (condition ->> 'field') in ('null'::jsonb, '""'::jsonb, '[]'::jsonb))
+  end
+$$;
+revoke execute on function ${fn("form_condition_holds")}(jsonb, jsonb) from public, anon, authenticated;
+
+-- Whether an answer earns a field's points: text without case and surrounding
+-- spaces, a multi answer as a set, anything else as the same JSON value.
+create or replace function ${fn("form_answer_matches")}(type text, answer jsonb, correct jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when type in ('text', 'textarea', 'email', 'url') then jsonb_typeof(answer) = 'string' and jsonb_typeof(correct) = 'string'
+      and lower(btrim(answer #>> '{}', ' ')) = lower(btrim(correct #>> '{}', ' '))
+    when type = 'multi' then jsonb_typeof(answer) = 'array' and jsonb_typeof(correct) = 'array'
+      and answer @> correct and correct @> answer
+    else coalesce(answer = correct, false)
+  end
+$$;
+revoke execute on function ${fn("form_answer_matches")}(text, jsonb, jsonb) from public, anon, authenticated;
+
+-- A submission's grade: { score, maxScore, passed } against the answer key
+-- (field key to correct answer), or null for a form without one. A field its
+-- showIf (or its step's) hides counts toward neither score; passed is null
+-- without scoring.passMark. Mirrors formScore in blocks/forms/scoring.ts.
+create or replace function ${fn("form_score")}(definition jsonb, answer_key jsonb, answers jsonb)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_step jsonb;
+  v_field jsonb;
+  v_points numeric;
+  v_score numeric := 0;
+  v_max numeric := 0;
+  v_pass numeric := (definition -> 'scoring' ->> 'passMark')::numeric;
+begin
+  if answer_key is null or answer_key = '{}'::jsonb then
+    return null;
+  end if;
+  for v_step in select x from jsonb_array_elements(definition -> 'steps') x loop
+    continue when v_step ? 'showIf' and not ${fn("form_condition_holds")}(v_step -> 'showIf', answers);
+    for v_field in select x from jsonb_array_elements(v_step -> 'fields') x loop
+      continue when not answer_key ? (v_field ->> 'key');
+      continue when v_field ? 'showIf' and not ${fn("form_condition_holds")}(v_field -> 'showIf', answers);
+      v_points := coalesce((v_field ->> 'points')::numeric, 1);
+      v_max := v_max + v_points;
+      if answers ? (v_field ->> 'key')
+        and ${fn("form_answer_matches")}(v_field ->> 'type', answers -> (v_field ->> 'key'), answer_key -> (v_field ->> 'key')) then
+        v_score := v_score + v_points;
+      end if;
+    end loop;
+  end loop;
+  return jsonb_build_object('score', v_score, 'maxScore', v_max,
+    'passed', case when v_pass is null then null else v_score * 100 >= v_pass * v_max end);
+end;
+$$;
+revoke execute on function ${fn("form_score")}(jsonb, jsonb, jsonb) from public, anon, authenticated;
+
+-- The definition without its correct answers, and the answer key they make
+-- (field key to correct answer), as { definition, key }.
+create or replace function ${fn("form_answer_split")}(definition jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'definition', jsonb_set(definition, '{steps}', coalesce((
+      select jsonb_agg(jsonb_set(s.step, '{fields}', (
+        select jsonb_agg(f.field - 'correct' order by f.ord)
+        from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+      from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb)),
+    'key', coalesce((
+      select jsonb_object_agg(f.field ->> 'key', f.field -> 'correct')
+      from jsonb_array_elements(definition -> 'steps') s(step)
+      cross join lateral jsonb_array_elements(s.step -> 'fields') f(field)
+      where f.field ? 'correct'), '{}'::jsonb))
+$$;
+revoke execute on function ${fn("form_answer_split")}(jsonb) from public, anon, authenticated;
+
+-- A stored definition with its answer key put back, for the form's managers.
+create or replace function ${fn("form_answer_merge")}(definition jsonb, answer_key jsonb)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when answer_key is null or answer_key = '{}'::jsonb then definition
+  else jsonb_set(definition, '{steps}', coalesce((
+    select jsonb_agg(jsonb_set(s.step, '{fields}', (
+      select jsonb_agg(case when answer_key ? (f.field ->> 'key') then f.field || jsonb_build_object('correct', answer_key -> (f.field ->> 'key')) else f.field end order by f.ord)
+      from jsonb_array_elements(s.step -> 'fields') with ordinality as f(field, ord))) order by s.ord)
+    from jsonb_array_elements(definition -> 'steps') with ordinality as s(step, ord)), '[]'::jsonb))
+  end
+$$;
+revoke execute on function ${fn("form_answer_merge")}(jsonb, jsonb) from public, anon, authenticated;
 `;
 }

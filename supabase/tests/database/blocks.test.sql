@@ -4,10 +4,14 @@
 begin;
 select plan(26);
 
-insert into better_supabase.comments (id, organization_id, subject_type, subject_id, author_id, body) values
-  ('00000000-0000-4000-8000-0000000cc001', '00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', '00000000-0000-4000-8000-0000000000a1', 'Admin note'),
-  ('00000000-0000-4000-8000-0000000cc002', '00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', '00000000-0000-4000-8000-0000000000a2', 'Member note'),
-  ('00000000-0000-4000-8000-0000000cc003', '00000000-0000-4000-8000-000000000002', 'customer', '00000000-0000-4000-8000-00000000a003', null, 'Globex note');
+-- Comments are messages in a record's subject conversation (ADR 0062).
+insert into better_supabase.conversations (id, tenant_id, kind, access, subject_type, subject_id) values
+  ('00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-000000000001', 'subject', 'subject', 'customer', '00000000-0000-4000-8000-00000000a001'),
+  ('00000000-0000-4000-8000-0000000cf002', '00000000-0000-4000-8000-000000000002', 'subject', 'subject', 'customer', '00000000-0000-4000-8000-00000000a003');
+insert into better_supabase.messages (id, tenant_id, conversation_id, author_id, body) values
+  ('00000000-0000-4000-8000-0000000cc001', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-0000000000a1', 'Admin note'),
+  ('00000000-0000-4000-8000-0000000cc002', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000cf001', '00000000-0000-4000-8000-0000000000a2', 'Member note'),
+  ('00000000-0000-4000-8000-0000000cc003', '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000cf002', null, 'Globex note');
 insert into better_supabase.activity_entries (organization_id, event_id, type) values
   ('00000000-0000-4000-8000-000000000002', 'globex-event', 'customer.created');
 insert into better_supabase.organization_settings (organization_id, key, value) values
@@ -79,7 +83,7 @@ select throws_ok(
   'the member cannot comment in Globex'
 );
 select is(
-  (select count(*)::int from better_supabase.comments where organization_id = '00000000-0000-4000-8000-000000000002'),
+  (select count(*)::int from better_supabase.messages where tenant_id = '00000000-0000-4000-8000-000000000002'),
   0,
   'the member reads no Globex comments'
 );
@@ -93,13 +97,16 @@ select is(
   0,
   'the member reads no Globex settings'
 );
-select is(
-  better_supabase.edit_comment('00000000-0000-4000-8000-0000000cc001', 'Rewritten'),
+select throws_ok(
+  $$select better_supabase.edit_message('00000000-0000-4000-8000-0000000cc001', 'Rewritten')$$,
+  'P0002',
   null,
   'the member cannot edit the admin''s comment'
 );
-select ok(
-  not better_supabase.delete_comment('00000000-0000-4000-8000-0000000cc001'),
+select throws_ok(
+  $$select better_supabase.delete_message('00000000-0000-4000-8000-0000000cc001')$$,
+  '42501',
+  null,
   'the member cannot delete the admin''s comment'
 );
 select is(
@@ -123,13 +130,13 @@ select set_config(
 set local role authenticated;
 
 select throws_ok(
-  $$select better_supabase.edit_comment('00000000-0000-4000-8000-0000000cc002', 'Rewritten')$$,
-  '42501',
+  $$select better_supabase.edit_message('00000000-0000-4000-8000-0000000cc002', 'Rewritten')$$,
+  'P0002',
   null,
   'the admin cannot rewrite a member''s comment'
 );
 select ok(
-  better_supabase.delete_comment('00000000-0000-4000-8000-0000000cc002'),
+  better_supabase.delete_message('00000000-0000-4000-8000-0000000cc002'),
   'the admin moderates a member''s comment by deleting it'
 );
 
@@ -138,7 +145,7 @@ select set_config('request.jwt.claims', '{"role":"anon"}', true);
 set local role anon;
 
 select throws_ok(
-  $$select count(*) from better_supabase.comments$$,
+  $$select count(*) from better_supabase.messages$$,
   '42501',
   null,
   'anon cannot read comments'

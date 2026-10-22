@@ -24,6 +24,7 @@ import {
   getRelations,
   getShareLinks,
   getSlaClocks,
+  getTimeline,
   getVersions,
 } from "../customer-record-queries";
 import {
@@ -33,6 +34,10 @@ import {
 import { CommentThread } from "./comment-thread";
 import { CustomerLogoForm } from "./customer-logo-form";
 import { CustomerStatus } from "./customer-status";
+import {
+  CustomerTimeline,
+  CustomerTimelineSkeleton,
+} from "./customer-timeline";
 import { ReactionsBar } from "./reactions-bar";
 import {
   RelatedItemsPanel,
@@ -71,6 +76,10 @@ async function AttachmentsSection({
   canRemove: boolean;
 }) {
   const files = await getAttachments(customerId);
+
+  if (files.kind === "hidden") {
+    return null;
+  }
 
   return (
     <AttachmentsUploader
@@ -137,6 +146,18 @@ async function SlaSection({
       canCreatePolicy={canCreatePolicy}
     />
   );
+}
+
+async function TimelineSection({
+  customerId,
+  authors,
+}: {
+  customerId: string;
+  authors: Readonly<Record<string, string>>;
+}) {
+  const timeline = await getTimeline(customerId);
+
+  return <CustomerTimeline timeline={timeline} authors={authors} />;
 }
 
 /** Render inside `<Suspense>`: reads the `id` param and the session. */
@@ -212,7 +233,7 @@ export async function CustomerDetail({
           />
         ) : null}
 
-        <Card data-recipe="comment-thread">
+        <Card id="comments" data-recipe="comment-thread">
           <CardHeader>
             <CardTitle>{t("Comments")}</CardTitle>
             <CardDescription>
@@ -223,7 +244,7 @@ export async function CustomerDetail({
             <CommentThread
               subject={{ type: "customer", id: customer.id }}
               authors={authors}
-              canComment={can(session, "comments.create")}
+              canComment={can(session, "messages.send")}
             />
           </CardContent>
         </Card>
@@ -260,6 +281,9 @@ export async function CustomerDetail({
       </div>
 
       <div className="flex flex-col gap-6">
+        <Suspense fallback={<CustomerTimelineSkeleton />}>
+          <TimelineSection customerId={customerId} authors={authors} />
+        </Suspense>
         {can(session, "sla.read") ? (
           <Suspense fallback={<SlaBadgesSkeleton />}>
             <SlaSection

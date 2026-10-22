@@ -4,7 +4,6 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 import type { TestUser } from "./block-session.ts";
 
-import { createComments } from "../../src/blocks/comments/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { createTags } from "../../src/blocks/tags/index.ts";
 import { wrapTransport } from "../../src/core/block-hooks.ts";
@@ -20,7 +19,7 @@ const userApp = (scope: "user" | "none"): ModuleLayout => ({
   scope,
   modules: {
     tags: { schema: "scope_it" },
-    comments: { schema: "scope_it" },
+    activity: { schema: "scope_it" },
     notifications: { schema: "scope_it" },
   },
 });
@@ -47,16 +46,16 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
   describe("per user", () => {
     beforeEach(async () => {
-      await s.install(["tags", "comments", "notifications"], userApp("user"));
+      await s.install(["tags", "activity", "notifications"], userApp("user"));
     });
 
     it("installs no tenant module or access contract", async () => {
       const modules = await s.rows<{ name: string }>(
-        "select name from better_supabase.modules where name in ('tags', 'comments', 'notifications') order by name",
+        "select name from better_supabase.modules where name in ('tags', 'activity', 'notifications') order by name",
       );
 
       expect(modules.map((row) => row.name)).toEqual([
-        "comments",
+        "activity",
         "notifications",
         "tags",
       ]);
@@ -68,7 +67,7 @@ describe.skipIf(!live)("blocks without organizations", () => {
       );
 
       expect(nullable.map((row) => row.table_name)).toEqual(
-        expect.arrayContaining(["activity_entries", "comments", "tags"]),
+        expect.arrayContaining(["activity_entries", "tags"]),
       );
     });
 
@@ -116,31 +115,34 @@ describe.skipIf(!live)("blocks without organizations", () => {
       ).toEqual(["Urgent"]);
     });
 
-    it("shows comments only to their author's scope", async () => {
-      const comments = createComments({
-        transport: sqlTransport(s.sql),
-        schema: "scope_it",
-        tenant: ann.id,
-      });
-
-      const note = { type: "note", id: "n1" };
+    it("shows activity only to its own scope", async () => {
+      await s.service();
+      await s.value("scope_it.record_activity($1)", [
+        {
+          entries: [
+            {
+              event_id: "e1",
+              organization_id: ann.id,
+              type: "note.created",
+              subject_type: "note",
+              subject_id: "n1",
+            },
+          ],
+        },
+      ]);
 
       await s.asRole(ann);
 
-      const comment = await comments.create(note, { body: "first" }).orThrow();
+      const feed = await s.value<{ type: string }[]>(
+        "scope_it.list_activity(null, 'note', 'n1')",
+      );
 
-      expect(comment.organizationId).toBe(ann.id);
-      const thread = await comments.list(note).orThrow();
-      expect(thread.map((each) => each.body)).toEqual(["first"]);
+      expect(feed.map((entry) => entry.type)).toEqual(["note.created"]);
 
       await s.asRole(bob);
-      expect(await comments.list(note).orThrow()).toEqual([]);
       expect(
-        await s.hint(
-          "insert into scope_it.comments (organization_id, subject_type, subject_id, body) values ($1, 'note', 'n1', 'into ann''s scope')",
-          [ann.id],
-        ),
-      ).toMatch(/row-level security/);
+        await s.value("scope_it.list_activity(null, 'note', 'n1')"),
+      ).toEqual([]);
     });
 
     it("sends notifications without a tenant", async () => {
@@ -169,10 +171,10 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
   describe("in one shared space", () => {
     beforeEach(async () => {
-      await s.install(["tags", "comments"], userApp("none"));
+      await s.install(["tags", "activity"], userApp("none"));
     });
 
-    it("gives every signed-in user one set of tags and comments", async () => {
+    it("gives every signed-in user one set of tags and one activity feed", async () => {
       await s.as(ann);
 
       const tag = await s.value<{ id: string }>(
@@ -196,18 +198,20 @@ describe.skipIf(!live)("blocks without organizations", () => {
         ]),
       ).toBe(true);
 
-      await s.asRole(ann);
-      await s.value("scope_it.create_comment(null, 'note', 'n1', 'hello')");
+      await s.service();
+      await s.value("scope_it.record_activity($1)", [
+        { entries: [{ event_id: "e1", type: "note.created" }] },
+      ]);
       await s.asRole(bob);
 
-      const thread = await s.value<{ body: string; tenant_id: null }[]>(
-        "scope_it.list_comments(null, 'note', 'n1')",
+      const feed = await s.value<{ type: string }[]>(
+        "scope_it.list_activity(null)",
       );
 
-      expect(thread.map((comment) => comment.body)).toEqual(["hello"]);
+      expect(feed.map((entry) => entry.type)).toEqual(["note.created"]);
       await s.asRole("anon");
-      expect(await s.hint("select 1 from scope_it.comments")).toMatch(
-        /GRANT SELECT ON scope_it.comments TO anon/,
+      expect(await s.hint("select 1 from scope_it.activity_entries")).toMatch(
+        /GRANT SELECT ON scope_it.activity_entries TO anon/,
       );
     });
   });

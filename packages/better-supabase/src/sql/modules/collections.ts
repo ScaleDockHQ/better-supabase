@@ -22,6 +22,7 @@ import { moduleOperations } from "./access-model.ts";
 import {
   collectionExtras,
   collectionFunctions,
+  savedItemFunctions,
   starFunctions,
 } from "./collections-functions.ts";
 import { callerTeamIdsSql } from "./team-ids.ts";
@@ -53,6 +54,18 @@ const EVENTS: ModuleEvents<CollectionsEvents> = {
   },
   "collection.entry_added": { subject: "collections", payload: [...ENTRY] },
   "collection.entry_removed": { subject: "collections", payload: [...ENTRY] },
+  "saved_item.reminded": {
+    subject: "saved-items",
+    payload: [
+      "organizationId",
+      "savedItemId",
+      "userId",
+      "subjectType",
+      "subjectId",
+      "note",
+      "remindAt",
+    ],
+  },
 };
 
 const NAMES: ModuleNames = {
@@ -108,6 +121,22 @@ const NAMES: ModuleNames = {
         createdAt: "created_at",
       },
     },
+    savedItems: {
+      name: "saved_items",
+      lifecycle: { tenant: "tenant", user: "user", export: true },
+      columns: {
+        id: "id",
+        user: "user_id",
+        tenant: "tenant_id",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
+        note: "note",
+        remindAt: "remind_at",
+        remindedAt: "reminded_at",
+        completedAt: "completed_at",
+        createdAt: "created_at",
+      },
+    },
   },
 };
 
@@ -123,6 +152,7 @@ function tables(ctx: ModuleContext, names: CollectionNames): string {
   const co = (column: string): string => names.c("collections", column);
   const en = (column: string): string => names.c("entries", column);
   const fa = (column: string): string => names.c("favorites", column);
+  const sv = (column: string): string => names.c("savedItems", column);
 
   return `
 create table if not exists ${t("collections")} (
@@ -171,6 +201,24 @@ create table if not exists ${t("favorites")} (
 create index if not exists favorites_user_rank_idx on ${t("favorites")} (${fa("user")}, ${fa("tenant")}, ${fa("rank")});
 create index if not exists favorites_subject_idx on ${t("favorites")} (${fa("subjectType")}, ${fa("subjectId")});
 ${lockTable(t("favorites"), { read: true })}
+
+create table if not exists ${t("savedItems")} (
+  ${sv("id")} uuid primary key default gen_random_uuid(),
+  ${sv("user")} uuid not null references auth.users (id) on delete cascade,
+  ${sv("tenant")} ${ctx.idType} not null,
+  ${sv("subjectType")} text not null,
+  ${sv("subjectId")} text not null,
+  ${sv("note")} text check (length(${sv("note")}) <= 1000),
+  ${sv("remindAt")} timestamptz,
+  ${sv("remindedAt")} timestamptz,
+  ${sv("completedAt")} timestamptz,
+  ${sv("createdAt")} timestamptz not null default now(),
+  unique (${sv("user")}, ${sv("subjectType")}, ${sv("subjectId")})
+);
+create index if not exists saved_items_user_idx on ${t("savedItems")} (${sv("user")}, ${sv("tenant")}, ${sv("createdAt")} desc, ${sv("id")} desc);
+create index if not exists saved_items_subject_idx on ${t("savedItems")} (${sv("subjectType")}, ${sv("subjectId")});
+create index if not exists saved_items_due_idx on ${t("savedItems")} (${sv("remindAt")}) where ${sv("remindedAt")} is null and ${sv("completedAt")} is null;
+${lockTable(t("savedItems"), { read: true })}
 `;
 }
 
@@ -179,12 +227,13 @@ function policies(names: CollectionNames): string {
   const co = (column: string): string => names.c("collections", column);
   const en = (column: string): string => names.c("entries", column);
   const fa = (column: string): string => names.c("favorites", column);
+  const sv = (column: string): string => names.c("savedItems", column);
 
   return `
 -- A collection is visible to its owner, its team's members or the whole
 -- tenant. An entry is visible when its collection is and the caller can
 -- read its record, so a shared list never shows a record to someone who
--- can't open it. Stars are the caller's own.
+-- can't open it. Stars and saved items are the caller's own.
 drop policy if exists subject_collections_read on ${t("collections")};
 create policy subject_collections_read on ${t("collections")} for select to authenticated
 using (${names.scope.check(co("tenant"), names.read)} and (
@@ -202,6 +251,11 @@ create policy favorites_read on ${t("favorites")} for select to authenticated
 using (${fa("user")} = (select auth.uid())
   and ${names.scope.check(fa("tenant"), names.read)}
   and ${canSubject}(${fa("subjectType")}, ${fa("subjectId")}, 'read'));
+drop policy if exists saved_items_read on ${t("savedItems")};
+create policy saved_items_read on ${t("savedItems")} for select to authenticated
+using (${sv("user")} = (select auth.uid())
+  and ${names.scope.check(sv("tenant"), names.read)}
+  and ${canSubject}(${sv("subjectType")}, ${sv("subjectId")}, 'read'));
 `;
 }
 
@@ -255,15 +309,18 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
 
   const en = (column: string): string => ctx.col("entries", column);
   const fa = (column: string): string => ctx.col("favorites", column);
+  const sv = (column: string): string => ctx.col("savedItems", column);
 
   return `${schemaPreamble(ctx)}
--- Favorites (a member's starred records, ranked for a sidebar) and lists
--- (named, static collections of one subject type) on config.subjects records.
-${tables(ctx, names)}${ctx.manages ? policies(names) : ""}${collectionFunctions(ctx, names)}${starFunctions(ctx, names)}${subjectCascades(
+-- Favorites (a member's starred records, ranked for a sidebar), lists (named,
+-- static collections of one subject type) and saved items (a member's records
+-- to come back to, with a reminder) on config.subjects records.
+${tables(ctx, names)}${ctx.manages ? policies(names) : ""}${collectionFunctions(ctx, names)}${starFunctions(ctx, names)}${savedItemFunctions(ctx, names)}${subjectCascades(
     ctx,
     cascading(ctx),
     `delete from ${ctx.table("entries")} where ${en("subjectType")} = v_type and ${en("subjectId")} = v_id;
-  delete from ${ctx.table("favorites")} where ${fa("subjectType")} = v_type and ${fa("subjectId")} = v_id;`,
+  delete from ${ctx.table("favorites")} where ${fa("subjectType")} = v_type and ${fa("subjectId")} = v_id;
+  delete from ${ctx.table("savedItems")} where ${sv("subjectType")} = v_type and ${sv("subjectId")} = v_id;`,
   )}`;
 }
 
@@ -321,6 +378,23 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
     { name: "unstar_subject", args: ["text", "text"], returns: "boolean" },
     { name: "rank_star", args: ["text", "text", "text"], returns: "boolean" },
     { name: "starred_subjects", args: ["{id}", "text"], returns: "jsonb" },
+    {
+      name: "save_for_later",
+      args: ["{id}", "text", "text", "text", "timestamptz"],
+      returns: "jsonb",
+    },
+    {
+      name: "complete_saved_item",
+      args: ["uuid", "boolean"],
+      returns: "boolean",
+    },
+    { name: "remove_saved_item", args: ["uuid"], returns: "boolean" },
+    {
+      name: "list_saved_items",
+      args: ["{id}", "boolean", "timestamptz", "uuid", "integer"],
+      returns: "jsonb",
+    },
+    { name: "remind_due_saved_items", args: ["integer"], returns: "jsonb" },
   ];
 }
 
@@ -329,7 +403,7 @@ export const COLLECTIONS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Collections",
   description:
-    "Favorites (a member's ranked stars on any registered record) and lists (named, static collections of one subject type owned by a user, a team or the organization), with entries hidden unless the caller can read their record.",
+    "Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.",
   requires: ["tenant", "access", "subjects"],
   integrates: ["outbox", "teams"],
   target: "schema",

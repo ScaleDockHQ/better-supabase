@@ -3,6 +3,7 @@ export {
   type CompactDocumentOptions,
   createDocumentProvider,
   type DocumentProvider,
+  type DocumentProviderMode,
   type DocumentProviderOptions,
   type DocumentProviderStatus,
   type YDocLike,

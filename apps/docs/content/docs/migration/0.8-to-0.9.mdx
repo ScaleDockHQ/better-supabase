@@ -423,7 +423,7 @@ With `config.subjects` set and no `subjects` option on `comments`, comments
 now accept only the registered subject types and require that the caller can
 read the subject row. In 0.8 a comment could name any type. Register the
 types you comment on, or give `comments` its own `subjects`. See
-[Comments](/docs/blocks/comments#subjects).
+[Comments](/docs/blocks/comments).
 
 Tagging a record needs `tags.apply` (or `tags.manage`). In 0.8 any member
 could add or remove a tag on any record of their organization. The
@@ -538,7 +538,7 @@ members no longer see entries on records they can't read. Entries without a
 subject, or on an unregistered type, keep the tenant check. `ActivityEntry`
 has a required `source` field (`"event"` or `"audit"`): code that builds
 entries by hand, such as test fixtures or a custom feed, sets it. See
-[Visibility per record](/docs/blocks/comments#visibility-per-record).
+[Visibility per record](/docs/blocks/activity#visibility-per-record).
 
 ### Notification delivery tracking
 

@@ -26,7 +26,6 @@ const reminderDue: StandardSchemaV1<ReminderDue> = {
 
 /** The notification types the recipes send. */
 export const NOTIFICATION_TYPES = {
-  "subject.commented": subject,
   "subject.tagged": subject,
   "subject.moved": subject,
   "subject.shared": subject,

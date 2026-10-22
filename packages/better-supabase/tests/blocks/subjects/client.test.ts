@@ -15,7 +15,12 @@ import {
   resolved,
 } from "../../fixtures/ports.ts";
 
+const summary = () => resolved(undefined);
+const myWork = () => resolved([]);
+
 const resolver = () => ({
+  summary: vi.fn(summary),
+  myWork: vi.fn(myWork),
   resolve: vi.fn((refs: readonly SubjectRef[]) =>
     resolved<Readonly<Record<string, ResolvedSubject>>>(
       Object.fromEntries(
@@ -48,6 +53,8 @@ describe("batchSubjects", () => {
 
   it("passes an error to every caller of the batch", async () => {
     const batched = batchSubjects({
+      summary,
+      myWork,
       resolve: () => failed<Readonly<Record<string, ResolvedSubject>>>("down"),
     });
 
@@ -61,12 +68,35 @@ describe("batchSubjects", () => {
 
   it("leaves out a subject the source didn't return", async () => {
     const batched = batchSubjects({
+      summary,
+      myWork,
       resolve: () => resolved<Readonly<Record<string, ResolvedSubject>>>({}),
     });
 
     const result = await batched.resolve([{ type: "task", id: "a" }]);
 
     expect(result.ok && result.data).toEqual({});
+  });
+
+  it("passes summary through to the source", async () => {
+    const inner = resolver();
+    const subject = { type: "task", id: "a" };
+
+    await batchSubjects(inner).summary(subject, ["comments"]);
+
+    expect(inner.summary).toHaveBeenCalledWith(
+      subject,
+      ["comments"],
+      undefined,
+    );
+  });
+
+  it("passes myWork through to the source", async () => {
+    const inner = resolver();
+
+    await batchSubjects(inner).myWork({ pageSize: 5 });
+
+    expect(inner.myWork).toHaveBeenCalledWith({ pageSize: 5 });
   });
 });
 

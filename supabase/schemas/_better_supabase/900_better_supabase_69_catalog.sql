@@ -1,4 +1,4 @@
--- better-supabase module: catalog (0.9.0)
+-- better-supabase module: catalog
 -- @bs-module catalog@1 managed
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -398,7 +398,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if exists (select 1 from "better_supabase"."stock_movements" m where m."variant_id" in (select v."id" from "better_supabase"."product_variants" v where v."product_id" = delete_product.product)) then
+  if exists (select 1 from "better_supabase"."ledger_accounts" sa where sa."managed_by" = 'inventory' and sa."kind" = 'stock' and (case when sa."kind" = 'stock' then (sa."metadata" ->> 'variantId')::uuid end) in (select v."id" from "better_supabase"."product_variants" v where v."product_id" = delete_product.product)) then
     raise exception 'the stock ledger has movements for this record; archive it instead' using errcode = '23503', hint = 'CATALOG_PRODUCT_IN_USE';
   end if;
   delete from "better_supabase"."products" x where x."id" = delete_product.product;
@@ -560,7 +560,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  if exists (select 1 from "better_supabase"."stock_movements" m where m."variant_id" in (delete_variant.variant)) then
+  if exists (select 1 from "better_supabase"."ledger_accounts" sa where sa."managed_by" = 'inventory' and sa."kind" = 'stock' and (case when sa."kind" = 'stock' then (sa."metadata" ->> 'variantId')::uuid end) in (delete_variant.variant)) then
     raise exception 'the stock ledger has movements for this record; archive it instead' using errcode = '23503', hint = 'CATALOG_VARIANT_IN_USE';
   end if;
   delete from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;

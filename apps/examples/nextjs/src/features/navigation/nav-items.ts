@@ -2,6 +2,7 @@ import type { Permission } from "@/features/user/user-permissions";
 
 export type NavId =
   | "dashboard"
+  | "myWork"
   | "customers"
   | "people"
   | "hiring"
@@ -19,17 +20,23 @@ export type NavId =
   | "shop"
   | "inventory"
   | "orders"
+  | "dispatch"
+  | "myDay"
+  | "shipments"
   | "drive"
   | "documents"
   | "forms"
+  | "courses"
   | "templates"
   | "imports"
   | "trash"
   | "metrics"
+  | "compliance"
   | "notifications"
   | "workflows"
   | "workflowBuilder"
   | "inbox"
+  | "chat"
   | "assistant"
   | "knowledge"
   | "agentActivity"
@@ -55,6 +62,7 @@ export interface NavItem {
 
 export const navItems: readonly NavItem[] = [
   { id: "dashboard", href: "/", group: "workspace" },
+  { id: "myWork", href: "/my-work", group: "workspace" },
   {
     id: "customers",
     href: "/customers",
@@ -142,6 +150,24 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "orders.read",
   },
+  {
+    id: "dispatch",
+    href: "/field/dispatch",
+    group: "workspace",
+    requires: "dispatch.read",
+  },
+  {
+    id: "myDay",
+    href: "/field/day",
+    group: "workspace",
+    requires: "dispatch.work",
+  },
+  {
+    id: "shipments",
+    href: "/field/shipments",
+    group: "workspace",
+    requires: "shipments.read",
+  },
   { id: "drive", href: "/drive", group: "workspace", requires: "drive.read" },
   {
     id: "documents",
@@ -150,6 +176,12 @@ export const navItems: readonly NavItem[] = [
     requires: "documents.read",
   },
   { id: "forms", href: "/forms", group: "workspace", requires: "forms.read" },
+  {
+    id: "courses",
+    href: "/courses",
+    group: "workspace",
+    requires: "courses.read",
+  },
   {
     id: "templates",
     href: "/templates",
@@ -164,6 +196,12 @@ export const navItems: readonly NavItem[] = [
   },
   { id: "trash", href: "/trash", group: "workspace", requires: "trash.read" },
   { id: "metrics", href: "/metrics", group: "workspace" },
+  {
+    id: "compliance",
+    href: "/compliance",
+    group: "workspace",
+    requires: "controls.read",
+  },
   { id: "notifications", href: "/notifications", group: "workspace" },
   {
     id: "workflows",
@@ -178,6 +216,7 @@ export const navItems: readonly NavItem[] = [
     requires: "workflow.read",
   },
   { id: "inbox", href: "/inbox", group: "workspace", requires: "inbox.read" },
+  { id: "chat", href: "/chat", group: "workspace", requires: "messages.read" },
   {
     id: "assistant",
     href: "/assistant",

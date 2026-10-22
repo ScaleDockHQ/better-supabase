@@ -11,6 +11,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import { stockHistory } from "./inventory-stock.ts";
 
 export const SLUG = "'^[a-z0-9]+(?:-[a-z0-9]+)*$'";
 
@@ -122,7 +123,7 @@ export function productFunctions(ctx: ModuleContext, names: Names): string {
     inventory === undefined
       ? ""
       : `
-  if exists (select 1 from ${inventory.table("movements")} m where m.${inventory.col("movements", "variant")} in (${variantFilter})) then
+  if ${stockHistory(inventory, (variant) => `${variant} in (${variantFilter})`)} then
     ${fail(code, "the stock ledger has movements for this record; archive it instead", "23503")}
   end if;`;
 

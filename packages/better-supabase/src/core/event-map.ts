@@ -4,7 +4,7 @@
  * beyond `defineEvents`.
  */
 
-/** Event type to its data, such as `{ "comment.created": CommentEventData }`. */
+/** Event type to its data, such as `{ "message.sent": MessageEventData }`. */
 export type EventMap = { readonly [type: string]: object };
 
 declare const EVENT_DATA: unique symbol;

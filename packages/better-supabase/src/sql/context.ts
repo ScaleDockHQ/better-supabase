@@ -146,7 +146,7 @@ export interface ModuleNames {
   readonly options?: readonly string[];
   /**
    * The events the module records, typed against its block's event map
-   * (`ModuleEvents<CommentsEvents>`); `record` rejects any other type.
+   * (`ModuleEvents<MessagingEvents>`); `record` rejects any other type.
    */
   readonly events?: Readonly<Record<string, CheckedEventSpec | undefined>>;
   /**
@@ -446,9 +446,14 @@ export interface ModuleContext {
   notify(fields: string, options?: { readonly indent?: string }): string;
   /**
    * PL/pgSQL that enqueues a job (`enqueue_job`); `null;` without the `jobs`
-   * module.
+   * module. `delay` is an integer expression of seconds before it runs.
    */
-  enqueue(queue: string, payload: string, dedupe: string): string;
+  enqueue(
+    queue: string,
+    payload: string,
+    dedupe: string,
+    options?: { readonly delay?: string },
+  ): string;
   /**
    * The `text[]` of a tenant's entitlements, or `fallback` without the
    * `entitlements` module.
@@ -532,6 +537,12 @@ export interface ModuleContextSource {
   readonly installed?: readonly string[];
   /** The id type the authorization provider gives, when the layout has one. */
   readonly providerIdType?: ModuleIdType;
+  /**
+   * Whether the authorization provider answers for guests
+   * (`functions.portalSubjects` or `portalParties`) under the `provider`
+   * model.
+   */
+  readonly providerGuests?: boolean;
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
   /**
@@ -993,6 +1004,7 @@ export function createModuleContext(
     kind: scopeKind,
     idType,
     access: installed.has("access"),
+    guests: installed.has("guests") || source.providerGuests === true,
     members: () =>
       createModuleContext("tenant", namesOf, source).fn(
         "member_organization_ids",
@@ -1233,7 +1245,7 @@ export function createModuleContext(
         "perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);",
       ].join(`\n${indent}`);
     },
-    enqueue(queue, payload, dedupe) {
+    enqueue(queue, payload, dedupe, options = {}) {
       declares("jobs");
 
       if (!installed.has("jobs")) {
@@ -1242,7 +1254,10 @@ export function createModuleContext(
 
       const jobs = createModuleContext("jobs", namesOf, source);
 
-      return `perform ${jobs.fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => ${payload}, dedupe_key => ${dedupe}, dedupe_running => false);`;
+      const delay =
+        options.delay === undefined ? "" : `, delay => ${options.delay}`;
+
+      return `perform ${jobs.fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => ${payload}${delay}, dedupe_key => ${dedupe}, dedupe_running => false);`;
     },
     entitlements,
     retention,

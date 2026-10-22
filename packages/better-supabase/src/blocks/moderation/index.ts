@@ -1,0 +1,48 @@
+export {
+  createModeration,
+  type Moderation,
+  type ModerationAction,
+  type ModerationActionKind,
+  type ModerationBan,
+  type ModerationDecision,
+  type ModerationItem,
+  type ModerationItemDetail,
+  type ModerationOptions,
+  type ModerationQueueFilter,
+  type ModerationReport,
+  type ModerationStatus,
+} from "./moderation.ts";
+
+export {
+  extendBlock,
+  withBlockHooks,
+  wrapTransport,
+} from "../../core/block-hooks.ts";
+
+export type {
+  BlockHooks,
+  BlockTransportMiddleware,
+} from "../../core/block-hooks.ts";
+
+export {
+  dbTransport,
+  rpcTransport,
+  sqlTransport,
+} from "../../core/block-transport.ts";
+
+export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
+
+export { moderationBlock } from "./manifest.ts";
+
+export { moderationSection } from "./section.ts";
+
+export { moderationEvents } from "./events.ts";
+
+export type {
+  ModerationBanEventData,
+  ModerationDecisionEventData,
+  ModerationEvents,
+  ModerationReportEventData,
+} from "./events.ts";
+
+export type { ModerationSqlOptions } from "./options.ts";

@@ -63,7 +63,7 @@ The lists, `peopleOf` and the tables all run as the caller: a member reads the o
 
 ## Merge duplicates
 
-`mergeCompanies(keep, drop)` and `mergePeople(keep, drop)` fill the kept record's empty fields from the dropped one, move the dropped record's links to it, and archive the dropped record with `merged_into` set. Merging needs `parties.manage` (`PARTY_MERGE_INVALID` for records of two organizations, one record twice, or one already merged). The `company.merged` and `person.merged` events carry `mergedId`, so a consumer moves the app's own references, such as deals or comments, to the kept record. A merge is written to the audit log.
+`mergeCompanies(keep, drop)` and `mergePeople(keep, drop)` fill the kept record's empty fields from the dropped one, move the dropped record's links to it, and archive the dropped record with `merged_into` set. Merging needs `parties.manage` (`PARTY_MERGE_INVALID` for records of two organizations, one record twice, or one already merged). In the same transaction the merge moves the dropped record's comments, attachments, reactions, tags, relations and guest grants to the kept record ([Merging subject records](/docs/blocks/sql#merging-subject-records)). The `company.merged` and `person.merged` events carry `mergedId`, so a consumer can move the app's own references, such as deals, to the kept record, or the app can add its own merge handler in SQL. A merge is written to the audit log.
 
 ## Use them as subjects
 

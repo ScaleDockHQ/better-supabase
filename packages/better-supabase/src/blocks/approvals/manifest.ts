@@ -18,5 +18,5 @@ export const approvalsBlock: BlockOf<
   events: approvalsEvents,
   create: createApprovals,
   category: "work",
-  recipes: ["approvals-queue"],
+  recipes: ["approvals-queue", "my-work"],
 });

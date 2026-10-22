@@ -818,6 +818,7 @@ describe("config JSON Schema", () => {
       tables: true,
       output: true,
       postgrestVersion: true,
+      generateFeatures: true,
       json: true,
       codecs: true,
       relations: true,

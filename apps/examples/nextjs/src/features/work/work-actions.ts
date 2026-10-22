@@ -57,8 +57,9 @@ async function applyChanges(
 }
 
 /**
- * Creates a work item. Without a pipeline the work-items module puts it on the
- * organization's default one, which it seeds on first use.
+ * Creates a work item and sets the tenant's custom fields on it. Without a
+ * pipeline the work-items module puts it on the organization's default one,
+ * which it seeds on first use.
  */
 export const createWorkItem = bs.action(
   {
@@ -66,27 +67,57 @@ export const createWorkItem = bs.action(
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
       teamId: v.optional(v.union([v.literal(""), Id]), ""),
       priority: v.optional(
-        v.pipe(
-          v.string(),
-          v.transform(Number),
-          v.integer(),
-          v.minValue(0),
-          v.maxValue(4),
-        ),
-        "0",
+        v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(4)),
+        0,
       ),
+      custom: v.optional(v.record(v.string(), v.string()), {}),
     }),
     requireTenant: true,
     authorize: (session) => can(session, "work_items.write"),
   },
-  async ({ title, teamId, priority }, { tenant, supabase, auth }) => {
-    const created = await blocks(supabase).workItems.create(
+  async ({ title, teamId, priority, custom }, { tenant, supabase, auth }) => {
+    const client = blocks(supabase, tenant);
+
+    const created = await client.workItems.create(
       tenant,
       teamId === "" ? { title, priority } : { title, priority, teamId },
     );
 
     if (!created.ok) {
       return created;
+    }
+
+    const values = Object.entries(custom);
+
+    if (values.length > 0) {
+      const definitions =
+        await client.customFields.listDefinitions(WORK_ITEM_SUBJECT);
+
+      if (!definitions.ok) {
+        return definitions;
+      }
+
+      const idOf = new Map(
+        definitions.data.map((definition) => [definition.key, definition.id]),
+      );
+
+      const subject = { type: WORK_ITEM_SUBJECT, id: created.data.id };
+
+      const saved = await Promise.all(
+        values.flatMap(([key, value]) => {
+          const id = idOf.get(key);
+
+          return id === undefined
+            ? []
+            : [client.customFields.setValue(subject, id, value)];
+        }),
+      );
+
+      const failed = saved.find((result) => !result.ok);
+
+      if (failed) {
+        return failed;
+      }
     }
 
     refreshCaller(auth);

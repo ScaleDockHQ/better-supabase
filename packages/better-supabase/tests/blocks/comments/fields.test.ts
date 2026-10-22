@@ -8,26 +8,39 @@ const PROJECT = { type: "project", id: "p1" };
 
 const ROW = {
   id: "c1",
-  organization_id: "org-1",
+  tenant_id: "org-1",
+  conversation_id: "conv-1",
   subject_type: "project",
   subject_id: "p1",
   author_id: null,
   body: "Hello",
   mentions: [],
   parent_id: null,
+  sent_at: "2026-10-06T12:00:00Z",
   created_at: "2026-10-06T12:00:00Z",
   edited_at: null,
   deleted_at: null,
   fields: { visibility: "internal" },
 };
 
+const attrsOf = (
+  call: readonly [string, Readonly<Record<string, unknown>>] | undefined,
+): Readonly<Record<string, unknown>> => {
+  const attrs = call?.[1]["attrs"];
+
+  return typeof attrs === "object" && attrs !== null
+    ? Object.fromEntries(Object.entries(attrs))
+    : {};
+};
+
 const Fields = v.object({ visibility: v.picklist(["internal", "customer"]) });
 
 describe("comments fields", () => {
-  it("sends the extra fields under fields and parses every read", async () => {
+  it("sends the extra fields under attrs.fields and parses every read", async () => {
     const t = fieldsTransport({
       create_comment: () => ROW,
-      edit_comment: () => ROW,
+      edit_message: () => ({}),
+      get_comment: () => ROW,
       list_comments: () => [ROW, ROW],
     });
 
@@ -45,11 +58,11 @@ describe("comments fields", () => {
       "internal" | "customer"
     >();
     expect(created.fields).toEqual({ visibility: "internal" });
-    expect(t.calls[0]?.[1]["fields"]).toEqual({ visibility: "internal" });
+    expect(attrsOf(t.calls[0])["fields"]).toEqual({ visibility: "internal" });
     await comments
       .edit("c1", { body: "Changed", fields: { visibility: "customer" } })
       .orThrow();
-    expect(t.calls[1]?.[1]["fields"]).toEqual({ visibility: "customer" });
+    expect(attrsOf(t.calls[1])["fields"]).toEqual({ visibility: "customer" });
     const list = await comments.list(PROJECT).orThrow();
     expect(list.map((comment) => comment.fields.visibility)).toEqual([
       "internal",
@@ -62,7 +75,7 @@ describe("comments fields", () => {
     await createComments({ transport: t, tenant: "org-1" })
       .create(PROJECT, { body: "Hello" })
       .orThrow();
-    expect(t.calls[0]?.[1]["fields"]).toBeUndefined();
+    expect(attrsOf(t.calls[0])["fields"]).toBeUndefined();
   });
 
   it("refuses a bad field before the call and a bad row after it", async () => {

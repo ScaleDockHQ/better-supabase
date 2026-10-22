@@ -5,6 +5,11 @@ import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, pageSize, userGrant, writeExtraColumns } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
+import {
+  itemExtrasJson,
+  linkAttachmentsSql,
+  workItemExtraFunctions,
+} from "./work-items-extras.ts";
 
 export interface WorkItemNames {
   readonly fn: (name: string) => string;
@@ -74,7 +79,7 @@ export function workItemFunctions(
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
 
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ra.${a("createdAt")}, ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb))`;
+    `to_jsonb(${alias}) || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ra.${a("createdAt")}, ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}`;
 
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
@@ -90,6 +95,9 @@ export function workItemFunctions(
       (field) => `      when ${sqlString(field.field)} then
         update ${t("items")} x set ${field.set("v_change -> 'value'")} where x.${w("id")} = v_item;`,
     ),
+    `      when 'attachments' then
+        select * into v_row from ${t("items")} x where x.${w("id")} = v_item;
+        ${linkAttachmentsSql(ctx, n, "v_row", "(v_change -> 'value')")}`,
     ...n.extras.map(
       (extra) => `      when ${sqlString(extra.name)} then
         update ${t("items")} x set ${extra.ident} = (jsonb_populate_record(null::${t("items")}, jsonb_build_object(${sqlString(extra.name)}, v_change -> 'value'))).${extra.ident} where x.${w("id")} = v_item;`,
@@ -247,6 +255,7 @@ declare
   v_identifier text;
   v_id uuid;
   v_row ${t("items")};
+  v_linked integer;
 begin
   if not (${n.service} or ${ctx.scope.can("create_work_item.tenant", n.write)}) then
     ${fail("WORK_ITEM_FORBIDDEN", "not allowed to change work items")}
@@ -287,6 +296,7 @@ begin
     perform ${fn("set_work_item_assignees")}(v_id, create_work_item.assignees);
   end if;
   select * into v_row from ${t("items")} x where x.${w("id")} = v_id;
+  ${linkAttachmentsSql(ctx, n, "v_row", "(create_work_item.attrs -> 'attachments')")}
   ${record("work_item.created", "v_row")}
   ${ctx.hook("after_work_item_create", [["uuid", "v_id"]])}
   return (select ${row("x")} from ${t("items")} x where x.${w("id")} = v_id);
@@ -313,6 +323,7 @@ declare
   v_hint text;
   v_reason text;
   v_touched uuid[] := '{}';
+  v_linked integer;
 begin
   if jsonb_typeof(coalesce(update_work_items.changes, '[]')) <> 'array' then
     ${fail("WORK_ITEM_CHANGES_INVALID", `changes must be a list of { ${e("workItemId")}, field, value }`, "22023")}
@@ -497,5 +508,5 @@ as $$
   ) p
 $$;
 ${userGrant(`${fn("list_work_items")}(${ctx.idType}, jsonb, text, uuid, integer)`)}
-${projects}${iterations}`;
+${workItemExtraFunctions(ctx, n, row, record)}${projects}${iterations}`;
 }

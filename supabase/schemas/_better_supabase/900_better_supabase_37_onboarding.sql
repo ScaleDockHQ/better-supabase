@@ -1,73 +1,15 @@
--- better-supabase module: onboarding (0.8.0)
--- @bs-module onboarding@1 managed
--- Onboarding checklists per user or organization: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
+-- better-supabase module: onboarding
+-- @bs-module onboarding@2 managed
+-- Onboarding checklists per user or organization, run as enrollment programs: the completed steps, completed by hand or by an outbox event type. Organization checklists check onboarding.read and onboarding.complete.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
-create or replace function better_supabase.actor_may_write()
-returns boolean
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select case
-    when auth.jwt() is null then true
-    when auth.jwt() -> 'act' ->> 'kind' = 'support'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
-    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
-      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
-    when auth.jwt() -> 'act' ->> 'kind' is not null then false
-    when auth.jwt() -> 'act' ->> 'session_id' is not null
-      and auth.jwt() -> 'act' ->> 'kind' is null then false
-    else true
-  end
-$$;
-revoke execute on function better_supabase.actor_may_write() from public;
-grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
-
-create or replace function better_supabase.raise_actor_readonly()
-returns void
-language plpgsql
-volatile
-set search_path = ''
-as $$
-begin
-  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-end;
-$$;
-revoke execute on function better_supabase.raise_actor_readonly() from public;
-grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- Completed onboarding steps, one row per step and subject: a user for a
--- user checklist, an organization for an organization checklist. The
--- checklists live in the app (defineChecklist); the functions check steps
--- against options.checklists.
-create table if not exists "better_supabase"."onboarding_progress" (
-  "id" uuid primary key default gen_random_uuid(),
-  "checklist" text not null,
-  "step" text not null,
-  "user_id" uuid references auth.users (id) on delete cascade,
-  "organization_id" uuid,
-  "completed_by" uuid references auth.users (id) on delete set null default auth.uid(),
-  "completed_at" timestamptz not null default now(),
-  check (("user_id" is null) <> ("organization_id" is null)),
-  unique nulls not distinct ("checklist", "step", "user_id", "organization_id")
-);
-create index if not exists onboarding_progress_user_idx on "better_supabase"."onboarding_progress" ("user_id");
-create index if not exists onboarding_progress_tenant_idx on "better_supabase"."onboarding_progress" ("organization_id");
-create index if not exists onboarding_progress_completed_by_idx on "better_supabase"."onboarding_progress" ("completed_by");
-alter table "better_supabase"."onboarding_progress" enable row level security;
-revoke all on "better_supabase"."onboarding_progress" from anon, authenticated;
-grant select on "better_supabase"."onboarding_progress" to authenticated;
-grant all on "better_supabase"."onboarding_progress" to service_role;
-drop policy if exists "onboarding_progress_read" on "better_supabase"."onboarding_progress";
-create policy "onboarding_progress_read" on "better_supabase"."onboarding_progress" for select to authenticated
-  using (
-    "user_id" = (select auth.uid())
-    or "organization_id" in (select better_supabase.tenant_ids_with('onboarding.read'))
-  );
+-- Each checklist runs as the enrollment program onboarding:<checklist>: the
+-- organization is enrolled in an organization checklist, the user (without a
+-- tenant) in a user checklist. The checklists live in the app
+-- (defineChecklist); the functions check steps against options.checklists.
 
 -- [{ step, completedAt, completedBy }] of one checklist for the caller, or
 -- for tenant when it is an organization checklist (onboarding.read).
@@ -97,13 +39,16 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
-      'step', x."step",
-      'completedAt', x."completed_at",
-      'completedBy', x."completed_by"
-    ) order by x."completed_at"), '[]'::jsonb)
-    from "better_supabase"."onboarding_progress" x
-    where x."checklist" = onboarding_progress.checklist
-      and (case when v_scope = 'organization' then x."organization_id" = onboarding_progress.tenant else x."user_id" = auth.uid() end)
+      'step', y."step",
+      'completedAt', y."completed_at",
+      'completedBy', y."completed_by"
+    ) order by y."completed_at", array_position(x."steps", y."step")), '[]'::jsonb)
+    from "better_supabase"."enrollments" x
+    join "better_supabase"."enrollment_steps" y on y."enrollment_id" = x."id"
+    where x."program" = 'onboarding:' || onboarding_progress.checklist
+    and x."tenant_id" is not distinct from (case when v_scope = 'organization' then onboarding_progress.tenant end)
+    and x."subject_type" = v_scope
+    and x."subject_id" = (case when v_scope = 'organization' then onboarding_progress.tenant::text else auth.uid()::text end)
   );
 end;
 $$;
@@ -116,14 +61,9 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_column
 declare
   v_scope text;
-  v_count integer;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   v_scope := (select s.scope from (values ('getting-started', 'customer', 'organization'), ('getting-started', 'invite', 'organization'), ('getting-started', 'api-key', 'organization'), ('getting-started', 'plan', 'organization')) as s(checklist, step, scope) where s.checklist = complete_onboarding_step.checklist and (complete_onboarding_step.step is null or s.step = complete_onboarding_step.step) limit 1);
   if v_scope is null then
     raise exception 'Unknown onboarding step %.%', complete_onboarding_step.checklist, coalesce(complete_onboarding_step.step, '*') using errcode = '22023', hint = 'ONBOARDING_STEP_UNKNOWN';
@@ -140,17 +80,7 @@ begin
   if v_scope = 'organization' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', complete_onboarding_step.tenant, 'onboarding.complete'), false)) then
     raise exception 'You may not complete this organization''s onboarding' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
   end if;
-  insert into "better_supabase"."onboarding_progress" ("checklist", "step", "user_id", "organization_id", "completed_by")
-  values (
-    complete_onboarding_step.checklist,
-    complete_onboarding_step.step,
-    case when v_scope = 'user' then auth.uid() end,
-    case when v_scope = 'organization' then complete_onboarding_step.tenant end,
-    auth.uid()
-  )
-  on conflict do nothing;
-  get diagnostics v_count = row_count;
-  return v_count > 0;
+  return "better_supabase"."enrollment_mark"("better_supabase"."enrollment_ensure"(case when v_scope = 'organization' then complete_onboarding_step.tenant end, 'onboarding:' || complete_onboarding_step.checklist, null, (select c.steps from (values ('getting-started', 'organization', array['customer', 'invite', 'api-key', 'plan']::text[])) as c(checklist, scope, steps) where c.checklist = complete_onboarding_step.checklist), v_scope, case when v_scope = 'organization' then complete_onboarding_step.tenant::text else auth.uid()::text end, auth.uid()), complete_onboarding_step.step, true, auth.uid());
 end;
 $$;
 
@@ -163,11 +93,8 @@ set search_path = ''
 as $$
 declare
   v_scope text;
-  v_count integer;
+  v_id uuid;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   v_scope := (select s.scope from (values ('getting-started', 'customer', 'organization'), ('getting-started', 'invite', 'organization'), ('getting-started', 'api-key', 'organization'), ('getting-started', 'plan', 'organization')) as s(checklist, step, scope) where s.checklist = reset_onboarding_step.checklist and (reset_onboarding_step.step is null or s.step = reset_onboarding_step.step) limit 1);
   if v_scope is null then
     raise exception 'Unknown onboarding step %.%', reset_onboarding_step.checklist, coalesce(reset_onboarding_step.step, '*') using errcode = '22023', hint = 'ONBOARDING_STEP_UNKNOWN';
@@ -184,11 +111,14 @@ begin
   if v_scope = 'organization' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', reset_onboarding_step.tenant, 'onboarding.complete'), false)) then
     raise exception 'You may not change this organization''s onboarding' using errcode = '42501', hint = 'ONBOARDING_FORBIDDEN';
   end if;
-  delete from "better_supabase"."onboarding_progress" x
-  where x."step" = reset_onboarding_step.step and x."checklist" = reset_onboarding_step.checklist
-      and (case when v_scope = 'organization' then x."organization_id" = reset_onboarding_step.tenant else x."user_id" = auth.uid() end);
-  get diagnostics v_count = row_count;
-  return v_count > 0;
+  select x."id" into v_id from "better_supabase"."enrollments" x where x."program" = 'onboarding:' || reset_onboarding_step.checklist
+    and x."tenant_id" is not distinct from (case when v_scope = 'organization' then reset_onboarding_step.tenant end)
+    and x."subject_type" = v_scope
+    and x."subject_id" = (case when v_scope = 'organization' then reset_onboarding_step.tenant::text else auth.uid()::text end);
+  if v_id is null then
+    return false;
+  end if;
+  return "better_supabase"."enrollment_mark"("better_supabase"."enrollment_ensure"(case when v_scope = 'organization' then reset_onboarding_step.tenant end, 'onboarding:' || reset_onboarding_step.checklist, null, (select c.steps from (values ('getting-started', 'organization', array['customer', 'invite', 'api-key', 'plan']::text[])) as c(checklist, scope, steps) where c.checklist = reset_onboarding_step.checklist), v_scope, case when v_scope = 'organization' then reset_onboarding_step.tenant::text else auth.uid()::text end, auth.uid()), reset_onboarding_step.step, false, auth.uid());
 end;
 $$;
 
@@ -202,24 +132,6 @@ grant execute on function "better_supabase"."reset_onboarding_step"(text, text, 
 -- blocks.onboarding.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
-
-create or replace function "api"."actor_may_write"()
-returns boolean
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."actor_may_write"() $$;
-revoke execute on function "api"."actor_may_write"() from public;
-grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
-
-create or replace function "api"."raise_actor_readonly"()
-returns void
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."raise_actor_readonly"() $$;
-revoke execute on function "api"."raise_actor_readonly"() from public;
-grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
 create or replace function "api"."onboarding_progress"(checklist text, tenant uuid default null)
 returns jsonb

@@ -23,11 +23,12 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { snapshotProjectVersions } from "@/lib/supabase/features/project/project-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { ProjectHistoryField, ProjectVersion } from "../project-types";
 
-import { restoreProjectFields, saveProjectVersion } from "../project-actions";
+import { restoreProjectFields } from "../project-actions";
 import { PROJECT_HISTORY_FIELDS } from "../project-types";
 
 // #region recipe:record-history
@@ -232,7 +233,7 @@ function SaveVersionButton({ projectId }: { projectId: string }) {
   const t = useExtracted("projects");
   const errorMessage = useErrorMessage();
 
-  const save = useAction(saveProjectVersion, {
+  const save = useAction(snapshotProjectVersions, {
     onSuccess: () => {
       toast.success(t("Version saved"));
     },
@@ -247,7 +248,7 @@ function SaveVersionButton({ projectId }: { projectId: string }) {
       variant="outline"
       disabled={save.pending}
       onClick={() => {
-        void save.run({ projectId });
+        void save.run({ id: projectId, input: {} });
       }}
     >
       <HistoryIcon />

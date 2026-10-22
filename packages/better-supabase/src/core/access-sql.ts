@@ -27,6 +27,8 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   holdersOf: ["permission", "tenant", "scope"],
   actorMayWrite: [],
   permitted: ["permission", "id", "tenant", "resource", "scope"],
+  portalSubjects: ["action"],
+  portalParties: [],
 };
 
 /** The Postgres types a scope's ids can have. */

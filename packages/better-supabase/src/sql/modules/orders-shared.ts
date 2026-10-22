@@ -12,6 +12,8 @@ export interface OrdersNames {
   readonly fn: (name: string) => string;
   readonly manage: string;
   readonly read: string;
+  /** Moves lines through the kitchen (`options.kitchen`). */
+  readonly prepare: string;
   /** `options.extraColumns` of the orders table. */
   readonly extras: readonly ExtraColumn[];
 }

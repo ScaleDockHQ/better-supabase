@@ -10,12 +10,14 @@ import { collectionsSqlOptions } from "./options.ts";
 export const collectionsBlock: BlockOf<
   "collections",
   typeof createCollections,
-  CollectionsEvents
+  CollectionsEvents,
+  { readonly notifier: "optional" }
 > = defineBlock({
   name: "collections",
   sql: ["collections"],
   options: { collections: collectionsSqlOptions },
   events: collectionsEvents,
+  consumes: { notifier: "optional" },
   create: createCollections,
   category: "work",
 });

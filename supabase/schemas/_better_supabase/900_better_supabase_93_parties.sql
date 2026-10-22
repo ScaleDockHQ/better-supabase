@@ -1,8 +1,39 @@
--- better-supabase module: parties (0.9.0)
+-- better-supabase module: parties
 -- @bs-module parties@1 managed
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Moves every installed module's rows from record drop to record keep of the
+-- subject table subject_table (schema.table): comments, attachments, tags and
+-- the rest. Each module marks its handler with a comment, so this finds them
+-- without naming them.
+create or replace function better_supabase.merge_subject_refs(subject_table text, keep text, drop text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_fn regproc;
+begin
+  for v_fn in
+    select p.oid::regproc
+    from pg_catalog.pg_proc p
+    join pg_catalog.pg_description d on d.objoid = p.oid and d.classoid = 'pg_catalog.pg_proc'::regclass and d.objsubid = 0
+    where d.description = 'better-supabase:subject-merge'
+      -- Only the owner's functions, so a marked function in a schema another
+      -- role can write to never runs with this function's rights.
+      and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
+    order by p.oid::regproc::text
+  loop
+    execute format('select %s($1, $2, $3)', v_fn) using subject_table, keep, drop;
+  end loop;
+end;
+$$;
+revoke execute on function better_supabase.merge_subject_refs(text, text, text) from public, anon, authenticated;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -438,9 +469,9 @@ $$;
 revoke execute on function "better_supabase"."remove_company_person"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."remove_company_person"(uuid, uuid) to authenticated, service_role;
 
--- Merges drop into keep: keep's empty fields take drop's values, drop's
--- links move to keep, and drop is archived with merged_into set. Apps move
--- their own references on the company.merged event.
+-- Merges drop into keep: keep's empty fields take drop's values, every
+-- installed module moves its rows from drop to keep, and drop is archived
+-- with merged_into set.
 create or replace function "better_supabase"."merge_companies"(keep uuid, drop uuid)
 returns jsonb
 language plpgsql
@@ -475,6 +506,7 @@ begin
   from "better_supabase"."company_people" l where l."company_id" = merge_companies.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."company_id" = merge_companies.drop;
+  perform better_supabase.merge_subject_refs('better_supabase.companies', merge_companies.keep::text, merge_companies.drop::text);
   perform "better_supabase".emit_event('company.merged', jsonb_build_object('organizationId', v_keep."tenant_id", 'companyId', merge_companies.keep, 'name', v_keep."name", 'mergedId', merge_companies.drop), 'companies/' || merge_companies.keep::text, (v_keep."tenant_id"::text)::text, null, 'better-supabase/parties');
   perform better_supabase.audit_event(
     event_type => 'company.merged',
@@ -492,9 +524,9 @@ $$;
 revoke execute on function "better_supabase"."merge_companies"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."merge_companies"(uuid, uuid) to authenticated, service_role;
 
--- Merges drop into keep: keep's empty fields take drop's values, drop's
--- links move to keep, and drop is archived with merged_into set. Apps move
--- their own references on the person.merged event.
+-- Merges drop into keep: keep's empty fields take drop's values, every
+-- installed module moves its rows from drop to keep, and drop is archived
+-- with merged_into set.
 create or replace function "better_supabase"."merge_people"(keep uuid, drop uuid)
 returns jsonb
 language plpgsql
@@ -529,6 +561,7 @@ begin
   from "better_supabase"."company_people" l where l."person_id" = merge_people.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."person_id" = merge_people.drop;
+  perform better_supabase.merge_subject_refs('better_supabase.people', merge_people.keep::text, merge_people.drop::text);
   perform "better_supabase".emit_event('person.merged', jsonb_build_object('organizationId', v_keep."tenant_id", 'personId', merge_people.keep, 'name', v_keep."name", 'mergedId', merge_people.drop), 'persons/' || merge_people.keep::text, (v_keep."tenant_id"::text)::text, null, 'better-supabase/parties');
   perform better_supabase.audit_event(
     event_type => 'person.merged',

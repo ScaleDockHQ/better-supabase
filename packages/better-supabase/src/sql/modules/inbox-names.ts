@@ -8,8 +8,9 @@ import {
   operationPermission,
 } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER } from "../shared.ts";
+import { fail, SERVICE_CALLER } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
+import { messagingSql } from "./messaging-names.ts";
 
 const EVENTS: ModuleEvents<InboxEvents> = {
   "inbox_conversation.reopened": {
@@ -68,6 +69,17 @@ const EVENTS: ModuleEvents<InboxEvents> = {
       "status",
     ],
   },
+  "inbox_conversation.unsnoozed": {
+    subject: "conversations",
+    payload: [
+      "conversationId",
+      "organizationId",
+      "inboxId",
+      "contactId",
+      "assigneeId",
+      "status",
+    ],
+  },
 };
 
 export const INBOX_NAMES: ModuleNames = {
@@ -78,6 +90,7 @@ export const INBOX_NAMES: ModuleNames = {
     "maxBodyLength",
     "botQueue",
     "outboundQueue",
+    "scheduleQueue",
     "notify",
   ],
   tables: {
@@ -152,7 +165,7 @@ export const INBOX_NAMES: ModuleNames = {
       },
     },
     conversations: {
-      name: "conversations",
+      name: "inbox_conversations",
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -176,16 +189,6 @@ export const INBOX_NAMES: ModuleNames = {
         updatedAt: "updated_at",
       },
     },
-    participants: {
-      name: "conversation_participants",
-      lifecycle: { user: "user" },
-      columns: {
-        conversation: "conversation_id",
-        user: "user_id",
-        role: "role",
-        createdAt: "created_at",
-      },
-    },
     events: {
       name: "conversation_events",
       lifecycle: { tenant: "tenant" },
@@ -199,37 +202,19 @@ export const INBOX_NAMES: ModuleNames = {
         createdAt: "created_at",
       },
     },
-    reads: {
-      name: "conversation_reads",
-      lifecycle: { user: "user" },
-      columns: {
-        conversation: "conversation_id",
-        user: "user_id",
-        lastReadAt: "last_read_at",
-      },
-    },
-    messages: {
-      name: "inbox_messages",
+    details: {
+      name: "inbox_message_details",
       lifecycle: { tenant: "tenant" },
       columns: {
-        id: "id",
+        message: "message_id",
         tenant: "tenant_id",
         conversation: "conversation_id",
         direction: "direction",
-        kind: "kind",
         authorType: "author_type",
-        author: "author_id",
-        body: "body",
         format: "format",
-        attachments: "attachments",
-        reactions: "reactions",
-        mentions: "mentions",
         externalId: "external_id",
         replyTo: "reply_to",
         metadata: "metadata",
-        createdAt: "created_at",
-        editedAt: "edited_at",
-        deletedAt: "deleted_at",
       },
     },
     deliveries: {
@@ -246,16 +231,6 @@ export const INBOX_NAMES: ModuleNames = {
         attempts: "attempts",
         createdAt: "created_at",
         updatedAt: "updated_at",
-      },
-    },
-    mentions: {
-      name: "inbox_mentions",
-      lifecycle: { user: "user", tenant: "tenant" },
-      columns: {
-        message: "message_id",
-        user: "user_id",
-        tenant: "tenant_id",
-        createdAt: "created_at",
       },
     },
     inbound: {
@@ -293,7 +268,30 @@ export const INBOX_NAMES: ModuleNames = {
         updatedAt: "updated_at",
       },
     },
+    scheduled: {
+      name: "scheduled_inbox_messages",
+      lifecycle: { tenant: "tenant", user: "author" },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        conversation: "conversation_id",
+        author: "author_id",
+        input: "input",
+        scheduledFor: "scheduled_for",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
   },
+  migrations: [
+    {
+      from: 2,
+      description:
+        "The conversations table is inbox_conversations, so the messaging block owns conversations.",
+      table: "conversations",
+      was: "conversations",
+    },
+  ],
 };
 
 type Action = keyof ModuleOperations<"inbox">;
@@ -330,6 +328,20 @@ export interface InboxSql {
   readonly maxBody: number;
   readonly botQueue: string;
   readonly outboundQueue: string;
+  readonly scheduleQueue: string;
+  /** The messaging core, which holds the conversations and messages. */
+  readonly core: {
+    readonly ctx: ModuleContext;
+    readonly t: (table: string) => string;
+    readonly cols: (table: string) => (column: string) => string;
+    readonly fn: (name: string) => string;
+    /** `'<messaging topic>:' || id` as SQL. */
+    readonly topic: (id: string) => string;
+    /** The subject type literal of a core message. */
+    readonly message: string;
+    /** The subject type literal of a core conversation. */
+    readonly conversation: string;
+  };
 }
 
 /** The staff commands whose permission `inbox.command.<name>` can name. */
@@ -392,7 +404,19 @@ export function inboxSql(
     return value;
   };
 
+  const core = ctx.of("messaging");
+  const m = messagingSql(core);
+
   return {
+    core: {
+      ctx: core,
+      t: (table) => core.table(table),
+      cols: (table) => (column) => core.col(table, column),
+      fn: (name) => core.fn(name),
+      topic: (id) => `${sqlString(`${m.topic}:`)} || ${id}::text`,
+      message: sqlString(m.e("message")),
+      conversation: sqlString(m.e("conversation")),
+    },
     ctx,
     id: ctx.idType,
     fn: (name) => ctx.fn(name),
@@ -409,16 +433,21 @@ export function inboxSql(
     maxBody,
     botQueue: queue("botQueue", "inbox_bot"),
     outboundQueue: queue("outboundQueue", "inbox_outbound"),
+    scheduleQueue: queue("scheduleQueue", "inbox_schedule"),
   };
 }
 
-/** `'<topic>:' || expr` and `'<topic>:org:' || expr` as SQL. */
+/** `'<topic>:org:' || expr` as SQL. */
 export function topics(q: InboxSql): {
-  readonly conversation: (id: string) => string;
   readonly org: (tenant: string) => string;
 } {
   return {
-    conversation: (id) => `${sqlString(`${q.topic}:`)} || ${id}::text`,
     org: (tenant) => `${sqlString(`${q.topic}:org:`)} || ${tenant}::text`,
   };
 }
+
+export const forbidden = (what: string): string =>
+  fail("INBOX_FORBIDDEN", what);
+
+export const missing = (what: string, hint: string): string =>
+  fail(hint, `${what} not found`, "P0002");

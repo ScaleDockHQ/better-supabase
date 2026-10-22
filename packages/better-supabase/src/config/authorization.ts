@@ -82,6 +82,22 @@ export interface AuthorizationFunctions {
    * `permission` calls it for the instance in its topic name.
    */
   readonly permitted?: string;
+  /**
+   * The records the caller may reach as a guest for `{action}` (`read`,
+   * `comment` or `upload`), as a set of `(tenant text, subject_type text,
+   * subject_id text)`: it is used as `select g.tenant, g.subject_type,
+   * g.subject_id from <template> as g(tenant, subject_type, subject_id)`.
+   * `ctx.scope.guest` calls it, so comments, attachments, invoices and bookings
+   * let a provider's external users in (ADR 0070). With the `guests` block
+   * installed its grants are added to these.
+   */
+  readonly portalSubjects?: string;
+  /**
+   * The parties the caller acts for as a guest, as a set of `(tenant text,
+   * party_type text, party_id text)`. No placeholders. `ctx.scope.guestParty`
+   * calls it for portal reads such as a customer's own invoices.
+   */
+  readonly portalParties?: string;
 }
 
 /** One scope the provider decides permissions in, such as `organization`. */

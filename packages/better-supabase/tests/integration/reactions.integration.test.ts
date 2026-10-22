@@ -10,6 +10,7 @@ import {
   sqlTransport,
 } from "../../src/blocks/reactions/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
+import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -17,7 +18,7 @@ const live = await reachable();
 const layout: ModuleLayout = {
   subjects: withBlockSubjects(
     { doc: { table: "reactions_it.docs", idType: "uuid" } },
-    ["comments"],
+    ["comments", "messaging"],
     {},
   ),
 };
@@ -131,20 +132,22 @@ describe.skipIf(!live)("reactions", () => {
         .orThrow();
 
       await reactions
-        .react({ type: "comment", id: comment.id }, "👀")
+        .react({ type: "message", id: comment.id }, "👀")
         .orThrow();
 
       const summary = await reactions
         .summary([
-          { type: "comment", id: comment.id },
-          { type: "comment", id: "nope" },
+          { type: "message", id: comment.id },
+          { type: "message", id: "00000000-0000-4000-8000-000000000000" },
         ])
         .orThrow();
 
-      expect(summary[`comment:${comment.id}`]).toEqual([
+      expect(summary[`message:${comment.id}`]).toEqual([
         { emoji: "👀", count: 1, reacted: true, actors: [member.id] },
       ]);
-      expect(summary["comment:nope"]).toEqual([]);
+      expect(summary["message:00000000-0000-4000-8000-000000000000"]).toEqual(
+        [],
+      );
 
       await s.asRole(stranger);
       expect(
@@ -185,7 +188,188 @@ describe.skipIf(!live)("reactions", () => {
     }
   });
 
-  it("keeps an inbox message's reactions column as a copy of the table", async () => {
+  it("votes up and down with one vote per actor and a score on the subject", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.client.query(TABLES);
+      await s.install(["organizations", "outbox", "reactions"], layout);
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const stranger = await s.user("stranger");
+      const tenant = await s.organization(owner, { member });
+      await s.organization(stranger);
+
+      const reactions = createReactions({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
+
+      await s.service();
+
+      const [first, second] = await s.rows<{ id: string }>(
+        "insert into reactions_it.docs (organization_id) values ($1), ($1) returning id",
+        [tenant],
+      );
+
+      const doc = { type: "doc", id: first!.id };
+      const other = { type: "doc", id: second!.id };
+
+      await s.asRole(member);
+      expect(await reactions.vote(doc, 1).orThrow()).toEqual({
+        score: 1,
+        up: 1,
+        down: 0,
+        vote: 1,
+      });
+      expect(await reactions.vote(doc, 1).orThrow()).toMatchObject({
+        score: 1,
+      });
+      await reactions.react(doc, "👍").orThrow();
+
+      await s.asRole(owner);
+      expect(await reactions.vote(doc, -1).orThrow()).toEqual({
+        score: 0,
+        up: 1,
+        down: 1,
+        vote: -1,
+      });
+      await reactions.vote(other, 1).orThrow();
+      expect(
+        (await reactions.summary([doc]).orThrow())[`doc:${doc.id}`]?.map(
+          (row) => row.emoji,
+        ),
+      ).toEqual(["👍"]);
+
+      await s.asRole(member);
+      expect(await reactions.vote(doc, -1).orThrow()).toEqual({
+        score: -2,
+        up: 0,
+        down: 2,
+        vote: -1,
+      });
+      expect(await reactions.votes([doc, other]).orThrow()).toEqual({
+        [`doc:${doc.id}`]: { score: -2, up: 0, down: 2, vote: -1 },
+        [`doc:${other.id}`]: { score: 1, up: 1, down: 0, vote: 0 },
+      });
+      expect(
+        await reactions.vote(doc, 2 as 1).then((r) => !r.ok && r.error.hint),
+      ).toBe("REACTION_INVALID");
+      expect(await reactions.vote(doc, 0).orThrow()).toEqual({
+        score: -1,
+        up: 0,
+        down: 1,
+        vote: 0,
+      });
+
+      await s.asRole(stranger);
+      expect(
+        await reactions.vote(doc, 1).then((r) => !r.ok && r.error.hint),
+      ).toBe("REACTION_FORBIDDEN");
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.reaction_scores)",
+        ),
+      ).toBe(0);
+
+      await s.service();
+      expect(
+        await reactions.vote(other, -1, { actor: "importer" }).orThrow(),
+      ).toMatchObject({ score: 0, up: 1, down: 1 });
+      await s.asRole(owner);
+      await reactions.vote(other, 0).orThrow();
+
+      await s.service();
+
+      const byId = (
+        a: { subject_id: string },
+        b: { subject_id: string },
+      ): number => a.subject_id.localeCompare(b.subject_id);
+
+      expect(
+        (
+          await s.rows<{ subject_id: string; score: number }>(
+            "select subject_id, score from better_supabase.reaction_scores where tenant_id = $1",
+            [tenant],
+          )
+        ).toSorted(byId),
+      ).toEqual(
+        [
+          { subject_id: other.id, score: -1 },
+          { subject_id: doc.id, score: -1 },
+        ].toSorted(byId),
+      );
+
+      const events = await s.rows<{ type: string; kind: string }>(
+        "select type, payload ->> 'kind' as kind from better_supabase.outbox_events where organization_id = $1 and type like 'reaction.%'",
+        [tenant],
+      );
+
+      expect(
+        new Set(events.map((event) => `${event.type}:${event.kind}`)),
+      ).toEqual(
+        new Set([
+          "reaction.added:vote",
+          "reaction.removed:vote",
+          "reaction.added:emoji",
+        ]),
+      );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("upgrades version 1 reactions to emoji rows with a kind in the key", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.client.query(`create schema reactions_up;
+create table reactions_up.reactions (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null,
+  subject_type text not null,
+  subject_id text not null,
+  actor text not null,
+  user_id uuid,
+  emoji text not null check (length(emoji) between 1 and 64),
+  created_at timestamptz not null default now(),
+  unique (subject_type, subject_id, actor, emoji)
+);
+insert into reactions_up.reactions (tenant_id, subject_type, subject_id, actor, emoji)
+values (gen_random_uuid(), 'doc', 'd1', 'u1', '👍');`);
+
+      const [plan] = upgradePlan([{ module: "reactions", version: 1 }], {
+        modules: { reactions: { schema: "reactions_up" } },
+      });
+
+      for (const step of plan!.steps) {
+        await s.client.query(step.sql);
+      }
+
+      expect(
+        await s.rows<{ kind: string; value: number }>(
+          "select kind, value from reactions_up.reactions",
+        ),
+      ).toEqual([{ kind: "emoji", value: 1 }]);
+      expect(
+        await s.rows<{ conname: string }>(
+          "select conname from pg_constraint where conrelid = 'reactions_up.reactions'::regclass and contype = 'u'",
+        ),
+      ).toEqual([]);
+      await s.client.query(
+        "insert into reactions_up.reactions (tenant_id, subject_type, subject_id, actor, kind, emoji, value) values (gen_random_uuid(), 'doc', 'd1', 'u1', 'vote', 'vote', -1)",
+      );
+      await expect(
+        s.client.query(
+          "insert into reactions_up.reactions (tenant_id, subject_type, subject_id, actor, emoji, value) values (gen_random_uuid(), 'doc', 'd1', 'u2', '👍', -1)",
+        ),
+      ).rejects.toThrow(/reactions_check/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("stores inbox reactions on the core message subject", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -219,25 +403,23 @@ describe.skipIf(!live)("reactions", () => {
         .send(opened.id, { body: "Hi there" })
         .orThrow();
 
-      await inbox.messages.react(reply.id, "👍").orThrow();
+      const missing = await inbox.messages.react(reply.id, "👍");
+      expect(missing.ok ? undefined : missing.error).toMatchObject({
+        hint: "INBOX_REACTIONS_MISSING",
+      });
       await s.service();
       await s.install([...modules, "reactions"]);
+      await s.asRole(owner);
+      await inbox.messages.react(reply.id, "👍").orThrow();
       expect(
-        await s.rows<{ actor: string; emoji: string }>(
-          "select actor, emoji from better_supabase.reactions where subject_id = $1",
+        await s.rows<{ subject_type: string; actor: string; emoji: string }>(
+          "select subject_type, actor, emoji from better_supabase.reactions where subject_id = $1",
           [reply.id],
         ),
-      ).toEqual([{ actor: owner.id, emoji: "👍" }]);
-      expect(
-        await s.value<number>(
-          "(select count(*)::int from better_supabase.outbox_events where type = 'reaction.added' and organization_id = $1)",
-          [tenant],
-        ),
-      ).toBe(0);
-      await s.asRole(owner);
+      ).toEqual([{ subject_type: "message", actor: owner.id, emoji: "👍" }]);
 
       const counts = await reactions
-        .react({ type: "inbox_message", id: reply.id }, "🎉")
+        .react({ type: "message", id: reply.id }, "🎉")
         .orThrow();
 
       expect(counts.map((row) => row.emoji).toSorted()).toEqual(["🎉", "👍"]);
@@ -247,20 +429,36 @@ describe.skipIf(!live)("reactions", () => {
         .react(reply.id, "👍", { actor: "bot" })
         .orThrow();
 
-      expect(byBot["👍"]?.toSorted()).toEqual([owner.id, "bot"].toSorted());
-      expect(byBot["🎉"]).toEqual([owner.id]);
+      expect(
+        byBot.find((row) => row.emoji === "👍")?.actors.toSorted(),
+      ).toEqual([owner.id, "bot"].toSorted());
       await s.asRole(owner);
       expect(
-        await inbox.messages
-          .react(reply.id, "👍", { present: false })
-          .orThrow(),
-      ).toEqual({ "👍": ["bot"], "🎉": [owner.id] });
+        (
+          await inbox.messages
+            .react(reply.id, "👍", { present: false })
+            .orThrow()
+        ).map((row) => [row.emoji, row.actors]),
+      ).toEqual([
+        ["🎉", [owner.id]],
+        ["👍", ["bot"]],
+      ]);
       expect(
-        await s.value<number>(
-          "(select count(*)::int from better_supabase.reactions where subject_id = $1)",
-          [reply.id],
+        (await inbox.messages.get(reply.id).orThrow())?.reactions.map((row) => [
+          row.emoji,
+          row.count,
+          row.reacted,
+        ]),
+      ).toEqual([
+        ["🎉", 1, true],
+        ["👍", 1, false],
+      ]);
+      await s.asRole(visitor);
+      expect(
+        (await inbox.messages.react(reply.id, "❤️").orThrow()).map(
+          (row) => row.emoji,
         ),
-      ).toBe(2);
+      ).toContain("❤️");
     } finally {
       await s.close();
     }

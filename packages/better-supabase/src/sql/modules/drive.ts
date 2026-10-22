@@ -3,7 +3,7 @@ import type { ModuleDefinition } from "../module-types.ts";
 
 import { driveCoreSql } from "./drive-core.ts";
 import { driveFilesSql } from "./drive-files.ts";
-import { FILE_EVENTS, NAMES, driveKit } from "./drive-kit.ts";
+import { FILE_EVENTS, NAMES, driveKit, labelTags } from "./drive-kit.ts";
 
 function contract(): readonly ModuleContractFunction[] {
   return [
@@ -50,6 +50,30 @@ function fileContract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     },
     { name: "drive_commit", args: ["uuid", "uuid"], returns: "jsonb" },
+    ...(labelTags(ctx) === undefined
+      ? []
+      : [
+          {
+            name: "drive_label",
+            args: ["uuid", "uuid", "boolean"],
+            returns: "jsonb",
+          },
+          {
+            name: "drive_labeled",
+            args: ["{id}", "uuid", "integer"],
+            returns: "jsonb",
+          },
+        ]),
+    ...(ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
+      ? [
+          {
+            name: "drive_request_approval",
+            args: ["uuid", "uuid", "text"],
+            returns: "jsonb",
+          },
+          { name: "drive_approvals", args: ["uuid"], returns: "jsonb" },
+        ]
+      : []),
   ];
 }
 
@@ -107,7 +131,7 @@ export const DRIVE_FILES: ModuleDefinition = {
     layout.modules?.["drive"]?.columns?.["nodes"]?.["attachment"] === null
       ? []
       : ["attachments"],
-  integrates: ["drive", ...INTEGRATES],
+  integrates: ["drive", ...INTEGRATES, "tags", "approvals"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

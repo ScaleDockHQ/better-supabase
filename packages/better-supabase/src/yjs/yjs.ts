@@ -1,7 +1,9 @@
 import type {
+  DecidedSuggestion,
   DocumentRef,
   Documents,
   DocumentState,
+  DocumentSuggestion,
   OpenedDocument,
 } from "../blocks/documents/documents.ts";
 import type {
@@ -78,6 +80,11 @@ export interface DocumentProviderOptions<P extends PresenceState> {
   readonly ref: DocumentRef;
   /** The `yjs` module. Default: imported on first connect. */
   readonly yjs?: YjsLike;
+  /**
+   * `suggest` keeps local edits out of the log and collects them for
+   * `submitSuggestion()`. Default: `edit`.
+   */
+  readonly mode?: DocumentProviderMode;
   /** Called with everyone on the document after each presence sync. */
   readonly onPresence?: (members: readonly PresenceMember<P>[]) => void;
   readonly onStatus?: (status: DocumentProviderStatus) => void;
@@ -87,6 +94,8 @@ export interface DocumentProviderOptions<P extends PresenceState> {
    */
   readonly onError?: (error: unknown) => void;
 }
+
+export type DocumentProviderMode = "edit" | "suggest";
 
 export type DocumentProviderStatus =
   | "connecting"
@@ -106,6 +115,27 @@ export interface DocumentProvider<
   track(state: P): AsyncResult<void>;
   /** Everyone from the last presence sync. */
   members(): readonly PresenceMember<P>[];
+  readonly mode: DocumentProviderMode;
+  /**
+   * Switches between editing and suggesting. Edits made before the switch are
+   * stored as they were.
+   */
+  setMode(mode: DocumentProviderMode): void;
+  /** Whether suggest mode collected edits that are not submitted yet. */
+  readonly hasDraft: boolean;
+  /**
+   * Stores the edits made in suggest mode as one suggestion. They stay in the
+   * local document; the other editors see them once an editor accepts.
+   */
+  submitSuggestion(summary?: string): AsyncResult<DocumentSuggestion>;
+  /**
+   * Accepts a suggestion, applies it to the local document and broadcasts it to
+   * the other editors.
+   */
+  acceptSuggestion(
+    suggestionId: string,
+    note?: string,
+  ): AsyncResult<DecidedSuggestion>;
   /** Waits for local edits that are still being stored. */
   flush(): Promise<void>;
   /** Stops listening to the document and leaves the topic. */
@@ -163,6 +193,8 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
   // After a failed push, edits wait for a reconnect or flush() instead of retrying each one.
   let stalled = false;
   const pending: Uint8Array[] = [];
+  const drafts: Uint8Array[] = [];
+  let mode: DocumentProviderMode = options.mode ?? "edit";
   let sending: Promise<void> = Promise.resolve();
 
   const setStatus = (next: DocumentProviderStatus): void => {
@@ -217,24 +249,38 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
 
       stalled = false;
       pending.splice(0, count);
-      const payload: Broadcast = { seq: pushed.data, update: toBase64(update) };
-
-      const response = await subscription?.channel.send({
-        type: "broadcast",
-        event: UPDATE_EVENT,
-        payload,
-      });
-
-      if (response !== undefined && response !== "ok") {
-        fail(new Error(`broadcast failed: ${String(response)}`));
-      }
+      await broadcast({ seq: pushed.data, update: toBase64(update) });
     });
 
     return sending;
   };
 
+  const broadcast = async (payload: Broadcast): Promise<void> => {
+    const response = await subscription?.channel.send({
+      type: "broadcast",
+      event: UPDATE_EVENT,
+      payload,
+    });
+
+    if (response !== undefined && response !== "ok") {
+      fail(new Error(`broadcast failed: ${String(response)}`));
+    }
+  };
+
   const onUpdate = (update: Uint8Array, from: unknown): void => {
-    if (from === origin || opened === undefined || !opened.canWrite) {
+    if (from === origin || opened === undefined) {
+      return;
+    }
+
+    if (mode === "suggest") {
+      if (opened.canSuggest) {
+        drafts.push(update);
+      }
+
+      return;
+    }
+
+    if (!opened.canWrite) {
       return;
     }
 
@@ -375,6 +421,68 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
           )
         : subscription.track(state),
     members: () => membersOf<P>(subscription?.members() ?? []),
+    get mode() {
+      return mode;
+    },
+    setMode: (next) => {
+      mode = next;
+    },
+    get hasDraft() {
+      return drafts.length > 0;
+    },
+    submitSuggestion: (summary) =>
+      AsyncResult.from(async () => {
+        if (opened === undefined || yjs === undefined) {
+          throw new TypeError(
+            "connect() the provider before submitSuggestion()",
+          );
+        }
+
+        if (drafts.length === 0) {
+          throw new TypeError("there are no suggested edits to submit");
+        }
+
+        const count = drafts.length;
+        const update = count === 1 ? drafts[0]! : yjs.mergeUpdates(drafts);
+        const stored = await documents.suggest(opened.id, update, summary);
+
+        if (stored.ok) {
+          drafts.splice(0, count);
+        }
+
+        return stored;
+      }),
+    acceptSuggestion: (suggestionId, note) =>
+      AsyncResult.from(async () => {
+        if (opened === undefined) {
+          throw new TypeError(
+            "connect() the provider before acceptSuggestion()",
+          );
+        }
+
+        const decided = await documents.decideSuggestion(
+          suggestionId,
+          "accepted",
+          note,
+        );
+
+        if (!decided.ok) {
+          return decided;
+        }
+
+        const { seq, update } = decided.data;
+        apply(update);
+
+        if (seq !== undefined) {
+          if (seq === synced + 1) {
+            synced = seq;
+          }
+
+          await broadcast({ seq, update: toBase64(update) });
+        }
+
+        return decided;
+      }),
     flush: () => {
       stalled = false;
 

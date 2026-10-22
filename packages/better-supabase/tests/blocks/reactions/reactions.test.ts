@@ -131,6 +131,88 @@ describe("reactions client", () => {
     ]);
   });
 
+  it("votes and reads vote tallies by subject", async () => {
+    const fake = transport({
+      vote: () => ({ score: 2, up: 3, down: 1, vote: -1 }),
+      vote_summary: (args) =>
+        (args as { subject_type: string }).subject_type === "comment"
+          ? { c1: { score: 1, up: 1, down: 0, vote: 1 } }
+          : { t1: { vote: "x" } },
+    });
+
+    const reactions = createReactions({
+      transport: fake,
+      schema: "app",
+      tenant: "o",
+    });
+
+    expect(await reactions.vote(C1, -1).orThrow()).toEqual({
+      score: 2,
+      up: 3,
+      down: 1,
+      vote: -1,
+    });
+    await reactions.vote(C1, 0, { actor: "bot" }).orThrow();
+    expect(
+      await reactions.votes([C1, { type: "task", id: "t1" }]).orThrow(),
+    ).toEqual({
+      "comment:c1": { score: 1, up: 1, down: 0, vote: 1 },
+      "task:t1": { score: 0, up: 0, down: 0, vote: 0 },
+    });
+    expect(fake.calls.slice(0, 2)).toEqual([
+      [
+        "vote",
+        {
+          tenant: "o",
+          subject_type: "comment",
+          subject_id: "c1",
+          value: -1,
+          actor: null,
+        },
+      ],
+      [
+        "vote",
+        {
+          tenant: "o",
+          subject_type: "comment",
+          subject_id: "c1",
+          value: 0,
+          actor: "bot",
+        },
+      ],
+    ]);
+  });
+
+  it("reads a custom emoji stored as an attachment", async () => {
+    const stored = {
+      id: "e2",
+      shortcode: "logo",
+      attachmentId: "a1",
+      createdAt: EMOJI.createdAt,
+    };
+
+    const fake = transport({ save_custom_emoji: () => stored });
+
+    const reactions = createReactions({
+      transport: fake,
+      schema: "app",
+      tenant: "o",
+    });
+
+    const saved = await reactions
+      .saveCustomEmoji({ shortcode: "logo", attachmentId: "a1" })
+      .orThrow();
+
+    expect(saved).toMatchObject({ id: "e2", attachmentId: "a1" });
+    expect(saved).not.toHaveProperty("url");
+    expect(fake.calls).toEqual([
+      [
+        "save_custom_emoji",
+        { tenant: "o", shortcode: "logo", attachment_id: "a1", url: null },
+      ],
+    ]);
+  });
+
   it("fails without a tenant", async () => {
     const fake = transport({ react: () => [COUNT] });
     const session: { tenant?: string } = {};

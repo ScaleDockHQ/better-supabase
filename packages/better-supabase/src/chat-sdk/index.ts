@@ -5,6 +5,7 @@ export {
   deliver,
   type DeliverOptions,
   type DrainResult,
+  type ImportFilesOptions,
   type InboundHandler,
   inboundHandler,
   type InboundHandlerOptions,

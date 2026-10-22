@@ -75,3 +75,44 @@ every early phase, so the pg-delta round trip, the golden files and
 `tests/validation-centrakit` are refreshed in each pull request. We revisit
 the single-core shape if a conversation kind needs storage the core can't
 express without nullable columns that only one kind uses.
+
+## Amendment: the core as built (phase 1c)
+
+- **Access is a column, not a hook.** A conversation's `access` is
+  `members`, `tenant` or `subject`, and `can_conversation` reads it: members
+  only, everyone with `messages.read` in the tenant, or whoever passes
+  `can_subject` for the linked record. Channels, comments and the inbox fit
+  these three, so no block needs to answer a hook on every read, and the
+  read policies stay plain SQL. A kind that needs another rule adds an
+  `access` value in its phase.
+- **The inbox renames to coexist.** Until phase 4 moves it onto the core, the
+  inbox's `conversations` table is `inbox_conversations` and its six
+  colliding functions take an `inbox` infix (`send_inbox_message`,
+  `list_inbox_conversations`). The inbox module's version 3 upgrade renames
+  the table and drops the old functions; the fixture does the same in a
+  hand-written migration, since pg-delta can't see a rename.
+- **Replies flatten.** With `threadDepth: 1`, a reply to a reply joins the
+  root's thread with the root as its parent.
+- **Record mentions are parsed, not acted on.** `parse_mentions` returns
+  `@[Title](subject:<type>/<id>)` mentions next to users and `@channel` or
+  `@here`; checking them against the subject's permission waits for the
+  record mentions phase.
+
+## Amendment: the channels block as built (phase 1c)
+
+- **A channel is a row next to its conversation.** The `channels` table holds
+  the name, visibility, topic, purpose and linked record, keyed by the
+  conversation id. Membership, archiving, typing and read markers stay in
+  messaging, so `archived_at` is read from the conversation and a channel's
+  `id` works with every messaging call and hook.
+- **Visibility maps onto access.** A public channel is a `tenant`
+  conversation and a private one a `members` conversation, so the core's
+  access rule decides who reads, joins and invites. A private channel a
+  caller can't read looks the same as one that doesn't exist (`P0002`).
+- **Direct messages stay in the core.** `openDirect` already opens one
+  conversation per set of people, so channels adds no DM functions.
+- **No `extraColumns` yet.** App columns go on messages through the core.
+- **Hooks live in messaging.** `useMessages` and `useConversations` come from
+  `better-supabase/blocks/messaging/react`, since channels, comments and the
+  inbox share them. They are not named `useConversation`, which the inbox
+  hooks own until phase 4.

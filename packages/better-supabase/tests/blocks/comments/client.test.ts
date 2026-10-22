@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Comment } from "../../../src/blocks/comments/comments.ts";
 
 import { createCommentsController } from "../../../src/blocks/comments/client.ts";
+import { commentOf } from "../../../src/blocks/comments/comments.ts";
 import {
   failed,
   fakeAuth,
@@ -17,37 +18,42 @@ import {
 
 const CUSTOMER = { type: "customer", id: "cu1" };
 
-const comment = (id: string, body = id): Comment => ({
-  id,
-  organizationId: "org-1",
-  subject: CUSTOMER,
-  authorId: USER,
-  author: undefined,
-  body,
-  document: null,
-  mentions: [],
-  parentId: undefined,
-  createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
-  editedAt: undefined,
-  deletedAt: undefined,
-  fields: {},
-});
+const comment = (id: string, body = id): Comment =>
+  commentOf({
+    id,
+    tenant_id: "org-1",
+    conversation_id: "conv-1",
+    subject_type: CUSTOMER.type,
+    subject_id: CUSTOMER.id,
+    author_id: USER,
+    body,
+    sent_at: "2026-01-01T00:00:00Z",
+    created_at: "2026-01-01T00:00:00Z",
+  });
 
 function setup(
   options: {
     topic?: string | null;
     subject?: { type: string; id: string } | null;
+    conversation?: string;
   } = {},
 ) {
   const topic = fakeTopic();
   const auth = fakeAuth();
   const list = vi.fn(() => resolved<readonly Comment[]>([comment("c1")]));
+  const get = vi.fn((id: string) => resolved(comment(id, `Fetched ${id}`)));
   const create = vi.fn(() => resolved(comment("c2", "New")));
   const edit = vi.fn(() => resolved(comment("c1", "Edited")));
   const remove = vi.fn(() => resolved(true));
+  const resolve = vi.fn(() => resolved(comment("c1")));
+  const pin = vi.fn(() => resolved(comment("c1")));
+
+  const conversation = vi.fn(() =>
+    resolved<string | undefined>(options.conversation),
+  );
 
   const controller = createCommentsController({
-    client: { list, create, edit, remove },
+    client: { list, get, create, edit, remove, resolve, pin, conversation },
     auth,
     ports: { topic: topic.port },
     subject: options.subject === undefined ? CUSTOMER : options.subject,
@@ -55,15 +61,27 @@ function setup(
     ...(options.topic === undefined ? {} : { topic: options.topic }),
   });
 
-  return { topic, auth, list, create, edit, remove, controller };
+  return {
+    topic,
+    auth,
+    list,
+    get,
+    create,
+    edit,
+    remove,
+    resolve,
+    pin,
+    conversation,
+    controller,
+  };
 }
 
 describe("createCommentsController", () => {
   it("loads the thread and keeps it current after writes", async () => {
-    const { list, create, edit, remove, controller } = setup();
+    const { list, get, create, edit, remove, controller } = setup();
     const { view, unmount } = mount(controller);
     await flush();
-    expect(list).toHaveBeenCalledWith(CUSTOMER, { limit: 20 });
+    expect(list).toHaveBeenCalledExactlyOnceWith(CUSTOMER, { limit: 20 });
     expect(view().comments?.map((each) => each.id)).toEqual(["c1"]);
 
     expect((await view().add("New", { parentId: "c1" })).ok).toBe(true);
@@ -78,7 +96,7 @@ describe("createCommentsController", () => {
 
     expect(await view().remove("c2")).toMatchObject({ ok: true, data: true });
     expect(remove).toHaveBeenCalledWith("c2");
-    expect(list).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledWith("c2");
     expect(edit).toHaveBeenCalledOnce();
     unmount();
   });
@@ -102,16 +120,90 @@ describe("createCommentsController", () => {
     unmount();
   });
 
-  it("loads again for each message on the topic and stops when signed out", async () => {
-    const { topic, auth, list, controller } = setup({ topic: "comments:cu1" });
+  it("fetches the comment each ping names and stops when signed out", async () => {
+    const { topic, auth, list, get, controller } = setup({
+      conversation: "conv-1",
+    });
+
     const { view, unmount } = mount(controller);
     await flush();
-    expect(topic.open()).toEqual(["comments:cu1"]);
+    expect(topic.open()).toEqual(["messages:conv-1"]);
     expect(view().status).toBe("subscribed");
-    topic.emit("comments:cu1", "INSERT");
-    topic.rejoin("comments:cu1");
-    expect(list).toHaveBeenCalledTimes(3);
+
+    topic.emit("messages:conv-1", "message", {
+      conversationId: "conv-1",
+      messageId: "c3",
+      threadId: "c1",
+    });
+    await flush();
+    expect(get.mock.calls.map(([id]) => id)).toEqual(["c3", "c1"]);
+    expect(view().comments?.map((each) => [each.id, each.body])).toEqual([
+      ["c1", "Fetched c1"],
+      ["c3", "Fetched c3"],
+    ]);
+
+    topic.emit("messages:conv-1", "message_updated", { messageId: "c1" });
+    topic.emit("messages:conv-1", "message", {});
+    topic.emit("messages:conv-1", "message", "not an object");
+    await flush();
+    expect(get).toHaveBeenCalledTimes(3);
+    expect(list).toHaveBeenCalledOnce();
+
+    get.mockReturnValueOnce(failed("gone"));
+    topic.emit("messages:conv-1", "message_deleted", { messageId: "c3" });
+    await flush();
+    expect(view().comments).toHaveLength(2);
+    expect(view().error).toBeUndefined();
+
+    topic.rejoin("messages:conv-1");
+    expect(list).toHaveBeenCalledTimes(2);
     auth.set(SIGNED_OUT);
+    expect(topic.open()).toEqual([]);
+    unmount();
+  });
+
+  it("leaves a ping before the first load to that load", async () => {
+    const { topic, list, get, controller } = setup({ conversation: "conv-1" });
+    const slow = held<readonly Comment[]>([comment("c1"), comment("c3")]);
+    list.mockReturnValueOnce(slow.result);
+    const { view, unmount } = mount(controller);
+    await flush();
+    topic.emit("messages:conv-1", "message", { messageId: "c3" });
+    await flush();
+    expect(get).toHaveBeenCalledWith("c3");
+    expect(view().comments).toBeUndefined();
+    slow.release();
+    await flush();
+    expect(view().comments?.map((each) => each.id)).toEqual(["c1", "c3"]);
+    unmount();
+  });
+
+  it("joins the topic once the first comment opens the conversation", async () => {
+    const { topic, conversation, controller } = setup({ topic: "chat" });
+    const { view, unmount } = mount(controller);
+    await flush();
+    expect(conversation).toHaveBeenCalledWith(CUSTOMER);
+    expect(topic.open()).toEqual([]);
+    await view().add("First");
+    expect(topic.open()).toEqual(["chat:conv-1"]);
+    await view().add("Second");
+    expect(topic.open()).toEqual(["chat:conv-1"]);
+    unmount();
+  });
+
+  it("stays off Realtime with topic null, and resolves and pins", async () => {
+    const { topic, conversation, resolve, pin, controller } = setup({
+      topic: null,
+      conversation: "conv-1",
+    });
+
+    const { view, unmount } = mount(controller);
+    await flush();
+    expect(conversation).not.toHaveBeenCalled();
+    expect((await view().resolve("c1")).ok).toBe(true);
+    expect((await view().pin("c1", false)).ok).toBe(true);
+    expect(resolve).toHaveBeenCalledWith("c1", undefined);
+    expect(pin).toHaveBeenCalledWith("c1", false);
     expect(topic.open()).toEqual([]);
     unmount();
   });

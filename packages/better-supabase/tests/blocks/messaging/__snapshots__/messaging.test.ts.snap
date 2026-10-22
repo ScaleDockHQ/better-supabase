@@ -1,0 +1,292 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`createMessaging > calls every function with snake_case arguments 1`] = `
+[
+  [
+    "open_conversation",
+    {
+      "attrs": {
+        "access": "tenant",
+        "title": "launch",
+      },
+      "kind": "channel",
+      "members": [
+        "u2",
+      ],
+      "tenant": "org",
+    },
+  ],
+  [
+    "open_conversation",
+    {
+      "attrs": {},
+      "kind": "dm",
+      "members": [
+        "u2",
+      ],
+      "tenant": "org",
+    },
+  ],
+  [
+    "open_conversation",
+    {
+      "attrs": {},
+      "kind": "group_dm",
+      "members": [
+        "u2",
+        "u3",
+      ],
+      "tenant": "org",
+    },
+  ],
+  [
+    "open_conversation",
+    {
+      "attrs": {
+        "subjectId": "cu1",
+        "subjectType": "customer",
+      },
+      "kind": "subject",
+      "members": [],
+      "tenant": "org",
+    },
+  ],
+  [
+    "add_conversation_members",
+    {
+      "conversation": "c1",
+      "users": [
+        "u2",
+        "u3",
+      ],
+    },
+  ],
+  [
+    "remove_conversation_member",
+    {
+      "conversation": "c1",
+      "member": "u2",
+    },
+  ],
+  [
+    "archive_conversation",
+    {
+      "archived": true,
+      "conversation": "c1",
+    },
+  ],
+  [
+    "list_conversations",
+    {
+      "kinds": [
+        "subject",
+      ],
+      "max_rows": 5,
+      "tenant": "org",
+    },
+  ],
+  [
+    "list_conversations",
+    {
+      "kinds": null,
+      "max_rows": null,
+      "tenant": "org",
+    },
+  ],
+  [
+    "unread_counts",
+    {
+      "tenant": "org",
+    },
+  ],
+  [
+    "mark_read",
+    {
+      "conversation": "c1",
+      "read_at": "2026-01-01T00:00:00Z",
+      "thread": "m1",
+    },
+  ],
+  [
+    "mark_read",
+    {
+      "conversation": "c1",
+      "read_at": null,
+      "thread": null,
+    },
+  ],
+  [
+    "set_conversation_notify",
+    {
+      "conversation": "c1",
+      "level": "none",
+    },
+  ],
+  [
+    "set_typing",
+    {
+      "conversation": "c1",
+      "typing": true,
+    },
+  ],
+  [
+    "follow",
+    {
+      "following": true,
+      "target_id": "c1",
+      "target_type": "conversation",
+    },
+  ],
+  [
+    "follow",
+    {
+      "following": false,
+      "target_id": "m1",
+      "target_type": "thread",
+    },
+  ],
+  [
+    "can_conversation",
+    {
+      "action": "send",
+      "conversation": "c1",
+    },
+  ],
+  [
+    "send_message",
+    {
+      "attachments": [
+        "f1",
+      ],
+      "attrs": {
+        "broadcast": true,
+        "document": {
+          "type": "doc",
+        },
+        "mentions": [
+          "u2",
+        ],
+        "parentId": "m0",
+        "scheduledFor": "2026-01-01T00:00:00Z",
+      },
+      "body": "Ship it @channel",
+      "conversation": "c1",
+    },
+  ],
+  [
+    "send_message",
+    {
+      "attachments": [],
+      "attrs": {},
+      "body": "plain",
+      "conversation": "c1",
+    },
+  ],
+  [
+    "edit_message",
+    {
+      "attrs": {
+        "document": null,
+        "mentions": [],
+      },
+      "body": "edited",
+      "message": "m1",
+    },
+  ],
+  [
+    "edit_message",
+    {
+      "attrs": {},
+      "body": "edited",
+      "message": "m1",
+    },
+  ],
+  [
+    "delete_message",
+    {
+      "message": "m1",
+    },
+  ],
+  [
+    "pin_message",
+    {
+      "message": "m1",
+      "pinned": true,
+    },
+  ],
+  [
+    "resolve_message",
+    {
+      "message": "m1",
+      "resolved": false,
+    },
+  ],
+  [
+    "list_messages",
+    {
+      "after": null,
+      "after_id": null,
+      "before": "2026-01-01T00:00:00Z",
+      "before_id": "m1",
+      "conversation": "c1",
+      "max_rows": 20,
+    },
+  ],
+  [
+    "list_messages",
+    {
+      "after": "2026-01-01T00:00:00Z",
+      "after_id": "m1",
+      "before": null,
+      "before_id": null,
+      "conversation": "c1",
+      "max_rows": null,
+    },
+  ],
+  [
+    "list_replies",
+    {
+      "after": "2026-01-01T00:00:00Z",
+      "after_id": "m1",
+      "max_rows": 5,
+      "message": "m1",
+    },
+  ],
+  [
+    "get_message",
+    {
+      "message": "m1",
+    },
+  ],
+  [
+    "get_message",
+    {
+      "message": "nope",
+    },
+  ],
+  [
+    "list_message_edits",
+    {
+      "message": "m1",
+    },
+  ],
+  [
+    "list_pinned_messages",
+    {
+      "conversation": "c1",
+    },
+  ],
+  [
+    "publish_due_messages",
+    {
+      "max_rows": 10,
+    },
+  ],
+  [
+    "publish_due_messages",
+    {
+      "max_rows": null,
+    },
+  ],
+]
+`;

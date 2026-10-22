@@ -19,6 +19,13 @@ import { OPERATIONS } from "./access-model.ts";
 import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
+import {
+  KITCHEN_TABLES,
+  KITCHEN_TOPIC,
+  kitchenContract,
+  kitchenOn,
+  kitchenSql,
+} from "./orders-kitchen.ts";
 import { columns, paymentWindow } from "./orders-shared.ts";
 
 type CommerceKey = keyof CommerceSubjectEventData;
@@ -70,6 +77,8 @@ const EVENTS: ModuleEvents<OrdersEvents> = {
   "fulfillment.delivered": orderEvent(["orderId", "number"]),
   "return.requested": orderEvent(["orderId", "number", "quantity", "reason"]),
   "return.received": orderEvent(["orderId", "number", "quantity"]),
+  "order.prepared": orderEvent(["number", "customerId"]),
+  "order.served": orderEvent(["number", "customerId"]),
 };
 
 const tenantExport = { tenant: "tenant", export: true } as const;
@@ -84,7 +93,7 @@ const NAMES: ModuleNames = {
     "before_refund_create",
     "after_refund_create",
   ],
-  options: ["paymentWindowMinutes", "extraColumns"],
+  options: ["paymentWindowMinutes", "extraColumns", "kitchen"],
   tables: {
     carts: {
       name: "carts",
@@ -289,6 +298,7 @@ const NAMES: ModuleNames = {
         completedAt: "completed_at",
       },
     },
+    ...KITCHEN_TABLES,
   },
 };
 
@@ -569,6 +579,7 @@ function namesOf(ctx: ModuleContext): OrdersNames {
     fn: (name) => ctx.fn(name),
     manage: ctx.permission("manage", OPERATIONS["orders.manage"]),
     read: ctx.permission("read", OPERATIONS["orders.read"]),
+    prepare: ctx.permission("prepare", OPERATIONS["orders.prepare"]),
   };
 }
 
@@ -583,7 +594,7 @@ function build(ctx: ModuleContext): string {
   return `${schemaPreamble(ctx)}
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
-${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}`;
+${tables(ctx, names)}${shippingRateFunctions(ctx, names)}${cartFunctions(ctx, names)}${checkoutFunctions(ctx, names)}${afterSaleFunctions(ctx, names)}${kitchenOn(ctx) ? kitchenSql(ctx, names) : ""}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -688,6 +699,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       args: ["uuid", "text", "text"],
       returns: "jsonb",
     },
+    ...(kitchenOn(ctx) ? kitchenContract() : []),
   ];
 }
 
@@ -696,7 +708,7 @@ export const ORDERS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Orders",
   description:
-    "Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds.",
+    "Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.",
   requires: ["tenant", "access", "catalog"],
   integrates: [
     "outbox",
@@ -711,4 +723,6 @@ export const ORDERS: ModuleDefinition = {
   names: NAMES,
   contract,
   build,
+  topics: (ctx) =>
+    kitchenOn(ctx) ? [`${KITCHEN_TOPIC}:{organizationId}`] : [],
 };

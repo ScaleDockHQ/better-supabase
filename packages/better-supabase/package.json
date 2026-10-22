@@ -109,6 +109,16 @@
       "types": "./dist/query/index.d.ts",
       "default": "./dist/query/index.js"
     },
+    "./records": {
+      "@better-supabase/source": "./src/records/index.ts",
+      "types": "./dist/records/index.d.ts",
+      "default": "./dist/records/index.js"
+    },
+    "./flows": {
+      "@better-supabase/source": "./src/flows/index.ts",
+      "types": "./dist/flows/index.d.ts",
+      "default": "./dist/flows/index.js"
+    },
     "./server": {
       "@better-supabase/source": "./src/server/index.ts",
       "types": "./dist/server/index.d.ts",
@@ -511,6 +521,11 @@
       "types": "./dist/blocks/flags/index.d.ts",
       "default": "./dist/blocks/flags/index.js"
     },
+    "./blocks/activity": {
+      "@better-supabase/source": "./src/blocks/activity/index.ts",
+      "types": "./dist/blocks/activity/index.d.ts",
+      "default": "./dist/blocks/activity/index.js"
+    },
     "./blocks/comments": {
       "@better-supabase/source": "./src/blocks/comments/index.ts",
       "types": "./dist/blocks/comments/index.d.ts",
@@ -520,6 +535,27 @@
       "@better-supabase/source": "./src/blocks/attachments/index.ts",
       "types": "./dist/blocks/attachments/index.d.ts",
       "default": "./dist/blocks/attachments/index.js"
+    },
+    "./blocks/attachments/react": {
+      "@better-supabase/source": "./src/blocks/attachments/react/index.ts",
+      "types": "./dist/blocks/attachments/react/index.d.ts",
+      "react-server": "./dist/blocks/attachments/react/server.js",
+      "default": "./dist/blocks/attachments/react/index.js"
+    },
+    "./blocks/attachments/vue": {
+      "@better-supabase/source": "./src/blocks/attachments/vue/index.ts",
+      "types": "./dist/blocks/attachments/vue/index.d.ts",
+      "default": "./dist/blocks/attachments/vue/index.js"
+    },
+    "./blocks/attachments/svelte": {
+      "@better-supabase/source": "./src/blocks/attachments/svelte/index.ts",
+      "types": "./dist/blocks/attachments/svelte/index.d.ts",
+      "default": "./dist/blocks/attachments/svelte/index.js"
+    },
+    "./blocks/attachments/solid": {
+      "@better-supabase/source": "./src/blocks/attachments/solid/index.ts",
+      "types": "./dist/blocks/attachments/solid/index.d.ts",
+      "default": "./dist/blocks/attachments/solid/index.js"
     },
     "./blocks/data-lifecycle": {
       "@better-supabase/source": "./src/blocks/data-lifecycle/index.ts",
@@ -752,6 +788,46 @@
       "types": "./dist/blocks/memory/index.d.ts",
       "default": "./dist/blocks/memory/index.js"
     },
+    "./blocks/channels": {
+      "@better-supabase/source": "./src/blocks/channels/index.ts",
+      "types": "./dist/blocks/channels/index.d.ts",
+      "default": "./dist/blocks/channels/index.js"
+    },
+    "./blocks/mail-sync": {
+      "@better-supabase/source": "./src/blocks/mail-sync/index.ts",
+      "types": "./dist/blocks/mail-sync/index.d.ts",
+      "default": "./dist/blocks/mail-sync/index.js"
+    },
+    "./blocks/segments": {
+      "@better-supabase/source": "./src/blocks/segments/index.ts",
+      "types": "./dist/blocks/segments/index.d.ts",
+      "default": "./dist/blocks/segments/index.js"
+    },
+    "./blocks/assignment": {
+      "@better-supabase/source": "./src/blocks/assignment/index.ts",
+      "types": "./dist/blocks/assignment/index.d.ts",
+      "default": "./dist/blocks/assignment/index.js"
+    },
+    "./blocks/enrichment": {
+      "@better-supabase/source": "./src/blocks/enrichment/index.ts",
+      "types": "./dist/blocks/enrichment/index.d.ts",
+      "default": "./dist/blocks/enrichment/index.js"
+    },
+    "./blocks/field-history": {
+      "@better-supabase/source": "./src/blocks/field-history/index.ts",
+      "types": "./dist/blocks/field-history/index.d.ts",
+      "default": "./dist/blocks/field-history/index.js"
+    },
+    "./blocks/forecasts": {
+      "@better-supabase/source": "./src/blocks/forecasts/index.ts",
+      "types": "./dist/blocks/forecasts/index.d.ts",
+      "default": "./dist/blocks/forecasts/index.js"
+    },
+    "./blocks/messaging": {
+      "@better-supabase/source": "./src/blocks/messaging/index.ts",
+      "types": "./dist/blocks/messaging/index.d.ts",
+      "default": "./dist/blocks/messaging/index.js"
+    },
     "./blocks/agents": {
       "@better-supabase/source": "./src/blocks/agents/index.ts",
       "types": "./dist/blocks/agents/index.d.ts",
@@ -956,6 +1032,31 @@
       "types": "./dist/blocks/leave/index.d.ts",
       "default": "./dist/blocks/leave/index.js"
     },
+    "./blocks/ledger": {
+      "@better-supabase/source": "./src/blocks/ledger/index.ts",
+      "types": "./dist/blocks/ledger/index.d.ts",
+      "default": "./dist/blocks/ledger/index.js"
+    },
+    "./blocks/assets": {
+      "@better-supabase/source": "./src/blocks/assets/index.ts",
+      "types": "./dist/blocks/assets/index.d.ts",
+      "default": "./dist/blocks/assets/index.js"
+    },
+    "./blocks/scores": {
+      "@better-supabase/source": "./src/blocks/scores/index.ts",
+      "types": "./dist/blocks/scores/index.d.ts",
+      "default": "./dist/blocks/scores/index.js"
+    },
+    "./blocks/moderation": {
+      "@better-supabase/source": "./src/blocks/moderation/index.ts",
+      "types": "./dist/blocks/moderation/index.d.ts",
+      "default": "./dist/blocks/moderation/index.js"
+    },
+    "./blocks/enrollments": {
+      "@better-supabase/source": "./src/blocks/enrollments/index.ts",
+      "types": "./dist/blocks/enrollments/index.d.ts",
+      "default": "./dist/blocks/enrollments/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -1145,6 +1246,11 @@
       "types": "./dist/blocks/drive/index.d.ts",
       "default": "./dist/blocks/drive/index.js"
     },
+    "./blocks/signatures": {
+      "@better-supabase/source": "./src/blocks/signatures/index.ts",
+      "types": "./dist/blocks/signatures/index.d.ts",
+      "default": "./dist/blocks/signatures/index.js"
+    },
     "./blocks/forms": {
       "@better-supabase/source": "./src/blocks/forms/index.ts",
       "types": "./dist/blocks/forms/index.d.ts",
@@ -1261,6 +1367,27 @@
       "@better-supabase/source": "./src/blocks/reactions/solid/index.ts",
       "types": "./dist/blocks/reactions/solid/index.d.ts",
       "default": "./dist/blocks/reactions/solid/index.js"
+    },
+    "./blocks/messaging/react": {
+      "@better-supabase/source": "./src/blocks/messaging/react/index.ts",
+      "types": "./dist/blocks/messaging/react/index.d.ts",
+      "react-server": "./dist/blocks/messaging/react/server.js",
+      "default": "./dist/blocks/messaging/react/index.js"
+    },
+    "./blocks/messaging/vue": {
+      "@better-supabase/source": "./src/blocks/messaging/vue/index.ts",
+      "types": "./dist/blocks/messaging/vue/index.d.ts",
+      "default": "./dist/blocks/messaging/vue/index.js"
+    },
+    "./blocks/messaging/svelte": {
+      "@better-supabase/source": "./src/blocks/messaging/svelte/index.ts",
+      "types": "./dist/blocks/messaging/svelte/index.d.ts",
+      "default": "./dist/blocks/messaging/svelte/index.js"
+    },
+    "./blocks/messaging/solid": {
+      "@better-supabase/source": "./src/blocks/messaging/solid/index.ts",
+      "types": "./dist/blocks/messaging/solid/index.d.ts",
+      "default": "./dist/blocks/messaging/solid/index.js"
     },
     "./blocks/comments/react": {
       "@better-supabase/source": "./src/blocks/comments/react/index.ts",
@@ -1547,6 +1674,66 @@
       "types": "./dist/blocks/push/index.d.ts",
       "default": "./dist/blocks/push/index.js"
     },
+    "./blocks/guests": {
+      "@better-supabase/source": "./src/blocks/guests/index.ts",
+      "types": "./dist/blocks/guests/index.d.ts",
+      "default": "./dist/blocks/guests/index.js"
+    },
+    "./blocks/passes": {
+      "@better-supabase/source": "./src/blocks/passes/index.ts",
+      "types": "./dist/blocks/passes/index.d.ts",
+      "default": "./dist/blocks/passes/index.js"
+    },
+    "./blocks/billable-time": {
+      "@better-supabase/source": "./src/blocks/billable-time/index.ts",
+      "types": "./dist/blocks/billable-time/index.d.ts",
+      "default": "./dist/blocks/billable-time/index.js"
+    },
+    "./blocks/courses": {
+      "@better-supabase/source": "./src/blocks/courses/index.ts",
+      "types": "./dist/blocks/courses/index.d.ts",
+      "default": "./dist/blocks/courses/index.js"
+    },
+    "./blocks/contracts": {
+      "@better-supabase/source": "./src/blocks/contracts/index.ts",
+      "types": "./dist/blocks/contracts/index.d.ts",
+      "default": "./dist/blocks/contracts/index.js"
+    },
+    "./blocks/controls": {
+      "@better-supabase/source": "./src/blocks/controls/index.ts",
+      "types": "./dist/blocks/controls/index.d.ts",
+      "default": "./dist/blocks/controls/index.js"
+    },
+    "./blocks/incidents": {
+      "@better-supabase/source": "./src/blocks/incidents/index.ts",
+      "types": "./dist/blocks/incidents/index.d.ts",
+      "default": "./dist/blocks/incidents/index.js"
+    },
+    "./blocks/dispatch": {
+      "@better-supabase/source": "./src/blocks/dispatch/index.ts",
+      "types": "./dist/blocks/dispatch/index.d.ts",
+      "default": "./dist/blocks/dispatch/index.js"
+    },
+    "./blocks/shipments": {
+      "@better-supabase/source": "./src/blocks/shipments/index.ts",
+      "types": "./dist/blocks/shipments/index.d.ts",
+      "default": "./dist/blocks/shipments/index.js"
+    },
+    "./blocks/leases": {
+      "@better-supabase/source": "./src/blocks/leases/index.ts",
+      "types": "./dist/blocks/leases/index.d.ts",
+      "default": "./dist/blocks/leases/index.js"
+    },
+    "./blocks/expenses": {
+      "@better-supabase/source": "./src/blocks/expenses/index.ts",
+      "types": "./dist/blocks/expenses/index.d.ts",
+      "default": "./dist/blocks/expenses/index.js"
+    },
+    "./blocks/donations": {
+      "@better-supabase/source": "./src/blocks/donations/index.ts",
+      "types": "./dist/blocks/donations/index.d.ts",
+      "default": "./dist/blocks/donations/index.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -1603,6 +1790,14 @@
       "./query": {
         "types": "./dist/query/index.d.ts",
         "default": "./dist/query/index.js"
+      },
+      "./records": {
+        "types": "./dist/records/index.d.ts",
+        "default": "./dist/records/index.js"
+      },
+      "./flows": {
+        "types": "./dist/flows/index.d.ts",
+        "default": "./dist/flows/index.js"
       },
       "./server": {
         "types": "./dist/server/index.d.ts",
@@ -1927,6 +2122,10 @@
         "types": "./dist/blocks/flags/index.d.ts",
         "default": "./dist/blocks/flags/index.js"
       },
+      "./blocks/activity": {
+        "types": "./dist/blocks/activity/index.d.ts",
+        "default": "./dist/blocks/activity/index.js"
+      },
       "./blocks/comments": {
         "types": "./dist/blocks/comments/index.d.ts",
         "default": "./dist/blocks/comments/index.js"
@@ -1934,6 +2133,23 @@
       "./blocks/attachments": {
         "types": "./dist/blocks/attachments/index.d.ts",
         "default": "./dist/blocks/attachments/index.js"
+      },
+      "./blocks/attachments/react": {
+        "types": "./dist/blocks/attachments/react/index.d.ts",
+        "react-server": "./dist/blocks/attachments/react/server.js",
+        "default": "./dist/blocks/attachments/react/index.js"
+      },
+      "./blocks/attachments/vue": {
+        "types": "./dist/blocks/attachments/vue/index.d.ts",
+        "default": "./dist/blocks/attachments/vue/index.js"
+      },
+      "./blocks/attachments/svelte": {
+        "types": "./dist/blocks/attachments/svelte/index.d.ts",
+        "default": "./dist/blocks/attachments/svelte/index.js"
+      },
+      "./blocks/attachments/solid": {
+        "types": "./dist/blocks/attachments/solid/index.d.ts",
+        "default": "./dist/blocks/attachments/solid/index.js"
       },
       "./blocks/data-lifecycle": {
         "types": "./dist/blocks/data-lifecycle/index.d.ts",
@@ -2121,6 +2337,38 @@
         "types": "./dist/blocks/memory/index.d.ts",
         "default": "./dist/blocks/memory/index.js"
       },
+      "./blocks/channels": {
+        "types": "./dist/blocks/channels/index.d.ts",
+        "default": "./dist/blocks/channels/index.js"
+      },
+      "./blocks/mail-sync": {
+        "types": "./dist/blocks/mail-sync/index.d.ts",
+        "default": "./dist/blocks/mail-sync/index.js"
+      },
+      "./blocks/segments": {
+        "types": "./dist/blocks/segments/index.d.ts",
+        "default": "./dist/blocks/segments/index.js"
+      },
+      "./blocks/assignment": {
+        "types": "./dist/blocks/assignment/index.d.ts",
+        "default": "./dist/blocks/assignment/index.js"
+      },
+      "./blocks/enrichment": {
+        "types": "./dist/blocks/enrichment/index.d.ts",
+        "default": "./dist/blocks/enrichment/index.js"
+      },
+      "./blocks/field-history": {
+        "types": "./dist/blocks/field-history/index.d.ts",
+        "default": "./dist/blocks/field-history/index.js"
+      },
+      "./blocks/forecasts": {
+        "types": "./dist/blocks/forecasts/index.d.ts",
+        "default": "./dist/blocks/forecasts/index.js"
+      },
+      "./blocks/messaging": {
+        "types": "./dist/blocks/messaging/index.d.ts",
+        "default": "./dist/blocks/messaging/index.js"
+      },
       "./blocks/agents": {
         "types": "./dist/blocks/agents/index.d.ts",
         "default": "./dist/blocks/agents/index.js"
@@ -2285,6 +2533,26 @@
         "types": "./dist/blocks/leave/index.d.ts",
         "default": "./dist/blocks/leave/index.js"
       },
+      "./blocks/ledger": {
+        "types": "./dist/blocks/ledger/index.d.ts",
+        "default": "./dist/blocks/ledger/index.js"
+      },
+      "./blocks/assets": {
+        "types": "./dist/blocks/assets/index.d.ts",
+        "default": "./dist/blocks/assets/index.js"
+      },
+      "./blocks/scores": {
+        "types": "./dist/blocks/scores/index.d.ts",
+        "default": "./dist/blocks/scores/index.js"
+      },
+      "./blocks/moderation": {
+        "types": "./dist/blocks/moderation/index.d.ts",
+        "default": "./dist/blocks/moderation/index.js"
+      },
+      "./blocks/enrollments": {
+        "types": "./dist/blocks/enrollments/index.d.ts",
+        "default": "./dist/blocks/enrollments/index.js"
+      },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",
         "default": "./dist/blocks/shared-signals/index.js"
@@ -2437,6 +2705,10 @@
         "types": "./dist/blocks/drive/index.d.ts",
         "default": "./dist/blocks/drive/index.js"
       },
+      "./blocks/signatures": {
+        "types": "./dist/blocks/signatures/index.d.ts",
+        "default": "./dist/blocks/signatures/index.js"
+      },
       "./blocks/forms": {
         "types": "./dist/blocks/forms/index.d.ts",
         "default": "./dist/blocks/forms/index.js"
@@ -2530,6 +2802,23 @@
       "./blocks/reactions/solid": {
         "types": "./dist/blocks/reactions/solid/index.d.ts",
         "default": "./dist/blocks/reactions/solid/index.js"
+      },
+      "./blocks/messaging/react": {
+        "types": "./dist/blocks/messaging/react/index.d.ts",
+        "react-server": "./dist/blocks/messaging/react/server.js",
+        "default": "./dist/blocks/messaging/react/index.js"
+      },
+      "./blocks/messaging/vue": {
+        "types": "./dist/blocks/messaging/vue/index.d.ts",
+        "default": "./dist/blocks/messaging/vue/index.js"
+      },
+      "./blocks/messaging/svelte": {
+        "types": "./dist/blocks/messaging/svelte/index.d.ts",
+        "default": "./dist/blocks/messaging/svelte/index.js"
+      },
+      "./blocks/messaging/solid": {
+        "types": "./dist/blocks/messaging/solid/index.d.ts",
+        "default": "./dist/blocks/messaging/solid/index.js"
       },
       "./blocks/comments/react": {
         "types": "./dist/blocks/comments/react/index.d.ts",
@@ -2760,6 +3049,54 @@
       "./blocks/push": {
         "types": "./dist/blocks/push/index.d.ts",
         "default": "./dist/blocks/push/index.js"
+      },
+      "./blocks/guests": {
+        "types": "./dist/blocks/guests/index.d.ts",
+        "default": "./dist/blocks/guests/index.js"
+      },
+      "./blocks/passes": {
+        "types": "./dist/blocks/passes/index.d.ts",
+        "default": "./dist/blocks/passes/index.js"
+      },
+      "./blocks/billable-time": {
+        "types": "./dist/blocks/billable-time/index.d.ts",
+        "default": "./dist/blocks/billable-time/index.js"
+      },
+      "./blocks/courses": {
+        "types": "./dist/blocks/courses/index.d.ts",
+        "default": "./dist/blocks/courses/index.js"
+      },
+      "./blocks/contracts": {
+        "types": "./dist/blocks/contracts/index.d.ts",
+        "default": "./dist/blocks/contracts/index.js"
+      },
+      "./blocks/controls": {
+        "types": "./dist/blocks/controls/index.d.ts",
+        "default": "./dist/blocks/controls/index.js"
+      },
+      "./blocks/incidents": {
+        "types": "./dist/blocks/incidents/index.d.ts",
+        "default": "./dist/blocks/incidents/index.js"
+      },
+      "./blocks/dispatch": {
+        "types": "./dist/blocks/dispatch/index.d.ts",
+        "default": "./dist/blocks/dispatch/index.js"
+      },
+      "./blocks/shipments": {
+        "types": "./dist/blocks/shipments/index.d.ts",
+        "default": "./dist/blocks/shipments/index.js"
+      },
+      "./blocks/leases": {
+        "types": "./dist/blocks/leases/index.d.ts",
+        "default": "./dist/blocks/leases/index.js"
+      },
+      "./blocks/expenses": {
+        "types": "./dist/blocks/expenses/index.d.ts",
+        "default": "./dist/blocks/expenses/index.js"
+      },
+      "./blocks/donations": {
+        "types": "./dist/blocks/donations/index.d.ts",
+        "default": "./dist/blocks/donations/index.js"
       },
       "./package.json": "./package.json"
     },

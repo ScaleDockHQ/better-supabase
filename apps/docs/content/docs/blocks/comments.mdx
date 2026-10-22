@@ -1,157 +1,85 @@
 ---
-title: Comments and activity
-description: Threaded comments on any record in a tenant, mentions that notify, comment events in the outbox and an activity feed built from outbox events.
+title: Comments
+description: Comments on any record as its conversation on the messaging core, with replies, mentions, resolved threads, pins, edit history, anchors, files and comments turned into tasks.
 ---
 
-The `comments` block adds threaded comments to any record in a tenant
-(projects, tickets, invoices) and an activity feed. Mentions notify the
-mentioned members through the [notifications](/docs/blocks/notifications)
-block, and every comment writes a `comment.*` event to the
-[outbox](/docs/blocks/outbox).
-
-Comments run in every [scope](/docs/blocks/sql#scope-and-naming). In `user`
-scope a thread is visible only to the user whose scope it is in, and mentions
-of other users notify no one. In `none` scope every signed-in user reads and
-writes every thread.
+The `comments` block lets members comment on any record in a tenant (a
+project, a ticket, an invoice). Each record's comments are its conversation
+on the [messaging](/docs/blocks/messaging) core (conversation kind
+`subject`), and each comment is a message. Replies, mentions, resolved
+threads, pins, edit history, anchors, files and read markers come from
+messaging; the block adds the record lookup, comment counts, copying a thread,
+following the record and turning a comment into a work item.
 
 ```bash
-better-supabase add comments   # adds tenant and access as well
+better-supabase add comments   # adds tenant, access, subjects and messaging as well
 ```
 
-The block's entity is `comment` (the `comments` table). Installing it registers `comment` as a subject, so other blocks such as reactions accept comments. Rename it with `blocks.comments.entities`, for example `{ comment: "note" }`; see [Typed blocks](/docs/blocks/typed-blocks). `commentInputSchema` and `commentChangeSchema` validate what `create` and `edit` take.
+Comments need tenants: the module runs in the `tenant`
+[scope](/docs/blocks/sql#scope-and-naming) only, and `user` or `none` scope
+refuses it. The records come from the
+[subject registry](/docs/blocks/sql#subject-registry) (`config.subjects`).
+Whoever can read a record (`can_subject(type, id, 'read')`) and holds
+`messages.read` in the tenant reads its comments.
 
-| Table              | Holds                                                                                                        |
-| ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `comments`         | `subject_type`, `subject_id`, `author_id`, `body`, `mentions`, `parent_id`, `edited_at` and `deleted_at`     |
-| `activity_entries` | One row per outbox event: `type`, `actor_id`, `subject_type`, `subject_id`, `summary`, `data`, `occurred_at` |
+| Table                       | Holds                                                                                                    |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `conversations` (messaging) | One `subject` conversation per record, with `subject_type` and `subject_id`, opened by the first comment |
+| `messages` (messaging)      | The comments: `body`, `document`, `anchor`, `mentions`, `parent_id`, pins, resolution, edits, deletes    |
+| `message_edits` (messaging) | The earlier versions of an edited comment                                                                |
+| `comment_tasks`             | The work item a comment was turned into (`message_id`, `task_id`), with the work-items block             |
 
-| Permission          | Lets a member                       | Default roles          |
-| ------------------- | ----------------------------------- | ---------------------- |
-| `comments.read`     | read the comments in a tenant       | `member`, `admin`      |
-| `comments.create`   | comment and edit their own comments | `member`, `admin`      |
-| `comments.moderate` | delete other members' comments      | `admin` (`comments.*`) |
-| `activity.read`     | read the tenant's activity feed     | `member`, `admin`      |
+The block has no entity of its own: a comment is a `message`, so reactions,
+search and share links accept it under the message entity
+(`blocks.messaging.entities` renames it). `commentInputSchema` and
+`commentChangeSchema` validate what `create` and `edit` take.
 
-Only the author edits a comment. Deleting is a soft delete: the row stays
-as a placeholder so replies keep their parent, and its body and mentions
-are cleared.
+## Permissions
 
-## Subjects
+The comments operations check the messaging keys:
 
-Without options, a comment can name any `subject_type` and `subject_id`.
-Map each subject type to its table so the policies also require that the
-caller can read the subject row (the subject table's own policies apply)
-and, optionally, hold a permission:
+| Operation           | Key                 | Lets a member                                            | Default roles          |
+| ------------------- | ------------------- | -------------------------------------------------------- | ---------------------- |
+| `comments.read`     | `messages.read`     | read the comments on the records they can read           | `member`, `admin`      |
+| `comments.create`   | `messages.send`     | comment, reply, edit their own comments, pin and resolve | `member`, `admin`      |
+| `comments.moderate` | `messages.moderate` | delete other members' comments                           | `admin` (`messages.*`) |
+
+`blocks.comments.permissions` renames a key per action, as for any block
+(see [access](/docs/blocks/access)). Only the author edits a comment, within
+`blocks.messaging.options.editWindow` when it is set. Deleting is a soft
+delete: the comment stays as a placeholder so replies keep their parent, and
+its body and files are cleared.
+
+## Config
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
+  subjects: { project: { table: "projects", permission: "projects.read" } },
   blocks: {
-    comments: {
-      options: {
-        subjects: {
-          project: { table: "projects", permission: "projects.read" },
-          ticket: {
-            table: "support.tickets",
-            id: "ticket_id",
-            tenant: "team_id",
-          },
-        },
-      },
-    },
+    messaging: { options: { maxBodyLength: 10_000 } },
+    comments: { options: { follow: true } },
   },
 });
 ```
 
-`id` defaults to `id` and `tenant` to `organization_id`. A subject type not in
-the map is refused. `maxBodyLength` (default 10000) caps the body.
+`blocks.comments.options` takes two keys:
 
-`permissions` gives a subject type its own keys per action, in place of the
-module's `comments.read`, `comments.create` and `comments.moderate`, so
-comments on deals follow the deal permissions while other subjects keep the
-defaults:
+| Option          | Default | What it does                                                                                                |
+| --------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `follow`        | `true`  | The author and the mentioned members follow the record, so they hear of later comments (with notifications) |
+| `mentionGroups` | none    | Expands a mention of a group, such as a team, into its members                                              |
 
-```ts
-subjects: {
-  deal: {
-    table: "deals",
-    permissions: { read: "deals.read", create: "deals.comment", moderate: "deals.manage" },
-  },
-},
-```
-
-`read` decides who sees the thread, `create` who may comment, and `moderate`
-who may edit or delete other people's comments; authors always edit their
-own.
-
-From 0.11, a subject taken from the registry (`config.subjects`) also takes
-its `create` and `moderate` keys from `subjects.<type>.permissions`; the
-block's own `permissions` override them key by key.
-
-### Access per record
-
-With `blocks.access.model: "provider"`, `scope` names a scope your
-[authorization provider](/docs/extending/authorization-providers) declares
-whose ids are the subject ids, such as `project`. A member then reads,
-writes or moderates the comments on a record when they hold the key in the
-tenant or on the record itself: the policies add
-`subject_id in (select ... from <idsWith at that scope>)` next to the tenant
-check. A scope the provider doesn't declare, or the tenant scope itself, is
-refused.
-
-```ts
-subjects: {
-  project: { table: "projects", idType: "uuid", scope: "project" },
-},
-```
-
-`cascade: true` on a subject writes an `after delete` trigger on its table
-that deletes the subject's comments, which stands in for a foreign key, since
-`subject_id` is text. The subject table must exist before the module file.
-
-## Rich text
-
-A comment can carry a `document` (any JSON, such as a block editor's
-document) next to `body`, which stays its plain text for search, summaries
-and notifications. `createComments({ mentionsOf })` reads the mentioned user
-ids from the comment when a call passes no `mentions`, for editors that store
-mentions as nodes instead of `@[Name](<user id>)` markup:
-
-```ts
-const comments = createComments({
-  transport,
-  tenant: organizationId,
-  mentionsOf: ({ document }) =>
-    mentionNodes(document).map((node) => node.userId),
-});
-
-await comments.create(subject, { body, document });
-await comments.edit(id, { body, document: null }); // null removes the document
-```
-
-An edit without `document` keeps the current one. With the jsonb-schemas
-module, `options.documentSchema` (a JSON Schema object) adds a pg_jsonschema
-check on the column.
-
-## Copying a thread
-
-When the app duplicates a record (a quote into an invoice, say),
-`comments.copy({ type, id }, { type, id })` copies the
-thread to the new subject with its authors, times and replies, and returns
-the number of comments copied. `copy_comments` is for the service role only:
-call it from the code that duplicates the record, after that code checked the
-caller may read both. It works over `sqlTransport` and over `rpcTransport`
-with a service-role client; PostgREST sessions on Supabase load
-pg-safeupdate, which refuses a `delete` or `update` without a `where`
-clause, and every statement the SQL modules run has one. The function
-creates no temporary table, so `supabase db lint` checks it like any other.
+The body limit, the extra columns and the Realtime topic are messaging
+options (`blocks.messaging.options.maxBodyLength`, `extraColumns` and
+`topic`); see [Messaging](/docs/blocks/messaging#options).
 
 ## Comments
 
 Every method that names a record takes it as a `SubjectRef`, `{ type, id }`,
 and acts in the block's tenant. On the server, `createBlockClient` builds the
 client for the request: it calls through `ctx.db` and reads the tenant from
-`db.$context.tenant`, so you pass no organization id
-(see [createBlocks](/docs/blocks/create-blocks#one-block-per-request)).
+`db.$context.tenant`, so you pass no organization id (see
+[createBlocks](/docs/blocks/create-blocks#one-block-per-request)).
 
 ```ts title="app/projects/[id]/actions.ts"
 import { createBlockClient } from "better-supabase/blocks";
@@ -166,9 +94,10 @@ const comments = createBlockClient(ctx.db, commentsBlock, {
 });
 const project = { type: "project", id: projectId };
 
-await comments
+const comment = await comments
   .create(project, { body: "Ready for review @[Ada](8c5a3d3e-...)" })
   .orThrow();
+await comments.create(project, { body: "On it", parentId: comment.id });
 
 const thread = await comments.list(project).orThrow();
 ```
@@ -176,95 +105,78 @@ const thread = await comments.list(project).orThrow();
 `createComments({ transport, tenant })` builds the same client by hand.
 `tenant` is an organization id or a function that returns the current one;
 a call without a tenant fails with `invalid_request` and the hint
-`TENANT_REQUIRED`. Rows carry `subject` (a `SubjectRef`) and keep
-`organizationId`.
+`TENANT_REQUIRED`.
 
-`create` and `edit` read the mentions from the body when you pass none:
-`mentionsIn(body)` returns the user ids written as `@[Name](<user id>)`, the
-markup most mention inputs produce. The module drops the author and repeats,
-and notifies only mentioned members who hold `comments.read`. `list` returns
-the thread oldest first; `cursor` (an instant) polls for new comments, and `offset` with
-`limit` pages by number. Pass the last comment's id as `cursorId` next to `cursor`
-so comments created in the same instant as it aren't skipped. `counts(subjects)`
-returns how many comments each subject has that the caller can read
-(`comment_counts`), deleted ones left out and 0 for a subject without any,
-for a counter on each row of a list. The result is keyed `type:id`
-(`subjectKey(subject)` from `better-supabase/blocks`). `edit` returns
-`not_found` for a comment the caller can't see, and `forbidden` with the hint
-`COMMENT_NOT_AUTHOR` for someone else's comment.
+A `Comment` is a messaging `Message` with two more fields: `subject`, the
+record it is on, and `taskId`, the work item it became. So a comment carries
+`authorId` and `author` (name and avatar, with the
+[profiles](/docs/blocks/profiles) module), `body`, `document`, `anchor`,
+`mentionIds`, `parentId` and `threadId`, `sentAt`, `editedAt`, `deletedAt`,
+`pinnedAt`, `resolvedAt`, `attachments`, `reactions` and `fields`.
+
+| Method                             | What it does                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| `create(subject, comment)`         | Posts a comment, opening the record's conversation the first time                       |
+| `get(id)`                          | One comment, or `not_found` when the caller can't read it                               |
+| `edit(id, { body, document? })`    | The author edits; the earlier version is kept                                           |
+| `remove(id)`                       | Soft-deletes (the author, or a member with `messages.moderate`)                         |
+| `resolve(id, resolved?)`           | Resolves a thread by its root comment, or opens it again with `false` (`messages.send`) |
+| `pin(id, pinned?)`                 | Pins a comment to the top of its record, or unpins it with `false` (`messages.send`)    |
+| `edits(id)`                        | The earlier versions of an edited comment, newest first (`list_message_edits`)          |
+| `assign(id, assignment?)`          | Turns a comment into a work item and returns its id                                     |
+| `list(subject, options?)`          | A record's comments and replies, oldest first, deleted ones as placeholders             |
+| `counts(subjects)`                 | How many comments each record has that the caller can read, keyed `type:id`             |
+| `copy(from, to)`                   | Copies a record's thread to another record, with a service-role transport               |
+| `conversation(subject, { open? })` | The record's conversation id, for Realtime and uploads; `open: true` creates it         |
+| `markRead(subject, { readAt? })`   | Moves the caller's read marker on the record's comments forward                         |
+
+Threads are one level deep: a reply to a reply joins the root's thread.
+`list` pages with `cursor` (an instant) and `cursorId` (the last comment's
+id, so comments sent in the same instant aren't skipped), or with `offset` and
+`limit` (default 100, at most 500). `counts` leaves out deleted comments and
+returns 0 for a record without any; `subjectKey(subject)` from
+`better-supabase/blocks` builds its keys.
 
 ```ts
 const counts = await comments
   .counts(rows.map((row) => ({ type: "project", id: row.id })))
   .orThrow();
 counts[`project:${projectId}`]; // 3
+
+await comments.resolve(comment.id).orThrow();
+const history = await comments.edits(comment.id).orThrow();
 ```
 
-### Authors
+### Mentions
 
-With the [profiles](/docs/blocks/profiles) module installed, each comment
-that `list` returns carries `author` (type `Author`): the author's `id`,
-`name` and `avatarUrl`. `list_comments` reads them through
-`comment_authors(uuid[])`, a security definer function that returns only the
-authors of comments the caller may read, because a profile's own policy may
-hide it from other members. `author` is `undefined` without the profiles
-module and once the account is deleted. `create` and `edit` don't return
-it; `authorId` is always there.
-
-```tsx
-{
-  thread.map((comment) => (
-    <p key={comment.id}>
-      {comment.author?.name ?? "Deleted user"}: {comment.body}
-    </p>
-  ));
-}
-```
-
-With the notifications module installed, each new mention sends a
-`comment.mentioned` notification with the subject, the first 140 characters
-of the body as its `summary` and the commenter as the actor. Three more keys
-of `options.subjects.<type>` shape it, each SQL on the subject's row
-`{row}`:
+`create` and `edit` read the mentions from the body when you pass no
+`mentionIds`: `mentionsIn(body)` returns the user ids written as
+`@[Name](<user id>)`, the markup most mention inputs produce. For an editor
+that stores mentions as nodes, `createComments({ mentionsOf })` reads them
+from the comment's `document`:
 
 ```ts
-subjects: {
-  task: {
-    table: "public.tasks",
-    idType: "uuid",
-    label: "{row}.title",
-    path: "'/tasks/' || {row}.id",
-    readableBy: "not {row}.private or {row}.owner_id = {user}",
-  },
-},
+const comments = createComments({
+  transport,
+  tenant: organizationId,
+  mentionsOf: ({ document }) =>
+    mentionNodes(document).map((node) => node.userId),
+});
+
+await comments.create(subject, { body, document });
+await comments.edit(id, { body, document: null }); // null removes the document
 ```
 
-`label` fills the notification's `subject_label` and `path` its
-`action_path`, which an adopted events table may require. A mentioned member
-is notified only when they hold the subject type's read key
-(`permissions.read`, else `comments.read`) and its `permission` in the
-tenant, and `readableBy` holds for them (`{user}` is their id). The others
-stay in the comment's `mentions` but get nothing.
+A comment can also mention another record as `@[Name](subject:<type>/<id>)`.
+Comments are messages, so the record lists the comment among its backlinks
+through `messaging.recordMentions`; see
+[record mentions](/docs/blocks/messaging#record-mentions).
 
-`readableBy` also takes `{ sql, enforce: true }`. The read policy then
-applies the same SQL to the caller (`{user}` becomes `auth.uid()`), so a
-member who can't read a private task doesn't see its comments either:
-
-```ts
-subjects: {
-  task: {
-    table: "public.tasks",
-    readableBy: { sql: "not {row}.private or {row}.owner_id = {user}", enforce: true },
-  },
-},
-```
-
-### Group mentions
-
-`options.mentionGroups` expands a mention of a group, such as `@team`, into
-its members. It names a table with one row per member of a group, the group
-and member columns, and optionally a tenant column that must match the
-comment's tenant:
+`options.mentionGroups` expands a mention of a group into its members. It
+names a table with one row per member of a group, the group and member
+columns, and optionally a tenant column that must match the comment's
+tenant. The app writes the group id like a user id, for example as
+`@[Support](<team id>)`:
 
 ```ts title="better-supabase.config.ts"
 comments: {
@@ -279,63 +191,189 @@ comments: {
 },
 ```
 
-The app writes the group id into `mentions` like a user id, for example as
-`@[Support](<team id>)`. The trigger adds the members of every mentioned
-group to the mentioned users, leaves out the author, and then applies the
-read check above to each of them, so a group member who can't read the
-subject gets nothing. On an edit, only members who were not already reached
-through the old mentions are notified, and `comment.mentioned` carries the
-expanded user ids in `mentionIds`. Both columns hold `uuid`s, and the
-comment's `mentions` keep the group id as written.
+### Anchors
 
-`options.notify: false` sends no notification at all, for an app that sends
-its own mention notifications. The outbox still gets `comment.mentioned`,
-so that app can send from the event.
+`anchor` says where on the record a top-level comment points, such as a text
+range in a document or a field on a form. It takes any JSON and comes back
+on the comment as `anchor`:
 
-### Following a thread
+```ts
+await comments.create(
+  { type: "document", id: documentId },
+  { body: "Is this figure right?", anchor: { from: 120, to: 164 } },
+);
+```
 
-With the notifications module installed, the author of a new comment and
-every user it mentions (after group expansion) follow the subject: the
-trigger adds a `participating` row to `notification_subscriptions` for each
-of them. A user who already has a row for the subject keeps it, so someone
-who chose `ignore` stays unsubscribed. An edit adds only the newly mentioned
-users. `options.follow: false` turns this off. Following does not depend on
-`options.notify`: `notify: false` stops the notifications but still adds the
-subscription rows, so set `follow: false` as well to stop them. While
-following is on, an app that brings its own subscriptions table (adopt mode)
-must accept every subject type it comments on in the subject type column,
-including any check constraint or foreign key on it.
+A file anchor points at a page, a region or a moment of one of the record's
+files (see [file anchors](/docs/blocks/messaging#file-anchors)), and
+`anchoredTo` lists a file's comments with their records, for a PDF or video
+viewer that shows them in place:
+
+```ts
+import { fileAnchor } from "better-supabase/blocks/comments";
+
+await comments.create(
+  { type: "contract", id: contractId },
+  {
+    body: "Check this clause",
+    anchor: fileAnchor(pdfId, {
+      page: 3,
+      region: { x: 0.1, y: 0.2, width: 0.5, height: 0.1 },
+    }),
+  },
+);
+
+const onPdf = await comments.anchoredTo(pdfId).orThrow();
+```
+
+### Attachments
+
+With the [attachments](/docs/blocks/attachments) block, upload files to the
+record's conversation (subject type `conversation`) and pass their ids as
+`attachmentIds`; `create` moves them onto the comment, and the comment
+returns them in `attachments`. `conversation(subject, { open: true })` gives
+the conversation id before the first comment:
+
+```ts
+const conversationId = await comments
+  .conversation(project, { open: true })
+  .orThrow();
+const file = await attachments
+  .put(
+    { type: "conversation", id: conversationId },
+    { name: "spec.pdf", mimeType: "application/pdf", size: blob.size },
+    blob,
+  )
+  .orThrow();
+
+await comments.create(project, {
+  body: "The updated spec",
+  attachmentIds: [file.id],
+});
+```
+
+### Assign to a task
+
+With the [work-items](/docs/blocks/work-items) block, `assign` turns a comment
+into a work item through `assign_comment(message, assignee, attrs)`. The
+title defaults to the comment's first 120 characters and the body to the
+comment's body; `attrs` passes other `create_work_item` attributes, such as
+`projectId` or `priority`. The link lives in `comment_tasks`, so assigning the
+same comment again returns the same work item, and the comment carries its id
+as `taskId`. Creating the work item needs `work_items.write`.
+
+```ts
+const taskId = await comments
+  .assign(comment.id, { assigneeId: adaId, attrs: { priority: 2 } })
+  .orThrow();
+```
+
+### Copying a thread
+
+When the app duplicates a record (a quote into an invoice, say),
+`comments.copy({ type, id }, { type, id })` copies the thread to the new
+record with its authors, times and replies, and returns the number of
+comments copied. `copy_comments` is for the service role only: call it from
+the code that duplicates the record, after that code checked the caller may
+read both.
+
+### Your own columns
+
+The extra columns are messaging's: add them with
+`blocks.messaging.options.extraColumns`, then pass a Standard Schema for them
+as `fields`. `create` and `edit` validate the `fields` you pass, and `get` and
+`list` return them parsed under `fields`. The block also takes `hooks` around
+its methods; see [extending blocks](/docs/extending/blocks).
+
+```ts title="lib/comments.ts"
+import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+import { z } from "zod";
+
+const comments = createComments({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+  fields: z.object({ visibility: z.enum(["internal", "customer"]) }),
+});
+```
+
+## Notifications
+
+With the [notifications](/docs/blocks/notifications) block, a new comment
+notifies two groups:
+
+| Type                | Who                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `message.mentioned` | the mentioned members who can read the record, sent by messaging                    |
+| `comment.posted`    | the record's followers, less the author and the members the mention already reached |
+
+`comment.posted` names the record as its subject, the first 140 characters of
+the body as its `summary` and the commenter as the actor, and its data holds
+`messageId` and `conversationId`. With `follow` on (the default), the author
+and every mentioned member, after group expansion, follow the record: each
+gets a `participating` row in `notification_subscriptions`. A user who
+already has a row for the record keeps it, so someone who chose `ignore`
+stays unsubscribed. An app that brings its own subscriptions table (adopt
+mode) must accept every record type it comments on.
+
+## Events
+
+The comments block writes no events of its own. A comment is a message, so
+the outbox gets the messaging events: `message.sent`, `message.edited`,
+`message.deleted`, `message.pinned` and `message.resolved`. On a comment
+their data carries `conversationKind: "subject"` and the record as
+`recordType` and `recordId`, next to `messageId`, `conversationId` and
+`authorId`; see [Events](/docs/extending/events). To keep a record's history,
+send them to the [activity](/docs/blocks/activity) feed.
+
+## Realtime
+
+Each record conversation has a private Realtime topic,
+`conversationTopic(conversationId, topic)`, which is `<topic>:<conversation id>`
+with `blocks.messaging.options.topic` (default `messages`). Only callers who
+read the record can join it. The messaging triggers broadcast a ping for each
+new, edited or deleted comment with its `messageId` and `threadId`. The
+comments hooks fetch that comment and its thread's root, for the reply count,
+so a busy thread never loads whole again; they load it whole only after the
+topic rejoins.
 
 ## In the browser
 
-`useComments` from `better-supabase/blocks/comments/react` loads one
-subject's thread through the provider's client and keeps it current after
-`add`, `edit` and `remove`. The same hook runs in React DOM and React Native.
-The module broadcasts nothing, so the thread loads again after the caller's
-own writes; pass `topic` (a private topic that hears of new comments, such as
-a `realtime-tables` topic on the comments table) to load it again for
-everyone's.
+`useComments` from `better-supabase/blocks/comments/react` loads one record's
+thread through the provider's client and keeps it current after `add`,
+`edit`, `remove`, `resolve` and `pin`. It joins the record conversation's
+topic once the record has a conversation, so other people's comments arrive
+too. The same hook runs in React DOM and React Native.
 
 ```tsx title="components/comment-thread.tsx"
 import { useComments } from "better-supabase/blocks/comments/react";
 
-const { comments, error, add, remove } = useComments({
+const { comments, error, add, resolve } = useComments({
   subject: { type: "project", id: projectId },
 });
 
 await add("Ready for review");
+await add("Agreed", { parentId: commentId });
 ```
 
-`add`, `edit` and `remove` return a `Result` and keep a failure in `error`.
-The hook calls the schema and function names in the `blocks` config you pass
-to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`),
-so it takes no `schema`. It acts in the client's tenant: the client's
-`tenant` option, then the session's tenant claim. The thread waits while
-there is no tenant, or while `subject` is `null`. `createCommentsController` from
-`better-supabase/blocks/comments` is the same logic without React, and
-`better-supabase/blocks/comments/vue`, `/svelte` and `/solid` export
-`useComments` over it, taking the controller's options (a client built with
-its `tenant`, and `subject`) with `auth` and `ports` from the provider. The
+| Option    | Default                                         | What it does                                    |
+| --------- | ----------------------------------------------- | ----------------------------------------------- |
+| `subject` | none                                            | The record; the thread waits while it is `null` |
+| `topic`   | `blocks.messaging.options.topic` (`"messages"`) | The topic prefix; `null` turns Realtime off     |
+| `limit`   | `100`                                           | The most comments to load, at most 500          |
+
+`add(body, draft?)` takes the rest of a `NewComment` as its draft (a reply,
+a document, an anchor, mentions or files). Every action returns a `Result`
+and keeps a failure in `error`. The hook calls the schema and function names
+in the `blocks` config you pass to the browser client
+(`createClient(betterSupabase, { blocks: blockConfig })`) and acts in the
+client's tenant: the client's `tenant` option, then the session's tenant
+claim. The thread waits while there is no tenant.
+
+`createCommentsController` from `better-supabase/blocks/comments` is the same
+logic without React, and `better-supabase/blocks/comments/vue`, `/svelte` and
+`/solid` export `useComments` over it, taking the controller's options (a
+client built with its `tenant`, `subject` and `topic`) with `auth` and
+`ports` from the provider. The
 [comment thread recipe](/docs/registry/ui-recipes) shows it in the Next.js and
 Expo examples.
 
@@ -408,171 +446,6 @@ export function CommentCount(props: {
 
 ## Reactions
 
-With the [reactions](/docs/blocks/reactions) module installed, a comment is
-the subject type `comment`: `reactions.react({ type: "comment", id:
-comment.id }, emoji)` reacts to a comment the caller can read, and
-`reactions.summary(thread.map((comment) => ({ type: "comment", id: comment.id })))`
-counts a thread's reactions in one call.
-
-## Your own columns
-
-Add columns to the `comments` table with
-`blocks.comments.options.extraColumns` (column name to SQL type), then pass
-a Standard Schema for them as `fields`. `create` and `edit` validate the
-`fields` you pass and write them after the insert or the update, so a
-column you leave out keeps its default or its value, and an edit that sets
-only `fields` still needs the `body`. `create`, `edit` and `list` return the
-columns parsed under `fields`, keyed by column name, and `copy` copies them
-to the new thread. Members write them with the same policies as the rest
-of the comment: the author, or a member with `comments.moderate`.
-
-```ts title="better-supabase.config.ts"
-blocks: {
-  comments: {
-    options: {
-      extraColumns: { visibility: "text not null default 'internal'" },
-    },
-  },
-},
-```
-
-```ts title="lib/comments.ts"
-import { createComments, rpcTransport } from "better-supabase/blocks/comments";
-import { z } from "zod";
-
-const comments = createComments({
-  transport: rpcTransport(supabase),
-  tenant: organizationId,
-  fields: z.object({ visibility: z.enum(["internal", "customer"]) }),
-});
-
-const comment = await comments
-  .create(
-    { type: "project", id: projectId },
-    { body: "Shipped", fields: { visibility: "customer" } },
-  )
-  .orThrow();
-comment.fields.visibility; // "internal" | "customer"
-```
-
-Without `extraColumns`, `create_comment` and `edit_comment` keep their
-default signatures and stay `language sql`. The block also takes `hooks`
-around its methods; see [extending blocks](/docs/extending/blocks).
-
-## Events
-
-With the outbox installed, the module writes these events with the tenant as
-the partition key and `comments/<id>` as the subject:
-
-| Event               | When                           | Data                                                                          |
-| ------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
-| `comment.created`   | a comment or reply is added    | `commentId`, `subjectType`, `subjectId`, `authorId`, `parentId`, `mentionIds` |
-| `comment.mentioned` | a create or edit adds mentions | the same, with only the new `mentionIds`                                      |
-| `comment.deleted`   | a comment is deleted           | `commentId`, `subjectType`, `subjectId`, `authorId`                           |
-
-## Activity feed
-
-`activitySink` is an outbox sink that writes events into `activity_entries`.
-Run it as a consumer with a service-role transport:
-
-```ts title="app/api/cron/activity/route.ts"
-import { activitySink, sqlTransport } from "better-supabase/blocks/comments";
-
-await outbox.relay(
-  "activity",
-  activitySink({
-    transport: sqlTransport(postgres.admin),
-    types: ["comment.*", "organization.member_added", "billing.*"],
-    describe: (event, type) =>
-      type === "comment.created" ? { summary: "commented" } : {},
-  }),
-);
-```
-
-Events without a tenant are skipped, and the event id is unique, so a
-replayed batch writes nothing twice. The actor is the event's `actorId`,
-`authorId` or `userId`, and the subject its `subjectType` and `subjectId`
-(or the CloudEvents `subject`). `describe` can set the summary, actor,
-subject and data, or return `null` to skip an event.
-
-`comments.history(subject?, { cursor, limit, sources })` reads the
-feed through `list_activity`, which runs as the caller: the tenant's entries
-newest first, or one subject's timeline when you pass `{ type, id }`. Pass
-`null` or nothing for the tenant feed. It works over `rpcTransport` too,
-without exposing the module schema. Each entry's `subject` is a `SubjectRef`,
-or `undefined` for an entry without one.
-
-```ts
-const timeline = await comments
-  .history({ type: "quote", id: quoteId }, { limit: 20 })
-  .orThrow();
-```
-
-Each entry carries a `source`: `event` for a row of `activity_entries`,
-`audit` for an audit log entry, `delivery` for a notification delivery and
-`run` for a workflow run (see below). Pass `sources` to keep some of them:
-
-```ts
-const sent = await comments
-  .history({ type: "quote", id: quoteId }, { sources: ["delivery"] })
-  .orThrow();
-```
-
-### Visibility per record
-
-With the `subjects` module of the
-[subject registry](/docs/blocks/sql#subject-registry) installed, the feed only
-shows a caller the entries on records they can read. The read policy on
-`activity_entries` checks `can_subject(subject_type, subject_id, 'read')` row
-by row for every subject type in the registry, so the tenant feed, the
-subject timeline and `activityListQuery` all leave out entries on records the
-caller can't read, and entries on a deleted record. `list_activity` returns
-an empty timeline for a subject the caller can't read. Entries without a
-subject, or on a type the registry doesn't list, keep the tenant check alone.
-
-### Audit entries in a timeline
-
-With the [audit](/docs/blocks/audit) module installed with
-`options.readPolicy: true`, a subject's timeline also returns the audit log
-entries for the subject's row: the entries whose table is the type's
-registry table and whose record id is the subject id. The audit read policy
-gates them, so only callers who hold `audit.read` (by default `admin` and
-`owner`) see them. An audit entry has `source: "audit"`, the audit entry id
-as `id`, no `eventId`, the audit event type as `type` (`audit.<op>` when it
-has none), and `op`, `changed` and `table` in `data`. The tenant feed and
-`activityListQuery` list no audit entries.
-
-### Deliveries and workflow runs in a timeline
-
-With the subject registry and the [notifications](/docs/blocks/notifications)
-module, a subject's timeline also returns the deliveries of notifications
-about the subject: one entry per channel and recipient, with
-`source: "delivery"`, `delivery.<status>` as `type` and `channel`, `status`,
-`userId`, `notificationId` and `notificationType` (plus `providerStatus` and
-`templateKey` when tracked) in `data`. A recipient can read only their own
-deliveries, so `list_activity` reads them through the security definer
-function `activity_subject_deliveries`, which returns them to callers who
-hold both `activity.read` and `notifications.send`, the same bar as
-`list_subject_deliveries`.
-
-With the [workflows](/docs/blocks/workflows) module, it returns the
-subject's workflow runs with `source: "run"`, `run.<status>` as `type` and
-`runId`, `definition`, `status` and `error` in `data`. Runs are read as the
-caller, so the run's read policy applies: its actor, or members with
-`workflow.read` (by default only `owner`).
-
-Both need `can_subject` read on the subject, and the tenant feed lists
-neither.
-
-Or read the feed with `activityListQuery`, a cursor-paged
-[list query](/docs/platform/list) filtered by type, actor and
-subject, newest first. Generate types for the `better_supabase` schema to
-have the table in your models:
-
-```ts
-import { activityListQuery } from "better-supabase/blocks/comments";
-
-export const activity = activityListQuery(betterSupabase, "activityEntries", {
-  pageSize: 30,
-});
-```
+With the [reactions](/docs/blocks/reactions) module installed, react to a
+comment as a message: `reactions.react({ type: "message", id: comment.id },
+emoji)`. Each comment also carries its reaction summary in `reactions`.

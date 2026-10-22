@@ -1,0 +1,125 @@
+---
+title: Flows
+description: Turn an event in one block into a record in another, once per source record, with the lineage kept as a relation.
+---
+
+A flow creates a record in one block when another block emits an event: an
+inbox conversation opens a work item, a hired application becomes an
+employee. `better-supabase/flows` runs each flow from the
+[outbox](/docs/blocks/outbox), optionally through [jobs](/docs/blocks/jobs),
+and links the new record to its source with a `created_from`
+[relation](/docs/blocks/relations). That relation is also how a flow knows
+it already ran, so a redelivered event never creates a second record.
+
+## Turn on a built-in flow
+
+Four flows ship with the library. None runs until you list it in
+`createFlows`:
+
+| Flow                     | Event                       | Creates                                          |
+| ------------------------ | --------------------------- | ------------------------------------------------ |
+| `conversationToWorkItem` | `inbox_conversation.opened` | a work item titled after the conversation        |
+| `applicationToEmployee`  | `application.hired`         | an employee, through `employees.fromApplication` |
+| `bookingToEngagement`    | `booking.confirmed`         | a meeting engagement on the booking              |
+| `quoteToOrder`           | `quote.accepted`            | an order, through the `create` you pass          |
+
+`clients(tenant, event)` returns the block clients for the event's tenant.
+The tenant comes from the event, or from `organizationId` in its payload.
+Add the sink to the outbox consumers next to your other ones:
+
+```ts title="src/app/api/outbox/route.ts"
+import { conversationToWorkItem, createFlows } from "better-supabase/flows";
+
+const admin = bs.admin();
+
+const flows = createFlows({
+  flows: [conversationToWorkItem()],
+  clients: (tenant) => blocks(admin.$client, tenant),
+});
+
+export const GET = blocks(admin.$client).outbox.relayRoute({
+  secret: process.env["CRON_SECRET"],
+  consumers: { flows: flows.sink() },
+});
+```
+
+Each built-in takes `on`, `sourceType` and `targetType` when your subject
+types or event names differ from the defaults, and a `map` that replaces the
+default mapping. `conversationToWorkItem` assigns the conversation's assignee
+unless you pass `assign: false`. Orders have no conversion from a quote yet,
+so `quoteToOrder` calls your `create`:
+
+```ts
+quoteToOrder({
+  create: ({ tenant, source }) => createOrderFromQuote(tenant, source.id),
+});
+```
+
+## Define a flow
+
+`defineFlow` takes the trigger event, how to find the source, an optional
+`load` that returns a `Result`, a `map` from the loaded record to the target input, and a `create`.
+With `input`, any [Standard Schema](https://standardschema.dev), the
+mapped value is validated before `create` runs, and a failure becomes a
+`validation` error with the issues:
+
+```ts title="src/lib/flows.ts"
+import { defineFlow } from "better-supabase/flows";
+import { workItemInputSchema } from "better-supabase/blocks/work-items";
+
+export const dealToWorkItem = defineFlow({
+  name: "dealToWorkItem",
+  on: "deal.won",
+  target: "work_item",
+  source: (event) => ({ type: "deal", id: event.payload.dealId }),
+  load: ({ tenant, source }) => loadDeal(tenant, source.id),
+  input: workItemInputSchema,
+  map: (deal) => ({ title: `Kick off ${deal.name}` }),
+  create: (input, { clients, tenant }) =>
+    clients.workItems.create(tenant, input),
+});
+```
+
+A run goes through these steps, and stops at the first that fails:
+
+1. `relations.convertedInto(source, target)` looks for an earlier run. When
+   it finds one, the outcome is `exists` and nothing else runs.
+2. `load` reads the source record.
+3. `map` builds the input, and `input` validates it.
+4. `create` writes the target record.
+5. `relations.link(target, source, { kind: "created_from" })` records the
+   lineage, unless the flow sets `linksItself` because its `create` already
+   links.
+
+`source` returning `undefined` skips the event (`skipped`). `onOutcome`
+receives each run's outcome, for logs or metrics.
+
+## Run flows as jobs
+
+The sink runs each flow inside the outbox consumer. Pass `enqueue` to queue
+each run as a [job](/docs/blocks/jobs) instead. The dedupe key is
+`flow:<name>:<event id>`, so a redelivered event queues once; register
+`flows.handler()` for the queue:
+
+```ts
+const flows = createFlows({
+  flows: [conversationToWorkItem(), bookingToEngagement()],
+  clients: (tenant) => blocks(admin.$client, tenant),
+  enqueue: (job, dedupeKey) => jobs.enqueueOnce("flows", job, { dedupeKey }),
+});
+
+export const handlers = { flows: flows.handler() };
+```
+
+When a run or an enqueue fails, the sink throws, so the outbox delivers the
+batch again. The runs that already finished find their record and return
+`exists`.
+
+## Errors
+
+`run(name, event)` returns a `Result`. An unknown flow fails with the hint
+`FLOW_NOT_FOUND`, an event without a tenant with `FLOW_TENANT_REQUIRED`, and
+a block error from `load`, `create` or `link` comes back unchanged.
+
+Flows carry `apiVersion: 1`. The decision to compose blocks this way is
+ADR 0064; see [Composing blocks](/docs/blocks/composing-blocks).

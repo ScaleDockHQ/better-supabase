@@ -1561,17 +1561,19 @@ describe("useReactions", () => {
 describe("useComments", () => {
   const row = (id: string, body: string, deleted = false) => ({
     id,
-    organization_id: "org-1",
+    tenant_id: "org-1",
+    conversation_id: "conv-1",
     subject_type: "customer",
     subject_id: "cu1",
     author_id: USER,
     body: deleted ? "" : body,
     mentions: [],
+    sent_at: "2026-01-01T00:00:00Z",
     created_at: "2026-01-01T00:00:00Z",
     deleted_at: deleted ? "2026-01-02T00:00:00Z" : null,
   });
 
-  it("loads the thread, adds and removes, and reloads for the topic", async () => {
+  it("loads the thread, adds and removes, and reloads for the conversation's topic", async () => {
     const { browser, client, emit } = fakeBrowser(
       signedIn(USER, { tenant_id: "org-1" }),
     );
@@ -1579,6 +1581,11 @@ describe("useComments", () => {
     Object.assign(browser, {
       blocks: {
         comments: { schema: "better_supabase", api: "api", options: {} },
+        messaging: {
+          schema: "better_supabase",
+          api: "api",
+          options: { topic: "chat" },
+        },
       },
     });
     let thread = [row("c1", "First")];
@@ -1588,21 +1595,28 @@ describe("useComments", () => {
         return row("c2", String(args["body"]));
       }
 
-      if (fn === "delete_comment") {
+      if (fn === "comment_conversation") {
+        return "conv-1";
+      }
+
+      if (fn === "delete_message") {
         thread = [row("c1", "First", true)];
 
         return true;
+      }
+
+      if (fn === "get_comment") {
+        return (
+          thread.find((each) => each.id === args["message"]) ??
+          row(String(args["message"]), "Pinged")
+        );
       }
 
       return thread;
     });
 
     const view = renderHook(
-      () =>
-        useComments({
-          subject: { type: "customer", id: "cu1" },
-          topic: "comments:cu1",
-        }),
+      () => useComments({ subject: { type: "customer", id: "cu1" } }),
       undefined,
       { client: browser },
     );
@@ -1637,9 +1651,16 @@ describe("useComments", () => {
     expect(view.result.comments?.[0]?.deletedAt).toBeDefined();
 
     const calls = rpc.mock.calls.length;
-    emit("comments:cu1", "INSERT", {});
+    emit("chat:conv-1", "message", {});
+    emit("chat:conv-1", "message", { messageId: "c3" });
     await flush();
     expect(rpc).toHaveBeenCalledTimes(calls + 1);
+    expect(rpc).toHaveBeenLastCalledWith("get_comment", { message: "c3" });
+    expect(view.result.comments?.map((comment) => comment.id)).toEqual([
+      "c1",
+      "c2",
+      "c3",
+    ]);
     view.unmount();
   });
 

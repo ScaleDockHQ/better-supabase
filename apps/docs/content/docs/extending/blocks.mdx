@@ -354,6 +354,7 @@ export const invoicingBlock = defineBlock({
 | `client`   | The name of its headless controller, when it has one                                                       |
 | `category` | Where it sits in the catalog: `identity`, `tenancy`, `work`, `commerce`, `developer` and so on (16 in all) |
 | `recipes`  | The [UI recipes](/docs/registry/ui-recipes) that use it                                                    |
+| `sections` | The parts of a record page it owns, from `defineSection` ([Record sections](/docs/blocks/records))         |
 
 The ports are `notifier`, `files`, `attachments`, `workflows` and `sink`
 ([the table](/docs/blocks/create-blocks#ports) says who provides each).

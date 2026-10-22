@@ -133,10 +133,10 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
     await session.service();
     expect(
       await session.hint(
-        "update better_supabase.stock_movements set quantity = 100 where variant_id = $1",
+        "update better_supabase.ledger_entries set amount = 100 where account_id in (select id from better_supabase.ledger_accounts where holder_id = $1::text)",
         [tee],
       ),
-    ).toBe("INVENTORY_LEDGER_APPEND_ONLY");
+    ).toBe("LEDGER_APPEND_ONLY");
     await session.as(owner);
   });
 

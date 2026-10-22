@@ -36,13 +36,13 @@ describe("rename helpers", () => {
 });
 
 describe("nameMigrationSql", () => {
-  const ctx = moduleContext("comments");
+  const ctx = moduleContext("messaging");
 
   it("renames only the columns when the table kept its name", () => {
     const sql = nameMigrationSql(ctx, {
       from: 1,
       description: "",
-      table: "comments",
+      table: "messages",
       columns: { body: "text", parent: "parent_id" },
     });
 
@@ -78,6 +78,6 @@ describe("nameMigrationSql", () => {
         table: "missing",
         was: "gone",
       }),
-    ).toThrow('Module "comments" has no table "missing"');
+    ).toThrow('Module "messaging" has no table "missing"');
   });
 });

@@ -1,4 +1,4 @@
-import type { SignaturesEvents } from "../../blocks/forms/events.ts";
+import type { SignaturesEvents } from "../../blocks/signatures/events.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,

@@ -3,6 +3,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { MessageReaction } from "../messaging/messaging.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type {
   BotMode,
@@ -16,14 +17,18 @@ import type {
   InboxChannel,
   InboxCounts,
   InboxMessage,
+  InboxFileSource,
   InboxRow,
-  MessageAttachment,
+  InboxUpload,
   MessageTemplate,
+  PendingInboxFile,
   PurgedContact,
+  ScheduledInboxMessage,
   StoredInboundEvent,
 } from "./types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { reactionsOf } from "../messaging/rows.ts";
 import {
   applyTemporal,
   blockCall,
@@ -46,8 +51,11 @@ import {
   inboxOf,
   messageOf,
   messagesOf,
+  pendingFilesOf,
+  uploadOf,
   purgedOf,
-  reactionsOf,
+  scheduledListOf,
+  scheduledOf,
   storedEventsOf,
   templateOf,
 } from "./rows.ts";
@@ -110,7 +118,13 @@ export interface MessageInput {
   /** `note` is an internal note only staff see. */
   readonly kind?: "message" | "note";
   readonly format?: "text" | "markdown";
-  readonly attachments?: readonly MessageAttachment[];
+  /** Ids from `messages.createUpload`, uploaded by the caller. */
+  readonly attachments?: readonly string[];
+  /**
+   * For the service: files that arrived on a channel. Each becomes a pending
+   * attachment for `files.pending()`.
+   */
+  readonly files?: readonly InboxFileSource[];
   /** User ids; those who cannot read the inbox are dropped. */
   readonly mentions?: readonly string[];
   readonly replyTo?: string;
@@ -124,6 +138,12 @@ export interface MessageInput {
    */
   readonly deliveredByCaller?: boolean;
 }
+
+/** What a scheduled reply carries: a message without the service's fields. */
+export type ScheduledMessageInput = Pick<
+  MessageInput,
+  "body" | "format" | "attachments" | "mentions" | "replyTo" | "metadata"
+>;
 
 export interface StartConversationInput {
   /**
@@ -148,7 +168,7 @@ export interface InboundInput {
     /** Shorthand for `identity` on the inbox's channel. */
     readonly externalId?: string;
   };
-  readonly message: Omit<MessageInput, "kind" | "authorType">;
+  readonly message: Omit<MessageInput, "kind" | "authorType" | "attachments">;
   readonly subject?: string;
   /** `outbound` records a message sent from the platform by someone else. */
   readonly direction?: "inbound" | "outbound";
@@ -188,6 +208,7 @@ export type InboxHooks = BlockHooks<Inbox> & {
   readonly contacts?: BlockHooks<Inbox["contacts"]>;
   readonly conversations?: BlockHooks<Inbox["conversations"]>;
   readonly messages?: BlockHooks<Inbox["messages"]>;
+  readonly files?: BlockHooks<Inbox["files"]>;
   readonly deliveries?: BlockHooks<Inbox["deliveries"]>;
   readonly templates?: BlockHooks<Inbox["templates"]>;
   readonly inbound?: BlockHooks<Inbox["inbound"]>;
@@ -256,7 +277,10 @@ export interface Inbox {
       reason?: string,
     ): AsyncResult<Conversation>;
     markRead(conversationId: string): AsyncResult<Temporal.Instant>;
-    /** A typing ping on `inbox:<id>`; the service names the bot in `actor`. */
+    /**
+     * A typing ping on the conversation's messaging topic; the service names
+     * the bot in `actor`.
+     */
     typing(
       conversationId: string,
       typing?: boolean,
@@ -282,13 +306,62 @@ export interface Inbox {
     ): AsyncResult<readonly InboxMessage[]>;
     get(messageId: string): AsyncResult<InboxMessage | null>;
     edit(messageId: string, body: string): AsyncResult<InboxMessage>;
-    /** Leaves a tombstone with an empty body. */
+    /** Leaves a tombstone with an empty body and deletes its attachments. */
     remove(messageId: string): AsyncResult<InboxMessage>;
+    /** Needs the `reactions` module; returns the message's reactions. */
     react(
       messageId: string,
       emoji: string,
       options?: { readonly present?: boolean; readonly actor?: string },
-    ): AsyncResult<Readonly<Record<string, readonly string[]>>>;
+    ): AsyncResult<readonly MessageReaction[]>;
+    /**
+     * A pending attachment on the conversation to upload a file to. Upload it
+     * to `bucket` at `path`, call `confirmUpload`, then pass its id in
+     * `attachments`.
+     */
+    createUpload(
+      conversationId: string,
+      file: {
+        readonly name: string;
+        readonly mimeType?: string;
+        readonly size?: number;
+      },
+    ): AsyncResult<InboxUpload>;
+    /** Marks the uploaded file as stored (the `attachments` module). */
+    confirmUpload(attachmentId: string): AsyncResult<void>;
+    /**
+     * Schedules a staff reply for `at` (in the future). It is sent as the
+     * caller when `publishDue` runs after that time; until then only the caller
+     * sees it.
+     */
+    schedule(
+      conversationId: string,
+      input: ScheduledMessageInput,
+      at: Temporal.Instant,
+    ): AsyncResult<ScheduledInboxMessage>;
+    /**
+     * The caller's scheduled replies, soonest first, on one conversation or
+     * all.
+     */
+    scheduled(
+      conversationId?: string,
+    ): AsyncResult<readonly ScheduledInboxMessage[]>;
+    /** Moves the caller's scheduled reply to another future time. */
+    reschedule(
+      scheduledId: string,
+      at: Temporal.Instant,
+    ): AsyncResult<ScheduledInboxMessage>;
+    /** Deletes the caller's scheduled reply before it is sent. */
+    cancelScheduled(scheduledId: string): AsyncResult<void>;
+  };
+  /** Service only: the files that arrived on channels. */
+  readonly files: {
+    /** The channel files to fetch and upload, oldest first. */
+    pending(limit?: number): AsyncResult<readonly PendingInboxFile[]>;
+    /** Confirms a fetched and uploaded file. */
+    stored(attachmentId: string): AsyncResult<void>;
+    /** Gives up on a file the channel no longer serves. */
+    failed(attachmentId: string, detail?: string): AsyncResult<boolean>;
   };
   readonly deliveries: {
     /** Service only: after posting a message on its channel. */
@@ -340,12 +413,21 @@ export interface Inbox {
       readonly batch?: number;
     }): AsyncResult<number>;
   };
-  /** Service only: reopens snoozed conversations whose time came. */
+  /**
+   * Service only: reopens snoozed conversations whose time came, with the
+   * `inbox_conversation.unsnoozed` event and a notification. Returns the
+   * count.
+   */
   wakeSnoozed(): AsyncResult<number>;
   /**
+   * Service only: sends the scheduled replies whose time came, as their
+   * authors. Returns the number sent.
+   */
+  publishDue(maxRows?: number): AsyncResult<number>;
+  /**
    * Erases a contact and its conversations for a data subject request
-   * (`inbox.manage` or the service). Remove the returned attachment paths from
-   * Storage afterwards.
+   * (`inbox.manage` or the service). Remove the returned Storage objects
+   * afterwards.
    */
   purgeContact(contactId: string): AsyncResult<PurgedContact>;
 }
@@ -374,7 +456,8 @@ function messageArg(input: MessageInput): Record<string, unknown> {
     body: input.body,
     kind: input.kind,
     format: input.format,
-    attachments: input.attachments?.map((file) => ({
+    attachments: input.attachments,
+    files: input.files?.map((file) => ({
       path: file.path,
       url: file.url,
       name: file.name,
@@ -482,10 +565,13 @@ export function createInbox(options: InboxOptions): Inbox {
     input: MessageInput,
   ): AsyncResult<InboxMessage> =>
     call(
-      "send_message",
+      "send_inbox_message",
       { conversation: conversationId, input: compact(messageArg(input)) },
       messageOf,
     );
+
+  const confirm = (attachmentId: string): AsyncResult<void> =>
+    call("confirm_attachment", { id: attachmentId }, () => undefined);
 
   const client: Inbox = {
     inboxes: {
@@ -554,7 +640,7 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
       list: (tenant, filter = {}) =>
         call(
-          "list_conversations",
+          "list_inbox_conversations",
           {
             tenant,
             filter: compact({
@@ -625,7 +711,7 @@ export function createInbox(options: InboxOptions): Inbox {
         send(conversationId, { ...input, body, kind: "note" }),
       list: (conversationId, page = {}) =>
         call(
-          "list_messages",
+          "list_inbox_messages",
           {
             conversation: conversationId,
             before: instantArg(pageOf<Temporal.Instant>(page).cursor),
@@ -634,16 +720,20 @@ export function createInbox(options: InboxOptions): Inbox {
           messagesOf,
         ),
       get: (messageId) =>
-        call("get_message", { message: messageId }, (value) =>
+        call("get_inbox_message", { message: messageId }, (value) =>
           value === null ? null : messageOf(value),
         ),
       edit: (messageId, body) =>
-        call("edit_message", { message: messageId, body }, messageOf),
+        call("edit_inbox_message", { message: messageId, body }, messageOf),
       remove: (messageId) =>
-        call("edit_message", { message: messageId, remove: true }, messageOf),
+        call(
+          "edit_inbox_message",
+          { message: messageId, remove: true },
+          messageOf,
+        ),
       react: (messageId, emoji, reactOptions = {}) =>
         call(
-          "react_to_message",
+          "react_to_inbox_message",
           {
             message: messageId,
             emoji,
@@ -651,6 +741,57 @@ export function createInbox(options: InboxOptions): Inbox {
             actor: reactOptions.actor,
           },
           reactionsOf,
+        ),
+      createUpload: (conversationId, file) =>
+        call(
+          "create_inbox_attachment",
+          {
+            conversation: conversationId,
+            name: file.name,
+            mime_type: file.mimeType,
+            size: file.size,
+          },
+          uploadOf,
+        ),
+      confirmUpload: (attachmentId) => confirm(attachmentId),
+      schedule: (conversationId, input, at) =>
+        call(
+          "schedule_inbox_message",
+          {
+            conversation: conversationId,
+            input: compact(messageArg(input)),
+            scheduled_for: instantArg(at),
+          },
+          scheduledOf,
+        ),
+      scheduled: (conversationId) =>
+        call(
+          "list_scheduled_inbox_messages",
+          { conversation: conversationId ?? null },
+          scheduledListOf,
+        ),
+      reschedule: (scheduledId, at) =>
+        call(
+          "reschedule_inbox_message",
+          { scheduled: scheduledId, scheduled_for: instantArg(at) },
+          scheduledOf,
+        ),
+      cancelScheduled: (scheduledId) =>
+        call(
+          "cancel_inbox_message",
+          { scheduled: scheduledId },
+          () => undefined,
+        ),
+    },
+    files: {
+      pending: (limit) =>
+        call("pending_inbox_files", { max: limit }, pendingFilesOf),
+      stored: (attachmentId) => confirm(attachmentId),
+      failed: (attachmentId, detail) =>
+        call(
+          "inbox_file_failed",
+          { attachment: attachmentId, detail },
+          (value) => value === true,
         ),
     },
     deliveries: {
@@ -766,6 +907,8 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
     },
     wakeSnoozed: () => call("wake_snoozed_conversations", {}, Number),
+    publishDue: (maxRows) =>
+      call("publish_due_inbox_messages", { max_rows: maxRows }, Number),
     purgeContact: (contactId) =>
       call("purge_contact", { contact: contactId }, purgedOf),
   };
@@ -775,6 +918,7 @@ export function createInbox(options: InboxOptions): Inbox {
     contacts,
     conversations,
     messages,
+    files,
     deliveries,
     templates,
     inbound,
@@ -786,6 +930,7 @@ export function createInbox(options: InboxOptions): Inbox {
     contacts,
     conversations,
     messages,
+    files,
     deliveries,
     templates,
     inbound,
@@ -811,6 +956,10 @@ export function createInbox(options: InboxOptions): Inbox {
       ),
       messages: withBlockHooks(client.messages, groups.messages, {
         block: "inbox.messages",
+        ...logger,
+      }),
+      files: withBlockHooks(client.files, groups.files, {
+        block: "inbox.files",
         ...logger,
       }),
       deliveries: withBlockHooks(client.deliveries, groups.deliveries, {

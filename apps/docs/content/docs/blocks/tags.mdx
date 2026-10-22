@@ -5,6 +5,8 @@ description: Tag definitions per kind, applied to subjects through one table or 
 
 `tags` keeps definitions (`kind`, `name`, `slug`, `color`) and applies them to records. Applying or removing a tag needs `tags.apply` (or `tags.manage`) in the tenant, the subject's own read permission, and a tag kind the subject allows.
 
+With the [drive](/docs/blocks/drive#labels-and-approvals) installed, `drive_node` subjects follow the node's grants: reading a node's tags needs read access, and tagging or untagging needs write access, which is how the drive's labels work.
+
 | Permission    | Checked by                                                     | Default roles        |
 | ------------- | -------------------------------------------------------------- | -------------------- |
 | `tags.read`   | `list`, `forSubject`                                           | owner, admin, member |

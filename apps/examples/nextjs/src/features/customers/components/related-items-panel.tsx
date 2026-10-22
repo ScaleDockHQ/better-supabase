@@ -31,6 +31,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SubjectLink } from "@/features/subjects/components/subject-link";
+import {
+  linkCustomerRelations,
+  unlinkCustomerRelations,
+} from "@/lib/supabase/features/customer/customer-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {
@@ -39,7 +43,6 @@ import type {
   Relations,
 } from "../customer-record-queries";
 
-import { linkCustomer, unlinkCustomer } from "../customer-record-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:related-items-panel
@@ -122,7 +125,7 @@ function RelatedList({
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
-  const unlink = useAction(unlinkCustomer, {
+  const unlink = useAction(unlinkCustomerRelations, {
     onSuccess: () => {
       toast.success(t("Link removed"));
     },
@@ -154,14 +157,15 @@ function RelatedList({
               disabled={unlink.pendingInputs.some(
                 (input) =>
                   !(input instanceof FormData) &&
-                  input.subjectId === link.subjectId,
+                  input.input.target.id === link.subjectId,
               )}
               onClick={() => {
                 void unlink.run({
-                  customerId,
-                  kind: link.kind,
-                  subjectType: link.subjectType,
-                  subjectId: link.subjectId,
+                  id: customerId,
+                  input: {
+                    kind: link.kind,
+                    target: { type: link.subjectType, id: link.subjectId },
+                  },
                 });
               }}
             >
@@ -186,7 +190,7 @@ function LinkForm({
   const errorMessage = useErrorMessage();
   const [targetId, setTargetId] = useState<string | null>(null);
 
-  const link = useAction(linkCustomer, {
+  const link = useAction(linkCustomerRelations, {
     onSuccess: () => {
       setTargetId(null);
       toast.success(t("Customer linked"));
@@ -209,7 +213,13 @@ function LinkForm({
         event.preventDefault();
 
         if (targetId) {
-          void link.run({ customerId, targetId });
+          void link.run({
+            id: customerId,
+            input: {
+              kind: "relates",
+              target: { type: "customer", id: targetId },
+            },
+          });
         }
       }}
     >

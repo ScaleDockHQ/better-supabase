@@ -24,7 +24,7 @@ describe("subject-bound events", () => {
   });
 
   it("finds subject events in every block's map", () => {
-    expectTypeOf<"comment.created">().toExtend<Subjects>();
+    expectTypeOf<"message.sent">().toExtend<Subjects>();
     expectTypeOf<"organization.created">().not.toExtend<Subjects>();
   });
 });

@@ -35,7 +35,9 @@ const toMoney = (amount: string, currency: string): Money =>
  * Runs a loader and turns a thrown read into `{ kind: "error" }`, so the
  * component shows Retry. A failed read is never cached.
  */
-async function settle<T>(load: () => Promise<T | null>): Promise<Loaded<T>> {
+export async function settle<T>(
+  load: () => Promise<T | null>,
+): Promise<Loaded<T>> {
   try {
     const data = await load();
 

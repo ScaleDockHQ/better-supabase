@@ -100,7 +100,8 @@ async function generated(dir: string): Promise<string[]> {
 
   const names = (await readdir(url))
     .filter((name) => name.startsWith("900_better_supabase_"))
-    .toSorted();
+    // Module numbers run past 99, so 112 has to load after 19.
+    .toSorted((a, b) => a.localeCompare(b, "en", { numeric: true }));
 
   return Promise.all(
     names.map((name) => readFile(new URL(name, url), "utf-8")),

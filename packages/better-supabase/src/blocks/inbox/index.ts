@@ -18,11 +18,18 @@ export type {
   InboxOptions,
   InboxPatch,
   MessageInput,
+  ScheduledMessageInput,
   StartConversationInput,
   TemplateInput,
 } from "./inbox.ts";
 
 export { INBOX_CHANNELS } from "./rows.ts";
+
+export type {
+  MessageFile,
+  MessageKind,
+  MessageReaction,
+} from "../messaging/messaging.ts";
 
 export type {
   AuthorType,
@@ -36,14 +43,16 @@ export type {
   InboundResult,
   InboxChannel,
   InboxCounts,
+  InboxFileSource,
   InboxMessage,
   InboxRow,
-  MessageAttachment,
+  InboxUpload,
   MessageDelivery,
   MessageDirection,
-  MessageKind,
   MessageTemplate,
+  PendingInboxFile,
   PurgedContact,
+  ScheduledInboxMessage,
   StoredInboundEvent,
 } from "./types.ts";
 
@@ -58,6 +67,7 @@ export type {
   ConversationController,
   ConversationControllerOptions,
   ConversationSnapshot,
+  Identified,
   InboxController,
   InboxControllerOptions,
   InboxListActions,

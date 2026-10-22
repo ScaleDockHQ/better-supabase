@@ -2,24 +2,17 @@ import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
-/** `blocks.comments.options`. */
+/**
+ * `blocks.comments.options`. The body limit, documents and extra columns are
+ * the messaging block's options, and the records come from `config.subjects`.
+ */
 export type CommentsSqlOptions = {
-  readonly subjects?: unknown;
-  readonly maxBodyLength?: number;
-  readonly documentSchema?: unknown;
-  readonly notify?: boolean;
   readonly follow?: boolean;
   readonly mentionGroups?: unknown;
-  readonly extraColumns?: unknown;
 };
 
 export const commentsSqlOptions: BlockOptionsSchema<CommentsSqlOptions> =
   blockOptions<CommentsSqlOptions>({
-    subjects: option.unknown(),
-    maxBodyLength: option.number({ default: 10_000 }),
-    documentSchema: option.unknown(),
-    notify: option.boolean({ default: true }),
     follow: option.boolean({ default: true }),
     mentionGroups: option.unknown(),
-    extraColumns: option.unknown(),
   });

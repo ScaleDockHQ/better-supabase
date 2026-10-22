@@ -3,6 +3,7 @@
 import type {
   ConversationActions,
   ConversationSnapshot,
+  Identified,
   InboxListActions,
   InboxListSnapshot,
   InboxWidgetActions,
@@ -61,24 +62,30 @@ export function useInbox<T>(options: UseInboxOptions<T>): InboxListState<T> {
   ).view;
 }
 
-export interface UseConversationOptions<T> {
+export interface UseConversationOptions<T extends Identified> {
   /** `null` waits, e.g. before the widget opens a conversation. */
   readonly conversationId: string | null;
-  /** The messages, oldest first. */
+  /** The messages, oldest first: on mount and after a rejoin. */
   readonly load: InboxSource<T>;
+  /** One message after a ping; `null` when the caller cannot read it. */
+  readonly get: (messageId: string) => Promise<T | null>;
+  /** The messaging topic prefix. Defaults to `messages`. */
   readonly topic?: string;
+  /** Runs for the other pings, such as `conversation` and `read`. */
+  readonly onEvent?: (event: string, payload: unknown) => void;
   /** How long a typing ping counts. Defaults to 5000 ms. */
   readonly typingMs?: number;
 }
 
-export interface ConversationState<T>
+export interface ConversationState<T extends Identified>
   extends ConversationSnapshot<T>, ConversationActions {}
 
 /**
- * One conversation's messages, kept current over `inbox:<id>`, with typing
- * pings between staff and the contact. Notes never reach this topic.
+ * One conversation's messages, kept current over `messages:<id>`: each ping
+ * fetches the one message it names. Typing pings go between staff and the
+ * contact.
  */
-export function useConversation<T>(
+export function useConversation<T extends Identified>(
   options: UseConversationOptions<T>,
 ): ConversationState<T> {
   const { auth, ports } = useBlockEnv();
@@ -92,6 +99,10 @@ export function useConversation<T>(
         ports,
         conversationId,
         load: () => latest.current.load(),
+        get: (messageId) => latest.current.get(messageId),
+        onEvent: (event, payload) => {
+          latest.current.onEvent?.(event, payload);
+        },
         ...(topic === undefined ? {} : { topic }),
         ...(typingMs === undefined ? {} : { typingMs }),
       }),
@@ -99,7 +110,7 @@ export function useConversation<T>(
   ).view;
 }
 
-export interface UseInboxWidgetOptions<T> {
+export interface UseInboxWidgetOptions<T extends Identified> {
   /**
    * Opens the visitor's conversation, e.g. a server action that calls
    * `inbox.conversations.open(inboxId, { message })` with the visitor's
@@ -109,6 +120,8 @@ export interface UseInboxWidgetOptions<T> {
   /** Sends into the open conversation. */
   readonly send: (conversationId: string, message: string) => Promise<void>;
   readonly load: (conversationId: string) => Promise<readonly T[]>;
+  /** One message after a ping; `null` when the visitor cannot read it. */
+  readonly get: (messageId: string) => Promise<T | null>;
   /**
    * Remembers the conversation across reloads in the client's storage port
    * (`localStorage` on the web). Defaults to `better-supabase:inbox-widget`.
@@ -117,7 +130,7 @@ export interface UseInboxWidgetOptions<T> {
   readonly topic?: string;
 }
 
-export interface InboxWidgetState<T>
+export interface InboxWidgetState<T extends Identified>
   extends InboxWidgetSnapshot<T>, InboxWidgetActions {}
 
 /**
@@ -125,7 +138,7 @@ export interface InboxWidgetState<T>
  * conversation, later ones go into it, and the messages and typing pings stay
  * current. Visitors without an account sign in anonymously first.
  */
-export function useInboxWidget<T>(
+export function useInboxWidget<T extends Identified>(
   options: UseInboxWidgetOptions<T>,
 ): InboxWidgetState<T> {
   const { auth, ports } = useBlockEnv();
@@ -141,6 +154,7 @@ export function useInboxWidget<T>(
         send: (conversationId, message) =>
           latest.current.send(conversationId, message),
         load: (conversationId) => latest.current.load(conversationId),
+        get: (messageId) => latest.current.get(messageId),
         ...(storageKey === undefined ? {} : { storageKey }),
         ...(topic === undefined ? {} : { topic }),
       }),

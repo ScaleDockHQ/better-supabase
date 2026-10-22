@@ -9,6 +9,7 @@ import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { BulkEvents } from "better-supabase/blocks/bulk";
+import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { FlagsEvents } from "better-supabase/blocks/flags";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
@@ -47,6 +48,10 @@ export const blockConfig = {
     options: {
       limit: 500,
     },
+  },
+  enrollments: {
+    schema: "better_supabase",
+    options: {},
   },
   entitlements: {
     schema: "better_supabase",
@@ -132,6 +137,11 @@ export const permissions = {
   bulk: {
     run: "bulk.run",
   },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
   flags: {
     manage: "flags.manage",
   },
@@ -180,13 +190,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "flags.manage" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "views.read" | "views.share";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "flags.manage" | "members.invite" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "views.read" | "views.share";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & BulkEvents & FlagsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & BulkEvents & EnrollmentsEvents & FlagsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -212,6 +222,12 @@ export const blockEvents: Events<BlockEvents> = {
     "billing.subscription_deleted",
     "billing.subscription_updated",
     "bulk_run.completed",
+    "enrollment.cancelled",
+    "enrollment.completed",
+    "enrollment.created",
+    "enrollment.step_completed",
+    "enrollment_program.deleted",
+    "enrollment_program.saved",
     "flag.deleted",
     "flag.override_set",
     "flag.saved",
@@ -277,6 +293,12 @@ export const blockEventSchemas = {
   "billing.subscription_deleted": true,
   "billing.subscription_updated": true,
   "bulk_run.completed": true,
+  "enrollment.cancelled": true,
+  "enrollment.completed": true,
+  "enrollment.created": true,
+  "enrollment.step_completed": true,
+  "enrollment_program.deleted": true,
+  "enrollment_program.saved": true,
   "flag.deleted": true,
   "flag.override_set": true,
   "flag.saved": true,

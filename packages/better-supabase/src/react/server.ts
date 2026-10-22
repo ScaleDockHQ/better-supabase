@@ -7,6 +7,7 @@ import type {
   useBlockMutation as clientUseBlockMutation,
   useBlockQuery as clientUseBlockQuery,
 } from "./block-hooks.ts";
+import type { useEntityForm as clientUseEntityForm } from "./entity-form.ts";
 import type {
   ActionForm,
   ActionHandle,
@@ -20,6 +21,8 @@ import type {
   UseActionOptions,
 } from "./index.ts";
 import type { usePresence as clientUsePresence } from "./presence.ts";
+import type { useRecordListState as clientUseRecordListState } from "./record-list.ts";
+import type { createRecordProvider as clientCreateRecordProvider } from "./record.ts";
 import type { useDebouncedSearch as clientUseDebouncedSearch } from "./search.ts";
 import type {
   useSignIn as clientUseSignIn,
@@ -71,6 +74,25 @@ export type {
 } from "./index.ts";
 
 export type { SessionProviderProps } from "./session.ts";
+
+export type {
+  RecordListQueryStates,
+  RecordListState,
+  RecordListUrl,
+  RecordListUrlState,
+} from "./record-list.ts";
+
+export type { EntityFormState, UseEntityFormOptions } from "./entity-form.ts";
+
+export type {
+  RecordActionsOf,
+  RecordContextValue,
+  RecordInitial,
+  RecordProviderKit,
+  RecordProviderProps,
+  RecordState,
+  RecordWriteHandlers,
+} from "./record.ts";
 
 export type {
   AuthHookOptions,
@@ -188,6 +210,13 @@ export const useBlockEvent: typeof clientUseBlockEvent =
   clientOnly("useBlockEvent");
 
 /**
+ * The `react-server` build of `createRecordProvider`: call it in a `"use
+ * client"` module, such as the generated `-provider.tsx`.
+ */
+export const createRecordProvider: typeof clientCreateRecordProvider =
+  clientOnly("createRecordProvider");
+
+/**
  * The `react-server` build of `useDebouncedSearch`: read the term from
  * `searchParams` instead.
  */
@@ -220,3 +249,17 @@ export function createHooks<B extends ClientLike>(): BetterHooks<B> {
     useSession: clientOnly("useSession"),
   };
 }
+
+/**
+ * The `react-server` build of `useRecordListState`: parse the search params
+ * with the list's `parse` instead.
+ */
+export const useRecordListState: typeof clientUseRecordListState =
+  clientOnly("useRecordListState");
+
+/**
+ * The `react-server` build of `useEntityForm`: render the form in a client
+ * component.
+ */
+export const useEntityForm: typeof clientUseEntityForm =
+  clientOnly("useEntityForm");

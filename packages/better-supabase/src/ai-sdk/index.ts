@@ -43,6 +43,14 @@ export {
   type TrackedSandboxOptions,
 } from "./providers.ts";
 
+export { summarizeWith, type SummarizeWithOptions } from "./summaries.ts";
+
+export type {
+  ThreadSummarizer,
+  ThreadSummaryInput,
+  ThreadSummaryOutput,
+} from "../blocks/messaging/summaries.ts";
+
 export {
   meterTelemetry,
   type MeterTelemetryOptions,

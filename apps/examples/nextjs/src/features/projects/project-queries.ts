@@ -7,6 +7,7 @@ import * as v from "valibot";
 
 import { getMembers } from "@/features/organization/organization-queries";
 import { blocks } from "@/lib/blocks";
+import { projectRecord } from "@/lib/supabase/features/project/project-server";
 import { bs } from "@/lib/supabase/server";
 
 import type {
@@ -22,7 +23,6 @@ import type {
 
 import {
   PROJECT_HISTORY_FIELDS,
-  PROJECT_SUBJECT,
   TASK_LIST,
   parseTaskQuery,
 } from "./project-types";
@@ -201,22 +201,28 @@ function historyFields(
 export async function getProjectHistory(
   projectId: string,
 ): Promise<readonly ProjectVersion[] | null> {
-  "use cache: private";
-  const { session, supabase } = await bs.cached();
+  const [{ sections }, { supabase, session }] = await Promise.all([
+    projectRecord.load(projectId, {
+      sections: ["versions"],
+      options: { versions: { pageSize: HISTORY_LIMIT } },
+    }),
+    bs.cached(),
+  ]);
+
   const tenant = tenantOf(session);
 
-  if (!tenant) {
+  if (!tenant || sections.versions.kind === "hidden") {
     return null;
+  }
+
+  if (sections.versions.kind === "error") {
+    throw new Error(sections.versions.error.message);
   }
 
   const { versions } = blocks(supabase, tenant);
 
-  const listed = await versions
-    .list({ type: PROJECT_SUBJECT, id: projectId }, { pageSize: HISTORY_LIMIT })
-    .orThrow();
-
   const loaded = await Promise.all(
-    listed.map((version) => versions.get(version.id).orThrow()),
+    sections.versions.data.map((version) => versions.get(version.id).orThrow()),
   );
 
   return loaded.map((version) => ({

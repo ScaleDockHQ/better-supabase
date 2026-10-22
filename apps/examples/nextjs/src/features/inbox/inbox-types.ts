@@ -1,4 +1,8 @@
-import type { Conversation, InboxMessage } from "better-supabase/blocks/inbox";
+import type {
+  Conversation,
+  InboxMessage,
+  ScheduledInboxMessage,
+} from "better-supabase/blocks/inbox";
 
 import * as v from "valibot";
 
@@ -22,11 +26,23 @@ export const AssigneeFilter = v.picklist(["anyone", "me", "unassigned"]);
 
 export type AssigneeFilter = v.InferOutput<typeof AssigneeFilter>;
 
+/** When a snooze ends or a scheduled reply goes out. */
+export const Later = v.picklist(["hour", "tomorrow", "week"]);
+
+export type Later = v.InferOutput<typeof Later>;
+
+export const LATER_HOURS: Readonly<Record<Later, number>> = {
+  hour: 1,
+  tomorrow: 24,
+  week: 168,
+};
+
 /** A conversation as plain data, so it crosses the server boundary. */
 export interface ConversationRow {
   readonly id: string;
   readonly subject: string | null;
   readonly status: Conversation["status"];
+  readonly snoozedUntil: string | null;
   readonly botMode: Conversation["botMode"];
   readonly assigneeId: string | null;
   readonly preview: string | null;
@@ -45,6 +61,7 @@ export function toConversationRow(conversation: Conversation): ConversationRow {
     id: conversation.id,
     subject: conversation.subject,
     status: conversation.status,
+    snoozedUntil: conversation.snoozedUntil?.toString() ?? null,
     botMode: conversation.botMode,
     assigneeId: conversation.assigneeId,
     preview: conversation.preview,
@@ -74,10 +91,25 @@ export function toMessageRow(message: InboxMessage): MessageRow {
     id: message.id,
     kind: message.kind,
     authorType: message.authorType,
-    authorId: message.authorId,
+    authorId: message.authorId ?? null,
     body: message.body,
     createdAt: message.createdAt.toString(),
-    deleted: message.deletedAt !== null,
+    deleted: message.deletedAt !== undefined,
     delivery: message.delivery?.status ?? null,
+  };
+}
+
+/** The caller's reply waiting to go out, as plain data. */
+export interface ScheduledRow {
+  readonly id: string;
+  readonly body: string;
+  readonly scheduledFor: string;
+}
+
+export function toScheduledRow(scheduled: ScheduledInboxMessage): ScheduledRow {
+  return {
+    id: scheduled.id,
+    body: scheduled.body,
+    scheduledFor: scheduled.scheduledFor.toString(),
   };
 }

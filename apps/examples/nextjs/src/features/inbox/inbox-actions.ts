@@ -15,13 +15,20 @@ import {
   AssigneeFilter,
   ConversationStatus,
   HELP_INBOX_ID,
+  LATER_HOURS,
+  Later,
   toConversationRow,
   toMessageRow,
+  toScheduledRow,
 } from "./inbox-types";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Body = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4000));
 const ConversationInput = v.object({ conversationId: Id });
+
+function laterInstant(later: Later): Temporal.Instant {
+  return Temporal.Now.instant().add({ hours: LATER_HOURS[later] });
+}
 
 /** The list for the filters, loaded again by `useInbox` after each ping. */
 export const loadConversations = bs.action(
@@ -86,6 +93,18 @@ export const loadThread = bs.action(
   },
 );
 
+/** One message, for the Realtime ping that names it. */
+export const loadMessage = bs.action(
+  { input: v.object({ messageId: Id }) },
+  async ({ messageId }, { supabase }) => {
+    const message = await blocks(supabase).inbox.messages.get(messageId);
+
+    return message.ok
+      ? ok(message.data === null ? null : toMessageRow(message.data))
+      : message;
+  },
+);
+
 /** A reply to the contact, or with `note` an internal note only staff see. */
 export const reply = bs.action(
   { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },
@@ -136,6 +155,50 @@ export const setStatus = bs.action(
 
     return changed.ok ? ok(changed.data.status) : changed;
   },
+);
+
+/** Hides the conversation until the time comes; then it opens again. */
+export const snooze = bs.action(
+  { input: v.object({ conversationId: Id, until: Later }) },
+  async ({ conversationId, until }, { supabase }) => {
+    const changed = await blocks(supabase).inbox.conversations.snooze(
+      conversationId,
+      laterInstant(until),
+    );
+
+    return changed.ok ? ok(changed.data.status) : changed;
+  },
+);
+
+/** The caller's replies on the conversation that wait to go out. */
+export const loadScheduled = bs.action(
+  { input: ConversationInput },
+  async ({ conversationId }, { supabase }) => {
+    const listed =
+      await blocks(supabase).inbox.messages.scheduled(conversationId);
+
+    return listed.ok ? ok(listed.data.map(toScheduledRow)) : listed;
+  },
+);
+
+/** A reply that goes out later, as the caller, when `publishDue` runs. */
+export const scheduleReply = bs.action(
+  { input: v.object({ conversationId: Id, body: Body, at: Later }) },
+  async ({ conversationId, body, at }, { supabase }) => {
+    const scheduled = await blocks(supabase).inbox.messages.schedule(
+      conversationId,
+      { body },
+      laterInstant(at),
+    );
+
+    return scheduled.ok ? ok(scheduled.data.id) : scheduled;
+  },
+);
+
+export const cancelScheduled = bs.action(
+  { input: v.object({ scheduledId: Id }) },
+  async ({ scheduledId }, { supabase }) =>
+    blocks(supabase).inbox.messages.cancelScheduled(scheduledId),
 );
 
 /**

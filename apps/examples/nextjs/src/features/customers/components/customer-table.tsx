@@ -26,6 +26,7 @@ import {
 import { Link } from "@/i18n/navigation";
 import { initials } from "@/lib/initials";
 
+import { useCustomerListState } from "../use-customer-list-state";
 import { useCustomerSearch } from "../use-customer-search";
 import { useStatusLabel } from "../use-status-label";
 
@@ -54,7 +55,14 @@ export function CustomerTable({
   const t = useExtracted("customers");
   const statusLabel = useStatusLabel();
   const format = useFormatter();
-  const [status, setStatus] = useState<string | null>(null);
+  const list = useCustomerListState();
+  // The status facet takes several values; the buttons pick one.
+  const status = list.query.facets.status?.[0] ?? null;
+
+  const setStatus = (value: string | null) => {
+    list.set({ status: value === null ? null : [value] });
+  };
+
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const search = useCustomerSearch(needle);

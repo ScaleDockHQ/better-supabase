@@ -54,6 +54,7 @@ describe("documents client", () => {
     expect(opened).toMatchObject({
       id: "d1",
       canWrite: true,
+      canSuggest: false,
       snapshotSeq: 4,
       snapshot: new Uint8Array([1, 2]),
       updates: [{ seq: 5, update: new Uint8Array([3]) }],
@@ -92,6 +93,8 @@ describe("documents client", () => {
           id: "v2",
           number: 2,
           label: "Final",
+          source: "manual",
+          frozen: true,
           createdBy: "u1",
           createdAt: "2026-10-03T00:00:00Z",
         },
@@ -106,14 +109,127 @@ describe("documents client", () => {
     ).toEqual({ id: "v1", number: 1 });
     await documents.saveVersion("d1", new Uint8Array([1]), "Final").orThrow();
     const listed = await documents.versions("d1").orThrow();
-    expect(listed[0]).toMatchObject({ label: "Final", createdBy: "u1" });
+    expect(listed[0]).toMatchObject({
+      label: "Final",
+      source: "manual",
+      frozen: true,
+      createdBy: "u1",
+    });
+    expect(listed[1]).toMatchObject({ source: "manual", frozen: false });
     expect(listed[1]).not.toHaveProperty("label");
+    const named = await documents.versions("d1", { named: true }).orThrow();
+    expect(named.map((item) => item.id)).toEqual(["v2"]);
     expect(listed[1]).not.toHaveProperty("createdBy");
     expect(await documents.version("d1", "v1").orThrow()).toEqual(
       new Uint8Array([1, 2]),
     );
     expect(fake.calls[0]![1]).toMatchObject({ label: null });
     expect(fake.calls[1]![1]).toMatchObject({ label: "Final" });
+  });
+
+  it("names versions", async () => {
+    const fake = transport({ name_document_version: () => true });
+
+    const documents = createDocuments({ transport: fake, schema: "app" });
+    expect(await documents.nameVersion("d1", "v1", "Draft").orThrow()).toBe(
+      true,
+    );
+    await documents.nameVersion("d1", "v1", null).orThrow();
+    expect(fake.calls).toEqual([
+      [
+        "name_document_version",
+        { document_id: "d1", version_id: "v1", label: "Draft" },
+      ],
+      [
+        "name_document_version",
+        { document_id: "d1", version_id: "v1", label: null },
+      ],
+    ]);
+  });
+
+  it("suggests, lists and decides suggestions", async () => {
+    const open = {
+      id: "s1",
+      documentId: "d1",
+      update: "Aw==",
+      summary: null,
+      status: "open",
+      createdBy: "u1",
+      createdAt: "2026-10-03T00:00:00Z",
+      decidedBy: null,
+      decidedAt: null,
+      note: null,
+    };
+
+    const fake = transport({
+      suggest_document_change: () => open,
+      list_document_suggestions: () => [open],
+      decide_document_suggestion: (args) =>
+        (args as { decision: string }).decision === "accepted"
+          ? {
+              ...open,
+              summary: "Typo",
+              status: "accepted",
+              decidedBy: "u2",
+              decidedAt: "2026-10-04T00:00:00Z",
+              note: "Thanks",
+              seq: "7",
+            }
+          : { ...open, status: "bogus" },
+    });
+
+    const documents = createDocuments({ transport: fake, schema: "app" });
+
+    const suggested = await documents
+      .suggest("d1", new Uint8Array([3]))
+      .orThrow();
+
+    expect(suggested).toMatchObject({
+      id: "s1",
+      update: new Uint8Array([3]),
+      status: "open",
+      createdBy: "u1",
+    });
+    expect(suggested).not.toHaveProperty("summary");
+    expect(suggested).not.toHaveProperty("seq");
+    await documents.suggest("d1", new Uint8Array([3]), "Typo").orThrow();
+    expect(await documents.suggestions("d1").orThrow()).toHaveLength(1);
+    await documents.suggestions("d1", { status: "all" }).orThrow();
+
+    const accepted = await documents
+      .decideSuggestion("s1", "accepted", "Thanks")
+      .orThrow();
+
+    expect(accepted).toMatchObject({
+      status: "accepted",
+      summary: "Typo",
+      decidedBy: "u2",
+      note: "Thanks",
+      seq: 7,
+    });
+    expect(accepted.decidedAt?.toString()).toBe("2026-10-04T00:00:00Z");
+    const bad = await documents.decideSuggestion("s1", "rejected");
+    expect(bad.error).toBeDefined();
+    expect(fake.calls).toEqual([
+      [
+        "suggest_document_change",
+        { document_id: "d1", payload: "Aw==", summary: null },
+      ],
+      [
+        "suggest_document_change",
+        { document_id: "d1", payload: "Aw==", summary: "Typo" },
+      ],
+      ["list_document_suggestions", { document_id: "d1", status: "open" }],
+      ["list_document_suggestions", { document_id: "d1", status: "all" }],
+      [
+        "decide_document_suggestion",
+        { suggestion_id: "s1", decision: "accepted", note: "Thanks" },
+      ],
+      [
+        "decide_document_suggestion",
+        { suggestion_id: "s1", decision: "rejected", note: null },
+      ],
+    ]);
   });
 
   it("lists documents to compact with optional limits", async () => {

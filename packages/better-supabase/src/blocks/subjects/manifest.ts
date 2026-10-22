@@ -10,5 +10,5 @@ export const subjectsBlock: BlockOf<"subjects", typeof createSubjects> =
     sql: ["subjects"],
     create: createSubjects,
     category: "identity",
-    recipes: ["subject-link", "subject-chip"],
+    recipes: ["subject-link", "subject-chip", "my-work"],
   });

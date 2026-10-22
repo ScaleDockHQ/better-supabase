@@ -121,6 +121,13 @@ function permissionGroups(
   return groups;
 }
 
+/** Whether `blocks.generated.ts` exports `permissions`. */
+export function hasPermissionConstants(config: NamesConfig): boolean {
+  return Object.values(permissionGroups(config)).some(
+    (group) => Object.keys(group).length > 0,
+  );
+}
+
 function permissionLines(config: NamesConfig): string[] {
   const groups = permissionGroups(config);
   const keys = Object.values(groups).flatMap((group) => Object.values(group));

@@ -256,6 +256,32 @@ export default defineConfig({
     "api-keys": {},
     settings: {},
     comments: {},
+    // Conversations and messages under the channels block (ADR 0062).
+    messaging: {},
+    channels: {},
+    // The record history the customer page shows, moved out of comments.
+    activity: {},
+    // Members' Gmail and Outlook mail, linked to parties and logged as
+    // email engagements.
+    "mail-sync": {},
+    // Saved filters over companies and deals, refreshed on a schedule.
+    segments: {},
+    // Round robin and weighted queues that pick an owner for new records.
+    assignment: {},
+    // Company and person data from an enrichment provider, one result each.
+    enrichment: {},
+    // The forecast call by period, snapshotted so a review compares weeks.
+    forecasts: {},
+    // Old and new values of a deal's amount, stage, owner and close date,
+    // and a company's owner and lifecycle stage.
+    "field-history": {
+      options: {
+        subjects: {
+          deal: ["amount", "stage_id", "owner_user_id", "expected_close_on"],
+          company: ["owner_user_id", "lifecycle"],
+        },
+      },
+    },
     // Tags on customers, edited with the tag input on the customer page. The
     // fixture's `public.tags` and `customer_tags` tables are separate seed
     // data that no example renders.
@@ -271,6 +297,10 @@ export default defineConfig({
     profiles: {},
     flags: {},
     announcements: {},
+    // Onboarding checklists run on enrollments (ADR 0077).
+    enrollments: {},
+    // Courses behind /courses: each learner's progress is an enrollment.
+    courses: {},
     onboarding: { options: { checklists: [gettingStarted] } },
     entitlements: {},
     usage: {},
@@ -288,6 +318,10 @@ export default defineConfig({
     "workflow-builder": {},
     // Tenant rules for expenses, edited with the rule builder at /rules.
     rules: {},
+    // Lead scoring and account health are score models over parties (ADR 0067).
+    scores: {},
+    // Comment reports, the review queue and bans (ADR 0076).
+    moderation: {},
     // Vault-backed secrets behind the builder's credential references.
     credentials: {},
     // The support inbox behind /inbox and the Help sheet: jobs carry bot
@@ -332,6 +366,15 @@ export default defineConfig({
               selfApproval: true,
             },
           },
+          // Sign-off on one version of a drive file, from the file's menu.
+          drive_node: {
+            approve: {
+              steps: [
+                { approvers: { permission: "approvals.manage" }, required: 1 },
+              ],
+              selfApproval: true,
+            },
+          },
         },
       },
     },
@@ -352,7 +395,9 @@ export default defineConfig({
     },
     pipelines: {},
     deals: { entities: { deal: { url: "/crm/deals" } } },
-    engagements: {},
+    // Call recordings on ai-files, with transcripts and notes. Confirmed
+    // bookings show up as meetings on the booker's contact.
+    engagements: { options: { recordings: true, bookings: true } },
     quotes: {},
     targets: {},
     "state-machine": {
@@ -392,10 +437,29 @@ export default defineConfig({
     invoices: {},
     catalog: { entities: { product: { url: "/shop" } } },
     inventory: {},
-    orders: {},
+    // The kitchen display and order board under /shop/kitchen.
+    orders: { options: { kitchen: true } },
     promotions: {},
     calendar: {},
-    bookings: {},
+    // Weekly or daily rules book a series one occurrence at a time.
+    bookings: { options: { recurring: true } },
+    // Points and areas use PostGIS geography columns (ADR 0066).
+    assets: { options: { postgis: true } },
+    guests: {},
+    // Class bookings paid for with pass credits.
+    passes: { options: { credits: true } },
+    "billable-time": {},
+    leases: {},
+    expenses: {},
+    donations: {},
+    dispatch: {},
+    shipments: {},
+    // Contracts send for signature with signatures and remind owners of the
+    // notice deadline with reminders; controls publish policies as versions.
+    signatures: {},
+    contracts: {},
+    controls: {},
+    incidents: {},
     reminders: {},
     "drive-files": {},
     drive: {},

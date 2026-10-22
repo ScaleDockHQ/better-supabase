@@ -95,18 +95,6 @@ export interface BillingEventData {
   readonly stripeEventId?: string;
 }
 
-/** `comment.*`, written to the outbox by the comments module. */
-export interface CommentEventData {
-  readonly commentId: string;
-  readonly organizationId: string;
-  readonly subjectType: string;
-  readonly subjectId: string;
-  readonly authorId?: string;
-  readonly parentId?: string;
-  /** `comment.created`: every mention; `comment.mentioned`: the new ones. */
-  readonly mentionIds?: readonly string[];
-}
-
 /** `attachment.*`, written to the outbox by the attachments module. */
 export interface AttachmentEventData {
   readonly attachmentId: string;
@@ -118,6 +106,11 @@ export interface AttachmentEventData {
   readonly size?: number;
   /** `attachment.scanned`: `clean`, `infected` or `failed`. */
   readonly status?: string;
+  /**
+   * The file's current version: on `attachment.uploaded`, `.replaced` and
+   * `.restored`.
+   */
+  readonly version?: number;
 }
 
 /** `data_export.*`, written to the outbox by the data-lifecycle module. */
@@ -466,6 +459,10 @@ export interface CollaborationEventData extends SubjectEventData {
   readonly emoji?: string;
   /** Who reacted: a user id, or the name the service passed. */
   readonly actor?: string;
+  /** A reaction's kind: `emoji`, or `vote` (whose `emoji` is `vote`). */
+  readonly kind?: "emoji" | "vote";
+  /** A vote's direction, `1` or `-1`; `1` for an emoji. */
+  readonly value?: number;
   /** The action an approval request is for, such as `publish`. */
   readonly action?: string;
   /** An approval request's status after the event. */
@@ -494,6 +491,14 @@ export interface DocumentEventData extends SubjectEventData {
   /** The document. */
   readonly id: string;
   readonly name: string;
+}
+
+/** Events about a suggested change to a document. */
+export interface DocumentSuggestionEventData extends DocumentEventData {
+  readonly suggestionId: string;
+  /** Who suggested the change. */
+  readonly authorId: string | null;
+  readonly status: "open" | "accepted" | "rejected" | "withdrawn";
 }
 
 /**
@@ -597,6 +602,14 @@ export interface FormSubmissionEventData extends SubjectEventData {
   readonly source?: string;
   /** For `form_submission.reviewed`: `submitted`, `accepted` or `rejected`. */
   readonly status?: string;
+  /**
+   * For `form_submission.submitted` on a scored form: the points earned, out of
+   * `maxScore`.
+   */
+  readonly score?: number;
+  readonly maxScore?: number;
+  /** Against the pass mark; absent without one. */
+  readonly passed?: boolean;
 }
 
 /**
@@ -864,13 +877,26 @@ export { onBlockEvent } from "./block-event-listener.ts";
 
 export type {
   ApplicationEventData,
+  ChannelEventData,
   CollectionEntryEventData,
   CollectionEventData,
+  SavedItemEventData,
+  ConversationEventData,
   EmployeeEventData,
   DealEventData,
   EngagementEventData,
+  EngagementRecordingEventData,
   InvoiceEventData,
   JobEventData,
+  MailAccountEventData,
+  MailMessageEventData,
+  MailTrackingEventData,
+  SegmentEventData,
+  SegmentMemberEventData,
+  AssignmentEventData,
+  EnrichmentEventData,
+  ForecastSnapshotEventData,
+  MessageEventData,
   PartyEventData,
   PipelineEventData,
   PipelineStageEventData,

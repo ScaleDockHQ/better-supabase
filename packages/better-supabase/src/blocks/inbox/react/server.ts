@@ -1,3 +1,4 @@
+import type { Identified } from "../client.ts";
 import type {
   ConversationState,
   InboxListState,
@@ -36,13 +37,13 @@ export const useInbox: <T>(
  * The `react-server` build of `useConversation`: call `inbox.messages.list()`
  * instead.
  */
-export const useConversation: <T>(
+export const useConversation: <T extends Identified>(
   options: UseConversationOptions<T>,
 ) => ConversationState<T> = () =>
   clientOnly("useConversation", "`inbox.messages.list()`");
 
 /** The `react-server` build of `useInboxWidget`. */
-export const useInboxWidget: <T>(
+export const useInboxWidget: <T extends Identified>(
   options: UseInboxWidgetOptions<T>,
 ) => InboxWidgetState<T> = () =>
   clientOnly("useInboxWidget", "`inbox.messages.list()`");
