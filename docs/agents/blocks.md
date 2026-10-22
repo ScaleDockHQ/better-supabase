@@ -21,7 +21,10 @@ workflow; this page is the checklist for a new block.
 - Permissions go through the scope port, never the access contract by name:
   `ctx.scope.can(id, key)` in functions, `ctx.scope.check(column, key)` in
   policies, `ctx.scope.ids(key)` for the set of scope ids, `ctx.scope.canUser`,
-  `ctx.scope.platform` and `ctx.scope.members()`. In `tenant` scope they render
+  `ctx.scope.platform`, `ctx.scope.members()`, and `ctx.scope.guest(tenant,
+  type, id, action)` or `ctx.scope.guestParty(tenant, type, id)` to let guests
+  in, or-ed onto the member check with `guestOr` (`false` without guests, ADR
+  0069). In `tenant` scope they render
   the access contract (`can`, `tenant_ids_with`, `is_platform`);
   `tests/sql/scope.test.ts` fails on a literal call in `src/sql/modules`. A
   module that needs tenants declares `scopes: ["tenant"]`. One that runs per
