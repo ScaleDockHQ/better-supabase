@@ -1,6 +1,6 @@
 ---
 title: Reactions
-description: Emoji reactions on any subject, comments and inbox messages, with custom emoji per organization, counts under each subject's read rules and a realtime topic per organization.
+description: Emoji reactions and up or down votes on any subject, comments and inbox messages, with custom emoji per organization, counts under each subject's read rules and a realtime topic per organization.
 ---
 
 `reactions` stores one row per actor and emoji on a subject. A member reacts to a subject they can read; counts, whether the user reacted and the first actors come back in one call. Reading needs `reactions.read`, reacting needs `reactions.create`, and custom emoji need `reactions.manage`.
@@ -47,6 +47,22 @@ await reactions
   .react({ type: "comment", id: commentId }, "✅", { actor: "deploy-bot" })
   .orThrow();
 ```
+
+## Votes
+
+A vote is a reaction with `kind: "vote"`: up (`1`) or down (`-1`), one per actor and subject. `vote(subject, value)` sets the caller's vote, `0` clears it, and voting the other way switches it. It needs the same permissions as `react` and returns the subject's tally:
+
+```ts
+const tally = await reactions.vote({ type: "idea", id: ideaId }, 1).orThrow();
+// { score: 12, up: 15, down: 3, vote: 1 }
+
+const byIdea = await reactions
+  .votes(ideaIds.map((id) => ({ type: "idea", id })))
+  .orThrow();
+byIdea[`idea:${ideaId}`]; // the idea's VoteTally
+```
+
+`votes(subjects)` reads up to 200 subjects of each type, keyed `type:id`; a subject without votes may be left out. `vote` is the caller's own vote, `0` when they haven't voted. The tally lives in the `reaction_scores` table, which a trigger keeps current and which the subject's read rules guard, so you can sort a list by `score` in SQL. `summary()` stays emoji-only, and a [scores](/docs/blocks/scores) model can count a record's vote score as a metric.
 
 ## Inbox messages
 
@@ -191,12 +207,12 @@ export function Component(props: {
 
 ## Events and hooks
 
-The module records `reaction.added` and `reaction.removed` with `organizationId`, `subjectType`, `subjectId`, `emoji` and `actor`. `react` calls the `before_react` and `after_react` SQL hooks with the tenant, subject type, subject id, emoji and whether the reaction is added.
+The module records `reaction.added` and `reaction.removed` with `organizationId`, `subjectType`, `subjectId`, `emoji`, `actor`, `kind` (`emoji` or `vote`) and, for a vote, `value`. A consumer that only wants emoji reactions filters on `kind`. `react` calls the `before_react` and `after_react` SQL hooks with the tenant, subject type, subject id, emoji and whether the reaction is added.
 
-| Error                | When                                                                    |
-| -------------------- | ----------------------------------------------------------------------- |
-| `REACTION_FORBIDDEN` | The caller lacks the permission or can't see the subject                |
-| `REACTION_INVALID`   | The emoji is empty, longer than 64 characters, has spaces or is unknown |
+| Error                | When                                                                                                |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| `REACTION_FORBIDDEN` | The caller lacks the permission or can't see the subject                                            |
+| `REACTION_INVALID`   | The emoji is empty, longer than 64 characters, has spaces or is unknown, or a vote isn't -1, 0 or 1 |
 
 ## With ReUI
 

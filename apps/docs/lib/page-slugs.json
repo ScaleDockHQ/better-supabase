@@ -97,6 +97,7 @@
   "blocks/reviews",
   "blocks/rules",
   "blocks/saved-views",
+  "blocks/scores",
   "blocks/search",
   "blocks/service-principals",
   "blocks/settings",

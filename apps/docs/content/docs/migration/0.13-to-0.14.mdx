@@ -119,3 +119,22 @@ Code that read those tables directly reads the ledger instead: `ledger_entries`
 joined to `ledger_accounts` by code, or `createLedger(...).entries(accountId)`.
 An adopted `stock_movements`, `leave_ledger` or `invoice_payments` table in
 `blocks.<name>.tables` is no longer a key; remove it from the config.
+
+## Reactions carry votes
+
+[Reactions](/docs/blocks/reactions#votes) store up and down votes next to
+emoji. Each row gains `kind` (`emoji` or `vote`) and `value` (`1` for emoji,
+`1` or `-1` for a vote), the unique key gains `kind`, and a new
+`reaction_scores` table keeps each subject's vote score. Run
+`better-supabase sql upgrade`: the reactions upgrade adds the columns with
+`kind = 'emoji'` and `value = 1` for the rows you have, so existing reactions
+keep their meaning.
+
+`reaction.added` and `reaction.removed` now also fire for votes, with
+`kind: "vote"` and the `value`. A consumer that should only see emoji
+reactions filters on `kind === "emoji"`. `summary()`, `react()` and the
+realtime counts stay emoji-only.
+
+With `blocks.reactions.mode: "custom"`, add `kind text not null default
+'emoji'` and `value smallint not null default 1` to your own table, and
+include `kind` in its unique key on subject, actor and emoji.

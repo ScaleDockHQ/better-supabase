@@ -175,6 +175,7 @@ expose the module schema itself.
 | [Reviews](/docs/blocks/reviews)                             | `better-supabase/blocks/reviews`                                                                                                   | `reviews`                              |
 | [Leave](/docs/blocks/leave)                                 | `better-supabase/blocks/leave`                                                                                                     | `leave`                                |
 | [Rules](/docs/blocks/rules)                                 | `better-supabase/blocks/rules`                                                                                                     | `rules`                                |
+| [Scores](/docs/blocks/scores)                               | `better-supabase/blocks/scores`                                                                                                    | `scores`                               |
 | [Vercel Marketplace](/docs/blocks/vercel-marketplace)       | `better-supabase/blocks/vercel-marketplace`                                                                                        | `vercel-marketplace`                   |
 | [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                                                                    | `credentials`                          |
 
@@ -314,6 +315,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `vercel-marketplace` | none                                        | `outbox`, `audit`                                                                                                                                |
 | `ledger`             | `tenant`, `access`                          | `outbox`, `audit`                                                                                                                                |
 | `assets`             | `tenant`, `access`                          | `bookings`, `work-items`, `outbox`, `audit`                                                                                                      |
+| `scores`             | `tenant`, `access`, `rules`                 | `reactions`, `outbox`, `audit`                                                                                                                   |
 | `ensure-rls`         | none                                        | none                                                                                                                                             |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

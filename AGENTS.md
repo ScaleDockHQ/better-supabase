@@ -183,6 +183,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0064: blocks compose through sections and flows; library logic, generated bindings and recipe UI.
 - 0065: balances live in one double-entry `ledger`; inventory stock, leave balances and invoice payments move onto it (breaking).
 - 0066: `assets` stores coordinates as numbers; PostGIS geography columns and area lookups are the `postgis` option.
+- 0067: votes are reactions of kind `vote`; `scores` computes versioned scores from tenant-editable models (breaking).
 
 ## Pre-release pins
 
