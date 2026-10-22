@@ -9,7 +9,7 @@ const list = (values: readonly string[]): string =>
 
 /**
  * The status page functions. public_status_page is the only incidents function
- * anon may call (ADR 0083): it returns the fields named below and nothing else,
+ * anon may call (ADR 0084): it returns the fields named below and nothing else,
  * for published pages only.
  */
 export function statusPageFunctions(ctx: ModuleContext): string {

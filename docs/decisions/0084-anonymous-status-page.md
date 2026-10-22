@@ -1,4 +1,4 @@
-# 0083: The public status page is one security definer function anon may call
+# 0084: The public status page is one security definer function anon may call
 
 - Status: accepted
 - Date: 2026-10-22
