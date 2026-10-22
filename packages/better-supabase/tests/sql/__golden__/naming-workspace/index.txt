@@ -17,7 +17,6 @@ comments
 attachments
 data-lifecycle
 sso
-onboarding
 waitlist
 announcements
 workflow-builder
@@ -42,3 +41,9 @@ employees
 domains
 leave
 rules
+ledger
+billable-time
+leases
+contracts
+controls
+incidents

@@ -35,6 +35,12 @@ export default function ShopPage() {
             >
               {t("Orders")}
             </Link>
+            <Link
+              href="/shop/kitchen"
+              className={buttonVariants({ variant: "ghost", size: "sm" })}
+            >
+              {t("Kitchen")}
+            </Link>
           </>
         }
       />

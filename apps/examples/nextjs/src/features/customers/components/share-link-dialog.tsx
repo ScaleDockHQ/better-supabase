@@ -53,11 +53,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { revokeCustomerShareLinks } from "@/lib/supabase/features/customer/customer-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, ShareLinkRow } from "../customer-record-queries";
 
-import { createShareLink, revokeShareLink } from "../customer-record-actions";
+import { createShareLink } from "../customer-record-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:share-link-dialog
@@ -126,7 +127,11 @@ export function ShareLinkDialog({
             ) : null}
           </Empty>
         ) : (
-          <ShareLinkList links={links.data} canRevoke={canCreate} />
+          <ShareLinkList
+            customerId={customerId}
+            links={links.data}
+            canRevoke={canCreate}
+          />
         )}
       </CardContent>
     </Card>
@@ -134,9 +139,11 @@ export function ShareLinkDialog({
 }
 
 function ShareLinkList({
+  customerId,
   links,
   canRevoke,
 }: {
+  customerId: string;
   links: readonly ShareLinkRow[];
   canRevoke: boolean;
 }) {
@@ -176,7 +183,7 @@ function ShareLinkList({
               </span>
             </div>
             {canRevoke && state === "active" ? (
-              <RevokeShareLink id={link.id} />
+              <RevokeShareLink id={link.id} customerId={customerId} />
             ) : null}
           </li>
         );
@@ -316,11 +323,17 @@ function CreateShareLink({ customerId }: { customerId: string }) {
   );
 }
 
-function RevokeShareLink({ id }: { id: string }) {
+function RevokeShareLink({
+  id,
+  customerId,
+}: {
+  id: string;
+  customerId: string;
+}) {
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
-  const revoke = useAction(revokeShareLink, {
+  const revoke = useAction(revokeCustomerShareLinks, {
     onSuccess: () => {
       toast.success(t("Link revoked"));
     },
@@ -350,7 +363,7 @@ function RevokeShareLink({ id }: { id: string }) {
           <AlertDialogAction
             variant="destructive"
             onClick={() => {
-              void revoke.run({ id });
+              void revoke.run({ id: customerId, input: { id } });
             }}
           >
             {t("Revoke")}

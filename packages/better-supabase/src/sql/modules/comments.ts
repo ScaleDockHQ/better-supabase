@@ -24,6 +24,7 @@ import {
   fail,
   withExtraFields,
 } from "../shared.ts";
+import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import {
   qualifiedTable,
   subjectAccess,
@@ -316,6 +317,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     actions: ["read", "create", "moderate"],
     permission,
     provider: layout.accessProvider,
+    guest: { read: "read", create: "comment" },
   });
 
   const authors = authorLookup(ctx, {
@@ -340,11 +342,12 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       : authors.attach(json, "m.authors", row);
   };
 
-  const readable = subjectReadable(ctx, subjects, {
-    type: "subject_type",
-    id: "subject_id",
-    tenant: "tenant",
-  });
+  const readable = subjectReadable(
+    ctx,
+    subjects,
+    { type: "subject_type", id: "subject_id", tenant: "tenant" },
+    { guest: true },
+  );
 
   // Without options.subjects every subject is readable, so the policies
   // leave out the per-row call that would only return true.
@@ -933,7 +936,7 @@ begin${reads.gate}${reads.auditSetup}
   return v_rows;
 end;
 $$;
-${cascades}${documentCheck}
+${cascades}${subjectMergeHandler(ctx, subjects, moveSubjectRows({ table: comments, type: c("subjectType"), id: c("subjectId") }, "v_type"))}${documentCheck}
 revoke execute on function ${fn("comment_subject_readable")}(text, text, ${id}) from public, anon;
 revoke execute on function ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid, jsonb${extra.type}) from public, anon;
 revoke execute on function ${fn("edit_comment")}(uuid, text, uuid[], jsonb, boolean${extra.type}) from public, anon;

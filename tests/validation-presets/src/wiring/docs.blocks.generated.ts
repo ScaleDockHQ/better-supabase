@@ -9,6 +9,7 @@ import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { CommentsEvents } from "better-supabase/blocks/comments";
 import type { DocumentsEvents } from "better-supabase/blocks/documents";
+import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ReactionsEvents } from "better-supabase/blocks/reactions";
@@ -45,6 +46,10 @@ export const blockConfig = {
     options: {},
   },
   documents: {
+    schema: "better_supabase",
+    options: {},
+  },
+  enrollments: {
     schema: "better_supabase",
     options: {},
   },
@@ -158,6 +163,11 @@ export const permissions = {
     write: "documents.write",
     manage: "documents.manage",
   },
+  enrollments: {
+    read: "enrollments.read",
+    enroll: "enrollments.enroll",
+    manage: "enrollments.manage",
+  },
   invitations: {
     invite: "members.invite",
     revoke: "members.invite",
@@ -218,13 +228,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "comments.create" | "comments.moderate" | "comments.read" | "documents.manage" | "documents.read" | "documents.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "comments.create" | "comments.moderate" | "comments.read" | "documents.manage" | "documents.read" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CommentsEvents & DocumentsEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & SettingsEvents & ShareLinksEvents & TeamsEvents & TemplatesEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CommentsEvents & DocumentsEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & ReactionsEvents & SettingsEvents & ShareLinksEvents & TeamsEvents & TemplatesEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -247,6 +257,12 @@ export const blockEvents: Events<BlockEvents> = {
     "comment.deleted",
     "comment.mentioned",
     "document.created",
+    "enrollment.cancelled",
+    "enrollment.completed",
+    "enrollment.created",
+    "enrollment.step_completed",
+    "enrollment_program.deleted",
+    "enrollment_program.saved",
     "invitation.accepted",
     "invitation.created",
     "invitation.declined",
@@ -314,6 +330,12 @@ export const blockEventSchemas = {
   "comment.deleted": true,
   "comment.mentioned": true,
   "document.created": true,
+  "enrollment.cancelled": true,
+  "enrollment.completed": true,
+  "enrollment.created": true,
+  "enrollment.step_completed": true,
+  "enrollment_program.deleted": true,
+  "enrollment_program.saved": true,
   "invitation.accepted": true,
   "invitation.created": true,
   "invitation.declined": true,

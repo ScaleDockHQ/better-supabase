@@ -165,6 +165,74 @@ removes both.
 | `list(organizationId, range, opts)`      | The bookings that overlap the range, as the caller's policies allow     |
 | `expireHolds()`, `job`                   | Cancels expired holds; `job` is the handler for `bookings.expire-holds` |
 
+## Recurring bookings
+
+Turn on `recurring` to book a series: a weekly class, a standing appointment.
+The option is off by default; it adds a `booking_series` table, a `series_id`
+column on `bookings` and the series functions, and needs the module's own
+tables (an adopted `bookings` table gets no series unless you map
+`tables.series`).
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  bookings: { options: { recurring: true } },
+},
+```
+
+A rule has a `freq` (`daily` or `weekly`), an `interval` (1 to 52), the ISO
+`weekdays` for a weekly rule (1 is Monday), and a `count` (at most 366), an
+`until`, or both. Occurrences keep their local start time in the rule's `tz`
+(the resource's zone by default), so a 09:00 class stays at 09:00 across a
+daylight saving change. `parseRecurrence` reads the RRULE subset the series
+supports (`FREQ`, `INTERVAL`, `BYDAY`, `COUNT`, `UNTIL`) and throws a
+`RangeError` for anything else; `formatRecurrence` writes a rule back.
+
+```ts
+import { parseRecurrence } from "better-supabase/blocks/bookings";
+
+const booked = await bookings
+  .bookSeries(
+    serviceId,
+    resourceId,
+    Temporal.Instant.from("2030-03-18T08:00:00Z"),
+    parseRecurrence("FREQ=WEEKLY;BYDAY=MO,WE;COUNT=8"),
+    { name: "Bo" },
+  )
+  .orThrow();
+
+booked.series.id; // every occurrence carries it as seriesId
+booked.skipped; // empty unless skipConflicts was set
+```
+
+Each occurrence is placed like a confirmed booking, through the same slot
+check and the same `bookings_no_overlap` exclusion constraint, so a series can
+never double-book a seat. When an occurrence is taken the whole series fails
+with `BOOKING_SERIES_CONFLICT` and nothing is booked; pass
+`{ skipConflicts: true }` to book the open occurrences and get the taken
+starts back in `skipped`.
+
+`reschedule(bookingId, startsAt)` moves one occurrence, or any single booking.
+With `{ scope: "following" }` it moves this occurrence and every later live
+one in the series by the same shift. Each move frees the booking's own seat
+first, checks the new time is an open slot and lets the constraint settle a
+race, so a move that collides fails with `BOOKING_SLOT_UNAVAILABLE` and leaves
+every occurrence where it was. The calendar copy and the reminders move with
+the booking, and each move records `booking.rescheduled`.
+
+`cancelSeries(bookingId)` cancels this occurrence and the ones after it, and
+ends the series; `{ scope: "one" }` cancels one occurrence. `series(seriesId)`
+returns the series with its bookings.
+
+| Method                                        | Does                                                                |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| `bookSeries(serviceId, resourceId, at, rule)` | Books every occurrence, or the open ones with `skipConflicts`       |
+| `reschedule(bookingId, at, { scope })`        | Moves one booking, or it and the following occurrences              |
+| `cancelSeries(bookingId, { scope, reason })`  | Cancels the following occurrences (default) or one; returns a count |
+| `series(seriesId)`                            | The series and its bookings, as the caller's policies allow         |
+
+To pay for classes with a pack of credits, see
+[class credits](/docs/blocks/passes#class-credits).
+
 ## Public booking
 
 With `share-links` installed, a share link to a service (`subjectType:
@@ -319,7 +387,7 @@ export function Component(props: { serviceId: string }) {
 `before_booking_reserve(tenant, service, resource, during, customer)` runs before a booking is
 placed and can raise to refuse it. `after_booking_reserve(booking)`,
 `after_booking_confirm(booking)` and `after_booking_cancel(booking)` run after
-the change. See [block hooks](/docs/extending/blocks#hooks).
+the change. Every occurrence of a series runs the same hooks. See [block hooks](/docs/extending/blocks#hooks).
 
 ## Errors
 
@@ -337,10 +405,12 @@ the change. See [block hooks](/docs/extending/blocks#hooks).
 | `BOOKING_LINK_INVALID`       | The share link is unknown, revoked, expired, or for another subject                                              |
 | `BOOKING_CUSTOMER_INVALID`   | A guest booking without a name or a valid email                                                                  |
 | `BOOKING_RATE_LIMITED`       | Too many public calls (`rate_limited`)                                                                           |
+| `BOOKING_RULE_INVALID`       | A recurrence rule with an unknown `freq`, an `interval`, `weekdays` or `count` out of range, or no end           |
+| `BOOKING_SERIES_CONFLICT`    | An occurrence of a series is not an open slot, or none is with `skipConflicts`                                   |
+| `BOOKING_SCOPE_INVALID`      | A scope other than `one` or `following`                                                                          |
 
-Reschedule by cancelling and booking the new time. Availability is weekly
-hours plus exceptions; there is no RRULE for hours, and no deposit through the
-billing block yet.
+Availability is weekly hours plus exceptions; there is no RRULE for hours, and
+no deposit through the billing block yet.
 
 ## With ReUI
 

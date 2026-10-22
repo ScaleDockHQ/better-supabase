@@ -2,7 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
 import { fail, userGrant } from "../shared.ts";
-import { columns, guard } from "./inventory-stock.ts";
+import { columns, guard, moveStock } from "./inventory-stock.ts";
 
 const UUID =
   "'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'";
@@ -54,11 +54,9 @@ export function transferFunctions(
   const { fn } = names;
   const transfers = ctx.table("transfers");
   const lines = ctx.table("transferLines");
-  const movements = ctx.table("movements");
   const locations = ctx.table("locations");
   const t = columns(ctx, "transfers");
   const tl = columns(ctx, "transferLines");
-  const m = columns(ctx, "movements");
   const l = columns(ctx, "locations");
 
   const load = (
@@ -76,8 +74,7 @@ export function transferFunctions(
     sign: string,
     reason: string,
   ): string =>
-    `insert into ${movements} (${m("tenant")}, ${m("variant")}, ${m("location")}, ${m("quantity")}, ${m("reason")}, ${m("referenceType")}, ${m("referenceId")})
-  select v_row.tenant, x.${tl("variant")}, ${location}, ${sign}x.${tl("quantity")}, '${reason}', 'transfer', ${name}.transfer::text
+    `perform ${moveStock(ctx, { tenant: "v_row.tenant", variant: `x.${tl("variant")}`, location, quantity: `${sign}x.${tl("quantity")}`, reason: `'${reason}'`, referenceType: "'transfer'", referenceId: `${name}.transfer::text` })}
   from ${lines} x where x.${tl("transfer")} = ${name}.transfer;`;
 
   const event = (type: string, name: string, status: string): string =>
@@ -209,12 +206,10 @@ export function purchaseOrderFunctions(
   const orders = ctx.table("purchaseOrders");
   const lines = ctx.table("purchaseOrderLines");
   const levels = ctx.table("levels");
-  const movements = ctx.table("movements");
   const locations = ctx.table("locations");
   const po = columns(ctx, "purchaseOrders");
   const pl = columns(ctx, "purchaseOrderLines");
   const lv = columns(ctx, "levels");
-  const m = columns(ctx, "movements");
   const l = columns(ctx, "locations");
   const currencyUnits = ctx.of("catalog").fn("currency_minor_units");
 
@@ -358,8 +353,7 @@ begin
     update ${lines} y set ${pl("received")} = y.${pl("received")} + v_line.quantity where y.${pl("id")} = v_line.id;
     update ${levels} x set ${lv("incoming")} = greatest(x.${lv("incoming")} - v_line.quantity, 0), ${lv("updatedAt")} = now()
     where x.${lv("variant")} = v_line.variant and x.${lv("location")} = v_row.location;
-    insert into ${movements} (${m("tenant")}, ${m("variant")}, ${m("location")}, ${m("quantity")}, ${m("reason")}, ${m("referenceType")}, ${m("referenceId")})
-    values (v_row.tenant, v_line.variant, v_row.location, v_line.quantity, 'receipt', 'purchase_order', receive_purchase_order.purchase_order::text);
+    perform ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_line.variant", location: "v_row.location", quantity: "v_line.quantity", reason: "'receipt'", referenceType: "'purchase_order'", referenceId: "receive_purchase_order.purchase_order::text" })};
   end loop;
   select coalesce(sum(y.${pl("quantity")} - y.${pl("received")}), 0) into v_backordered
   from ${lines} y where y.${pl("order")} = receive_purchase_order.purchase_order;

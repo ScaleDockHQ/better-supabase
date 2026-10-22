@@ -28,3 +28,12 @@ export { relationsBlock } from "./manifest.ts";
 export { relationsEvents } from "./events.ts";
 
 export type { RelationsEvents } from "./events.ts";
+
+export {
+  relationInput,
+  relationsSection,
+  unlinkRelationInput,
+  type RelationInput,
+  type RelationsWrites,
+  type UnlinkRelationInput,
+} from "./section.ts";

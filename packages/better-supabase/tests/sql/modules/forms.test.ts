@@ -153,6 +153,65 @@ describe("forms module", () => {
     expect(sql).toContain(`"org_id"`);
   });
 
+  it("scores submissions against an answer key no client can read", () => {
+    const sql = sqlOf(["forms"]);
+
+    expect(sql).toContain(
+      `create table if not exists "better_supabase"."form_answer_keys"`,
+    );
+    expect(sql).not.toMatch(
+      /grant select on "better_supabase"\."form_answer_keys"/,
+    );
+    expect(sql).toContain(`"better_supabase"."form_answer_split"(`);
+    expect(sql).toContain(`v_grade := "better_supabase"."form_score"(`);
+    expect(sql).toContain(
+      `alter table "better_supabase"."form_submissions" add column if not exists "max_score" numeric`,
+    );
+    expect(sqlOf(["outbox", "forms"])).toContain("'score', v_row.\"score\"");
+    expect(sql).toContain(`"better_supabase"."form_nps"(form_id uuid`);
+    expect(sql).toContain("FORM_NPS_BUCKET_INVALID");
+    expect(sql).toContain("'day', 'week', 'month', 'quarter', 'year'");
+  });
+
+  it("refuses correct answers on adopted tables without the score columns", () => {
+    const adopted = (
+      tables: Record<string, string> = {},
+      columns: Record<string, Record<string, string>> = {},
+    ): string =>
+      sqlOf(["forms"], {
+        modules: {
+          forms: {
+            mode: "adopt",
+            tables: {
+              forms: "app.surveys",
+              versions: "app.survey_versions",
+              submissions: "app.survey_answers",
+              ...tables,
+            },
+            columns,
+          },
+        },
+      });
+
+    const plain = adopted();
+    expect(plain).toContain("FORM_SCORING_UNAVAILABLE");
+    expect(plain).not.toContain("v_grade :=");
+
+    const scored = adopted(
+      { answerKeys: "app.survey_keys" },
+      {
+        submissions: {
+          score: "score",
+          maxScore: "max_score",
+          passed: "passed",
+        },
+      },
+    );
+
+    expect(scored).toContain(`"app"."survey_keys"`);
+    expect(scored).toContain("v_grade :=");
+  });
+
   it("rejects a publicLimit that is not an object", () => {
     expect(() => sqlOf(["forms"], withOptions({ publicLimit: 5 }))).toThrow(
       /publicLimit/,

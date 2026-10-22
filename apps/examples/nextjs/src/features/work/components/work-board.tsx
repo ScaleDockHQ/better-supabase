@@ -20,10 +20,12 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getFields } from "@/features/custom-fields/custom-fields-queries";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 import { getTeams, getWorkBoard, settle } from "../work-queries";
+import { WORK_ITEM_SUBJECT } from "../work-types";
 import { CreateWorkItemDialog } from "./create-work-item-dialog";
 import { TeamPicker } from "./team-picker";
 import { WorkItemBoard } from "./work-item-board";
@@ -53,9 +55,10 @@ export async function WorkBoard({
   const parsed = v.safeParse(TeamParam, params["team"]);
   const team = parsed.success ? parsed.output : null;
 
-  const [board, teams] = await Promise.all([
+  const [board, teams, fields] = await Promise.all([
     settle(() => getWorkBoard(team)),
     settle(getTeams),
+    getFields(WORK_ITEM_SUBJECT),
   ]);
 
   if (board.kind === "no-organization") {
@@ -63,6 +66,7 @@ export async function WorkBoard({
   }
 
   const teamOptions = teams.kind === "ok" ? teams.data : [];
+  const customFields = fields.kind === "ok" ? fields.data : [];
   const teamId = teamOptions.find((each) => each.id === team)?.id ?? null;
   const canWrite = can(session, "work_items.write");
 
@@ -94,6 +98,7 @@ export async function WorkBoard({
               <CreateWorkItemDialog
                 teams={teamOptions}
                 defaultTeamId={teamId}
+                customFields={customFields}
               />
             </CardAction>
           ) : null}
@@ -125,6 +130,7 @@ export async function WorkBoard({
                   <CreateWorkItemDialog
                     teams={teamOptions}
                     defaultTeamId={teamId}
+                    customFields={customFields}
                   />
                 </EmptyContent>
               ) : null}

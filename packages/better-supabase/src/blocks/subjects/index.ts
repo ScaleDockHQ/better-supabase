@@ -1,10 +1,15 @@
 export {
   createSubjects,
+  MY_WORK_LIMIT,
+  type MyWorkItem,
+  type MyWorkOptions,
   type ResolvedSubject,
   SUBJECT_TITLES_LIMIT,
   type Subjects,
   type SubjectsOptions,
 } from "./subjects.ts";
+
+export { MY_WORK_KINDS, type MyWorkKind } from "./my-work-kinds.ts";
 
 export { subjectsBlock } from "./manifest.ts";
 

@@ -1,3 +1,5 @@
+export type { CommentsOptimisticAction, CommentsWrites } from "./section.ts";
+
 export {
   type ActivityDescription,
   type ActivityEntry,
@@ -31,6 +33,8 @@ export type { BlockTransport } from "../../core/block-transport.ts";
 export type { Author } from "../../core/block-authors.ts";
 
 export { commentsBlock } from "./manifest.ts";
+
+export { commentsOptimistic, commentsSection } from "./section.ts";
 
 export { commentsEvents } from "./events.ts";
 

@@ -31,6 +31,23 @@ import { documentsBlock } from "better-supabase/blocks/documents";
 import { domainsBlock } from "better-supabase/blocks/domains";
 import { reviewsBlock } from "better-supabase/blocks/reviews";
 import { leaveBlock } from "better-supabase/blocks/leave";
+import { ledgerBlock } from "better-supabase/blocks/ledger";
+import { assetsBlock } from "better-supabase/blocks/assets";
+import { scoresBlock } from "better-supabase/blocks/scores";
+import { moderationBlock } from "better-supabase/blocks/moderation";
+import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
+import { guestsBlock } from "better-supabase/blocks/guests";
+import { passesBlock } from "better-supabase/blocks/passes";
+import { billableTimeBlock } from "better-supabase/blocks/billable-time";
+import { leasesBlock } from "better-supabase/blocks/leases";
+import { expensesBlock } from "better-supabase/blocks/expenses";
+import { donationsBlock } from "better-supabase/blocks/donations";
+import { dispatchBlock } from "better-supabase/blocks/dispatch";
+import { shipmentsBlock } from "better-supabase/blocks/shipments";
+import { contractsBlock } from "better-supabase/blocks/contracts";
+import { controlsBlock } from "better-supabase/blocks/controls";
+import { incidentsBlock } from "better-supabase/blocks/incidents";
+import { coursesBlock } from "better-supabase/blocks/courses";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
@@ -128,6 +145,23 @@ export const blockSet = defineBlocks(blockConfig, {
   domains: domainsBlock,
   reviews: reviewsBlock,
   leave: leaveBlock,
+  ledger: ledgerBlock,
+  assets: assetsBlock,
+  scores: scoresBlock,
+  moderation: moderationBlock,
+  enrollments: enrollmentsBlock,
+  guests: guestsBlock,
+  passes: passesBlock,
+  billableTime: billableTimeBlock,
+  leases: leasesBlock,
+  expenses: expensesBlock,
+  donations: donationsBlock,
+  dispatch: dispatchBlock,
+  shipments: shipmentsBlock,
+  contracts: contractsBlock,
+  controls: controlsBlock,
+  incidents: incidentsBlock,
+  courses: coursesBlock,
   drive: driveBlock,
   employees: employeesBlock,
   engagements: engagementsBlock,

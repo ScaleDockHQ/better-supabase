@@ -71,25 +71,6 @@ export const createShareLink = bs.action(
   },
 );
 
-export const revokeShareLink = bs.action(
-  {
-    input: v.object({ id: Id }),
-    requireTenant: true,
-    authorize: (session) => can(session, "share_links.create"),
-  },
-  async ({ id }, { supabase, auth }) => {
-    const revoked = await blocks(supabase).shareLinks.revoke(id);
-
-    if (!revoked.ok) {
-      return revoked;
-    }
-
-    refreshCaller(auth);
-
-    return ok(null);
-  },
-);
-
 // #endregion share links
 
 // #region attachments
@@ -172,119 +153,10 @@ export const downloadAttachment = bs.action(
       .map((download) => ({ signedUrl: download.signedUrl })),
 );
 
-export const removeAttachment = bs.action(
-  {
-    input: v.object({ id: Id }),
-    requireTenant: true,
-    authorize: (session) => can(session, "attachments.manage"),
-  },
-  async ({ id }, { supabase, auth }) => {
-    const removed = await customerAttachments(supabase).remove(id);
-
-    if (!removed.ok) {
-      return removed;
-    }
-
-    refreshCaller(auth);
-
-    return ok(null);
-  },
-);
-
+/** Removes a file; the customer's attachments section reads again. */
 // #endregion attachments
 
-// #region relations
-
-const RELATED_KIND = "relates";
-
-export const linkCustomer = bs.action(
-  {
-    input: v.object({ customerId: Id, targetId: Id }),
-    requireTenant: true,
-    authorize: (session) => can(session, "relations.manage"),
-  },
-  async (
-    { customerId, targetId },
-    { tenant: organizationId, supabase, auth },
-  ) => {
-    if (customerId === targetId) {
-      return err(dbError("invalid_input", "A customer can't link to itself"));
-    }
-
-    const linked = await blocks(supabase, organizationId).relations.link(
-      { type: SUBJECT, id: customerId },
-      { type: SUBJECT, id: targetId },
-      { kind: RELATED_KIND },
-    );
-
-    if (!linked.ok) {
-      return linked;
-    }
-
-    refreshCaller(auth);
-
-    return ok(null);
-  },
-);
-
-/** Removes a link as the customer sees it: `kind` may be an inverse name. */
-export const unlinkCustomer = bs.action(
-  {
-    input: v.object({
-      customerId: Id,
-      kind: v.pipe(v.string(), v.minLength(1)),
-      subjectType: v.pipe(v.string(), v.minLength(1)),
-      subjectId: v.pipe(v.string(), v.minLength(1)),
-    }),
-    requireTenant: true,
-    authorize: (session) => can(session, "relations.manage"),
-  },
-  async (
-    { customerId, kind, subjectType, subjectId },
-    { tenant: organizationId, supabase, auth },
-  ) => {
-    const unlinked = await blocks(supabase, organizationId).relations.unlink(
-      { type: SUBJECT, id: customerId },
-      { type: subjectType, id: subjectId },
-      { kind },
-    );
-
-    if (!unlinked.ok) {
-      return unlinked;
-    }
-
-    refreshCaller(auth);
-
-    return ok(null);
-  },
-);
-
-// #endregion relations
-
 // #region versions
-
-export const saveCustomerVersion = bs.action(
-  {
-    input: v.object({ customerId: Id }),
-    requireTenant: true,
-    authorize: (session) => can(session, "versions.create"),
-  },
-  async ({ customerId }, { tenant: organizationId, supabase, auth }) => {
-    // Without content the block copies the customer's configured columns.
-    const saved = await blocks(supabase, organizationId).versions.snapshot({
-      type: SUBJECT,
-      id: customerId,
-    });
-
-    if (!saved.ok) {
-      return saved;
-    }
-
-    refreshCaller(auth);
-
-    return ok(null);
-  },
-);
 
 /**
  * Keeps the current details as a version, then writes the chosen version's

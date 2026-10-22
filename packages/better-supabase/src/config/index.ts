@@ -165,7 +165,11 @@ export type {
   EntityConfig,
 } from "./blocks.ts";
 
-export { blockEntities, blockEntityRenames } from "./block-subjects.ts";
+export {
+  blockEntities,
+  blockEntityRenames,
+  blockSubjectTypes,
+} from "./block-subjects.ts";
 
 export type { BlockEntity } from "./block-subjects.ts";
 

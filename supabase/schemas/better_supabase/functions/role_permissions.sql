@@ -7,7 +7,10 @@
 -- existing tags, keep their own API keys,
 -- read the settings, answer inbox conversations and use the assistant.
 -- Members also read every recipe block and do the everyday writes (react,
--- upload, track time, request approval); managing a block is for admins.
+-- upload, track time, request approval, report content, file maintenance
+-- requests, submit expense reports, work the dispatch jobs scheduled for
+-- them); managing a block
+-- is for admins.
 -- Assigning conversations and managing inboxes is for admins. There are no
 -- platform roles, and nobody is disabled.
 -- `rolePermissions` in apps/examples/nextjs/src/features/user/user-permissions.ts
@@ -39,7 +42,7 @@ as $$
       'attachments.read', 'attachments.upload', 'attachments.manage', 'sso.manage',
       'waitlist.manage', 'teams.read', 'teams.manage', 'catalog.read', 'catalog.manage',
       'inventory.read', 'inventory.manage', 'inventory.reserve', 'inventory.purchase',
-      'orders.read', 'orders.manage', 'promotions.read', 'promotions.manage', 'custom_fields.read',
+      'orders.read', 'orders.manage', 'orders.prepare', 'promotions.read', 'promotions.manage', 'custom_fields.read',
       'custom_fields.manage', 'custom_fields.sensitive.read', 'share_links.read',
       'share_links.create', 'reminders.read', 'reminders.manage', 'imports.manage',
       'views.read', 'views.share', 'relations.read', 'relations.manage', 'bulk.run',
@@ -60,7 +63,17 @@ as $$
       'sla.read', 'sla.manage', 'targets.read', 'targets.manage', 'hiring.read',
       'hiring.write', 'hiring.manage', 'employees.read', 'employees.write', 'employees.view_sensitive',
       'webhooks.read', 'webhooks.manage', 'organization.export',
-      'rules.read', 'rules.edit', 'rules.publish', 'rules.admin'
+      'rules.read', 'rules.edit', 'rules.publish', 'rules.admin',
+      'assets.read', 'assets.manage', 'assets.assign',
+      'scores.read', 'scores.manage', 'scores.compute',
+      'moderation.read', 'moderation.report', 'moderation.manage', 'moderation.ban',
+      'enrollments.read', 'enrollments.enroll', 'enrollments.manage',
+      'dispatch.read', 'dispatch.manage', 'dispatch.work', 'shipments.read', 'shipments.manage',
+      'signatures.read', 'signatures.request', 'signatures.manage',
+      'contracts.read', 'contracts.write', 'contracts.manage',
+      'controls.read', 'controls.manage', 'controls.collect', 'controls.acknowledge',
+      'incidents.read', 'incidents.write', 'incidents.manage',
+      'courses.read', 'courses.enroll', 'courses.manage'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
@@ -71,7 +84,7 @@ as $$
       'ai_chat.read', 'ai_chat.create', 'ai_chat.share',
       'ai.read', 'ai.create', 'ai.share',
       'attachments.read', 'attachments.upload', 'teams.read', 'catalog.read', 'inventory.read',
-      'orders.read', 'promotions.read', 'custom_fields.read', 'share_links.read',
+      'orders.read', 'orders.prepare', 'promotions.read', 'custom_fields.read', 'share_links.read',
       'share_links.create', 'reminders.read', 'reminders.manage', 'views.read',
       'views.share', 'relations.read', 'relations.manage', 'calendar.read', 'calendar.write',
       'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'trash.read',
@@ -82,7 +95,11 @@ as $$
       'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write',
       'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read',
       'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'hiring.read',
-      'employees.read', 'rules.read'
+      'employees.read', 'rules.read', 'assets.read', 'scores.read',
+      'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit',
+      'dispatch.read', 'dispatch.work', 'shipments.read', 'signatures.read',
+      'contracts.read', 'contracts.write', 'controls.read', 'controls.collect',
+      'controls.acknowledge', 'incidents.read', 'incidents.write', 'courses.read'
     ]
     else array[]::text[]
   end

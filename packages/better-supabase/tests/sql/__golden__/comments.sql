@@ -532,12 +532,12 @@ $$;
 
 drop policy if exists "comments_read" on "better_supabase"."comments";
 create policy "comments_read" on "better_supabase"."comments" for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('comments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)));
 drop policy if exists "comments_insert" on "better_supabase"."comments";
 create policy "comments_insert" on "better_supabase"."comments" for insert to authenticated
   with check ((
     "author_id" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false)
+    and (coalesce(better_supabase.can('tenant', "organization_id", 'comments.create'), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('comment') g))
   ) and (select better_supabase.actor_may_write()));
 drop policy if exists "comments_update" on "better_supabase"."comments";
 create policy "comments_update" on "better_supabase"."comments" for update to authenticated
@@ -772,7 +772,7 @@ as $$
   from "better_supabase"."comments" y
   join "better_supabase"."profiles" pr on pr."id" = y."author_id"
   where y."id" = any ($1)
-    and y."organization_id" in (select better_supabase.tenant_ids_with('comments.read'))
+    and (y."organization_id" in (select better_supabase.tenant_ids_with('comments.read')) or ((y."organization_id")::text, (y."subject_type")::text, (y."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))
 $$;
 revoke execute on function "better_supabase"."comment_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."comment_authors"(uuid[]) to authenticated, service_role;

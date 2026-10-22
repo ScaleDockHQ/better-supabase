@@ -1,3 +1,9 @@
+export type {
+  TagRefInput,
+  TagsOptimisticAction,
+  TagsWrites,
+} from "./section.ts";
+
 export { createTags, type Tag, type Tags, type TagsOptions } from "./tags.ts";
 
 export {
@@ -10,6 +16,8 @@ export {
 } from "./client.ts";
 
 export { tagsBlock } from "./manifest.ts";
+
+export { tagRefInput, tagsOptimistic, tagsSection } from "./section.ts";
 
 export { tagsEvents } from "./events.ts";
 

@@ -1,3 +1,8 @@
+export type {
+  AttachmentsOptimisticAction,
+  AttachmentsWrites,
+} from "./section.ts";
+
 export {
   type Attachment,
   type AttachmentBucket,
@@ -32,6 +37,8 @@ export type { BlockTransport } from "../../core/block-transport.ts";
 export type { Author } from "../../core/block-authors.ts";
 
 export { attachmentsBlock } from "./manifest.ts";
+
+export { attachmentsOptimistic, attachmentsSection } from "./section.ts";
 
 export { attachmentsEvents } from "./events.ts";
 

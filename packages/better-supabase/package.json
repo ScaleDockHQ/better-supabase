@@ -109,6 +109,16 @@
       "types": "./dist/query/index.d.ts",
       "default": "./dist/query/index.js"
     },
+    "./records": {
+      "@better-supabase/source": "./src/records/index.ts",
+      "types": "./dist/records/index.d.ts",
+      "default": "./dist/records/index.js"
+    },
+    "./flows": {
+      "@better-supabase/source": "./src/flows/index.ts",
+      "types": "./dist/flows/index.d.ts",
+      "default": "./dist/flows/index.js"
+    },
     "./server": {
       "@better-supabase/source": "./src/server/index.ts",
       "types": "./dist/server/index.d.ts",
@@ -956,6 +966,31 @@
       "types": "./dist/blocks/leave/index.d.ts",
       "default": "./dist/blocks/leave/index.js"
     },
+    "./blocks/ledger": {
+      "@better-supabase/source": "./src/blocks/ledger/index.ts",
+      "types": "./dist/blocks/ledger/index.d.ts",
+      "default": "./dist/blocks/ledger/index.js"
+    },
+    "./blocks/assets": {
+      "@better-supabase/source": "./src/blocks/assets/index.ts",
+      "types": "./dist/blocks/assets/index.d.ts",
+      "default": "./dist/blocks/assets/index.js"
+    },
+    "./blocks/scores": {
+      "@better-supabase/source": "./src/blocks/scores/index.ts",
+      "types": "./dist/blocks/scores/index.d.ts",
+      "default": "./dist/blocks/scores/index.js"
+    },
+    "./blocks/moderation": {
+      "@better-supabase/source": "./src/blocks/moderation/index.ts",
+      "types": "./dist/blocks/moderation/index.d.ts",
+      "default": "./dist/blocks/moderation/index.js"
+    },
+    "./blocks/enrollments": {
+      "@better-supabase/source": "./src/blocks/enrollments/index.ts",
+      "types": "./dist/blocks/enrollments/index.d.ts",
+      "default": "./dist/blocks/enrollments/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -1547,6 +1582,66 @@
       "types": "./dist/blocks/push/index.d.ts",
       "default": "./dist/blocks/push/index.js"
     },
+    "./blocks/guests": {
+      "@better-supabase/source": "./src/blocks/guests/index.ts",
+      "types": "./dist/blocks/guests/index.d.ts",
+      "default": "./dist/blocks/guests/index.js"
+    },
+    "./blocks/passes": {
+      "@better-supabase/source": "./src/blocks/passes/index.ts",
+      "types": "./dist/blocks/passes/index.d.ts",
+      "default": "./dist/blocks/passes/index.js"
+    },
+    "./blocks/billable-time": {
+      "@better-supabase/source": "./src/blocks/billable-time/index.ts",
+      "types": "./dist/blocks/billable-time/index.d.ts",
+      "default": "./dist/blocks/billable-time/index.js"
+    },
+    "./blocks/courses": {
+      "@better-supabase/source": "./src/blocks/courses/index.ts",
+      "types": "./dist/blocks/courses/index.d.ts",
+      "default": "./dist/blocks/courses/index.js"
+    },
+    "./blocks/contracts": {
+      "@better-supabase/source": "./src/blocks/contracts/index.ts",
+      "types": "./dist/blocks/contracts/index.d.ts",
+      "default": "./dist/blocks/contracts/index.js"
+    },
+    "./blocks/controls": {
+      "@better-supabase/source": "./src/blocks/controls/index.ts",
+      "types": "./dist/blocks/controls/index.d.ts",
+      "default": "./dist/blocks/controls/index.js"
+    },
+    "./blocks/incidents": {
+      "@better-supabase/source": "./src/blocks/incidents/index.ts",
+      "types": "./dist/blocks/incidents/index.d.ts",
+      "default": "./dist/blocks/incidents/index.js"
+    },
+    "./blocks/dispatch": {
+      "@better-supabase/source": "./src/blocks/dispatch/index.ts",
+      "types": "./dist/blocks/dispatch/index.d.ts",
+      "default": "./dist/blocks/dispatch/index.js"
+    },
+    "./blocks/shipments": {
+      "@better-supabase/source": "./src/blocks/shipments/index.ts",
+      "types": "./dist/blocks/shipments/index.d.ts",
+      "default": "./dist/blocks/shipments/index.js"
+    },
+    "./blocks/leases": {
+      "@better-supabase/source": "./src/blocks/leases/index.ts",
+      "types": "./dist/blocks/leases/index.d.ts",
+      "default": "./dist/blocks/leases/index.js"
+    },
+    "./blocks/expenses": {
+      "@better-supabase/source": "./src/blocks/expenses/index.ts",
+      "types": "./dist/blocks/expenses/index.d.ts",
+      "default": "./dist/blocks/expenses/index.js"
+    },
+    "./blocks/donations": {
+      "@better-supabase/source": "./src/blocks/donations/index.ts",
+      "types": "./dist/blocks/donations/index.d.ts",
+      "default": "./dist/blocks/donations/index.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -1603,6 +1698,14 @@
       "./query": {
         "types": "./dist/query/index.d.ts",
         "default": "./dist/query/index.js"
+      },
+      "./records": {
+        "types": "./dist/records/index.d.ts",
+        "default": "./dist/records/index.js"
+      },
+      "./flows": {
+        "types": "./dist/flows/index.d.ts",
+        "default": "./dist/flows/index.js"
       },
       "./server": {
         "types": "./dist/server/index.d.ts",
@@ -2285,6 +2388,26 @@
         "types": "./dist/blocks/leave/index.d.ts",
         "default": "./dist/blocks/leave/index.js"
       },
+      "./blocks/ledger": {
+        "types": "./dist/blocks/ledger/index.d.ts",
+        "default": "./dist/blocks/ledger/index.js"
+      },
+      "./blocks/assets": {
+        "types": "./dist/blocks/assets/index.d.ts",
+        "default": "./dist/blocks/assets/index.js"
+      },
+      "./blocks/scores": {
+        "types": "./dist/blocks/scores/index.d.ts",
+        "default": "./dist/blocks/scores/index.js"
+      },
+      "./blocks/moderation": {
+        "types": "./dist/blocks/moderation/index.d.ts",
+        "default": "./dist/blocks/moderation/index.js"
+      },
+      "./blocks/enrollments": {
+        "types": "./dist/blocks/enrollments/index.d.ts",
+        "default": "./dist/blocks/enrollments/index.js"
+      },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",
         "default": "./dist/blocks/shared-signals/index.js"
@@ -2760,6 +2883,54 @@
       "./blocks/push": {
         "types": "./dist/blocks/push/index.d.ts",
         "default": "./dist/blocks/push/index.js"
+      },
+      "./blocks/guests": {
+        "types": "./dist/blocks/guests/index.d.ts",
+        "default": "./dist/blocks/guests/index.js"
+      },
+      "./blocks/passes": {
+        "types": "./dist/blocks/passes/index.d.ts",
+        "default": "./dist/blocks/passes/index.js"
+      },
+      "./blocks/billable-time": {
+        "types": "./dist/blocks/billable-time/index.d.ts",
+        "default": "./dist/blocks/billable-time/index.js"
+      },
+      "./blocks/courses": {
+        "types": "./dist/blocks/courses/index.d.ts",
+        "default": "./dist/blocks/courses/index.js"
+      },
+      "./blocks/contracts": {
+        "types": "./dist/blocks/contracts/index.d.ts",
+        "default": "./dist/blocks/contracts/index.js"
+      },
+      "./blocks/controls": {
+        "types": "./dist/blocks/controls/index.d.ts",
+        "default": "./dist/blocks/controls/index.js"
+      },
+      "./blocks/incidents": {
+        "types": "./dist/blocks/incidents/index.d.ts",
+        "default": "./dist/blocks/incidents/index.js"
+      },
+      "./blocks/dispatch": {
+        "types": "./dist/blocks/dispatch/index.d.ts",
+        "default": "./dist/blocks/dispatch/index.js"
+      },
+      "./blocks/shipments": {
+        "types": "./dist/blocks/shipments/index.d.ts",
+        "default": "./dist/blocks/shipments/index.js"
+      },
+      "./blocks/leases": {
+        "types": "./dist/blocks/leases/index.d.ts",
+        "default": "./dist/blocks/leases/index.js"
+      },
+      "./blocks/expenses": {
+        "types": "./dist/blocks/expenses/index.d.ts",
+        "default": "./dist/blocks/expenses/index.js"
+      },
+      "./blocks/donations": {
+        "types": "./dist/blocks/donations/index.d.ts",
+        "default": "./dist/blocks/donations/index.js"
       },
       "./package.json": "./package.json"
     },

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_81_inventory.sql
 -- better-supabase module: inventory
--- @bs-module inventory@1 managed
--- Stock per catalog variant and location: an append-only movement ledger, reservations with expiry, transfers and purchase orders with partial receiving.
+-- @bs-module inventory@2 managed
+-- Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -41,7 +41,7 @@ revoke execute on function better_supabase.raise_actor_readonly() from public;
 grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- Stock per catalog variant and location: an append-only movement ledger,
+-- Stock per catalog variant and location: movements posted to the ledger,
 -- reservations with expiry, transfers and purchase orders with receiving.
 
 create table if not exists "better_supabase"."inventory_locations" (
@@ -83,29 +83,6 @@ grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
 drop policy if exists stock_levels_read on "better_supabase"."stock_levels";
 create policy stock_levels_read on "better_supabase"."stock_levels" for select to authenticated
-using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
-
-create table if not exists "better_supabase"."stock_movements" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" <> 0),
-  "reason" text not null check ("reason" in ('adjustment', 'damage', 'loss', 'return', 'receipt', 'count', 'sale', 'transfer_out', 'transfer_in')),
-  "reference_type" text,
-  "reference_id" text,
-  "note" text,
-  "actor_id" uuid default auth.uid(),
-  "created_at" timestamptz not null default now()
-);
-create index if not exists stock_movements_variant_idx on "better_supabase"."stock_movements" ("variant_id", "location_id", "created_at");
-create index if not exists stock_movements_location_idx on "better_supabase"."stock_movements" ("location_id");
-alter table "better_supabase"."stock_movements" enable row level security;
-revoke all on "better_supabase"."stock_movements" from anon, authenticated;
-grant select on "better_supabase"."stock_movements" to authenticated;
-grant all on "better_supabase"."stock_movements" to service_role;
-drop policy if exists stock_movements_read on "better_supabase"."stock_movements";
-create policy stock_movements_read on "better_supabase"."stock_movements" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
 create table if not exists "better_supabase"."stock_reservations" (
@@ -214,55 +191,59 @@ drop policy if exists purchase_order_lines_read on "better_supabase"."purchase_o
 create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
--- Applies a stock movement to its level. A tracked variant without
--- backorders can't go below zero on hand, and a sale or a transfer out
--- can't take available (on hand minus reserved) below zero.
-create or replace function "better_supabase"."apply_stock_movement"()
-returns trigger
+-- Posts a stock movement to the ledger and applies it to its level. A
+-- tracked variant without backorders can't go below zero on hand, and a
+-- sale or a transfer out can't take available (on hand minus reserved)
+-- below zero. Returns the ledger transaction, the movement's id.
+create or replace function "better_supabase"."move_stock"(tenant uuid, variant uuid, location uuid, quantity integer, reason text, reference_type text default null, reference_id text default null, note text default null)
+returns uuid
 language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
+  v_stock uuid;
+  v_counter uuid;
+  v_id uuid;
   v_on_hand integer;
   v_after integer;
   v_point integer;
 begin
+  if move_stock.quantity is null or move_stock.quantity = 0 then
+    raise exception 'the quantity must not be zero' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
+  end if;
+  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in') then
+    raise exception 'unknown stock movement reason' using errcode = '22023', hint = 'INVENTORY_REASON_INVALID';
+  end if;
+  v_stock := "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock', 'stock:' || move_stock.variant::text || ':' || move_stock.location::text,
+    'Stock', 'item', 0::smallint, 'product-variants', move_stock.variant::text, null, true, 'inventory.read', 'inventory',
+    jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location));
+  v_counter := "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_counter', case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' end,
+    case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' end, 'item', 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null);
+  v_id := "better_supabase"."ledger_post"(move_stock.tenant, 'stock.' || move_stock.reason,
+    jsonb_build_array(
+      jsonb_build_object('account', v_stock, 'amount', move_stock.quantity),
+      jsonb_build_object('account', v_counter, 'amount', -move_stock.quantity)),
+    move_stock.reference_type, move_stock.reference_id, move_stock.note, null, null,
+    jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'reason', move_stock.reason));
   insert into "better_supabase"."stock_levels" as x ("tenant_id", "variant_id", "location_id", "on_hand")
-  values (new."tenant_id", new."variant_id", new."location_id", new."quantity")
+  values (move_stock.tenant, move_stock.variant, move_stock.location, move_stock.quantity)
   on conflict ("variant_id", "location_id") do update
     set "on_hand" = x."on_hand" + excluded."on_hand", "updated_at" = now()
   returning x."on_hand", x."available", x."reorder_point" into v_on_hand, v_after, v_point;
-  if new."quantity" < 0
-    and (v_on_hand < 0 or (v_after < 0 and new."reason" in ('sale', 'transfer_out')))
-    and exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = new."variant_id" and cv."track_inventory" and not cv."allow_backorder") then
+  if move_stock.quantity < 0
+    and (v_on_hand < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out')))
+    and exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = move_stock.variant and cv."track_inventory" and not cv."allow_backorder") then
     raise exception 'not enough stock at this location' using errcode = '23514', hint = 'INVENTORY_INSUFFICIENT';
   end if;
-  if v_point is not null and (v_after - new."quantity") > v_point and v_after <= v_point then
+  if v_point is not null and (v_after - move_stock.quantity) > v_point and v_after <= v_point then
     null;
   end if;
-  return null;
+  return v_id;
 end;
 $$;
-revoke execute on function "better_supabase"."apply_stock_movement"() from public, anon, authenticated;
-drop trigger if exists stock_movements_apply on "better_supabase"."stock_movements";
-create trigger stock_movements_apply after insert on "better_supabase"."stock_movements"
-for each row execute function "better_supabase"."apply_stock_movement"();
-
--- The ledger is append-only: correct a movement with another one.
-create or replace function "better_supabase"."stock_movements_append_only"()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  raise exception 'stock movements can''t change; write a correcting movement' using errcode = '55000', hint = 'INVENTORY_LEDGER_APPEND_ONLY';
-end;
-$$;
-revoke execute on function "better_supabase"."stock_movements_append_only"() from public, anon, authenticated;
-drop trigger if exists stock_movements_append_only on "better_supabase"."stock_movements";
-create trigger stock_movements_append_only before update on "better_supabase"."stock_movements"
-for each row execute function "better_supabase"."stock_movements_append_only"();
+revoke execute on function "better_supabase"."move_stock"(uuid, uuid, uuid, integer, text, text, text, text) from public, anon, authenticated;
 
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
@@ -365,7 +346,9 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if exists (select 1 from "better_supabase"."stock_movements" x where x."location_id" = delete_location.location)
+  if exists (select 1 from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_entries" y on y."account_id" = x."id"
+      where x."tenant_id" = v_tenant and x."managed_by" = 'inventory' and x."kind" = 'stock'
+        and x."metadata" ->> 'locationId' = delete_location.location::text)
     or exists (select 1 from "better_supabase"."stock_reservations" x where x."location_id" = delete_location.location and x."status" = 'active') then
     raise exception 'the location has stock history; deactivate it instead' using errcode = '23503', hint = 'INVENTORY_LOCATION_IN_USE';
   end if;
@@ -391,9 +374,6 @@ declare
   v_on_hand integer;
   v_available integer;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select x."tenant_id", x."active" into v_tenant, v_active from "better_supabase"."inventory_locations" x where x."id" = adjust_stock.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
@@ -418,9 +398,7 @@ begin
         using adjust_stock.variant, adjust_stock.location, adjust_stock.quantity, adjust_stock.reason;
     end if;
   end;
-  insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "note")
-  values (v_tenant, adjust_stock.variant, adjust_stock.location, adjust_stock.quantity, adjust_stock.reason, adjust_stock.note)
-  returning "id" into v_movement;
+  v_movement := "better_supabase"."move_stock"(v_tenant, adjust_stock.variant, adjust_stock.location, adjust_stock.quantity, adjust_stock.reason, null, null, adjust_stock.note);
   select x."on_hand", x."available" into v_on_hand, v_available from "better_supabase"."stock_levels" x
   where x."variant_id" = adjust_stock.variant and x."location_id" = adjust_stock.location;
   null;
@@ -475,9 +453,7 @@ begin
   select count_stock.counted - x."on_hand" into v_delta from "better_supabase"."stock_levels" x
   where x."variant_id" = count_stock.variant and x."location_id" = count_stock.location;
   if v_delta <> 0 then
-    insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "note")
-    values (v_tenant, count_stock.variant, count_stock.location, v_delta, 'count', count_stock.note)
-    returning "id" into v_movement;
+    v_movement := "better_supabase"."move_stock"(v_tenant, count_stock.variant, count_stock.location, v_delta, 'count', null, null, count_stock.note);
     select x."available" into v_available from "better_supabase"."stock_levels" x
     where x."variant_id" = count_stock.variant and x."location_id" = count_stock.location;
     null;
@@ -648,9 +624,7 @@ begin
   where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
   update "better_supabase"."stock_reservations" x set "status" = 'committed', "updated_at" = now()
   where x."id" = commit_reservation.reservation;
-  insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
-  values (v_row.tenant, v_row.variant, v_row.location, -v_row.quantity, 'sale', v_row.reference_type, v_row.reference_id)
-  returning "id" into v_movement;
+  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -v_row.quantity, 'sale', v_row.reference_type, v_row.reference_id, null);
   null;
   return jsonb_build_object('id', commit_reservation.reservation, 'movementId', v_movement);
 end;
@@ -802,8 +776,7 @@ begin
   if v_row.status <> 'draft' then
     raise exception 'the transfer can''t do this in its current status' using errcode = '55000', hint = 'INVENTORY_TRANSFER_STATUS';
   end if;
-  insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
-  select v_row.tenant, x."variant_id", v_row.from_location, -x."quantity", 'transfer_out', 'transfer', ship_transfer.transfer::text
+  perform "better_supabase"."move_stock"(v_row.tenant, x."variant_id", v_row.from_location, -x."quantity", 'transfer_out', 'transfer', ship_transfer.transfer::text, null)
   from "better_supabase"."stock_transfer_lines" x where x."transfer_id" = ship_transfer.transfer;
   update "better_supabase"."stock_transfers" x set "status" = 'in_transit', "shipped_at" = now() where x."id" = ship_transfer.transfer;
   null;
@@ -837,8 +810,7 @@ begin
   if v_row.status <> 'in_transit' then
     raise exception 'the transfer can''t do this in its current status' using errcode = '55000', hint = 'INVENTORY_TRANSFER_STATUS';
   end if;
-  insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
-  select v_row.tenant, x."variant_id", v_row.to_location, x."quantity", 'transfer_in', 'transfer', receive_transfer.transfer::text
+  perform "better_supabase"."move_stock"(v_row.tenant, x."variant_id", v_row.to_location, x."quantity", 'transfer_in', 'transfer', receive_transfer.transfer::text, null)
   from "better_supabase"."stock_transfer_lines" x where x."transfer_id" = receive_transfer.transfer;
   update "better_supabase"."stock_transfers" x set "status" = 'received', "received_at" = now() where x."id" = receive_transfer.transfer;
   null;
@@ -873,8 +845,7 @@ begin
     raise exception 'the transfer can''t do this in its current status' using errcode = '55000', hint = 'INVENTORY_TRANSFER_STATUS';
   end if;
   if v_row.status = 'in_transit' then
-    insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
-  select v_row.tenant, x."variant_id", v_row.from_location, x."quantity", 'transfer_in', 'transfer', cancel_transfer.transfer::text
+    perform "better_supabase"."move_stock"(v_row.tenant, x."variant_id", v_row.from_location, x."quantity", 'transfer_in', 'transfer', cancel_transfer.transfer::text, null)
   from "better_supabase"."stock_transfer_lines" x where x."transfer_id" = cancel_transfer.transfer;
   end if;
   update "better_supabase"."stock_transfers" x set "status" = 'cancelled' where x."id" = cancel_transfer.transfer;
@@ -1052,8 +1023,7 @@ begin
     update "better_supabase"."purchase_order_lines" y set "quantity_received" = y."quantity_received" + v_line.quantity where y."id" = v_line.id;
     update "better_supabase"."stock_levels" x set "incoming" = greatest(x."incoming" - v_line.quantity, 0), "updated_at" = now()
     where x."variant_id" = v_line.variant and x."location_id" = v_row.location;
-    insert into "better_supabase"."stock_movements" ("tenant_id", "variant_id", "location_id", "quantity", "reason", "reference_type", "reference_id")
-    values (v_row.tenant, v_line.variant, v_row.location, v_line.quantity, 'receipt', 'purchase_order', receive_purchase_order.purchase_order::text);
+    perform "better_supabase"."move_stock"(v_row.tenant, v_line.variant, v_row.location, v_line.quantity, 'receipt', 'purchase_order', receive_purchase_order.purchase_order::text, null);
   end loop;
   select coalesce(sum(y."quantity_ordered" - y."quantity_received"), 0) into v_backordered
   from "better_supabase"."purchase_order_lines" y where y."purchase_order_id" = receive_purchase_order.purchase_order;
@@ -1129,6 +1099,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('inventory', 1, 'managed')
+values ('inventory', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

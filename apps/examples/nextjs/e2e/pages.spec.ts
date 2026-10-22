@@ -110,6 +110,24 @@ const routes: readonly Route[] = [
     visibleTo: everyone,
   },
   {
+    path: "/field/dispatch",
+    label: { en: "Dispatch", nl: "Planning" },
+    heading: { en: "Dispatch", nl: "Planning" },
+    visibleTo: everyone,
+  },
+  {
+    path: "/field/day",
+    label: { en: "My day", nl: "Mijn dag" },
+    heading: { en: "My day", nl: "Mijn dag" },
+    visibleTo: everyone,
+  },
+  {
+    path: "/field/shipments",
+    label: { en: "Shipments", nl: "Zendingen" },
+    heading: { en: "Shipments", nl: "Zendingen" },
+    visibleTo: everyone,
+  },
+  {
     path: "/drive",
     label: { en: "Drive", nl: "Drive" },
     heading: { en: "Drive", nl: "Drive" },

@@ -52,3 +52,12 @@ employees
 collections
 reviews
 leave
+leases
+expenses
+donations
+dispatch
+shipments
+contracts
+controls
+incidents
+courses

@@ -96,6 +96,9 @@
       "description": "PostgREST major version written to database.types.ts.",
       "default": "13"
     },
+    "generateFeatures": {
+      "type": "boolean"
+    },
     "json": {
       "type": "object",
       "additionalProperties": {
@@ -879,6 +882,12 @@
               "type": "string"
             },
             "permitted": {
+              "type": "string"
+            },
+            "portalSubjects": {
+              "type": "string"
+            },
+            "portalParties": {
               "type": "string"
             }
           },
@@ -1763,8 +1772,10 @@
               "announcements",
               "api-keys",
               "approvals",
+              "assets",
               "attachments",
               "audit",
+              "billable-time",
               "billing",
               "bookings",
               "bulk",
@@ -1774,36 +1785,48 @@
               "collections",
               "comments",
               "connectors",
+              "contracts",
+              "controls",
+              "courses",
               "credentials",
               "custom-fields",
               "data-lifecycle",
               "deals",
+              "dispatch",
               "documents",
               "domains",
+              "donations",
               "drive",
               "drive-files",
               "employees",
               "engagements",
+              "enrollments",
               "ensure-rls",
               "entitlements",
+              "expenses",
               "flags",
               "forms",
               "grants",
+              "guests",
               "hiring",
               "idempotency",
               "identities",
               "imports",
               "inbox",
+              "incidents",
               "inventory",
               "invitations",
               "invoices",
               "jobs",
               "jsonb-schemas",
               "knowledge",
+              "leases",
               "leave",
+              "ledger",
               "memory",
               "metrics",
               "mfa",
+              "moderation",
               "notifications",
               "number-sequences",
               "oauth-server",
@@ -1812,6 +1835,7 @@
               "organizations",
               "outbox",
               "parties",
+              "passes",
               "pgtap",
               "pipelines",
               "profiles",
@@ -1829,12 +1853,14 @@
               "reviews",
               "rules",
               "saved-views",
+              "scores",
               "search",
               "service-principals",
               "sessions",
               "settings",
               "share-links",
               "shared-signals",
+              "shipments",
               "signatures",
               "signing-keys",
               "sla",
@@ -1906,11 +1932,17 @@
             "approvals": {
               "$ref": "#/$defs/blocks/approvals"
             },
+            "assets": {
+              "$ref": "#/$defs/blocks/assets"
+            },
             "attachments": {
               "$ref": "#/$defs/blocks/attachments"
             },
             "audit": {
               "$ref": "#/$defs/blocks/audit"
+            },
+            "billable-time": {
+              "$ref": "#/$defs/blocks/billable-time"
             },
             "billing": {
               "$ref": "#/$defs/blocks/billing"
@@ -1939,6 +1971,15 @@
             "connectors": {
               "$ref": "#/$defs/blocks/connectors"
             },
+            "contracts": {
+              "$ref": "#/$defs/blocks/contracts"
+            },
+            "controls": {
+              "$ref": "#/$defs/blocks/controls"
+            },
+            "courses": {
+              "$ref": "#/$defs/blocks/courses"
+            },
             "credentials": {
               "$ref": "#/$defs/blocks/credentials"
             },
@@ -1951,11 +1992,17 @@
             "deals": {
               "$ref": "#/$defs/blocks/deals"
             },
+            "dispatch": {
+              "$ref": "#/$defs/blocks/dispatch"
+            },
             "documents": {
               "$ref": "#/$defs/blocks/documents"
             },
             "domains": {
               "$ref": "#/$defs/blocks/domains"
+            },
+            "donations": {
+              "$ref": "#/$defs/blocks/donations"
             },
             "drive": {
               "$ref": "#/$defs/blocks/drive"
@@ -1969,11 +2016,17 @@
             "engagements": {
               "$ref": "#/$defs/blocks/engagements"
             },
+            "enrollments": {
+              "$ref": "#/$defs/blocks/enrollments"
+            },
             "ensure-rls": {
               "$ref": "#/$defs/blocks/ensure-rls"
             },
             "entitlements": {
               "$ref": "#/$defs/blocks/entitlements"
+            },
+            "expenses": {
+              "$ref": "#/$defs/blocks/expenses"
             },
             "flags": {
               "$ref": "#/$defs/blocks/flags"
@@ -1983,6 +2036,9 @@
             },
             "grants": {
               "$ref": "#/$defs/blocks/grants"
+            },
+            "guests": {
+              "$ref": "#/$defs/blocks/guests"
             },
             "hiring": {
               "$ref": "#/$defs/blocks/hiring"
@@ -1998,6 +2054,9 @@
             },
             "inbox": {
               "$ref": "#/$defs/blocks/inbox"
+            },
+            "incidents": {
+              "$ref": "#/$defs/blocks/incidents"
             },
             "inventory": {
               "$ref": "#/$defs/blocks/inventory"
@@ -2017,8 +2076,14 @@
             "knowledge": {
               "$ref": "#/$defs/blocks/knowledge"
             },
+            "leases": {
+              "$ref": "#/$defs/blocks/leases"
+            },
             "leave": {
               "$ref": "#/$defs/blocks/leave"
+            },
+            "ledger": {
+              "$ref": "#/$defs/blocks/ledger"
             },
             "memory": {
               "$ref": "#/$defs/blocks/memory"
@@ -2028,6 +2093,9 @@
             },
             "mfa": {
               "$ref": "#/$defs/blocks/mfa"
+            },
+            "moderation": {
+              "$ref": "#/$defs/blocks/moderation"
             },
             "notifications": {
               "$ref": "#/$defs/blocks/notifications"
@@ -2052,6 +2120,9 @@
             },
             "parties": {
               "$ref": "#/$defs/blocks/parties"
+            },
+            "passes": {
+              "$ref": "#/$defs/blocks/passes"
             },
             "pgtap": {
               "$ref": "#/$defs/blocks/pgtap"
@@ -2104,6 +2175,9 @@
             "saved-views": {
               "$ref": "#/$defs/blocks/saved-views"
             },
+            "scores": {
+              "$ref": "#/$defs/blocks/scores"
+            },
             "search": {
               "$ref": "#/$defs/blocks/search"
             },
@@ -2121,6 +2195,9 @@
             },
             "shared-signals": {
               "$ref": "#/$defs/blocks/shared-signals"
+            },
+            "shipments": {
+              "$ref": "#/$defs/blocks/shipments"
             },
             "signatures": {
               "$ref": "#/$defs/blocks/signatures"
@@ -2546,6 +2623,9 @@
         },
         "postgrestVersion": {
           "$ref": "#/properties/postgrestVersion"
+        },
+        "generateFeatures": {
+          "$ref": "#/properties/generateFeatures"
         },
         "json": {
           "$ref": "#/properties/json"
@@ -3381,6 +3461,22 @@
           }
         }
       },
+      "assets": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "postgis": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      },
       "attachments": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3504,6 +3600,17 @@
           }
         }
       },
+      "billable-time": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          }
+        }
+      },
       "billing": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3537,7 +3644,11 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "extraColumns": {}
+              "extraColumns": {},
+              "recurring": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -3666,6 +3777,49 @@
           }
         }
       },
+      "contracts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reminderDays": {
+                "type": "number",
+                "default": 14
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "controls": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "courses": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
       "credentials": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3758,6 +3912,27 @@
           }
         }
       },
+      "dispatch": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {},
+              "timeZone": {
+                "type": "string",
+                "default": "UTC"
+              },
+              "defaultDuration": {
+                "type": "string",
+                "default": "1 hour"
+              }
+            }
+          }
+        }
+      },
       "documents": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -3798,6 +3973,19 @@
                 "type": "string",
                 "default": "_better-supabase"
               }
+            }
+          }
+        }
+      },
+      "donations": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }
@@ -3877,7 +4065,27 @@
                   "type": "string"
                 }
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "recordings": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        }
+      },
+      "enrollments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxSteps": {
+                "type": "number",
+                "default": 100
+              }
             }
           }
         }
@@ -3901,6 +4109,19 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "expenses": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -3944,6 +4165,17 @@
             "properties": {
               "fromPolicies": {}
             }
+          }
+        }
+      },
+      "guests": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -4032,6 +4264,19 @@
                 "type": "boolean",
                 "default": true
               }
+            }
+          }
+        }
+      },
+      "incidents": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }
@@ -4186,6 +4431,19 @@
           }
         }
       },
+      "leases": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
       "leave": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4208,6 +4466,17 @@
               },
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "ledger": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -4255,6 +4524,36 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "moderation": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "autoHideThreshold": {
+                "type": "number",
+                "default": 3
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "spam",
+                  "abuse",
+                  "harassment",
+                  "off_topic",
+                  "illegal",
+                  "other"
+                ]
+              }
+            }
           }
         }
       },
@@ -4364,7 +4663,11 @@
                 "type": "number",
                 "default": 30
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "kitchen": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }
@@ -4479,6 +4782,34 @@
               "companyLifecycles": {},
               "personLifecycles": {},
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "passes": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "checkInOpens": {
+                "type": "string",
+                "default": "1 hour"
+              },
+              "dropInLength": {
+                "type": "string",
+                "default": "2 hours"
+              },
+              "credits": {
+                "type": "boolean",
+                "default": false
+              },
+              "creditRefundBefore": {
+                "type": "string",
+                "default": "12 hours"
+              }
             }
           }
         }
@@ -4816,6 +5147,26 @@
           }
         }
       },
+      "scores": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxRules": {
+                "type": "number",
+                "default": 100
+              },
+              "maxMetrics": {
+                "type": "number",
+                "default": 50
+              }
+            }
+          }
+        }
+      },
       "search": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4912,6 +5263,19 @@
                 "type": "string",
                 "default": "7 days"
               }
+            }
+          }
+        }
+      },
+      "shipments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }

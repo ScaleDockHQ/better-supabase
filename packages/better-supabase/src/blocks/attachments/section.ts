@@ -1,0 +1,78 @@
+import type { Section, SectionRowInput, SectionWrite } from "../sections.ts";
+import type { Attachment, Attachments } from "./attachments.ts";
+
+import { defineSection, sectionRowInput } from "../sections.ts";
+
+/** A pending write to a record's files, for `useOptimistic`. */
+export type AttachmentsOptimisticAction =
+  | { readonly type: "add"; readonly attachment: Attachment }
+  | { readonly type: "remove"; readonly id: string };
+
+/**
+ * The files with a pending write applied: `add` puts the attachment first (or
+ * replaces the one with the same id), `remove` takes it out.
+ */
+export function attachmentsOptimistic(
+  state: readonly Attachment[],
+  action: AttachmentsOptimisticAction,
+): readonly Attachment[] {
+  switch (action.type) {
+    case "add": {
+      return [
+        action.attachment,
+        ...state.filter((attachment) => attachment.id !== action.attachment.id),
+      ];
+    }
+
+    case "remove": {
+      return state.filter((attachment) => attachment.id !== action.id);
+    }
+
+    default: {
+      const never: never = action;
+
+      return never;
+    }
+  }
+}
+
+/**
+ * The writes of the attachments section. An upload takes two steps through the
+ * browser (`upload`, then `confirm`), so it isn't one.
+ */
+export type AttachmentsWrites = {
+  /** Removes one file. */
+  readonly remove: SectionWrite<Attachments, SectionRowInput, boolean>;
+};
+
+/** A record's files. */
+export const attachmentsSection: Section<
+  Attachments,
+  readonly Attachment[],
+  never,
+  AttachmentsOptimisticAction,
+  AttachmentsWrites
+> = defineSection({
+  permissions: { read: "read", write: "upload" },
+  load: (client: Attachments, subject) => client.list(subject),
+  timeline: (attachments) =>
+    attachments.map((attachment) => ({
+      id: attachment.id,
+      kind: "attachment",
+      at: attachment.uploadedAt ?? attachment.createdAt,
+      ...(attachment.uploadedBy === undefined
+        ? {}
+        : { actor: attachment.uploadedBy }),
+      row: attachment,
+    })),
+  events: ["attachment.*"],
+  optimistic: attachmentsOptimistic,
+  writes: {
+    remove: {
+      permission: "manage",
+      input: sectionRowInput,
+      run: (client: Attachments, _subject, { id }: SectionRowInput) =>
+        client.remove(id),
+    },
+  },
+});

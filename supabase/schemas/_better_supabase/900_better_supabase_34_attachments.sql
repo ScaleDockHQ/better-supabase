@@ -128,17 +128,32 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select subject_type is null or case subject_type
+  select subject_type is null or (((tenant)::text, (subject_type)::text, (subject_id)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or case subject_type
     when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'comments.read'), false)
+    when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'courses.read'), false)
     when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
     when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'parties.read'), false)
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'deals.read'), false)
     when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'engagements.read'), false)
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'work_items.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'employees.read'), false)
+    when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'ledger.read'), false)
     when 'product' then exists (select 1 from "better_supabase"."products" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'catalog.read'), false)
     when 'product_variant' then exists (select 1 from "better_supabase"."product_variants" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'catalog.read'), false)
     when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'calendar.read'), false)
+    when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'assets.read'), false)
+    when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'assets.read'), false)
+    when 'lease' then exists (select 1 from "better_supabase"."lease_agreements" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'leases.read'), false)
+    when 'maintenance_request' then exists (select 1 from "better_supabase"."maintenance_requests" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'leases.read'), false)
+    when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'expenses.read'), false)
+    when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'expenses.read'), false)
+    when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'donations.read'), false)
+    when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'dispatch.read'), false)
+    when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'shipments.read'), false)
+    when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'contracts.read'), false)
+    when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'controls.read'), false)
+    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'controls.read'), false)
+    when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'incidents.read'), false)
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'documents.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'customers.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (subject_id)::uuid and s."tenant_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'drive.read'), false)
@@ -146,19 +161,19 @@ as $$
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
     when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (subject_id)::uuid and s."organization_id" = tenant)
     else false
-  end
+  end)
 $$;
 revoke execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) from public, anon;
 grant execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) to authenticated, service_role;
 
 drop policy if exists "attachments_read" on "better_supabase"."attachments";
 create policy "attachments_read" on "better_supabase"."attachments" for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"));
+  using (("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"));
 drop policy if exists "attachments_insert" on "better_supabase"."attachments";
 create policy "attachments_insert" on "better_supabase"."attachments" for insert to authenticated
   with check ((
     "uploaded_by" = (select auth.uid())
-    and coalesce(better_supabase.can('tenant', "organization_id", case "subject_type" when 'comment' then 'comments.create' else 'attachments.upload' end), false)
+    and (coalesce(better_supabase.can('tenant', "organization_id", case "subject_type" when 'comment' then 'comments.create' when 'expense_line' then 'expenses.submit' else 'attachments.upload' end), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
     and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id")
   ) and (select better_supabase.actor_may_write()));
 drop policy if exists "attachments_delete" on "better_supabase"."attachments";
@@ -186,7 +201,7 @@ as $$
     where a."bucket" = attachment_object_allowed.bucket and a."object_path" = attachment_object_allowed.path
       and case attachment_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."uploaded_at" is null and a."uploaded_by" = auth.uid()
-        when 'select' then (a."status" in ('pending', 'clean', 'failed') and coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false))
+        when 'select' then (a."status" in ('pending', 'clean', 'failed') and (coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.read'), false) or ((a."organization_id")::text, (a."subject_type")::text, (a."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)))
           or a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
         when 'delete' then a."uploaded_by" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'attachments.manage'), false)
         else false
@@ -343,7 +358,7 @@ as $$
   from "better_supabase"."attachments" y
   join "better_supabase"."profiles" pr on pr."id" = y."uploaded_by"
   where y."id" = any ($1)
-    and y."organization_id" in (select better_supabase.tenant_ids_with('attachments.read'))
+    and (y."organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or ((y."organization_id")::text, (y."subject_type")::text, (y."subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))
 $$;
 revoke execute on function "better_supabase"."attachment_authors"(uuid[]) from public, anon;
 grant execute on function "better_supabase"."attachment_authors"(uuid[]) to authenticated, service_role;
@@ -491,6 +506,27 @@ drop trigger if exists "bs_attachments_product_variant_cascade" on "better_supab
 create trigger "bs_attachments_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."attachments_subject_deleted"('product_variant', 'id');
+
+-- Moves this module's rows from one subject record to another when
+-- better_supabase.merge_subject_refs merges them.
+create or replace function "better_supabase"."attachments_subject_merge"(subject_table text, keep text, drop text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text;
+  v_keep text := keep;
+  v_drop text := drop;
+begin
+  for v_type in select unnest(case subject_table when 'better_supabase.comments' then array['comment'] when 'better_supabase.courses' then array['course'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.maintenance_requests' then array['maintenance_request'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['policy'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
+    update "better_supabase"."attachments" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
+  end loop;
+end;
+$$;
+revoke execute on function "better_supabase"."attachments_subject_merge"(text, text, text) from public, anon, authenticated;
+comment on function "better_supabase"."attachments_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
 revoke execute on function "better_supabase"."object_clean"(text, text) from public, anon;
 revoke execute on function "better_supabase"."object_scan"(text, text) from public, anon, authenticated;

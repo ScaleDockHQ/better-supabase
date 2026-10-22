@@ -1,9 +1,9 @@
 ---
 title: Leave
-description: Leave types in days or hours, requests approved through the approvals module, and a balance ledger per member and year with grants, accruals, adjustments and a year-end carryover.
+description: Leave types in days or hours, requests approved through the approvals module, and balances on the ledger block per member and year with grants, accruals, adjustments and a year-end carryover.
 ---
 
-`leave` keeps time off per organization: the types an organization offers (vacation, sick leave, a day off in lieu), the requests members file, and a ledger that every balance is computed from. A request opens an approval request in the [approvals](/docs/blocks/approvals) module, and the final approval books it.
+`leave` keeps time off per organization: the types an organization offers (vacation, sick leave, a day off in lieu), the requests members file, and balances kept on the [ledger](/docs/blocks/ledger). A request opens an approval request in the [approvals](/docs/blocks/approvals) module, and the final approval books it.
 
 Requesting leave needs `leave.request`, reading other members' requests and balances needs `leave.read`, approving needs `leave.approve` (the default approval step), and managing types, adjusting balances and closing a year needs `leave.manage`. Admins get every permission and members get `leave.request`.
 
@@ -70,7 +70,7 @@ await approvals.approve(request.approvalId!).orThrow();
 
 ## Balances
 
-Every change to a balance is a ledger entry: `grant`, `accrual`, `adjustment`, `taken`, `carryover` or `expiry`, with a signed amount and the year it counts toward. `balances(organizationId)` returns the caller's balance of each tracked type this year (pass `userId` and `period` for others), with `granted`, `taken`, `pending` and `available`, which is the ledger total less pending requests. `ledger` lists the entries behind it.
+Each member has a ledger account per type and year (amounts in hundredths of the type's unit), and every change to a balance is a ledger transaction of kind `leave.grant`, `leave.accrual`, `leave.adjustment`, `leave.taken`, `leave.carryover` or `leave.expiry` against the type's pool or taken account. A carryover moves the amount between the two years' accounts. `balances(organizationId)` returns the caller's balance of each tracked type this year (pass `userId` and `period` for others), with `granted`, `taken`, `pending` and `available`, which is the ledger total less pending requests. `ledger` lists the entries behind it.
 
 `adjust` writes a grant or a correction for one member. `accrue` grants an amount, or the type's allowance, to every member or to `userIds`; give it an `idempotencyKey` and a member gets that accrual once, so a monthly cron can call it safely. `closePeriod(organizationId, 2026)` carries each member's remaining balance, up to `carryoverMax`, into 2027 and expires the rest. Running it twice writes nothing the second time.
 

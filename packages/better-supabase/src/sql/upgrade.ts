@@ -6,7 +6,11 @@ import type {
 } from "./module-types.ts";
 
 import { createModuleContext } from "./context.ts";
-import { providerIdType, withProviderDefaults } from "./module-context.ts";
+import {
+  providerGuests,
+  providerIdType,
+  withProviderDefaults,
+} from "./module-context.ts";
 import { moduleVersion } from "./module-types.ts";
 import { SQL_MODULES, checkModules } from "./registry.ts";
 import { nameMigrationSql } from "./rename-sql.ts";
@@ -83,6 +87,7 @@ export function upgradePlan(
         ...(layout.claims ? { claims: layout.claims } : {}),
         installed: names,
         ...providerIdType(layout),
+        ...providerGuests(layout),
       },
     );
 

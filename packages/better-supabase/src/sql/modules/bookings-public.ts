@@ -1,7 +1,7 @@
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
-import { fail } from "../shared.ts";
+import { extraFieldsJson, fail } from "../shared.ts";
 import { liveShareLink } from "./share-links.ts";
 
 const SERVICE_CALLER = "auth.role() = 'service_role'";
@@ -48,6 +48,25 @@ export function record(
     tenant,
     audit: false,
   });
+}
+
+/** Whether `blocks.bookings.options.recurring` is on; managed tables only. */
+export const recurringOn = (ctx: ModuleContext): boolean =>
+  ctx.manages && ctx.flag("recurring", false);
+
+/** A booking row as the JSON the bookings functions return. */
+export function bookingJson(p: Parts, alias: string): string {
+  const { b, ctx } = p;
+
+  const notes = ctx.has("bookings", "notes")
+    ? `, 'notes', ${alias}.${b("notes")}`
+    : "";
+
+  const series = recurringOn(ctx)
+    ? `, 'seriesId', ${alias}.${b("series")}`
+    : "";
+
+  return `jsonb_build_object('id', ${alias}.${b("id")}, 'resourceId', ${alias}.${b("resource")}, 'serviceId', ${alias}.${b("service")}, 'seat', ${alias}.${b("seat")}, 'startsAt', lower(${alias}.${b("during")}), 'endsAt', upper(${alias}.${b("during")}), 'status', ${alias}.${b("status")}, 'holdExpiresAt', ${alias}.${b("holdExpiresAt")}, 'customerName', ${alias}.${b("customerName")}, 'customerEmail', ${alias}.${b("customerEmail")}, 'customerUserId', ${alias}.${b("customerUser")}${notes}${series}, 'createdAt', ${alias}.${b("createdAt")}, 'cancelledAt', ${alias}.${b("cancelledAt")}, 'cancelReason', ${alias}.${b("cancelReason")}${extraFieldsJson(alias, p.extras)})`;
 }
 
 /** A live booking: confirmed, or a hold that has not expired. */

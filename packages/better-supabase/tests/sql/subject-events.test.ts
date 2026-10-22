@@ -52,6 +52,9 @@ const SUBJECT_EVENTS = [
   "engagement.updated",
   "engagement.completed",
   "engagement.deleted",
+  "engagement.recorded",
+  "engagement.transcribed",
+  "engagement.summarized",
   "collection.entry_added",
   "collection.entry_removed",
   "pipeline.stage_changed",
@@ -102,6 +105,8 @@ const SUBJECT_EVENTS = [
   "fulfillment.delivered",
   "return.requested",
   "return.received",
+  "order.prepared",
+  "order.served",
   "form_submission.submitted",
   "form_submission.reviewed",
   "form_submission.deleted",
@@ -124,6 +129,15 @@ const SUBJECT_EVENTS = [
   "review.replied",
   "review.deleted",
   "rule.matched",
+  "score.changed",
+  "moderation_report.created",
+  "moderation_item.decided",
+  "enrollment.created",
+  "enrollment.step_completed",
+  "enrollment.completed",
+  "enrollment.cancelled",
+  "guest_grant.created",
+  "guest_grant.revoked",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**
@@ -149,6 +163,8 @@ const OPTIONAL_SUBJECT = new Set([
   "workflow_run.completed",
   "workflow_run.failed",
   "workflow_run.cancelled",
+  "work_order.created",
+  "shipment.created",
 ]);
 
 interface CatalogEntry {

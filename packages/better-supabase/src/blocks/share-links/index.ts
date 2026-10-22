@@ -13,3 +13,10 @@ export { shareLinksBlock } from "./manifest.ts";
 export { shareLinksEvents } from "./events.ts";
 
 export type { ShareLinksEvents } from "./events.ts";
+
+export {
+  shareLinkInput,
+  shareLinksSection,
+  type ShareLinkInput,
+  type ShareLinksWrites,
+} from "./section.ts";

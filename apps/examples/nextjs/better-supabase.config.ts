@@ -271,6 +271,10 @@ export default defineConfig({
     profiles: {},
     flags: {},
     announcements: {},
+    // Onboarding checklists run on enrollments (ADR 0077).
+    enrollments: {},
+    // Courses behind /courses: each learner's progress is an enrollment.
+    courses: {},
     onboarding: { options: { checklists: [gettingStarted] } },
     entitlements: {},
     usage: {},
@@ -288,6 +292,10 @@ export default defineConfig({
     "workflow-builder": {},
     // Tenant rules for expenses, edited with the rule builder at /rules.
     rules: {},
+    // Lead scoring and account health are score models over parties (ADR 0067).
+    scores: {},
+    // Comment reports, the review queue and bans (ADR 0076).
+    moderation: {},
     // Vault-backed secrets behind the builder's credential references.
     credentials: {},
     // The support inbox behind /inbox and the Help sheet: jobs carry bot
@@ -352,7 +360,8 @@ export default defineConfig({
     },
     pipelines: {},
     deals: { entities: { deal: { url: "/crm/deals" } } },
-    engagements: {},
+    // Call recordings on ai-files, with transcripts and notes.
+    engagements: { options: { recordings: true } },
     quotes: {},
     targets: {},
     "state-machine": {
@@ -392,10 +401,29 @@ export default defineConfig({
     invoices: {},
     catalog: { entities: { product: { url: "/shop" } } },
     inventory: {},
-    orders: {},
+    // The kitchen display and order board under /shop/kitchen.
+    orders: { options: { kitchen: true } },
     promotions: {},
     calendar: {},
-    bookings: {},
+    // Weekly or daily rules book a series one occurrence at a time.
+    bookings: { options: { recurring: true } },
+    // Points and areas use PostGIS geography columns (ADR 0066).
+    assets: { options: { postgis: true } },
+    guests: {},
+    // Class bookings paid for with pass credits.
+    passes: { options: { credits: true } },
+    "billable-time": {},
+    leases: {},
+    expenses: {},
+    donations: {},
+    dispatch: {},
+    shipments: {},
+    // Contracts send for signature with signatures and remind owners of the
+    // notice deadline with reminders; controls publish policies as versions.
+    signatures: {},
+    contracts: {},
+    controls: {},
+    incidents: {},
     reminders: {},
     "drive-files": {},
     drive: {},

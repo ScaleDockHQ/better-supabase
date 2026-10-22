@@ -1,0 +1,49 @@
+---
+title: Composing blocks
+description: Where the glue between blocks lives, from record pages and lists to flows between blocks and forms with custom fields.
+---
+
+Blocks work together through three layers. Knowing which layer a piece of
+glue belongs to tells you where to write it and what `gen` writes for you.
+
+| Layer                   | Owner           | What it holds                                                             |
+| ----------------------- | --------------- | ------------------------------------------------------------------------- |
+| Library logic           | better-supabase | sections, record lists, the timeline, My work, flows, `entityForm`        |
+| One binding per subject | `gen`           | the feature file that names a subject's sections, navigation and commands |
+| UI                      | your app        | recipes copied into the app and rendered with your shadcn components      |
+
+## Reads: sections
+
+A section is one named part of a record, such as its comments, files or
+versions, with a `load`, an optional `count` and a permission. With
+`generateFeatures`, `gen` writes the sections for each subject. Everything
+that shows more than one block on a record reads sections:
+
+- a [record page](/docs/blocks/records) loads each section on its own, so a
+  failing or hidden one doesn't take the page down;
+- a [record list](/docs/blocks/record-lists) fills columns from a section's
+  `count` or rows, one query per page;
+- the timeline merges the sections of one record, newest first;
+- My work collects what waits on the caller across the installed blocks.
+
+## Writes: flows
+
+A [flow](/docs/blocks/flows) turns an event in one block into a record in
+another, once per source record, and keeps the lineage as a `created_from`
+relation. Turn on a built-in such as `conversationToWorkItem` by listing it
+in `createFlows`, or write your own with `defineFlow`.
+
+## Forms: entity schema and custom fields
+
+[`entityForm`](/docs/blocks/entity-forms) builds one form from a block's
+entity schema and the organization's custom fields, and `useEntityForm`
+holds its state. The form recipe renders it.
+
+## Which layer?
+
+- Data that belongs to one record and shows on its page or list: a section.
+- A record that should exist because another one changed: a flow.
+- A form over a block entity with tenant fields: `entityForm` and the recipe.
+- Markup of any kind: a [recipe](/docs/registry/ui-recipes), never the library.
+
+The decision is ADR 0064.

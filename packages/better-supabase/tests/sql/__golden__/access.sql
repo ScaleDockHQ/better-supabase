@@ -117,8 +117,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'controls.*', 'incidents.*', 'courses.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'controls.read', 'controls.collect', 'controls.acknowledge', 'incidents.read', 'incidents.write', 'courses.read']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -546,12 +546,18 @@ as $$
     when 'approvals.manage' then 'approvals.manage'
     when 'approvals.read' then 'approvals.read'
     when 'approvals.request' then 'approvals.request'
+    when 'assets.assign' then 'assets.assign'
+    when 'assets.manage' then 'assets.manage'
+    when 'assets.read' then 'assets.read'
     when 'attachments.manage' then 'attachments.manage'
     when 'attachments.read' then 'attachments.read'
     when 'attachments.upload' then 'attachments.upload'
     when 'audit.revert' then 'audit.revert'
     when 'audit.view' then 'audit.read'
     when 'audit.viewAll' then 'audit.read'
+    when 'billable-time.invoice' then 'billable_time.invoice'
+    when 'billable-time.manage' then 'billable_time.manage'
+    when 'billable-time.read' then 'billable_time.read'
     when 'billing.manage' then 'billing.manage'
     when 'billing.read' then 'billing.read'
     when 'billing.viewAll' then 'billing.read'
@@ -574,6 +580,16 @@ as $$
     when 'connectors.manage' then 'ai.admin'
     when 'connectors.read' then 'ai.read'
     when 'connectors.use' then 'ai.create'
+    when 'contracts.manage' then 'contracts.manage'
+    when 'contracts.read' then 'contracts.read'
+    when 'contracts.write' then 'contracts.write'
+    when 'controls.acknowledge' then 'controls.acknowledge'
+    when 'controls.collect' then 'controls.collect'
+    when 'controls.manage' then 'controls.manage'
+    when 'controls.read' then 'controls.read'
+    when 'courses.enroll' then 'courses.enroll'
+    when 'courses.manage' then 'courses.manage'
+    when 'courses.read' then 'courses.read'
     when 'custom-fields.manage' then 'custom_fields.manage'
     when 'custom-fields.read' then 'custom_fields.read'
     when 'custom-fields.sensitive' then 'custom_fields.sensitive.read'
@@ -583,11 +599,16 @@ as $$
     when 'deals.manage' then 'deals.manage'
     when 'deals.read' then 'deals.read'
     when 'deals.write' then 'deals.write'
+    when 'dispatch.manage' then 'dispatch.manage'
+    when 'dispatch.read' then 'dispatch.read'
+    when 'dispatch.work' then 'dispatch.work'
     when 'documents.manage' then 'documents.manage'
     when 'documents.read' then 'documents.read'
     when 'documents.write' then 'documents.write'
     when 'domains.manage' then 'domains.manage'
     when 'domains.read' then 'domains.read'
+    when 'donations.manage' then 'donations.manage'
+    when 'donations.read' then 'donations.read'
     when 'drive.create' then 'drive.create'
     when 'drive.manage' then 'drive.manage'
     when 'drive.read' then 'drive.read'
@@ -597,11 +618,20 @@ as $$
     when 'engagements.manage' then 'engagements.manage'
     when 'engagements.read' then 'engagements.read'
     when 'engagements.write' then 'engagements.write'
+    when 'enrollments.enroll' then 'enrollments.enroll'
+    when 'enrollments.manage' then 'enrollments.manage'
+    when 'enrollments.read' then 'enrollments.read'
+    when 'expenses.approve' then 'expenses.approve'
+    when 'expenses.manage' then 'expenses.manage'
+    when 'expenses.read' then 'expenses.read'
+    when 'expenses.submit' then 'expenses.submit'
     when 'flags.manage' then 'flags.manage'
     when 'forms.manage' then 'forms.manage'
     when 'forms.read' then 'forms.read'
     when 'forms.review' then 'forms.review'
     when 'forms.submit' then 'forms.submit'
+    when 'guests.manage' then 'guests.manage'
+    when 'guests.read' then 'guests.read'
     when 'hiring.manage' then 'hiring.manage'
     when 'hiring.read' then 'hiring.read'
     when 'hiring.write' then 'hiring.write'
@@ -610,6 +640,9 @@ as $$
     when 'inbox.manage' then 'inbox.manage'
     when 'inbox.read' then 'inbox.read'
     when 'inbox.reply' then 'inbox.reply'
+    when 'incidents.manage' then 'incidents.manage'
+    when 'incidents.read' then 'incidents.read'
+    when 'incidents.write' then 'incidents.write'
     when 'inventory.manage' then 'inventory.manage'
     when 'inventory.purchase' then 'inventory.purchase'
     when 'inventory.read' then 'inventory.read'
@@ -624,20 +657,31 @@ as $$
     when 'knowledge.manage' then 'ai.admin'
     when 'knowledge.read' then 'ai.read'
     when 'knowledge.write' then 'ai.create'
+    when 'leases.maintain' then 'leases.maintain'
+    when 'leases.manage' then 'leases.manage'
+    when 'leases.read' then 'leases.read'
     when 'leave.approve' then 'leave.approve'
     when 'leave.manage' then 'leave.manage'
     when 'leave.read' then 'leave.read'
     when 'leave.request' then 'leave.request'
+    when 'ledger.manage' then 'ledger.manage'
+    when 'ledger.post' then 'ledger.post'
+    when 'ledger.read' then 'ledger.read'
     when 'memory.manage' then 'ai.admin'
     when 'memory.read' then 'ai.read'
     when 'metrics.manage' then 'metrics.manage'
     when 'metrics.read' then 'metrics.read'
+    when 'moderation.ban' then 'moderation.ban'
+    when 'moderation.manage' then 'moderation.manage'
+    when 'moderation.read' then 'moderation.read'
+    when 'moderation.report' then 'moderation.report'
     when 'notifications.read' then 'notifications.read'
     when 'notifications.send' then 'notifications.send'
     when 'number-sequences.assign' then 'number_sequences.assign'
     when 'onboarding.complete' then 'onboarding.complete'
     when 'onboarding.read' then 'onboarding.read'
     when 'orders.manage' then 'orders.manage'
+    when 'orders.prepare' then 'orders.prepare'
     when 'orders.read' then 'orders.read'
     when 'organizations.delete' then 'organization.delete'
     when 'organizations.removeMember' then 'members.remove'
@@ -648,6 +692,9 @@ as $$
     when 'parties.manage' then 'parties.manage'
     when 'parties.read' then 'parties.read'
     when 'parties.write' then 'parties.write'
+    when 'passes.checkIn' then 'passes.check_in'
+    when 'passes.manage' then 'passes.manage'
+    when 'passes.read' then 'passes.read'
     when 'pipelines.manage' then 'pipelines.manage'
     when 'pipelines.read' then 'pipelines.read'
     when 'promotions.manage' then 'promotions.manage'
@@ -669,6 +716,9 @@ as $$
     when 'rules.read' then 'rules.read'
     when 'saved-views.read' then 'views.read'
     when 'saved-views.share' then 'views.share'
+    when 'scores.compute' then 'scores.compute'
+    when 'scores.manage' then 'scores.manage'
+    when 'scores.read' then 'scores.read'
     when 'search.read' then 'search.read'
     when 'service-principals.manage' then 'service_principals.manage'
     when 'service-principals.read' then 'service_principals.read'
@@ -677,6 +727,8 @@ as $$
     when 'settings.update' then 'settings.update'
     when 'share-links.create' then 'share_links.create'
     when 'share-links.read' then 'share_links.read'
+    when 'shipments.manage' then 'shipments.manage'
+    when 'shipments.read' then 'shipments.read'
     when 'signatures.manage' then 'signatures.manage'
     when 'signatures.read' then 'signatures.read'
     when 'signatures.request' then 'signatures.request'
@@ -741,8 +793,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'controls.*', 'incidents.*', 'courses.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'controls.read', 'controls.collect', 'controls.acknowledge', 'incidents.read', 'incidents.write', 'courses.read']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -1158,8 +1210,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'controls.*', 'incidents.*', 'courses.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'controls.read', 'controls.collect', 'controls.acknowledge', 'incidents.read', 'incidents.write', 'courses.read']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -1573,8 +1625,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'controls.*', 'incidents.*', 'courses.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'controls.read', 'controls.collect', 'controls.acknowledge', 'incidents.read', 'incidents.write', 'courses.read']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end
@@ -2172,8 +2224,8 @@ set search_path = ''
 as $$
   select case role
     when 'owner' then array['*']::text[]
-    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*']::text[]
-    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read']::text[]
+    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'comments.*', 'activity.read', 'attachments.*', 'organization.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'ai.*', 'tags.*', 'teams.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_principals.*', 'pipelines.*', 'parties.*', 'engagements.*', 'deals.*', 'work_items.*', 'quotes.*', 'invoices.*', 'sla.*', 'targets.*', 'hiring.*', 'employees.*', 'collections.*', 'domains.*', 'rules.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'controls.*', 'incidents.*', 'courses.*']::text[]
+    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'comments.read', 'comments.create', 'activity.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai.read', 'ai.create', 'ai.share', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write', 'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'rules.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'controls.read', 'controls.collect', 'controls.acknowledge', 'incidents.read', 'incidents.write', 'courses.read']::text[]
     when 'viewer' then array['organization.read']::text[]
     else '{}'::text[]
   end

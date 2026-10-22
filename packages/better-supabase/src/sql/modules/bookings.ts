@@ -9,9 +9,9 @@ import type { ModuleDefinition } from "../module-types.ts";
 import type { Parts } from "./bookings-public.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { guestOr } from "../guest-sql.ts";
 import {
   addExtraColumns,
-  extraFieldsJson,
   fail,
   lockTable,
   schemaPreamble,
@@ -23,13 +23,21 @@ import {
 import { moduleOperations } from "./access-model.ts";
 import {
   allowed,
+  bookingJson as bookingJsonOf,
   calendarMirror,
   live,
   publicBooking,
   record,
+  recurringOn,
   reminderMirror,
   slotsJson,
 } from "./bookings-public.ts";
+import {
+  SERIES_TABLES,
+  seriesContract,
+  seriesFunctions,
+  seriesTables,
+} from "./bookings-series.ts";
 
 /** The queue a hold enqueues to expire itself once `hold_expires_at` passes. */
 const BOOKING_EXPIRE_QUEUE = "bookings.expire-holds";
@@ -41,6 +49,7 @@ const EVENTS: ModuleEvents<BookingsEvents> = {
   "booking.confirmed": { subject: "bookings", payload: PAYLOAD },
   "booking.cancelled": { subject: "bookings", payload: PAYLOAD },
   "booking.expired": { subject: "bookings", payload: PAYLOAD },
+  "booking.rescheduled": { subject: "bookings", payload: PAYLOAD },
 };
 
 const NAMES: ModuleNames = {
@@ -51,7 +60,7 @@ const NAMES: ModuleNames = {
     "after_booking_confirm",
     "after_booking_cancel",
   ],
-  options: ["extraColumns"],
+  options: ["extraColumns", "recurring"],
   tables: {
     resources: {
       name: "booking_resources",
@@ -137,9 +146,11 @@ const NAMES: ModuleNames = {
         updatedAt: "updated_at",
         cancelledAt: "cancelled_at",
         cancelReason: "cancel_reason",
+        series: "series_id",
       },
-      optional: ["notes", "calendarEvent", "createdBy"],
+      optional: ["notes", "calendarEvent", "createdBy", "series"],
     },
+    ...SERIES_TABLES,
   },
 };
 
@@ -250,8 +261,8 @@ create index if not exists bookings_hold_idx on ${p.bookings} (${b("holdExpiresA
 ${lockTable(p.bookings, { read: true })}
 drop policy if exists bookings_read on ${p.bookings};
 create policy bookings_read on ${p.bookings} for select to authenticated
-using (${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid()));
-`;
+using (${guestOr(`${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid())`, [ctx.scope.guest(b("tenant"), "'booking'", `${b("id")}::text`, "read")])});
+${recurringOn(ctx) ? seriesTables(p) : ""}`;
 }
 
 function setup(p: Parts): string {
@@ -597,8 +608,7 @@ function lifecycle(p: Parts): string {
     perform ${jobs.fn("enqueue_job")}(queue => '${BOOKING_EXPIRE_QUEUE}', payload => jsonb_build_object('bookingId', v_id), delay => ceil(extract(epoch from (v_expires - now())))::integer + 1, dedupe_key => 'bookings:expire:' || v_id::text, dedupe_running => false);
   end if;`;
 
-  const bookingJson = (alias: string) =>
-    `jsonb_build_object('id', ${alias}.${b("id")}, 'resourceId', ${alias}.${b("resource")}, 'serviceId', ${alias}.${b("service")}, 'seat', ${alias}.${b("seat")}, 'startsAt', lower(${alias}.${b("during")}), 'endsAt', upper(${alias}.${b("during")}), 'status', ${alias}.${b("status")}, 'holdExpiresAt', ${alias}.${b("holdExpiresAt")}, 'customerName', ${alias}.${b("customerName")}, 'customerEmail', ${alias}.${b("customerEmail")}, 'customerUserId', ${alias}.${b("customerUser")}${ctx.has("bookings", "notes") ? `, 'notes', ${alias}.${b("notes")}` : ""}, 'createdAt', ${alias}.${b("createdAt")}, 'cancelledAt', ${alias}.${b("cancelledAt")}, 'cancelReason', ${alias}.${b("cancelReason")}${extraFieldsJson(alias, p.extras)})`;
+  const bookingJson = (alias: string): string => bookingJsonOf(p, alias);
 
   const declareMirror = `v_calendar uuid;
   v_tz text;
@@ -883,7 +893,7 @@ function build(ctx: ModuleContext): string {
   };
 
   return `${schemaPreamble(ctx)}
-${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${publicBooking(p)}`;
+${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
 }
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
@@ -943,6 +953,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
           },
         ]
       : []),
+    ...(recurringOn(ctx) ? seriesContract() : []),
   ];
 }
 
@@ -951,7 +962,7 @@ export const BOOKINGS: ModuleDefinition = {
   scopes: ["tenant"],
   title: "Bookings",
   description:
-    "Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.",
+    "Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.",
   requires: ["tenant", "access"],
   integrates: [
     "jobs",

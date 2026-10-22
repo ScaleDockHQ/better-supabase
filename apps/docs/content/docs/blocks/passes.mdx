@@ -1,0 +1,222 @@
+---
+title: Passes
+description: Issue QR and NFC admission passes signed with your signing keys, check holders in at the door, count drop-ins against a resource's capacity with its bookings, and pay for classes with credits.
+---
+
+`passes` turns a booking into a ticket and a resource into something people
+can walk into. You issue a pass, sign a token for it with the
+[signing-keys](/docs/blocks/signing-keys) block, and put the token in a QR
+code or on an NFC tag. At the door a scanner verifies the signature against
+your JWKS and the database checks the pass in: once for a ticket, as often as
+the pass allows otherwise, and only while there is a free seat.
+
+```bash
+better-supabase add passes
+```
+
+```ts
+import { createPasses } from "better-supabase/blocks/passes";
+```
+
+The module requires `tenant` and `access`. With `bookings` a pass can be a
+ticket for a booking or a pass for a resource, with `outbox` its events are
+recorded, and with `audit` issuing and revoking are audited. Scans are
+logged in the module's own table instead of the audit log. Signing needs the
+`signing-keys` block in the app; the module itself never reads a key (see
+[ADR 0073](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0073-signed-admission-passes.md)).
+
+## Tables
+
+| Table            | Holds                                                                                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `passes`         | One pass: `kind`, the holder (`holder_user_id`, `holder_name`, `holder_email`), the record, booking or resource it is for, `uses_allowed`, `uses`, the validity window, `status` and the `nonce` its token carries |
+| `pass_check_ins` | Every scan: the pass, the resource and booking, the `gate`, the `method` (`qr`, `nfc` or `manual`), `admitted`, the `reason` when turned away                                                                      |
+
+Both tables are read through the functions only. The holder reads their own
+passes with the nonce; members with `passes.read` list the organization's.
+
+## Issue a pass
+
+```ts
+const passes = createPasses({ transport, tenant: organizationId });
+
+const ticket = await passes
+  .issue({ bookingId, holderUserId: userId, holderName: "Jane" })
+  .orThrow();
+```
+
+A pass for a booking is a ticket: it is valid until the booking ends and
+admits once, unless `validUntil` or `usesAllowed` say otherwise. A pass for a
+`resourceId` (a gym, a venue, a meeting room) admits as many times as
+`usesAllowed` allows, or without a limit when it's missing. A pass can also
+name any record in `config.subjects`, such as an event or a membership, with
+`subject`. `kind` is free text such as `ticket`, `membership` or `visitor`.
+Issuing needs `passes.manage`.
+
+| Method                            | Returns                                                         |
+| --------------------------------- | --------------------------------------------------------------- |
+| `issue(input)`                    | the pass with its `nonce`                                       |
+| `revoke(passId)`                  | the pass; its tokens stop admitting                             |
+| `get(passId)`                     | the pass with its nonce, for the holder or a manager            |
+| `list({ holderUserId, subject })` | the organization's passes, newest first                         |
+| `mine()`                          | the caller's live passes with their nonces, for a wallet screen |
+| `token(pass)`                     | the signed token for the QR code or NFC tag                     |
+| `checkIn(token, options)`         | the scan, with `admitted`, the `reason` and the pass            |
+| `checkInManually(passId)`         | the scan, for staff who looked the holder up                    |
+| `checkIns(passId)`                | the pass's scans, newest first                                  |
+| `occupancy(resourceId)`           | `capacity`, `booked`, `dropIns` and `free` seats right now      |
+
+The [passes section](/docs/blocks/records) lists a record's passes on its
+page, with `issue` and `revoke` writes.
+
+## Sign the token
+
+Signing runs on the server with the organization's key:
+
+```ts
+const passes = createPasses({
+  transport,
+  tenant: organizationId,
+  signer: signingKeys.signer(
+    { type: "organization", id: organizationId },
+    { create: "Ed25519" },
+  ),
+});
+
+const pass = await passes.get(passId).orThrow();
+const token = pass && (await passes.token(pass).orThrow());
+```
+
+The token is a compact JWS with `typ: "vnd.pass+jwt"` (`PASS_TOKEN_TYPE`), so
+another kind of token can't be replayed as a pass. Its claims are the pass id
+(`sub`), the nonce (`jti`), the organization (`org`), `kind`, the holder's
+`name`, and `nbf` and `exp`. A token expires with the pass, or after
+`tokenLifetime` (30 days) for a pass that runs longer; sign a new one when
+the holder opens their wallet. The `exp` keeps the signing key in the JWKS
+until the token expires, so rotating the key doesn't strand it.
+
+Render the token with any QR library, or write it to an NFC tag as a text
+record. The block doesn't ship one, so the app picks the library.
+
+## Check in
+
+```ts
+const door = createPasses({
+  transport,
+  jwks: () => fetch(`${origin}/.well-known/jwks.json`).then((r) => r.json()),
+});
+
+const scan = await door
+  .checkIn(scanned, { gate: "north", resourceId: roomId })
+  .orThrow();
+
+if (!scan.admitted) {
+  showRejection(scan.reason);
+}
+```
+
+`checkIn` verifies the signature and the `exp` first: a token that fails
+comes back as an error (`PASS_TOKEN_INVALID` or `PASS_TOKEN_EXPIRED`) and
+never reaches the database. The database then compares the nonce and decides,
+under a row lock on the pass. Every scan is logged, and an admitted one uses
+the pass once. Checking in needs `passes.check_in`.
+
+| Reason                | Why the holder was turned away                           |
+| --------------------- | -------------------------------------------------------- |
+| `invalid`             | the token's nonce doesn't match the pass                 |
+| `revoked`             | the pass was revoked                                     |
+| `not_yet_valid`       | `validFrom` is still ahead                               |
+| `expired`             | `validUntil` has passed                                  |
+| `used_up`             | every use is spent                                       |
+| `booking_cancelled`   | the ticket's booking was cancelled, or its hold lapsed   |
+| `booking_unconfirmed` | the ticket's booking is still a hold                     |
+| `outside_window`      | the booking hasn't opened for check-in yet, or has ended |
+| `wrong_resource`      | the door belongs to another resource than the pass       |
+| `full`                | every seat of the resource is taken                      |
+
+A ticket opens `checkInOpens` (one hour) before its booking starts. A pass
+for a resource without a booking is a drop-in: it is admitted only while the
+confirmed bookings, live holds and drop-ins on the resource are fewer than its
+`capacity`. A drop-in counts for `dropInLength` (two hours) after it was
+admitted. An advisory lock per resource keeps two scans at once from taking
+the last seat twice.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  passes: { options: { checkInOpens: "30 minutes", dropInLength: "90 minutes" } },
+},
+```
+
+## Class credits
+
+Turn on `credits` to sell a pack of classes: a pass with `usesAllowed` and no
+booking of its own pays one credit for each class its holder books. The
+option is off by default and needs the `bookings` block.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  passes: { options: { credits: true, creditRefundBefore: "12 hours" } },
+},
+```
+
+```ts
+const pack = await passes
+  .issue({ holderUserId: userId, resourceId, usesAllowed: 10 })
+  .orThrow();
+
+const booked = await passes
+  .bookWithCredit(pack.id, { serviceId, resourceId, startsAt })
+  .orThrow();
+
+booked.creditsLeft; // 9
+```
+
+`bookWithCredit` books a confirmed booking for the holder, through the
+bookings block's slot check and exclusion constraint, and takes one credit in
+the same transaction. Every credit is a row in `pass_credit_entries`: `-1`
+for a booking and `+1` for a refund, and the pass's `uses` is their running
+total, so `credits(passId)` returns the whole history, newest first. The
+holder books with their own pass; a member with `passes.manage` can book for
+them.
+
+Cancelling the booking at least `creditRefundBefore` (default 12 hours)
+before it starts gives the credit back once; a later cancellation keeps it.
+Rescheduling keeps the credit with the booking. At the door, issue a ticket
+for the booking and scan that: scanning the pack itself counts as another use.
+
+| Method                          | Does                                                  |
+| ------------------------------- | ----------------------------------------------------- |
+| `bookWithCredit(passId, input)` | Books a class and takes a credit; returns the booking |
+| `credits(passId)`               | The pass's credit ledger, newest first                |
+
+## Errors
+
+| Hint                      | Cause                                                       |
+| ------------------------- | ----------------------------------------------------------- |
+| `PASS_FORBIDDEN`          | the caller lacks `passes.read` or `passes.manage`           |
+| `PASS_NOT_FOUND`          | no pass with this id that the caller manages or checks in   |
+| `PASS_SUBJECT_INVALID`    | only one of the record type and id was passed               |
+| `PASS_SUBJECT_NOT_FOUND`  | the record doesn't exist in the organization                |
+| `PASS_HOLDER_NOT_FOUND`   | no user with `holderUserId`                                 |
+| `PASS_BOOKINGS_MISSING`   | a booking or resource was named without the bookings block  |
+| `PASS_BOOKING_NOT_FOUND`  | the booking doesn't exist in the organization               |
+| `PASS_BOOKING_CANCELLED`  | the booking is cancelled                                    |
+| `PASS_RESOURCE_MISMATCH`  | `resourceId` isn't the booking's resource                   |
+| `PASS_RESOURCE_NOT_FOUND` | the resource doesn't exist in the organization              |
+| `PASS_VALIDITY_INVALID`   | `validUntil` isn't after `validFrom` and in the future      |
+| `PASS_METHOD_INVALID`     | the method isn't `qr`, `nfc` or `manual`                    |
+| `PASS_SIGNER_MISSING`     | `token` was called on a client without `signer`             |
+| `PASS_JWKS_MISSING`       | `checkIn` was called on a client without `jwks`             |
+| `PASS_TOKEN_INVALID`      | the token isn't a pass token signed by a key in the JWKS    |
+| `PASS_TOKEN_EXPIRED`      | the token's `exp` has passed, or its `nbf` is still ahead   |
+| `PASS_REVOKED`            | booking with a revoked pack                                 |
+| `PASS_NOT_CREDITS`        | the pass has no `usesAllowed`, or is a ticket for a booking |
+| `PASS_WRONG_RESOURCE`     | the pack is for another resource than the class             |
+| `PASS_NOT_VALID`          | the class starts outside the pack's validity window         |
+| `PASS_CREDITS_USED_UP`    | every credit of the pack is used                            |
+
+## Events
+
+`pass.issued` and `pass.revoked`, `pass.admitted` and `pass.rejected` for
+every scan, and `pass.credit_used` and `pass.credit_refunded` for class
+credits. The [events page](/docs/extending/events) lists their payloads.

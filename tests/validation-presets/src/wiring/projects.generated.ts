@@ -10,6 +10,7 @@ import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
 import { commentsBlock } from "better-supabase/blocks/comments";
+import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { jobsBlock } from "better-supabase/blocks/jobs";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
@@ -37,6 +38,7 @@ export const blockSet = defineBlocks(blockConfig, {
   audit: auditBlock,
   billing: billingBlock,
   comments: commentsBlock,
+  enrollments: enrollmentsBlock,
   entitlements: entitlementsBlock,
   jobs: jobsBlock,
   notifications: notificationsBlock,

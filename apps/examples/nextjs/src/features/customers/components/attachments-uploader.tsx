@@ -38,6 +38,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { useSupabase } from "@/lib/hooks";
+import { removeCustomerAttachments } from "@/lib/supabase/features/customer/customer-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AttachmentRow, Loaded } from "../customer-record-queries";
@@ -45,7 +46,6 @@ import type { AttachmentRow, Loaded } from "../customer-record-queries";
 import {
   confirmAttachment,
   downloadAttachment,
-  removeAttachment,
   startAttachmentUpload,
 } from "../customer-record-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
@@ -142,7 +142,11 @@ export function AttachmentsUploader({
             ) : null}
           </Empty>
         ) : (
-          <FileList files={files.data} canRemove={canRemove} />
+          <FileList
+            customerId={customerId}
+            files={files.data}
+            canRemove={canRemove}
+          />
         )}
       </CardContent>
     </Card>
@@ -150,9 +154,11 @@ export function AttachmentsUploader({
 }
 
 function FileList({
+  customerId,
   files,
   canRemove,
 }: {
+  customerId: string;
   files: readonly AttachmentRow[];
   canRemove: boolean;
 }) {
@@ -212,7 +218,13 @@ function FileList({
               >
                 <DownloadIcon />
               </Button>
-              {canRemove ? <RemoveFile id={file.id} name={file.name} /> : null}
+              {canRemove ? (
+                <RemoveFile
+                  id={file.id}
+                  customerId={customerId}
+                  name={file.name}
+                />
+              ) : null}
             </div>
           </li>
         );
@@ -302,11 +314,19 @@ function UploadButton({ customerId }: { customerId: string }) {
   );
 }
 
-function RemoveFile({ id, name }: { id: string; name: string }) {
+function RemoveFile({
+  id,
+  customerId,
+  name,
+}: {
+  id: string;
+  customerId: string;
+  name: string;
+}) {
   const t = useExtracted("customers");
   const errorMessage = useErrorMessage();
 
-  const remove = useAction(removeAttachment, {
+  const remove = useAction(removeCustomerAttachments, {
     onSuccess: () => {
       toast.success(t("File removed"));
     },
@@ -334,7 +354,7 @@ function RemoveFile({ id, name }: { id: string; name: string }) {
           <AlertDialogAction
             variant="destructive"
             onClick={() => {
-              void remove.run({ id });
+              void remove.run({ id: customerId, input: { id } });
             }}
           >
             {t("Remove")}

@@ -82,6 +82,31 @@ msgctxt "calendar.-SCdYi"
 msgid "Your organization's events by month."
 msgstr "De evenementen van je organisatie per maand."
 
+#: src/app/[locale]/(app)/compliance/page.tsx
+msgctxt "compliance.NIi2K2"
+msgid "Compliance"
+msgstr "Compliance"
+
+#: src/app/[locale]/(app)/compliance/page.tsx
+msgctxt "compliance.aN_4X-"
+msgid "How each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
+msgstr "Hoe de beheersmaatregelen per raamwerk ervoor staan, welk bewijs nodig is en welke contracten verlengd moeten worden."
+#: src/app/[locale]/(app)/courses/[courseId]/page.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.m0TXM9"
+msgid "All courses"
+msgstr "Alle cursussen"
+
+#: src/app/[locale]/(app)/courses/page.tsx
+msgctxt "courses.R85gsW"
+msgid "Courses"
+msgstr "Cursussen"
+
+#: src/app/[locale]/(app)/courses/page.tsx
+msgctxt "courses.VtDU2z"
+msgid "Take the courses your organization publishes."
+msgstr "Volg de cursussen die je organisatie publiceert."
+
 #: src/app/[locale]/(app)/crm/contacts/[id]/page.tsx
 #: src/features/crm/components/contact-detail.tsx
 msgctxt "crm.IUQwPp"
@@ -188,6 +213,37 @@ msgctxt "app.FazwRl"
 msgid "Try again"
 msgstr "Opnieuw proberen"
 
+#: src/app/[locale]/(app)/field/day/page.tsx
+msgctxt "field.XdSd3o"
+msgid "My day"
+msgstr "Mijn dag"
+
+#: src/app/[locale]/(app)/field/day/page.tsx
+msgctxt "field.G24OIU"
+msgid "Your stops for the day and the next step of each."
+msgstr "Je stops van vandaag en de volgende stap van elke stop."
+
+#: src/app/[locale]/(app)/field/dispatch/page.tsx
+msgctxt "field.g_6veL"
+msgid "Dispatch"
+msgstr "Planning"
+
+#: src/app/[locale]/(app)/field/dispatch/page.tsx
+msgctxt "field.6OAxn7"
+msgid "Schedule work orders into technicians' days and keep the backlog moving."
+msgstr "Plan werkorders in de dagen van monteurs en houd de achterstand in beweging."
+
+#: src/app/[locale]/(app)/field/shipments/page.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field._VTdwj"
+msgid "Shipments"
+msgstr "Zendingen"
+
+#: src/app/[locale]/(app)/field/shipments/page.tsx
+msgctxt "field.7grP0Y"
+msgid "Track packages from label to delivery."
+msgstr "Volg pakketten van label tot bezorging."
+
 #: src/app/[locale]/(app)/forbidden.tsx
 msgctxt "app.yO2v_w"
 msgid "You don't have access"
@@ -280,6 +336,16 @@ msgstr "Statistieken"
 msgctxt "metrics.VSqjtd"
 msgid "Your organization's numbers over the last 30 days."
 msgstr "De cijfers van je organisatie over de afgelopen 30 dagen."
+
+#: src/app/[locale]/(app)/my-work/page.tsx
+msgctxt "myWork.h-qaH6"
+msgid "My work"
+msgstr "Mijn werk"
+
+#: src/app/[locale]/(app)/my-work/page.tsx
+msgctxt "myWork.RpSk5k"
+msgid "What waits on you in this organization."
+msgstr "Wat in deze organisatie op je wacht."
 
 #: src/app/[locale]/(app)/notifications/page.tsx
 msgctxt "notifications.NAidKb"
@@ -383,6 +449,29 @@ msgstr "Voorraad"
 msgctxt "shop.kZCZuj"
 msgid "Stock per product and location. Adjust a count after a delivery or a stocktake."
 msgstr "Voorraad per product en locatie. Pas een aantal aan na een levering of een inventarisatie."
+
+#: src/app/[locale]/(app)/shop/kitchen/board/page.tsx
+#: src/app/[locale]/(app)/shop/kitchen/page.tsx
+msgctxt "shop.OHCfOg"
+msgid "Order board"
+msgstr "Bestellingenbord"
+
+#: src/app/[locale]/(app)/shop/kitchen/board/page.tsx
+msgctxt "shop.28eybb"
+msgid "Today's kitchen orders by state. Drag an order forward to move all of its lines."
+msgstr "De keukenbestellingen van vandaag per status. Sleep een bestelling verder om al haar regels mee te verplaatsen."
+
+#: src/app/[locale]/(app)/shop/kitchen/board/page.tsx
+#: src/app/[locale]/(app)/shop/kitchen/page.tsx
+#: src/app/[locale]/(app)/shop/page.tsx
+msgctxt "shop.uwVj77"
+msgid "Kitchen"
+msgstr "Keuken"
+
+#: src/app/[locale]/(app)/shop/kitchen/page.tsx
+msgctxt "shop.dHqIrB"
+msgid "The open tickets at each station. Move a ticket along as it's prepared."
+msgstr "De open bonnen per station. Zet een bon verder terwijl hij wordt bereid."
 
 #: src/app/[locale]/(app)/shop/orders/[id]/page.tsx
 msgctxt "shop.lNZuWl"
@@ -2445,6 +2534,433 @@ msgctxt "calendar.SxCBpE"
 msgid "Add an event, then set a reminder for it here."
 msgstr "Voeg een afspraak toe en stel er hier een herinnering voor in."
 
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.CrEhnK"
+msgid "No end date"
+msgstr "Geen einddatum"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.r68ulP"
+msgid "Renews, notice passed"
+msgstr "Verlengt, opzegtermijn verstreken"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.-3oUIX"
+msgid "Notice passed"
+msgstr "Opzegtermijn verstreken"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.tkoBM1"
+msgid "Notice in {days, number} days"
+msgstr "Opzeggen binnen {days, number} dagen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.eehNZO"
+msgid "Auto-renews"
+msgstr "Verlengt automatisch"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.3a5wL8"
+msgid "Active"
+msgstr "Actief"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.aVrws_"
+msgid "Contract renewals"
+msgstr "Contractverlengingen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.4GKQKq"
+msgid "Active contracts, the nearest notice deadline first. A contract that auto-renews extends itself unless someone gives notice before the deadline."
+msgstr "Actieve contracten, de dichtstbijzijnde opzegdatum eerst. Een contract dat automatisch verlengt, loopt door tenzij iemand voor de opzegdatum opzegt."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.lXkTYj"
+msgid "The contracts didn't load"
+msgstr "De contracten zijn niet geladen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.PmqZKj"
+msgid "No active contracts"
+msgstr "Geen actieve contracten"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.p8eLNP"
+msgid "A contract becomes active once every signer has signed. Draft one from a customer's record."
+msgstr "Een contract wordt actief zodra iedere ondertekenaar heeft getekend. Stel er een op vanuit de pagina van een klant."
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.GmW-DP"
+msgid "Open customers"
+msgstr "Klanten openen"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.nV7Cv-"
+msgid "Contract"
+msgstr "Contract"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.GufXy5"
+msgid "Value"
+msgstr "Waarde"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.04xGLE"
+msgid "Ends"
+msgstr "Eindigt"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.u75FWG"
+msgid "Notice by"
+msgstr "Opzeggen voor"
+
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.NRVEF5"
+msgid "Renewal"
+msgstr "Verlenging"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.F1fkR9"
+msgid "The control posture didn't load"
+msgstr "De compliancestatus is niet geladen"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.Z2grkH"
+msgid "No frameworks yet"
+msgstr "Nog geen raamwerken"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.cVqZZ3"
+msgid "Add a framework such as SOC 2 or ISO 27001 with the controls block, then link evidence to each control."
+msgstr "Voeg met het controls-blok een raamwerk toe, zoals SOC 2 of ISO 27001, en koppel daarna bewijs aan elke beheersmaatregel."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.GNiGeO"
+msgid "Read the controls guide"
+msgstr "Lees de handleiding voor controls"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.BgYrIK"
+msgid "{passing, number} of {applicable, number} controls passing"
+msgstr "{passing, number} van {applicable, number} beheersmaatregelen in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.NrYcZf"
+msgid "Controls passing"
+msgstr "Beheersmaatregelen in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.b8oEdI"
+msgid "{count, number} passing"
+msgstr "{count, number} in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.P5PLAQ"
+msgid "{count, number} failing"
+msgstr "{count, number} niet in orde"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.GBTCb5"
+msgid "{count, number} not started"
+msgstr "{count, number} niet gestart"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.CjoNmW"
+msgid "{count, number} overdue tasks"
+msgstr "{count, number} achterstallige taken"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.pKHQpG"
+msgid "Overdue evidence"
+msgstr "Achterstallig bewijs"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0oUYk6"
+msgid "Recurring tasks whose evidence is past due. Collecting evidence moves the task to its next due date."
+msgstr "Terugkerende taken waarvan het bewijs over tijd is. Bewijs verzamelen zet de taak op de volgende vervaldatum."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.06A-9M"
+msgid "Every evidence task is on schedule."
+msgstr "Elke bewijstaak ligt op schema."
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.0wJ7N-"
+msgid "Task"
+msgstr "Taak"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.NZ9-vv"
+msgid "Control"
+msgstr "Beheersmaatregel"
+
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.g9pEhE"
+msgid "Due"
+msgstr "Vervalt"
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.1GGd_a"
+msgid "You're enrolled"
+msgstr "Je bent ingeschreven"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.nz3jzj"
+msgid "Enroll"
+msgstr "Inschrijven"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.oIBOCc"
+msgid "Course completed"
+msgstr "Cursus afgerond"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.IzT3_x"
+msgid "Lesson marked done"
+msgstr "Les gemarkeerd als klaar"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.knUjT2"
+msgid "Mark as done"
+msgstr "Markeren als klaar"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.EKtClK"
+msgid "Getting started"
+msgstr "Aan de slag"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.PwaN2o"
+msgid "Welcome"
+msgstr "Welkom"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.cZLCLy"
+msgid "This lesson shows how a learner moves through a course."
+msgstr "Deze les laat zien hoe een cursist door een cursus gaat."
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.uhBRmg"
+msgid "Next steps"
+msgstr "Volgende stappen"
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.p6DmIN"
+msgid "Mark this lesson done to complete the course."
+msgstr "Markeer deze les als klaar om de cursus af te ronden."
+
+#: src/features/courses/components/course-controls.tsx
+msgctxt "courses.3WD3Jo"
+msgid "Create a sample course"
+msgstr "Voorbeeldcursus maken"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.zV57h1"
+msgid "The courses didn't load"
+msgstr "De cursussen zijn niet geladen"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.BDHWkf"
+msgid "No courses yet"
+msgstr "Nog geen cursussen"
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.3FgZ2I"
+msgid "Create a sample course to try the learner flow."
+msgstr "Maak een voorbeeldcursus om de route van een cursist te proberen."
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.M-Gw6A"
+msgid "An admin publishes courses for your team."
+msgstr "Een beheerder publiceert cursussen voor je team."
+
+#: src/features/courses/components/course-list.tsx
+msgctxt "courses.BFhud5"
+msgid "Back to the dashboard"
+msgstr "Terug naar het dashboard"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.w7tf2z"
+msgid "Published"
+msgstr "Gepubliceerd"
+
+#: src/features/courses/components/course-list.tsx
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.0HT-Ib"
+msgid "Archived"
+msgstr "Gearchiveerd"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.xisgo1"
+msgid "The course didn't load"
+msgstr "De cursus is niet geladen"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.MOK_yK"
+msgid "Reading"
+msgstr "Lezen"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.kBJUtE"
+msgid "Video"
+msgstr "Video"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.OuR_Ij"
+msgid "Quiz"
+msgstr "Quiz"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.acrOoz"
+msgid "Continue"
+msgstr "Verder"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.q7sJ6u"
+msgid "No lessons yet"
+msgstr "Nog geen lessen"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.5WezOu"
+msgid "Lessons show up here once a manager adds them."
+msgstr "Lessen verschijnen hier zodra een beheerder ze toevoegt."
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.n7xPkB"
+msgid "{count, plural, one {# lesson} other {# lessons}}"
+msgstr "{count, plural, one {# les} other {# lessen}}"
+
+#: src/features/courses/components/course-outline.tsx
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.zqV6aP"
+msgid "Not done"
+msgstr "Niet klaar"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.8jbBlb"
+msgid "{minutes, number} min"
+msgstr "{minutes, number} min"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.InWqys"
+msgid "Optional"
+msgstr "Optioneel"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.dcRwV1"
+msgid "Your progress"
+msgstr "Je voortgang"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.TEKO3x"
+msgid "Enroll to track your progress."
+msgstr "Schrijf je in om je voortgang bij te houden."
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.EFVK4r"
+msgid "{done, number} of {total, number} lessons done"
+msgstr "{done, number} van {total, number} lessen klaar"
+
+#: src/features/courses/components/course-outline.tsx
+msgctxt "courses.FMhPQ6"
+msgid "Certificate"
+msgstr "Certificaat"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.rEPdIs"
+msgid "Course outline"
+msgstr "Cursusoverzicht"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses._nxvFr"
+msgid "The lesson didn't load"
+msgstr "De les is niet geladen"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.duWP55"
+msgid "Last score: {score, number} of {max, number}"
+msgstr "Laatste score: {score, number} van {max, number}"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.8KXPSX"
+msgid "This quiz has no questions"
+msgstr "Deze quiz heeft geen vragen"
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.1A31Gt"
+msgid "A manager publishes the quiz form first."
+msgstr "Een beheerder publiceert eerst het quizformulier."
+
+#: src/features/courses/components/lesson-player.tsx
+msgctxt "courses.UQOBcC"
+msgid "Open the video"
+msgstr "Video openen"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.0IyBwp"
+msgid "{score, number} of {max, number}"
+msgstr "{score, number} van {max, number}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.lC6PSg"
+msgid "Passed: {score}"
+msgstr "Geslaagd: {score}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.GVXFN1"
+msgid "Not passed yet: {score}"
+msgstr "Nog niet geslaagd: {score}"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.uC6AEf"
+msgid "Pick one"
+msgstr "Kies er een"
+
+#: src/features/courses/components/quiz-form.tsx
+msgctxt "courses.LotwiE"
+msgid "Submit answers"
+msgstr "Antwoorden versturen"
+
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
 msgctxt "crm.f-GKc4"
@@ -3545,16 +4061,19 @@ msgid "No comments yet."
 msgstr "Nog geen reacties."
 
 #: src/features/customers/components/comment-thread.tsx
+#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.XDWEZM"
 msgid "Someone"
 msgstr "Iemand"
 
 #: src/features/customers/components/comment-thread.tsx
+#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.LgbKvU"
 msgid "Comment"
 msgstr "Reageren"
 
 #: src/features/customers/components/comment-thread.tsx
+#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.Y8zV4A"
 msgid "Write a comment"
 msgstr "Schrijf een reactie"
@@ -3690,6 +4209,41 @@ msgstr "Notities"
 msgctxt "customers.dyyiUt"
 msgid "Last note"
 msgstr "Laatste notitie"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.gyrIEl"
+msgid "File"
+msgstr "Bestand"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.I3b4hn"
+msgid "Version"
+msgstr "Versie"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.zWkvNO"
+msgid "Timeline"
+msgstr "Tijdlijn"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.n9pcfi"
+msgid "Comments, files and versions, newest first."
+msgstr "Reacties, bestanden en versies, nieuwste eerst."
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.0ABUGx"
+msgid "The timeline didn't load"
+msgstr "De tijdlijn is niet geladen"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.jx4Zxs"
+msgid "Nothing happened yet"
+msgstr "Er is nog niets gebeurd"
+
+#: src/features/customers/components/customer-timeline.tsx
+msgctxt "customers.WGEKkb"
+msgid "Comments, files and versions show up here."
+msgstr "Reacties, bestanden en versies verschijnen hier."
 
 #: src/features/customers/components/reactions-bar.tsx
 msgctxt "customers.XgWvGA"
@@ -4649,6 +5203,401 @@ msgstr "Delen met"
 msgctxt "drive.qxg3uo"
 msgid "Access"
 msgstr "Toegang"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.s7o6zU"
+msgid "Leave for the stop"
+msgstr "Vertrek naar de stop"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.W_6tSY"
+msgid "Arrived"
+msgstr "Aangekomen"
+
+#: src/features/field/components/advance-work-order-button.tsx
+msgctxt "field.tQpQon"
+msgid "Mark done"
+msgstr "Markeer als klaar"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.DgAp1f"
+msgid "Week of {range}"
+msgstr "Week van {range}"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.B1qonS"
+msgid "Scheduled work per technician, in {zone}."
+msgstr "Gepland werk per monteur, in {zone}."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.m74Rqi"
+msgid "Scheduled work per technician."
+msgstr "Gepland werk per monteur."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.GAjQnO"
+msgid "Previous week"
+msgstr "Vorige week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.iMjjOH"
+msgid "Next week"
+msgstr "Volgende week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.oZZk8W"
+msgid "The schedule board didn't load"
+msgstr "Het planbord is niet geladen"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.CXAGzs"
+msgid "Nothing scheduled this week"
+msgstr "Niets gepland deze week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.8rezaW"
+msgid "Work orders show here once they have a technician."
+msgstr "Werkorders verschijnen hier zodra ze een monteur hebben."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.LiYMhZ"
+msgid "Show next week"
+msgstr "Toon volgende week"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.FoMO5v"
+msgid "Technician"
+msgstr "Monteur"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.mX1AFw"
+msgid "Backlog"
+msgstr "Achterstand"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.a7n80f"
+msgid "Work orders without a slot, most urgent first."
+msgstr "Werkorders zonder tijdslot, de dringendste eerst."
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.i7CstZ"
+msgid "The backlog didn't load"
+msgstr "De achterstand is niet geladen"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.KV_tdf"
+msgid "The backlog is empty"
+msgstr "De achterstand is leeg"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.aeOe_6"
+msgid "Every open work order has a slot."
+msgstr "Elke open werkorder heeft een tijdslot."
+
+#: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.MEvKnW"
+msgid "Job"
+msgstr "Klus"
+
+#: src/features/field/components/dispatch-board.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.e6Ph5-"
+msgid "Address"
+msgstr "Adres"
+
+#: src/features/field/components/dispatch-board.tsx
+msgctxt "field.8lCjAM"
+msgid "Priority"
+msgstr "Prioriteit"
+
+#: src/features/field/components/field-load-error.tsx
+msgctxt "field.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/field/components/field-load-error.tsx
+msgctxt "field.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.eTrzQC"
+msgid "Shipment created"
+msgstr "Zending aangemaakt"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.HkTa1T"
+msgid "New shipment"
+msgstr "Nieuwe zending"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.UMshQz"
+msgid "One package from the warehouse, saved as a draft."
+msgstr "Eén pakket vanuit het magazijn, opgeslagen als concept."
+
+#: src/features/field/components/new-shipment-dialog.tsx
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.8Rkoyb"
+msgid "Recipient"
+msgstr "Ontvanger"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.LVbG7l"
+msgid "Street and number"
+msgstr "Straat en huisnummer"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.3EnruA"
+msgid "Postal code"
+msgstr "Postcode"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.TE4fIS"
+msgid "City"
+msgstr "Plaats"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.H36vgV"
+msgid "Country code"
+msgstr "Landcode"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.SHl88G"
+msgid "Weight in grams"
+msgstr "Gewicht in grammen"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/field/components/new-shipment-dialog.tsx
+msgctxt "field.VzzYJk"
+msgid "Create"
+msgstr "Aanmaken"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.Wp_i6x"
+msgid "Work order added to the backlog"
+msgstr "Werkorder toegevoegd aan de achterstand"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.WHfMpv"
+msgid "New work order"
+msgstr "Nieuwe werkorder"
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.1zY8SM"
+msgid "It waits in the backlog until you schedule it."
+msgstr "Hij wacht in de achterstand tot je hem inplant."
+
+#: src/features/field/components/new-work-order-dialog.tsx
+msgctxt "field.2_2yg-"
+msgid "Add"
+msgstr "Toevoegen"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.yNSJTr"
+msgid "Label created"
+msgstr "Label aangemaakt"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.oLBci1"
+msgid "In transit"
+msgstr "Onderweg"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.UdVzmc"
+msgid "Out for delivery"
+msgstr "Wordt bezorgd"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.DMqnF4"
+msgid "Delivered"
+msgstr "Bezorgd"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.YAnsyA"
+msgid "Exception"
+msgstr "Probleem"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.wm96Jx"
+msgid "Returned"
+msgstr "Geretourneerd"
+
+#: src/features/field/components/shipment-tracking.tsx
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.3wsVWF"
+msgid "Cancelled"
+msgstr "Geannuleerd"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.xd9-PX"
+msgid "The status follows the latest tracking event."
+msgstr "De status volgt de laatste trackinggebeurtenis."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.7CeqzL"
+msgid "The shipments didn't load"
+msgstr "De zendingen zijn niet geladen"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.TsxaHw"
+msgid "No shipments yet"
+msgstr "Nog geen zendingen"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.LLrtsC"
+msgid "Create a shipment, then buy its label from a carrier."
+msgstr "Maak een zending aan en koop daarna het label bij een vervoerder."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.mcUhhf"
+msgid "Reference"
+msgstr "Referentie"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.BzQPM-"
+msgid "Destination"
+msgstr "Bestemming"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.yT_GAp"
+msgid "Tracking number"
+msgstr "Trackingnummer"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.-jwfm8"
+msgid "Tracking for {reference}"
+msgstr "Tracking voor {reference}"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.aAuZgr"
+msgid "Events from {carrier}, newest first."
+msgstr "Gebeurtenissen van {carrier}, de nieuwste eerst."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.TLGw7J"
+msgid "Events show once the shipment has a label."
+msgstr "Gebeurtenissen verschijnen zodra de zending een label heeft."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.hH74PI"
+msgid "No tracking events yet"
+msgstr "Nog geen trackinggebeurtenissen"
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.oLP7kH"
+msgid "The carrier's webhook adds events as the package moves."
+msgstr "De webhook van de vervoerder voegt gebeurtenissen toe terwijl het pakket onderweg is."
+
+#: src/features/field/components/shipment-tracking.tsx
+msgctxt "field.1A8Z_l"
+msgid "Check again"
+msgstr "Opnieuw controleren"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.AE_HJl"
+msgid "Your stops in the order of the planned route."
+msgstr "Je stops in de volgorde van de geplande route."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.SGzIa0"
+msgid "Your stops by start time."
+msgstr "Je stops op starttijd."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.RMO5xM"
+msgid "Previous day"
+msgstr "Vorige dag"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.3XCLrO"
+msgid "Next day"
+msgstr "Volgende dag"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.D-LF9w"
+msgid "Your day didn't load"
+msgstr "Je dag is niet geladen"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.fWAPAL"
+msgid "No stops on this day"
+msgstr "Geen stops op deze dag"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.-PlOyW"
+msgid "Work orders scheduled for you show here."
+msgstr "Werkorders die voor jou zijn gepland verschijnen hier."
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.g-EdHj"
+msgid "Show the next day"
+msgstr "Toon de volgende dag"
+
+#: src/features/field/components/technician-day.tsx
+msgctxt "field.tXYVJd"
+msgid "{from} to {to}"
+msgstr "{from} tot {to}"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.4MnrK6"
+msgid "Unscheduled"
+msgstr "Niet gepland"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.cXAlMR"
+msgid "Scheduled"
+msgstr "Gepland"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.UHCOTT"
+msgid "En route"
+msgstr "Onderweg"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.bC-TWQ"
+msgid "On site"
+msgstr "Ter plaatse"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.JXdbo8"
+msgid "Done"
+msgstr "Klaar"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.477I0g"
+msgid "Low"
+msgstr "Laag"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.myq2ZL"
+msgid "Normal"
+msgstr "Normaal"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.AxMhQr"
+msgid "High"
+msgstr "Hoog"
+
+#: src/features/field/components/work-order-badges.tsx
+msgctxt "field.yN7aqf"
+msgid "Urgent"
+msgstr "Dringend"
 
 #: src/features/flags/components/beta-content.tsx
 msgctxt "beta.hKwqKr"
@@ -5628,10 +6577,80 @@ msgctxt "metrics.8O8AYG"
 msgid "{previous} in the 30 days before"
 msgstr "{previous} in de 30 dagen daarvoor"
 
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.iZDRGO"
+msgid "Assigned"
+msgstr "Toegewezen"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.Kl6x-n"
+msgid "Approval"
+msgstr "Goedkeuring"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.QOAy_W"
+msgid "Reminder"
+msgstr "Herinnering"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.fxmNTh"
+msgid "Mention"
+msgstr "Vermelding"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.XVpKQC"
+msgid "SLA warning"
+msgstr "SLA-waarschuwing"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.9-ZvGz"
+msgid "Waiting on you"
+msgstr "Wacht op jou"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.tBjNEd"
+msgid "Assigned work, approvals, due reminders, mentions and SLA warnings."
+msgstr "Toegewezen werk, goedkeuringen, herinneringen, vermeldingen en SLA-waarschuwingen."
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.6A7ifa"
+msgid "My work didn't load"
+msgstr "Mijn werk is niet geladen"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.otPGOJ"
+msgid "Nothing waiting on you"
+msgstr "Er wacht niets op je"
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.kjeh0s"
+msgid "Work assigned to you and requests for you show up here."
+msgstr "Werk dat aan jou is toegewezen en verzoeken voor jou verschijnen hier."
+
+#: src/features/my-work/components/my-work-list.tsx
+msgctxt "myWork.do5cUm"
+msgid "Open the work board"
+msgstr "Open het werkbord"
+
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.hzSNj4"
 msgid "Dashboard"
 msgstr "Dashboard"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.h-qaH6"
+msgid "My work"
+msgstr "Mijn werk"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.TkYZBT"
@@ -5719,6 +6738,21 @@ msgid "Orders"
 msgstr "Bestellingen"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.g_6veL"
+msgid "Dispatch"
+msgstr "Planning"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.XdSd3o"
+msgid "My day"
+msgstr "Mijn dag"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation._VTdwj"
+msgid "Shipments"
+msgstr "Zendingen"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.1YAWJ3"
 msgid "Drive"
 msgstr "Drive"
@@ -5732,6 +6766,11 @@ msgstr "Documenten"
 msgctxt "navigation.yGsZm0"
 msgid "Forms"
 msgstr "Formulieren"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.R85gsW"
+msgid "Courses"
+msgstr "Cursussen"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.A3ptul"
@@ -5752,6 +6791,11 @@ msgstr "Prullenbak"
 msgctxt "navigation.HNBpJ4"
 msgid "Metrics"
 msgstr "Statistieken"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.NIi2K2"
+msgid "Compliance"
+msgstr "Compliance"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
@@ -8462,6 +9506,8 @@ msgid "The stock levels didn't load"
 msgstr "De voorraadniveaus zijn niet geladen"
 
 #: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
@@ -8470,6 +9516,8 @@ msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
 #: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
@@ -8548,6 +9596,105 @@ msgctxt "shop.ED7X19"
 msgid "In stock"
 msgstr "Op voorraad"
 
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.Kb1t2A"
+msgid "The kitchen didn't load"
+msgstr "De keuken is niet geladen"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.m7hs5E"
+msgid "Stations"
+msgstr "Stations"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.kpZZ7x"
+msgid "All stations"
+msgstr "Alle stations"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.ckrEp1"
+msgid "No open tickets"
+msgstr "Geen open bonnen"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.-q8LW3"
+msgid "Send a paid order to the kitchen and its lines show up here."
+msgstr "Stuur een betaalde bestelling naar de keuken, dan verschijnen haar regels hier."
+
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.39vjfP"
+msgid "Open orders"
+msgstr "Open bestellingen"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.Cnm0QA"
+msgid "Queued"
+msgstr "In de wachtrij"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.n09Z0M"
+msgid "Preparing"
+msgstr "In bereiding"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.IZFEUg"
+msgid "Ready"
+msgstr "Klaar"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.1UpQL6"
+msgid "Served"
+msgstr "Uitgeserveerd"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.mOFG3K"
+msgid "Start"
+msgstr "Starten"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.O2X2mS"
+msgid "Mark ready"
+msgstr "Klaar melden"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.Ce-KSx"
+msgid "Serve"
+msgstr "Serveren"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.HQo5qK"
+msgid "Order {number}"
+msgstr "Bestelling {number}"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.G5YxOb"
+msgid "Sent at {time}"
+msgstr "Verstuurd om {time}"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.yv-FF_"
+msgid "Move {title} to {state}"
+msgstr "{title} naar {state} verplaatsen"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.yUcWBK"
+msgid "The board didn't load"
+msgstr "Het bord is niet geladen"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.YOvr0P"
+msgid "Nothing in the kitchen today"
+msgstr "Vandaag niets in de keuken"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.Kj8l4l"
+msgid "Orders show up here once they're sent to the kitchen."
+msgstr "Bestellingen verschijnen hier zodra ze naar de keuken zijn gestuurd."
+
 #: src/features/shop/components/order-detail.tsx
 msgctxt "shop.kYqrr0"
 msgid "The order didn't load"
@@ -8587,12 +9734,6 @@ msgstr "Verzending"
 msgctxt "shop.AwzkSM"
 msgid "Tax"
 msgstr "Btw"
-
-#: src/features/shop/components/order-detail.tsx
-#: src/features/shop/components/order-list.tsx
-msgctxt "shop.HQo5qK"
-msgid "Order {number}"
-msgstr "Bestelling {number}"
 
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
@@ -8744,6 +9885,21 @@ msgctxt "shop.zL6NHU"
 msgid "Not placed"
 msgstr "Niet geplaatst"
 
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.OK8i3s"
+msgid "{ready, number} of {lines, number} ready, sent at {time}"
+msgstr "{ready, number} van {lines, number} klaar, verstuurd om {time}"
+
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.Yrt5OC"
+msgid "An order only moves forward on this board."
+msgstr "Op dit bord gaat een bestelling alleen vooruit."
+
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.agJ_Ux"
+msgid "No orders here."
+msgstr "Geen bestellingen hier."
+
 #: src/features/shop/components/order-status-badge.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
 msgctxt "shop.W6nwjo"
@@ -8806,6 +9962,16 @@ msgid "Marked as delivered"
 msgstr "Gemarkeerd als bezorgd"
 
 #: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.IBEhkd"
+msgid "Already in the kitchen"
+msgstr "Al in de keuken"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop._bAyIb"
+msgid "{count, plural, one {# line} other {# lines}} sent to the kitchen"
+msgstr "{count, plural, one {# regel} other {# regels}} naar de keuken gestuurd"
+
+#: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.01-5kQ"
 msgid "Mark as paid"
 msgstr "Markeren als betaald"
@@ -8819,6 +9985,11 @@ msgstr "Bestelling annuleren"
 msgctxt "shop.BR3V4w"
 msgid "Create fulfillment"
 msgstr "Afhandeling aanmaken"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.8xFh5A"
+msgid "Send to kitchen"
+msgstr "Naar de keuken sturen"
 
 #: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.paB5lo"
@@ -9290,6 +10461,126 @@ msgstr "Metadata geüpload als XML"
 msgctxt "sso.jUqYir"
 msgid "Added {date}"
 msgstr "Toegevoegd op {date}"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.HLDzpl"
+msgid "The status page didn't load"
+msgstr "De statuspagina is niet geladen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.Dnob31"
+msgid "Operational"
+msgstr "Operationeel"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.dudqv_"
+msgid "Maintenance"
+msgstr "Onderhoud"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.SsC4IV"
+msgid "Degraded performance"
+msgstr "Verminderde prestaties"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.Fh9xh1"
+msgid "Partial outage"
+msgstr "Gedeeltelijke storing"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.sSIbEd"
+msgid "Major outage"
+msgstr "Grote storing"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.RVjGF7"
+msgid "All systems operational"
+msgstr "Alle systemen werken"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.caRJuT"
+msgid "Scheduled maintenance in progress"
+msgstr "Gepland onderhoud bezig"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.9M-5lH"
+msgid "Some systems are affected"
+msgstr "Sommige systemen hebben last van een storing"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status._GKH_w"
+msgid "Investigating"
+msgstr "Onderzoek"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.7cv4Uf"
+msgid "Identified"
+msgstr "Oorzaak gevonden"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.1P6GMj"
+msgid "Monitoring"
+msgstr "Monitoren"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.W6nSYE"
+msgid "Resolved"
+msgstr "Opgelost"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.AcAA5x"
+msgid "Components"
+msgstr "Onderdelen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.LfjXKs"
+msgid "Uptime over the last {days, number} days."
+msgstr "Beschikbaarheid over de laatste {days, number} dagen."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.N8Mlqy"
+msgid "No components yet"
+msgstr "Nog geen onderdelen"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.o1tnzb"
+msgid "Components appear here once the team marks them public. Check back later."
+msgstr "Onderdelen verschijnen hier zodra het team ze openbaar maakt. Kom later terug."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status._2ICQ5"
+msgid "{percent, number}% uptime"
+msgstr "{percent, number}% beschikbaar"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.mtr3R4"
+msgid "Incidents"
+msgstr "Incidenten"
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.U8Td13"
+msgid "Open incidents and those resolved in the last {days, number} days."
+msgstr "Open incidenten en incidenten die in de laatste {days, number} dagen zijn opgelost."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.wgm9yH"
+msgid "No incidents reported."
+msgstr "Geen incidenten gemeld."
+
+#: src/features/status/components/status-page.tsx
+msgctxt "status.wnbY9R"
+msgid "Affects {components}"
+msgstr "Betreft {components}"
 
 #: src/features/subjects/components/subject-chip.tsx
 msgctxt "subjects.UpwcFd"
@@ -10301,6 +11592,11 @@ msgstr "Het begint in de eerste fase van je workflow."
 msgctxt "work.9a9-ww"
 msgid "Title"
 msgstr "Titel"
+
+#: src/features/work/components/create-work-item-dialog.tsx
+msgctxt "work.CrGNTq"
+msgid "Enter a title."
+msgstr "Vul een titel in."
 
 #: src/features/work/components/create-work-item-dialog.tsx
 #: src/features/work/components/team-picker.tsx

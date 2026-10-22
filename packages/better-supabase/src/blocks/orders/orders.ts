@@ -28,6 +28,7 @@ import type {
   QuantityLine,
   ShippingOption,
 } from "./codecs.ts";
+import type { OrderKitchen } from "./kitchen.ts";
 
 import { money } from "../../commerce/money.ts";
 import { paymentProviderOf } from "../../commerce/payments.ts";
@@ -57,6 +58,7 @@ import {
   shippingOptionsOf,
   transactionToJson,
 } from "./codecs.ts";
+import { orderKitchen } from "./kitchen.ts";
 
 export interface OrdersOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -307,6 +309,8 @@ export interface Orders<F extends object = Record<never, never>> {
   invoice(orderId: string): AsyncResult<Invoice<F>>;
   /** The handler for a scheduled job that runs `expireOrders`. */
   readonly job: JobHandler<unknown>;
+  /** Stations and line states, with `blocks.orders.options.kitchen`. */
+  readonly kitchen: OrderKitchen;
 }
 
 const isTrue = (value: unknown): boolean => value === true;
@@ -1182,6 +1186,7 @@ export function createOrders<
     job: async (payload) => {
       await expireOrders(maxRowsOf(payload)).orThrow();
     },
+    kitchen: orderKitchen(call),
   };
 
   return withBlockHooks(orders, options.hooks, {

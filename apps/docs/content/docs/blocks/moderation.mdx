@@ -1,0 +1,145 @@
+---
+title: Moderation
+description: Reports on any record, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews and comments moderate through it.
+---
+
+`moderation` keeps one moderation item per moderated subject in an
+organization: its status, its open reports, its last decision and a log of
+every decision. Members report content, moderators work through a queue, and
+a ban keeps a user from writing in the organization until it ends.
+
+A subject is `pending` (waiting for a first decision), `visible`, `hidden` or
+`removed`. Any subject type can be reported, so the same queue holds comments,
+reviews and your own records.
+
+Reporting needs `moderation.report`, reading the queue needs
+`moderation.read`, deciding needs `moderation.manage`, and banning needs
+`moderation.ban`. Admins get all four and members get `moderation.report`, so
+anonymous visitors can't report.
+
+```bash
+better-supabase add moderation
+```
+
+The module needs `tenant` and `access`. It moderates comments when
+[comments](/docs/blocks/comments) is installed, and
+[reviews](/docs/blocks/reviews) requires it. Decisions and bans go to the
+outbox and the audit log.
+
+```ts
+import { createModeration } from "better-supabase/blocks/moderation";
+
+const moderation = createModeration({ transport, tenant: organizationId });
+
+await moderation
+  .report({ type: "comment", id: commentId }, { reason: "spam" })
+  .orThrow();
+
+const queue = await moderation.queue().orThrow();
+
+await moderation.decide(queue[0].id, "hide", { reason: "Spam" }).orThrow();
+```
+
+| Option              | Default                                                        | What it does                                                                       |
+| ------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `autoHideThreshold` | `3`                                                            | Open reports that hide visible content until a moderator decides; `0` turns it off |
+| `reasons`           | `spam`, `abuse`, `harassment`, `off_topic`, `illegal`, `other` | The reasons a report may give, as lower-case keys                                  |
+
+## Reporting
+
+`report(subject, { reason, note })` reports a subject for one of the
+configured reasons. A member has one open report per subject: reporting again
+returns that report. Nobody can report their own content, and a banned member
+can't report. The report that reaches `autoHideThreshold` hides visible
+content and returns `autoHidden: true`; the content stays hidden until a
+moderator decides, and its reports stay open.
+
+## The queue
+
+`queue()` lists what needs a moderator: pending content and content with open
+reports, most recently changed first. Pass `status` for one status,
+`subjectType` for one kind of content, and `before` with the last item's
+`updatedAt` for the next page. `item(subject)` returns one subject's item with
+its latest reports and log entries, or `null` when nothing moderated it.
+
+`statuses(subjectType, ids)` returns the statuses of the subjects that aren't
+visible, keyed by id, so a list can grey out or drop hidden rows in one call.
+
+## Decisions
+
+| Decision  | Status    | Also                                        |
+| --------- | --------- | ------------------------------------------- |
+| `approve` | `visible` |                                             |
+| `hide`    | `hidden`  |                                             |
+| `remove`  | `removed` |                                             |
+| `restore` | `visible` | only from `hidden` or `removed`             |
+| `ban`     | `removed` | bans the author; needs `moderation.ban` too |
+
+`decide(itemId, decision, { reason })` records the decision with who made it.
+A decision that hides or removes content resolves the open reports; one that
+shows it dismisses them. The reason is kept on the item while the content is
+hidden or removed.
+
+## Bans
+
+`ban(userId, { reason, expiresAt })` bans a member until `expiresAt`, or for
+good without it. `unban(banId)` lifts a ban and returns `false` when it was
+already lifted, and `bans()` lists the active bans (`active: false` lists
+every ban). Banning a user again replaces their active ban.
+
+## Comments
+
+With the comments block, comment reports name the comment's author on the
+item. Hidden, removed and pending comments stay readable only to their author
+and to moderators with `moderation.read`. Removing a comment soft-deletes it,
+so a removed comment can't be restored, and a banned member can't write new
+comments.
+
+## Your own content
+
+Report any subject type: an item for a record you own has no author until you
+set one, so `ban` needs content whose author is known. To hide your own rows,
+read `statuses` for the ids you list, or filter with a policy on the
+`moderation_items` table the same way the comments integration does.
+
+`moderationSection` loads `item` for a record page and reloads on
+`moderation_report.created` and `moderation_item.decided`. See [Record sections](/docs/blocks/records).
+
+## Errors
+
+| Hint                           | Cause                                                             |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `MODERATION_FORBIDDEN`         | the caller lacks the permission, or isn't signed in               |
+| `MODERATION_INVALID`           | an unknown reason, a self-report, or a restore of visible content |
+| `MODERATION_BANNED`            | the caller is banned in the organization                          |
+| `MODERATION_ITEM_NOT_FOUND`    | no item the caller can see has this id                            |
+| `MODERATION_SUBJECT_NOT_FOUND` | the reported comment doesn't exist                                |
+| `MODERATION_BAN_NOT_FOUND`     | no ban has this id                                                |
+
+## Events
+
+| Event                                             | Data                                                                                                              |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `moderation_report.created`                       | `organizationId`, `id`, `itemId`, `subjectType`, `subjectId`, `reason`                                            |
+| `moderation_item.decided`                         | `organizationId`, `id`, `subjectType`, `subjectId`, `authorId`, `action`, `status`, `previousStatus`, `automatic` |
+| `moderation_ban.created`, `moderation_ban.lifted` | `organizationId`, `id`, `userId`, `expiresAt`                                                                     |
+
+`automatic` is true for the hide at the report threshold. A rule on
+`moderation_report.created` can notify moderators, and one on
+`moderation_item.decided` can tell an author why their post was removed.
+
+## With ReUI
+
+There is no prebuilt moderation UI. List the queue in a `data-grid` with the
+subject, `openReports` and `status` as a `Badge` (`warning-light` for pending,
+`destructive-light` for hidden or removed). Open an item in a `Sheet` with its
+reports and log, and put the decisions in a `DropdownMenu`; confirm `remove`
+and `ban` with an `AlertDialog`. A report form is a `Dialog` with a
+`RadioGroup` of reasons and a `Textarea` for the note.
+
+## Why it works this way
+
+One item per subject, whatever the content, gives one queue, one log and one
+set of permissions for comments, reviews and your own records. Content
+modules keep their own tables and read the item's status, so they hide what
+moderators hide without copying the decision.

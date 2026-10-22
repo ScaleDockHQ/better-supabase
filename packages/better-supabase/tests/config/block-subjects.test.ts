@@ -33,7 +33,7 @@ describe("withBlockSubjects", () => {
   it("registers the entities of the blocks a block requires", () => {
     expect(
       Object.keys(withBlockSubjects({}, ["inventory"], {})).toSorted(),
-    ).toEqual(["product", "product_variant"]);
+    ).toEqual(["ledger_account", "product", "product_variant"]);
   });
 
   it("names a renamed entity's subject, table and permission keys", () => {
