@@ -101,6 +101,35 @@ conversation (subject `conversation`) and pass their ids as `attachmentIds`;
 [reactions](/docs/blocks/reactions) block, every message carries its reaction
 summary.
 
+## Record mentions
+
+`@[Name](subject:<type>/<id>)` mentions a record registered in
+[`config.subjects`](/docs/blocks/sql#subject-registry), such as a deal or a
+customer, and renders as a chip. `recordMention(name, subject)` writes one,
+`mentionSegments(body)` splits a body into text, user, record and scope
+segments for rendering, and `parseMentions(body)` returns the mentioned
+users, records and scope.
+
+```ts
+import { recordMention } from "better-supabase/blocks/messaging";
+
+await messaging.send(launch.id, {
+  body: `Renewal is close on ${recordMention("Acme", { type: "deal", id: dealId })}`,
+});
+
+const backlinks = await messaging
+  .recordMentions({ type: "deal", id: dealId })
+  .orThrow();
+```
+
+`send` and `edit` index the record mentions of a message; an edit that drops
+one drops its backlink. `recordMentions(subject, { before, limit })` lists the
+messages that mention a record, newest first (default 50, at most 200), each
+with its conversation's `id`, `kind`, `title` and `subject`. It returns
+nothing to a caller who can't read the record, and only the messages in
+conversations the caller reads. A mention of an unregistered type stays plain
+text. `message.sent` carries the mentioned records as `recordMentions`.
+
 ## Notifications
 
 With the [notifications](/docs/blocks/notifications) block, sending a message

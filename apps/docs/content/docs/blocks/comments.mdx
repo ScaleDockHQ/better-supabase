@@ -167,6 +167,11 @@ await comments.create(subject, { body, document });
 await comments.edit(id, { body, document: null }); // null removes the document
 ```
 
+A comment can also mention another record as `@[Name](subject:<type>/<id>)`.
+Comments are messages, so the record lists the comment among its backlinks
+through `messaging.recordMentions`; see
+[record mentions](/docs/blocks/messaging#record-mentions).
+
 `options.mentionGroups` expands a mention of a group into its members. It
 names a table with one row per member of a group, the group and member
 columns, and optionally a tenant column that must match the comment's
