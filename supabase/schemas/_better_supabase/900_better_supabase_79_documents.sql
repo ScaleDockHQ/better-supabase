@@ -1271,7 +1271,7 @@ revoke execute on function "better_supabase"."compact_document"(uuid, text, bigi
 grant execute on function "better_supabase"."compact_document"(uuid, text, bigint) to authenticated, service_role;
 
 -- Documents with at least min_updates updates since their snapshot, for a
--- compaction sweep without the jobs module.
+-- compaction sweep without the queue block.
 create or replace function "better_supabase"."documents_to_compact"(min_updates integer default 200, max_documents integer default 50)
 returns uuid[]
 language sql

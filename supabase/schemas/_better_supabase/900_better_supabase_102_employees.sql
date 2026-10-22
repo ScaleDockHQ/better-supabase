@@ -558,7 +558,7 @@ set search_path = ''
 as $$
 declare
   v_application "better_supabase"."applications";
-  v_job "better_supabase"."jobs";
+  v_job "better_supabase"."job_openings";
   v_existing "better_supabase"."employees";
 begin
   select * into v_application from "better_supabase"."applications" x where x."id" = employee_from_application.application;
@@ -573,7 +573,7 @@ begin
   if v_application."state" <> 'hired' then
     raise exception 'only a hired application becomes an employee' using errcode = '55000', hint = 'EMPLOYEE_APPLICATION_NOT_HIRED';
   end if;
-  select * into v_job from "better_supabase"."jobs" x where x."id" = v_application."job_id";
+  select * into v_job from "better_supabase"."job_openings" x where x."id" = v_application."job_id";
   return "better_supabase"."create_employee"(v_application."tenant_id", jsonb_strip_nulls(jsonb_build_object(
       'name', (case v_application."candidate_type"
       when 'message' then (select s."body"::text from "better_supabase"."messages" s where s."id" = (v_application."candidate_id")::uuid)
