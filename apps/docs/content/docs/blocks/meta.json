@@ -88,6 +88,8 @@
     "segments",
     "assignment",
     "enrichment",
+    "forecasts",
+    "field-history",
     "collections",
     "deals",
     "work-items",
