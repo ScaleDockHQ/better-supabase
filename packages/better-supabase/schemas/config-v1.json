@@ -1764,6 +1764,7 @@
               "announcements",
               "api-keys",
               "approvals",
+              "assignment",
               "attachments",
               "audit",
               "billing",
@@ -1834,6 +1835,7 @@
               "rules",
               "saved-views",
               "search",
+              "segments",
               "service-principals",
               "sessions",
               "settings",
@@ -1912,6 +1914,9 @@
             },
             "approvals": {
               "$ref": "#/$defs/blocks/approvals"
+            },
+            "assignment": {
+              "$ref": "#/$defs/blocks/assignment"
             },
             "attachments": {
               "$ref": "#/$defs/blocks/attachments"
@@ -2122,6 +2127,9 @@
             },
             "search": {
               "$ref": "#/$defs/blocks/search"
+            },
+            "segments": {
+              "$ref": "#/$defs/blocks/segments"
             },
             "service-principals": {
               "$ref": "#/$defs/blocks/service-principals"
@@ -3405,6 +3413,17 @@
               "policies": {},
               "extraColumns": {}
             }
+          }
+        }
+      },
+      "assignment": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },
@@ -4906,6 +4925,21 @@
               "dimensions": {
                 "type": "number",
                 "default": 0
+              }
+            }
+          }
+        }
+      },
+      "segments": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxMembers": {
+                "type": "number"
               }
             }
           }
