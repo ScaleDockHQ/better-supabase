@@ -34,6 +34,9 @@ import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { GuestsEvents } from "better-supabase/blocks/guests";
 import type { PassesEvents } from "better-supabase/blocks/passes";
 import type { BillableTimeEvents } from "better-supabase/blocks/billable-time";
+import type { LeasesEvents } from "better-supabase/blocks/leases";
+import type { ExpensesEvents } from "better-supabase/blocks/expenses";
+import type { DonationsEvents } from "better-supabase/blocks/donations";
 import type { DispatchEvents } from "better-supabase/blocks/dispatch";
 import type { ShipmentsEvents } from "better-supabase/blocks/shipments";
 import type { DriveEvents } from "better-supabase/blocks/drive";
@@ -1128,7 +1131,7 @@ export type PermissionKey = "access_requests.create" | "access_requests.manage" 
 export type RoleName = "admin" | "member" | "owner";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & CommentsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & DispatchEvents & ShipmentsEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & CommentsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -1214,6 +1217,11 @@ export const blockEvents: Events<BlockEvents> = {
     "deal.updated",
     "dispatch_route.planned",
     "document.created",
+    "donation.failed",
+    "donation.received",
+    "donation.refunded",
+    "donation_receipt.issued",
+    "donation_receipt.voided",
     "drive.node_created",
     "drive.node_moved",
     "drive.node_purged",
@@ -1234,6 +1242,11 @@ export const blockEvents: Events<BlockEvents> = {
     "enrollment.step_completed",
     "enrollment_program.deleted",
     "enrollment_program.saved",
+    "expense_report.approved",
+    "expense_report.cancelled",
+    "expense_report.created",
+    "expense_report.reimbursed",
+    "expense_report.submitted",
     "field_value.set",
     "flag.deleted",
     "flag.override_set",
@@ -1275,6 +1288,12 @@ export const blockEvents: Events<BlockEvents> = {
     "invoice.voided",
     "job.closed",
     "job.opened",
+    "lease.activated",
+    "lease.charged",
+    "lease.created",
+    "lease.paid",
+    "lease.renewed",
+    "lease.terminated",
     "ledger_account.closed",
     "ledger_account.opened",
     "ledger_hold.captured",
@@ -1284,6 +1303,8 @@ export const blockEvents: Events<BlockEvents> = {
     "ledger_transaction.reversed",
     "legal_hold.placed",
     "legal_hold.released",
+    "maintenance_request.filed",
+    "maintenance_request.updated",
     "moderation_ban.created",
     "moderation_ban.lifted",
     "moderation_item.decided",
@@ -1339,6 +1360,8 @@ export const blockEvents: Events<BlockEvents> = {
     "pipeline_stage.saved",
     "platform_setting.reset",
     "platform_setting.updated",
+    "pledge.created",
+    "pledge.updated",
     "product.created",
     "product.deleted",
     "product.status_changed",
@@ -1550,6 +1573,11 @@ export const blockEventSchemas = {
   "deal.updated": true,
   "dispatch_route.planned": true,
   "document.created": true,
+  "donation.failed": true,
+  "donation.received": true,
+  "donation.refunded": true,
+  "donation_receipt.issued": true,
+  "donation_receipt.voided": true,
   "drive.node_created": true,
   "drive.node_moved": true,
   "drive.node_purged": true,
@@ -1570,6 +1598,11 @@ export const blockEventSchemas = {
   "enrollment.step_completed": true,
   "enrollment_program.deleted": true,
   "enrollment_program.saved": true,
+  "expense_report.approved": true,
+  "expense_report.cancelled": true,
+  "expense_report.created": true,
+  "expense_report.reimbursed": true,
+  "expense_report.submitted": true,
   "field_value.set": true,
   "flag.deleted": true,
   "flag.override_set": true,
@@ -1611,6 +1644,12 @@ export const blockEventSchemas = {
   "invoice.voided": true,
   "job.closed": true,
   "job.opened": true,
+  "lease.activated": true,
+  "lease.charged": true,
+  "lease.created": true,
+  "lease.paid": true,
+  "lease.renewed": true,
+  "lease.terminated": true,
   "ledger_account.closed": true,
   "ledger_account.opened": true,
   "ledger_hold.captured": true,
@@ -1620,6 +1659,8 @@ export const blockEventSchemas = {
   "ledger_transaction.reversed": true,
   "legal_hold.placed": true,
   "legal_hold.released": true,
+  "maintenance_request.filed": true,
+  "maintenance_request.updated": true,
   "moderation_ban.created": true,
   "moderation_ban.lifted": true,
   "moderation_item.decided": true,
@@ -1675,6 +1716,8 @@ export const blockEventSchemas = {
   "pipeline_stage.saved": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "pledge.created": true,
+  "pledge.updated": true,
   "product.created": true,
   "product.deleted": true,
   "product.status_changed": true,

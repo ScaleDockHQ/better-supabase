@@ -5539,6 +5539,91 @@ begin
 end;
 $function$;
 
+CREATE OR REPLACE FUNCTION better_supabase.role_permissions (
+  role text
+)
+  RETURNS text[]
+  LANGUAGE sql
+  IMMUTABLE
+  SET search_path TO ''
+  AS $function$
+  select case role
+    when 'owner' then array['*']
+    when 'admin' then array[
+      'customers.read', 'customers.write', 'reports.read',
+      'organization.read', 'organization.update',
+      'members.read', 'members.invite', 'members.remove', 'members.update_role',
+      'billing.read', 'billing.manage', 'audit.read',
+      'settings.read', 'settings.update', 'settings.manage',
+      'api_keys.manage', 'api_keys.own',
+      'comments.read', 'comments.create', 'comments.moderate', 'activity.read',
+      'tags.read', 'tags.apply', 'tags.manage',
+      'onboarding.read', 'onboarding.complete', 'usage.read', 'usage.record',
+      'search.read', 'metrics.read',
+      'notifications.send', 'notifications.read',
+      'workflow.read', 'workflow.run', 'workflow.edit', 'workflow.publish', 'workflow.admin',
+      'inbox.read', 'inbox.reply', 'inbox.assign', 'inbox.manage',
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'ai_chat.admin',
+      'ai.read', 'ai.create', 'ai.share', 'ai.admin',
+      'attachments.read', 'attachments.upload', 'attachments.manage', 'sso.manage',
+      'waitlist.manage', 'teams.read', 'teams.manage', 'catalog.read', 'catalog.manage',
+      'inventory.read', 'inventory.manage', 'inventory.reserve', 'inventory.purchase',
+      'orders.read', 'orders.manage', 'promotions.read', 'promotions.manage', 'custom_fields.read',
+      'custom_fields.manage', 'custom_fields.sensitive.read', 'share_links.read',
+      'share_links.create', 'reminders.read', 'reminders.manage', 'imports.manage',
+      'views.read', 'views.share', 'relations.read', 'relations.manage', 'bulk.run',
+      'calendar.read', 'calendar.write', 'calendar.manage', 'bookings.read', 'bookings.create',
+      'bookings.manage', 'versions.read', 'versions.create', 'versions.restore',
+      'versions.manage', 'trash.read', 'trash.create', 'trash.restore', 'trash.manage',
+      'reactions.read', 'reactions.create', 'reactions.manage', 'approvals.read',
+      'approvals.request', 'approvals.manage', 'access_requests.read', 'access_requests.create',
+      'access_requests.manage', 'documents.read', 'documents.write', 'documents.manage',
+      'drive.read', 'drive.create', 'drive.manage', 'forms.read', 'forms.submit',
+      'forms.review', 'forms.manage', 'templates.read', 'templates.apply', 'templates.manage',
+      'time_tracking.read', 'time_tracking.track', 'time_tracking.approve', 'time_tracking.manage',
+      'service_principals.read', 'service_principals.manage', 'pipelines.read',
+      'pipelines.manage', 'parties.read', 'parties.write', 'parties.manage', 'engagements.read',
+      'engagements.write', 'engagements.manage', 'deals.read', 'deals.write', 'deals.manage',
+      'work_items.read', 'work_items.write', 'work_items.manage', 'quotes.read',
+      'quotes.write', 'quotes.manage', 'invoices.read', 'invoices.write', 'invoices.manage',
+      'sla.read', 'sla.manage', 'targets.read', 'targets.manage', 'hiring.read',
+      'hiring.write', 'hiring.manage', 'employees.read', 'employees.write', 'employees.view_sensitive',
+      'webhooks.read', 'webhooks.manage', 'organization.export',
+      'rules.read', 'rules.edit', 'rules.publish', 'rules.admin',
+      'assets.read', 'assets.manage', 'assets.assign',
+      'scores.read', 'scores.manage', 'scores.compute',
+      'moderation.read', 'moderation.report', 'moderation.manage', 'moderation.ban',
+      'enrollments.read', 'enrollments.enroll', 'enrollments.manage',
+      'dispatch.read', 'dispatch.manage', 'dispatch.work', 'shipments.read', 'shipments.manage'
+    ]
+    when 'member' then array[
+      'customers.read', 'organization.read', 'members.read', 'billing.read',
+      'settings.read', 'api_keys.own', 'comments.read', 'comments.create', 'activity.read',
+      'tags.read', 'tags.apply', 'onboarding.read', 'usage.read', 'usage.record', 'search.read', 'metrics.read',
+      'notifications.send', 'notifications.read',
+      'workflow.read', 'workflow.run', 'inbox.read', 'inbox.reply',
+      'ai_chat.read', 'ai_chat.create', 'ai_chat.share',
+      'ai.read', 'ai.create', 'ai.share',
+      'attachments.read', 'attachments.upload', 'teams.read', 'catalog.read', 'inventory.read',
+      'orders.read', 'promotions.read', 'custom_fields.read', 'share_links.read',
+      'share_links.create', 'reminders.read', 'reminders.manage', 'views.read',
+      'views.share', 'relations.read', 'relations.manage', 'calendar.read', 'calendar.write',
+      'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'trash.read',
+      'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read',
+      'approvals.request', 'access_requests.read', 'access_requests.create', 'documents.read',
+      'documents.write', 'drive.read', 'drive.create', 'forms.read', 'forms.submit',
+      'templates.read', 'templates.apply', 'time_tracking.read', 'time_tracking.track',
+      'pipelines.read', 'parties.read', 'parties.write', 'engagements.read', 'engagements.write',
+      'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read',
+      'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'hiring.read',
+      'employees.read', 'rules.read', 'assets.read', 'scores.read',
+      'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit',
+      'dispatch.read', 'dispatch.work', 'shipments.read'
+    ]
+    else array[]::text[]
+  end
+$function$;
+
 CREATE OR REPLACE FUNCTION better_supabase.save_document_version (
   document_id uuid,
   state       text,
@@ -7715,6 +7800,41 @@ CREATE POLICY "activity_entries_read" ON "better_supabase"."activity_entries"
     (subject_type = ANY
     ('{comment,company,person,deal,engagement,work_item,employee,ledger_account,product,product_variant,calendar_event,asset,asset_location,lease,maintenance_request,expense_report,expense_line,donation_fund,work_order,shipment,document,customer,drive_node,application,project,task}'::text[]))) OR better_supabase.activity_subject_readable(subject_type, subject_id))));
 
+CREATE POLICY "dispatch_route_stops_read" ON "better_supabase"."dispatch_route_stops"
+  FOR SELECT
+  TO "authenticated"
+  USING ((tenant_id IN ( SELECT better_supabase.tenant_ids_with('dispatch.read'::text) AS tenant_ids_with)));
+
+CREATE POLICY "dispatch_routes_read" ON "better_supabase"."dispatch_routes"
+  FOR SELECT
+  TO "authenticated"
+  USING (((technician_id = ( SELECT auth.uid() AS uid)) OR (tenant_id IN ( SELECT better_supabase.tenant_ids_with('dispatch.read'::text) AS tenant_ids_with))));
+
+CREATE POLICY "shipment_packages_read" ON "better_supabase"."shipment_packages"
+  FOR SELECT
+  TO "authenticated"
+  USING ((tenant_id IN ( SELECT better_supabase.tenant_ids_with('shipments.read'::text) AS tenant_ids_with)));
+
+CREATE POLICY "shipment_tracking_events_read" ON "better_supabase"."shipment_tracking_events"
+  FOR SELECT
+  TO "authenticated"
+  USING ((tenant_id IN ( SELECT better_supabase.tenant_ids_with('shipments.read'::text) AS tenant_ids_with)));
+
+CREATE POLICY "shipments_read" ON "better_supabase"."shipments"
+  FOR SELECT
+  TO "authenticated"
+  USING ((tenant_id IN ( SELECT better_supabase.tenant_ids_with('shipments.read'::text) AS tenant_ids_with)));
+
+CREATE POLICY "work_order_parts_read" ON "better_supabase"."work_order_parts"
+  FOR SELECT
+  TO "authenticated"
+  USING ((tenant_id IN ( SELECT better_supabase.tenant_ids_with('dispatch.read'::text) AS tenant_ids_with)));
+
+CREATE POLICY "work_orders_read" ON "better_supabase"."work_orders"
+  FOR SELECT
+  TO "authenticated"
+  USING (((technician_id = ( SELECT auth.uid() AS uid)) OR (tenant_id IN ( SELECT better_supabase.tenant_ids_with('dispatch.read'::text) AS tenant_ids_with))));
+
 COMMENT ON FUNCTION "better_supabase"."dispatch_subject_merge"(text, text, text) IS 'better-supabase:subject-merge';
 
 COMMENT ON FUNCTION "better_supabase"."shipments_subject_merge"(text, text, text) IS 'better-supabase:subject-merge';
@@ -7903,16 +8023,30 @@ REVOKE ALL ON FUNCTION "better_supabase"."update_work_order"(uuid, text, text, t
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."update_work_order"(uuid, text, text, text, uuid, uuid, text) TO "authenticated", "service_role";
 
+GRANT SELECT ON TABLE "better_supabase"."dispatch_route_stops" TO "authenticated";
+
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."dispatch_route_stops" TO "service_role";
+
+GRANT SELECT ON TABLE "better_supabase"."dispatch_routes" TO "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."dispatch_routes" TO "service_role";
 
+GRANT SELECT ON TABLE "better_supabase"."shipment_packages" TO "authenticated";
+
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."shipment_packages" TO "service_role";
+
+GRANT SELECT ON TABLE "better_supabase"."shipment_tracking_events" TO "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."shipment_tracking_events" TO "service_role";
 
+GRANT SELECT ON TABLE "better_supabase"."shipments" TO "authenticated";
+
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."shipments" TO "service_role";
 
+GRANT SELECT ON TABLE "better_supabase"."work_order_parts" TO "authenticated";
+
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."work_order_parts" TO "service_role";
+
+GRANT SELECT ON TABLE "better_supabase"."work_orders" TO "authenticated";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "better_supabase"."work_orders" TO "service_role";

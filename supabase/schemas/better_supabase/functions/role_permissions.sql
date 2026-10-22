@@ -8,7 +8,8 @@
 -- read the settings, answer inbox conversations and use the assistant.
 -- Members also read every recipe block and do the everyday writes (react,
 -- upload, track time, request approval, report content, file maintenance
--- requests, submit expense reports); managing a block
+-- requests, submit expense reports, work the dispatch jobs scheduled for
+-- them); managing a block
 -- is for admins.
 -- Assigning conversations and managing inboxes is for admins. There are no
 -- platform roles, and nobody is disabled.
@@ -66,7 +67,8 @@ as $$
       'assets.read', 'assets.manage', 'assets.assign',
       'scores.read', 'scores.manage', 'scores.compute',
       'moderation.read', 'moderation.report', 'moderation.manage', 'moderation.ban',
-      'enrollments.read', 'enrollments.enroll', 'enrollments.manage'
+      'enrollments.read', 'enrollments.enroll', 'enrollments.manage',
+      'dispatch.read', 'dispatch.manage', 'dispatch.work', 'shipments.read', 'shipments.manage'
     ]
     when 'member' then array[
       'customers.read', 'organization.read', 'members.read', 'billing.read',
@@ -89,7 +91,8 @@ as $$
       'deals.read', 'deals.write', 'work_items.read', 'work_items.write', 'quotes.read',
       'quotes.write', 'invoices.read', 'sla.read', 'targets.read', 'hiring.read',
       'employees.read', 'rules.read', 'assets.read', 'scores.read',
-      'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit'
+      'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit',
+      'dispatch.read', 'dispatch.work', 'shipments.read'
     ]
     else array[]::text[]
   end

@@ -89,7 +89,11 @@ create index if not exists "work_orders_booking_idx" on "better_supabase"."work_
 create index if not exists "work_orders_subject_idx" on "better_supabase"."work_orders" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."work_orders" enable row level security;
 revoke all on "better_supabase"."work_orders" from anon, authenticated;
+grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
+drop policy if exists "work_orders_read" on "better_supabase"."work_orders";
+create policy "work_orders_read" on "better_supabase"."work_orders" for select to authenticated
+  using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
 create table if not exists "better_supabase"."dispatch_routes" (
@@ -105,7 +109,11 @@ create table if not exists "better_supabase"."dispatch_routes" (
 create index if not exists "dispatch_routes_technician_idx" on "better_supabase"."dispatch_routes" ("technician_id", "route_date");
 alter table "better_supabase"."dispatch_routes" enable row level security;
 revoke all on "better_supabase"."dispatch_routes" from anon, authenticated;
+grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
+drop policy if exists "dispatch_routes_read" on "better_supabase"."dispatch_routes";
+create policy "dispatch_routes_read" on "better_supabase"."dispatch_routes" for select to authenticated
+  using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 create table if not exists "better_supabase"."dispatch_route_stops" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -118,7 +126,11 @@ create table if not exists "better_supabase"."dispatch_route_stops" (
 create index if not exists "dispatch_route_stops_job_idx" on "better_supabase"."dispatch_route_stops" ("work_order_id");
 alter table "better_supabase"."dispatch_route_stops" enable row level security;
 revoke all on "better_supabase"."dispatch_route_stops" from anon, authenticated;
+grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
+drop policy if exists "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops";
+create policy "dispatch_route_stops_read" on "better_supabase"."dispatch_route_stops" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
 create table if not exists "better_supabase"."work_order_parts" (
@@ -140,7 +152,11 @@ create index if not exists "work_order_parts_variant_idx" on "better_supabase"."
 create index if not exists "work_order_parts_location_idx" on "better_supabase"."work_order_parts" ("location_id");
 alter table "better_supabase"."work_order_parts" enable row level security;
 revoke all on "better_supabase"."work_order_parts" from anon, authenticated;
+grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
+drop policy if exists "work_order_parts_read" on "better_supabase"."work_order_parts";
+create policy "work_order_parts_read" on "better_supabase"."work_order_parts" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 
 
 drop function if exists "better_supabase"."create_work_order"(uuid, text, text, text, uuid, uuid, uuid, text, text, text, uuid, timestamptz, timestamptz);

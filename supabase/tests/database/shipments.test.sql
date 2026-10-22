@@ -4,7 +4,7 @@
 -- (…00a2) reads shipments but can't create them, and Globex (…00b1) sees
 -- nothing.
 begin;
-select plan(20);
+select plan(21);
 
 select set_config(
   'request.jwt.claims',
@@ -156,10 +156,10 @@ select throws_ok(
   'a delivered shipment cannot be cancelled'
 );
 select throws_ok(
-  $$select count(*) from better_supabase.shipments$$,
+  $$update better_supabase.shipments set reference = reference$$,
   '42501',
   null,
-  'the shipments table is read through the functions only'
+  'the shipments table is written through the functions only'
 );
 
 reset role;
@@ -206,6 +206,11 @@ select is(
   better_supabase.get_shipment((current_setting('test.ship')::jsonb ->> 'id')::uuid),
   null,
   'another organization does not see the shipment'
+);
+select is(
+  (select count(*) from better_supabase.shipments),
+  0::bigint,
+  'another organization reads none of the shipments directly'
 );
 
 select * from finish();

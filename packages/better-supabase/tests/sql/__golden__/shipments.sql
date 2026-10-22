@@ -82,7 +82,11 @@ create index if not exists "shipments_subject_idx" on "better_supabase"."shipmen
 create index if not exists "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
 alter table "better_supabase"."shipments" enable row level security;
 revoke all on "better_supabase"."shipments" from anon, authenticated;
+grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
+drop policy if exists "shipments_read" on "better_supabase"."shipments";
+create policy "shipments_read" on "better_supabase"."shipments" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 create table if not exists "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -97,7 +101,11 @@ create table if not exists "better_supabase"."shipment_packages" (
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
 revoke all on "better_supabase"."shipment_packages" from anon, authenticated;
+grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
+drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
+create policy "shipment_packages_read" on "better_supabase"."shipment_packages" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 -- The tracking timeline. A carrier event id is recorded once per shipment, so
 -- a redelivered webhook or a repeated poll changes nothing.
 create table if not exists "better_supabase"."shipment_tracking_events" (
@@ -116,7 +124,11 @@ create table if not exists "better_supabase"."shipment_tracking_events" (
 create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "better_supabase"."shipment_tracking_events" enable row level security;
 revoke all on "better_supabase"."shipment_tracking_events" from anon, authenticated;
+grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
+drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
+create policy "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 
 drop function if exists "better_supabase"."create_shipment"(uuid, jsonb, jsonb, jsonb, text, uuid, text, text, jsonb);
 -- Creates a draft shipment in tenant from from_address to to_address with its
@@ -607,7 +619,11 @@ create index if not exists "shipments_subject_idx" on "better_supabase"."shipmen
 create index if not exists "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
 alter table "better_supabase"."shipments" enable row level security;
 revoke all on "better_supabase"."shipments" from anon, authenticated;
+grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
+drop policy if exists "shipments_read" on "better_supabase"."shipments";
+create policy "shipments_read" on "better_supabase"."shipments" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 create table if not exists "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -622,7 +638,11 @@ create table if not exists "better_supabase"."shipment_packages" (
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
 revoke all on "better_supabase"."shipment_packages" from anon, authenticated;
+grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
+drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
+create policy "shipment_packages_read" on "better_supabase"."shipment_packages" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 -- The tracking timeline. A carrier event id is recorded once per shipment, so
 -- a redelivered webhook or a repeated poll changes nothing.
 create table if not exists "better_supabase"."shipment_tracking_events" (
@@ -641,7 +661,11 @@ create table if not exists "better_supabase"."shipment_tracking_events" (
 create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "better_supabase"."shipment_tracking_events" enable row level security;
 revoke all on "better_supabase"."shipment_tracking_events" from anon, authenticated;
+grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
+drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
+create policy "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 do $$
 begin
   if not exists (
@@ -1184,7 +1208,11 @@ create index if not exists "shipments_subject_idx" on "app_private"."shipments" 
 create index if not exists "shipments_location_idx" on "app_private"."shipments" ("from_location_id");
 alter table "app_private"."shipments" enable row level security;
 revoke all on "app_private"."shipments" from anon, authenticated;
+grant select on "app_private"."shipments" to authenticated;
 grant all on "app_private"."shipments" to service_role;
+drop policy if exists "shipments_read" on "app_private"."shipments";
+create policy "shipments_read" on "app_private"."shipments" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 create table if not exists "app_private"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1199,7 +1227,11 @@ create table if not exists "app_private"."shipment_packages" (
 );
 alter table "app_private"."shipment_packages" enable row level security;
 revoke all on "app_private"."shipment_packages" from anon, authenticated;
+grant select on "app_private"."shipment_packages" to authenticated;
 grant all on "app_private"."shipment_packages" to service_role;
+drop policy if exists "shipment_packages_read" on "app_private"."shipment_packages";
+create policy "shipment_packages_read" on "app_private"."shipment_packages" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 -- The tracking timeline. A carrier event id is recorded once per shipment, so
 -- a redelivered webhook or a repeated poll changes nothing.
 create table if not exists "app_private"."shipment_tracking_events" (
@@ -1218,7 +1250,11 @@ create table if not exists "app_private"."shipment_tracking_events" (
 create index if not exists "shipment_tracking_events_timeline_idx" on "app_private"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "app_private"."shipment_tracking_events" enable row level security;
 revoke all on "app_private"."shipment_tracking_events" from anon, authenticated;
+grant select on "app_private"."shipment_tracking_events" to authenticated;
 grant all on "app_private"."shipment_tracking_events" to service_role;
+drop policy if exists "shipment_tracking_events_read" on "app_private"."shipment_tracking_events";
+create policy "shipment_tracking_events_read" on "app_private"."shipment_tracking_events" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 
 drop function if exists "app_private"."create_shipment"(uuid, jsonb, jsonb, jsonb, text, uuid, text, text, jsonb);
 -- Creates a draft shipment in tenant from from_address to to_address with its
@@ -1709,7 +1745,11 @@ create index if not exists "shipments_subject_idx" on "better_supabase"."shipmen
 create index if not exists "shipments_location_idx" on "better_supabase"."shipments" ("from_location_id");
 alter table "better_supabase"."shipments" enable row level security;
 revoke all on "better_supabase"."shipments" from anon, authenticated;
+grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
+drop policy if exists "shipments_read" on "better_supabase"."shipments";
+create policy "shipments_read" on "better_supabase"."shipments" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 create table if not exists "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1724,7 +1764,11 @@ create table if not exists "better_supabase"."shipment_packages" (
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
 revoke all on "better_supabase"."shipment_packages" from anon, authenticated;
+grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
+drop policy if exists "shipment_packages_read" on "better_supabase"."shipment_packages";
+create policy "shipment_packages_read" on "better_supabase"."shipment_packages" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 -- The tracking timeline. A carrier event id is recorded once per shipment, so
 -- a redelivered webhook or a repeated poll changes nothing.
 create table if not exists "better_supabase"."shipment_tracking_events" (
@@ -1743,7 +1787,11 @@ create table if not exists "better_supabase"."shipment_tracking_events" (
 create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
 alter table "better_supabase"."shipment_tracking_events" enable row level security;
 revoke all on "better_supabase"."shipment_tracking_events" from anon, authenticated;
+grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
+drop policy if exists "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events";
+create policy "shipment_tracking_events_read" on "better_supabase"."shipment_tracking_events" for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 
 drop function if exists "better_supabase"."create_shipment"(uuid, jsonb, jsonb, jsonb, text, uuid, text, text, jsonb);
 -- Creates a draft shipment in tenant from from_address to to_address with its

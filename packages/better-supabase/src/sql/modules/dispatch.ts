@@ -62,6 +62,8 @@ function tables(ctx: ModuleContext, extras: readonly ExtraColumn[]): string {
   const s = (column: string): string => ctx.col("stops", column);
   const q = (column: string): string => ctx.col("parts", column);
   const { assets, bookings, catalog, inventory } = linked(ctx);
+  const read = ctx.permission("read", moduleOperations("dispatch").read);
+  const readable = (tenant: string): string => ctx.scope.check(tenant, read);
 
   const index = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
@@ -176,7 +178,10 @@ create index if not exists ${index("workOrders", "location_idx")} on ${orders} (
 create index if not exists ${index("workOrders", "asset_idx")} on ${orders} (${w("asset")});
 create index if not exists ${index("workOrders", "booking_idx")} on ${orders} (${w("booking")});
 create index if not exists ${index("workOrders", "subject_idx")} on ${orders} (${w("tenant")}, ${w("subjectType")}, ${w("subjectId")});
-${lockTable(orders)}
+${lockTable(orders, { read: true })}
+drop policy if exists ${index("workOrders", "read")} on ${orders};
+create policy ${index("workOrders", "read")} on ${orders} for select to authenticated
+  using (${w("technician")} = (select auth.uid()) or ${readable(w("tenant"))});
 -- A technician's plan for one day: the work orders in the order they drive to
 -- them.
 create table if not exists ${routes} (
@@ -190,7 +195,10 @@ create table if not exists ${routes} (
   unique (${r("tenant")}, ${r("technician")}, ${r("routeDate")})
 );
 create index if not exists ${index("routes", "technician_idx")} on ${routes} (${r("technician")}, ${r("routeDate")});
-${lockTable(routes)}
+${lockTable(routes, { read: true })}
+drop policy if exists ${index("routes", "read")} on ${routes};
+create policy ${index("routes", "read")} on ${routes} for select to authenticated
+  using (${r("technician")} = (select auth.uid()) or ${readable(r("tenant"))});
 create table if not exists ${stops} (
   ${s("id")} uuid primary key default gen_random_uuid(),
   ${s("tenant")} ${ctx.idType} not null,
@@ -201,7 +209,10 @@ create table if not exists ${stops} (
   unique (${s("route")}, ${s("workOrder")})
 );
 create index if not exists ${index("stops", "job_idx")} on ${stops} (${s("workOrder")});
-${lockTable(stops)}
+${lockTable(stops, { read: true })}
+drop policy if exists ${index("stops", "read")} on ${stops};
+create policy ${index("stops", "read")} on ${stops} for select to authenticated
+  using (${readable(s("tenant"))});
 -- The parts a job used: free text, or an asset, or a catalog variant taken
 -- from an inventory location.
 create table if not exists ${parts} (
@@ -221,7 +232,10 @@ create index if not exists ${index("parts", "job_idx")} on ${parts} (${q("workOr
 create index if not exists ${index("parts", "asset_idx")} on ${parts} (${q("asset")});
 create index if not exists ${index("parts", "variant_idx")} on ${parts} (${q("variant")});
 create index if not exists ${index("parts", "location_idx")} on ${parts} (${q("location")});
-${lockTable(parts)}
+${lockTable(parts, { read: true })}
+drop policy if exists ${index("parts", "read")} on ${parts};
+create policy ${index("parts", "read")} on ${parts} for select to authenticated
+  using (${readable(q("tenant"))});
 ${keys}
 `;
 }

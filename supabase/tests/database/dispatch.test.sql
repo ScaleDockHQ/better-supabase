@@ -3,7 +3,7 @@
 -- (…00a2), who works them as the technician. The member can't create or cancel
 -- work orders, and Globex (…00b1) sees nothing.
 begin;
-select plan(21);
+select plan(22);
 
 insert into auth.users (id, email, email_confirmed_at, aud, role, instance_id) values
   ('00000000-0000-4000-8000-0000000000e1', 'outsider@example.test', now(), 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000');
@@ -180,10 +180,10 @@ select throws_ok(
   'only a dispatcher cancels'
 );
 select throws_ok(
-  $$select count(*) from better_supabase.work_orders$$,
+  $$update better_supabase.work_orders set title = title$$,
   '42501',
   null,
-  'the work orders table is read through the functions only'
+  'the work orders table is written through the functions only'
 );
 
 reset role;
@@ -209,6 +209,11 @@ select is(
   better_supabase.get_work_order((current_setting('test.first')::jsonb ->> 'id')::uuid),
   null,
   'another organization does not see the work order'
+);
+select is(
+  (select count(*) from better_supabase.work_orders),
+  0::bigint,
+  'another organization reads none of the work orders directly'
 );
 
 select * from finish();
