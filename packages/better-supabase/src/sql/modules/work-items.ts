@@ -17,6 +17,7 @@ import {
   triggerGrant,
 } from "../shared.ts";
 import { moduleOperations } from "./access-model.ts";
+import { checklistTable, workItemExtrasContract } from "./work-items-extras.ts";
 import { workItemFunctions } from "./work-items-functions.ts";
 
 const ITEM = [
@@ -60,6 +61,7 @@ const NAMES: ModuleNames = {
     },
     project: { table: "projects", singular: "project" },
     iteration: { table: "iterations", singular: "iteration" },
+    checklist_item: { table: "checklist", singular: "checklist_item" },
   },
   hooks: [
     "before_work_item_create",
@@ -98,9 +100,26 @@ const NAMES: ModuleNames = {
         locked: "locked",
         rank: "rank",
         archivedAt: "archived_at",
+        recursFrom: "recurs_from",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
+      },
+    },
+    checklist: {
+      name: "work_item_checklist_items",
+      lifecycle: { tenant: "tenant", user: "createdBy", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        item: "work_item_id",
+        title: "title",
+        done: "done",
+        doneAt: "done_at",
+        doneBy: "done_by",
+        rank: "rank",
+        createdBy: "created_by",
+        createdAt: "created_at",
       },
     },
     assignees: {
@@ -257,7 +276,7 @@ create table if not exists ${t("assignees")} (
 create index if not exists ${ctx.naming.rename("work_item_assignees_user_idx")} on ${t("assignees")} (${a("user")});
 ${lockTable(t("assignees"), { read: true })}
 ${read("assignees")}
-`;
+${checklistTable(ctx, n)}`;
 }
 
 /**
@@ -417,6 +436,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
           },
         ]
       : []),
+    ...workItemExtrasContract(ctx),
   ];
 }
 
@@ -429,10 +449,24 @@ export const WORK_ITEMS: ModuleDefinition = {
   requires: ["tenant", "access", "subjects", "pipelines"],
   // The pipelines module binds the work_items table, so the table comes first.
   before: "pipelines",
-  integrates: ["outbox", "notifications", "number-sequences"],
+  integrates: [
+    "outbox",
+    "notifications",
+    "number-sequences",
+    "attachments",
+    "reminders",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Work items gain checklists, recurrence (recurs_from), watchers and attachments on create and update.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

@@ -1260,18 +1260,20 @@ export interface BlockNameRegistry {
   };
   readonly "work-items": {
     readonly tables: {
-      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "recursFrom" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "checklist": "id" | "tenant" | "item" | "title" | "done" | "doneAt" | "doneBy" | "rank" | "createdBy" | "createdAt";
       readonly "assignees": "tenant" | "item" | "user" | "createdAt";
       readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
     };
-    readonly functions: "archive_work_item" | "create_work_item" | "delete_work_item" | "list_work_items" | "save_iteration" | "save_project" | "set_work_item_assignees" | "update_work_items" | "work_item_tree";
+    readonly functions: "archive_work_item" | "create_work_item" | "delete_work_item" | "delete_work_item_checklist_item" | "get_work_item" | "list_work_item_checklist" | "list_work_items" | "save_iteration" | "save_project" | "save_work_item_checklist_item" | "set_work_item_assignees" | "update_work_items" | "work_item_tree";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_work_item_create" | "after_work_item_create" | "before_work_item_update" | "after_work_item_update";
     readonly entities: {
-      readonly "work_item": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "work_item": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "recurs_from" | "created_by" | "created_at" | "updated_at";
       readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_user_id" | "status" | "start_on" | "target_on" | "archived_at" | "created_at" | "updated_at";
       readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "created_at";
+      readonly "checklist_item": "id" | "tenant_id" | "work_item_id" | "title" | "done" | "done_at" | "done_by" | "rank" | "created_by" | "created_at";
     };
     readonly primary: "work_item";
   };

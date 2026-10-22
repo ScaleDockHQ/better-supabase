@@ -35,6 +35,7 @@ export const workItemInputSchema: EntitySchema<WorkItemInput> =
       dueAt: { kind: "instant", optional: true },
       pipelineId: { kind: "uuid", optional: true },
       stageId: { kind: "uuid", optional: true },
+      attachmentIds: { kind: "uuid", optional: true, array: true },
       fields: {
         kind: "json",
         optional: true,

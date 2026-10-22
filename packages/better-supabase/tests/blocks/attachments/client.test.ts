@@ -33,7 +33,10 @@ function setup(
   });
 
   const queue = [...scans];
-  const next = () => resolved(queue.shift() ?? { status: "clean" });
+
+  const next = () =>
+    resolved<AttachmentScanState>(queue.shift() ?? { status: "clean" });
+
   const confirm = vi.fn((_id: string) => next());
   const refresh = vi.fn((_id: string) => next());
 

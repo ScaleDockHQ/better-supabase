@@ -4,6 +4,7 @@ import type { WorkItemsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { workItemsEvents } from "./events.ts";
 import { workItemsSqlOptions } from "./options.ts";
+import { workItemRecurrenceSink } from "./recurrence.ts";
 import {
   workItemChangeSchema,
   workItemInputSchema,
@@ -15,12 +16,15 @@ import { createWorkItems } from "./work-items.ts";
 export const workItemsBlock: BlockOf<
   "work-items",
   typeof createWorkItems,
-  WorkItemsEvents
+  WorkItemsEvents,
+  Record<never, never>,
+  "sink"
 > = defineBlock({
   name: "work-items",
   sql: ["work-items"],
   options: { "work-items": workItemsSqlOptions },
   events: workItemsEvents,
+  provides: { sink: (client) => workItemRecurrenceSink(client) },
   create: createWorkItems,
   category: "work",
   recipes: ["work-item-board", "work-item-grid"],

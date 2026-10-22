@@ -6981,12 +6981,14 @@
       "createWorkItems",
       "dbTransport",
       "extendBlock",
+      "nextWorkItemOccurrence",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
       "workItemChangeSchema",
       "workItemInputSchema",
       "workItemListFilterSchema",
+      "workItemRecurrenceSink",
       "workItemsBlock",
       "workItemsEvents",
       "wrapTransport"
@@ -6995,6 +6997,8 @@
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
+      "ChecklistItem",
+      "ChecklistItemInput",
       "CloseReason",
       "Iteration",
       "Project",
@@ -7006,10 +7010,14 @@
       "WorkItemInput",
       "WorkItemListOptions",
       "WorkItemNode",
+      "WorkItemRecurrence",
+      "WorkItemRecurrenceSinkOptions",
       "WorkItems",
       "WorkItemsEvents",
       "WorkItemsOptions",
-      "WorkItemState"
+      "WorkItemState",
+      "WorkItemWatcher",
+      "WorkItemWatchLevel"
     ]
   },
   "./blocks/quotes": {

@@ -2115,7 +2115,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "notifications",
-        "number-sequences"
+        "number-sequences",
+        "attachments",
+        "reminders"
       ],
       "manifest": "work-items",
       "scopes": [
@@ -2158,6 +2160,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "iteration": {
             "table": "iterations",
             "singular": "iteration"
+          },
+          "checklist_item": {
+            "table": "checklist",
+            "singular": "checklist_item"
           }
         },
         "tables": {
@@ -2189,6 +2195,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "locked": "locked",
               "rank": "rank",
               "archivedAt": "archived_at",
+              "recursFrom": "recurs_from",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -2219,6 +2226,21 @@ export const PRESET_CATALOG: PresetCatalog = {
               "name": "name",
               "startsOn": "starts_on",
               "endsOn": "ends_on",
+              "createdAt": "created_at"
+            }
+          },
+          "checklist": {
+            "name": "work_item_checklist_items",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "item": "work_item_id",
+              "title": "title",
+              "done": "done",
+              "doneAt": "done_at",
+              "doneBy": "done_by",
+              "rank": "rank",
+              "createdBy": "created_by",
               "createdAt": "created_at"
             }
           }
@@ -6607,8 +6629,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/work-items"
       },
       "consumes": {},
-      "provides": [],
+      "provides": [
+        "sink"
+      ],
       "entityTypes": [
+        {
+          "name": "ChecklistItem"
+        },
+        {
+          "name": "ChecklistItemInput"
+        },
         {
           "name": "Iteration"
         },
@@ -6640,6 +6670,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "WorkItemNode"
         },
         {
+          "name": "WorkItemRecurrence"
+        },
+        {
+          "name": "WorkItemRecurrenceSinkOptions"
+        },
+        {
           "name": "WorkItems",
           "fields": true
         },
@@ -6651,6 +6687,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "WorkItemState"
+        },
+        {
+          "name": "WorkItemWatcher"
+        },
+        {
+          "name": "WorkItemWatchLevel"
         }
       ],
       "entitySchemas": {
@@ -6720,6 +6762,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "uuid",
                 "optional": true
               },
+              "attachmentIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
               "fields": {
                 "kind": "json",
                 "optional": true,
@@ -6788,6 +6835,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "stageId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "attachmentIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
                 },
                 "fields": {
                   "description": "The extra columns to set."

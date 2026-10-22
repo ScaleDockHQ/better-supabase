@@ -18,6 +18,7 @@ import {
   applyTemporal,
   blockCall,
   enumOrThrow,
+  isRecord,
   optionalInstant,
   optionalText,
   recordOf,
@@ -77,6 +78,12 @@ export interface WorkItem<F extends object = Record<never, never>> {
   readonly locked: boolean;
   readonly rank: string;
   readonly assigneeIds: readonly string[];
+  /** How many checklist items it has, and how many are done. */
+  readonly checklist: { readonly total: number; readonly done: number };
+  /** Its repeat rule, with the reminders block. */
+  readonly recurrence?: WorkItemRecurrence;
+  /** The item this one repeats. */
+  readonly recursFromId?: string;
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
   readonly archived: boolean;
@@ -99,6 +106,11 @@ export interface WorkItemInput<F extends object = Record<never, never>> {
   readonly dueAt?: Temporal.Instant;
   readonly pipelineId?: string;
   readonly stageId?: string;
+  /**
+   * Files to attach: ids of your own attachments in the organization that have
+   * no subject yet, such as uploads made before the item existed.
+   */
+  readonly attachmentIds?: readonly string[];
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
 }
@@ -117,7 +129,41 @@ export type WorkItemField =
   | "endAt"
   | "dueAt"
   | "stageId"
-  | "closeReason";
+  | "closeReason"
+  | "attachments";
+
+/** A work item's repeat rule: an RFC 5545 RRULE from `dtstart` in `tzid`. */
+export interface WorkItemRecurrence {
+  readonly rrule: string;
+  readonly tzid: string;
+  readonly dtstart: Temporal.Instant;
+}
+
+export interface ChecklistItem {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly title: string;
+  readonly done: boolean;
+  readonly doneAt?: Temporal.Instant;
+  readonly doneBy?: string;
+  readonly rank: string;
+  readonly createdAt: Temporal.Instant;
+}
+
+export interface ChecklistItemInput {
+  readonly title?: string;
+  readonly done?: boolean;
+  /** A rank key; a new item without one goes last. */
+  readonly rank?: string;
+}
+
+/** `all` watches, `participating` follows, `ignore` mutes. */
+export type WorkItemWatchLevel = "all" | "participating" | "ignore";
+
+export interface WorkItemWatcher {
+  readonly userId: string;
+  readonly level: Exclude<WorkItemWatchLevel, "ignore">;
+}
 
 /**
  * One cell edit or drag: a built-in field or an extra column. `null` clears the
@@ -208,6 +254,32 @@ export interface WorkItems<F extends object = Record<never, never>> {
   archive(workItemId: string, archived?: boolean): AsyncResult<boolean>;
   remove(workItemId: string): AsyncResult<boolean>;
   tree(rootId: string): AsyncResult<WorkItemNode[]>;
+  /** One item you can read, or `undefined`. */
+  get(workItemId: string): AsyncResult<WorkItem<F> | undefined>;
+  checklist(workItemId: string): AsyncResult<ChecklistItem[]>;
+  /** Adds a checklist item, or changes the one `checklistItemId` names. */
+  saveChecklistItem(
+    workItemId: string,
+    input: ChecklistItemInput,
+    checklistItemId?: string,
+  ): AsyncResult<ChecklistItem>;
+  removeChecklistItem(checklistItemId: string): AsyncResult<boolean>;
+  /**
+   * Makes the item repeat (`null` stops it). Needs the reminders block;
+   * `workItemRecurrenceSink` creates the next item when one is completed.
+   */
+  setRecurrence(
+    workItemId: string,
+    rule: { readonly rrule: string; readonly tzid?: string } | null,
+  ): AsyncResult<WorkItemRecurrence | undefined>;
+  /** Creates the next item of a repeating one. Service only, idempotent. */
+  repeat(workItemId: string, dueAt: Temporal.Instant): AsyncResult<WorkItem<F>>;
+  /** Watches, follows or mutes an item (`null` clears). Needs notifications. */
+  watch(
+    workItemId: string,
+    level: WorkItemWatchLevel | null,
+  ): AsyncResult<boolean>;
+  watchers(workItemId: string): AsyncResult<WorkItemWatcher[]>;
   list(
     organizationId: string,
     options?: WorkItemListOptions,
@@ -290,6 +362,9 @@ const KNOWN = new Set([
   "locked",
   "rank",
   "archived_at",
+  "recurs_from",
+  "checklist",
+  "recurrence",
   "created_by",
   "created_at",
   "updated_at",
@@ -361,6 +436,9 @@ function itemOf(value: unknown): WorkItem {
     assigneeIds: Array.isArray(row["assignees"])
       ? row["assignees"].map(String)
       : [],
+    checklist: checklistSummaryOf(row["checklist"]),
+    recurrence: recurrenceOf(row["recurrence"]),
+    recursFromId: optionalText(row["recurs_from"]),
     fields: Object.fromEntries(
       Object.entries(row).filter(([key]) => !KNOWN.has(key)),
     ),
@@ -368,6 +446,52 @@ function itemOf(value: unknown): WorkItem {
     createdAt: requiredInstant(row["created_at"], "createdAt"),
     updatedAt: requiredInstant(row["updated_at"], "updatedAt"),
   });
+}
+
+function checklistSummaryOf(value: unknown): WorkItem["checklist"] {
+  const row = isRecord(value) ? value : {};
+
+  return { total: num(row["total"]) ?? 0, done: num(row["done"]) ?? 0 };
+}
+
+function recurrenceOf(value: unknown): WorkItemRecurrence | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    rrule: textOf(value["rrule"]),
+    tzid: textOf(value["tzid"]),
+    dtstart: requiredInstant(value["dtstart"], "dtstart"),
+  };
+}
+
+function checklistItemOf(value: unknown): ChecklistItem {
+  const row = recordOf(value, "checklist item");
+
+  return compact<ChecklistItem>({
+    id: textOf(row["id"]),
+    workItemId: textOf(row["workItemId"]),
+    title: textOf(row["title"]),
+    done: row["done"] === true,
+    doneAt: optionalInstant(row["doneAt"]),
+    doneBy: optionalText(row["doneBy"]),
+    rank: textOf(row["rank"]),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+  });
+}
+
+function watcherOf(value: unknown): WorkItemWatcher {
+  const row = recordOf(value, "watcher");
+
+  return {
+    userId: textOf(row["userId"]),
+    level: enumOrThrow(
+      row["level"],
+      ["all", "participating"] as const,
+      "watch level",
+    ),
+  };
 }
 
 function nodeOf(value: unknown): WorkItemNode {
@@ -455,7 +579,7 @@ export function createWorkItems<
 
   const client: WorkItems<F> = {
     create: (organizationId, input, assigneeIds) => {
-      const { fields: extra, ...attrs } = input;
+      const { fields: extra, attachmentIds, ...attrs } = input;
 
       return fields
         .args(extra)
@@ -466,6 +590,9 @@ export function createWorkItems<
               tenant: organizationId,
               attrs: {
                 ...args(attrs),
+                ...(attachmentIds === undefined
+                  ? {}
+                  : { attachments: [...attachmentIds] }),
                 ...(checked === undefined ? {} : { fields: checked }),
               },
               assignees: assigneeIds === undefined ? null : [...assigneeIds],
@@ -540,6 +667,58 @@ export function createWorkItems<
     tree: (rootId) =>
       call("work_item_tree", { root: rootId }, (value) =>
         recordsOf(value, "work_item_tree").map(nodeOf),
+      ),
+    get: (workItemId) =>
+      call("get_work_item", { work_item: workItemId }, (value) =>
+        value === null || value === undefined ? undefined : itemOf(value),
+      ).andThen((item) =>
+        item === undefined ? AsyncResult.ok(undefined) : fields.row(item),
+      ),
+    checklist: (workItemId) =>
+      call("list_work_item_checklist", { work_item: workItemId }, (value) =>
+        recordsOf(value, "list_work_item_checklist").map(checklistItemOf),
+      ),
+    saveChecklistItem: (workItemId, input, checklistItemId) =>
+      call(
+        "save_work_item_checklist_item",
+        {
+          work_item: workItemId,
+          checklist_item: checklistItemId ?? null,
+          attrs: input,
+        },
+        checklistItemOf,
+      ),
+    removeChecklistItem: (checklistItemId) =>
+      call(
+        "delete_work_item_checklist_item",
+        { checklist_item: checklistItemId },
+        (value) => value === true,
+      ),
+    setRecurrence: (workItemId, rule) =>
+      call(
+        "set_work_item_recurrence",
+        {
+          work_item: workItemId,
+          rrule: rule?.rrule ?? null,
+          tzid: rule?.tzid ?? "UTC",
+        },
+        recurrenceOf,
+      ),
+    repeat: (workItemId, dueAt) =>
+      call(
+        "repeat_work_item",
+        { work_item: workItemId, due_at: dueAt.toString() },
+        itemOf,
+      ).andThen(fields.row),
+    watch: (workItemId, level) =>
+      call(
+        "watch_work_item",
+        { work_item: workItemId, level },
+        (value) => value === true,
+      ),
+    watchers: (workItemId) =>
+      call("list_work_item_watchers", { work_item: workItemId }, (value) =>
+        recordsOf(value, "list_work_item_watchers").map(watcherOf),
       ),
     list: (organizationId, list = {}) => {
       const { search, after, limit, ...filter } = list;
