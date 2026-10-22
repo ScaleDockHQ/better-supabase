@@ -394,6 +394,29 @@ msgctxt "shop.kZCZuj"
 msgid "Stock per product and location. Adjust a count after a delivery or a stocktake."
 msgstr "Voorraad per product en locatie. Pas een aantal aan na een levering of een inventarisatie."
 
+#: src/app/[locale]/(app)/shop/kitchen/board/page.tsx
+#: src/app/[locale]/(app)/shop/kitchen/page.tsx
+msgctxt "shop.OHCfOg"
+msgid "Order board"
+msgstr "Bestellingenbord"
+
+#: src/app/[locale]/(app)/shop/kitchen/board/page.tsx
+msgctxt "shop.28eybb"
+msgid "Today's kitchen orders by state. Drag an order forward to move all of its lines."
+msgstr "De keukenbestellingen van vandaag per status. Sleep een bestelling verder om al haar regels mee te verplaatsen."
+
+#: src/app/[locale]/(app)/shop/kitchen/board/page.tsx
+#: src/app/[locale]/(app)/shop/kitchen/page.tsx
+#: src/app/[locale]/(app)/shop/page.tsx
+msgctxt "shop.uwVj77"
+msgid "Kitchen"
+msgstr "Keuken"
+
+#: src/app/[locale]/(app)/shop/kitchen/page.tsx
+msgctxt "shop.dHqIrB"
+msgid "The open tickets at each station. Move a ticket along as it's prepared."
+msgstr "De open bonnen per station. Zet een bon verder terwijl hij wordt bereid."
+
 #: src/app/[locale]/(app)/shop/orders/[id]/page.tsx
 msgctxt "shop.lNZuWl"
 msgid "All orders"
@@ -8580,6 +8603,8 @@ msgid "The stock levels didn't load"
 msgstr "De voorraadniveaus zijn niet geladen"
 
 #: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
@@ -8588,6 +8613,8 @@ msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
 #: src/features/shop/components/inventory-table.tsx
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
@@ -8666,6 +8693,105 @@ msgctxt "shop.ED7X19"
 msgid "In stock"
 msgstr "Op voorraad"
 
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.Kb1t2A"
+msgid "The kitchen didn't load"
+msgstr "De keuken is niet geladen"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.m7hs5E"
+msgid "Stations"
+msgstr "Stations"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.kpZZ7x"
+msgid "All stations"
+msgstr "Alle stations"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.ckrEp1"
+msgid "No open tickets"
+msgstr "Geen open bonnen"
+
+#: src/features/shop/components/kitchen-display.tsx
+msgctxt "shop.-q8LW3"
+msgid "Send a paid order to the kitchen and its lines show up here."
+msgstr "Stuur een betaalde bestelling naar de keuken, dan verschijnen haar regels hier."
+
+#: src/features/shop/components/kitchen-display.tsx
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.39vjfP"
+msgid "Open orders"
+msgstr "Open bestellingen"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.Cnm0QA"
+msgid "Queued"
+msgstr "In de wachtrij"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.n09Z0M"
+msgid "Preparing"
+msgstr "In bereiding"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.IZFEUg"
+msgid "Ready"
+msgstr "Klaar"
+
+#: src/features/shop/components/kitchen-labels.ts
+msgctxt "shop.1UpQL6"
+msgid "Served"
+msgstr "Uitgeserveerd"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.mOFG3K"
+msgid "Start"
+msgstr "Starten"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.O2X2mS"
+msgid "Mark ready"
+msgstr "Klaar melden"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.Ce-KSx"
+msgid "Serve"
+msgstr "Serveren"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+#: src/features/shop/components/order-detail.tsx
+#: src/features/shop/components/order-list.tsx
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.HQo5qK"
+msgid "Order {number}"
+msgstr "Bestelling {number}"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.G5YxOb"
+msgid "Sent at {time}"
+msgstr "Verstuurd om {time}"
+
+#: src/features/shop/components/kitchen-ticket.tsx
+msgctxt "shop.yv-FF_"
+msgid "Move {title} to {state}"
+msgstr "{title} naar {state} verplaatsen"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.yUcWBK"
+msgid "The board didn't load"
+msgstr "Het bord is niet geladen"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.YOvr0P"
+msgid "Nothing in the kitchen today"
+msgstr "Vandaag niets in de keuken"
+
+#: src/features/shop/components/order-board.tsx
+msgctxt "shop.Kj8l4l"
+msgid "Orders show up here once they're sent to the kitchen."
+msgstr "Bestellingen verschijnen hier zodra ze naar de keuken zijn gestuurd."
+
 #: src/features/shop/components/order-detail.tsx
 msgctxt "shop.kYqrr0"
 msgid "The order didn't load"
@@ -8705,12 +8831,6 @@ msgstr "Verzending"
 msgctxt "shop.AwzkSM"
 msgid "Tax"
 msgstr "Btw"
-
-#: src/features/shop/components/order-detail.tsx
-#: src/features/shop/components/order-list.tsx
-msgctxt "shop.HQo5qK"
-msgid "Order {number}"
-msgstr "Bestelling {number}"
 
 #: src/features/shop/components/order-detail.tsx
 #: src/features/shop/components/order-list.tsx
@@ -8862,6 +8982,21 @@ msgctxt "shop.zL6NHU"
 msgid "Not placed"
 msgstr "Niet geplaatst"
 
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.OK8i3s"
+msgid "{ready, number} of {lines, number} ready, sent at {time}"
+msgstr "{ready, number} van {lines, number} klaar, verstuurd om {time}"
+
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.Yrt5OC"
+msgid "An order only moves forward on this board."
+msgstr "Op dit bord gaat een bestelling alleen vooruit."
+
+#: src/features/shop/components/order-state-board.tsx
+msgctxt "shop.agJ_Ux"
+msgid "No orders here."
+msgstr "Geen bestellingen hier."
+
 #: src/features/shop/components/order-status-badge.tsx
 #: src/features/shop/components/product-catalog-grid.tsx
 msgctxt "shop.W6nwjo"
@@ -8924,6 +9059,16 @@ msgid "Marked as delivered"
 msgstr "Gemarkeerd als bezorgd"
 
 #: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.IBEhkd"
+msgid "Already in the kitchen"
+msgstr "Al in de keuken"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop._bAyIb"
+msgid "{count, plural, one {# line} other {# lines}} sent to the kitchen"
+msgstr "{count, plural, one {# regel} other {# regels}} naar de keuken gestuurd"
+
+#: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.01-5kQ"
 msgid "Mark as paid"
 msgstr "Markeren als betaald"
@@ -8937,6 +9082,11 @@ msgstr "Bestelling annuleren"
 msgctxt "shop.BR3V4w"
 msgid "Create fulfillment"
 msgstr "Afhandeling aanmaken"
+
+#: src/features/shop/components/order-transitions.tsx
+msgctxt "shop.8xFh5A"
+msgid "Send to kitchen"
+msgstr "Naar de keuken sturen"
 
 #: src/features/shop/components/order-transitions.tsx
 msgctxt "shop.paB5lo"
