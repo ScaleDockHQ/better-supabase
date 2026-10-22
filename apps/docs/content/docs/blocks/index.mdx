@@ -174,6 +174,7 @@ expose the module schema itself.
 | [Custom domains](/docs/blocks/domains)                      | `better-supabase/blocks/domains`                                                                                                   | `domains`                              |
 | [Reviews](/docs/blocks/reviews)                             | `better-supabase/blocks/reviews`                                                                                                   | `reviews`                              |
 | [Moderation](/docs/blocks/moderation)                       | `better-supabase/blocks/moderation`                                                                                                | `moderation`                           |
+| [Enrollments](/docs/blocks/enrollments)                     | `better-supabase/blocks/enrollments`                                                                                               | `enrollments`                          |
 | [Leave](/docs/blocks/leave)                                 | `better-supabase/blocks/leave`                                                                                                     | `leave`                                |
 | [Rules](/docs/blocks/rules)                                 | `better-supabase/blocks/rules`                                                                                                     | `rules`                                |
 | [Scores](/docs/blocks/scores)                               | `better-supabase/blocks/scores`                                                                                                    | `scores`                               |
@@ -239,7 +240,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `attachments`        | `tenant`, `access`                          | `profiles`                                                                                                                                       |
 | `data-lifecycle`     | `tenant`, `access`                          | every installed module                                                                                                                           |
 | `sso`                | `tenant`, `access`                          | `organizations`, `data-lifecycle`                                                                                                                |
-| `onboarding`         | `tenant`, `access`                          | `outbox`                                                                                                                                         |
+| `onboarding`         | `tenant`, `access`, `enrollments`           | `outbox`                                                                                                                                         |
 | `waitlist`           | `tenant`, `access`                          | `invitations`, `organizations`                                                                                                                   |
 | `announcements`      | `tenant`, `access`                          | `entitlements`                                                                                                                                   |
 | `streams`            | none                                        | none                                                                                                                                             |
@@ -318,6 +319,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `ledger`             | `tenant`, `access`                          | `outbox`, `audit`                                                                                                                                |
 | `assets`             | `tenant`, `access`                          | `bookings`, `work-items`, `outbox`, `audit`                                                                                                      |
 | `scores`             | `tenant`, `access`, `rules`                 | `reactions`, `outbox`, `audit`                                                                                                                   |
+| `enrollments`        | `tenant`, `access`                          | `outbox`, `audit`                                                                                                                                |
 | `ensure-rls`         | none                                        | none                                                                                                                                             |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

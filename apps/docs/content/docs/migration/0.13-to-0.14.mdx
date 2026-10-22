@@ -163,3 +163,27 @@ Installing moderation shifts the later better-supabase module files in
 `supabase/schemas/_better_supabase` by one number. Run `better-supabase sql
 sync`, delete the files with the old numbers, and confirm with
 `better-supabase sql sync --check`.
+
+## Onboarding runs on enrollments
+
+[Onboarding](/docs/blocks/onboarding) checklists now run on the
+[enrollments](/docs/blocks/enrollments) block, so the onboarding block
+requires it. Add `enrollments: {}` to `blocks` in `better-supabase.config.ts`.
+Grant `enrollments.read` to roles that should see onboarding next to other
+enrollments; onboarding itself still checks `onboarding.read` and
+`onboarding.complete`.
+
+Run `better-supabase sql upgrade`. The upgrade creates an enrollment in the
+program `onboarding:<checklist>` for each checklist and subject (the
+organization for an organization checklist, the user for a user checklist),
+copies each completed step with who completed it and when, marks
+enrollments with every step done as `completed`, and drops
+`onboarding_progress`.
+
+`createOnboarding`, `useOnboarding` and the `onboarding_progress`,
+`complete_onboarding_step` and `reset_onboarding_step` functions work as
+before. Queries that read the `onboarding_progress` table read
+`enrollment_steps` joined to `enrollments` instead, where `program` is
+`'onboarding:' || checklist`. A seed that inserted into `onboarding_progress`
+calls `complete_onboarding_step` as the user instead. With `blocks.onboarding.mode: "custom"`, the
+upgrade leaves your table alone.

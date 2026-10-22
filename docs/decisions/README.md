@@ -74,3 +74,4 @@ add one, and link it from the code or config it explains.
 | [0066](0066-assets-optional-postgis.md)                   | Assets store coordinates as numbers; PostGIS geography points, areas and GiST indexes are an option                            |
 | [0067](0067-votes-and-score-models.md)                    | Votes are reactions of kind `vote` with a score per subject; scores come from versioned, tenant-editable models                |
 | [0073](0073-moderation-items-for-any-subject.md)          | One moderation item per subject with reports, decisions and bans; reviews and comments moderate through it                     |
+| [0074](0074-enrollments-and-onboarding.md)                | Enrollments of any subject in programs of steps; onboarding checklists run on them (breaking)                                  |

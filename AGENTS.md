@@ -185,6 +185,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0066: `assets` stores coordinates as numbers; PostGIS geography columns and area lookups are the `postgis` option.
 - 0067: votes are reactions of kind `vote`; `scores` computes versioned scores from tenant-editable models (breaking).
 - 0073: one moderation item per subject; reviews and comments moderate through `moderation` (breaking).
+- 0074: `enrollments` tracks subjects through programs of steps; onboarding checklists run on it (breaking).
 
 ## Pre-release pins
 

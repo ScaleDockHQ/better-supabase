@@ -58,6 +58,7 @@
   "blocks/drive",
   "blocks/employees",
   "blocks/engagements",
+  "blocks/enrollments",
   "blocks/entitlements",
   "blocks/entity-forms",
   "blocks/flags",

@@ -1,0 +1,163 @@
+---
+title: Enrollments
+description: Programs of steps per organization, and enrollments of a party, a member or any record in them with step progress and completion. Onboarding checklists run on it.
+---
+
+`enrollments` keeps programs of ordered steps per organization and enrolls
+subjects in them: a party in a customer onboarding plan, a member in a
+training path, or any record your app owns. Each enrollment tracks which
+steps are done, completes when the last one is, and can be cancelled while
+it is active. [Onboarding](/docs/blocks/onboarding) checklists run on the
+same tables.
+
+Reading programs and enrollments needs `enrollments.read`, enrolling and
+changing an enrollment needs `enrollments.enroll`, and managing programs
+needs `enrollments.manage`. Admins get all three and members get
+`enrollments.read`. A user enrolled as a `user` subject always reads their own
+enrollment and completes or resets its steps.
+
+```bash
+better-supabase add enrollments
+```
+
+The module needs `tenant` and `access`. Enrollments in an organization go to
+the outbox, and program changes go to the audit log as well.
+
+```ts
+import { createEnrollments } from "better-supabase/blocks/enrollments";
+
+const enrollments = createEnrollments({ transport, tenant: organizationId });
+
+await enrollments
+  .saveProgram({
+    key: "customer-onboarding",
+    name: "Customer onboarding",
+    subjectTypes: ["party"],
+    steps: [
+      { id: "kickoff", title: "Kickoff call" },
+      { id: "import", title: "Import data" },
+      { id: "training", title: "Train the team" },
+    ],
+  })
+  .orThrow();
+
+const enrollment = await enrollments
+  .enroll("customer-onboarding", { type: "party", id: partyId })
+  .orThrow();
+
+await enrollments.complete(enrollment.id, "kickoff").orThrow();
+```
+
+| Option     | Default | What it does                   |
+| ---------- | ------- | ------------------------------ |
+| `maxSteps` | `100`   | The most steps a program holds |
+
+| Table                 | Holds                                                                                  |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| `enrollment_programs` | One row per program: `key`, `name`, `subject_types`, the ordered `steps` and `version` |
+| `enrollments`         | One row per program and subject: the step snapshot, `completed_steps` and `status`     |
+| `enrollment_steps`    | One row per completed step, with who completed it and when                             |
+
+## Programs
+
+`saveProgram(program)` creates a program, or changes one when you pass its
+`id`. Keys left out keep their value, and a program's key can't change.
+`subjectTypes` limits the subject types it enrolls; leave it empty to enroll
+any. Each step has an `id` (lower-case letters, digits, `_`, `.` or `-`) and
+an optional `title` and `description`.
+
+Changing the steps raises the program's `version`. Pass the `version` you read
+to fail with `ENROLLMENTS_PROGRAM_CONFLICT` when someone else changed it
+first. Turn a program off with `enabled: false` to stop new enrollments; its
+enrollments stay. `deleteProgram(id)` deletes a program with its enrollments.
+
+## Enrolling
+
+`enroll(program, subject)` enrolls a subject and returns its enrollment.
+Enrolling an enrolled subject returns the same enrollment, and enrolling a
+cancelled one starts it again with its completed steps. A `user` subject
+takes the user's id, so the user can follow their own progress.
+
+An enrollment keeps the program's step ids from when it enrolled, so changing
+a program doesn't change running enrollments. Enrolling the subject again
+takes the program's current steps and recounts its progress against them.
+
+## Progress
+
+`complete(enrollmentId, step)` marks a step done and `reset` marks it not
+done. Completing the last step sets `status` to `completed` with
+`completedAt`; resetting a step of a completed enrollment makes it active
+again. `cancel(enrollmentId)` cancels an active enrollment: its completed steps
+stay, a cancelled enrollment takes no new steps, and a completed one can't be
+cancelled.
+
+`enrollment(program, subject)` returns one subject's enrollment, or `null`.
+`list()` returns the organization's enrollments, most recently changed first:
+filter by `program`, `subject` or `status`, and pass `before` with the last
+enrollment's `updatedAt` for the next page. Without `enrollments.read`, `list`
+returns the caller's own enrollments.
+
+`enrollmentsSection` loads a record's enrollments for a record page and
+reloads on the enrollment events. See [Record sections](/docs/blocks/records).
+
+## Onboarding
+
+Each onboarding checklist runs as the program `onboarding:<checklist>`. The
+organization is enrolled in an organization checklist, and the user, without
+an organization, in a user checklist. Those programs live in your
+`defineChecklist` calls instead of `enrollment_programs`, so `saveProgram`
+can't change them and their enrollments can't be cancelled. See
+[Onboarding](/docs/blocks/onboarding).
+
+## Functions
+
+| Function                                                                      | Granted to                      | Does                                   |
+| ----------------------------------------------------------------------------- | ------------------------------- | -------------------------------------- |
+| `save_enrollment_program(tenant, program)`                                    | `authenticated`, `service_role` | Creates or changes a program           |
+| `enrollment_programs(tenant)`                                                 | `authenticated`, `service_role` | The organization's programs by key     |
+| `delete_enrollment_program(program_id)`                                       | `authenticated`, `service_role` | Deletes a program with its enrollments |
+| `enroll(tenant, program, subject_type, subject_id)`                           | `authenticated`, `service_role` | Enrolls a subject                      |
+| `enrollment(tenant, program, subject_type, subject_id)`                       | `authenticated`, `service_role` | A subject's enrollment, or null        |
+| `list_enrollments(tenant, program, subject_type, subject_id, status, ...)`    | `authenticated`, `service_role` | The organization's enrollments         |
+| `complete_enrollment_step(enrollment_id, step)`, `reset_enrollment_step(...)` | `authenticated`, `service_role` | Marks a step done or not done          |
+| `cancel_enrollment(enrollment_id)`                                            | `authenticated`, `service_role` | Cancels an active enrollment           |
+
+## Errors
+
+| Hint                            | Cause                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| `ENROLLMENTS_FORBIDDEN`         | the caller lacks the permission                                                       |
+| `ENROLLMENTS_INVALID`           | an invalid program, a step outside the program, or a change to a cancelled enrollment |
+| `ENROLLMENTS_PROGRAM_NOT_FOUND` | no program in the organization has this id or key                                     |
+| `ENROLLMENTS_PROGRAM_EXISTS`    | a program with this key already exists                                                |
+| `ENROLLMENTS_PROGRAM_CONFLICT`  | the program changed since you read its `version`                                      |
+| `ENROLLMENTS_NOT_FOUND`         | no enrollment the caller can see has this id                                          |
+
+## Events
+
+| Event                                                                                             | Data                                                                                                            |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `enrollment_program.saved`, `enrollment_program.deleted`                                          | `organizationId`, `id`, `key`, `version`                                                                        |
+| `enrollment.created`, `enrollment.step_completed`, `enrollment.completed`, `enrollment.cancelled` | `organizationId`, `id`, `program`, `subjectType`, `subjectId`, `status`, `step`, `completedSteps`, `totalSteps` |
+
+`step` is set for `enrollment.step_completed`. Only enrollments in an
+organization emit events, so a user's own onboarding checklist doesn't. A
+rule on `enrollment.completed` can hand a customer to their account manager
+once onboarding is done.
+
+## With ReUI
+
+There is no prebuilt enrollments UI. List enrollments in a `data-grid` with
+the subject, a `Progress` of `completedSteps` over `totalSteps` and `status`
+as a `Badge` (`success-light` for completed, `secondary` for cancelled). Show
+an enrollment's steps as a `Stepper` or a checklist of `Checkbox` rows, and
+edit a program's steps in a `Sheet` with a sortable list. Confirm
+`cancel` with an `AlertDialog`.
+
+## Why it works this way
+
+An enrollment snapshots the program's step ids, so changing a program never
+rewrites a subject's history: progress counts only the steps it enrolled
+with. The tenant is nullable so a user's own onboarding checklist fits the
+same tables, and the module's internal functions let other blocks drive
+programs they own without going through `enrollment_programs`.

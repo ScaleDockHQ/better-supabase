@@ -102,6 +102,7 @@
     "oauth-server",
     "domains",
     "moderation",
+    "enrollments",
     "reviews",
     "leave",
     "rules",

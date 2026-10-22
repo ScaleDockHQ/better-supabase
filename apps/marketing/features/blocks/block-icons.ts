@@ -41,6 +41,7 @@ import {
   FolderOpenIcon,
   GaugeIcon,
   GlobeIcon,
+  GraduationCapIcon,
   HandCoinsIcon,
   HandshakeIcon,
   HardDriveIcon,
@@ -156,6 +157,7 @@ export const BLOCK_ICONS = {
   // Growth & engagement
   flags: FlagIcon,
   onboarding: RocketIcon,
+  enrollments: GraduationCapIcon,
   waitlist: ListOrderedIcon,
   announcements: MegaphoneIcon,
   // CRM & sales
