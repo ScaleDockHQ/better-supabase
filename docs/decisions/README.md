@@ -73,3 +73,4 @@ add one, and link it from the code or config it explains.
 | [0065](0065-double-entry-ledger.md)                       | Balances live in one double-entry ledger; inventory stock, leave balances and invoice payments move onto it (breaking)                    |
 | [0070](0070-guest-and-portal-access.md)                   | Guests reach granted records through `ctx.scope.guest`, never as members; a provider answers through `portalSubjects` and `portalParties` |
 | [0072](0072-subject-merge-handlers.md)                    | A record merge moves every module's rows through handlers marked `better-supabase:subject-merge`                                          |
+| [0073](0073-signed-admission-passes.md)                   | Admission passes carry a token signed with the signing-keys block; the database keeps the nonce and decides every scan                    |

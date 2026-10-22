@@ -83,6 +83,7 @@
   "blocks/organizations",
   "blocks/outbox",
   "blocks/parties",
+  "blocks/passes",
   "blocks/pipelines",
   "blocks/profiles",
   "blocks/promotions",
