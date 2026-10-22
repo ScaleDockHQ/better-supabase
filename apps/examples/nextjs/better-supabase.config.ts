@@ -396,6 +396,8 @@ export default defineConfig({
     promotions: {},
     calendar: {},
     bookings: {},
+    // Points and areas use PostGIS geography columns (ADR 0066).
+    assets: { options: { postgis: true } },
     reminders: {},
     "drive-files": {},
     drive: {},

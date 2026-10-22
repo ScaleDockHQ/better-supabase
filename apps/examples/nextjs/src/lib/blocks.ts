@@ -4,6 +4,7 @@ import { defineBlocks, rpcTransport } from "better-supabase/blocks";
 import { accessRequestsBlock } from "better-supabase/blocks/access-requests";
 import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
+import { assetsBlock } from "better-supabase/blocks/assets";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
@@ -139,6 +140,7 @@ const blockSet = defineBlocks(blockConfig, {
   promotions: promotionsBlock,
   calendar: calendarBlock,
   bookings: bookingsBlock,
+  assets: assetsBlock,
   reminders: remindersBlock,
   drive: driveBlock,
   versions: versionsBlock,
