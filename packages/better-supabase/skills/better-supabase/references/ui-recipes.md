@@ -13096,6 +13096,560 @@ export async function Timesheet({
 }
 ```
 
+## Dispatch board
+
+A week of technicians by day with their scheduled work orders, and the backlog to schedule. It loads its data on the server through the block's client; the [dispatch block](https://bettersupabase.com/blocks/dispatch) must be installed (`npx better-supabase add dispatch`). Page: https://bettersupabase.com/recipes/dispatch-board.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card dialog empty field input skeleton table
+```
+
+```tsx title="apps/examples/nextjs/src/features/field/components/dispatch-board.tsx"
+/**
+ * Render inside `<Suspense>`: a week of technicians by day with their scheduled
+ * work orders, and the unscheduled backlog below. `?week=YYYY-MM-DD` picks the
+ * week.
+ */
+export async function DispatchBoard({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [session, t, format, query] = await Promise.all([
+    getSession(),
+    getExtracted("field"),
+    getFormatter(),
+    searchParams,
+    connection(),
+  ]);
+
+  if (!can(session, "dispatch.read")) {
+    forbidden();
+  }
+
+  const manage = can(session, "dispatch.manage");
+  const monday = mondayOf(query["week"]);
+  const board = await settle(() => loadDispatchWeek(monday.toString()));
+
+  if (board.kind === "no-organization") {
+    return null;
+  }
+
+  const dayLabel = (date: string) =>
+    format.dateTime(new Date(`${date}T12:00:00Z`), {
+      weekday: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+
+  const range = format.dateTimeRange(
+    new Date(`${monday.toString()}T12:00:00Z`),
+    new Date(`${monday.add({ days: 6 }).toString()}T12:00:00Z`),
+    { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" },
+  );
+
+  const newWorkOrder = manage ? <NewWorkOrderDialog /> : null;
+
+  return (
+    <div data-recipe="dispatch-board" className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Week of {range}", { range })}</CardTitle>
+          <CardDescription>
+            {board.kind === "ok"
+              ? t("Scheduled work per technician, in {zone}.", {
+                  zone: board.data.timeZone,
+                })
+              : t("Scheduled work per technician.")}
+          </CardDescription>
+          <CardAction className="flex items-center gap-2">
+            <Link
+              href={`/field/dispatch?week=${monday.subtract({ weeks: 1 }).toString()}`}
+              className={buttonVariants({
+                variant: "outline",
+                size: "icon-sm",
+              })}
+              aria-label={t("Previous week")}
+            >
+              <ChevronLeftIcon />
+            </Link>
+            <Link
+              href={`/field/dispatch?week=${monday.add({ weeks: 1 }).toString()}`}
+              className={buttonVariants({
+                variant: "outline",
+                size: "icon-sm",
+              })}
+              aria-label={t("Next week")}
+            >
+              <ChevronRightIcon />
+            </Link>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {board.kind === "error" ? (
+            <FieldLoadError title={t("The schedule board didn't load")} />
+          ) : board.data.rows.length === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CalendarRangeIcon />
+                </EmptyMedia>
+                <EmptyTitle>{t("Nothing scheduled this week")}</EmptyTitle>
+                <EmptyDescription>
+                  {t("Work orders show here once they have a technician.")}
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Link
+                  href={`/field/dispatch?week=${monday.add({ weeks: 1 }).toString()}`}
+                  className={buttonVariants({ variant: "outline" })}
+                >
+                  {t("Show next week")}
+                </Link>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("Technician")}</TableHead>
+                  {board.data.days.map((day) => (
+                    <TableHead key={day}>{dayLabel(day)}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {board.data.rows.map((row) => (
+                  <TableRow key={row.technicianId}>
+                    <TableCell className="align-top text-sm font-medium">
+                      {row.name}
+                    </TableCell>
+                    {row.days.map(({ date, orders }) => (
+                      <TableCell key={date} className="align-top">
+                        <div className="flex flex-col gap-2">
+                          {orders.map((order) => (
+                            <div key={order.id} className="flex flex-col gap-1">
+                              <span className="text-sm font-medium">
+                                {order.title}
+                              </span>
+                              <span className="text-xs text-muted-foreground tabular-nums">
+                                {order.startsAt
+                                  ? format.dateTime(new Date(order.startsAt), {
+                                      timeStyle: "short",
+                                      timeZone: board.data.timeZone,
+                                    })
+                                  : null}
+                              </span>
+                              <WorkOrderStatusBadge status={order.status} />
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Backlog")}</CardTitle>
+          <CardDescription>
+            {t("Work orders without a slot, most urgent first.")}
+          </CardDescription>
+          {newWorkOrder ? <CardAction>{newWorkOrder}</CardAction> : null}
+        </CardHeader>
+        <CardContent>
+          {board.kind === "error" ? (
+            <FieldLoadError title={t("The backlog didn't load")} />
+          ) : board.data.backlog.length === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <InboxIcon />
+                </EmptyMedia>
+                <EmptyTitle>{t("The backlog is empty")}</EmptyTitle>
+                <EmptyDescription>
+                  {t("Every open work order has a slot.")}
+                </EmptyDescription>
+              </EmptyHeader>
+              {newWorkOrder ? (
+                <EmptyContent>{newWorkOrder}</EmptyContent>
+              ) : null}
+            </Empty>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("Job")}</TableHead>
+                  <TableHead>{t("Address")}</TableHead>
+                  <TableHead>{t("Priority")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {board.data.backlog.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="text-sm font-medium">
+                      {order.title}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {order.address ?? ""}
+                    </TableCell>
+                    <TableCell>
+                      <WorkOrderPriorityBadge priority={order.priority} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+```
+
+## Technician day
+
+A technician's stops for the day in route order, each with the button that moves it on. It loads its data on the server through the block's client; the [dispatch block](https://bettersupabase.com/blocks/dispatch) must be installed (`npx better-supabase add dispatch`). Page: https://bettersupabase.com/recipes/technician-day.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card empty skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/field/components/technician-day.tsx"
+/**
+ * Render inside `<Suspense>`: the caller's stops for a day in route order, each
+ * with the button that moves it on. `?day=YYYY-MM-DD` picks the day.
+ */
+export async function TechnicianDay({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [session, t, format, query] = await Promise.all([
+    getSession(),
+    getExtracted("field"),
+    getFormatter(),
+    searchParams,
+    connection(),
+  ]);
+
+  if (!can(session, "dispatch.work")) {
+    forbidden();
+  }
+
+  const day = dayOf(query["day"]);
+  const plan = await settle(() => loadTechnicianDay(day.toString()));
+
+  if (plan.kind === "no-organization") {
+    return null;
+  }
+
+  const title = format.dateTime(new Date(`${day.toString()}T12:00:00Z`), {
+    dateStyle: "full",
+    timeZone: "UTC",
+  });
+
+  const time = (instant: string | null) =>
+    instant ? format.dateTime(new Date(instant), { timeStyle: "short" }) : null;
+
+  return (
+    <Card data-recipe="technician-day">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>
+          {plan.kind === "ok" && plan.data.planned
+            ? t("Your stops in the order of the planned route.")
+            : t("Your stops by start time.")}
+        </CardDescription>
+        <CardAction className="flex items-center gap-2">
+          <Link
+            href={`/field/day?day=${day.subtract({ days: 1 }).toString()}`}
+            className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+            aria-label={t("Previous day")}
+          >
+            <ChevronLeftIcon />
+          </Link>
+          <Link
+            href={`/field/day?day=${day.add({ days: 1 }).toString()}`}
+            className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+            aria-label={t("Next day")}
+          >
+            <ChevronRightIcon />
+          </Link>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {plan.kind === "error" ? (
+          <FieldLoadError title={t("Your day didn't load")} />
+        ) : plan.data.stops.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <RouteIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("No stops on this day")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Work orders scheduled for you show here.")}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Link
+                href={`/field/day?day=${day.add({ days: 1 }).toString()}`}
+                className={buttonVariants({ variant: "outline" })}
+              >
+                {t("Show the next day")}
+              </Link>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ol className="flex flex-col divide-y">
+            {plan.data.stops.map(({ position, workOrder }) => {
+              const next = nextStep(workOrder.status);
+              const from = time(workOrder.startsAt);
+              const to = time(workOrder.endsAt);
+
+              return (
+                <li
+                  key={workOrder.id}
+                  className="flex flex-wrap items-center gap-3 py-3"
+                >
+                  <Badge variant="outline" className="tabular-nums">
+                    {position}
+                  </Badge>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-sm font-medium">
+                      {workOrder.title}
+                    </span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {[
+                        from && to ? t("{from} to {to}", { from, to }) : from,
+                        workOrder.address,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </div>
+                  <WorkOrderStatusBadge status={workOrder.status} />
+                  {next ? (
+                    <AdvanceWorkOrderButton id={workOrder.id} to={next} />
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+## Shipment tracking
+
+Shipments with their status and the tracking timeline of the selected one, newest event first. It loads its data on the server through the block's client; the [shipments block](https://bettersupabase.com/blocks/shipments) must be installed (`npx better-supabase add shipments`). Page: https://bettersupabase.com/recipes/shipment-tracking.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card dialog empty field input skeleton table
+```
+
+```tsx title="apps/examples/nextjs/src/features/field/components/shipment-tracking.tsx"
+/**
+ * Render inside `<Suspense>`: the latest shipments with their status, and the
+ * tracking timeline of the selected one, newest event first. `?shipment=<id>`
+ * picks the shipment.
+ */
+export async function ShipmentTracking({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [session, t, format, query] = await Promise.all([
+    getSession(),
+    getExtracted("field"),
+    getFormatter(),
+    searchParams,
+    connection(),
+  ]);
+
+  if (!can(session, "shipments.read")) {
+    forbidden();
+  }
+
+  const picked = v.safeParse(ShipmentParam, query["shipment"]);
+
+  const tracking = await settle(() =>
+    loadShipmentTracking(picked.success ? picked.output : undefined),
+  );
+
+  if (tracking.kind === "no-organization") {
+    return null;
+  }
+
+  const newShipment = can(session, "shipments.manage") ? (
+    <NewShipmentDialog />
+  ) : null;
+
+  const selected = tracking.kind === "ok" ? tracking.data.selected : null;
+
+  return (
+    <div data-recipe="shipment-tracking" className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Shipments")}</CardTitle>
+          <CardDescription>
+            {t("The status follows the latest tracking event.")}
+          </CardDescription>
+          {newShipment ? <CardAction>{newShipment}</CardAction> : null}
+        </CardHeader>
+        <CardContent>
+          {tracking.kind === "error" ? (
+            <FieldLoadError title={t("The shipments didn't load")} />
+          ) : tracking.data.shipments.length === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <PackageIcon />
+                </EmptyMedia>
+                <EmptyTitle>{t("No shipments yet")}</EmptyTitle>
+                <EmptyDescription>
+                  {t("Create a shipment, then buy its label from a carrier.")}
+                </EmptyDescription>
+              </EmptyHeader>
+              {newShipment ? <EmptyContent>{newShipment}</EmptyContent> : null}
+            </Empty>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("Reference")}</TableHead>
+                  <TableHead>{t("Recipient")}</TableHead>
+                  <TableHead>{t("Destination")}</TableHead>
+                  <TableHead>{t("Tracking number")}</TableHead>
+                  <TableHead>{t("Status")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tracking.data.shipments.map((shipment) => (
+                  <TableRow
+                    key={shipment.id}
+                    data-state={
+                      shipment.id === selected?.id ? "selected" : undefined
+                    }
+                  >
+                    <TableCell>
+                      <Link
+                        href={`/field/shipments?shipment=${shipment.id}`}
+                        className="text-sm font-medium underline-offset-4 transition-colors hover:underline"
+                        aria-current={
+                          shipment.id === selected?.id ? "true" : undefined
+                        }
+                      >
+                        {shipment.reference}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {shipment.recipient}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {shipment.destination}
+                    </TableCell>
+                    <TableCell className="text-sm tabular-nums">
+                      {shipment.trackingNumber ?? ""}
+                    </TableCell>
+                    <TableCell>
+                      <ShipmentStatusBadge status={shipment.status} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+      {tracking.kind === "ok" && selected ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {t("Tracking for {reference}", { reference: selected.reference })}
+            </CardTitle>
+            <CardDescription>
+              {selected.carrier
+                ? t("Events from {carrier}, newest first.", {
+                    carrier: selected.carrier,
+                  })
+                : t("Events show once the shipment has a label.")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {tracking.data.timeline.length === 0 ? (
+              <Empty className="border">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <TruckIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>{t("No tracking events yet")}</EmptyTitle>
+                  <EmptyDescription>
+                    {t(
+                      "The carrier's webhook adds events as the package moves.",
+                    )}
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Link
+                    href={`/field/shipments?shipment=${selected.id}`}
+                    className="text-sm font-medium underline-offset-4 transition-colors hover:underline"
+                  >
+                    {t("Check again")}
+                  </Link>
+                </EmptyContent>
+              </Empty>
+            ) : (
+              <ol className="flex flex-col divide-y">
+                {tracking.data.timeline.map((step) => (
+                  <li
+                    key={step.id}
+                    className="flex flex-wrap items-center gap-3 py-3"
+                  >
+                    <ShipmentStatusBadge status={step.status} />
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="text-sm">
+                        {step.description ?? step.location ?? ""}
+                      </span>
+                      {step.description && step.location ? (
+                        <span className="text-xs text-muted-foreground">
+                          {step.location}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {format.dateTime(new Date(step.occurredAt), {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+```
+
 ## Invoices table
 
 The organization's invoices with their status, amount and a link to the PDF. It loads its data on the server through the block's client; the [invoices block](https://bettersupabase.com/blocks/invoices) must be installed (`npx better-supabase add invoices`). Page: https://bettersupabase.com/recipes/invoices-table.
@@ -18430,6 +18984,679 @@ export function TeamPicker({
           ))}
         </SelectContent>
       </Select>
+    </div>
+  );
+}
+```
+
+## Contract renewals
+
+Active contracts with their value, end date and notice deadline, the nearest deadline first, so a renewal is decided in time. It loads its data on the server through the block's client; the [contracts block](https://bettersupabase.com/blocks/contracts) must be installed (`npx better-supabase add contracts`). Page: https://bettersupabase.com/recipes/contract-renewals.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card empty skeleton table
+```
+
+```tsx title="apps/examples/nextjs/src/features/compliance/components/contract-renewals.tsx"
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+const SOON_DAYS = 30;
+
+/**
+ * Render inside `<Suspense>`: the organization's active contracts, the nearest
+ * notice deadline first, so the team decides on a renewal before the
+ * counterparty's notice period runs out.
+ */
+export async function ContractRenewals() {
+  const [state, t, format, locale] = await Promise.all([
+    getRenewals(),
+    getExtracted("compliance"),
+    getFormatter(),
+    getLocale(),
+  ]);
+
+  if (state.kind === "no-organization") {
+    return null;
+  }
+
+  const day = (date: string) =>
+    format.dateTime(new Date(date), { dateStyle: "medium", timeZone: "UTC" });
+
+  const renewal = (row: RenewalRow) => {
+    const days = row.noticeInDays;
+
+    if (days === null) {
+      return <Badge variant="secondary">{t("No end date")}</Badge>;
+    }
+
+    if (days < 0) {
+      return (
+        <Badge variant="destructive-light">
+          {row.autoRenew ? t("Renews, notice passed") : t("Notice passed")}
+        </Badge>
+      );
+    }
+
+    if (days <= SOON_DAYS) {
+      return (
+        <Badge variant="warning-light">
+          {t("Notice in {days, number} days", { days })}
+        </Badge>
+      );
+    }
+
+    return row.autoRenew ? (
+      <Badge variant="info-light">{t("Auto-renews")}</Badge>
+    ) : (
+      <Badge variant="success-light">{t("Active")}</Badge>
+    );
+  };
+
+  return (
+    <Card data-recipe="contract-renewals">
+      <CardHeader>
+        <CardTitle>{t("Contract renewals")}</CardTitle>
+        <CardDescription>
+          {t(
+            "Active contracts, the nearest notice deadline first. A contract that auto-renews extends itself unless someone gives notice before the deadline.",
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {state.kind === "error" ? (
+          <Alert variant="destructive">
+            <TriangleAlertIcon />
+            <AlertTitle>{t("The contracts didn't load")}</AlertTitle>
+            <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+            <AlertAction>
+              <form action={retry}>
+                <Button size="sm" variant="outline" type="submit">
+                  {t("Retry")}
+                </Button>
+              </form>
+            </AlertAction>
+          </Alert>
+        ) : state.data.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <FileSignatureIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("No active contracts")}</EmptyTitle>
+              <EmptyDescription>
+                {t(
+                  "A contract becomes active once every signer has signed. Draft one from a customer's record.",
+                )}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Link href="/customers" className={buttonVariants()}>
+                {t("Open customers")}
+              </Link>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("Contract")}</TableHead>
+                <TableHead className="text-right">{t("Value")}</TableHead>
+                <TableHead>{t("Ends")}</TableHead>
+                <TableHead>{t("Notice by")}</TableHead>
+                <TableHead>{t("Renewal")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {state.data.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="font-medium">{row.title}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {row.value
+                      ? formatMoney(moneyFromJson(row.value), locale)
+                      : "–"}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {row.endsOn ? day(row.endsOn) : "–"}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {row.noticeDeadline ? day(row.noticeDeadline) : "–"}
+                  </TableCell>
+                  <TableCell>{renewal(row)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ContractRenewalsSkeleton() {
+  return <Skeleton className="h-40 rounded-xl" aria-busy="true" />;
+}
+```
+
+## Control posture
+
+One card per compliance framework with its passing, failing and not started controls, then the overdue evidence tasks. It loads its data on the server through the block's client; the [controls block](https://bettersupabase.com/blocks/controls) must be installed (`npx better-supabase add controls`). Page: https://bettersupabase.com/recipes/control-posture.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card empty progress skeleton table
+```
+
+```tsx title="apps/examples/nextjs/src/features/compliance/components/control-posture.tsx"
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+/**
+ * Render inside `<Suspense>`: one card per compliance framework with how many
+ * of its controls pass, then the evidence tasks that are past their due date.
+ */
+export async function ControlPosture() {
+  const [state, t, format] = await Promise.all([
+    getPosture(),
+    getExtracted("compliance"),
+    getFormatter(),
+  ]);
+
+  if (state.kind === "no-organization") {
+    return null;
+  }
+
+  if (state.kind === "error") {
+    return (
+      <Alert variant="destructive" data-recipe="control-posture">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The control posture didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  const { frameworks, overdue } = state.data;
+
+  if (frameworks.length === 0) {
+    return (
+      <Empty className="border" data-recipe="control-posture">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <ShieldCheckIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("No frameworks yet")}</EmptyTitle>
+          <EmptyDescription>
+            {t(
+              "Add a framework such as SOC 2 or ISO 27001 with the controls block, then link evidence to each control.",
+            )}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <a
+            className="text-sm underline underline-offset-4"
+            href="https://bettersupabase.com/docs/blocks/controls"
+          >
+            {t("Read the controls guide")}
+          </a>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  const day = (date: string) =>
+    format.dateTime(new Date(date), { dateStyle: "medium", timeZone: "UTC" });
+
+  return (
+    <div className="flex flex-col gap-6" data-recipe="control-posture">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {frameworks.map((framework) => {
+          const applicable = framework.total - framework.notApplicable;
+
+          const percent =
+            applicable === 0
+              ? 100
+              : Math.round((framework.passing / applicable) * 100);
+
+          return (
+            <Card key={framework.frameworkId}>
+              <CardHeader>
+                <CardTitle>{framework.name}</CardTitle>
+                <CardDescription>
+                  {t(
+                    "{passing, number} of {applicable, number} controls passing",
+                    { passing: framework.passing, applicable },
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <Progress value={percent} aria-label={t("Controls passing")} />
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="success-light">
+                    {t("{count, number} passing", { count: framework.passing })}
+                  </Badge>
+                  {framework.failing > 0 ? (
+                    <Badge variant="destructive-light">
+                      {t("{count, number} failing", {
+                        count: framework.failing,
+                      })}
+                    </Badge>
+                  ) : null}
+                  {framework.notStarted > 0 ? (
+                    <Badge variant="secondary">
+                      {t("{count, number} not started", {
+                        count: framework.notStarted,
+                      })}
+                    </Badge>
+                  ) : null}
+                  {framework.overdueTasks > 0 ? (
+                    <Badge variant="warning-light">
+                      {t("{count, number} overdue tasks", {
+                        count: framework.overdueTasks,
+                      })}
+                    </Badge>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Overdue evidence")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Recurring tasks whose evidence is past due. Collecting evidence moves the task to its next due date.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {overdue.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t("Every evidence task is on schedule.")}
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("Task")}</TableHead>
+                  <TableHead>{t("Control")}</TableHead>
+                  <TableHead>{t("Due")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {overdue.map((task) => (
+                  <TableRow key={task.id}>
+                    <TableCell className="font-medium">{task.title}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {task.controlCode ?? "–"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="destructive-light">
+                        {day(task.dueOn)}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export function ControlPostureSkeleton() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+      <Skeleton className="h-36 rounded-xl" />
+      <Skeleton className="h-36 rounded-xl" />
+      <Skeleton className="h-36 rounded-xl" />
+    </div>
+  );
+}
+```
+
+## Status page
+
+A public status page: the overall status, each public component with its daily uptime, and the public incident updates. It loads its data on the server through the block's client; the [incidents block](https://bettersupabase.com/blocks/incidents) must be installed (`npx better-supabase add incidents`). Page: https://bettersupabase.com/recipes/status-page.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card empty skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/status/components/status-page.tsx"
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+type BadgeVariant = ComponentProps<typeof Badge>["variant"];
+
+interface StatusLook {
+  readonly badge: BadgeVariant;
+  /** The background of an uptime cell. */
+  readonly cell: string;
+}
+
+function statusLook(status: ComponentStatus): StatusLook {
+  switch (status) {
+    case "operational": {
+      return { badge: "success-light", cell: "bg-success" };
+    }
+
+    case "maintenance": {
+      return { badge: "info-light", cell: "bg-info" };
+    }
+
+    case "degraded": {
+      return { badge: "warning-light", cell: "bg-warning" };
+    }
+
+    case "partial_outage": {
+      return { badge: "warning-light", cell: "bg-warning" };
+    }
+
+    case "major_outage": {
+      return { badge: "destructive-light", cell: "bg-destructive" };
+    }
+
+    default: {
+      const never: never = status;
+
+      return never;
+    }
+  }
+}
+
+function OverallAlert({
+  status,
+  title,
+}: {
+  status: ComponentStatus;
+  title: string;
+}) {
+  switch (status) {
+    case "operational": {
+      return (
+        <Alert variant="success">
+          <CircleCheckIcon />
+          <AlertTitle>{title}</AlertTitle>
+        </Alert>
+      );
+    }
+
+    case "maintenance": {
+      return (
+        <Alert variant="info">
+          <WrenchIcon />
+          <AlertTitle>{title}</AlertTitle>
+        </Alert>
+      );
+    }
+
+    case "degraded":
+    case "partial_outage": {
+      return (
+        <Alert variant="warning">
+          <TriangleAlertIcon />
+          <AlertTitle>{title}</AlertTitle>
+        </Alert>
+      );
+    }
+
+    case "major_outage": {
+      return (
+        <Alert variant="destructive">
+          <TriangleAlertIcon />
+          <AlertTitle>{title}</AlertTitle>
+        </Alert>
+      );
+    }
+
+    default: {
+      const never: never = status;
+
+      return never;
+    }
+  }
+}
+
+/**
+ * The public status page published at `slug`: the overall status, each public
+ * component with its uptime, then the public incidents with their updates.
+ * Anyone can open it; the incidents block returns only fields marked public.
+ */
+export async function StatusPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const [{ slug }, t, format] = await Promise.all([
+    params,
+    getExtracted("status"),
+    getFormatter(),
+  ]);
+
+  const page = await settle(() => loadStatusPage(slug));
+
+  if (page.kind === "missing") {
+    notFound();
+  }
+
+  if (page.kind === "error") {
+    return (
+      <Alert variant="destructive" data-recipe="status-page">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The status page didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  const { data } = page;
+
+  const labels: Record<ComponentStatus, string> = {
+    operational: t("Operational"),
+    maintenance: t("Maintenance"),
+    degraded: t("Degraded performance"),
+    partial_outage: t("Partial outage"),
+    major_outage: t("Major outage"),
+  };
+
+  const overall: Record<ComponentStatus, string> = {
+    operational: t("All systems operational"),
+    maintenance: t("Scheduled maintenance in progress"),
+    degraded: t("Some systems are affected"),
+    partial_outage: t("Some systems are affected"),
+    major_outage: t("Major outage"),
+  };
+
+  const updates: Record<IncidentStatus, string> = {
+    investigating: t("Investigating"),
+    identified: t("Identified"),
+    monitoring: t("Monitoring"),
+    resolved: t("Resolved"),
+  };
+
+  const day = (date: string) =>
+    format.dateTime(new Date(`${date}T12:00:00Z`), {
+      dateStyle: "medium",
+      timeZone: "UTC",
+    });
+
+  const when = (iso: string) =>
+    format.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" });
+
+  return (
+    <div className="flex flex-col gap-6" data-recipe="status-page">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">{data.title}</h1>
+        {data.description ? (
+          <p className="text-sm text-muted-foreground">{data.description}</p>
+        ) : null}
+      </div>
+      <OverallAlert status={data.status} title={overall[data.status]} />
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Components")}</CardTitle>
+          <CardDescription>
+            {t("Uptime over the last {days, number} days.", {
+              days: UPTIME_DAYS,
+            })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data.components.length === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ActivityIcon />
+                </EmptyMedia>
+                <EmptyTitle>{t("No components yet")}</EmptyTitle>
+                <EmptyDescription>
+                  {t(
+                    "Components appear here once the team marks them public. Check back later.",
+                  )}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <ul className="flex flex-col gap-6">
+              {data.components.map((component) => {
+                const look = statusLook(component.status);
+
+                return (
+                  <li key={component.id} className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">
+                        {component.name}
+                      </span>
+                      <Badge variant={look.badge}>
+                        {labels[component.status]}
+                      </Badge>
+                    </div>
+                    <div className="flex h-8 gap-px" aria-hidden="true">
+                      {component.uptime.map((entry) => (
+                        <span
+                          key={entry.date}
+                          className={`flex-1 rounded-sm ${statusLook(entry.status).cell}`}
+                          title={`${day(entry.date)}: ${labels[entry.status]}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {t("{percent, number}% uptime", {
+                        percent: component.uptimePercent,
+                      })}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Incidents")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Open incidents and those resolved in the last {days, number} days.",
+              { days: UPTIME_DAYS },
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data.incidents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t("No incidents reported.")}
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-6">
+              {data.incidents.map((incident) => (
+                <li key={incident.id} className="flex flex-col gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-medium">
+                      {incident.title}
+                    </span>
+                    <Badge
+                      variant={
+                        incident.status === "resolved"
+                          ? "success-light"
+                          : "warning-light"
+                      }
+                    >
+                      {updates[incident.status]}
+                    </Badge>
+                  </div>
+                  {incident.components.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("Affects {components}", {
+                        components: incident.components
+                          .map((component) => component.name)
+                          .join(", "),
+                      })}
+                    </p>
+                  ) : null}
+                  <ol className="flex flex-col gap-3 border-l pl-4">
+                    {incident.updates.map((update) => (
+                      <li
+                        key={update.createdAt}
+                        className="flex flex-col gap-1"
+                      >
+                        <span className="text-xs text-muted-foreground">
+                          {updates[update.status]}
+                          {" · "}
+                          {when(update.createdAt)}
+                        </span>
+                        <p className="text-sm">{update.body}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export function StatusPageSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-busy="true">
+      <Skeleton className="h-12 rounded-xl" />
+      <Skeleton className="h-64 rounded-xl" />
     </div>
   );
 }

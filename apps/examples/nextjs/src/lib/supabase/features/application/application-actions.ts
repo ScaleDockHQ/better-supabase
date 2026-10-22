@@ -22,6 +22,14 @@ export const setRateApplicationBillableTime = applicationRecord.actions.billable
 
 export const invoiceApplicationBillableTime = applicationRecord.actions.billableTime.invoice;
 
+export const createApplicationDispatch = applicationRecord.actions.dispatch.create;
+
+export const cancelApplicationDispatch = applicationRecord.actions.dispatch.cancel;
+
+export const createApplicationShipments = applicationRecord.actions.shipments.create;
+
+export const cancelApplicationShipments = applicationRecord.actions.shipments.cancel;
+
 export const linkApplicationRelations = applicationRecord.actions.relations.link;
 
 export const unlinkApplicationRelations = applicationRecord.actions.relations.unlink;

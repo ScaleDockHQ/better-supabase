@@ -20,6 +20,9 @@ export type NavId =
   | "shop"
   | "inventory"
   | "orders"
+  | "dispatch"
+  | "myDay"
+  | "shipments"
   | "drive"
   | "documents"
   | "forms"
@@ -28,6 +31,7 @@ export type NavId =
   | "imports"
   | "trash"
   | "metrics"
+  | "compliance"
   | "notifications"
   | "workflows"
   | "workflowBuilder"
@@ -145,6 +149,24 @@ export const navItems: readonly NavItem[] = [
     group: "workspace",
     requires: "orders.read",
   },
+  {
+    id: "dispatch",
+    href: "/field/dispatch",
+    group: "workspace",
+    requires: "dispatch.read",
+  },
+  {
+    id: "myDay",
+    href: "/field/day",
+    group: "workspace",
+    requires: "dispatch.work",
+  },
+  {
+    id: "shipments",
+    href: "/field/shipments",
+    group: "workspace",
+    requires: "shipments.read",
+  },
   { id: "drive", href: "/drive", group: "workspace", requires: "drive.read" },
   {
     id: "documents",
@@ -173,6 +195,12 @@ export const navItems: readonly NavItem[] = [
   },
   { id: "trash", href: "/trash", group: "workspace", requires: "trash.read" },
   { id: "metrics", href: "/metrics", group: "workspace" },
+  {
+    id: "compliance",
+    href: "/compliance",
+    group: "workspace",
+    requires: "controls.read",
+  },
   { id: "notifications", href: "/notifications", group: "workspace" },
   {
     id: "workflows",

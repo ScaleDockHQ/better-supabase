@@ -28,6 +28,7 @@ has a [conformance kit](/docs/extending/conformance).
 | [`CredentialProvider`](#credentialprovider)             | `vaultCredentials(options)`, `vercelConnectCredentials()`   | `createServer(betterSupabase, { credentials })`                                    |
 | [`PaymentProvider`](#paymentprovider)                   | `stripePayments(options)`                                   | the commerce blocks                                                                |
 | [`TaxProvider`](#taxprovider)                           | `fixedRates(options)`, `stripeTax(options)`                 | the commerce blocks                                                                |
+| [`ShipmentCarrier`](#shipmentcarrier)                   | `flatRateCarrier(options)`                                  | `createShipments(client, { carriers })`                                            |
 | [`AuthorizationProvider`](#authorizationprovider)       | none (built by your authorization system)                   | `authorization` in the config                                                      |
 | [`AuthorizationHooks`](#authorizationhooks)             | none (built by your authorization system)                   | `createServer(betterSupabase, { authorization })`                                  |
 | [`Authorizer`](#authorizer)                             | `staticAuthorizer()` in `/testing`                          | `createServer(betterSupabase, { authorizer })`                                     |
@@ -225,6 +226,16 @@ and `reverse({ transaction, reference, lines })`. A quote has one line per
 cart line in cart order, then shipping, and a total that is their sum. A
 reversal has negative amounts and can't exceed the sale. `testTaxProvider`
 is its conformance kit.
+
+## ShipmentCarrier
+
+Buys labels and reads tracking for the [shipments block](/docs/blocks/shipments).
+It has `apiVersion: 1`, a `name`, `rates(request)`, `createLabel(request,
+{ idempotencyKey })`, `track(trackingNumber)` and `cancel(trackingNumber)`,
+and an optional `parseWebhook(input)` that verifies a signed delivery and
+returns its tracking updates. Tracking events come oldest first, and each has
+an id that the block records once. `testShipmentCarrier` is its conformance
+kit.
 
 ## AuthorizationProvider
 

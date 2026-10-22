@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_120_courses.sql
+-- ==== schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bs-module courses@1 managed
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
@@ -1116,7 +1116,7 @@ alter table better_supabase.modules enable row level security;
 revoke all on better_supabase.modules from anon, authenticated;
 grant select on better_supabase.modules to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_120_courses.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bs-module-data courses
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase sql data`

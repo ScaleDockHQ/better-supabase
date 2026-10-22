@@ -348,7 +348,44 @@ $$;
 ${userGrant(`${fn("reverse_ledger_transaction")}(uuid, text)`)}
 
 -- Sets aside part of an account's available balance until it is captured,
--- released or expires.
+-- released or expires, without checking the caller. Modules that hold
+-- amounts on their own accounts call it; it isn't granted to anyone.
+create or replace function ${fn("ledger_hold")}(account_id uuid, amount bigint, reference_type text default null, reference_id text default null, expires_at timestamptz default null)
+returns ${holds}
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_account ${accounts}%rowtype;
+  v_balance ${balances}%rowtype;
+  v_row ${holds}%rowtype;
+begin
+  select * into v_account from ${accounts} x where x.${a("id")} = ledger_hold.account_id;
+  if not found or v_account.${a("closedAt")} is not null then
+    ${fail("LEDGER_ACCOUNT_NOT_FOUND", "ledger account not found", "P0002")}
+  end if;
+  if ledger_hold.amount is null or ledger_hold.amount <= 0 then
+    ${invalid("LEDGER_LINES_INVALID", "a hold needs an amount greater than zero")}
+  end if;
+  insert into ${balances} (${b("account")}, ${b("tenant")}) values (v_account.${a("id")}, v_account.${a("tenant")})
+    on conflict (${b("account")}) do nothing;
+  select * into v_balance from ${balances} x where x.${b("account")} = v_account.${a("id")} for update;
+  if not v_account.${a("allowNegative")} and v_balance.${b("balance")} - v_balance.${b("held")} < ledger_hold.amount then
+    ${fail("LEDGER_INSUFFICIENT", "the account doesn't have enough available", "23514")}
+  end if;
+  update ${balances} x set ${b("held")} = x.${b("held")} + ledger_hold.amount, ${b("updatedAt")} = now()
+    where x.${b("account")} = v_account.${a("id")};
+  insert into ${holds} (${h("tenant")}, ${h("account")}, ${h("amount")}, ${h("referenceType")}, ${h("referenceId")}, ${h("expiresAt")}, ${h("createdBy")})
+  values (v_account.${a("tenant")}, v_account.${a("id")}, ledger_hold.amount, ledger_hold.reference_type, ledger_hold.reference_id, ledger_hold.expires_at, auth.uid())
+  returning * into v_row;
+  ${holdRecord("ledger_hold.placed", "v_row")}
+  return v_row;
+end;
+$$;
+revoke execute on function ${fn("ledger_hold")}(uuid, bigint, text, text, timestamptz) from public, anon, authenticated;
+
 create or replace function ${fn("place_ledger_hold")}(account_id uuid, amount bigint, reference_type text default null, reference_id text default null, expires_at timestamptz default null)
 returns jsonb
 language plpgsql
@@ -358,7 +395,6 @@ as $$
 #variable_conflict use_column
 declare
   v_account ${accounts}%rowtype;
-  v_balance ${balances}%rowtype;
   v_row ${holds}%rowtype;
 begin
   select * into v_account from ${accounts} x where x.${a("id")} = place_ledger_hold.account_id;
@@ -371,21 +407,7 @@ begin
   if v_account.${a("managedBy")} is not null and not ${SERVICE_CALLER} then
     ${fail("LEDGER_ACCOUNT_MANAGED", "this account belongs to another block", "55000")}
   end if;
-  if place_ledger_hold.amount is null or place_ledger_hold.amount <= 0 then
-    ${invalid("LEDGER_LINES_INVALID", "a hold needs an amount greater than zero")}
-  end if;
-  insert into ${balances} (${b("account")}, ${b("tenant")}) values (v_account.${a("id")}, v_account.${a("tenant")})
-    on conflict (${b("account")}) do nothing;
-  select * into v_balance from ${balances} x where x.${b("account")} = v_account.${a("id")} for update;
-  if not v_account.${a("allowNegative")} and v_balance.${b("balance")} - v_balance.${b("held")} < place_ledger_hold.amount then
-    ${fail("LEDGER_INSUFFICIENT", "the account doesn't have enough available", "23514")}
-  end if;
-  update ${balances} x set ${b("held")} = x.${b("held")} + place_ledger_hold.amount, ${b("updatedAt")} = now()
-    where x.${b("account")} = v_account.${a("id")};
-  insert into ${holds} (${h("tenant")}, ${h("account")}, ${h("amount")}, ${h("referenceType")}, ${h("referenceId")}, ${h("expiresAt")}, ${h("createdBy")})
-  values (v_account.${a("tenant")}, v_account.${a("id")}, place_ledger_hold.amount, place_ledger_hold.reference_type, place_ledger_hold.reference_id, place_ledger_hold.expires_at, auth.uid())
-  returning * into v_row;
-  ${holdRecord("ledger_hold.placed", "v_row")}
+  v_row := ${fn("ledger_hold")}(place_ledger_hold.account_id, place_ledger_hold.amount, place_ledger_hold.reference_type, place_ledger_hold.reference_id, place_ledger_hold.expires_at);
   return ${holdJson("v_row")};
 end;
 $$;
@@ -419,10 +441,11 @@ end;
 $$;
 revoke execute on function ${fn("ledger_unhold")}(uuid, text) from public, anon, authenticated;
 
--- Captures a hold: frees it and posts amount (default all of it) from the
--- held account to to_account.
-create or replace function ${fn("capture_ledger_hold")}(hold_id uuid, to_account uuid, amount bigint default null, kind text default 'ledger.capture', memo text default null)
-returns jsonb
+-- Captures a hold without checking the caller: frees it and posts amount
+-- (default all of it) from the held account to to_account. Modules call it;
+-- it isn't granted to anyone.
+create or replace function ${fn("ledger_capture")}(hold_id uuid, to_account uuid, amount bigint default null, kind text default 'ledger.capture', memo text default null)
+returns ${holds}
 language plpgsql
 security definer
 set search_path = ''
@@ -432,6 +455,38 @@ declare
   v_row ${holds}%rowtype;
   v_amount bigint;
 begin
+  select * into v_row from ${holds} x where x.${h("id")} = ledger_capture.hold_id;
+  if not found then
+    ${fail("LEDGER_HOLD_NOT_FOUND", "ledger hold not found", "P0002")}
+  end if;
+  v_amount := coalesce(ledger_capture.amount, v_row.${h("amount")});
+  if v_amount <= 0 or v_amount > v_row.${h("amount")} then
+    ${invalid("LEDGER_LINES_INVALID", "a capture takes more than zero and at most the held amount")}
+  end if;
+  v_row := ${fn("ledger_unhold")}(v_row.${h("id")}, 'captured');
+  update ${holds} x set ${h("transaction")} = ${fn("ledger_post")}(v_row.${h("tenant")}, coalesce(ledger_capture.kind, 'ledger.capture'),
+      jsonb_build_array(
+        jsonb_build_object('account', v_row.${h("account")}, 'amount', (-v_amount)::text),
+        jsonb_build_object('account', ledger_capture.to_account, 'amount', v_amount::text)),
+      v_row.${h("referenceType")}, v_row.${h("referenceId")}, ledger_capture.memo)
+    where x.${h("id")} = v_row.${h("id")}
+    returning * into v_row;
+  ${holdRecord("ledger_hold.captured", "v_row")}
+  return v_row;
+end;
+$$;
+revoke execute on function ${fn("ledger_capture")}(uuid, uuid, bigint, text, text) from public, anon, authenticated;
+
+create or replace function ${fn("capture_ledger_hold")}(hold_id uuid, to_account uuid, amount bigint default null, kind text default 'ledger.capture', memo text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${holds}%rowtype;
+begin
   select * into v_row from ${holds} x where x.${h("id")} = capture_ledger_hold.hold_id;
   if not found then
     ${fail("LEDGER_HOLD_NOT_FOUND", "ledger hold not found", "P0002")}
@@ -439,26 +494,32 @@ begin
   if not ${allowed(`v_row.${h("tenant")}`, post)} then
     ${forbidden("not allowed to post ledger transactions")}
   end if;
-  v_amount := coalesce(capture_ledger_hold.amount, v_row.${h("amount")});
-  if v_amount <= 0 or v_amount > v_row.${h("amount")} then
-    ${invalid("LEDGER_LINES_INVALID", "a capture takes more than zero and at most the held amount")}
-  end if;
   if exists (select 1 from ${accounts} x where x.${a("id")} = capture_ledger_hold.to_account and x.${a("managedBy")} is not null) and not ${SERVICE_CALLER} then
     ${fail("LEDGER_ACCOUNT_MANAGED", "this account belongs to another block", "55000")}
   end if;
-  v_row := ${fn("ledger_unhold")}(v_row.${h("id")}, 'captured');
-  update ${holds} x set ${h("transaction")} = ${fn("ledger_post")}(v_row.${h("tenant")}, coalesce(capture_ledger_hold.kind, 'ledger.capture'),
-      jsonb_build_array(
-        jsonb_build_object('account', v_row.${h("account")}, 'amount', (-v_amount)::text),
-        jsonb_build_object('account', capture_ledger_hold.to_account, 'amount', v_amount::text)),
-      v_row.${h("referenceType")}, v_row.${h("referenceId")}, capture_ledger_hold.memo)
-    where x.${h("id")} = v_row.${h("id")}
-    returning * into v_row;
-  ${holdRecord("ledger_hold.captured", "v_row")}
+  v_row := ${fn("ledger_capture")}(v_row.${h("id")}, capture_ledger_hold.to_account, capture_ledger_hold.amount, capture_ledger_hold.kind, capture_ledger_hold.memo);
   return ${holdJson("v_row")};
 end;
 $$;
 ${userGrant(`${fn("capture_ledger_hold")}(uuid, uuid, bigint, text, text)`)}
+
+-- Releases an active hold without checking the caller. Modules call it; it
+-- isn't granted to anyone.
+create or replace function ${fn("ledger_release")}(hold_id uuid)
+returns ${holds}
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${holds}%rowtype;
+begin
+  v_row := ${fn("ledger_unhold")}(ledger_release.hold_id, 'released');
+  ${holdRecord("ledger_hold.released", "v_row")}
+  return v_row;
+end;
+$$;
+revoke execute on function ${fn("ledger_release")}(uuid) from public, anon, authenticated;
 
 create or replace function ${fn("release_ledger_hold")}(hold_id uuid)
 returns jsonb
@@ -477,8 +538,7 @@ begin
   if not ${allowed(`v_row.${h("tenant")}`, post)} then
     ${forbidden("not allowed to post ledger transactions")}
   end if;
-  v_row := ${fn("ledger_unhold")}(v_row.${h("id")}, 'released');
-  ${holdRecord("ledger_hold.released", "v_row")}
+  v_row := ${fn("ledger_release")}(v_row.${h("id")});
   return ${holdJson("v_row")};
 end;
 $$;

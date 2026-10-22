@@ -16,6 +16,10 @@ import {
   revokeCoursePasses,
   setRateCourseBillableTime,
   invoiceCourseBillableTime,
+  createCourseDispatch,
+  cancelCourseDispatch,
+  createCourseShipments,
+  cancelCourseShipments,
   linkCourseRelations,
   unlinkCourseRelations,
   createCourseShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateCourseBillableTime,
     invoice: invoiceCourseBillableTime,
+  },
+  dispatch: {
+    create: createCourseDispatch,
+    cancel: cancelCourseDispatch,
+  },
+  shipments: {
+    create: createCourseShipments,
+    cancel: cancelCourseShipments,
   },
   relations: {
     link: linkCourseRelations,

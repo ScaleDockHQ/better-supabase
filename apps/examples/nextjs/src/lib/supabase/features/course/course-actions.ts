@@ -22,6 +22,14 @@ export const setRateCourseBillableTime = courseRecord.actions.billableTime.setRa
 
 export const invoiceCourseBillableTime = courseRecord.actions.billableTime.invoice;
 
+export const createCourseDispatch = courseRecord.actions.dispatch.create;
+
+export const cancelCourseDispatch = courseRecord.actions.dispatch.cancel;
+
+export const createCourseShipments = courseRecord.actions.shipments.create;
+
+export const cancelCourseShipments = courseRecord.actions.shipments.cancel;
+
 export const linkCourseRelations = courseRecord.actions.relations.link;
 
 export const unlinkCourseRelations = courseRecord.actions.relations.unlink;

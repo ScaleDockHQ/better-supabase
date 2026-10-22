@@ -531,9 +531,10 @@ revoke execute on function "better_supabase"."reverse_ledger_transaction"(uuid, 
 grant execute on function "better_supabase"."reverse_ledger_transaction"(uuid, text) to authenticated, service_role;
 
 -- Sets aside part of an account's available balance until it is captured,
--- released or expires.
-create or replace function "better_supabase"."place_ledger_hold"(account_id uuid, amount bigint, reference_type text default null, reference_id text default null, expires_at timestamptz default null)
-returns jsonb
+-- released or expires, without checking the caller. Modules that hold
+-- amounts on their own accounts call it; it isn't granted to anyone.
+create or replace function "better_supabase"."ledger_hold"(account_id uuid, amount bigint, reference_type text default null, reference_id text default null, expires_at timestamptz default null)
+returns "better_supabase"."ledger_holds"
 language plpgsql
 security definer
 set search_path = ''
@@ -544,9 +545,41 @@ declare
   v_balance "better_supabase"."ledger_balances"%rowtype;
   v_row "better_supabase"."ledger_holds"%rowtype;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  select * into v_account from "better_supabase"."ledger_accounts" x where x."id" = ledger_hold.account_id;
+  if not found or v_account."closed_at" is not null then
+    raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
   end if;
+  if ledger_hold.amount is null or ledger_hold.amount <= 0 then
+    raise exception 'a hold needs an amount greater than zero' using errcode = '22023', hint = 'LEDGER_LINES_INVALID';
+  end if;
+  insert into "better_supabase"."ledger_balances" ("account_id", "tenant_id") values (v_account."id", v_account."tenant_id")
+    on conflict ("account_id") do nothing;
+  select * into v_balance from "better_supabase"."ledger_balances" x where x."account_id" = v_account."id" for update;
+  if not v_account."allow_negative" and v_balance."balance" - v_balance."held" < ledger_hold.amount then
+    raise exception 'the account doesn''t have enough available' using errcode = '23514', hint = 'LEDGER_INSUFFICIENT';
+  end if;
+  update "better_supabase"."ledger_balances" x set "held" = x."held" + ledger_hold.amount, "updated_at" = now()
+    where x."account_id" = v_account."id";
+  insert into "better_supabase"."ledger_holds" ("tenant_id", "account_id", "amount", "reference_type", "reference_id", "expires_at", "created_by")
+  values (v_account."tenant_id", v_account."id", ledger_hold.amount, ledger_hold.reference_type, ledger_hold.reference_id, ledger_hold.expires_at, auth.uid())
+  returning * into v_row;
+  null;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."ledger_hold"(uuid, bigint, text, text, timestamptz) from public, anon, authenticated;
+
+create or replace function "better_supabase"."place_ledger_hold"(account_id uuid, amount bigint, reference_type text default null, reference_id text default null, expires_at timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_account "better_supabase"."ledger_accounts"%rowtype;
+  v_row "better_supabase"."ledger_holds"%rowtype;
+begin
   select * into v_account from "better_supabase"."ledger_accounts" x where x."id" = place_ledger_hold.account_id;
   if not found or v_account."closed_at" is not null then
     raise exception 'ledger account not found' using errcode = 'P0002', hint = 'LEDGER_ACCOUNT_NOT_FOUND';
@@ -557,21 +590,7 @@ begin
   if v_account."managed_by" is not null and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'this account belongs to another block' using errcode = '55000', hint = 'LEDGER_ACCOUNT_MANAGED';
   end if;
-  if place_ledger_hold.amount is null or place_ledger_hold.amount <= 0 then
-    raise exception 'a hold needs an amount greater than zero' using errcode = '22023', hint = 'LEDGER_LINES_INVALID';
-  end if;
-  insert into "better_supabase"."ledger_balances" ("account_id", "tenant_id") values (v_account."id", v_account."tenant_id")
-    on conflict ("account_id") do nothing;
-  select * into v_balance from "better_supabase"."ledger_balances" x where x."account_id" = v_account."id" for update;
-  if not v_account."allow_negative" and v_balance."balance" - v_balance."held" < place_ledger_hold.amount then
-    raise exception 'the account doesn''t have enough available' using errcode = '23514', hint = 'LEDGER_INSUFFICIENT';
-  end if;
-  update "better_supabase"."ledger_balances" x set "held" = x."held" + place_ledger_hold.amount, "updated_at" = now()
-    where x."account_id" = v_account."id";
-  insert into "better_supabase"."ledger_holds" ("tenant_id", "account_id", "amount", "reference_type", "reference_id", "expires_at", "created_by")
-  values (v_account."tenant_id", v_account."id", place_ledger_hold.amount, place_ledger_hold.reference_type, place_ledger_hold.reference_id, place_ledger_hold.expires_at, auth.uid())
-  returning * into v_row;
-  null;
+  v_row := "better_supabase"."ledger_hold"(place_ledger_hold.account_id, place_ledger_hold.amount, place_ledger_hold.reference_type, place_ledger_hold.reference_id, place_ledger_hold.expires_at);
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'accountId', v_row."account_id", 'amount', v_row."amount"::text, 'status', v_row."status", 'referenceType', v_row."reference_type", 'referenceId', v_row."reference_id", 'expiresAt', v_row."expires_at", 'transactionId', v_row."transaction_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -606,10 +625,11 @@ end;
 $$;
 revoke execute on function "better_supabase"."ledger_unhold"(uuid, text) from public, anon, authenticated;
 
--- Captures a hold: frees it and posts amount (default all of it) from the
--- held account to to_account.
-create or replace function "better_supabase"."capture_ledger_hold"(hold_id uuid, to_account uuid, amount bigint default null, kind text default 'ledger.capture', memo text default null)
-returns jsonb
+-- Captures a hold without checking the caller: frees it and posts amount
+-- (default all of it) from the held account to to_account. Modules call it;
+-- it isn't granted to anyone.
+create or replace function "better_supabase"."ledger_capture"(hold_id uuid, to_account uuid, amount bigint default null, kind text default 'ledger.capture', memo text default null)
+returns "better_supabase"."ledger_holds"
 language plpgsql
 security definer
 set search_path = ''
@@ -619,9 +639,38 @@ declare
   v_row "better_supabase"."ledger_holds"%rowtype;
   v_amount bigint;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  select * into v_row from "better_supabase"."ledger_holds" x where x."id" = ledger_capture.hold_id;
+  if not found then
+    raise exception 'ledger hold not found' using errcode = 'P0002', hint = 'LEDGER_HOLD_NOT_FOUND';
   end if;
+  v_amount := coalesce(ledger_capture.amount, v_row."amount");
+  if v_amount <= 0 or v_amount > v_row."amount" then
+    raise exception 'a capture takes more than zero and at most the held amount' using errcode = '22023', hint = 'LEDGER_LINES_INVALID';
+  end if;
+  v_row := "better_supabase"."ledger_unhold"(v_row."id", 'captured');
+  update "better_supabase"."ledger_holds" x set "transaction_id" = "better_supabase"."ledger_post"(v_row."tenant_id", coalesce(ledger_capture.kind, 'ledger.capture'),
+      jsonb_build_array(
+        jsonb_build_object('account', v_row."account_id", 'amount', (-v_amount)::text),
+        jsonb_build_object('account', ledger_capture.to_account, 'amount', v_amount::text)),
+      v_row."reference_type", v_row."reference_id", ledger_capture.memo)
+    where x."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."ledger_capture"(uuid, uuid, bigint, text, text) from public, anon, authenticated;
+
+create or replace function "better_supabase"."capture_ledger_hold"(hold_id uuid, to_account uuid, amount bigint default null, kind text default 'ledger.capture', memo text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."ledger_holds"%rowtype;
+begin
   select * into v_row from "better_supabase"."ledger_holds" x where x."id" = capture_ledger_hold.hold_id;
   if not found then
     raise exception 'ledger hold not found' using errcode = 'P0002', hint = 'LEDGER_HOLD_NOT_FOUND';
@@ -629,27 +678,33 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.post'), false)) then
     raise exception 'not allowed to post ledger transactions' using errcode = '42501', hint = 'LEDGER_FORBIDDEN';
   end if;
-  v_amount := coalesce(capture_ledger_hold.amount, v_row."amount");
-  if v_amount <= 0 or v_amount > v_row."amount" then
-    raise exception 'a capture takes more than zero and at most the held amount' using errcode = '22023', hint = 'LEDGER_LINES_INVALID';
-  end if;
   if exists (select 1 from "better_supabase"."ledger_accounts" x where x."id" = capture_ledger_hold.to_account and x."managed_by" is not null) and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'this account belongs to another block' using errcode = '55000', hint = 'LEDGER_ACCOUNT_MANAGED';
   end if;
-  v_row := "better_supabase"."ledger_unhold"(v_row."id", 'captured');
-  update "better_supabase"."ledger_holds" x set "transaction_id" = "better_supabase"."ledger_post"(v_row."tenant_id", coalesce(capture_ledger_hold.kind, 'ledger.capture'),
-      jsonb_build_array(
-        jsonb_build_object('account', v_row."account_id", 'amount', (-v_amount)::text),
-        jsonb_build_object('account', capture_ledger_hold.to_account, 'amount', v_amount::text)),
-      v_row."reference_type", v_row."reference_id", capture_ledger_hold.memo)
-    where x."id" = v_row."id"
-    returning * into v_row;
-  null;
+  v_row := "better_supabase"."ledger_capture"(v_row."id", capture_ledger_hold.to_account, capture_ledger_hold.amount, capture_ledger_hold.kind, capture_ledger_hold.memo);
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'accountId', v_row."account_id", 'amount', v_row."amount"::text, 'status', v_row."status", 'referenceType', v_row."reference_type", 'referenceId', v_row."reference_id", 'expiresAt', v_row."expires_at", 'transactionId', v_row."transaction_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."capture_ledger_hold"(uuid, uuid, bigint, text, text) from public, anon;
 grant execute on function "better_supabase"."capture_ledger_hold"(uuid, uuid, bigint, text, text) to authenticated, service_role;
+
+-- Releases an active hold without checking the caller. Modules call it; it
+-- isn't granted to anyone.
+create or replace function "better_supabase"."ledger_release"(hold_id uuid)
+returns "better_supabase"."ledger_holds"
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."ledger_holds"%rowtype;
+begin
+  v_row := "better_supabase"."ledger_unhold"(ledger_release.hold_id, 'released');
+  null;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."ledger_release"(uuid) from public, anon, authenticated;
 
 create or replace function "better_supabase"."release_ledger_hold"(hold_id uuid)
 returns jsonb
@@ -668,8 +723,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.post'), false)) then
     raise exception 'not allowed to post ledger transactions' using errcode = '42501', hint = 'LEDGER_FORBIDDEN';
   end if;
-  v_row := "better_supabase"."ledger_unhold"(v_row."id", 'released');
-  null;
+  v_row := "better_supabase"."ledger_release"(v_row."id");
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'accountId', v_row."account_id", 'amount', v_row."amount"::text, 'status', v_row."status", 'referenceType', v_row."reference_type", 'referenceId', v_row."reference_id", 'expiresAt', v_row."expires_at", 'transactionId', v_row."transaction_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
