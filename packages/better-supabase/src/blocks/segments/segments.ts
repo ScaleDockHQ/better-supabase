@@ -42,7 +42,7 @@ export interface Segment {
   readonly updatedAt: Temporal.Instant;
 }
 
-/** What `save` takes. Leave `id` out to create a segment. */
+/** What `upsert` takes. Leave `id` out to create a segment. */
 export interface SegmentInput {
   readonly id?: string;
   /** Required to create; a segment's subject type can't change. */
@@ -81,7 +81,7 @@ export interface SegmentRefreshReport {
 
 export interface Segments {
   /** Creates or changes a segment. Changing its conditions marks it due. */
-  save(organizationId: string, segment: SegmentInput): AsyncResult<Segment>;
+  upsert(organizationId: string, segment: SegmentInput): AsyncResult<Segment>;
   /** Deletes a segment and its members. False when there was none. */
   remove(segmentId: string): AsyncResult<boolean>;
   list(
@@ -148,7 +148,7 @@ export function createSegments(options: SegmentsOptions): Segments {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Segments = {
-    save: (organizationId, segment) =>
+    upsert: (organizationId, segment) =>
       call("save_segment", { tenant: organizationId, segment }, segmentOf),
     remove: (segmentId) =>
       call("remove_segment", { segment: segmentId }, (value) => value === true),

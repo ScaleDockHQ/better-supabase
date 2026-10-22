@@ -57,63 +57,63 @@ function run(
 }
 
 describe("better-supabase/lint", () => {
-  it("flags findMany without limit, skipping unreadable arguments", () => {
-    expect(run("no-unbounded-find-many", call("findMany"))).toHaveLength(1);
+  it("flags list without limit, skipping unreadable arguments", () => {
+    expect(run("no-unbounded-list", call("list"))).toHaveLength(1);
+    expect(run("no-unbounded-list", call("list", object({})))).toHaveLength(1);
     expect(
-      run("no-unbounded-find-many", call("findMany", object({}))),
-    ).toHaveLength(1);
-    expect(
-      run(
-        "no-unbounded-find-many",
-        call("findMany", object({ limit: literal(10) })),
-      ),
+      run("no-unbounded-list", call("list", object({ limit: literal(10) }))),
     ).toEqual([]);
     expect(
       run(
-        "no-unbounded-find-many",
-        call("findMany", { type: "Identifier", name: "args" }),
+        "no-unbounded-list",
+        call("list", { type: "Identifier", name: "args" }),
       ),
     ).toEqual([]);
-    expect(run("no-unbounded-find-many", call("findFirst"))).toEqual([]);
+    expect(run("no-unbounded-list", call("get"))).toEqual([]);
   });
 
-  it("flags deleteMany without where", () => {
-    expect(run("no-delete-many-without-where", call("deleteMany"))).toEqual([
-      { messageId: "missing" },
-    ]);
+  it("flags update and delete with an empty where", () => {
+    expect(
+      run("no-empty-where", call("delete", object({ where: object({}) }))),
+    ).toEqual([{ messageId: "empty", data: { method: "delete" } }]);
     expect(
       run(
-        "no-delete-many-without-where",
-        call("deleteMany", object({ where: object({}) })),
+        "no-empty-where",
+        call("update", object({ where: object({}) }), object({})),
+      ),
+    ).toEqual([{ messageId: "empty", data: { method: "update" } }]);
+    expect(
+      run(
+        "no-empty-where",
+        call("delete", object({ where: object({ id: literal(1) }) })),
       ),
     ).toEqual([]);
+    expect(run("no-empty-where", call("delete", literal("id")))).toEqual([]);
   });
 
   it("caps literal limits with a configurable maximum", () => {
-    const node = call("findMany", object({ limit: literal(5000) }));
+    const node = call("list", object({ limit: literal(5000) }));
     expect(run("max-limit", node)).toEqual([
       { messageId: "tooLarge", data: { limit: "5000", max: "1000" } },
     ]);
     expect(run("max-limit", node, [{ max: 10_000 }])).toEqual([]);
   });
 
-  it("requires maxAffected on updateMany and deleteMany, with a cap", () => {
+  it("requires maxAffected on update and delete by filter, with a cap", () => {
+    const where = object({ where: object({}) });
+
+    expect(run("require-max-affected", call("delete", where))).toEqual([
+      { messageId: "missing", data: { method: "delete" } },
+    ]);
     expect(
-      run(
-        "require-max-affected",
-        call("deleteMany", object({ where: object({}) })),
-      ),
-    ).toEqual([{ messageId: "missing", data: { method: "deleteMany" } }]);
-    expect(
-      run(
-        "require-max-affected",
-        call("updateMany", object({ where: object({}), data: object({}) })),
-      ),
-    ).toEqual([{ messageId: "missing", data: { method: "updateMany" } }]);
+      run("require-max-affected", call("update", where, object({}))),
+    ).toEqual([{ messageId: "missing", data: { method: "update" } }]);
 
     const bounded = call(
-      "updateMany",
-      object({ where: object({}), maxAffected: literal(5000) }),
+      "update",
+      where,
+      object({}),
+      object({ maxAffected: literal(5000) }),
     );
 
     expect(run("require-max-affected", bounded)).toEqual([
@@ -123,18 +123,17 @@ describe("better-supabase/lint", () => {
     expect(
       run(
         "require-max-affected",
-        call("deleteMany", { type: "Identifier", name: "args" }),
+        call("delete", where, { type: "Identifier", name: "args" }),
       ),
     ).toEqual([]);
-    expect(run("require-max-affected", call("delete"))).toEqual([]);
+    expect(run("require-max-affected", call("delete", literal("id")))).toEqual(
+      [],
+    );
   });
 
   it("flags offset without orderBy", () => {
     expect(
-      run(
-        "require-order-by",
-        call("findMany", object({ offset: literal(20) })),
-      ),
+      run("require-order-by", call("list", object({ offset: literal(20) }))),
     ).toHaveLength(1);
   });
 
@@ -146,7 +145,7 @@ describe("better-supabase/lint", () => {
           type: "MemberExpression",
           computed: false,
           object: member(table),
-          property: { type: "Identifier", name: "findMany" },
+          property: { type: "Identifier", name: "list" },
         },
         arguments: args,
       }) as CallExpression;
@@ -195,7 +194,7 @@ describe("better-supabase/lint", () => {
     });
 
     const find = (where: unknown) =>
-      run("require-escape-like", call("findMany", object({ where })));
+      run("require-escape-like", call("list", object({ where })));
 
     expect(find(object({ name: object({ ilike: search }) }))).toEqual([
       { messageId: "unescaped" },
@@ -241,10 +240,7 @@ describe("better-supabase/lint", () => {
     expect(find(object({ name: object({ ilike: escaped }) }))).toEqual([]);
     expect(find(object({ name: object({ ieq: search }) }))).toEqual([]);
     expect(
-      run(
-        "require-escape-like",
-        call("findMany", object({ limit: literal(1) })),
-      ),
+      run("require-escape-like", call("list", object({ limit: literal(1) }))),
     ).toEqual([]);
   });
 

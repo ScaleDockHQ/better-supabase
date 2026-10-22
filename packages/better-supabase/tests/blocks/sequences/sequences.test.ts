@@ -109,7 +109,7 @@ describe("createSequences", () => {
 
     const saved = await sequences
       // SAFETY: an undefined key on purpose, to check that it is left out.
-      .save({
+      .upsert({
         key: "welcome",
         name: "Welcome",
         description: undefined,

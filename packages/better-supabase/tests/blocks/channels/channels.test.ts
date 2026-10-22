@@ -86,7 +86,7 @@ describe("createChannels", () => {
     expect(await channels.get("nope").orThrow()).toBeUndefined();
     expect(await channels.find("General").orThrow()).toBeUndefined();
     expect(
-      await channels.forSubject({ type: "customer", id: "cu1" }).orThrow(),
+      await channels.list({ on: { type: "customer", id: "cu1" } }).orThrow(),
     ).toHaveLength(1);
 
     expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toMatchSnapshot();

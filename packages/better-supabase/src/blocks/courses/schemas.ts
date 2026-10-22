@@ -3,7 +3,7 @@ import type { CourseInput, CourseLessonInput } from "./courses.ts";
 
 import { entitySchema } from "../entity-schema.ts";
 
-/** What `save` takes, with the bounds the SQL checks. */
+/** What `upsert` takes, with the bounds the SQL checks. */
 export const courseInputSchema: EntitySchema<CourseInput> =
   entitySchema<CourseInput>({
     title: "CourseInput",

@@ -846,7 +846,7 @@ describe("doctor rules", () => {
     });
 
     const sources = [
-      { path: "src/a.ts", text: "db.customers.findMany()\n" },
+      { path: "src/a.ts", text: "db.customers.list()\n" },
       {
         path: "src/b.ts",
         text: "const x = 1;\nawait db.orders.aggregate({ _count: true });\n",

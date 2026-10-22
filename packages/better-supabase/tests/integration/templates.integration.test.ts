@@ -103,7 +103,7 @@ describe.skipIf(!live)("templates module", () => {
       });
       expect(
         await templates
-          .save({ organizationId: null, type: "project", name: "Nope" })
+          .upsert({ organizationId: null, type: "project", name: "Nope" })
           .then(hint),
       ).toBe("TEMPLATE_FORBIDDEN");
 
@@ -127,7 +127,7 @@ describe.skipIf(!live)("templates module", () => {
       expect((await templates.get(fork.id).orThrow())?.behind).toBe(true);
 
       const draft = await templates.versions
-        .save(fork.id, { tasks: ["Kickoff", "Plan"] })
+        .upsert(fork.id, { tasks: ["Kickoff", "Plan"] })
         .orThrow();
 
       expect(draft).toMatchObject({ version: 2, publishedAt: undefined });
@@ -140,7 +140,7 @@ describe.skipIf(!live)("templates module", () => {
       expect(await templates.setDefault(fork.id).orThrow()).toBe(true);
 
       const definition = await builder.definitions
-        .save({
+        .upsert({
           tenant,
           slug: "kickoff",
           name: "Kickoff",
@@ -149,7 +149,7 @@ describe.skipIf(!live)("templates module", () => {
         .orThrow();
 
       const version = await builder.versions
-        .save(definition.id, GRAPH, {
+        .upsert(definition.id, GRAPH, {
           inputSchema: {
             type: "object",
             required: ["owner"],
@@ -181,7 +181,7 @@ describe.skipIf(!live)("templates module", () => {
       await s.asRole(member);
       expect(
         await templates
-          .save({
+          .upsert({
             id: fork.id,
             organizationId: tenant,
             type: "project",
@@ -255,15 +255,15 @@ describe.skipIf(!live)("templates module", () => {
       const templates = createTemplates({ transport: sqlTransport(s.sql) });
 
       const template = await templates
-        .save({ organizationId: tenant, type: "project", name: "Launch" })
+        .upsert({ organizationId: tenant, type: "project", name: "Launch" })
         .orThrow();
 
       const definition = await builder.definitions
-        .save({ tenant, slug: "kickoff", name: "Kickoff" })
+        .upsert({ tenant, slug: "kickoff", name: "Kickoff" })
         .orThrow();
 
       const version = await builder.versions
-        .save(definition.id, GRAPH, {
+        .upsert(definition.id, GRAPH, {
           inputSchema: {
             type: "object",
             required: ["owner"],

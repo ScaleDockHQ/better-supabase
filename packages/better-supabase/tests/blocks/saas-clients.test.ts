@@ -138,7 +138,7 @@ describe("saas block clients", () => {
     });
 
     expect(
-      (await reminders.save({ type: "invoices", id: "i1" }).orThrow()).id,
+      (await reminders.upsert({ type: "invoices", id: "i1" }).orThrow()).id,
     ).toBe("r1");
     expect(
       await reminders.markSent("r1", "2026-01-01T00:00:00Z").orThrow(),
@@ -233,13 +233,22 @@ describe("saas block clients", () => {
     });
 
     expect(
-      (await tags.create("deal", "Gold", "#fff", "hot").orThrow()).id,
+      (
+        await tags
+          .create({
+            kind: "deal",
+            name: "Gold",
+            color: "#fff",
+            description: "hot",
+          })
+          .orThrow()
+      ).id,
     ).toBe("g1");
-    expect(await tags.update("g1", "Gold").orThrow()).toBe(true);
+    expect(await tags.update("g1", { name: "Gold" }).orThrow()).toBe(true);
     expect(await tags.delete("g1").orThrow()).toBe(true);
-    expect(await tags.tag(DEAL, "g1").orThrow()).toBe(true);
-    expect(await tags.untag(DEAL, "g1").orThrow()).toBe(false);
-    expect(await tags.list("deal").orThrow()).toEqual([
+    expect(await tags.attach(DEAL, "g1").orThrow()).toBe(true);
+    expect(await tags.detach(DEAL, "g1").orThrow()).toBe(false);
+    expect(await tags.list({ kind: "deal" }).orThrow()).toEqual([
       {
         id: "g1",
         kind: "deal",
@@ -250,7 +259,7 @@ describe("saas block clients", () => {
         fields: {},
       },
     ]);
-    expect(await tags.forSubject(DEAL).orThrow()).toEqual([]);
+    expect(await tags.list({ on: DEAL }).orThrow()).toEqual([]);
   });
 
   it("saves a field definition and a value", async () => {
@@ -372,6 +381,8 @@ describe("saas block clients", () => {
       tenant: "org",
     });
 
-    expect((await tags.create("deal", "Gold").orThrow()).rank).toBe("V");
+    expect(
+      (await tags.create({ kind: "deal", name: "Gold" }).orThrow()).rank,
+    ).toBe("V");
   });
 });

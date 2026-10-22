@@ -393,7 +393,7 @@ export function createAiFiles<
           { file_id: fileId, provider },
           (value) => (isRecord(value) ? providerFileOf(value) : undefined),
         ),
-      set: (fileId, provider, reference, expiresAt) =>
+      upsert: (fileId, provider, reference, expiresAt) =>
         service(
           "set_ai_provider_file",
           {

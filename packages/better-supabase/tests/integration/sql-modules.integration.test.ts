@@ -4578,7 +4578,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         customers: s.customers.count({
           where: { organizationId: p.organizationId },
         }),
-        notes: s.notes.findMany({
+        notes: s.notes.list({
           select: ["id", "kind", "customerId"],
           where: {
             organizationId: p.organizationId,
@@ -4586,15 +4586,16 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
           orderBy: { id: "asc" },
         }),
-        organization: s.organizations.findFirst({
-          select: ["id", "name"],
-          where: { id: p.organizationId },
-        }),
-        busiest: s.customers.findFirst({
+        organization: s.organizations.get(
+          { where: { id: p.organizationId } },
+          { select: ["id", "name"], optional: true },
+        ),
+        busiest: s.customers.list({
           select: ["id"],
           include: { _count: { notes: true } },
           where: { organizationId: p.organizationId },
           orderBy: { name: "asc" },
+          limit: 1,
         }),
       }),
     );
@@ -4632,7 +4633,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           .count({ where: { organizationId: ACME } })
           .orThrow(),
         organization: await alice.db.organizations
-          .findFirst({ select: ["id", "name"], where: { id: ACME } })
+          .get(
+            { where: { id: ACME } },
+            { select: ["id", "name"], optional: true },
+          )
           .orThrow(),
       };
 
@@ -4645,7 +4649,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       });
       expect(rest.data!.customers).toBeGreaterThan(0);
       expect(rest.data!.organization).toMatchObject({ id: ACME });
-      expect(rest.data!.busiest?._count.notes).toEqual(expect.any(Number));
+      expect(rest.data!.busiest[0]?._count.notes).toEqual(expect.any(Number));
 
       const stranger = await asUser(
         betterSupabase,
@@ -4736,7 +4740,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const specs = [
       betterSupabase.spec.customers.count(),
-      betterSupabase.spec.notes.findMany({
+      betterSupabase.spec.notes.list({
         select: ["id"],
         orderBy: { id: "asc" },
       }),

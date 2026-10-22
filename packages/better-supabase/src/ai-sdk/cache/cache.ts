@@ -24,7 +24,7 @@ export type CacheCall = Parameters<WrapGenerate>[0];
 
 export interface CacheMiddlewareOptions {
   /** The AI cache block with a service transport. */
-  readonly cache: Pick<AiCache, "get" | "set">;
+  readonly cache: Pick<AiCache, "get" | "upsert">;
   /** Seconds an entry lives, capped by the module's `maxTtl`. */
   readonly ttl: number;
   /**
@@ -168,7 +168,7 @@ export function cacheMiddleware(
     call: CacheCall,
     kind: "generate" | "stream",
   ): Promise<void> => {
-    const saved = await options.cache.set(key, encode(value), {
+    const saved = await options.cache.upsert(key, encode(value), {
       ttl: options.ttl,
       kind,
       model: `${call.model.provider}/${call.model.modelId}`,

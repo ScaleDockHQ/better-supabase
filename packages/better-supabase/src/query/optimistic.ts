@@ -99,8 +99,8 @@ function rewrite<T, V>(
 type Keyed<R> = Extract<keyof R, string>;
 
 /**
- * Optimistic updates for list queries (`findMany`), keyed by a row column (`id`
- * by default):
+ * Optimistic updates for list queries (`list`), keyed by a row column (`id` by
+ * default):
  *
  * - `optimistic.create(list, (input) => row)` adds the row the input will make.
  * - `optimistic.update(list)` merges `{ id, patch }` into the matching row.
@@ -108,7 +108,7 @@ type Keyed<R> = Extract<keyof R, string>;
  * - `optimistic(target, apply)` rewrites any cached data.
  *
  * ```ts
- * const list = q.todos.findMany({ where: { done: false } });
+ * const list = q.todos.list({ where: { done: false } });
  * useMutation({ ...q.todos.update(), ...optimistic.update(list) });
  * ```
  */

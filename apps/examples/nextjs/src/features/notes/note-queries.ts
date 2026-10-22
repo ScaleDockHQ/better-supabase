@@ -12,11 +12,12 @@ export async function getSimilarNotes() {
   "use cache: private";
   const { db } = await bsb.cached();
 
-  const source = await db.notes
-    .findFirst({
+  const [source] = await db.notes
+    .list({
       select: ["id", "body", "embedding"],
       where: { embedding: { isNull: false } },
       orderBy: { id: "desc" },
+      limit: 1,
     })
     .orThrow();
 

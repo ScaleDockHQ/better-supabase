@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { Tag } from "../../../src/blocks/tags/tags.ts";
+import type {
+  CreateTagInput,
+  ListTagsParams,
+  Tag,
+} from "../../../src/blocks/tags/tags.ts";
 import type { RecordRef } from "../../../src/schema/types.ts";
 
 import { createTagInputController } from "../../../src/blocks/tags/client.ts";
@@ -29,7 +33,7 @@ function setup(subject: RecordRef | null = CUSTOMER) {
     resolved<readonly Tag[]>([tag("t1", "VIP")]),
   );
 
-  const list = vi.fn((_kind?: string) =>
+  const ofKind = vi.fn((_kind?: string) =>
     resolved<readonly Tag[]>([tag("t1", "VIP"), tag("t2", "Churn")]),
   );
 
@@ -37,21 +41,35 @@ function setup(subject: RecordRef | null = CUSTOMER) {
 
   const untag = vi.fn((_subject: RecordRef, _tagId: string) => resolved(true));
 
-  const create = vi.fn((_kind: string, name: string) =>
+  const create = vi.fn(({ name }: CreateTagInput) =>
     resolved<Tag>({ id: "t3", name, slug: name.toLowerCase(), fields: {} }),
   );
 
   const onChanged = vi.fn();
 
   const controller = createTagInputController({
-    client: { forSubject, list, tag: tagFn, untag, create },
+    client: {
+      list: (params: ListTagsParams = {}) =>
+        params.on === undefined ? ofKind(params.kind) : forSubject(params.on),
+      attach: tagFn,
+      detach: untag,
+      create,
+    },
     auth,
     subject,
     kind: "customer",
     onChanged,
   });
 
-  return { forSubject, list, tagFn, untag, create, onChanged, controller };
+  return {
+    forSubject,
+    list: ofKind,
+    tagFn,
+    untag,
+    create,
+    onChanged,
+    controller,
+  };
 }
 
 describe("createTagInputController", () => {
@@ -128,7 +146,7 @@ describe("createTagInputController", () => {
       ok: true,
       data: { id: "t3", kind: "customer" },
     });
-    expect(create).toHaveBeenCalledWith("customer", "New");
+    expect(create).toHaveBeenCalledWith({ kind: "customer", name: "New" });
     expect(view().available?.map((each) => each.id)).toEqual([
       "t1",
       "t2",

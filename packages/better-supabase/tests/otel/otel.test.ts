@@ -113,7 +113,7 @@ describe("otel", () => {
     const { client } = capturingClient(() => ({ body: [{ id: "c1" }] }));
     await betterSupabase
       .connect(client)
-      .customers.findMany({ where: { name: "secret value" }, select: ["id"] })
+      .customers.list({ where: { name: "secret value" }, select: ["id"] })
       .orThrow();
     expect(spans).toEqual([
       {
@@ -188,7 +188,7 @@ describe("otel", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .customers.findMany({ select: ["id"] });
+      .customers.list({ select: ["id"] });
 
     expect(result.ok).toBe(false);
     expect(spans[0]?.attributes).toMatchObject({
@@ -251,8 +251,8 @@ describe("otel", () => {
     });
 
     await db.$many([
-      betterSupabase.spec.customers.findMany({ select: ["id"] }),
-      betterSupabase.spec.customers.findMany({ select: ["id"] }),
+      betterSupabase.spec.customers.list({ select: ["id"] }),
+      betterSupabase.spec.customers.list({ select: ["id"] }),
     ]);
     expect(spans.map((span) => span.name)).toEqual([
       "SELECT customers",
@@ -275,8 +275,8 @@ describe("otel", () => {
     ).toContain("BATCH SELECT");
     failSecond = true;
     await db.$many([
-      betterSupabase.spec.customers.findMany({ select: ["id"] }),
-      betterSupabase.spec.customers.findMany({ select: ["id"] }),
+      betterSupabase.spec.customers.list({ select: ["id"] }),
+      betterSupabase.spec.customers.list({ select: ["id"] }),
     ]);
     expect(spans[5]).toMatchObject({
       name: "BATCH SELECT customers",
@@ -300,7 +300,7 @@ describe("otel", () => {
       execute: async () => ok({ rows: [], count: null }),
     });
 
-    await db.customers.findMany({ select: ["id"] });
+    await db.customers.list({ select: ["id"] });
     expect(spans[0]?.attributes).toMatchObject({
       "db.system.name": "custom",
       "db.namespace": "public",

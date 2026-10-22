@@ -25,7 +25,7 @@ export const createTemplate = bsb.action(
   async ({ name, status }, { tenant, supabase, auth }) => {
     const templates = templatesOf(supabase);
 
-    const saved = await templates.save({
+    const saved = await templates.upsert({
       organizationId: tenant,
       type: "customer",
       name,
@@ -35,7 +35,7 @@ export const createTemplate = bsb.action(
       return saved;
     }
 
-    const draft = await templates.versions.save(saved.data.id, { status });
+    const draft = await templates.versions.upsert(saved.data.id, { status });
 
     if (!draft.ok) {
       return draft;

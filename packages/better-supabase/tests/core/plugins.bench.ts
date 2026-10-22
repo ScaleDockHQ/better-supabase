@@ -92,7 +92,7 @@ for (const [label, plugins] of Object.entries(SETS)) {
     Promise.resolve(betterSupabase.connect(executor, context)),
   );
 
-  const read = await measure(() => db.customers.findMany({ limit: 20 }));
+  const read = await measure(() => db.customers.list({ limit: 20 }));
   findMany[label] = read;
   results[label] = {
     "connect µs": connect.toFixed(2),

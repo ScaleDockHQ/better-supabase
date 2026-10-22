@@ -95,7 +95,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
 
       expect(
         await asMember.definitions
-          .save({ tenant, slug: "onboard", name: "Onboard" })
+          .upsert({ tenant, slug: "onboard", name: "Onboard" })
           .then((result) => !result.ok && result.error.hint),
       ).toBe("WORKFLOW_FORBIDDEN");
 
@@ -121,7 +121,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
       ).toEqual(["crm.lookup", "email.send"]);
 
       const definition = await builder.definitions
-        .save({ tenant, slug: "onboard", name: "Onboard" })
+        .upsert({ tenant, slug: "onboard", name: "Onboard" })
         .orThrow();
 
       expect(definition).toMatchObject({
@@ -137,7 +137,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
       ).toBe("WORKFLOW_NOT_PUBLISHED");
 
       const broken = await builder.versions
-        .save(definition.id, {
+        .upsert(definition.id, {
           nodes: [
             { id: "start", kind: "trigger" },
             { id: "x", kind: "step", step: "nope" },
@@ -153,7 +153,10 @@ describe.skipIf(!live)("workflow-editor module", () => {
         "not in the step library",
       );
 
-      const draft = await builder.versions.save(definition.id, GRAPH).orThrow();
+      const draft = await builder.versions
+        .upsert(definition.id, GRAPH)
+        .orThrow();
+
       expect(draft.id).toBe(broken.id);
       const v1 = await builder.versions.publish(draft.id).orThrow();
       expect(v1).toMatchObject({ version: 1, status: "published" });
@@ -175,7 +178,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
       await s.asRole(owner);
 
       const next = await builder.versions
-        .save(definition.id, {
+        .upsert(definition.id, {
           ...GRAPH,
           nodes: [
             ...GRAPH.nodes,
@@ -271,21 +274,24 @@ describe.skipIf(!live)("workflow-editor module", () => {
       });
 
       const definition = await builder.definitions
-        .save({ tenant, slug: "hooked", name: "Hooked" })
+        .upsert({ tenant, slug: "hooked", name: "Hooked" })
         .orThrow();
 
-      const draft = await builder.versions.save(definition.id, GRAPH).orThrow();
+      const draft = await builder.versions
+        .upsert(definition.id, GRAPH)
+        .orThrow();
+
       await builder.versions.publish(draft.id).orThrow();
 
       const webhook = await builder.triggers
-        .save({ definition: definition.id, kind: "webhook" })
+        .upsert({ definition: definition.id, kind: "webhook" })
         .orThrow();
 
       const token = await builder.triggers.rotateToken(webhook.id).orThrow();
       expect(token).toMatch(/^wfh_[0-9a-f]{48}$/);
 
       const event = await builder.triggers
-        .save({
+        .upsert({
           definition: definition.id,
           kind: "event",
           config: { type: "contact.created" },
@@ -293,7 +299,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
         .orThrow();
 
       const schedule = await builder.triggers
-        .save({
+        .upsert({
           definition: definition.id,
           kind: "schedule",
           config: { cron: "@daily", input: { daily: true } },
@@ -307,7 +313,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
       ).toEqual(["webhook", "event", "schedule"]);
 
       const manual = await builder.triggers
-        .save({ definition: definition.id, kind: "manual" })
+        .upsert({ definition: definition.id, kind: "manual" })
         .orThrow();
 
       expect(
@@ -558,11 +564,11 @@ describe.skipIf(!live)("workflow-editor module", () => {
       const builder = createWorkflowEditor({ transport: sqlTransport(s.sql) });
 
       const definition = await builder.definitions
-        .save({ tenant, slug: "alerted", name: "Alerted" })
+        .upsert({ tenant, slug: "alerted", name: "Alerted" })
         .orThrow();
 
       const failed = await builder.alerts
-        .save({
+        .upsert({
           definition: definition.id,
           onEvent: "failed",
           channel: { type: "email", to: "ops@example.test" },
@@ -570,7 +576,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
         .orThrow();
 
       const slow = await builder.alerts
-        .save({ definition: definition.id, onEvent: "slow", threshold: 60 })
+        .upsert({ definition: definition.id, onEvent: "slow", threshold: 60 })
         .orThrow();
 
       expect(slow.threshold).toBe(60);

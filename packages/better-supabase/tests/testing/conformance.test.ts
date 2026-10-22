@@ -523,7 +523,7 @@ describe("testPlugin", () => {
       enforce: "last" as never,
       repository: ({ table }) =>
         table.key === "tags"
-          ? { findMany: () => 1, restore: () => 2, label: "x" as never }
+          ? { list: () => 1, restore: () => 2, label: "x" as never }
           : undefined,
     });
 

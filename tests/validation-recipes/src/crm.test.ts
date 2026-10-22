@@ -39,7 +39,11 @@ async function salesWorkspace(s: Session) {
   await s.as(owner);
 
   const sales = await pipelines
-    .save(organizationId, { subjectType: "deal", key: "sales", name: "Sales" })
+    .upsert(organizationId, {
+      subjectType: "deal",
+      key: "sales",
+      name: "Sales",
+    })
     .orThrow();
 
   const stages = new Map<StageKey, string>();
@@ -95,8 +99,8 @@ describe.skipIf(!live)("CRM recipe", () => {
       await s.as(owner);
       const deal = { type: "deal", id: dealId };
       await comments.create(deal, { body: "Sent the renewal quote" }).orThrow();
-      const hot = await tags.create("deal", "Hot").orThrow();
-      await tags.tag(deal, hot.id).orThrow();
+      const hot = await tags.create({ kind: "deal", name: "Hot" }).orThrow();
+      await tags.attach(deal, hot.id).orThrow();
 
       const moved = await deals
         .update([{ dealId, field: "stageId", value: stage("qualified") }])

@@ -167,7 +167,7 @@ describe("withBetterResult over the runtime package's db", () => {
     const found: BetterResult<
       { id: string; name: string },
       NotFound | Conflict | DbFailure
-    > = await db.customers.findById("c1", { select: ["id", "name"] });
+    > = await db.customers.get("c1", { select: ["id", "name"] });
 
     expect(found.unwrap()).toEqual({ id: "c1", name: "Acme" });
 
@@ -177,7 +177,7 @@ describe("withBetterResult over the runtime package's db", () => {
 
   it("maps a missing row to the NotFound class", async () => {
     const db = withBetterResult(betterSupabase.connect(rowsOf([])), toResult);
-    const missing = await db.customers.findById("c1");
+    const missing = await db.customers.get("c1");
     expect(missing.isErr() && NotFound.is(missing.error)).toBe(true);
   });
 });

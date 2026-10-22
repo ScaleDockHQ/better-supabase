@@ -80,7 +80,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "columns and order",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id", "name", "status", "createdAt"],
             orderBy: { name: "asc" },
           })
@@ -90,7 +90,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "text operators",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id"],
             where: { name: { contains: "run" }, kvk: { not: null } },
           })
@@ -100,7 +100,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "json paths and json array containment",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id"],
             where: {
               OR: [
@@ -117,7 +117,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "a sort by a to-one relation",
       (db) =>
         db.notes
-          .findMany({
+          .list({
             select: ["id", "body"],
             orderBy: [{ customer: { name: "desc" } }, { id: "asc" }],
           })
@@ -127,7 +127,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "a sort by an included to-one relation",
       (db) =>
         db.notes
-          .paginate({
+          .page({
             select: ["id"],
             include: { customer: { select: ["name"] } },
             orderBy: [{ customer: { name: "asc" } }, { id: "desc" }],
@@ -140,7 +140,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "regular expressions",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id"],
             where: {
               OR: [
@@ -156,7 +156,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "OR and NOT",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id"],
             where: {
               OR: [{ status: "lead" }, { kvk: "1001" }],
@@ -170,7 +170,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "some / none / every",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id"],
             where: {
               notes: { some: {} },
@@ -184,7 +184,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "to-one filters",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id"],
             where: { organization: { slug: "acme" }, primaryContact: null },
           })
@@ -194,7 +194,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "relations inside OR",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id"],
             where: {
               OR: [
@@ -210,7 +210,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "nested includes",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id", "metadata"],
             include: {
               organization: { select: ["slug"] },
@@ -237,7 +237,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "relation aggregates",
       (db) =>
         db.customers
-          .findMany({
+          .list({
             select: ["id"],
             include: {
               _sum: { notes: { id: true } },
@@ -282,7 +282,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "offset page",
       (db) =>
         db.customers
-          .paginate({
+          .page({
             select: ["id"],
             page: 1,
             size: 1,
@@ -295,7 +295,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "offset window with a total",
       (db) =>
         db.customers
-          .paginate({
+          .page({
             select: ["id"],
             offset: 1,
             limit: 2,
@@ -308,19 +308,14 @@ describe.skipIf(!live)("Postgres executor", async () => {
       "offset window past the last row",
       (db) =>
         db.customers
-          .paginate({
-            select: ["id"],
-            offset: 10_000,
-            limit: 2,
-            count: "exact",
-          })
+          .page({ select: ["id"], offset: 10_000, limit: 2, count: "exact" })
           .orThrow(),
     ],
     [
       "cursor page",
       (db) =>
         db.customers
-          .paginate({
+          .page({
             select: ["id", "name"],
             after: null,
             size: 1,
@@ -331,9 +326,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
     [
       "findById",
       (db) =>
-        db.customers
-          .findById(ROAD_RUNNER, { select: ["name", "status"] })
-          .orThrow(),
+        db.customers.get(ROAD_RUNNER, { select: ["name", "status"] }).orThrow(),
     ],
     [
       "list query with hostile search and unset facet",
@@ -382,7 +375,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       expect(counts).toEqual(counts.toSorted((a, b) => b - a));
 
       const [roadRunner] = await db.customers
-        .findMany({
+        .list({
           select: ["id"],
           where: { id: ROAD_RUNNER },
           include: { _count: { notes: true }, _max: { notes: { id: true } } },
@@ -412,7 +405,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
     for (const direction of ["asc", "desc"] as const) {
       for (const db of [rest, sql]) {
         const expected = await db.customers
-          .findMany({
+          .list({
             select: ["id"],
             orderBy: [{ primaryContactId: direction }, { id: direction }],
           })
@@ -426,7 +419,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
         do {
           const page: { items: { id: string }[]; nextCursor: string | null } =
             await db.customers
-              .paginate({
+              .page({
                 select: ["id"],
                 orderBy: { primaryContactId: direction },
                 size: 1,
@@ -459,7 +452,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       { tenant: "00000000-0000-4000-8000-000000000002" },
     );
 
-    const rows = await other.customers.findMany({ select: ["name"] }).orThrow();
+    const rows = await other.customers.list({ select: ["name"] }).orThrow();
     expect(rows).toEqual([{ name: "Initech" }]);
   });
 
@@ -483,10 +476,10 @@ describe.skipIf(!live)("Postgres executor", async () => {
     });
 
     const updated = await sql.customers
-      .updateMany({
-        where: { id: created.id, notes: { none: {} } },
-        data: { status: "active" },
-      })
+      .update(
+        { where: { id: created.id, notes: { none: {} } } },
+        { status: "active" },
+      )
       .orThrow();
 
     expect(updated).toEqual({ count: 1 });
@@ -522,9 +515,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
         async (tx) => {
           const db = betterSupabase.connect(postgresExecutor(tx), { claims });
           expect(
-            await db.tags
-              .createMany(rows as never, { returning: false })
-              .orThrow(),
+            await db.tags.create(rows as never, { returning: false }).orThrow(),
           ).toEqual({ count: 22_000 });
           throw new Error("roll back");
         },
@@ -532,14 +523,17 @@ describe.skipIf(!live)("Postgres executor", async () => {
       ),
     ).rejects.toThrow("roll back");
 
-    const duplicate = await sql.tags.createMany([...rows, rows[0]!] as never, {
+    const duplicate = await sql.tags.create([...rows, rows[0]!] as never, {
       returning: false,
     });
 
     expect(duplicate.error?.kind).toBe("conflict");
-    expect(await sql.tags.exists({ where: { name: "bulk-0" } }).orThrow()).toBe(
-      false,
-    );
+    expect(
+      await sql.tags
+        .count({ where: { name: "bulk-0" } })
+        .map((n) => n > 0)
+        .orThrow(),
+    ).toBe(false);
   });
 
   it("calls functions with $rpc like PostgREST", async () => {
@@ -687,9 +681,12 @@ describe.skipIf(!live)("Postgres executor", async () => {
         { claims },
       ),
     ).rejects.toThrow("roll back");
-    expect(await sql.tags.exists({ where: { name: "tx-tag" } }).orThrow()).toBe(
-      false,
-    );
+    expect(
+      await sql.tags
+        .count({ where: { name: "tx-tag" } })
+        .map((n) => n > 0)
+        .orThrow(),
+    ).toBe(false);
   });
 
   it("writes arrays, objects, scalars and null to json columns and keeps text[] arrays", async () => {

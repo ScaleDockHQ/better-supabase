@@ -172,7 +172,7 @@ export function defineResource<
     }
 
     // SAFETY: the resource erases table generics; id was parsed for this key.
-    return settled(repositoryOf(db).findById(id as never));
+    return settled(repositoryOf(db).get(id as never));
   };
 
   const filterRows = async (
@@ -269,8 +269,8 @@ export function defineResource<
           run = () =>
             settled(
               // SAFETY: the resource erases table generics; page holds validated
-              // paginate options for this table.
-              repository.paginate({
+              // page options for this table.
+              repository.page({
                 ...extra,
                 ...page.data,
                 ...("page" in page.data ? { count: "exact" } : {}),
@@ -297,7 +297,7 @@ export function defineResource<
         // SAFETY: the resource erases table generics; key() parsed the id for
         // this table's primary key.
         const row = await settled(
-          repository.findById(id.data as never, extra as never),
+          repository.get(id.data as never, extra as never),
         );
 
         if (!row.ok) {

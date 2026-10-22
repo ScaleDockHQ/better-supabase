@@ -3,7 +3,7 @@ import type { SegmentInput } from "./segments.ts";
 
 import { entitySchema } from "../entity-schema.ts";
 
-/** What `save` takes. The SQL checks the conditions against the rule fields. */
+/** What `upsert` takes. The SQL checks the conditions against the rule fields. */
 export const segmentInputSchema: EntitySchema<SegmentInput> =
   entitySchema<SegmentInput>({
     title: "SegmentInput",

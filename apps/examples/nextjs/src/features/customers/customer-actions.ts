@@ -81,7 +81,7 @@ export const uploadCustomerLogo = bsb.action(
   },
   async ({ customerId, logo }, { tenant: organizationId, db, supabase }) => {
     // A better-result value with an AppError, converted back for the action.
-    const customer = await withBetterResult(db, appErrors).customers.findById(
+    const customer = await withBetterResult(db, appErrors).customers.get(
       customerId,
       { select: ["id", "logoPath"] },
     );

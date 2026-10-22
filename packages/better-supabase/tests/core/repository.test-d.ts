@@ -30,18 +30,18 @@ const snakeDb = defineSupabase(snake).connect(client);
 describe("payload inference", () => {
   it("returns an offset page for an offset and limit window", async () => {
     const page = await db.customers
-      .paginate({ select: ["id"], offset: 40, limit: 20, count: "exact" })
+      .page({ select: ["id"], offset: 40, limit: 20, count: "exact" })
       .orThrow();
 
     expectTypeOf(page.items).toEqualTypeOf<{ id: string }[]>();
     expectTypeOf(page.page.total).toEqualTypeOf<number>();
     // @ts-expect-error an offset window takes limit, not size
-    void db.customers.paginate({ offset: 0, limit: 10, size: 10 });
+    void db.customers.page({ offset: 0, limit: 10, size: 10 });
   });
 
   it("narrows rows to the selected columns", async () => {
     const rows = await db.customers
-      .findMany({ select: ["id", "status"] })
+      .list({ select: ["id", "status"] })
       .orThrow();
 
     expectTypeOf(rows).toEqualTypeOf<
@@ -50,7 +50,7 @@ describe("payload inference", () => {
   });
 
   it("returns full rows without a select", async () => {
-    const row = await db.customers.findById("x").orThrow();
+    const row = await db.customers.get("x").orThrow();
     expectTypeOf(row.organizationId).toEqualTypeOf<string>();
     expectTypeOf(row.kvk).toEqualTypeOf<string | null>();
     expectTypeOf(row.metadata).toEqualTypeOf<{
@@ -61,7 +61,7 @@ describe("payload inference", () => {
 
   it("keeps database names in snake mode", async () => {
     const row = await snakeDb.customers
-      .findById("x", { select: ["organization_id"] })
+      .get("x", { select: ["organization_id"] })
       .orThrow();
 
     expectTypeOf(row).toEqualTypeOf<{ organization_id: string }>();
@@ -69,7 +69,7 @@ describe("payload inference", () => {
 
   it("types findOnly like findFirst and requires where", async () => {
     const row = await db.customers
-      .findOnly({ where: { status: "active" }, select: ["id"] })
+      .get({ where: { status: "active" } }, { select: ["id"], optional: true })
       .orThrow();
 
     expectTypeOf(row).toEqualTypeOf<{ id: string } | null>();
@@ -79,7 +79,7 @@ describe("payload inference", () => {
 
   it("types includes by relation cardinality", async () => {
     const row = await db.customers
-      .findFirst({
+      .list({
         select: ["id"],
         include: {
           organization: { select: ["slug"] },
@@ -90,7 +90,9 @@ describe("payload inference", () => {
             include: { tag: { select: ["name"] } },
           },
         },
+        limit: 1,
       })
+      .map((rows) => rows[0] ?? null)
       .orThrow();
 
     expectTypeOf(row).toEqualTypeOf<{
@@ -135,7 +137,7 @@ describe("MutableWhere and WhereOf", () => {
         where.status = "gone";
       }
 
-      return db.customers.findMany({ where });
+      return db.customers.list({ where });
     };
 
     void filter;
@@ -147,7 +149,7 @@ describe("OrderByOf", () => {
     const sort = (newest: boolean): OrderByOf<"customers"> =>
       newest ? [{ createdAt: "desc" }, { name: "asc" }] : { name: "asc" };
 
-    void db.customers.findMany({ orderBy: sort(true) });
+    void db.customers.list({ orderBy: sort(true) });
     // @ts-expect-error not a column of customers
     const wrong: OrderByOf<"customers"> = { nope: "asc" };
     void wrong;
@@ -157,8 +159,8 @@ describe("OrderByOf", () => {
     const tiebreak: OrderTermOf<"customers"> = { id: "asc" };
     const byName: OrderTermOf<"customers"> = { name: "asc" };
     const orderBy: OrderByOf<"customers"> = [byName, tiebreak];
-    void db.customers.findMany({ orderBy });
-    void db.customers.findMany({ orderBy: tiebreak });
+    void db.customers.list({ orderBy });
+    void db.customers.list({ orderBy: tiebreak });
     expectTypeOf<OrderTermOf<"customers">>().toEqualTypeOf<
       Exclude<OrderByOf<"customers">, readonly unknown[]>
     >();
@@ -174,7 +176,7 @@ describe("OrderByOf", () => {
 describe("required includes", () => {
   it("drops null from a nullable to-one include with required: true", async () => {
     const rows = await db.customers
-      .findMany({
+      .list({
         select: ["id"],
         include: {
           primaryContact: { select: ["id"], required: true },
@@ -186,7 +188,7 @@ describe("required includes", () => {
     expectTypeOf(rows[0]!.primaryContact).toEqualTypeOf<{ id: string }>();
 
     const optional = await db.customers
-      .findMany({ include: { primaryContact: { select: ["id"] } } })
+      .list({ include: { primaryContact: { select: ["id"] } } })
       .orThrow();
 
     expectTypeOf(optional[0]!.primaryContact).toEqualTypeOf<{
@@ -222,18 +224,17 @@ describe("$rpc results", () => {
 describe("conditional writes", () => {
   it("returns rows from updateMany and deleteMany only with returning: true", async () => {
     const counted = await db.customers
-      .updateMany({ where: { status: "lead" }, data: { status: "active" } })
+      .update({ where: { status: "lead" } }, { status: "active" })
       .orThrow();
 
     expectTypeOf(counted).toEqualTypeOf<{ count: number }>();
 
     const updated = await db.customers
-      .updateMany({
-        where: { status: "lead" },
-        data: { status: "active" },
-        returning: true,
-        select: ["id", "status"],
-      })
+      .update(
+        { where: { status: "lead" } },
+        { status: "active" },
+        { returning: true, select: ["id", "status"] },
+      )
       .orThrow();
 
     expectTypeOf(updated).toEqualTypeOf<
@@ -241,30 +242,30 @@ describe("conditional writes", () => {
     >();
 
     const deleted = await db.customers
-      .deleteMany({ where: { status: "archived" }, returning: true })
+      .delete({ where: { status: "archived" } }, { returning: true })
       .orThrow();
 
     expectTypeOf(deleted[0]!.organizationId).toEqualTypeOf<string>();
   });
 
   it("sorts by to-one relations", () => {
-    void db.notes.findMany({
+    void db.notes.list({
       orderBy: [{ customer: { name: "asc" } }, { createdAt: "desc" }],
     });
-    void db.notes.findMany({
+    void db.notes.list({
       include: { customer: { select: ["name"] } },
       orderBy: { customer: { name: { direction: "desc", nulls: "last" } } },
     });
   });
 
   it("types json path filters", () => {
-    void db.notes.findMany({
+    void db.notes.list({
       where: {
         attachments: { path: ["owner", "id"], eq: "u1", ilike: "u%" },
         AND: [{ attachments: { path: ["kind"], in: ["a", 1] } }],
       },
     });
-    void db.customers.findMany({
+    void db.customers.list({
       where: { metadata: { path: ["tier"], eq: "pro" } },
     });
   });
@@ -286,37 +287,33 @@ describe("conditional writes", () => {
 describe("argument checking", () => {
   it("rejects unknown columns and relations", () => {
     // @ts-expect-error unknown column
-    db.customers.findMany({ select: ["nope"] });
+    db.customers.list({ select: ["nope"] });
     // @ts-expect-error unknown filter column
-    db.customers.findMany({ where: { nope: 1 } });
+    db.customers.list({ where: { nope: 1 } });
     // @ts-expect-error snake name in camel mode
-    db.customers.findMany({ where: { organization_id: "x" } });
+    db.customers.list({ where: { organization_id: "x" } });
     // @ts-expect-error unknown relation
-    db.customers.findMany({ include: { invoices: true } });
+    db.customers.list({ include: { invoices: true } });
   });
 
   it("checks filter values against column types", () => {
-    db.customers.findMany({ where: { status: { in: ["lead", "active"] } } });
+    db.customers.list({ where: { status: { in: ["lead", "active"] } } });
     // @ts-expect-error value outside the CHECK union
-    db.customers.findMany({ where: { status: "deleted" } });
+    db.customers.list({ where: { status: "deleted" } });
     // @ts-expect-error contains is only for text
-    db.notes.findMany({ where: { id: { contains: "1" } } });
-    db.customers.findMany({ where: { name: { ieq: "acme" } } });
-    db.customers.findMany({
-      where: { metadata: { path: ["tier"], ieq: "Pro" } },
-    });
+    db.notes.list({ where: { id: { contains: "1" } } });
+    db.customers.list({ where: { name: { ieq: "acme" } } });
+    db.customers.list({ where: { metadata: { path: ["tier"], ieq: "Pro" } } });
     // @ts-expect-error ieq is only for text
-    db.notes.findMany({ where: { id: { ieq: "1" } } });
-    db.notes.findMany({ where: { kind: { notIn: ["email"] } } });
+    db.notes.list({ where: { id: { ieq: "1" } } });
+    db.notes.list({ where: { kind: { notIn: ["email"] } } });
   });
 
   it("offers quantifiers only on to-many relations", () => {
-    db.customers.findMany({ where: { notes: { some: { kind: "call" } } } });
-    db.customers.findMany({
-      where: { organization: { is: { slug: "acme" } } },
-    });
+    db.customers.list({ where: { notes: { some: { kind: "call" } } } });
+    db.customers.list({ where: { organization: { is: { slug: "acme" } } } });
     // @ts-expect-error to-one relations have no quantifiers
-    db.customers.findMany({ where: { organization: { some: {} } } });
+    db.customers.list({ where: { organization: { some: {} } } });
   });
 
   it("requires insert columns and forbids generated identities", () => {
@@ -327,20 +324,23 @@ describe("argument checking", () => {
   });
 
   it("types composite primary keys", () => {
-    db.customerTags.findById({ customerId: "c", tagId: "t" });
+    db.customerTags.get({ customerId: "c", tagId: "t" });
     // @ts-expect-error composite keys need every column
-    db.customerTags.findById({ customerId: "c" });
+    db.customerTags.get({ customerId: "c" });
   });
 
   it("types findUnique by the primary key or a named unique key", async () => {
     const row = await db.customers
-      .findUnique({ where: { organizationId: "o", kvk: "1" }, select: ["id"] })
+      .get(
+        { organizationId: "o", kvk: "1" },
+        { select: ["id"], optional: true },
+      )
       .orThrow();
 
     expectTypeOf(row).toEqualTypeOf<{ id: string } | null>();
-    db.customers.findUnique({ where: { id: "c" } });
+    db.customers.get({ id: "c" }, { optional: true });
     // @ts-expect-error a unique key needs all of its columns
-    db.customers.findUnique({ where: { kvk: "1" } });
+    db.customers.get({ kvk: "1" }, { optional: true });
   });
 
   it("types constraint names", () => {
@@ -362,7 +362,7 @@ describe("argument checking", () => {
   it("types QuerySpec results like the repository", async () => {
     const betterSupabase = defineSupabase(camel);
 
-    const spec = betterSupabase.spec.customers.findMany({
+    const spec = betterSupabase.spec.customers.list({
       select: ["id", "status"],
     });
 
@@ -374,15 +374,12 @@ describe("argument checking", () => {
       { id: string; status: CustomersStatus }[]
     >();
 
-    const page = betterSupabase.spec.customers.paginate({
-      size: 10,
-      after: null,
-    });
+    const page = betterSupabase.spec.customers.page({ size: 10, after: null });
 
     expectTypeOf<InferResult<typeof page>["nextCursor"]>().toEqualTypeOf<
       string | null
     >();
-    betterSupabase.spec.customers.findMany({
+    betterSupabase.spec.customers.list({
       // @ts-expect-error specs never carry a signal
       signal: new AbortController().signal,
     });
@@ -392,7 +389,7 @@ describe("argument checking", () => {
 describe("_count, $table and $withoutPlugins", () => {
   it("adds _count for to-many relations only", async () => {
     const rows = await db.customers
-      .findMany({
+      .list({
         select: ["id"],
         include: {
           _count: { notes: true, locations: { where: { city: "x" } } },
@@ -405,31 +402,34 @@ describe("_count, $table and $withoutPlugins", () => {
       locations: number;
     }>();
     // @ts-expect-error organization is a to-one relation
-    void db.customers.findMany({ include: { _count: { organization: true } } });
+    void db.customers.list({ include: { _count: { organization: true } } });
   });
 
   it("rejects _count and measures outside include", () => {
     // @ts-expect-error _count goes inside include
-    void db.customers.findMany({ _count: { notes: true } });
+    void db.customers.list({ _count: { notes: true } });
     // @ts-expect-error _sum goes inside include
-    void db.customers.findFirst({ _sum: { notes: { id: true } } });
-    // @ts-expect-error _count goes inside include
-    void db.customers.findOnly({ where: { id: "x" }, _count: { notes: true } });
+    void db.customers.list({ _sum: { notes: { id: true } }, limit: 1 });
+    void db.customers.get(
+      { where: { id: "x" } },
+      // @ts-expect-error _count goes inside include
+      { _count: { notes: true }, optional: true },
+    );
   });
 
   it("types runtime table lookups and the plugin-free connection", () => {
     expectTypeOf(db.$table("tags")).toEqualTypeOf(db.tags);
     // @ts-expect-error unknown table
     void db.$table("nope");
-    expectTypeOf(db.$withoutPlugins().tags).toHaveProperty("findMany");
+    expectTypeOf(db.$withoutPlugins().tags).toHaveProperty("list");
     expectTypeOf(db.$withoutPlugins({ keep: ["otel"] }).tags).toHaveProperty(
-      "findMany",
+      "list",
     );
   });
 
   it("accepts the rules sensitive opt-in", () => {
     const ruled = defineSupabase(camel).use(guards()).connect(client);
-    void ruled.contacts.findMany({ limit: 1, sensitive: true });
+    void ruled.contacts.list({ limit: 1, sensitive: true });
   });
 });
 

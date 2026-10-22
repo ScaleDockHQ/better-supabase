@@ -83,10 +83,18 @@ describe.skipIf(!live)("blocks without organizations", () => {
       const note = { type: "note", id: "n1" };
 
       await s.as(ann);
-      const urgent = await tags.create("label", "Urgent").orThrow();
+
+      const urgent = await tags
+        .create({ kind: "label", name: "Urgent" })
+        .orThrow();
+
       // Ann can't put a tag in Bob's set: the scope id is always the caller.
       tenant = bob.id;
-      const other = await tags.create("label", "Later").orThrow();
+
+      const other = await tags
+        .create({ kind: "label", name: "Later" })
+        .orThrow();
+
       expect(
         await s.value<string>(
           "(select tenant_id::text from scope_it.tags where id = $1)",
@@ -95,23 +103,27 @@ describe.skipIf(!live)("blocks without organizations", () => {
       ).toBe(ann.id);
 
       await s.as(bob);
+
       // The same name in Bob's own set is a different tag.
-      const bobs = await tags.create("label", "Urgent").orThrow();
+      const bobs = await tags
+        .create({ kind: "label", name: "Urgent" })
+        .orThrow();
+
       expect(bobs.id).not.toBe(urgent.id);
-      expect((await tags.update(urgent.id, "Mine")).ok).toBe(false);
-      expect((await tags.tag(note, urgent.id)).ok).toBe(false);
-      expect(await tags.tag(note, bobs.id).orThrow()).toBe(true);
+      expect((await tags.update(urgent.id, { name: "Mine" })).ok).toBe(false);
+      expect((await tags.attach(note, urgent.id)).ok).toBe(false);
+      expect(await tags.attach(note, bobs.id).orThrow()).toBe(true);
       // Reads also stay in the caller's own set.
-      expect((await tags.list("label").orThrow()).map((tag) => tag.id)).toEqual(
-        [bobs.id],
-      );
+      expect(
+        (await tags.list({ kind: "label" }).orThrow()).map((tag) => tag.id),
+      ).toEqual([bobs.id]);
       tenant = ann.id;
       expect((await tags.list().orThrow()).map((tag) => tag.id)).toEqual([
         bobs.id,
       ]);
       tenant = bob.id;
       expect(
-        (await tags.forSubject(note).orThrow()).map((tag) => tag.name),
+        (await tags.list({ on: note }).orThrow()).map((tag) => tag.name),
       ).toEqual(["Urgent"]);
     });
 
@@ -310,7 +322,7 @@ describe.skipIf(!live)("a workspace-named app", () => {
     ).toBe(true);
 
     const tags = createTags({ transport, schema: "ws_it", tenant: id });
-    const tag = await tags.create("label", "Urgent").orThrow();
+    const tag = await tags.create({ kind: "label", name: "Urgent" }).orThrow();
     expect(tag.name).toBe("Urgent");
   });
 });

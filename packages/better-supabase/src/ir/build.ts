@@ -1206,7 +1206,7 @@ export class IrBuilder {
         .join(", ");
 
       invalidRequest(
-        `findUnique on "${table.key}" needs one complete unique key: ${names}`,
+        `get on "${table.key}" needs the primary key or one complete unique key: ${names}`,
         table.key,
       );
     }

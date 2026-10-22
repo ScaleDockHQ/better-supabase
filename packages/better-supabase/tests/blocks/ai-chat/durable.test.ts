@@ -224,7 +224,7 @@ describe("createHarnessSessions", () => {
   it("saves only the fields it is given", async () => {
     const { sessions, server } = fake();
     await sessions
-      .save(
+      .upsert(
         "c1",
         "claude-code",
         { resumeState: { session: "b" }, sandboxId: null, status: "idle" },
@@ -242,7 +242,7 @@ describe("createHarnessSessions", () => {
       holder: "turn-1",
     });
     await sessions
-      .save("c1", "claude-code", { continueState: undefined })
+      .upsert("c1", "claude-code", { continueState: undefined })
       .orThrow();
     expect(lastArgs(server)).toMatchObject({
       fields: { continue_state: null },

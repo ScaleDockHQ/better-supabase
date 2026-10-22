@@ -13,7 +13,7 @@ const betterSupabase = defineSupabase(schema);
 
 describe("QuerySpec", () => {
   it("is plain JSON that round-trips", () => {
-    const spec = betterSupabase.spec.customers.findMany({
+    const spec = betterSupabase.spec.customers.list({
       select: ["id", "name"],
       where: { status: "active" },
       limit: 5,
@@ -22,14 +22,14 @@ describe("QuerySpec", () => {
     expect(spec).toEqual({
       v: 1,
       table: "customers",
-      method: "findMany",
+      method: "list",
       args: [{ select: ["id", "name"], where: { status: "active" }, limit: 5 }],
     });
     expect(JSON.parse(JSON.stringify(spec))).toEqual(spec);
-    expect(betterSupabase.spec.customers.findMany()).toEqual({
+    expect(betterSupabase.spec.customers.list()).toEqual({
       v: 1,
       table: "customers",
-      method: "findMany",
+      method: "list",
       args: [],
     });
   });
@@ -41,7 +41,7 @@ describe("QuerySpec", () => {
 
     const db = betterSupabase.connect(client);
 
-    const spec = betterSupabase.spec.customers.findById("c1", {
+    const spec = betterSupabase.spec.customers.get("c1", {
       select: ["id", "name"],
     });
 
@@ -49,9 +49,7 @@ describe("QuerySpec", () => {
       JSON.parse(JSON.stringify(spec)) as typeof spec,
     );
 
-    const direct = await db.customers.findById("c1", {
-      select: ["id", "name"],
-    });
+    const direct = await db.customers.get("c1", { select: ["id", "name"] });
 
     expect(viaSpec).toEqual(direct);
     expect(query(requests[0]!)).toEqual(query(requests[1]!));
@@ -88,7 +86,7 @@ describe("QuerySpec", () => {
 
 describe("touched tables", () => {
   it("collects includes and relation filters", () => {
-    const spec = betterSupabase.spec.customers.findMany({
+    const spec = betterSupabase.spec.customers.list({
       select: ["id"],
       include: { notes: { select: ["id"] } },
       where: { organization: { is: { slug: "acme" } } },
@@ -112,7 +110,7 @@ describe("touched tables", () => {
   it("falls back to the spec table when the arguments are invalid", () => {
     expect(
       betterSupabase.tablesOf(
-        betterSupabase.spec.customers.findMany({
+        betterSupabase.spec.customers.list({
           include: { nope: true },
         } as never),
       ),

@@ -4,7 +4,7 @@ import type { CalendarEventInput } from "./calendar.ts";
 import { entitySchema } from "../entity-schema.ts";
 
 /**
- * What `save` takes for an event. Fields left out keep their value on update,
+ * What `upsert` takes for an event. Fields left out keep their value on update,
  * so every field is optional.
  */
 export const calendarEventInputSchema: EntitySchema<CalendarEventInput> =

@@ -109,9 +109,9 @@ describe("softDelete", () => {
   it("hides deleted rows, with opt-outs for the root table", async () => {
     const { client, requests } = capturingClient();
     const db = betterSupabase.connect(client);
-    await db.customers.findMany({ select: ["id"] });
-    await db.customers.findMany({ select: ["id"], withDeleted: true });
-    await db.customers.findMany({ select: ["id"], onlyDeleted: true });
+    await db.customers.list({ select: ["id"] });
+    await db.customers.list({ select: ["id"], withDeleted: true });
+    await db.customers.list({ select: ["id"], onlyDeleted: true });
     expect(requests.map(query)).toEqual([
       ["select=id", "archived_at=is.null", "order=id.asc"],
       ["select=id", "order=id.asc"],
@@ -122,7 +122,7 @@ describe("softDelete", () => {
   it("scopes includes and relation filters, keeping every() correct", async () => {
     const { client, last } = capturingClient();
     const db = betterSupabase.connect(client);
-    await db.organizations.findMany({
+    await db.organizations.list({
       select: ["id"],
       where: { customers: { every: { status: "active" } } },
       include: { customers: { select: ["id"] } },
@@ -175,11 +175,10 @@ describe("softDelete", () => {
 
     const rows = await betterSupabase
       .connect(client)
-      .customers.deleteMany({
-        where: { status: "lead" },
-        returning: true,
-        select: ["id"],
-      })
+      .customers.delete(
+        { where: { status: "lead" } },
+        { returning: true, select: ["id"] },
+      )
       .orThrow();
 
     expect(rows).toEqual([{ id: "c" }]);
@@ -256,7 +255,7 @@ describe("tenant", () => {
 
   it("fails closed without a tenant and sends nothing", async () => {
     const { client, requests } = capturingClient();
-    const result = await betterSupabase.connect(client).customers.findMany();
+    const result = await betterSupabase.connect(client).customers.list();
     expect(result.error?.kind).toBe("forbidden");
     expect(requests).toHaveLength(0);
   });
@@ -267,7 +266,7 @@ describe("tenant", () => {
     const result = await base
       .use(membershipsExtension())
       .connect(client)
-      .customers.findMany({ select: ["id"] });
+      .customers.list({ select: ["id"] });
 
     expect(result.error).toBeNull();
     expect(query(requests[0] ?? (undefined as never))).toEqual([
@@ -280,10 +279,10 @@ describe("tenant", () => {
     const { client, requests } = capturingClient();
     await betterSupabase
       .connect(client, { tenant: ORG })
-      .customers.findMany({ select: ["id"] });
+      .customers.list({ select: ["id"] });
     await betterSupabase
       .connect(client, { claims: { tenant_id: ORG } })
-      .tags.findMany({ select: ["id"] });
+      .tags.list({ select: ["id"] });
     expect(query(requests[0] ?? (undefined as never))).toEqual([
       "select=id",
       `organization_id=eq.${ORG}`,
@@ -303,7 +302,7 @@ describe("tenant", () => {
       .connect(client, {
         claims: { sub: ORG, user_metadata: { tenant_id: ORG } },
       })
-      .customers.findMany();
+      .customers.list();
 
     expect(result.error?.kind).toBe("forbidden");
     expect(requests).toHaveLength(0);
@@ -360,7 +359,7 @@ describe("tenant", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .organizations.findMany({
+      .organizations.list({
         select: ["id"],
         include: { customers: { select: ["id"] } },
       } as never);
@@ -397,7 +396,7 @@ describe("tenant", () => {
     const { client, last } = capturingClient();
     await betterSupabase
       .connect(client)
-      .customers.findMany({ select: ["id"], allTenants: true });
+      .customers.list({ select: ["id"], allTenants: true });
     expect(query(last())).toEqual(["select=id", "order=id.asc"]);
   });
 
@@ -411,7 +410,7 @@ describe("tenant", () => {
       .connect(client, allTenantsContext({}))
       .$with({ actor: { id: USER, kind: "service" } });
 
-    await db.customers.findMany({ select: ["id"] });
+    await db.customers.list({ select: ["id"] });
     expect(query(last())).toEqual(["select=id", "order=id.asc"]);
     await db.customers.create(
       { organizationId: ORG, name: "A" },
@@ -421,7 +420,7 @@ describe("tenant", () => {
 
     const spoofed = await betterSupabase
       .connect(client, JSON.parse('{"allTenants":true}'))
-      .customers.findMany({ select: ["id"] });
+      .customers.list({ select: ["id"] });
 
     expect(spoofed.error).toMatchObject({ kind: "forbidden" });
   });
@@ -511,11 +510,10 @@ describe("actor", () => {
     });
     expect(requests[1]?.body).toEqual({ name: "B", updated_by: USER });
 
-    const forged = await impersonated.customers.update(
-      "c",
+    const forged = await impersonated.customers.update("c", {
       // @ts-expect-error -- the fixture models have no impersonatedBy column
-      { impersonatedBy: USER },
-    );
+      impersonatedBy: USER,
+    });
 
     expect(forged.error?.message).toContain("actor()");
   });
@@ -679,7 +677,7 @@ describe("validation", () => {
         .ok,
     ).toBe(true);
 
-    const bulk = await db.tags.createMany([
+    const bulk = await db.tags.create([
       { name: "a" },
       { name: "b", color: "pink" },
     ] as never);

@@ -464,7 +464,7 @@ describe.skipIf(!live)("commerce recipe", () => {
 
       await s.as(owner);
 
-      const invalid = await savedViews.save({
+      const invalid = await savedViews.upsert({
         organizationId,
         list: "orders",
         name: "Broken",
@@ -474,7 +474,7 @@ describe.skipIf(!live)("commerce recipe", () => {
 
       expect(invalid.ok ? undefined : invalid.error.kind).toBe("validation");
       await savedViews
-        .save({
+        .upsert({
           organizationId,
           list: "orders",
           name: "To ship",

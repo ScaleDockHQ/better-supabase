@@ -54,7 +54,7 @@ const app = bsb
   )
   .get("/api/customers/:id/notes", async (c) => {
     const notes = await c.var.db.notes
-      .findMany({
+      .list({
         select: ["id", "body", "kind", "createdAt"],
         where: { customerId: c.req.param("id") },
         orderBy: { createdAt: "desc" },

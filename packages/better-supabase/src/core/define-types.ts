@@ -54,7 +54,7 @@ export interface SupabaseOptions {
   readonly userMetadata?: StandardSchemaV1;
   /**
    * PostgREST's `db-max-rows`: the most rows one read returns. An unbounded
-   * `findMany` that returns this many sets `truncated` on the `query` event and
+   * `list` that returns this many sets `truncated` on the `query` event and
    * logs a warning once per table. Defaults to 1000, the hosted default.
    */
   readonly maxRows?: number;

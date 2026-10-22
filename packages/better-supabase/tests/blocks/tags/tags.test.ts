@@ -28,8 +28,8 @@ describe("createTags", () => {
     const fake = fakeTransport({ tag: true, subject_tags: [] });
     const tags = createTags({ transport: fake.transport, tenant: "org-1" });
 
-    expect(await tags.tag(DEAL, "g1").orThrow()).toBe(true);
-    expect(await tags.forSubject(DEAL).orThrow()).toEqual([]);
+    expect(await tags.attach(DEAL, "g1").orThrow()).toBe(true);
+    expect(await tags.list({ on: DEAL }).orThrow()).toEqual([]);
     expect(fake.calls).toEqual([
       [
         "tag",
@@ -60,11 +60,11 @@ describe("createTags", () => {
       ok: false,
       error: { kind: "invalid_request", hint: "TENANT_REQUIRED" },
     });
-    expect(await tags.untag(DEAL, "g1")).toMatchObject({ ok: false });
+    expect(await tags.detach(DEAL, "g1")).toMatchObject({ ok: false });
     expect(fake.calls).toHaveLength(0);
     expect(await tags.delete("g1").orThrow()).toBe(true);
     session.tenant = "org-2";
-    expect(await tags.list("deal").orThrow()).toEqual([]);
+    expect(await tags.list({ kind: "deal" }).orThrow()).toEqual([]);
     expect(fake.calls.at(-1)).toEqual([
       "list_tags",
       { tenant: "org-2", kind: "deal" },

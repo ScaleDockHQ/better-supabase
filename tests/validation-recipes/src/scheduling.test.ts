@@ -60,7 +60,7 @@ describe.skipIf(!live)("scheduling recipe", () => {
         .orThrow();
 
       const reminder = await reminders
-        .save({ type: "booking", id: subjectId }, 15)
+        .upsert({ type: "booking", id: subjectId }, 15)
         .orThrow();
 
       await watchers.relay();

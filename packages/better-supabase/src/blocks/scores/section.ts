@@ -7,6 +7,6 @@ import { defineSection } from "../sections.ts";
 export const scoresSection: Section<Scores, readonly Score[]> = defineSection({
   permissions: { read: "read", write: "compute" },
   module: "scores",
-  load: (client: Scores, subject) => client.forSubject(subject),
+  load: (client: Scores, subject) => client.list({ on: subject }),
   events: ["score.changed"],
 });

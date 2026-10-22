@@ -61,7 +61,7 @@ describe.skipIf(!(await reachable()) || readUrl === url)(
       vi.restoreAllMocks();
 
       if (created.length > 0) {
-        await admin.customers.deleteMany({ where: { id: { in: created } } });
+        await admin.customers.delete({ where: { id: { in: created } } });
       }
     });
 
@@ -93,7 +93,7 @@ describe.skipIf(!(await reachable()) || readUrl === url)(
       const name = `Replica ${crypto.randomUUID()}`;
 
       const before = await ctx.db.customers
-        .findMany({ where: { name }, select: ["id"] })
+        .list({ where: { name }, select: ["id"] })
         .orThrow();
 
       expect(before).toEqual([]);
@@ -105,7 +105,7 @@ describe.skipIf(!(await reachable()) || readUrl === url)(
       created.push(row.id);
 
       const after = await ctx.db.customers
-        .findById(row.id, { select: ["id", "name"] })
+        .get(row.id, { select: ["id", "name"] })
         .orThrow();
 
       expect(after).toEqual({ id: row.id, name });
@@ -114,9 +114,9 @@ describe.skipIf(!(await reachable()) || readUrl === url)(
         request(`${PRIMARY_COOKIE}=${String(Date.now() + 5000)}`),
       );
 
-      await next.db.customers.findById(row.id, { select: ["id"] }).orThrow();
+      await next.db.customers.get(row.id, { select: ["id"] }).orThrow();
       const later = await server.context(request());
-      await later.db.customers.findById(row.id, { select: ["id"] }).orThrow();
+      await later.db.customers.get(row.id, { select: ["id"] }).orThrow();
 
       expect(hosts).toEqual([
         "GET localhost",

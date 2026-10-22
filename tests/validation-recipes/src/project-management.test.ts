@@ -94,7 +94,7 @@ describe.skipIf(!live)("project management recipe", () => {
       await s.as(owner);
 
       const reminder = await reminders
-        .save({ type: "task", id: subjectId }, 60)
+        .upsert({ type: "task", id: subjectId }, 60)
         .orThrow();
 
       await s.service();

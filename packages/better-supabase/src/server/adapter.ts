@@ -88,7 +88,7 @@ export function unexpectedResponse(
  * ```ts
  * export default {
  *   fetch: (request, env, ctx) =>
- *     handle(server, request, (c) => c.db.notes.findMany(), {
+ *     handle(server, request, (c) => c.db.notes.list(), {
  *       waitUntil: (p) => ctx.waitUntil(p),
  *     }),
  * };

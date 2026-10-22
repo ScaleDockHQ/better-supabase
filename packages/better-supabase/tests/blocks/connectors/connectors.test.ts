@@ -293,7 +293,7 @@ describe("createConnectors", () => {
       expiresAt: at,
     });
     expect(await connectors.sessions.get("s1").orThrow()).toBeUndefined();
-    await connectors.sessions.save("s1", { sessionId: "sess" });
+    await connectors.sessions.upsert("s1", { sessionId: "sess" });
     await connectors.sessions.forget("s1", "c1");
     expect(await connectors.sessions.purge().orThrow()).toBe(4);
     expect(await connectors.fingerprints.check("s1", "old").orThrow()).toBe(

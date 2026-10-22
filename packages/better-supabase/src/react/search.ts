@@ -30,7 +30,7 @@ export interface DebouncedSearch {
  * ```tsx
  * const search = useDebouncedSearch();
  * useQuery(
- *   q.customers.findMany({
+ *   q.customers.list({
  *     where: search.term ? { name: { contains: search.term } } : {},
  *   }),
  * );

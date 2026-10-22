@@ -18,7 +18,7 @@ function memoryCache(fail?: "get" | "set") {
   const entries = new Map<string, unknown>();
   const sets: { key: string; options: unknown }[] = [];
 
-  const cache: Pick<AiCache, "get" | "set"> = {
+  const cache: Pick<AiCache, "get" | "upsert"> = {
     get: (key) =>
       fail === "get"
         ? AsyncResult.err(dbError("network", "down"))
@@ -38,7 +38,7 @@ function memoryCache(fail?: "get" | "set") {
                 }
               : undefined,
           ),
-    set: (key, value, options) => {
+    upsert: (key, value, options) => {
       if (fail === "set") {
         return AsyncResult.err(dbError("network", "down"));
       }

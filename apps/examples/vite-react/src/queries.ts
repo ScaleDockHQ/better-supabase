@@ -10,7 +10,7 @@ const columns = ["id", "name", "status"] as const;
 
 /** One spec for the query and for `useLiveQuery`; `contains` escapes the term. */
 export const customerSpec = (search: string | undefined) =>
-  betterSupabase.spec.customers.findMany({
+  betterSupabase.spec.customers.list({
     select: columns,
     where: search === undefined ? {} : { name: { contains: search } },
     orderBy: { name: "asc" },

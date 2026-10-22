@@ -303,7 +303,7 @@ describe("scaffold screens", () => {
 
     const create = await read("src/app/tasks/new/page.tsx");
     expect(create).toContain(
-      "db.projects.findMany({ select: ['id', 'name'], limit: 200 })",
+      "db.projects.list({ select: ['id', 'name'], limit: 200 })",
     );
 
     const detail = await read("src/app/tasks/[id]/page.tsx");

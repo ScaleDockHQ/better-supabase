@@ -68,7 +68,7 @@ interface Repository {
     | { readonly ok: true; readonly data: unknown }
     | { readonly ok: false; readonly error: { readonly message: string } }
   >;
-  deleteMany(args: object): PromiseLike<unknown>;
+  delete(filter: object): PromiseLike<unknown>;
 }
 
 function env(names: readonly string[]): string | undefined {
@@ -174,7 +174,7 @@ export async function scopedSeed<
         meta.primaryKey.map((column) => [column, created[column]]),
       );
 
-      cleanup.push(() => repository.deleteMany({ where }));
+      cleanup.push(() => repository.delete({ where }));
     }
 
     return created;

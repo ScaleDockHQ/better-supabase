@@ -38,7 +38,7 @@ describe("better-supabase/client/native", () => {
     const bsb = createNativeClient(defineSupabase(schema), client);
     expect(bsb.supabase).toBe(client);
     expect(bsb.auth.current().status).toBe("loading");
-    expect(await bsb.db.tags.findMany({ select: ["id"] })).toMatchObject({
+    expect(await bsb.db.tags.list({ select: ["id"] })).toMatchObject({
       ok: true,
     });
   });

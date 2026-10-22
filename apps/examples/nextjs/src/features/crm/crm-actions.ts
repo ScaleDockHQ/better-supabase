@@ -154,7 +154,7 @@ export const createDefaultPipeline = bsb.action(
       return ok({ id: found.id });
     }
 
-    const pipeline = await pipelines.save(tenant, {
+    const pipeline = await pipelines.upsert(tenant, {
       subjectType: "deal",
       key: "sales",
       name: "Sales",
@@ -276,7 +276,7 @@ export const createTarget = bsb.action(
       periodEnd: Temporal.PlainDate.from(periodEnd),
     };
 
-    const saved = await blocks(supabase).targets.save(
+    const saved = await blocks(supabase).targets.upsert(
       tenant,
       amount
         ? { ...target, goal: parseMoney(goal, currency).amount, currency }

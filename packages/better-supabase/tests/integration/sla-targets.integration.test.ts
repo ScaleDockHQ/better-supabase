@@ -245,7 +245,7 @@ describe.skipIf(!live)("service levels and targets", () => {
 
       await s.as(owner);
       await targets
-        .save(org, {
+        .upsert(org, {
           name: "Rep quota",
           metric: "deals.won_amount",
           ownerId: rep.id,
@@ -255,7 +255,7 @@ describe.skipIf(!live)("service levels and targets", () => {
         })
         .orThrow();
       await targets
-        .save(org, {
+        .upsert(org, {
           name: "Team wins",
           metric: "deals.won_count",
           goal: 4n,
@@ -263,7 +263,7 @@ describe.skipIf(!live)("service levels and targets", () => {
         })
         .orThrow();
       await targets
-        .save(org, {
+        .upsert(org, {
           name: "NPS responses",
           metric: "surveys.responses",
           goal: 50n,
@@ -273,7 +273,7 @@ describe.skipIf(!live)("service levels and targets", () => {
         .orThrow();
       expect(
         hint(
-          await targets.save(org, {
+          await targets.upsert(org, {
             name: "Bad",
             metric: "x",
             goal: 0n,
@@ -323,7 +323,7 @@ describe.skipIf(!live)("service levels and targets", () => {
       ).toEqual([]);
       expect(
         hint(
-          await targets.save(org, {
+          await targets.upsert(org, {
             name: "Mine",
             metric: "x",
             goal: 1n,

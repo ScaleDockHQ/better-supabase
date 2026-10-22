@@ -17042,6 +17042,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "CreateTagInput",
+          "fields": true
+        },
+        {
+          "name": "ListTagsParams"
+        },
+        {
           "name": "Tag",
           "fields": true
         },
@@ -17078,6 +17085,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "TagsWrites"
+        },
+        {
+          "name": "UpdateTagInput",
+          "fields": true
         }
       ],
       "sections": {

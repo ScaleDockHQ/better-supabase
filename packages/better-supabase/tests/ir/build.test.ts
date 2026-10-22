@@ -1235,13 +1235,13 @@ describe("IrBuilder.uniqueKey", () => {
       "an incomplete key",
       customers,
       { organizationId: "o1" },
-      'findUnique on "customers" needs one complete unique key: { id }, { id, organizationId }, { organizationId, kvk }',
+      'get on "customers" needs the primary key or one complete unique key: { id }, { id, organizationId }, { organizationId, kvk }',
     ],
     [
       "a table without keys",
       ledgerView,
       { label: "x" },
-      'findUnique on "ledgerView" needs one complete unique key: ',
+      'get on "ledgerView" needs the primary key or one complete unique key: ',
     ],
   ])("rejects %s", (_name, target, input, message) => {
     expect(rejection(() => ir.uniqueKey(target, input))).toMatchObject({

@@ -215,17 +215,17 @@ describe("createWorkflowEditor", () => {
     });
 
     await builder.definitions
-      .save({ tenant: "t1", slug: "onboard", name: "Onboard" })
+      .upsert({ tenant: "t1", slug: "onboard", name: "Onboard" })
       .orThrow();
     expect(await builder.definitions.list("t1").orThrow()).toHaveLength(1);
     expect(await builder.definitions.get("d1").orThrow()).toBeUndefined();
     expect(await builder.definitions.remove("d1").orThrow()).toBe(true);
-    expect((await builder.versions.save("d1", GRAPH).orThrow()).version).toBe(
+    expect((await builder.versions.upsert("d1", GRAPH).orThrow()).version).toBe(
       1,
     );
     expect(await builder.versions.list("d1").orThrow()).toHaveLength(1);
     await builder.triggers
-      .save({ definition: "d1", kind: "webhook" })
+      .upsert({ definition: "d1", kind: "webhook" })
       .orThrow();
     expect(await builder.triggers.list("d1").orThrow()).toHaveLength(1);
     expect(await builder.triggers.remove("tr1").orThrow()).toBe(true);
@@ -250,12 +250,12 @@ describe("createWorkflowEditor", () => {
     expect(
       (
         await builder.alerts
-          .save({ definition: "d1", onEvent: "slow", threshold: 60 })
+          .upsert({ definition: "d1", onEvent: "slow", threshold: 60 })
           .orThrow()
       ).threshold,
     ).toBe(60);
     await builder.alerts
-      .save({ definition: "d1", onEvent: "failed" })
+      .upsert({ definition: "d1", onEvent: "failed" })
       .orThrow();
     expect((await builder.alerts.list("d1").orThrow())[0]?.onEvent).toBe(
       "slow",
@@ -1028,7 +1028,7 @@ describe("createWorkflowEditor", () => {
   it("refuses an event trigger with an unusable when", async () => {
     const { transport, calls } = fake({});
 
-    const saved = await createWorkflowEditor({ transport }).triggers.save({
+    const saved = await createWorkflowEditor({ transport }).triggers.upsert({
       definition: "d1",
       kind: "event",
       config: { when: { filter: { type: "group" }, fields: [] } },

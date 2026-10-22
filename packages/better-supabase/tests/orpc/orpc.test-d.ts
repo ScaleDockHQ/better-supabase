@@ -27,7 +27,7 @@ describe("unwrap", () => {
       Promise<{ id: string }>
     >();
     expectTypeOf(
-      bsb.unwrap(db.customers.findById("c1", { select: ["id", "name"] })),
+      bsb.unwrap(db.customers.get("c1", { select: ["id", "name"] })),
     ).toEqualTypeOf<Promise<{ id: string; name: string }>>();
     expectTypeOf(
       bsb.unwrap<{ id: string }>(err(dbError("conflict", "Taken"))),

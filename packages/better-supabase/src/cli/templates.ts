@@ -526,7 +526,7 @@ export default bsb.middleware();
       ];
     },
     next: [
-      "Load data as the caller with `export const loader = bsb.loader((ctx) => ctx.db.customers.findMany())`.",
+      "Load data as the caller with `export const loader = bsb.loader((ctx) => ctx.db.customers.list())`.",
       "Metro picks `client.native.ts` on iOS and Android and `client.ts` (cookie sessions) on the web.",
     ],
   },

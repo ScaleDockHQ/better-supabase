@@ -132,7 +132,7 @@ describe("createCourses", () => {
     });
 
     const saved = await courses
-      .save({
+      .upsert({
         key: "security-basics",
         title: "Security basics",
         fields: { level: "intro" },
@@ -184,7 +184,7 @@ describe("createCourses", () => {
     });
 
     const saved = await courses
-      .save({ id: "c1", certificate: false })
+      .upsert({ id: "c1", certificate: false })
       .orThrow();
 
     expect(saved.certificate).toBe(false);
@@ -537,7 +537,7 @@ describe("createCourses", () => {
     const fake = fakeTransport({});
     const courses = createCourses({ transport: fake.transport });
 
-    expect((await courses.save({ title: "x" })).ok).toBe(false);
+    expect((await courses.upsert({ title: "x" })).ok).toBe(false);
     expect((await courses.list()).ok).toBe(false);
     expect(fake.calls).toEqual([]);
   });
@@ -553,7 +553,7 @@ describe("createCourses", () => {
 
     // SAFETY: the test sends a value the schema refuses.
     const bad = { level: "expert" } as unknown as { level: "intro" };
-    const saved = await courses.save({ title: "x", fields: bad });
+    const saved = await courses.upsert({ title: "x", fields: bad });
 
     expect(saved.ok).toBe(false);
     expect(fake.calls).toEqual([]);

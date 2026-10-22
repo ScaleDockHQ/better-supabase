@@ -68,7 +68,7 @@ describe("powersyncExecutor", () => {
       .orThrow();
 
     const [found] = await client.customers
-      .findMany({ where: { id: created.id } })
+      .list({ where: { id: created.id } })
       .orThrow();
 
     expect(created.createdAt).toBeInstanceOf(Polyfill.Instant);
@@ -114,7 +114,7 @@ describe("powersyncExecutor", () => {
     expect(location.isPrimary).toBe(true);
 
     const found = await client.customers
-      .findMany({
+      .list({
         where: {
           name: { contains: "acm" },
           metadata: { contains: { tier: "pro" } },
@@ -133,7 +133,7 @@ describe("powersyncExecutor", () => {
     expect(updated.status).toBe("active");
     expect(
       await client.customers
-        .updateMany({ where: { status: "archived" }, data: { name: "none" } })
+        .update({ where: { status: "archived" } }, { name: "none" })
         .orThrow(),
     ).toEqual({ count: 0 });
 
@@ -169,7 +169,7 @@ describe("powersyncExecutor", () => {
 
     const rows = await betterSupabase
       .connect(powersyncExecutor(wide))
-      .tags.findMany({ select: ["name"], orderBy: { name: "asc" } })
+      .tags.list({ select: ["name"], orderBy: { name: "asc" } })
       .orThrow();
 
     expect(rows.map((row) => row.name as unknown)).toEqual([big.toString(), 7]);
@@ -202,7 +202,7 @@ describe("powersyncExecutor", () => {
     await client.tags.create({ organizationId: ORG, name: "a" }).orThrow();
 
     const page = await client.tags
-      .paginate({ select: ["name"], page: 1, size: 10, count: "exact" })
+      .page({ select: ["name"], page: 1, size: 10, count: "exact" })
       .orThrow();
 
     expect(page).toMatchObject({ items: [{ name: "a" }], page: { total: 1 } });
@@ -213,17 +213,17 @@ describe("powersyncExecutor", () => {
   it("refuses an update past maxAffected and rolls it back", async () => {
     const { client } = setup();
     await client.tags
-      .createMany([
+      .create([
         { organizationId: ORG, name: "a", color: "red" },
         { organizationId: ORG, name: "b", color: "red" },
       ])
       .orThrow();
 
-    const refused = await client.tags.updateMany({
-      where: { color: "red" },
-      data: { color: "blue" },
-      maxAffected: 1,
-    });
+    const refused = await client.tags.update(
+      { where: { color: "red" } },
+      { color: "blue" },
+      { maxAffected: 1 },
+    );
 
     expect(refused.error).toMatchObject({
       kind: "max_affected",
@@ -236,11 +236,11 @@ describe("powersyncExecutor", () => {
     );
     expect(
       await client.tags
-        .updateMany({
-          where: { color: "red" },
-          data: { color: "blue" },
-          maxAffected: 2,
-        })
+        .update(
+          { where: { color: "red" } },
+          { color: "blue" },
+          { maxAffected: 2 },
+        )
         .orThrow(),
     ).toEqual({ count: 2 });
   });
@@ -266,7 +266,7 @@ describe("powersyncExecutor", () => {
     expect(second.color).toBe("blue");
 
     const ignored = await client.tags
-      .upsertMany(
+      .upsert(
         [
           { organizationId: ORG, name: "vip", color: "gray" },
           { organizationId: OTHER, name: "vip" },
@@ -277,7 +277,7 @@ describe("powersyncExecutor", () => {
 
     expect(ignored.map((tag) => tag.organizationId)).toEqual([OTHER]);
     expect(
-      (await client.tags.findUnique({ where: { id: first.id } }).orThrow())
+      (await client.tags.get({ id: first.id }, { optional: true }).orThrow())
         ?.color,
     ).toBe("blue");
   });
@@ -312,7 +312,7 @@ describe("powersyncExecutor", () => {
   it("returns unsupported for what SQLite can't run, before running it", async () => {
     const { client, statements } = setup();
 
-    const result = await client.customers.findMany({
+    const result = await client.customers.list({
       where: { name: { search: "acme" } },
       include: { locations: true },
     });
@@ -336,7 +336,7 @@ describe("powersyncExecutor", () => {
       .create({ organizationId: ORG, name: "Bolt" })
       .orThrow();
     await client.locations
-      .createMany([
+      .create([
         {
           organizationId: ORG,
           customerId: acme.id,
@@ -362,7 +362,7 @@ describe("powersyncExecutor", () => {
     const before = statements.length;
 
     const rows = await client.customers
-      .findMany({
+      .list({
         select: ["name", "metadata"],
         orderBy: { name: "asc" },
         include: {
@@ -412,7 +412,7 @@ describe("powersyncExecutor", () => {
     ]);
 
     const withNotes = await client.customers
-      .findMany({
+      .list({
         select: ["name"],
         include: {
           notes: { select: ["body"], required: true, where: { kind: "call" } },
@@ -430,12 +430,12 @@ describe("powersyncExecutor", () => {
 
   it("checks single-row reads", async () => {
     const { client } = setup();
-    await client.tags.createMany([
+    await client.tags.create([
       { organizationId: ORG, name: "a" },
       { organizationId: ORG, name: "b" },
     ]);
     expect(
-      (await client.tags.findUnique({ where: { id: "missing" } })).data,
+      (await client.tags.get({ id: "missing" }, { optional: true })).data,
     ).toBeNull();
   });
 
@@ -506,7 +506,7 @@ describe("powersyncExecutor", () => {
     sqlite.exec("update locations set is_primary = 'true'");
 
     const read = await client.customers
-      .findById(customer.id, { select: ["metadata", "createdAt", "kvk"] })
+      .get(customer.id, { select: ["metadata", "createdAt", "kvk"] })
       .orThrow();
 
     expect(read).toEqual({
@@ -516,7 +516,7 @@ describe("powersyncExecutor", () => {
     });
 
     const [location] = await client.locations
-      .findMany({ select: ["isPrimary"] })
+      .list({ select: ["isPrimary"] })
       .orThrow();
 
     expect(location).toEqual({ isPrimary: true });
@@ -539,7 +539,7 @@ describe("powersyncExecutor", () => {
     };
 
     const one = betterSupabase.connect(singled("one", db));
-    expect((await one.tags.findMany()).error?.kind).toBe("not_found");
+    expect((await one.tags.list()).error?.kind).toBe("not_found");
 
     const doubled: PowerSyncDatabaseLike = {
       ...db,
@@ -548,7 +548,7 @@ describe("powersyncExecutor", () => {
 
     const twice = await betterSupabase
       .connect(singled("maybe", doubled))
-      .tags.findMany({ select: ["id"] });
+      .tags.list({ select: ["id"] });
 
     expect(twice.error?.kind).toBe("multiple_rows");
     const controller = new AbortController();
@@ -571,7 +571,7 @@ describe("powersyncExecutor", () => {
 
     const result = await betterSupabase
       .connect(powersyncExecutor(broken))
-      .tags.findMany();
+      .tags.list();
 
     expect(result.error?.kind).toBe("unexpected");
   });
@@ -591,7 +591,7 @@ describe("lists on SQLite", () => {
   it("pages, searches and counts facets", async () => {
     const { client } = setup();
     await client.customers
-      .createMany([
+      .create([
         { organizationId: ORG, name: "Acme", kvk: "1001", status: "active" },
         { organizationId: ORG, name: "Bolt", status: "active" },
         { organizationId: ORG, name: "Crate", kvk: "2002", status: "lead" },
@@ -632,7 +632,7 @@ describe("lists on SQLite", () => {
     expect(
       await checkSqlite(
         betterSupabase,
-        spec.customers.findMany({
+        spec.customers.list({
           include: {
             notes: { include: { customer: true } },
             _count: { locations: true },
@@ -643,7 +643,7 @@ describe("lists on SQLite", () => {
     expect(
       await checkSqlite(
         betterSupabase,
-        spec.customers.paginate({
+        spec.customers.page({
           size: 10,
           after: null,
           include: { organization: true },
@@ -654,7 +654,7 @@ describe("lists on SQLite", () => {
 
     const search = await checkSqlite(
       betterSupabase,
-      spec.customers.findMany({ where: { name: { search: "acme" } } }),
+      spec.customers.list({ where: { name: { search: "acme" } } }),
     );
 
     expect(search.error).toMatchObject({
@@ -738,7 +738,7 @@ describe("powersyncExecutor with a fallback", () => {
       { id: "c1", name: "Acme", locations: [] },
     ]);
 
-    const result = await client.customers.findMany({
+    const result = await client.customers.list({
       select: ["id", "name"],
       where: { name: { search: "acme" } },
       include: { locations: true },
@@ -748,17 +748,17 @@ describe("powersyncExecutor with a fallback", () => {
     expect(server.ops).toEqual(["select customers"]);
     expect(statements).toEqual([]);
 
-    await client.tags.findMany();
+    await client.tags.list();
     expect(server.ops).toEqual(["select customers"]);
   });
 
   it("never sends writes to the fallback", async () => {
     const { client, server } = withFallback();
 
-    const updated = await client.customers.updateMany({
-      where: { name: { search: "acme" } },
-      data: { name: "Bolt" },
-    });
+    const updated = await client.customers.update(
+      { where: { name: { search: "acme" } } },
+      { name: "Bolt" },
+    );
 
     expect(updated.error?.kind).toBe("unsupported");
     expect(server.ops).toEqual([]);
@@ -792,7 +792,7 @@ describe("powersyncExecutor with a fallback", () => {
     const { client, server } = withFallback();
     server.goOffline();
 
-    const result = await client.customers.findMany({
+    const result = await client.customers.list({
       where: { name: { search: "acme" } },
     });
 
@@ -805,7 +805,7 @@ describe("powersyncExecutor with a fallback", () => {
     const stop = watch(
       db,
       () =>
-        client.customers.findMany({
+        client.customers.list({
           where: { name: { search: "acme" } },
           include: { locations: true },
         }),
@@ -863,7 +863,7 @@ describe("watch", () => {
 
     const stop = watch(
       db,
-      () => client.tags.findMany({ orderBy: { name: "asc" } }),
+      () => client.tags.list({ orderBy: { name: "asc" } }),
       {
         tables: sqliteTables(betterSupabase, ["tags"]),
         onResult: (result) => {
@@ -891,7 +891,7 @@ describe("watch", () => {
     await client.tags.create({ organizationId: ORG, name: "a" });
     const results: unknown[] = [];
 
-    const stop = watch(db, () => client.tags.findMany(), {
+    const stop = watch(db, () => client.tags.list(), {
       tables: sqliteTables(betterSupabase, ["tags"]),
       structuralSharing: false,
       onResult: (result) => results.push(result.data),

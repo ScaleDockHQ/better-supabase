@@ -24,7 +24,7 @@ export const addEventReminder = bsb.action(
     authorize: (session) => can(session, "reminders.manage"),
   },
   async ({ eventId, offsetMinutes }, { tenant, supabase, auth }) => {
-    const saved = await blocks(supabase, tenant).reminders.save(
+    const saved = await blocks(supabase, tenant).reminders.upsert(
       { type: EVENT_SUBJECT, id: eventId },
       offsetMinutes,
     );
@@ -132,7 +132,7 @@ export const createEvent = bsb.action(
           })
       ).toInstant();
 
-    const saved = await blocks(supabase).calendar.save(input.calendarId, {
+    const saved = await blocks(supabase).calendar.upsert(input.calendarId, {
       title: input.title,
       allDay,
       tz: input.tz,

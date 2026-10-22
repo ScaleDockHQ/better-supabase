@@ -56,7 +56,7 @@ describe.skipIf(!source)(
       drop policy if exists tags_leak_select on public.tags;
       drop policy if exists tags_leak_delete on public.tags;
     `);
-      await admin.organizations.deleteMany({ where: { id: LEAKY } });
+      await admin.organizations.delete({ where: { id: LEAKY } });
       await db.close();
     });
 

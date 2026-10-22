@@ -163,7 +163,7 @@ function tagged(name: string, array: boolean): Placeholder | undefined {
  *     unread: s.notifications.count({
  *       where: { userId: p.userId, readAt: null },
  *     }),
- *     me: s.profiles.findFirst({ where: { id: p.userId } }),
+ *     me: s.profiles.get({ where: { id: p.userId } }, { optional: true }),
  *   }),
  * );
  * ```

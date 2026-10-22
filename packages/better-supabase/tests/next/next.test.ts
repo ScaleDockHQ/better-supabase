@@ -1346,8 +1346,8 @@ describe("createNext", () => {
 
       mocks.headers = new Headers({ "x-bsb-request-id": id });
       const ctx = await debugged.context();
-      await Promise.all([ctx.db.customers.findMany(), ctx.db.notes.findMany()]);
-      await ctx.db.tags.findMany();
+      await Promise.all([ctx.db.customers.list(), ctx.db.notes.list()]);
+      await ctx.db.tags.list();
 
       const stats = await debugged.debugRoute()(
         new Request(`https://app.test/api/bsb-stats?id=${id}`),
@@ -1367,7 +1367,7 @@ describe("createNext", () => {
       expect(await cached.json()).toMatchObject({ calls: 0, waves: 0 });
 
       const handler = debugged.route(async (_request, routeCtx) => {
-        await routeCtx.db.customers.findMany();
+        await routeCtx.db.customers.list();
 
         return { ok: true };
       });
@@ -1427,9 +1427,7 @@ describe("createNext", () => {
     );
 
     bsb.cacheTags(
-      betterSupabase.spec.customers.findById("c1", {
-        include: { notes: true },
-      }),
+      betterSupabase.spec.customers.get("c1", { include: { notes: true } }),
     );
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
       "bsb:customers",
@@ -1446,7 +1444,7 @@ describe("createNext", () => {
     bsb.cacheTags(
       defineReadSet(betterSupabase, "chrome", {}, (s) => ({
         customers: s.customers.count(),
-        notes: s.notes.findMany({ include: { customer: true } }),
+        notes: s.notes.list({ include: { customer: true } }),
       })),
     );
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
@@ -1496,9 +1494,7 @@ describe("createNext", () => {
       "bsb:customers@t1",
       "bsb:customers@*",
     );
-    bsb.cacheTags(betterSupabase.spec.customers.findById("c1"), {
-      tenant: "t1",
-    });
+    bsb.cacheTags(betterSupabase.spec.customers.get("c1"), { tenant: "t1" });
     expect(mocks.cacheTag).toHaveBeenLastCalledWith(
       "bsb:customers@t1",
       "bsb:customers@*",
@@ -1603,7 +1599,7 @@ describe("read replicas", () => {
 
     try {
       const read = bsb.route((_request, { db }) =>
-        db.customers.findMany({ select: ["id"] }),
+        db.customers.list({ select: ["id"] }),
       );
 
       const write = bsb.route((_request, { db }) =>

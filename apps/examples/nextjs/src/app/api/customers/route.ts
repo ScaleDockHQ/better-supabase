@@ -3,7 +3,7 @@ import { bsb } from "../../../lib/supabase/server";
 export const GET = bsb.route((request, { db }) => {
   const search = request.nextUrl.searchParams.get("q");
 
-  return db.customers.findMany({
+  return db.customers.list({
     select: ["id", "name", "status", "organizationId"],
     where: search ? { name: { ilike: `%${search}%` } } : {},
     orderBy: { name: "asc" },

@@ -72,7 +72,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     await session.as(member);
 
     const saved = await calendar
-      .save(calendarId, {
+      .upsert(calendarId, {
         title: "Stand-up",
         startsAt: at("2026-03-23T08:00:00Z"),
         endsAt: at("2026-03-23T08:15:00Z"),
@@ -97,7 +97,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
   it("refuses a viewer and an invalid event", async () => {
     await session.as(viewer);
 
-    const refused = await calendar.save(calendarId, {
+    const refused = await calendar.upsert(calendarId, {
       title: "x",
       startsAt: at("2026-03-01T08:00:00Z"),
       endsAt: at("2026-03-01T09:00:00Z"),
@@ -108,7 +108,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     );
     await session.as(member);
 
-    const backwards = await calendar.save(calendarId, {
+    const backwards = await calendar.upsert(calendarId, {
       title: "x",
       startsAt: at("2026-03-01T09:00:00Z"),
       endsAt: at("2026-03-01T08:00:00Z"),
@@ -116,7 +116,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
     expect(backwards.ok).toBe(false);
 
-    const status = await calendar.save(calendarId, {
+    const status = await calendar.upsert(calendarId, {
       id: seriesId,
       status: "done" as "confirmed",
     });

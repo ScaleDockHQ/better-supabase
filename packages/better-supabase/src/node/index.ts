@@ -44,7 +44,7 @@ export interface ToNodeOptions<Req = IncomingMessage> extends Omit<
  * ```ts
  * createServer(
  *   toNodeHandler([withBetterSupabase(server)], (request, { db }) =>
- *     db.notes.findMany(),
+ *     db.notes.list(),
  *   ),
  * );
  * ```
@@ -121,7 +121,7 @@ export type ExpressErrorHandler = (
  * ```ts
  * app.use(toExpress([withBetterSupabase(server)]));
  * app.get("/notes", async (req, res) =>
- *   res.json(await res.locals.db.notes.findMany().orThrow()),
+ *   res.json(await res.locals.db.notes.list().orThrow()),
  * );
  * ```
  */
@@ -274,9 +274,7 @@ async function sendReply(
  * ```ts
  * app.decorateRequest("locals", null);
  * app.addHook("onRequest", toFastify([withBetterSupabase(server)]));
- * app.get("/notes", (request) =>
- *   request.locals.db.notes.findMany().orThrow(),
- * );
+ * app.get("/notes", (request) => request.locals.db.notes.list().orThrow());
  * ```
  */
 export function toFastify<const Entries extends readonly AnyEntry[]>(
@@ -365,7 +363,7 @@ async function sendKoa(ctx: KoaContextLike, response: Response): Promise<void> {
  * ```ts
  * app.use(toKoa([withBetterSupabase(server)]));
  * app.use(async (ctx) => {
- *   ctx.body = await ctx.state.db.notes.findMany().orThrow();
+ *   ctx.body = await ctx.state.db.notes.list().orThrow();
  * });
  * ```
  */

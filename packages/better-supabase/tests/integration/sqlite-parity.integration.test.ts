@@ -84,7 +84,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
       .create({ id: ORG, name: "Parity", slug: `parity-${ORG}` })
       .orThrow();
     await rest.customers
-      .createMany(
+      .create(
         CUSTOMERS.map(([createdAt, name, kvk, status, metadata], index) => ({
           id: id(index + 1),
           organizationId: ORG,
@@ -99,7 +99,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
       )
       .orThrow();
     await rest.tags
-      .createMany(
+      .create(
         [
           { id: id(101), organizationId: ORG, name: "vip", color: "red" },
           { id: id(102), organizationId: ORG, name: "new", color: "blue" },
@@ -108,7 +108,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
       )
       .orThrow();
     await rest.customerTags
-      .createMany(
+      .create(
         [
           { customerId: id(1), tagId: id(101), organizationId: ORG },
           { customerId: id(3), tagId: id(101), organizationId: ORG },
@@ -147,7 +147,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
   });
 
   afterAll(async () => {
-    await rest.organizations.deleteMany({ where: { id: ORG } });
+    await rest.organizations.delete({ where: { id: ORG } });
   });
 
   const both = async <T>(
@@ -177,7 +177,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
     expect(
       names(
         await both((db) =>
-          db.customers.findMany({
+          db.customers.list({
             where: { ...scoped, name: { contains: "acme" } },
             select,
             orderBy,
@@ -186,14 +186,14 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
       ),
     ).toEqual(["Acme", "acme labs"]);
     await both((db) =>
-      db.customers.findMany({
+      db.customers.list({
         where: { ...scoped, name: { startsWith: "Crate_" } },
         select,
         orderBy,
       }),
     );
     await both((db) =>
-      db.customers.findMany({
+      db.customers.list({
         where: { ...scoped, name: { endsWith: "0%" } },
         select,
         orderBy,
@@ -202,7 +202,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
     expect(
       names(
         await both((db) =>
-          db.customers.findMany({
+          db.customers.list({
             where: { ...scoped, name: { ieq: "ACME" } },
             select,
             orderBy,
@@ -211,14 +211,14 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
       ),
     ).toEqual(["Acme"]);
     await both((db) =>
-      db.customers.findMany({
+      db.customers.list({
         where: { ...scoped, name: { ieq: "crate_" } },
         select,
         orderBy,
       }),
     );
     await both((db) =>
-      db.customers.findMany({
+      db.customers.list({
         where: {
           ...scoped,
           OR: [{ kvk: null }, { status: { in: ["archived"] } }],
@@ -234,21 +234,21 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
     const select = ["id"] as const;
     const orderBy = [{ id: "asc" }] as const;
     await both((db) =>
-      db.customers.findMany({
+      db.customers.list({
         where: { ...scoped, metadata: { contains: { tier: "pro" } } },
         select,
         orderBy,
       }),
     );
     await both((db) =>
-      db.customers.findMany({
+      db.customers.list({
         where: { ...scoped, customerTags: { some: { tagId: id(102) } } },
         select,
         orderBy,
       }),
     );
     await both((db) =>
-      db.customers.findMany({
+      db.customers.list({
         where: { ...scoped, customerTags: { none: {} } },
         select,
         orderBy,
@@ -266,7 +266,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
     const end = day.add({ days: 1 }).toZonedDateTime({ timeZone }).toInstant();
 
     const rows = await both((db) =>
-      db.customers.findMany({
+      db.customers.list({
         where: {
           ...scoped,
           createdAt: { gte: start.toString(), lt: end.toString() },
@@ -281,7 +281,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
 
   it("orders, counts and aggregates like Postgres", async () => {
     await both((db) =>
-      db.customers.findMany({
+      db.customers.list({
         where: scoped,
         select: ["id", "kvk", "createdAt"],
         orderBy: [{ kvk: "desc" }, { createdAt: "desc" }],

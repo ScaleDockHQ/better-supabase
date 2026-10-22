@@ -13,7 +13,7 @@ describe("reads", () => {
   it("aliases camel-cased columns inside the select", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({
+    await db.customers.list({
       select: ["id", "organizationId", "primaryContactId"],
     });
     expect(last().path).toBe("/rest/v1/customers");
@@ -26,7 +26,7 @@ describe("reads", () => {
   it("sorts by a to-one relation through an empty embed", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({
+    await db.customers.list({
       select: ["id"],
       orderBy: [{ organization: { name: "desc" } }, { name: "asc" }],
     });
@@ -39,7 +39,7 @@ describe("reads", () => {
   it("sorts by a to-one relation through its include", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.paginate({
+    await db.customers.page({
       select: ["id"],
       include: { organization: { select: ["name"] } },
       orderBy: { organization: { name: "asc" } },
@@ -57,7 +57,7 @@ describe("reads", () => {
     const { client, requests } = capturingClient();
     const db = sbCamel.connect(client);
 
-    const page = await db.customers.paginate({
+    const page = await db.customers.page({
       orderBy: { organization: { name: "asc" } },
       size: 10,
       after: null,
@@ -78,7 +78,7 @@ describe("reads", () => {
   it("keeps snake-cased columns unaliased", async () => {
     const { client, last } = capturingClient();
     const db = sbSnake.connect(client);
-    await db.customers.findMany({ select: ["id", "organization_id"] });
+    await db.customers.list({ select: ["id", "organization_id"] });
     expect(query(last())).toEqual([
       "select=id,organization_id",
       "order=id.asc",
@@ -88,7 +88,7 @@ describe("reads", () => {
   it("compiles column filters and escapes LIKE input", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({
+    await db.customers.list({
       select: ["id"],
       where: {
         status: { in: ["lead", "active"] },
@@ -120,7 +120,7 @@ describe("reads", () => {
   it("compiles OR and NOT into logic trees with quoted values", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({
+    await db.customers.list({
       select: ["id"],
       where: {
         OR: [{ name: "a,b" }, { status: "lead", kvk: { not: null } }],
@@ -138,7 +138,7 @@ describe("reads", () => {
   it("filters through to-many relations with some, none and every", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({
+    await db.customers.list({
       select: ["id"],
       where: {
         notes: { some: { kind: "call" }, none: { body: { contains: "spam" } } },
@@ -159,7 +159,7 @@ describe("reads", () => {
   it("filters through to-one relations, including null checks", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({
+    await db.customers.list({
       select: ["id"],
       where: { organization: { slug: "acme" }, primaryContact: null },
     });
@@ -174,7 +174,7 @@ describe("reads", () => {
   it("puts relation filters inside OR as embed null checks", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({
+    await db.customers.list({
       select: ["id"],
       where: { OR: [{ name: "x" }, { notes: { some: { kind: "email" } } }] },
     });
@@ -189,7 +189,7 @@ describe("reads", () => {
   it("embeds includes with nested filters, order and limits", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({
+    await db.customers.list({
       select: ["id", "name"],
       include: {
         organization: { select: ["name"] },
@@ -217,7 +217,7 @@ describe("reads", () => {
   it("skips the request when a filter can never match", async () => {
     const { client, requests } = capturingClient();
     const db = sbCamel.connect(client);
-    const result = await db.customers.findMany({ where: { id: { in: [] } } });
+    const result = await db.customers.list({ where: { id: { in: [] } } });
     expect(result).toEqual({ ok: true, data: [], error: null });
     expect(requests).toHaveLength(0);
   });
@@ -226,7 +226,7 @@ describe("reads", () => {
     const { client, last } = capturingClient(() => ({ body: [] }));
     const db = sbCamel.connect(client);
 
-    const result = await db.customers.findById(
+    const result = await db.customers.get(
       "00000000-0000-4000-8000-000000000009",
     );
 
@@ -237,7 +237,7 @@ describe("reads", () => {
       "id=eq.00000000-0000-4000-8000-000000000009",
     );
     await expect(
-      db.customers.findById("00000000-0000-4000-8000-000000000009").orThrow(),
+      db.customers.get("00000000-0000-4000-8000-000000000009").orThrow(),
     ).rejects.toBeInstanceOf(DbException);
   });
 
@@ -264,7 +264,7 @@ describe("reads", () => {
     const { client, last } = capturingClient(() => ({ body: rows }));
     const db = sbCamel.connect(client);
 
-    const first = await db.customers.paginate({
+    const first = await db.customers.page({
       select: ["id", "name"],
       orderBy: { name: "asc" },
       size: 2,
@@ -276,7 +276,7 @@ describe("reads", () => {
     const cursor = first.data?.nextCursor;
     expect(typeof cursor).toBe("string");
 
-    await db.customers.paginate({
+    await db.customers.page({
       select: ["id", "name"],
       orderBy: { name: "asc" },
       size: 2,
@@ -299,7 +299,7 @@ describe("reads", () => {
 
     const db = sbCamel.connect(client);
 
-    const page = await db.customers.paginate({
+    const page = await db.customers.page({
       select: ["id"],
       page: 3,
       size: 10,
@@ -339,8 +339,7 @@ describe("reads", () => {
     );
 
     expect(
-      (await db.customers.paginate({ offset: 50, limit: 5, count: "exact" }))
-        .data,
+      (await db.customers.page({ offset: 50, limit: 5, count: "exact" })).data,
     ).toEqual({
       items: [],
       page: { number: 11, size: 5, total: 8, pages: 2, hasMore: false },
@@ -348,16 +347,14 @@ describe("reads", () => {
     const unreadable = sbCamel.connect(capturingClient(pastEnd("")).client);
     expect(
       (
-        await unreadable.customers.paginate({
+        await unreadable.customers.page({
           offset: 50,
           limit: 5,
           count: "exact",
         })
       ).ok,
     ).toBe(false);
-    expect((await db.customers.paginate({ offset: 50, limit: 5 })).ok).toBe(
-      false,
-    );
+    expect((await db.customers.page({ offset: 50, limit: 5 })).ok).toBe(false);
   });
 
   it("paginates by offset and limit with a total in one request", async () => {
@@ -368,7 +365,7 @@ describe("reads", () => {
 
     const db = sbCamel.connect(client);
 
-    const page = await db.customers.paginate({
+    const page = await db.customers.page({
       select: ["id"],
       offset: 7,
       limit: 5,
@@ -548,12 +545,11 @@ describe("writes", () => {
     const db = sbCamel.connect(client);
 
     const rows = await db.customers
-      .updateMany({
-        where: { status: "lead" },
-        data: { status: "active" },
-        returning: true,
-        select: ["id", "createdAt"],
-      })
+      .update(
+        { where: { status: "lead" } },
+        { status: "active" },
+        { returning: true, select: ["id", "createdAt"] },
+      )
       .orThrow();
 
     expect(rows).toEqual([{ id: "c1", createdAt: "2026-01-01T00:00:00Z" }]);
@@ -612,19 +608,18 @@ describe("writes", () => {
     const db = sbCamel.connect(client);
 
     const counted = await db.customers
-      .updateMany({ where: { status: "lead" }, data: {} })
+      .update({ where: { status: "lead" } }, {})
       .orThrow();
 
     expect(counted).toEqual({ count: 0 });
     expect(requests).toHaveLength(0);
 
     const rows = await db.customers
-      .updateMany({
-        where: { status: "lead" },
-        data: {},
-        returning: true,
-        select: ["id"],
-      })
+      .update(
+        { where: { status: "lead" } },
+        {},
+        { returning: true, select: ["id"] },
+      )
       .orThrow();
 
     expect(rows).toEqual([{ id: "c1" }]);
@@ -641,7 +636,7 @@ describe("writes", () => {
     const db = sbCamel.connect(client);
 
     const page = await db.customers
-      .paginate({ size: 10, withCount: true, select: ["id"] })
+      .page({ size: 10, withCount: true, select: ["id"] })
       .orThrow();
 
     expect(page.page.total).toBe(42);
@@ -659,14 +654,14 @@ describe("writes", () => {
     const db = sbCamel.connect(client);
 
     const first = await db.customers
-      .paginate({ size: 1, after: null, withCount: true, select: ["id"] })
+      .page({ size: 1, after: null, withCount: true, select: ["id"] })
       .orThrow();
 
     expect(first.total).toBe(7);
     expect(requests).toHaveLength(1);
 
     const second = await db.customers
-      .paginate({
+      .page({
         size: 1,
         after: first.nextCursor,
         withCount: true,
@@ -682,7 +677,7 @@ describe("writes", () => {
     ]);
 
     const plain = await db.customers
-      .paginate({ size: 1, after: null, select: ["id"] })
+      .page({ size: 1, after: null, select: ["id"] })
       .orThrow();
 
     expect("total" in plain).toBe(false);
@@ -697,11 +692,11 @@ describe("writes", () => {
     const db = sbCamel.connect(client);
 
     const updated = await db.customers
-      .updateMany({ where: { status: "lead" }, data: { status: "active" } })
+      .update({ where: { status: "lead" } }, { status: "active" })
       .orThrow();
 
     const deleted = await db.customers
-      .deleteMany({ where: { status: "lead" } })
+      .delete({ where: { status: "lead" } })
       .orThrow();
 
     expect(updated).toEqual({ count: 3 });
@@ -720,11 +715,10 @@ describe("writes", () => {
     const db = sbCamel.connect(client);
 
     const rows = await db.customers
-      .deleteMany({
-        where: { status: "archived" },
-        returning: true,
-        select: ["id"],
-      })
+      .delete(
+        { where: { status: "archived" } },
+        { returning: true, select: ["id"] },
+      )
       .orThrow();
 
     expect(rows).toEqual([{ id: "c1" }, { id: "c2" }]);
@@ -764,7 +758,7 @@ describe("writes", () => {
 
     const denied = await sbCamel
       .connect(reply("permission denied for table tags"))
-      .tags.findMany();
+      .tags.list();
 
     expect(denied.error).toMatchObject({
       kind: "forbidden",
@@ -809,10 +803,10 @@ describe("writes", () => {
     const { client } = capturingClient();
     const db = sbCamel.connect(client);
 
-    const result = await db.customers.updateMany({
-      where: { notes: { some: {} } },
-      data: { status: "active" },
-    });
+    const result = await db.customers.update(
+      { where: { notes: { some: {} } } },
+      { status: "active" },
+    );
 
     expect(result.error?.kind).toBe("invalid_request");
   });
@@ -884,7 +878,7 @@ describe("events", () => {
 
     const result = await betterSupabase
       .connect(client)
-      .customers.findMany({ limit: -1 });
+      .customers.list({ limit: -1 });
 
     expect(requests).toHaveLength(0);
     expect(result.error).toMatchObject({
@@ -902,9 +896,12 @@ describe("events", () => {
     const loose = (args: object) => args as never;
 
     for (const result of [
-      await customers.findMany(loose({ _count: { notes: true } })),
-      await customers.findFirst(loose({ _sum: { notes: { id: true } } })),
-      await customers.findOnly(loose({ where: { id: "x" }, _count: {} })),
+      await customers.list(loose({ _count: { notes: true } })),
+      await customers.list({
+        ...({ _sum: { notes: { id: true } } } as object),
+        limit: 1,
+      }),
+      await customers.get({ where: { id: "x" } }, loose({ _count: {} })),
     ]) {
       expect(result.error).toMatchObject({
         kind: "invalid_request",
@@ -918,24 +915,24 @@ describe("events", () => {
 });
 
 describe("row caps and default order", () => {
-  it("orders findMany by the primary key unless orderBy is given", async () => {
+  it("orders list by the primary key unless orderBy is given", async () => {
     const { client, requests } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customers.findMany({ select: ["id"] });
-    await db.customers.findMany({ select: ["id"], orderBy: { name: "desc" } });
-    await db.customers.findFirst({ select: ["id"] });
+    await db.customers.list({ select: ["id"] });
+    await db.customers.list({ select: ["id"], orderBy: { name: "desc" } });
+    await db.customers.list({ select: ["id"], limit: 1 });
     expect(requests.map(query)).toEqual([
       ["select=id", "order=id.asc"],
       ["select=id", "order=name.desc"],
-      ["select=id", "limit=1"],
+      ["select=id", "order=id.asc", "limit=1"],
     ]);
   });
 
   it("orders by the database names of a camel-cased primary key", async () => {
     const { client, last } = capturingClient();
     const db = sbCamel.connect(client);
-    await db.customerTags.findMany({ select: ["customerId"] });
-    await db.customerTags.findMany({ select: ["customerId"] });
+    await db.customerTags.list({ select: ["customerId"] });
+    await db.customerTags.list({ select: ["customerId"] });
     expect(query(last())).toEqual([
       "select=customerId:customer_id",
       "order=customer_id.asc,tag_id.asc",
@@ -952,9 +949,9 @@ describe("row caps and default order", () => {
     betterSupabase.on("query", (event) => truncated.push(event.truncated));
     const db = betterSupabase.connect(client);
 
-    const all = await db.customers.findMany({ select: ["id"] });
-    await db.customers.findMany({ select: ["id"] });
-    await db.customers.findMany({ select: ["id"], limit: 2 });
+    const all = await db.customers.list({ select: ["id"] });
+    await db.customers.list({ select: ["id"] });
+    await db.customers.list({ select: ["id"], limit: 2 });
 
     expect(all.data).toEqual(rows);
     expect(truncated).toEqual([true, true, false]);

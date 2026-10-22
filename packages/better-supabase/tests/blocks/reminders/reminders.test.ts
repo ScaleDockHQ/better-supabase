@@ -137,7 +137,7 @@ describe("createReminders: list and remove", () => {
     const subject = { type: "invoice", id: "7" };
 
     for (const result of [
-      await reminders.save(subject, 15),
+      await reminders.upsert(subject, 15),
       await reminders.list(subject),
     ]) {
       expect(result).toMatchObject({
@@ -148,7 +148,7 @@ describe("createReminders: list and remove", () => {
 
     expect(calls).toEqual([]);
     session.tenant = "org-2";
-    await reminders.save(subject, 15).orThrow();
+    await reminders.upsert(subject, 15).orThrow();
     expect(calls).toEqual([
       {
         fn: "save_reminder",

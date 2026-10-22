@@ -380,7 +380,9 @@ describe("defineRepository", () => {
 
   const tags = defineRepository(betterSupabase, "tags", (base) => ({
     named: (name: string) =>
-      base.findFirst({ where: { name }, select: ["id", "name"] }),
+      base
+        .list({ where: { name }, select: ["id", "name"], limit: 1 })
+        .map((rows) => rows[0] ?? null),
   }));
 
   const db = betterSupabase.use(tags).connect(client);

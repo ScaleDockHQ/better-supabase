@@ -149,8 +149,8 @@ export const runTaskBulkAction = bsb.action(
 
     const changed =
       input.kind === "status"
-        ? await db.tasks.updateMany({ where, data: { status: input.status } })
-        : await db.tasks.deleteMany({ where });
+        ? await db.tasks.update({ where }, { status: input.status })
+        : await db.tasks.delete({ where });
 
     if (!changed.ok) {
       return changed;
@@ -239,7 +239,7 @@ export const saveTaskView = bsb.action(
       query.facets = facets;
     }
 
-    const saved = await blocks(supabase).savedViews.save({
+    const saved = await blocks(supabase).savedViews.upsert({
       organizationId: tenant,
       list: TASK_LIST,
       name,

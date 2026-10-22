@@ -17,10 +17,10 @@ export interface AppTableImportRepository<
   K extends Extract<keyof T, string>,
 > {
   readonly $meta: TableMeta;
-  findMany(args: {
+  list(args: {
     readonly where: { readonly OR: readonly Pick<T, K>[] };
   }): AsyncResult<readonly Values[]>;
-  upsertMany(
+  upsert(
     rows: readonly T[],
     args: { readonly onConflict: readonly K[]; readonly returning: false },
   ): AsyncResult<unknown>;
@@ -93,7 +93,7 @@ export function appTableImport<
     }
 
     const found = await repository
-      .findMany({ where: { OR: rows.map((row) => pick(row, key)) } })
+      .list({ where: { OR: rows.map((row) => pick(row, key)) } })
       .orThrow();
 
     return new Map(found.map((row) => [keyOf(row), row]));
@@ -119,7 +119,7 @@ export function appTableImport<
       const found = await existing(batch);
 
       await repository
-        .upsertMany(
+        .upsert(
           batch.map((row) => merged(row, found.get(keyOf(row)))),
           { onConflict: key, returning: false },
         )

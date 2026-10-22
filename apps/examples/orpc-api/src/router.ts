@@ -31,7 +31,7 @@ export const router = {
       )
       .handler(({ context, input }) =>
         bsb.unwrap(
-          context.db.customers.findMany({
+          context.db.customers.list({
             select: customer,
             where: input.q ? { name: { contains: input.q } } : {},
             orderBy: { name: "asc" },
@@ -42,9 +42,7 @@ export const router = {
     get: authed
       .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
       .handler(({ context, input }) =>
-        bsb.unwrap(
-          context.db.customers.findById(input.id, { select: customer }),
-        ),
+        bsb.unwrap(context.db.customers.get(input.id, { select: customer })),
       ),
     create: authed
       .input(

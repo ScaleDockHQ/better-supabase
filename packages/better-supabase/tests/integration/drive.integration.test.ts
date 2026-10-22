@@ -453,7 +453,11 @@ describe.skipIf(!live)("drive", () => {
       await upload(file, second.attachment.id);
 
       await s.as(owner);
-      const final = await tags.create("label", "Final").orThrow();
+
+      const final = await tags
+        .create({ kind: "label", name: "Final" })
+        .orThrow();
+
       const labeled = await drive.label(file, final.id).orThrow();
       expect(labeled.labels?.map((label) => label.name)).toEqual(["Final"]);
       expect(

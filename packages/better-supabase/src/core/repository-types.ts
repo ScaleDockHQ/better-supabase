@@ -2,9 +2,8 @@ import type {
   AggregateArgs,
   AggregateResult,
   CountArgs,
-  FindFirstArgs,
-  FindOnlyArgs,
-  FindManyArgs,
+  GetArgs,
+  ListArgs,
   Payload,
   ReadArgs,
   RequestArgs,
@@ -82,8 +81,8 @@ export interface UpdateArgs<
  * The result of a many-row write by its `returning` option. Each case of
  * `returning` (`true`, `false`, absent) picks rows or `{ count }`, and a
  * widened `boolean` gives both. `Default` is what an absent option means:
- * `true` for `createMany` and `upsertMany`, `false` for `updateMany` and
- * `deleteMany`.
+ * `true` for `create` and `upsert` with an array, `false` for `update` and
+ * `delete` with a filter.
  */
 export type ManyOutcome<
   M extends AnyModels,
@@ -105,7 +104,10 @@ type ReturningOption<A> = "returning" extends keyof A
   ? A["returning" & keyof A]
   : undefined;
 
-/** `updateMany` and `deleteMany` return the written rows with `returning: true`. */
+/**
+ * `update({ where })` and `delete({ where })` return the rows with `returning:
+ * true`.
+ */
 export type ManyResult<M extends AnyModels, T extends keyof M, A> = ManyOutcome<
   M,
   T,
@@ -113,11 +115,22 @@ export type ManyResult<M extends AnyModels, T extends keyof M, A> = ManyOutcome<
   false
 >;
 
-export interface ManyReturningArgs<
+/** A filter that picks several rows for `update` and `delete`. */
+export interface RowFilter<M extends AnyModels, T extends keyof M> {
+  readonly where: WhereInput<M, T>;
+}
+
+/** What `get()` takes: a primary key, a unique key or a filter. */
+export type GetKey<M extends AnyModels, T extends keyof M> =
+  | PrimaryKeyValue<M, T>
+  | UniqueWhere<M, T>
+  | RowFilter<M, T>;
+
+/** Options of `update({ where })` and `delete({ where })`. */
+export interface ManyWriteArgs<
   M extends AnyModels,
   T extends keyof M,
 > extends RequestArgs {
-  readonly where: WhereInput<M, T>;
   /** Return the written rows instead of `{ count }`. */
   readonly returning?: boolean;
   /** The columns to return with `returning: true`. */
@@ -134,7 +147,7 @@ export interface ManyReturningArgs<
   readonly count?: CountMode;
 }
 
-/** `createMany` and `upsertMany` options. */
+/** Options of `create` and `upsert` with an array of rows. */
 export interface WriteManyArgs<
   M extends AnyModels,
   T extends keyof M,
@@ -168,7 +181,7 @@ export interface UpsertArgs<
 
 export type DeleteArgs = RequestArgs;
 
-/** `upsertMany` options. */
+/** Options of `upsert` with an array of rows. */
 export interface UpsertManyArgs<M extends AnyModels, T extends keyof M>
   extends UpsertArgs<M, T>, WriteManyArgs<M, T> {}
 
@@ -179,7 +192,7 @@ export type Returned<M extends AnyModels, T extends keyof M, A> = A extends {
   : Payload<M, T, A>;
 
 export type OffsetPageArgs<M extends AnyModels, T extends keyof M> = Omit<
-  FindManyArgs<M, T>,
+  ListArgs<M, T>,
   "limit" | "offset"
 > & {
   /** 1-based page number. Defaults to 1. */
@@ -194,7 +207,7 @@ export type OffsetPageArgs<M extends AnyModels, T extends keyof M> = Omit<
 };
 
 export type OffsetRangeArgs<M extends AnyModels, T extends keyof M> = Omit<
-  FindManyArgs<M, T>,
+  ListArgs<M, T>,
   "limit" | "offset"
 > & {
   /** Rows to skip before the page. */
@@ -209,7 +222,7 @@ export type OffsetRangeArgs<M extends AnyModels, T extends keyof M> = Omit<
 };
 
 export type CursorPageArgs<M extends AnyModels, T extends keyof M> = Omit<
-  FindManyArgs<M, T>,
+  ListArgs<M, T>,
   "limit" | "offset"
 > & {
   /** Cursor from the previous page, or `null` for the first page. */
@@ -267,52 +280,15 @@ export interface Repository<
   readonly $tableName: T;
   readonly $meta: TableMeta;
 
-  findMany<const A extends FindManyArgs<M, T> & FindExt<E, M, T>>(
+  /** The rows matching `where`, ordered by `orderBy` or the primary key. */
+  list<const A extends ListArgs<M, T> & FindExt<E, M, T>>(
     args?: A,
   ): AsyncResult<Payload<M, T, A>[]>;
-  findFirst<const A extends FindFirstArgs<M, T> & FindExt<E, M, T>>(
-    args?: A,
-  ): AsyncResult<Payload<M, T, A> | null>;
   /**
-   * The one row matching `where`, or `null` when none does, like supabase-js
-   * `maybeSingle()`. Several matching rows are a `multiple_rows` error, so a
-   * filter that should pick one row never reads an arbitrary one.
+   * One page of rows: by page number (`page`, `size`), by offset (`offset`,
+   * `limit`) or by cursor (`after`, `size`).
    */
-  findOnly<const A extends FindOnlyArgs<M, T> & FindExt<E, M, T>>(
-    args: A,
-  ): AsyncResult<Payload<M, T, A> | null>;
-  /**
-   * The row with these values for the primary key or one named unique key (`{
-   * email }`, `{ organizationId, slug }`), or `null`.
-   */
-  findUnique<
-    const A extends ReadArgs<M, T> & {
-      readonly where: UniqueWhere<M, T>;
-    } & FindExt<E, M, T>,
-  >(
-    args: A,
-  ): AsyncResult<Payload<M, T, A> | null>;
-  /** Returns a `not_found` error when no visible row has this key. */
-  findById<const A extends ReadArgs<M, T> & FindExt<E, M, T>>(
-    id: PrimaryKeyValue<M, T>,
-    args?: A,
-  ): AsyncResult<Payload<M, T, A>>;
-  count(args?: CountArgs<M, T> & FindExt<E, M, T>): AsyncResult<number>;
-  /**
-   * Counts, sums, averages, minimums and maximums in one request, grouped by
-   * `groupBy` columns. Needs `pgrst.db_aggregates_enabled` over PostgREST.
-   */
-  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
-    args: A,
-  ): AsyncResult<AggregateResult<M, T, A>>;
-  exists(
-    args?: RequestArgs & { readonly where?: WhereInput<M, T> } & FindExt<
-        E,
-        M,
-        T
-      >,
-  ): AsyncResult<boolean>;
-  paginate<
+  page<
     const A extends (
       | OffsetPageArgs<M, T>
       | OffsetRangeArgs<M, T>
@@ -322,35 +298,66 @@ export interface Repository<
   >(
     args: A,
   ): AsyncResult<PageOf<M, T, A>>;
+  /**
+   * The row with this primary key, these values for one unique key (`{ email
+   * }`, `{ organizationId, slug }`), or the one row matching `{ where }`. No
+   * row is a `not_found` error, or `null` with `optional: true`; several rows
+   * matching `{ where }` are a `multiple_rows` error.
+   */
+  get<const A extends GetArgs<M, T> & FindExt<E, M, T>>(
+    key: GetKey<M, T>,
+    args?: A,
+  ): AsyncResult<
+    A extends { readonly optional: true }
+      ? Payload<M, T, A> | null
+      : Payload<M, T, A>
+  >;
+  count(args?: CountArgs<M, T> & FindExt<E, M, T>): AsyncResult<number>;
+  /**
+   * Counts, sums, averages, minimums and maximums in one request, grouped by
+   * `groupBy` columns. Needs `pgrst.db_aggregates_enabled` over PostgREST.
+   */
+  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
+    args: A,
+  ): AsyncResult<AggregateResult<M, T, A>>;
 
+  /** Inserts one row, or several in one request when given an array. */
+  /** Inserts one row, or several in one request when given an array. */
   create<const A extends WriteArgs<M, T> = {}>(
     data: Insert<M, T>,
     args?: A,
   ): AsyncResult<Returned<M, T, A>>;
-  createMany<const A extends WriteManyArgs<M, T> = {}>(
+  create<const A extends WriteManyArgs<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
   ): AsyncResult<ManyOutcome<M, T, A, true>>;
+  /**
+   * Updates the row with this key, or every row matching `{ where }`. A filter
+   * that matches no rows by construction (empty, or every value `undefined`)
+   * fails with `invalid_request` unless `allowAll` is `true`.
+   */
+  update(
+    filter: RowFilter<M, T>,
+    patch: Update<M, T>,
+  ): AsyncResult<{ count: number }>;
+  update<
+    const A extends ManyWriteArgs<M, T> & {
+      /** Update every visible row when `where` filters nothing. */
+      readonly allowAll?: boolean;
+    } & FindExt<E, M, T>,
+  >(
+    filter: RowFilter<M, T>,
+    // NoInfer keeps the `const` inference from turning array and object values
+    // into readonly types the column rejects.
+    patch: NoInfer<Update<M, T>>,
+    args: A,
+  ): AsyncResult<ManyResult<M, T, A>>;
   update<const A extends UpdateArgs<M, T> = {}>(
     id: PrimaryKeyValue<M, T>,
     patch: Update<M, T>,
     args?: A,
   ): AsyncResult<Returned<M, T, A>>;
-  /**
-   * Fails with `invalid_request` when `where` filters no rows (it is empty or
-   * every value is `undefined`), unless `allowAll` is `true`.
-   */
-  updateMany<
-    const A extends ManyReturningArgs<M, T> & {
-      // NoInfer keeps the `const` inference from turning array and object
-      // values in `data` into readonly types the column rejects.
-      readonly data: NoInfer<Update<M, T>>;
-      /** Update every visible row when `where` filters nothing. */
-      readonly allowAll?: boolean;
-    } & FindExt<E, M, T>,
-  >(
-    args: A,
-  ): AsyncResult<ManyResult<M, T, A>>;
+  /** Inserts or updates one row, or several when given an array. */
   upsert<const A extends UpsertArgs<M, T> = {}>(
     data: Insert<M, T>,
     args?: A,
@@ -359,22 +366,25 @@ export interface Repository<
       ? Returned<M, T, A> | null
       : Returned<M, T, A>
   >;
-  upsertMany<const A extends UpsertManyArgs<M, T> = {}>(
+  upsert<const A extends UpsertManyArgs<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
   ): AsyncResult<ManyOutcome<M, T, A, true>>;
-  /** Returns a `not_found` error when no visible row has this key. */
+  /**
+   * Deletes the row with this key (`not_found` when no visible row has it), or
+   * every row matching `{ where }`, which must filter rows.
+   */
+  delete(filter: RowFilter<M, T>): AsyncResult<{ count: number }>;
+  delete<
+    const A extends ManyWriteArgs<M, T> & DeleteExt<E, M, T> & FindExt<E, M, T>,
+  >(
+    filter: RowFilter<M, T>,
+    args: A,
+  ): AsyncResult<ManyResult<M, T, A>>;
   delete(
     id: PrimaryKeyValue<M, T>,
     args?: DeleteArgs & DeleteExt<E, M, T>,
   ): AsyncResult<void>;
-  deleteMany<
-    const A extends ManyReturningArgs<M, T> &
-      DeleteExt<E, M, T> &
-      FindExt<E, M, T>,
-  >(
-    args: A,
-  ): AsyncResult<ManyResult<M, T, A>>;
 
   /** Adds methods built on this repository. */
   extend<X extends object>(build: (base: this) => X): this & X;

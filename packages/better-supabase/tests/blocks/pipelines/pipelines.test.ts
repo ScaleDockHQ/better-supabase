@@ -97,7 +97,7 @@ describe("pipelines block", () => {
     expect(
       (
         await pipelines
-          .save("o", { subjectType: "deal", key: "default", name: "Default" })
+          .upsert("o", { subjectType: "deal", key: "default", name: "Default" })
           .orThrow()
       ).stages,
     ).toEqual([]);
@@ -332,7 +332,7 @@ describe("pipelines block, optional fields", () => {
     expect(
       (
         await pipelines
-          .save("o", {
+          .upsert("o", {
             id: "p1",
             subjectType: "deal",
             key: "k",

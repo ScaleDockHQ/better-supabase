@@ -494,7 +494,7 @@ export function supabaseMemory(
             const fact = typeof input["fact"] === "string" ? input["fact"] : "";
 
             const saved = await memory.archival
-              .save(where.organizationId, fact, where.namespace)
+              .upsert(where.organizationId, fact, where.namespace)
               .orThrow();
 
             return { id: saved.id };

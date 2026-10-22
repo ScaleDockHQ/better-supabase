@@ -52,9 +52,7 @@ export type H3Middleware<Context extends object> = (
  *
  * ```ts
  * app.use(toH3([withBetterSupabase(server)]));
- * app.get("/notes", (event) =>
- *   event.context.db.notes.findMany().orThrow(),
- * );
+ * app.get("/notes", (event) => event.context.db.notes.list().orThrow());
  * ```
  */
 export function toH3<const Entries extends readonly AnyEntry[]>(

@@ -241,11 +241,7 @@ export async function loadHiringBoard(): Promise<HiringBoardData | null> {
     call("list_applications", { tenant }),
     call("list_pipelines", { tenant, subject_type: "application" }),
     db.customers
-      .findMany({
-        select: ["id", "name"],
-        orderBy: { name: "asc" },
-        limit: 200,
-      })
+      .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
       .orThrow(),
   ]);
 

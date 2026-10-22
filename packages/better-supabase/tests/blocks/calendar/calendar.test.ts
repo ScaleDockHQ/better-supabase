@@ -323,7 +323,7 @@ describe("calendar client", () => {
     expect(event?.rrule).toBe(SERIES.rrule);
     expect(
       await calendar
-        .save("c1", {
+        .upsert("c1", {
           title: "Review",
           startsAt: range.from,
           endsAt: range.from.add({ hours: 1 }),

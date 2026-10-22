@@ -50,27 +50,31 @@ describe.skipIf(!live)("tags", () => {
       const subject = { type: "project", id: project };
 
       await s.as(owner);
-      const vip = await tags.create("project", "VIP").orThrow();
-      const risk = await tags.create("project", "At risk").orThrow();
-      await tags.create("invoice", "Overdue").orThrow();
+      const vip = await tags.create({ kind: "project", name: "VIP" }).orThrow();
+
+      const risk = await tags
+        .create({ kind: "project", name: "At risk" })
+        .orThrow();
+
+      await tags.create({ kind: "invoice", name: "Overdue" }).orThrow();
 
       await s.asRole(member);
       expect(
-        (await tags.list("project").orThrow()).map((tag) => tag.name),
+        (await tags.list({ kind: "project" }).orThrow()).map((tag) => tag.name),
       ).toEqual(["VIP", "At risk"]);
       expect((await tags.list().orThrow()).map((tag) => tag.kind)).toEqual(
         expect.arrayContaining(["project", "invoice"]),
       );
-      expect(await tags.forSubject(subject).orThrow()).toEqual([]);
-      await tags.tag(subject, risk.id).orThrow();
-      await tags.tag(subject, vip.id).orThrow();
+      expect(await tags.list({ on: subject }).orThrow()).toEqual([]);
+      await tags.attach(subject, risk.id).orThrow();
+      await tags.attach(subject, vip.id).orThrow();
       expect(
-        (await tags.forSubject(subject).orThrow()).map((tag) => tag.id),
+        (await tags.list({ on: subject }).orThrow()).map((tag) => tag.id),
       ).toEqual([vip.id, risk.id]);
 
       await s.asRole(outsider);
       expect((await tags.list()).error?.hint).toBe("TAG_FORBIDDEN");
-      expect((await tags.forSubject(subject)).error?.hint).toBe(
+      expect((await tags.list({ on: subject })).error?.hint).toBe(
         "TAG_FORBIDDEN",
       );
     } finally {

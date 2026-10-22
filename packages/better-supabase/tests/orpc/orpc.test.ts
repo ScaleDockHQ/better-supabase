@@ -33,7 +33,7 @@ describe("createOrpc", () => {
 
   const me = authed.handler(({ context }) => ({
     id: context.auth.kind === "user" ? context.auth.user.id : null,
-    hasDb: typeof context.db.customers.findMany === "function",
+    hasDb: typeof context.db.customers.list === "function",
   }));
 
   const rename = authed

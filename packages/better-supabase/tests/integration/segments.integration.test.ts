@@ -82,7 +82,7 @@ describe.skipIf(!live)("segments and assignment", () => {
         .orThrow();
 
       const customers = await segments
-        .save(org, {
+        .upsert(org, {
           subjectType: "company",
           name: "Customers",
           conditions: lifecycleIs("customer"),
@@ -106,7 +106,7 @@ describe.skipIf(!live)("segments and assignment", () => {
       ).toBe(customers.id);
 
       const renamed = await segments
-        .save(org, { id: customers.id, conditions: lifecycleIs("lead") })
+        .upsert(org, { id: customers.id, conditions: lifecycleIs("lead") })
         .orThrow();
 
       expect(renamed.refreshedAt).toBeUndefined();
@@ -116,7 +116,7 @@ describe.skipIf(!live)("segments and assignment", () => {
         memberCount: 1,
       });
       expect(
-        (await segments.save(org, { name: "" })).ok,
+        (await segments.upsert(org, { name: "" })).ok,
         "a segment without a subject type",
       ).toBe(false);
 

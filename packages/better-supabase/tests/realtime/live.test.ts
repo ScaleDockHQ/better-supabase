@@ -399,7 +399,7 @@ describe("liveQuery", () => {
     const live = liveQuery(
       betterSupabase,
       client,
-      typed.spec.customers.findMany({
+      typed.spec.customers.list({
         include: { notes: true, organization: true },
       }),
       {

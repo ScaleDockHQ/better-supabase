@@ -31,18 +31,18 @@ describe("plugin extensions", () => {
   });
 
   it("adds per-call options only where the flag is set", () => {
-    db.customers.findMany({ withDeleted: true, allTenants: true });
+    db.customers.list({ withDeleted: true, allTenants: true });
     db.customers.delete("c", { hard: true });
-    db.tags.findMany({ allTenants: true });
+    db.tags.list({ allTenants: true });
     // @ts-expect-error tags has no softDelete flag
-    db.tags.findMany({ withDeleted: true });
+    db.tags.list({ withDeleted: true });
     // @ts-expect-error tags has no softDelete flag
     db.tags.delete("t", { hard: true });
   });
 
   it("keeps the base API intact", async () => {
     const rows = await db.customers
-      .findMany({ select: ["id"], withDeleted: true })
+      .list({ select: ["id"], withDeleted: true })
       .orThrow();
 
     expectTypeOf(rows).toEqualTypeOf<{ id: string }[]>();

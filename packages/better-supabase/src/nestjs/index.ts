@@ -225,7 +225,7 @@ let ctxDecorator: ((data?: unknown) => ParameterDecorator) | undefined;
  *
  * ```ts
  * @Get('notes')
- * list(@Ctx('db') db: Db) { return db.notes.findMany().orThrow() }
+ * list(@Ctx('db') db: Db) { return db.notes.list().orThrow() }
  * ```
  */
 export function Ctx(key?: string): ParameterDecorator {

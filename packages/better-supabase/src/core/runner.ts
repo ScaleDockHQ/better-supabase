@@ -271,7 +271,7 @@ export class OperationRunner {
     if (truncated && !runtime.truncatedTables.has(op.table.key)) {
       runtime.truncatedTables.add(op.table.key);
       runtime.events.logger.warn(
-        `a read on ${op.table.key} returned ${rows} rows, the maxRows cap; add a limit or use paginate()`,
+        `a read on ${op.table.key} returned ${rows} rows, the maxRows cap; add a limit or use page()`,
         { table: op.table.key, maxRows: runtime.maxRows },
       );
     }

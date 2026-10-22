@@ -12,7 +12,7 @@ export const heroSnippet: Snippet = {
 export default async function Customers() {
   const { db } = await bsb.context();
 
-  const result = await db.customers.findMany({
+  const result = await db.customers.list({
     select: ['id', 'name'],
     where: { status: 'active', notes: { some: { kind: 'call' } } },
     include: { organization: { select: ['name'] } },

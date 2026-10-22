@@ -215,10 +215,7 @@ export function useSupportSession(): ComputedRef<SupportView | undefined> {
 export interface BetterComposables<B extends ClientLike> {
   /** Repositories bound to the current session. */
   readonly useDb: () => B["db"];
-  /**
-   * TanStack Query option factories:
-   * `useQuery(useQueries().customers.findMany())`.
-   */
+  /** TanStack Query option factories: `useQuery(useQueries().customers.list())`. */
   readonly useQueries: () => B["queries"];
   readonly useSupabase: () => SupabaseClient;
   readonly useAuth: () => Readonly<Ref<AuthSnapshot>>;
@@ -363,9 +360,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
  *
  * ```ts
  * const spec = computed(() =>
- *   betterSupabase.spec.customers.findMany({
- *     where: { orgId: org.value },
- *   }),
+ *   betterSupabase.spec.customers.list({ where: { orgId: org.value } }),
  * );
  * useLiveQuery(spec);
  * ```

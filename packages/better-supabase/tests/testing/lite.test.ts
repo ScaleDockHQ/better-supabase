@@ -57,7 +57,7 @@ describe.each(["sqlite-postgres", "pglite"] as const)(
       const alice = await stack.asUser(betterSupabase, { sub: ALICE });
 
       const rows = await alice.db.contacts
-        .findMany({ select: ["email"], orderBy: { email: "asc" } })
+        .list({ select: ["email"], orderBy: { email: "asc" } })
         .orThrow();
 
       expect(rows.map((row) => row.email)).toEqual([

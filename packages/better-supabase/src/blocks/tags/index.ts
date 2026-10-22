@@ -4,7 +4,15 @@ export type {
   TagsWrites,
 } from "./section.ts";
 
-export { createTags, type Tag, type Tags, type TagsOptions } from "./tags.ts";
+export {
+  createTags,
+  type CreateTagInput,
+  type ListTagsParams,
+  type Tag,
+  type Tags,
+  type TagsOptions,
+  type UpdateTagInput,
+} from "./tags.ts";
 
 export {
   createTagInputController,

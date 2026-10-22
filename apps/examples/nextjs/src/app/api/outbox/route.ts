@@ -78,9 +78,9 @@ export async function GET(request: Request): Promise<Response> {
       const { id } = payload.output;
 
       const task = await admin.tasks
-        .findFirst({
+        .get(id, {
           select: ["id", "organizationId", "title", "status", "dueOn"],
-          where: { id },
+          optional: true,
         })
         .orThrow();
 

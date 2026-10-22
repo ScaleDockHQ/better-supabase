@@ -204,7 +204,7 @@ export interface BetterPrimitives<B extends ClientLike> {
   readonly useDb: () => B["db"];
   /**
    * TanStack Query option factories: `useQuery(() =>
-   * useQueries().customers.findMany())`.
+   * useQueries().customers.list())`.
    */
   readonly useQueries: () => B["queries"];
   readonly useSupabase: () => SupabaseClient;
@@ -361,7 +361,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
  *
  * ```ts
  * useLiveQuery(() =>
- *   betterSupabase.spec.customers.findMany({ where: { orgId: org() } }),
+ *   betterSupabase.spec.customers.list({ where: { orgId: org() } }),
  * );
  * ```
  */

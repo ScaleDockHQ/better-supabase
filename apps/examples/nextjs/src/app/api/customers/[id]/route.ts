@@ -1,7 +1,7 @@
 import { bsb } from "../../../../lib/supabase/server";
 
 export const GET = bsb.route<{ id: string }>((_request, { db, params }) =>
-  db.customers.findById(params.id, {
+  db.customers.get(params.id, {
     select: ["id", "name", "status", "organizationId"],
   }),
 );

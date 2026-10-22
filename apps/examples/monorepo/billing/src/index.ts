@@ -2,10 +2,10 @@ import type { Db } from "@better-supabase/example-monorepo-runtime";
 
 /** The address an invoice goes to: the customer's primary location. */
 export function billingAddress(db: Db, customerId: string) {
-  return db.locations.findFirst({
-    select: ["label", "city"],
-    where: { customerId, isPrimary: true },
-  });
+  return db.locations.get(
+    { where: { customerId, isPrimary: true } },
+    { select: ["label", "city"], optional: true },
+  );
 }
 
 /** Billable seats: the organization's customers that aren't archived. */

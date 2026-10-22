@@ -60,7 +60,7 @@ export const createDefinition = bsb.action(
   async ({ name }, { tenant, supabase }) => {
     const builder = builderFor(supabase);
 
-    const saved = await builder.definitions.save({
+    const saved = await builder.definitions.upsert({
       tenant,
       slug: slugOf(name),
       name,
@@ -70,7 +70,7 @@ export const createDefinition = bsb.action(
       return saved;
     }
 
-    const draft = await builder.versions.save(saved.data.id, {
+    const draft = await builder.versions.upsert(saved.data.id, {
       nodes: [
         {
           id: "trigger",
@@ -99,7 +99,7 @@ export const saveDraft = bsb.action(
     authorize: (session) => can(session, "workflow.edit"),
   },
   async ({ definition, graph }, { supabase }) => {
-    const saved = await builderFor(supabase).versions.save(definition, graph);
+    const saved = await builderFor(supabase).versions.upsert(definition, graph);
 
     if (!saved.ok) {
       return saved;
@@ -118,7 +118,7 @@ export const publishGraph = bsb.action(
   },
   async ({ definition, graph }, { supabase }) => {
     const builder = builderFor(supabase);
-    const draft = await builder.versions.save(definition, graph);
+    const draft = await builder.versions.upsert(definition, graph);
 
     if (!draft.ok) {
       return draft;
@@ -181,7 +181,7 @@ export const saveTrigger = bsb.action(
           ? { type: event ?? "" }
           : {};
 
-    const saved = await builder.triggers.save({ definition, kind, config });
+    const saved = await builder.triggers.upsert({ definition, kind, config });
 
     if (!saved.ok) {
       return saved;

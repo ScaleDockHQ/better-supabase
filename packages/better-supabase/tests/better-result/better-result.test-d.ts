@@ -45,9 +45,7 @@ describe("withBetterResult types", () => {
   });
 
   it("keeps the selected row type and the converter's errors", () => {
-    expectTypeOf(
-      db.customers.findMany({ select: ["id", "name"] }),
-    ).toEqualTypeOf<
+    expectTypeOf(db.customers.list({ select: ["id", "name"] })).toEqualTypeOf<
       Promise<Result<{ id: string; name: string }[], NotFound | DbFailure>>
     >();
     expectTypeOf(db.customers.count()).toEqualTypeOf<
@@ -71,9 +69,9 @@ describe("withBetterResult types", () => {
     expectTypeOf(db.$list(list, list.defaults, { select: ["id"] })).toExtend<
       Promise<Result<{ items: { id: string }[] }, NotFound | DbFailure>>
     >();
-    expectTypeOf(db.$from(plain.customers.exists())).toEqualTypeOf<
-      Promise<Result<boolean, NotFound | DbFailure>>
-    >();
+    expectTypeOf(
+      db.$from(plain.customers.count().map((n) => n > 0)),
+    ).toEqualTypeOf<Promise<Result<boolean, NotFound | DbFailure>>>();
     expectTypeOf(db.$db).toEqualTypeOf(plain);
   });
 

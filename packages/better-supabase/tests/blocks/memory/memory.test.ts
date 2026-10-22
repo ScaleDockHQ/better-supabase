@@ -225,7 +225,7 @@ describe("createMemory", () => {
     const memory = createMemory({ transport, embedder });
 
     const saved = await memory.archival
-      .save("o1", "likes tea", undefined, { sourceMessageId: "msg1" })
+      .upsert("o1", "likes tea", undefined, { sourceMessageId: "msg1" })
       .orThrow();
 
     expect(saved.embeddingModel).toBe("m1");
@@ -255,7 +255,7 @@ describe("createMemory", () => {
     expect(calls[3]?.args).toEqual({ memory_id: "m1", superseded_by: "m2" });
 
     const plain = createMemory({ transport });
-    await plain.archival.save("o1", "x").orThrow();
+    await plain.archival.upsert("o1", "x").orThrow();
     expect(calls.at(-1)?.args).toMatchObject({
       embedding: undefined,
       model: undefined,

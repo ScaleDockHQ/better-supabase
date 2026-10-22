@@ -154,7 +154,7 @@ describe("createAiKeys keys", () => {
 
     const providers = createAiKeys({ transport, credentials });
     await providers.keys
-      .save("o1", { provider: "anthropic", credentialRef: REF })
+      .upsert("o1", { provider: "anthropic", credentialRef: REF })
       .orThrow();
     expect(calls[0]?.args).toMatchObject({
       tenant: "o1",
@@ -164,11 +164,11 @@ describe("createAiKeys keys", () => {
     expect(revoked).toEqual([OLD_REF]);
     replaced = REF;
     await providers.keys
-      .save("o1", { provider: "anthropic", credentialRef: REF })
+      .upsert("o1", { provider: "anthropic", credentialRef: REF })
       .orThrow();
     replaced = null;
     await providers.keys
-      .save("o1", { provider: "anthropic", credentialRef: REF })
+      .upsert("o1", { provider: "anthropic", credentialRef: REF })
       .orThrow();
     expect(revoked).toEqual([OLD_REF]);
   });

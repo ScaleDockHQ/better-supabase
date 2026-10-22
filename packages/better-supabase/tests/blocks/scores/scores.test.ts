@@ -296,7 +296,7 @@ describe("createScores", () => {
     expect(computed.computedAt.toString()).toBe(AT);
 
     await scores.compute("lead", lead, {}).orThrow();
-    expect(await scores.forSubject(lead).orThrow()).toHaveLength(1);
+    expect(await scores.list({ on: lead }).orThrow()).toHaveLength(1);
 
     const [, old] = await scores
       .history("lead", lead, { pageSize: 5 })

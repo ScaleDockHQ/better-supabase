@@ -16,15 +16,15 @@ export type GuardSetting<Option = never> =
   | ([Option] extends [never] ? never : readonly [GuardLevel, Option]);
 
 export interface GuardSet {
-  /** `findMany` without `limit` (reads the whole table). */
-  readonly noUnboundedFindMany?: GuardSetting;
+  /** `list` without `limit` (reads the whole table). */
+  readonly noUnboundedList?: GuardSetting;
   /** `limit` above the given maximum (default 1000). */
   readonly maxLimit?: GuardSetting<number>;
   /**
    * Paging (`offset`, or `limit` above 1) without `orderBy`: Postgres returns
-   * rows in no particular order, so pages overlap or skip rows. `findMany`
-   * orders by the primary key by default, so this only fires on views and
-   * tables without one.
+   * rows in no particular order, so pages overlap or skip rows. `list` orders
+   * by the primary key by default, so this only fires on views and tables
+   * without one.
    */
   readonly requireOrderByForCursor?: GuardSetting;
   /** Includes nested deeper than the given depth (default 3). */
@@ -43,16 +43,17 @@ export interface GuardSet {
    */
   readonly noSensitiveSelect?: GuardSetting;
   /**
-   * Delete operations without `where`. The repository refuses `deleteMany`
-   * without `where` on its own, so this catches deletes built by plugins; the
-   * lint rule of the same name flags the call in the editor.
+   * Delete operations without `where`. The repository refuses a `delete({ where
+   * })` that filters nothing on its own, so this catches deletes built by
+   * blocks and extensions; the `no-empty-where` lint rule flags the call in the
+   * editor.
    */
-  readonly noDeleteManyWithoutWhere?: GuardSetting;
+  readonly noDeleteWithoutWhere?: GuardSetting;
   /**
-   * `updateMany` and `deleteMany` without `maxAffected`, or with one above the
-   * given maximum (default 1000). With a bound, a `where` that matches more
-   * rows than intended fails with `max_affected` and writes nothing. Updates
-   * and deletes by key are exempt.
+   * `update({ where })` and `delete({ where })` without `maxAffected`, or with
+   * one above the given maximum (default 1000). With a bound, a `where` that
+   * matches more rows than intended fails with `max_affected` and writes
+   * nothing. Updates and deletes by key are exempt.
    */
   readonly requireMaxAffected?: GuardSetting<number>;
   /**
@@ -96,7 +97,7 @@ export interface GuardsExtension extends RepositoryExtension {
 export function safeGuards(): GuardSet {
   return {
     noAdminInBrowser: "error",
-    noDeleteManyWithoutWhere: "error",
+    noDeleteWithoutWhere: "error",
     noSensitiveSelect: "error",
     requireTenantContext: "error",
   };
@@ -106,7 +107,7 @@ export function safeGuards(): GuardSet {
 export function recommendedGuards(): GuardSet {
   return {
     ...safeGuards(),
-    noUnboundedFindMany: "warn",
+    noUnboundedList: "warn",
     maxLimit: ["warn", 1000],
     requireOrderByForCursor: "warn",
     maxIncludeDepth: ["warn", 3],
@@ -118,7 +119,7 @@ export function recommendedGuards(): GuardSet {
 export function strictGuards(): GuardSet {
   return {
     ...safeGuards(),
-    noUnboundedFindMany: "error",
+    noUnboundedList: "error",
     maxLimit: ["error", 1000],
     requireOrderByForCursor: "error",
     maxIncludeDepth: ["error", 3],
@@ -372,13 +373,13 @@ function checks(rules: GuardSet): Record<GuardName, Check> {
   const maxAffected = optionOf(rules.requireMaxAffected, 1000);
 
   return {
-    noUnboundedFindMany: (op) =>
+    noUnboundedList: (op) =>
       op.kind === "select" &&
       op.single === undefined &&
       !op.head &&
       op.limit === undefined &&
       op.selection.aggregate === undefined
-        ? "findMany without limit reads every visible row"
+        ? "list without limit reads every visible row"
         : undefined,
     maxLimit: (op) => {
       if (op.kind !== "select" || op.limit === undefined) {
@@ -442,7 +443,7 @@ function checks(rules: GuardSet): Record<GuardName, Check> {
         ? `reads sensitive column(s) ${columns.join(", ")}; pass { sensitive: true } to allow`
         : undefined;
     },
-    noDeleteManyWithoutWhere: (op) =>
+    noDeleteWithoutWhere: (op) =>
       op.kind === "delete" && simplify(op.where) === true
         ? "delete without where removes every visible row"
         : undefined,
@@ -454,7 +455,7 @@ function checks(rules: GuardSet): Record<GuardName, Check> {
       if (op.maxAffected === undefined) {
         return pinsPrimaryKey(op.table, op.where)
           ? undefined
-          : `${op.kind === "update" ? "updateMany" : "deleteMany"} without maxAffected can change every row its where matches`;
+          : `${op.kind} by filter without maxAffected can change every row its where matches`;
       }
 
       return op.maxAffected > maxAffected

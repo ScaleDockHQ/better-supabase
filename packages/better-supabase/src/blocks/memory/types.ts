@@ -197,7 +197,7 @@ export interface Memory {
     ns?: MemoryNamespace,
   ): AsyncResult<string>;
   readonly archival: {
-    save(
+    upsert(
       organizationId: string,
       content: string,
       ns?: MemoryNamespace,

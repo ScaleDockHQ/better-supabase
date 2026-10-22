@@ -38,11 +38,7 @@ async function loadQueue(): Promise<ApprovalsQueue | null> {
       .approvals.list({ status: "pending", pageSize: 100 })
       .orThrow(),
     db.customers
-      .findMany({
-        select: ["id", "name"],
-        orderBy: { name: "asc" },
-        limit: 200,
-      })
+      .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
       .orThrow(),
     getMembers(tenant),
   ]);

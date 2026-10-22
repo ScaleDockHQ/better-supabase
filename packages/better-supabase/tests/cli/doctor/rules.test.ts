@@ -298,7 +298,7 @@ describe("BS204, BS210, BS301", () => {
       await run(
         "BS210",
         context(withSetting("off"), {
-          sources: [{ path: "b.ts", text: "db.x.findMany()" }],
+          sources: [{ path: "b.ts", text: "db.x.list()" }],
         }),
       ),
     ).toEqual([]);

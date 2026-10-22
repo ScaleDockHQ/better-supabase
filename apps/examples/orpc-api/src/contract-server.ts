@@ -17,7 +17,7 @@ export const contractRouter = os.router({
   customers: {
     list: os.customers.list.handler(({ context, input }) =>
       bsb.unwrap(
-        context.db.customers.findMany({
+        context.db.customers.list({
           select,
           where: input.q ? { name: { contains: input.q } } : {},
           orderBy: { name: "asc" },
@@ -26,7 +26,7 @@ export const contractRouter = os.router({
       ),
     ),
     get: os.customers.get.handler(({ context, input }) =>
-      bsb.unwrap(context.db.customers.findById(input.id, { select })),
+      bsb.unwrap(context.db.customers.get(input.id, { select })),
     ),
     create: os.customers.create.handler(({ context, input }) =>
       bsb.unwrap(context.db.customers.create(input, { select })),

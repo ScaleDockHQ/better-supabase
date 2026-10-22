@@ -126,7 +126,7 @@ function fakeConnectors(status: FingerprintStatus = "approved") {
         AsyncResult.ok(
           session === undefined ? undefined : { ...session, expiresAt: AT },
         ),
-      save: (...args: unknown[]) => {
+      upsert: (...args: unknown[]) => {
         saved.push(args);
 
         return AsyncResult.ok(true);

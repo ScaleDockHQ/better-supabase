@@ -34,7 +34,7 @@ describe("createQueries", () => {
 
     const q = createQueries(betterSupabase, betterSupabase.connect(client));
 
-    const options = q.customers.findMany({
+    const options = q.customers.list({
       select: ["id", "name"],
       where: { status: "active" },
       include: { notes: { select: ["id"] } },
@@ -43,7 +43,7 @@ describe("createQueries", () => {
     expect(options.queryKey).toEqual([
       "bsb",
       "customers",
-      "findMany",
+      "list",
       {
         select: ["id", "name"],
         where: { status: "active" },
@@ -65,8 +65,8 @@ describe("createQueries", () => {
     const db = betterSupabase.connect(capturingClient().client);
     const remote = createQueries(betterSupabase, db);
     const local = createQueries(betterSupabase, db, { scope: "local" });
-    const remoteKey = remote.customers.findMany({}).queryKey;
-    const localKey = local.customers.findMany({}).queryKey;
+    const remoteKey = remote.customers.list({}).queryKey;
+    const localKey = local.customers.list({}).queryKey;
     expect(localKey).toEqual([...remoteKey, { scope: "local" }]);
     expect(local.$rpc("lookup" as never, {} as never).queryKey.at(-1)).toEqual({
       scope: "local",
@@ -98,11 +98,11 @@ describe("createQueries", () => {
       betterSupabase.connect(capturingClient().client),
     );
 
-    expect(q.customers.findById(skipToken).queryFn).toBe(skipToken);
-    expect(q.customers.findMany(skipToken).queryKey).toEqual([
+    expect(q.customers.get(skipToken).queryFn).toBe(skipToken);
+    expect(q.customers.list(skipToken).queryKey).toEqual([
       "bsb",
       "customers",
-      "findMany",
+      "list",
       "$skip",
     ]);
   });
@@ -113,7 +113,7 @@ describe("createQueries", () => {
     const where = { id: { in: [9_007_199_254_740_993n] } };
 
     const options = [
-      q.notes.findMany({ where } as never),
+      q.notes.list({ where } as never),
       q.notes.infinite({ where, size: 5 } as never),
       q.notes.infinitePages({ where, size: 5 } as never),
       q.$rpc("lookup" as never, { id: 9_007_199_254_740_993n } as never),
@@ -126,12 +126,12 @@ describe("createQueries", () => {
     expect(options[0]?.queryKey).toEqual([
       "bsb",
       "notes",
-      "findMany",
+      "list",
       { where: { id: { in: [{ $bigint: "9007199254740993" }] } } },
     ]);
     expect(hashKey(options[0]!.queryKey)).not.toBe(
       hashKey(
-        q.notes.findMany({ where: { id: { in: [9_007_199_254_740_992] } } })
+        q.notes.list({ where: { id: { in: [9_007_199_254_740_992] } } })
           .queryKey,
       ),
     );
@@ -199,10 +199,10 @@ describe("createQueries", () => {
   it("turns specs into query options and prefetches them", async () => {
     const { client } = capturingClient(() => ({ body: [{ id: "c1" }] }));
     const q = createQueries(betterSupabase, betterSupabase.connect(client));
-    const spec = betterSupabase.spec.customers.findMany({ select: ["id"] });
+    const spec = betterSupabase.spec.customers.list({ select: ["id"] });
     const shipped = JSON.parse(JSON.stringify(spec)) as typeof spec;
     expect(q.$spec(shipped).queryKey).toEqual(
-      q.customers.findMany({ select: ["id"] }).queryKey,
+      q.customers.list({ select: ["id"] }).queryKey,
     );
     const queryClient = new QueryClient();
     await q.$prefetch(queryClient, shipped);
@@ -219,8 +219,8 @@ describe("createQueries", () => {
     const db = betterSupabase.connect(client);
     const q = createQueries(betterSupabase, () => db);
     const queryClient = new QueryClient();
-    const withNotes = q.notes.findMany({ include: { customer: true } });
-    const organizations = q.organizations.findMany();
+    const withNotes = q.notes.list({ include: { customer: true } });
+    const organizations = q.organizations.list();
     queryClient
       .getQueryCache()
       .build(queryClient, {
@@ -330,16 +330,17 @@ describe("query helpers", () => {
     const input = { organizationId: "o1", name: "Acme" };
     const row = await create.mutationFn(input);
     await create.onSuccess(row, input, undefined, { client: queryClient });
-    expect(
-      queryClient.getQueryData(q.customers.findById("c1").queryKey),
-    ).toEqual({ id: "c1", name: "Acme" });
+    expect(queryClient.getQueryData(q.customers.get("c1").queryKey)).toEqual({
+      id: "c1",
+      name: "Acme",
+    });
 
     const narrow = q.customers.update({ select: ["id"] });
     await narrow.onSuccess({ id: "c2" }, { id: "c2", patch: {} }, undefined, {
       client: queryClient,
     });
     expect(
-      queryClient.getQueryData(q.customers.findById("c2").queryKey),
+      queryClient.getQueryData(q.customers.get("c2").queryKey),
     ).toBeUndefined();
   });
 
@@ -366,7 +367,7 @@ describe("query helpers", () => {
 
     type Row = { id: string; name: string };
 
-    const list = { queryKey: ["bsb", "customers", "findMany", {}] as never };
+    const list = { queryKey: ["bsb", "customers", "list", {}] as never };
     queryClient.setQueryData<Row[]>(list.queryKey, [
       { id: "a", name: "A" },
       { id: "b", name: "B" },
@@ -394,7 +395,7 @@ describe("query helpers", () => {
     await remove.onSettled(undefined, null, "b", undefined, context);
     expect(isInvalid(queryClient, list.queryKey)).toBe(true);
 
-    const empty = { queryKey: ["bsb", "notes", "findMany"] as never };
+    const empty = { queryKey: ["bsb", "notes", "list"] as never };
 
     const rewrite = optimistic<Row[], string>([empty], (rows) => rows);
     const snapshot = await rewrite.onMutate("x", context);

@@ -68,7 +68,7 @@ export interface Pipeline<F extends object = Record<never, never>> {
   readonly name: string;
   readonly rank: string;
   readonly isDefault: boolean;
-  /** Its active stages in board order. Empty on the result of `save`. */
+  /** Its active stages in board order. Empty on the result of `upsert`. */
   readonly stages: readonly PipelineStage[];
   /** The app's extra columns (`options.extraColumns`), by column name. */
   readonly fields: RowFields<F>;
@@ -163,7 +163,7 @@ export interface Pipelines<F extends object = Record<never, never>> {
    * Creates or renames a pipeline. The first of a type and scope is its
    * default.
    */
-  save(
+  upsert(
     organizationId: string,
     input: PipelineInput<F>,
   ): AsyncResult<Pipeline<F>>;
@@ -357,7 +357,7 @@ export function createPipelines<
         { tenant: organizationId, subject_type: subjectType },
         (value) => recordsOf(value, "list_pipelines").map(pipelineOf),
       ).andThen((pipelines) => readAllFields(fields, pipelines)),
-    save: (organizationId, input) =>
+    upsert: (organizationId, input) =>
       writeFields(fields, input.fields, (checked) =>
         call(
           "save_pipeline",

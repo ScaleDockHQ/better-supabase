@@ -106,7 +106,7 @@ export interface BetterSvelteKit<
    *   const { db, tenant } = await bsb.require(event, {
    *     requireTenant: true,
    *   });
-   *   return { customers: await db.customers.findMany().orThrow() };
+   *   return { customers: await db.customers.list().orThrow() };
    * };
    * ```
    */

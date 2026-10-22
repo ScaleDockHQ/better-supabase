@@ -64,19 +64,19 @@ export const tagsSection: Section<
   TagsWrites
 > = defineSection({
   permissions: { read: "read", write: "apply" },
-  load: (client: Tags, subject) => client.forSubject(subject),
+  load: (client: Tags, subject) => client.list({ on: subject }),
   events: ["subject.tagged", "subject.untagged", "tag.*"],
   optimistic: tagsOptimistic,
   writes: {
     apply: {
       input: tagRefInput,
       run: (client: Tags, subject, { tagId }: TagRefInput) =>
-        client.tag(subject, tagId),
+        client.attach(subject, tagId),
     },
     remove: {
       input: tagRefInput,
       run: (client: Tags, subject, { tagId }: TagRefInput) =>
-        client.untag(subject, tagId),
+        client.detach(subject, tagId),
     },
   },
 });

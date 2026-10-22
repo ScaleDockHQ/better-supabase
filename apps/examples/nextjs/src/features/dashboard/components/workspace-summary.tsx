@@ -77,7 +77,7 @@ export async function WorkspaceSummary() {
         label={t("Latest note")}
         value={
           <span className="text-base font-medium">
-            {summary.latestNote?.body ?? t("None yet")}
+            {summary.latestNote[0]?.body ?? t("None yet")}
           </span>
         }
         icon={<NotebookPenIcon />}

@@ -57,7 +57,7 @@ describe("createSegments", () => {
     const segments = createSegments({ transport });
 
     const saved = await segments
-      .save("org", { subjectType: "company", name: "SaaS", conditions })
+      .upsert("org", { subjectType: "company", name: "SaaS", conditions })
       .orThrow();
 
     expect(saved).toMatchObject({

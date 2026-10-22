@@ -129,10 +129,7 @@ export interface BetterHooks<B extends ClientLike> {
    * changes.
    */
   readonly useDb: () => B["db"];
-  /**
-   * TanStack Query option factories:
-   * `useQuery(useQueries().customers.findMany())`.
-   */
+  /** TanStack Query option factories: `useQuery(useQueries().customers.list())`. */
   readonly useQueries: () => B["queries"];
   readonly useSupabase: () => SupabaseClient;
   readonly useAuth: () => AuthSnapshot;
@@ -316,7 +313,7 @@ function useHeldSpec<S extends QuerySpec>(
  * resubscribes when the spec, tenant or user changes.
  *
  * ```ts
- * const spec = betterSupabase.spec.customers.findMany({
+ * const spec = betterSupabase.spec.customers.list({
  *   include: { notes: true },
  * });
  * const { data } = useQuery(q.$spec(spec));

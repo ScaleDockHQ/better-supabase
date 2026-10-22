@@ -15,7 +15,7 @@ const db = betterSupabase.connect(client);
 describe("aggregate types", () => {
   it("types relation aggregates next to the row", async () => {
     const rows = await db.customers
-      .findMany({
+      .list({
         select: ["id"],
         include: {
           _sum: { notes: { id: true } },
@@ -96,7 +96,7 @@ describe("aggregate types", () => {
   it("only sums numeric columns and only aggregates to-many relations", () => {
     // @ts-expect-error jsonb is not numeric
     void db.customers.aggregate({ _sum: { metadata: true } });
-    void db.customers.findMany({
+    void db.customers.list({
       // @ts-expect-error organization is to-one
       include: { _max: { organization: { name: true } } },
     });

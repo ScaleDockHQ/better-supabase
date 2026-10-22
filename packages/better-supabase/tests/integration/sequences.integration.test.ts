@@ -156,7 +156,7 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     const sequences = sequencesFor(tenant);
 
     const sequence = await sequences
-      .save({
+      .upsert({
         key: "intro",
         name: "Intro",
         status: "active",
@@ -180,7 +180,7 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     ]);
 
     const renamed = await sequences
-      .save({ id: sequence.id, name: "Intro sequence" })
+      .upsert({ id: sequence.id, name: "Intro sequence" })
       .orThrow();
 
     expect(renamed).toMatchObject({ name: "Intro sequence", version: 1 });
@@ -202,7 +202,7 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
 
     for (const input of bad) {
       // SAFETY: invalid inputs on purpose, to reach the SQL checks.
-      hints.push((await sequences.save(input as never)).error?.hint);
+      hints.push((await sequences.upsert(input as never)).error?.hint);
     }
 
     expect(hints).toEqual([
@@ -226,7 +226,7 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     const sequences = sequencesFor(tenant);
 
     expect(
-      (await sequences.save({ key: "mine", name: "Mine" })).error?.hint,
+      (await sequences.upsert({ key: "mine", name: "Mine" })).error?.hint,
     ).toBe("SEQUENCE_FORBIDDEN");
 
     const run = await sequences
@@ -380,7 +380,7 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     expect(failed?.lastError).toContain("no mailer");
 
     const paused = await owned
-      .save({ key: "draft", name: "Draft", steps: [STEPS[1]] })
+      .upsert({ key: "draft", name: "Draft", steps: [STEPS[1]] })
       .orThrow();
 
     expect(

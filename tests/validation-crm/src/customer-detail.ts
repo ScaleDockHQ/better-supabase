@@ -35,32 +35,35 @@ export function customerDetail(
   organizationId: string,
   customerId: number,
 ) {
-  return db.customers.findFirst({
-    where: { id: customerId, organizationId },
-    select: CUSTOMER_COLUMNS,
-    include: {
-      customerContacts: {
-        select: CONTACT_COLUMNS,
-        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-        include: {
-          contactProfile: {
-            select: PROFILE_COLUMNS,
-            include: {
-              contactMethods: {
-                select: METHOD_COLUMNS,
-                orderBy: [{ position: "asc" }],
+  return db.customers.get(
+    { where: { id: customerId, organizationId } },
+    {
+      select: CUSTOMER_COLUMNS,
+      include: {
+        customerContacts: {
+          select: CONTACT_COLUMNS,
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+          include: {
+            contactProfile: {
+              select: PROFILE_COLUMNS,
+              include: {
+                contactMethods: {
+                  select: METHOD_COLUMNS,
+                  orderBy: [{ position: "asc" }],
+                },
               },
             },
           },
         },
+        customerLocationsByCustomer: {
+          select: LOCATION_COLUMNS,
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        },
+        _count: { quotes: true, invoices: true },
       },
-      customerLocationsByCustomer: {
-        select: LOCATION_COLUMNS,
-        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-      },
-      _count: { quotes: true, invoices: true },
+      optional: true,
     },
-  });
+  );
 }
 
 /**
@@ -73,11 +76,11 @@ export const customerDetailSet = defineReadSet(
   "customer_detail",
   { params: { organizationId: "uuid", customerId: "int8" } },
   (s, p) => ({
-    customer: s.customers.findFirst({
-      where: { id: p.customerId, organizationId: p.organizationId },
-      select: CUSTOMER_COLUMNS,
-    }),
-    contacts: s.customerContacts.findMany({
+    customer: s.customers.get(
+      { where: { id: p.customerId, organizationId: p.organizationId } },
+      { select: CUSTOMER_COLUMNS, optional: true },
+    ),
+    contacts: s.customerContacts.list({
       where: { customerId: p.customerId, organizationId: p.organizationId },
       select: CONTACT_COLUMNS,
       orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
@@ -88,7 +91,7 @@ export const customerDetailSet = defineReadSet(
         },
       },
     }),
-    locations: s.customerLocations.findMany({
+    locations: s.customerLocations.list({
       where: { customerId: p.customerId, organizationId: p.organizationId },
       select: LOCATION_COLUMNS,
       orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],

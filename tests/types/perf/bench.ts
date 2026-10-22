@@ -350,8 +350,8 @@ function consumer(profile: Profile): string {
       "  const typed = createClient<Database>('https://x.supabase.co', 'key');",
       "  await typed.from('item_summaries').select('id, priority');",
       "  await db.$rpc('count_items', { p_organization_id: 'o' }).orThrow();",
-      "  await db.transfers.findMany({ include: { fromOrganization: { select: ['name'] }, toOrganization: { select: ['name'] } } }).orThrow();",
-      "  await db.itemSummaries.findMany({ where: { priority: 'high' } }).orThrow();",
+      "  await db.transfers.list({ include: { fromOrganization: { select: ['name'] }, toOrganization: { select: ['name'] } } }).orThrow();",
+      "  await db.itemSummaries.list({ where: { priority: 'high' } }).orThrow();",
       `  await db.${name(1)}.update('id', { kind: 'note', priority: 'low', metadata: { tags: ['a'] } }).orThrow();`,
     );
   }
@@ -360,7 +360,7 @@ function consumer(profile: Profile): string {
     const key = name(i);
     const child = name(i + 1);
     lines.push(
-      `  await db.${key}.findMany({ select: ['id', 'name', 'createdAt'], where: { active: true, quantity: { gt: 1 } }, orderBy: { createdAt: 'desc' }, include: { parent: { select: ['id', 'name'] }, ${child}: { select: ['id'] } } }).orThrow();`,
+      `  await db.${key}.list({ select: ['id', 'name', 'createdAt'], where: { active: true, quantity: { gt: 1 } }, orderBy: { createdAt: 'desc' }, include: { parent: { select: ['id', 'name'] }, ${child}: { select: ['id'] } } }).orThrow();`,
       `  await db.${key}.create({ organizationId: 'o', name: 'n' }, { select: ['id'] }).orThrow();`,
       `  await db.${key}.update('id', { name: 'x' }).orThrow();`,
     );

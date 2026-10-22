@@ -104,7 +104,7 @@ describe.skipIf(!up)("request context on better-supabase", () => {
 
   const whoami = withUserAuth(server, async (_request, ctx) => {
     const customers = await ctx.db.customers
-      .findMany({ select: ["organizationId"] })
+      .list({ select: ["organizationId"] })
       .orThrow();
 
     return {

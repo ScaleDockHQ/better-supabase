@@ -34,17 +34,20 @@ export interface FeatureFlagsOptions<
   /**
    * A Standard Schema for the flag's extra columns
    * (`blocks['feature-flags'].options.extraColumns`), keyed by column name. It
-   * types and parses `fields` on `list` and `save`, and validates them on
-   * `save`.
+   * types and parses `fields` on `list` and `upsert`, and validates them on
+   * `upsert`.
    */
   readonly fields?: S;
-  /** `withBlockHooks` hooks around the methods, such as a review rule on `save`. */
+  /**
+   * `withBlockHooks` hooks around the methods, such as a review rule on
+   * `upsert`.
+   */
   readonly hooks?: NoInfer<BlockHooks<FeatureFlags<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. */
   readonly logger?: Logger;
 }
 
-/** The fields `save` writes; the ones left out keep their value. */
+/** The fields `upsert` writes; the ones left out keep their value. */
 export interface FlagInput<F extends object = Record<never, never>> {
   readonly type?: FlagType;
   readonly description?: string | null;
@@ -93,7 +96,7 @@ export interface FeatureFlags<F extends object = Record<never, never>> {
   /** Every flag with its overrides. */
   list(): AsyncResult<readonly FlagRecord<F>[]>;
   /** Creates or updates a flag; returns it as stored. */
-  save(
+  upsert(
     key: string,
     input: FlagInput<F>,
   ): AsyncResult<FlagRecord<F> | undefined>;
@@ -179,7 +182,7 @@ export function createFeatureFlags<
 
   const client: FeatureFlags<F> = {
     list: () => call("list_flags", {}, flagDefinitionsOf).andThen(records),
-    save: (key, input) =>
+    upsert: (key, input) =>
       AsyncResult.from(() =>
         input.fields === undefined
           ? Promise.resolve(ok(undefined))

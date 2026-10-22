@@ -110,7 +110,7 @@ describe.skipIf(!live)("flags", () => {
       await s.asRole(staff, { platform_permissions: ["flags.manage"] });
       expect(
         await admin
-          .save("new_editor", {
+          .upsert("new_editor", {
             description: "The new editor",
             rolloutPercentage: 25,
           })
@@ -122,7 +122,7 @@ describe.skipIf(!live)("flags", () => {
         defaultVariant: "off",
       });
       expect(
-        await admin.save("new_editor", { enabled: false }).orThrow(),
+        await admin.upsert("new_editor", { enabled: false }).orThrow(),
       ).toMatchObject({ enabled: false, rolloutPercentage: 25 });
       expect(
         await admin

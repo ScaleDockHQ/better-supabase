@@ -130,7 +130,7 @@ export interface TemplateVersion {
   readonly publishedAt: Temporal.Instant | undefined;
   readonly createdBy: string | undefined;
   readonly createdAt: Temporal.Instant;
-  /** Set by `get`, `versions.save` and `versions.publish`; lists leave it out. */
+  /** Set by `get`, `versions.upsert` and `versions.publish`; lists leave it out. */
   readonly body?: unknown;
 }
 
@@ -216,7 +216,7 @@ export interface TemplateApplyResult {
 }
 
 export interface Templates<F extends object = Record<never, never>> {
-  save(input: TemplateInput<F>): AsyncResult<Template<F>>;
+  upsert(input: TemplateInput<F>): AsyncResult<Template<F>>;
   /**
    * The organization's templates and the system ones (only those with `null`),
    * defaults first.
@@ -249,7 +249,7 @@ export interface Templates<F extends object = Record<never, never>> {
   sync(starters: readonly TemplateStarter[]): AsyncResult<number>;
   readonly versions: {
     /** Saves the draft: updates the open one, or opens the next version. */
-    save(template: string, body: unknown): AsyncResult<TemplateVersion>;
+    upsert(template: string, body: unknown): AsyncResult<TemplateVersion>;
     publish(template: string): AsyncResult<TemplateVersion>;
     /** Newest first, without bodies. */
     list(template: string): AsyncResult<readonly TemplateVersion[]>;
@@ -293,7 +293,7 @@ export interface TemplatesOptions<
   /**
    * A Standard Schema for the template's extra columns
    * (`blocks.templates.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `save`.
+   * and parses them on reads, and validates them on `upsert`.
    */
   readonly fields?: S;
   /** The template types, by name. A type without `apply` can't be applied. */
@@ -477,7 +477,7 @@ export function createTemplates<
   };
 
   const client: Templates<F> = {
-    save: (input) =>
+    upsert: (input) =>
       AsyncResult.from(async () => {
         const extra = await fields.args(input.fields);
 
@@ -581,7 +581,7 @@ export function createTemplates<
         return call("sync_templates", { starters: rows }, Number);
       }),
     versions: {
-      save: (template, body) =>
+      upsert: (template, body) =>
         AsyncResult.from(async () => {
           const hasBodySchemas = Object.values(types).some(
             (type) => type.body !== undefined,

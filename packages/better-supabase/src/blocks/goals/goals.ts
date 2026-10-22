@@ -78,7 +78,10 @@ export interface TargetInput<F extends object = Record<never, never>> {
 }
 
 export interface Goals<F extends object = Record<never, never>> {
-  save(organizationId: string, target: TargetInput<F>): AsyncResult<Target<F>>;
+  upsert(
+    organizationId: string,
+    target: TargetInput<F>,
+  ): AsyncResult<Target<F>>;
   /** The targets running on `on` (today by default), with progress. */
   progress(
     organizationId: string,
@@ -130,7 +133,7 @@ export function createGoals<S extends StandardSchemaV1 | undefined = undefined>(
   const fields: BlockFields<F> = blockFields(options.fields, "target fields");
 
   const client: Goals<F> = {
-    save: (organizationId, target) => {
+    upsert: (organizationId, target) => {
       const { id, goal, actual, fields: extra, ...rest } = target;
 
       return fields

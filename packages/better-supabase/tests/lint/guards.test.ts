@@ -34,13 +34,13 @@ describe("rules()", () => {
     const { client, requests } = capturingClient();
     const db = defineSupabase(schema).use(plugin).connect(client, context);
 
-    const unbounded = await db.customers.findMany();
+    const unbounded = await db.customers.list();
     expect(unbounded.error).toMatchObject({
       kind: "invalid_request",
-      message: expect.stringContaining("noUnboundedFindMany"),
+      message: expect.stringContaining("noUnboundedList"),
     });
-    await db.customers.findMany({ limit: 5000, orderBy: { name: "asc" } });
-    await db.customers.findMany({
+    await db.customers.list({ limit: 5000, orderBy: { name: "asc" } });
+    await db.customers.list({
       limit: 1,
       include: {
         customerTags: {
@@ -51,19 +51,19 @@ describe("rules()", () => {
       },
     });
     expect(violations.map((v) => v.rule)).toEqual([
-      "noUnboundedFindMany",
+      "noUnboundedList",
       "maxLimit",
       "maxIncludeDepth",
     ]);
     expect(requests).toHaveLength(0);
 
-    const fine = await db.customers.findMany({
+    const fine = await db.customers.list({
       limit: 10,
       orderBy: { name: "asc" },
     });
 
     expect(fine.error).toBeNull();
-    await db.customers.findById("c1");
+    await db.customers.get("c1");
     await db.customers.count();
     expect(violations).toHaveLength(3);
   });
@@ -76,11 +76,11 @@ describe("rules()", () => {
       .use(guards({ rules: recommendedGuards() }))
       .connect(client, context);
 
-    const result = await db.customers.findMany();
+    const result = await db.customers.list();
     expect(result.error).toBeNull();
     expect(requests).toHaveLength(1);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("noUnboundedFindMany (customers)"),
+      expect.stringContaining("noUnboundedList (customers)"),
     );
     warn.mockRestore();
   });
@@ -94,7 +94,7 @@ describe("rules()", () => {
       .use(plugin)
       .connect(client);
 
-    const result = await db.customers.findMany({ limit: 1 });
+    const result = await db.customers.list({ limit: 1 });
     expect(result.error?.message).toContain("requireTenantContext");
     expect(violations[0]).toMatchObject({
       rule: "requireTenantContext",
@@ -103,11 +103,11 @@ describe("rules()", () => {
     });
 
     const claims = db.$with({ claims: { tenant_id: "org-1" } });
-    expect((await claims.customers.findMany({ limit: 1 })).error).toBeNull();
+    expect((await claims.customers.list({ limit: 1 })).error).toBeNull();
 
     const service = db.$with({ actor: { id: "service", kind: "service" } });
 
-    expect((await service.customers.findMany({ limit: 1 })).error).toBeNull();
+    expect((await service.customers.list({ limit: 1 })).error).toBeNull();
   });
 
   it("refuses service connections in a browser", async () => {
@@ -120,7 +120,7 @@ describe("rules()", () => {
       .use(plugin)
       .connect(client, { actor: { id: "service", kind: "service" } });
 
-    const result = await db.tags.findMany({ limit: 1 });
+    const result = await db.tags.list({ limit: 1 });
     expect(result.error?.message).toContain("noAdminInBrowser");
   });
 
@@ -149,11 +149,11 @@ describe("rules()", () => {
       .use(plugin)
       .connect(client, context);
 
-    const denied = await db.contacts.findMany({ limit: 1 });
+    const denied = await db.contacts.list({ limit: 1 });
     expect(denied.error?.message).toContain("contacts.email");
-    const named = await db.contacts.findMany({ select: ["id"], limit: 1 });
+    const named = await db.contacts.list({ select: ["id"], limit: 1 });
     expect(named.error).toBeNull();
-    const allowed = await db.contacts.findMany({ limit: 1, sensitive: true });
+    const allowed = await db.contacts.list({ limit: 1, sensitive: true });
     expect(allowed.error).toBeNull();
 
     const { client: writes, last } = capturingClient(() => ({
@@ -172,7 +172,7 @@ describe("rules()", () => {
     expect(select.split(",")).toContain("id");
   });
 
-  it("allows aggregates, paginate's look-ahead row and app_metadata tenants", async () => {
+  it("allows aggregates, page's look-ahead row and app_metadata tenants", async () => {
     const { plugin, violations } = withReport({
       ...strictGuards(),
       maxLimit: ["error", 10],
@@ -184,9 +184,10 @@ describe("rules()", () => {
       (await db.customers.aggregate({ groupBy: ["status"], _count: true }))
         .error,
     ).toBeNull();
-    expect((await db.customers.paginate({ size: 10 })).error).toBeNull();
+    expect((await db.customers.page({ size: 10 })).error).toBeNull();
     expect(
-      (await db.customers.findOnly({ where: { name: "Acme" } })).error,
+      (await db.customers.get({ where: { name: "Acme" } }, { optional: true }))
+        .error,
     ).toBeNull();
     expect(violations).toEqual([]);
 
@@ -194,7 +195,7 @@ describe("rules()", () => {
       .use(plugin)
       .connect(client, { claims: { app_metadata: { tenant_id: "org-1" } } });
 
-    expect((await claims.customers.findMany({ limit: 1 })).error).toBeNull();
+    expect((await claims.customers.list({ limit: 1 })).error).toBeNull();
     expect(violations).toEqual([]);
   });
 
@@ -213,7 +214,7 @@ describe("rules()", () => {
       .use(early)
       .use(plugin)
       .connect(client, context)
-      .customers.findMany({ limit: 1 });
+      .customers.list({ limit: 1 });
     expect(violations).toEqual([]);
   });
 
@@ -348,32 +349,32 @@ describe("rules()", () => {
     ]);
   });
 
-  it("requires maxAffected on updateMany and deleteMany under strict()", async () => {
+  it("requires maxAffected on update and delete by filter under strict()", async () => {
     const { plugin, violations } = withReport();
     const { client, requests } = capturingClient(() => ({ status: 204 }));
     const db = defineSupabase(schema).use(plugin).connect(client, context);
 
-    const unbounded = await db.tags.deleteMany({ where: { color: "red" } });
+    const unbounded = await db.tags.delete({ where: { color: "red" } });
     expect(unbounded.error).toMatchObject({
       kind: "invalid_request",
       message:
-        "requireMaxAffected: deleteMany without maxAffected can change every row its where matches",
+        "requireMaxAffected: delete by filter without maxAffected can change every row its where matches",
     });
-    await db.tags.updateMany({
-      where: { color: "red" },
-      data: { color: "blue" },
-      maxAffected: 5000,
-    });
+    await db.tags.update(
+      { where: { color: "red" } },
+      { color: "blue" },
+      { maxAffected: 5000 },
+    );
     expect(violations.map((v) => v.message)).toEqual([
-      "deleteMany without maxAffected can change every row its where matches",
+      "delete by filter without maxAffected can change every row its where matches",
       "maxAffected 5000 is above the maximum of 1000",
     ]);
     expect(requests).toHaveLength(0);
 
-    await db.tags.deleteMany({ where: { color: "red" }, maxAffected: 10 });
+    await db.tags.delete({ where: { color: "red" } }, { maxAffected: 10 });
     await db.tags.update("t1", { color: "blue" });
     await db.tags.delete("t1");
-    await db.tags.deleteMany({ where: { id: "t1" } });
+    await db.tags.delete({ where: { id: "t1" } });
     expect(violations).toHaveLength(2);
     expect(requests).toHaveLength(4);
   });
@@ -388,10 +389,10 @@ describe("rules()", () => {
 
     expect(
       (
-        await capped.tags.deleteMany({
-          where: { color: "red" },
-          maxAffected: 11,
-        })
+        await capped.tags.delete(
+          { where: { color: "red" } },
+          { maxAffected: 11 },
+        )
       ).error?.kind,
     ).toBe("invalid_request");
     const loose = withReport(recommendedGuards());
@@ -400,15 +401,15 @@ describe("rules()", () => {
       .use(loose.plugin)
       .connect(client, context);
 
-    await db.tags.deleteMany({ where: { color: "red" } });
+    await db.tags.delete({ where: { color: "red" } });
     expect(loose.violations).toEqual([]);
   });
 
-  it("keeps the repository guard for deleteMany without where", async () => {
+  it("keeps the repository guard for delete without where", async () => {
     const { plugin, violations } = withReport(safeGuards());
     const { client } = capturingClient();
     const db = defineSupabase(schema).use(plugin).connect(client, context);
-    const result = await db.tags.deleteMany({} as never);
+    const result = await db.tags.delete({ where: {} });
     expect(result.error?.kind).toBe("invalid_request");
     expect(violations.map((v) => v.rule)).toEqual([]);
   });
@@ -443,11 +444,11 @@ describe("db.$table and db.$withoutPlugins", () => {
       )
       .connect(client, context);
 
-    expect((await db.tags.findMany()).error?.kind).toBe("invalid_request");
+    expect((await db.tags.list()).error?.kind).toBe("invalid_request");
     const raw = db.$withoutPlugins();
-    expect((await raw.tags.findMany()).error).toBeNull();
+    expect((await raw.tags.list()).error).toBeNull();
     expect(wrapped).not.toHaveBeenCalled();
     expect(requests).toHaveLength(1);
-    expect((await raw.$with({ tenant: "x" }).tags.findMany()).error).toBeNull();
+    expect((await raw.$with({ tenant: "x" }).tags.list()).error).toBeNull();
   });
 });

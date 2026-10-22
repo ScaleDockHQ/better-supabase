@@ -38,7 +38,7 @@ async function loadDocuments(): Promise<readonly DocumentSummary[] | null> {
   }
 
   const customers = await db.customers
-    .findMany({
+    .list({
       select: ["id", "name", "updatedAt"],
       orderBy: { name: "asc" },
       limit: 200,
@@ -80,7 +80,7 @@ async function loadTarget(
   }
 
   const customer = await db.customers
-    .findFirst({ select: ["id", "name"], where: { id: customerId } })
+    .get(customerId, { select: ["id", "name"], optional: true })
     .orThrow();
 
   if (customer === null) {

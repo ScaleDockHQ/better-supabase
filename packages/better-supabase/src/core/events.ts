@@ -15,7 +15,7 @@ export interface QueryEvent {
   readonly rows: number;
   /**
    * An unbounded read returned `maxRows` rows: PostgREST's `db-max-rows`
-   * probably cut it short. Add `limit` or use `paginate`.
+   * probably cut it short. Add `limit` or use `page`.
    */
   readonly truncated: boolean;
 }

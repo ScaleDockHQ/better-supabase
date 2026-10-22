@@ -140,11 +140,7 @@ export async function getRelations(
 
   try {
     const customers = await db.customers
-      .findMany({
-        select: ["id", "name"],
-        orderBy: { name: "asc" },
-        limit: 200,
-      })
+      .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
       .orThrow();
 
     return {

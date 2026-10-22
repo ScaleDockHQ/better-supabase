@@ -13,8 +13,10 @@ import type {
   DeleteArgs,
   DeleteExt,
   FindExt,
+  GetKey,
+  ManyOutcome,
   ManyResult,
-  ManyReturningArgs,
+  ManyWriteArgs,
   NoArgName,
   OffsetPageArgs,
   OffsetRangeArgs,
@@ -25,6 +27,7 @@ import type {
   PlainName,
   RawRpcOptions,
   Returned,
+  RowFilter,
   RpcArgs,
   RpcOptions,
   UpdateArgs,
@@ -40,13 +43,9 @@ import type {
   AggregateArgs,
   AggregateResult,
   CountArgs,
-  FindFirstArgs,
-  FindManyArgs,
-  FindOnlyArgs,
+  GetArgs,
+  ListArgs,
   Payload,
-  ReadArgs,
-  RequestArgs,
-  WhereInput,
 } from "../ir/args.ts";
 import type {
   ListDefinition,
@@ -62,7 +61,6 @@ import type {
   PrimaryKeyValue,
   TableKey,
   TableMeta,
-  UniqueWhere,
   Update,
 } from "../schema/types.ts";
 
@@ -112,38 +110,10 @@ export interface BetterResultRepository<
   readonly $tableName: T;
   readonly $meta: TableMeta;
 
-  findMany<const A extends FindManyArgs<M, T> & FindExt<E, M, T>>(
+  list<const A extends ListArgs<M, T> & FindExt<E, M, T>>(
     args?: A,
   ): Out<Payload<M, T, A>[], Err>;
-  findFirst<const A extends FindFirstArgs<M, T> & FindExt<E, M, T>>(
-    args?: A,
-  ): Out<Payload<M, T, A> | null, Err>;
-  findOnly<const A extends FindOnlyArgs<M, T> & FindExt<E, M, T>>(
-    args: A,
-  ): Out<Payload<M, T, A> | null, Err>;
-  findUnique<
-    const A extends ReadArgs<M, T> & {
-      readonly where: UniqueWhere<M, T>;
-    } & FindExt<E, M, T>,
-  >(
-    args: A,
-  ): Out<Payload<M, T, A> | null, Err>;
-  findById<const A extends ReadArgs<M, T> & FindExt<E, M, T>>(
-    id: PrimaryKeyValue<M, T>,
-    args?: A,
-  ): Out<Payload<M, T, A>, Err>;
-  count(args?: CountArgs<M, T> & FindExt<E, M, T>): Out<number, Err>;
-  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
-    args: A,
-  ): Out<AggregateResult<M, T, A>, Err>;
-  exists(
-    args?: RequestArgs & { readonly where?: WhereInput<M, T> } & FindExt<
-        E,
-        M,
-        T
-      >,
-  ): Out<boolean, Err>;
-  paginate<
+  page<
     const A extends (
       | OffsetPageArgs<M, T>
       | OffsetRangeArgs<M, T>
@@ -153,33 +123,46 @@ export interface BetterResultRepository<
   >(
     args: A,
   ): Out<PageOf<M, T, A>, Err>;
+  get<const A extends GetArgs<M, T> & FindExt<E, M, T>>(
+    key: GetKey<M, T>,
+    args?: A,
+  ): Out<
+    A extends { readonly optional: true }
+      ? Payload<M, T, A> | null
+      : Payload<M, T, A>,
+    Err
+  >;
+  count(args?: CountArgs<M, T> & FindExt<E, M, T>): Out<number, Err>;
+  aggregate<const A extends AggregateArgs<M, T> & FindExt<E, M, T>>(
+    args: A,
+  ): Out<AggregateResult<M, T, A>, Err>;
 
   create<const A extends WriteArgs<M, T> = {}>(
     data: Insert<M, T>,
     args?: A,
   ): Out<Returned<M, T, A>, Err>;
-  createMany<const A extends WriteManyArgs<M, T> = {}>(
+  create<const A extends WriteManyArgs<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
-  ): Out<
-    A extends { readonly returning: false }
-      ? { count: number }
-      : Payload<M, T, A>[],
-    Err
-  >;
+  ): Out<ManyOutcome<M, T, A, true>, Err>;
+  update(
+    filter: RowFilter<M, T>,
+    patch: Update<M, T>,
+  ): Out<{ count: number }, Err>;
+  update<
+    const A extends ManyWriteArgs<M, T> & {
+      readonly allowAll?: boolean;
+    } & FindExt<E, M, T>,
+  >(
+    filter: RowFilter<M, T>,
+    patch: NoInfer<Update<M, T>>,
+    args: A,
+  ): Out<ManyResult<M, T, A>, Err>;
   update<const A extends UpdateArgs<M, T> = {}>(
     id: PrimaryKeyValue<M, T>,
     patch: Update<M, T>,
     args?: A,
   ): Out<Returned<M, T, A>, Err>;
-  updateMany<
-    const A extends ManyReturningArgs<M, T> & {
-      readonly data: Update<M, T>;
-      readonly allowAll?: boolean;
-    } & FindExt<E, M, T>,
-  >(
-    args: A,
-  ): Out<ManyResult<M, T, A>, Err>;
   upsert<const A extends UpsertArgs<M, T> = {}>(
     data: Insert<M, T>,
     args?: A,
@@ -189,26 +172,21 @@ export interface BetterResultRepository<
       : Returned<M, T, A>,
     Err
   >;
-  upsertMany<const A extends UpsertManyArgs<M, T> = {}>(
+  upsert<const A extends UpsertManyArgs<M, T> = {}>(
     rows: readonly Insert<M, T>[],
     args?: A,
-  ): Out<
-    A extends { readonly returning: false }
-      ? { count: number }
-      : Payload<M, T, A>[],
-    Err
-  >;
+  ): Out<ManyOutcome<M, T, A, true>, Err>;
+  delete(filter: RowFilter<M, T>): Out<{ count: number }, Err>;
+  delete<
+    const A extends ManyWriteArgs<M, T> & DeleteExt<E, M, T> & FindExt<E, M, T>,
+  >(
+    filter: RowFilter<M, T>,
+    args: A,
+  ): Out<ManyResult<M, T, A>, Err>;
   delete(
     id: PrimaryKeyValue<M, T>,
     args?: DeleteArgs & DeleteExt<E, M, T>,
   ): Out<void, Err>;
-  deleteMany<
-    const A extends ManyReturningArgs<M, T> &
-      DeleteExt<E, M, T> &
-      FindExt<E, M, T>,
-  >(
-    args: A,
-  ): Out<ManyResult<M, T, A>, Err>;
 }
 
 /**
@@ -420,7 +398,7 @@ function view(db: DbLike, convert: Convert): object {
  *   DbFailure,
  * );
  * const rdb = withBetterResult(db, toResult);
- * const customer = await rdb.customers.findById(id); // Result<Customer, NotFound | DbFailure>
+ * const customer = await rdb.customers.get(id); // Result<Customer, NotFound | DbFailure>
  * ```
  */
 export function withBetterResult<

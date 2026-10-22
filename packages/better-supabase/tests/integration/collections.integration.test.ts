@@ -398,7 +398,7 @@ describe.skipIf(!live)("collections", () => {
       expect(page.items[0]?.url).toBe(`/memos/${own!.id}`);
 
       const view = await views
-        .save({
+        .upsert({
           organizationId: org,
           list: "memos",
           name: "In Memos",
@@ -409,7 +409,7 @@ describe.skipIf(!live)("collections", () => {
       expect(view.id).toBeTypeOf("string");
       expect(
         hint(
-          await views.save({
+          await views.upsert({
             organizationId: org,
             list: "memos",
             name: "Broken",

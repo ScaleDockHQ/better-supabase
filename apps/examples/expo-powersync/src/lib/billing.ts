@@ -25,16 +25,16 @@ export async function loadPlanCatalog(
 }> {
   const [plans, subscription] = await Promise.all([
     bsb.db.plans
-      .findMany({
+      .list({
         select: ["key", "name", "price_cents"],
         orderBy: { position: "asc" },
       })
       .orThrow(),
     bsb.db.subscriptions
-      .findFirst({
-        select: ["plan_key"],
-        where: { organization_id: organizationId },
-      })
+      .get(
+        { where: { organization_id: organizationId } },
+        { select: ["plan_key"], optional: true },
+      )
       .orThrow(),
   ]);
 

@@ -142,7 +142,7 @@ export interface BetterSvelte<B extends ClientLike = ClientLike> {
   readonly db: B["db"];
   /**
    * TanStack Query option factories: `createQuery(() =>
-   * bsb.queries.customers.findMany())`.
+   * bsb.queries.customers.list())`.
    */
   readonly queries: B["queries"];
   readonly supabase: SupabaseClient;
@@ -617,7 +617,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
  *
  * ```svelte
  * <script lang="ts">
- *   const live = useLiveQuery(() => betterSupabase.spec.customers.findMany());
+ *   const live = useLiveQuery(() => betterSupabase.spec.customers.list());
  * </script>
  * <span data-status={live.current}></span>
  * ```

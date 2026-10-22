@@ -68,7 +68,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
   afterAll(async () => {
     if (created.length > 0) {
-      await admin.customers.deleteMany({ where: { id: { in: created } } });
+      await admin.customers.delete({ where: { id: { in: created } } });
     }
   });
 
@@ -98,20 +98,18 @@ describe.skipIf(!live)("PostgREST integration", () => {
       }),
     ) as unknown as {
       customers: {
-        findMany(
-          args: object,
-        ): AsyncResult<{ id: string; createdAt: unknown }[]>;
+        list(args: object): AsyncResult<{ id: string; createdAt: unknown }[]>;
       };
     };
 
     const [first] = await instants.customers
-      .findMany({ select: ["id", "createdAt"], limit: 1 })
+      .list({ select: ["id", "createdAt"], limit: 1 })
       .orThrow();
 
     expect(first?.createdAt).toBeInstanceOf(Temporal.Instant);
 
     const same = await instants.customers
-      .findMany({
+      .list({
         select: ["id"],
         where: { id: first?.id, createdAt: first?.createdAt },
       })
@@ -131,7 +129,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       )
       .orThrow();
 
-    const infinite = await instants.customers.findMany({
+    const infinite = await instants.customers.list({
       select: ["id", "createdAt"],
       where: { id: endless.id },
     });
@@ -145,13 +143,13 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
   it("filters with some, none and every against real data", async () => {
     const withNotes = await admin.customers
-      .findMany({ select: ["id"], where: { notes: { some: {} } } })
+      .list({ select: ["id"], where: { notes: { some: {} } } })
       .orThrow();
 
     expect(withNotes.map((row) => row.id)).toEqual([ROAD_RUNNER]);
 
     const withoutMeetings = await admin.customers
-      .findMany({
+      .list({
         select: ["id"],
         where: { notes: { none: { kind: "meeting" } } },
         orderBy: { name: "asc" },
@@ -161,7 +159,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(withoutMeetings.map((row) => row.id)).toEqual([ANVIL, INITECH]);
 
     const allPrimary = await admin.customers
-      .findMany({
+      .list({
         select: ["id"],
         where: { locations: { every: { isPrimary: true } } },
         orderBy: { name: "asc" },
@@ -177,7 +175,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
   it("combines relation filters inside OR", async () => {
     const rows = await admin.customers
-      .findMany({
+      .list({
         select: ["id"],
         where: {
           OR: [
@@ -194,13 +192,13 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
   it("filters by to-one relations and null relations", async () => {
     const acme = await admin.customers
-      .findMany({ select: ["id"], where: { organization: { slug: "globex" } } })
+      .list({ select: ["id"], where: { organization: { slug: "globex" } } })
       .orThrow();
 
     expect(acme.map((row) => row.id)).toEqual([INITECH]);
 
     const noContact = await admin.customers
-      .findMany({
+      .list({
         select: ["id"],
         where: { primaryContact: null },
         orderBy: { name: "asc" },
@@ -212,7 +210,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
   it("loads nested includes with camel-cased keys", async () => {
     const customer = await admin.customers
-      .findById(ROAD_RUNNER, {
+      .get(ROAD_RUNNER, {
         select: ["name"],
         include: {
           organization: { select: ["slug"] },
@@ -241,11 +239,14 @@ describe.skipIf(!live)("PostgREST integration", () => {
   it("counts, checks existence and paginates by cursor", async () => {
     expect(await admin.customers.count().orThrow()).toBeGreaterThanOrEqual(3);
     expect(
-      await admin.customers.exists({ where: { kvk: "2001" } }).orThrow(),
+      await admin.customers
+        .count({ where: { kvk: "2001" } })
+        .map((n) => n > 0)
+        .orThrow(),
     ).toBe(true);
 
     const first = await admin.customers
-      .paginate({
+      .page({
         select: ["id", "name"],
         orderBy: { name: "asc" },
         size: 2,
@@ -258,7 +259,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(first.hasMore).toBe(true);
 
     const second = await admin.customers
-      .paginate({
+      .page({
         select: ["id", "name"],
         orderBy: { name: "asc" },
         size: 2,
@@ -275,7 +276,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const where = { id: { in: [ROAD_RUNNER, ANVIL, INITECH] } };
 
     const page = await admin.customers
-      .paginate({
+      .page({
         select: ["id"],
         orderBy: { name: "asc" },
         offset: 1,
@@ -361,7 +362,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
   it("updates with where and returns rows from updateMany and deleteMany", async () => {
     const rows = await admin.customers
-      .createMany(
+      .create(
         [
           { organizationId: ACME, name: "Cond A", kvk: "cond-a" },
           { organizationId: ACME, name: "Cond B", kvk: "cond-b" },
@@ -391,22 +392,20 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(moved).toEqual({ name: "Moved" });
 
     const activated = await admin.customers
-      .updateMany({
-        where: { id: { in: ids }, status: "lead" },
-        data: { status: "active" },
-        returning: true,
-        select: ["id", "status"],
-      })
+      .update(
+        { where: { id: { in: ids }, status: "lead" } },
+        { status: "active" },
+        { returning: true, select: ["id", "status"] },
+      )
       .orThrow();
 
     expect(activated.map((row) => row.status)).toEqual(["active", "active"]);
 
     const deleted = await admin.customers
-      .deleteMany({
-        where: { id: { in: ids } },
-        returning: true,
-        select: ["id"],
-      })
+      .delete(
+        { where: { id: { in: ids } } },
+        { returning: true, select: ["id"] },
+      )
       .orThrow();
 
     expect(deleted.map((row) => row.id).toSorted()).toEqual(ids.toSorted());
@@ -420,7 +419,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     ];
 
     const rows = await admin.customers
-      .findMany({
+      .list({
         select: ["id", "createdAt"],
         where: { id: { in: ids } },
         orderBy: [{ createdAt: "desc" }, { id: "asc" }],
@@ -469,7 +468,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const seeded = { id: { in: [ROAD_RUNNER, ANVIL, INITECH] } };
 
     const byOrganization = await admin.customers
-      .findMany({
+      .list({
         where: seeded,
         select: ["id"],
         orderBy: [{ organization: { name: "desc" } }, { name: "asc" }],
@@ -483,7 +482,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     ]);
 
     const included = await admin.customers
-      .findMany({
+      .list({
         where: seeded,
         select: ["id"],
         include: { organization: { select: ["name"] } },
@@ -512,7 +511,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       .orThrow();
 
     const found = await admin.notes
-      .findMany({
+      .list({
         where: { id: note.id, attachments: { contains: [{ type: "image" }] } },
         select: ["id"],
       })
@@ -521,7 +520,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(found).toEqual([{ id: note.id }]);
 
     const inOr = await admin.notes
-      .findMany({
+      .list({
         where: {
           id: note.id,
           OR: [
@@ -536,7 +535,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(inOr).toEqual([{ id: note.id }]);
 
     const none = await admin.notes
-      .findMany({
+      .list({
         where: { id: note.id, attachments: { contains: [{ type: "video" }] } },
         select: ["id"],
       })
@@ -561,7 +560,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
     const find = (where: object) =>
       admin.notes
-        .findMany({ where: { id: note.id, ...where }, select: ["id"] })
+        .list({ where: { id: note.id, ...where }, select: ["id"] })
         .orThrow();
 
     expect(
@@ -617,15 +616,10 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect(row.createdBy).toBe("00000000-0000-4000-8000-0000000000ff");
 
     await user.customers.delete(row.id).orThrow();
-    expect((await user.customers.findById(row.id)).error?.kind).toBe(
-      "not_found",
-    );
+    expect((await user.customers.get(row.id)).error?.kind).toBe("not_found");
 
     const archived = await user.customers
-      .findById(row.id, {
-        withDeleted: true,
-        select: ["archivedAt", "updatedBy"],
-      })
+      .get(row.id, { withDeleted: true, select: ["archivedAt", "updatedBy"] })
       .orThrow();
 
     expect(archived.archivedAt).not.toBeNull();
@@ -633,20 +627,18 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect((await user.customers.delete(row.id)).error?.kind).toBe("not_found");
 
     await user.customers.restore(row.id).orThrow();
-    expect((await user.customers.findById(row.id)).ok).toBe(true);
+    expect((await user.customers.get(row.id)).ok).toBe(true);
 
     await user.customers.delete(row.id, { hard: true }).orThrow();
-    expect((await admin.customers.findById(row.id)).error?.kind).toBe(
-      "not_found",
-    );
+    expect((await admin.customers.get(row.id)).error?.kind).toBe("not_found");
   });
 
   it("respects RLS for the caller and hides other tenants", async () => {
     const db = await asOrganizationMember(GLOBEX);
-    const rows = await db.customers.findMany({ select: ["id"] }).orThrow();
+    const rows = await db.customers.list({ select: ["id"] }).orThrow();
     expect(rows.map((row) => row.id)).toEqual([INITECH]);
 
-    const denied = await db.customers.findById(ROAD_RUNNER);
+    const denied = await db.customers.get(ROAD_RUNNER);
     expect(denied.error?.kind).toBe("not_found");
 
     const blocked = await db.customers.create(
@@ -671,7 +663,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const page = await list.run(acme, query, { select: ["id"] }).orThrow();
     expect(acme.$stats()).toMatchObject({ calls: 2, waves: 1 });
 
-    const all = await acme.customers.findMany({ select: ["status"] }).orThrow();
+    const all = await acme.customers.list({ select: ["status"] }).orThrow();
     const expected: Record<string, number> = {};
 
     for (const row of all) {
@@ -691,12 +683,12 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const globex = await asOrganizationMember(GLOBEX);
 
     const specs = [
-      betterSupabase.spec.customers.findMany({
+      betterSupabase.spec.customers.list({
         select: ["id"],
         orderBy: { name: "asc" },
       }),
       betterSupabase.spec.notes.count(),
-      betterSupabase.spec.customers.exists({ where: { id: INITECH } }),
+      betterSupabase.spec.customers.count({ where: { id: INITECH } }),
     ] as const;
 
     const [customers, notes, initech] = await acme.$many(specs).orThrow();
@@ -704,7 +696,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       [ROAD_RUNNER, ANVIL].toSorted(),
     );
     expect(notes).toBeGreaterThan(0);
-    expect(initech).toBe(false);
+    expect(initech).toBe(0);
     expect(acme.$stats()).toMatchObject({ calls: 3, waves: 1 });
 
     const [theirs] = await globex.$many(specs).orThrow();

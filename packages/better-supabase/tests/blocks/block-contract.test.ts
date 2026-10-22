@@ -92,8 +92,8 @@ describe("block hooks", () => {
       createReminders({
         transport,
         tenant: "o",
-        hooks: { save: { before: refuse } },
-      }).save({ type: "task", id: "t1" }),
+        hooks: { upsert: { before: refuse } },
+      }).upsert({ type: "task", id: "t1" }),
       createSavedViews({
         transport,
         hooks: { delete: { before: refuse } },
@@ -284,14 +284,14 @@ describe("block fields", () => {
 
     expect(
       await reminders
-        .save({ type: "task", id: "t1" }, 15, { region: "eu" })
+        .upsert({ type: "task", id: "t1" }, 15, { region: "eu" })
         .orThrow(),
     ).toEqual({ id: "r1", fields: { region: "eu" } });
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "eu" } });
     const views = createSavedViews({ transport, fields: region });
 
     const saved = await views
-      .save({
+      .upsert({
         organizationId: "o",
         list: "tasks",
         name: "Mine",

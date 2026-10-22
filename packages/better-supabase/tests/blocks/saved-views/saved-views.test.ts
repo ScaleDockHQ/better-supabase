@@ -58,7 +58,7 @@ describe("saved views client", () => {
     });
 
     const saved = await views
-      .save({
+      .upsert({
         organizationId: "org",
         list: "tasks",
         name: "Open",
@@ -97,7 +97,7 @@ describe("saved views client", () => {
       lists: { tasks },
     });
 
-    const result = await views.save({
+    const result = await views.upsert({
       organizationId: "org",
       list: "tasks",
       name: "Bad",

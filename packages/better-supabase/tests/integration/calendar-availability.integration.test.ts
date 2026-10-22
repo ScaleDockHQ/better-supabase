@@ -211,7 +211,7 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
   it("answers free/busy from events, invitations, blocks and leave", async () => {
     await session.as(ada);
     await calendar
-      .save(adaCalendar, {
+      .upsert(adaCalendar, {
         title: "Stand-up",
         startsAt: at("2030-03-04T08:00:00Z"),
         endsAt: at("2030-03-04T08:15:00Z"),
@@ -220,7 +220,7 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
       })
       .orThrow();
     await calendar
-      .save(adaCalendar, {
+      .upsert(adaCalendar, {
         title: "Lunch walk",
         startsAt: at("2030-03-04T11:00:00Z"),
         endsAt: at("2030-03-04T12:00:00Z"),
@@ -228,7 +228,7 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
       })
       .orThrow();
     await calendar
-      .save(adaCalendar, {
+      .upsert(adaCalendar, {
         title: "Writing",
         kind: "focus_time",
         startsAt: at("2030-03-05T12:00:00Z"),
@@ -237,7 +237,7 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
       .orThrow();
 
     const meeting = await calendar
-      .save(bobCalendar, {
+      .upsert(bobCalendar, {
         title: "Review",
         startsAt: at("2030-03-04T13:00:00Z"),
         endsAt: at("2030-03-04T14:00:00Z"),
@@ -335,7 +335,7 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
   it("auto-declines invitations an out-of-office block covers", async () => {
     await session.as(bob);
     await calendar
-      .save(bobCalendar, {
+      .upsert(bobCalendar, {
         title: "Conference",
         kind: "out_of_office",
         autoDecline: true,
@@ -345,7 +345,7 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
       .orThrow();
 
     const sync = await calendar
-      .save(adaCalendar, {
+      .upsert(adaCalendar, {
         title: "Sync",
         startsAt: at("2030-03-12T10:00:00Z"),
         endsAt: at("2030-03-12T10:30:00Z"),
@@ -357,7 +357,7 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
       .orThrow();
 
     const later = await calendar
-      .save(adaCalendar, {
+      .upsert(adaCalendar, {
         title: "Retro",
         startsAt: at("2030-03-14T10:00:00Z"),
         endsAt: at("2030-03-14T10:30:00Z"),
@@ -382,7 +382,7 @@ describe.skipIf(!live)("calendar availability in Postgres", () => {
 
     // A block saved over an open invitation declines it too.
     await calendar
-      .save(bobCalendar, {
+      .upsert(bobCalendar, {
         title: "Dentist",
         kind: "out_of_office",
         autoDecline: true,

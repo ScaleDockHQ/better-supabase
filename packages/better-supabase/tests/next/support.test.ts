@@ -121,7 +121,7 @@ describe("support sessions in Next.js", () => {
       sessionTag(TARGET),
       supportTag(id),
     );
-    await cached.db.customers.findMany({ select: ["id"] }).orThrow();
+    await cached.db.customers.list({ select: ["id"] }).orThrow();
     expect(claims[0]).toMatchObject({ sub: TARGET, act: { sub: ADMIN } });
 
     const action = bsb.action(

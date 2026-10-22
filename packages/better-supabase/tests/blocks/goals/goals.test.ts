@@ -39,7 +39,7 @@ describe("targets block", () => {
     const t = transport({ save_target: () => ROW });
 
     const target = await createGoals({ transport: t })
-      .save("o", {
+      .upsert("o", {
         name: "Quota",
         metric: "deals.won_amount",
         goal: 1000n,
@@ -95,7 +95,7 @@ describe("targets block", () => {
       on_date: null,
       owner: null,
     });
-    await targets.save("o", { id: "t1", archived: true }).orThrow();
+    await targets.upsert("o", { id: "t1", archived: true }).orThrow();
     expect(t.calls[2]?.[1]).toEqual({
       tenant: "o",
       target: "t1",

@@ -62,7 +62,7 @@ describe("createServer headers", () => {
         new Request("https://api.test/", { headers }),
       );
 
-      await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+      await ctx.db.customers.list({ select: ["id"] }).orThrow();
     }
 
     const sent = fetch.mock.calls.map(([, init]) => new Headers(init?.headers));
@@ -101,12 +101,12 @@ describe("createServer headers", () => {
         new Request("https://api.test/", { headers }),
       );
 
-      await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+      await ctx.db.customers.list({ select: ["id"] }).orThrow();
     }
 
     await server
       .admin()
-      .customers.findMany({ select: ["id"] })
+      .customers.list({ select: ["id"] })
       .orThrow();
     expect(traced).toHaveBeenCalledTimes(3);
     expect(global).not.toHaveBeenCalled();
@@ -128,10 +128,10 @@ describe("createServer db options", () => {
 
       const ctx = await server.context(new Request("https://api.test/"));
 
-      const result = await ctx.db.customers.deleteMany({
-        where: { status: "lead" },
-        maxAffected: 1,
-      });
+      const result = await ctx.db.customers.delete(
+        { where: { status: "lead" } },
+        { maxAffected: 1 },
+      );
 
       expect(result).toMatchObject({
         ok: false,
@@ -168,7 +168,7 @@ describe("createServer db options", () => {
       }),
     );
 
-    const result = await ctx.db.customers.findMany({ select: ["id"] });
+    const result = await ctx.db.customers.list({ select: ["id"] });
     expect(result).toMatchObject({ ok: false, error: { kind: "timeout" } });
   });
 });
@@ -399,14 +399,14 @@ describe("createServer clients", () => {
     const { sent } = stubFetch();
     const server = createServer(defineSupabase(schema), { env });
     const ctx = server.contextFor(user("user-token"));
-    await ctx.db.customers.findMany({ limit: 1 });
+    await ctx.db.customers.list({ limit: 1 });
     expect(sent(0).url).toMatch(
       /^https:\/\/abcdefghijklmnopqrst\.supabase\.co\/rest\/v1\/customers\?/,
     );
     expect(sent(0).headers.get("authorization")).toBe("Bearer user-token");
     expect(sent(0).headers.get("apikey")).toBe("sb_publishable_test");
     const db = server.dbFor(user("user-token"));
-    await db.customers.findMany({ limit: 1 });
+    await db.customers.list({ limit: 1 });
     expect(sent(1).headers.get("authorization")).toBe("Bearer user-token");
     expect(db.$client).toBe(db.$client);
     expect(typeof db.$client.storage.from).toBe("function");
@@ -426,8 +426,8 @@ describe("createServer clients", () => {
       } as never,
     };
 
-    const viaContext = await server.contextFor(invalid).db.customers.findMany();
-    const viaDbFor = await server.dbFor(invalid).customers.findMany();
+    const viaContext = await server.contextFor(invalid).db.customers.list();
+    const viaDbFor = await server.dbFor(invalid).customers.list();
 
     for (const result of [viaContext, viaDbFor]) {
       expect(result).toMatchObject({
@@ -507,7 +507,7 @@ describe("createServer clients", () => {
       role: "service_role",
     });
     expect(db.$context.claims).toEqual({ role: "service_role", job: "sync" });
-    await db.customers.findMany({ select: ["id"] }).orThrow();
+    await db.customers.list({ select: ["id"] }).orThrow();
     expect(sent(0).url).toContain(`${PROJECT_URL}/rest/v1/customers`);
     expect(sent(0).headers.get("apikey")).toBe("sb_secret_test");
   });
@@ -562,7 +562,7 @@ describe("createServer contextFor", () => {
     const server = createServer(defineSupabase(schema), { env, postgres });
     const signed = server.contextFor(user("t"));
     expect(signed.sql).toBe(signed.sql);
-    await signed.sql!.customers.findMany({ select: ["id"] }).orThrow();
+    await signed.sql!.customers.list({ select: ["id"] }).orThrow();
     expect(fake.texts()[0]).toContain("customers");
     expect(signed.stats()).toMatchObject({ calls: 1 });
     expect(server.contextFor(anon).sql).toBeDefined();
@@ -594,10 +594,10 @@ describe("createServer request ids", () => {
 
     expect(ctx.requestId).toBe("iad1::abc-123");
     expect(ctx.correlationId).toBe("checkout/42");
-    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.db.customers.list({ select: ["id"] }).orThrow();
     expect(sent(0).headers.get("x-request-id")).toBe("iad1::abc-123");
     expect(sent(0).headers.get("x-correlation-id")).toBe("checkout/42");
-    await ctx.sql!.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.sql!.customers.list({ select: ["id"] }).orThrow();
     expect(sessions).toEqual([
       {
         settings: {
@@ -628,7 +628,7 @@ describe("createServer request ids", () => {
     const other = await server.context(new Request("https://app.test/"));
     expect(other.requestId).toMatch(UUID);
     expect(other.requestId).not.toBe(first.requestId);
-    await first.db.customers.findMany({ select: ["id"] }).orThrow();
+    await first.db.customers.list({ select: ["id"] }).orThrow();
     expect(sent(0).headers.get("x-request-id")).toBe(first.requestId);
     expect(sent(0).headers.get("x-correlation-id")).toBe(first.requestId);
   });
@@ -653,7 +653,7 @@ describe("createServer request ids", () => {
 
     expect(ctx.requestId).toMatch(UUID);
     expect(ctx.correlationId).toBe("flow-7");
-    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.db.customers.list({ select: ["id"] }).orThrow();
     expect(sent(0).headers.get("x-trace")).toBe(ctx.requestId);
     expect(sent(0).headers.get("x-action")).toBe("from-app");
     expect(sent(0).headers.get("x-request-id")).toBeNull();
@@ -672,14 +672,14 @@ describe("createServer request ids", () => {
     );
 
     expect(ctx.requestId).toBeUndefined();
-    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.db.customers.list({ select: ["id"] }).orThrow();
     expect(sent(0).headers.get("x-request-id")).toBeNull();
 
     const server = createServer(defineSupabase(schema), { env });
     expect(server.contextFor(anon).requestId).toBeUndefined();
     const job = server.contextFor(anon, { requestId: "job-1" });
     expect(job.correlationId).toBe("job-1");
-    await job.db.customers.findMany({ select: ["id"] }).orThrow();
+    await job.db.customers.list({ select: ["id"] }).orThrow();
     expect(sent(1).headers.get("x-request-id")).toBe("job-1");
     expect(sent(1).headers.get("x-correlation-id")).toBe("job-1");
   });
@@ -709,9 +709,9 @@ describe("createServer tenant", () => {
 
     expect(resolver).toHaveBeenCalledWith(expect.any(Request), ctx.auth);
     expect(ctx.db.$context.tenant).toBe(TENANT);
-    await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.db.customers.list({ select: ["id"] }).orThrow();
     expect(sent(0).headers.get(TENANT_HEADER)).toBe(TENANT);
-    await ctx.sql!.customers.findMany({ select: ["id"] }).orThrow();
+    await ctx.sql!.customers.list({ select: ["id"] }).orThrow();
     expect(sessions).toEqual([
       {
         settings: {
@@ -724,7 +724,7 @@ describe("createServer tenant", () => {
 
     const none = await server.context(new Request("https://app.test/"));
     expect(none.db.$context.tenant).toBeUndefined();
-    await none.sql!.customers.findMany({ select: ["id"] }).orThrow();
+    await none.sql!.customers.list({ select: ["id"] }).orThrow();
     expect(sessions).toHaveLength(2);
     expect(sessions[1]?.settings).not.toHaveProperty("better_supabase.tenant");
   });

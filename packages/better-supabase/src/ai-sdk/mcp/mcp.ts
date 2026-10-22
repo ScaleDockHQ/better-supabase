@@ -282,7 +282,7 @@ export function connectTools(
       );
 
       if (sessionId !== undefined) {
-        void connectors.sessions.save(server.id, {
+        void connectors.sessions.upsert(server.id, {
           chatKey,
           sessionId,
           initializeResult: { ...client.initializeResult },

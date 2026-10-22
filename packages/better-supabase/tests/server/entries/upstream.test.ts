@@ -100,9 +100,7 @@ describe("withBetterDb", () => {
     const handler = withBetterDb(betterSupabase)(async (_req, ctx) => {
       seen = { context: ctx.db.$context, client: ctx.db.$client };
 
-      const rows = await ctx.db.customers
-        .findMany({ select: ["id"] })
-        .orThrow();
+      const rows = await ctx.db.customers.list({ select: ["id"] }).orThrow();
 
       return Response.json(rows);
     });
@@ -130,9 +128,7 @@ describe("withBetterPostgres", () => {
     const handler = withBetterPostgres(betterSupabase)(async (_req, ctx) => {
       context = ctx.sql.$context;
 
-      const rows = await ctx.sql.customers
-        .findMany({ select: ["id"] })
-        .orThrow();
+      const rows = await ctx.sql.customers.list({ select: ["id"] }).orThrow();
 
       return Response.json(rows);
     });
