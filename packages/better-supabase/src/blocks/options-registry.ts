@@ -291,6 +291,7 @@ export interface BlockOptionsRegistry {
   readonly engagements: EngagementsSqlOptions;
   readonly "ensure-rls": None;
   readonly entitlements: None;
+  readonly "field-encryption": None;
   readonly flags: FlagsSqlOptions;
   readonly forms: FormsSqlOptions;
   readonly grants: GrantsSqlOptions;
@@ -440,6 +441,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   engagements: engagementsSqlOptions,
   "ensure-rls": NO_OPTIONS,
   entitlements: NO_OPTIONS,
+  "field-encryption": NO_OPTIONS,
   flags: flagsSqlOptions,
   forms: formsSqlOptions,
   grants: grantsSqlOptions,

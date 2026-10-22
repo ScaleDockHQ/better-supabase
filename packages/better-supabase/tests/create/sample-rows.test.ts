@@ -74,6 +74,7 @@ describe("sample rows", () => {
               type: "text" as const,
               access: "server" as const,
             },
+            code: { type: "text" as const, encrypted: true },
           },
         },
       },
@@ -81,6 +82,7 @@ describe("sample rows", () => {
 
     expect(hiddenColumns(design.appTables.projects, "member")).toEqual([
       "internal_notes",
+      "code",
     ]);
     expect(hiddenColumns(design.appTables.projects, "server")).toEqual([]);
     expect(
@@ -90,6 +92,7 @@ describe("sample rows", () => {
       "name",
       "budget",
       "internal_notes",
+      "code",
     ]);
   });
 

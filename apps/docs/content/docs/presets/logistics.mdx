@@ -1,0 +1,50 @@
+---
+title: Logistics and fleet
+description: The logistics preset installs shipments with carrier rates, labels and tracking, orders to ship, customers as parties, and warehouses and vehicles in assets.
+---
+
+The `logistics` preset is for an app in the style of Shippo or a fleet
+tracker. An order is packed into a shipment, the app asks your carriers for
+rates and buys a label, and the tracking timeline follows the package to
+delivery. Warehouses and vehicles are assets, so a shipment can name the
+location it ships from.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "logistics" });
+```
+
+`npx better-supabase init --preset logistics` starts a new project from it,
+and `npx better-supabase apply --preset logistics` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                               | Role in the app                                   |
+| ----------------------------------- | ------------------------------------------------- |
+| [parties](/docs/blocks/parties)     | Shippers, consignees and carriers' accounts       |
+| [orders](/docs/blocks/orders)       | The orders that ship                              |
+| [shipments](/docs/blocks/shipments) | Packages, rates, labels and the tracking timeline |
+| [assets](/docs/blocks/assets)       | Warehouses, docks and vehicles                    |
+
+## How the blocks connect
+
+A shipment is for a record, such as an order, and ships from an asset
+location to an address. Carriers plug in through the versioned
+`ShipmentCarrier` interface: you register one per carrier you use, and the
+block asks each for rates and buys the label from the one you pick. The
+status follows the latest tracking event, whether it came from a carrier
+poll, a signed webhook or a person, and a repeated webhook adds no duplicate
+([shipments](/docs/blocks/shipments)).
+
+## With ReUI
+
+- Data Grid for shipments, with Filters on status, carrier and date.
+- Timeline for a shipment's tracking events.
+- A rate picker as a Radio Group of carrier services and prices.

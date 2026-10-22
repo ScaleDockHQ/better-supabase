@@ -1,0 +1,50 @@
+---
+title: Contracts
+description: The contracts preset installs a contract lifecycle with renewals and obligations, counterparties as parties, signatures on a frozen version and renewal reminders.
+---
+
+The `contracts` preset is for an app in the style of Ironclad. Legal drafts a
+contract with a counterparty, reviews it, sends it for signature, and the app
+then tracks the obligations it creates, reminds the owner before the notice
+deadline and renews or expires it.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "contracts" });
+```
+
+`npx better-supabase init --preset contracts` starts a new project from it,
+and `npx better-supabase apply --preset contracts` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                               | Role in the app                                        |
+| ----------------------------------- | ------------------------------------------------------ |
+| [contracts](/docs/blocks/contracts) | Contracts, their lifecycle, renewals and obligations   |
+| [parties](/docs/blocks/parties)     | Counterparties                                         |
+| signatures                          | Signature requests on a frozen version of the contract |
+| [versions](/docs/blocks/versions)   | The version each signature request signs               |
+| [reminders](/docs/blocks/reminders) | The owner's reminder before the notice deadline        |
+
+## How the blocks connect
+
+A contract moves from `draft` to `in_review`. `sendForSignature` freezes it
+as a version and opens a signature request on that version; when every
+signer signs, the contract becomes `active`. While it is active with an end
+date, its owner has a reminder before the notice deadline, and `runRenewals`
+run daily renews it when `autoRenew` is on or expires it otherwise. The
+counterparty is any subject, such as a party, and `forCounterparty` lists a
+party's contracts ([contracts](/docs/blocks/contracts)).
+
+## With ReUI
+
+- Data Grid for contracts, with Filters on counterparty, status and end date.
+- Timeline for a contract's review, signatures and renewals.
+- Data Grid for open obligations, with Filters on owner and due date.

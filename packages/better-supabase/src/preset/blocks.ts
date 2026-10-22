@@ -146,4 +146,5 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "sequences",
   "lead-scoring",
   "posts",
+  "field-encryption",
 ];

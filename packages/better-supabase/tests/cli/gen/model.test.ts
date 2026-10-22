@@ -118,6 +118,7 @@ describe("buildModel config keys", () => {
     );
     expect(built.warnings).toEqual([
       expect.stringContaining('tables["nope.tags"]: no table by that name'),
+      expect.stringContaining("better_supabase.client_notes_reveal:"),
       expect.stringContaining("better_supabase.my_profile:"),
       expect.stringContaining("better_supabase.update_my_profile:"),
     ]);
@@ -505,6 +506,21 @@ describe("buildModel comments", () => {
     expect(customers.meta.columns["id"]).not.toHaveProperty("selectable");
     expect(emitModule(built, { importPathFor: (from) => from })).toMatch(
       /\bname\?: string;/u,
+    );
+  });
+
+  it("types an encrypted app table column as its configured type", async () => {
+    const built = await model(() => ({}), {
+      appTables: {
+        customers: { columns: { name: { type: "integer", encrypted: true } } },
+      },
+    });
+
+    const customers = built.tables.find((table) => table.key === "customers")!;
+
+    expect(customers.meta.columns["name"]?.selectable).toBe(false);
+    expect(emitModule(built, { importPathFor: (from) => from })).toMatch(
+      /\bname\??: number( \| null)?;/u,
     );
   });
 });

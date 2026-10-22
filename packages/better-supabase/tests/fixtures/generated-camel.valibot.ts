@@ -8,6 +8,34 @@ const json: v.GenericSchema<Json> = v.lazy(() =>
   v.union([v.string(), v.number(), v.boolean(), v.null(), v.array(json), v.record(v.string(), v.optional(json))]),
 );
 
+export const clientNotesRow: v.GenericSchema<RowOf<'clientNotes'>> = v.pipe(v.object({
+  id: v.pipe(v.string(), v.uuid()),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.pipe(v.string(), v.isoTimestamp()),
+  updatedAt: v.pipe(v.string(), v.isoTimestamp()),
+  clientName: v.string(),
+  diagnosis: v.nullable(v.string()),
+  birthDate: v.nullable(v.string()),
+}), v.title("Client notes"));
+export const clientNotesInsert: v.GenericSchema<InsertOf<'clientNotes'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  organizationId: v.pipe(v.string(), v.uuid()),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  clientName: v.string(),
+  diagnosis: v.exactOptional(v.nullable(v.string())),
+  birthDate: v.exactOptional(v.nullable(v.string())),
+}), v.title("Client notes insert"));
+export const clientNotesUpdate: v.GenericSchema<UpdateOf<'clientNotes'>> = v.pipe(v.object({
+  id: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  organizationId: v.exactOptional(v.pipe(v.string(), v.uuid())),
+  createdAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  updatedAt: v.exactOptional(v.pipe(v.string(), v.isoTimestamp())),
+  clientName: v.exactOptional(v.string()),
+  diagnosis: v.exactOptional(v.nullable(v.string())),
+  birthDate: v.exactOptional(v.nullable(v.string())),
+}), v.title("Client notes update"));
+
 export const contactsRow: v.GenericSchema<RowOf<'contacts'>> = v.pipe(v.object({
   id: v.pipe(v.string(), v.uuid()),
   organizationId: v.pipe(v.string(), v.uuid()),
@@ -432,6 +460,7 @@ export const tasksViewRow: v.GenericSchema<RowOf<'tasksView'>> = v.pipe(v.object
 
 /** Write validators for the validation plugin. */
 export const validators: {
+  readonly clientNotes: { readonly insert: typeof clientNotesInsert; readonly update: typeof clientNotesUpdate };
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
   readonly customers: { readonly insert: typeof customersInsert; readonly update: typeof customersUpdate };
@@ -447,6 +476,7 @@ export const validators: {
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
   readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
+  clientNotes: { insert: clientNotesInsert, update: clientNotesUpdate },
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
   customers: { insert: customersInsert, update: customersUpdate },
@@ -469,6 +499,10 @@ export const appTableSetArgs: v.GenericSchema<{ args: Json; subject_id: string; 
   subject_type: v.string(),
   tenant: v.pipe(v.string(), v.uuid()),
 }), v.title("app_table_set arguments"));
+
+export const clientNotesRevealArgs: v.GenericSchema<{ ids: string[] }> = v.pipe(v.object({
+  ids: v.array(v.pipe(v.string(), v.uuid())),
+}), v.title("client_notes_reveal arguments"));
 
 export const customerNoteCountsArgs: v.GenericSchema<{ p_customer_ids?: string[] }> = v.pipe(v.object({
   p_customer_ids: v.exactOptional(v.array(v.pipe(v.string(), v.uuid()))),

@@ -1,6 +1,139 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
+    "clientNotesRow": {
+      "title": "Client notes",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "clientName": {
+          "type": "string"
+        },
+        "diagnosis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "birthDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "createdAt",
+        "updatedAt",
+        "clientName",
+        "diagnosis",
+        "birthDate"
+      ],
+      "additionalProperties": false
+    },
+    "clientNotesInsert": {
+      "title": "Client notes insert",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "clientName": {
+          "type": "string"
+        },
+        "diagnosis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "birthDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "organizationId",
+        "clientName"
+      ],
+      "additionalProperties": false
+    },
+    "clientNotesUpdate": {
+      "title": "Client notes update",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "clientName": {
+          "type": "string"
+        },
+        "diagnosis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "birthDate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "contactsRow": {
       "title": "Contacts",
       "type": "object",
@@ -2079,6 +2212,23 @@
         "subject_id",
         "subject_type",
         "tenant"
+      ],
+      "additionalProperties": false
+    },
+    "clientNotesRevealArgs": {
+      "title": "client_notes_reveal arguments",
+      "type": "object",
+      "properties": {
+        "ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "required": [
+        "ids"
       ],
       "additionalProperties": false
     },

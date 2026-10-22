@@ -404,13 +404,13 @@ export const POLICY_RULES: readonly Rule[] = [
     check: (context) => {
       const schemas = exposedSchemas(context);
 
-      const listed = new Set(
-        Object.keys(context.config.exposeFunctions).map((signature) => {
+      const listed = new Set([
+        ...Object.keys(context.config.exposeFunctions).map((signature) => {
           const name = signature.slice(0, signature.indexOf("(")).trim();
 
           return name.includes(".") ? name : `public.${name}`;
         }),
-      );
+      ]);
 
       const inPolicies = new Set(
         catalogOf(context).tables.flatMap((table) =>

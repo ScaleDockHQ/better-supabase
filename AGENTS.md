@@ -203,6 +203,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0084: the public status page is one security definer function anon may call, returning only public fields.
 - 0085: `courses` enrolls learners through `enrollments` (`course:<id>`); quizzes are graded by `forms` in SQL.
 - 0086: recurring bookings place each occurrence through `place_booking`; class credits are a ledger refunded on early cancel.
+- 0087: encrypted fields use per-owner Vault keys and decrypt through scoped definers; reads there can be audited.
 - 0090: confirmed bookings become meeting engagements through a trigger on the bookings table.
 - 0091: sequences run on enrollments and send email steps through a `mailer` port from mail-sync.
 - 0092: posts keep boards and posts; votes, replies and moderation stay in their blocks.

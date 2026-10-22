@@ -318,6 +318,7 @@ describe("saas block clients", () => {
         type: "option",
         required: false,
         sensitive: true,
+        encrypted: false,
         rank: "V",
       },
       {
@@ -328,6 +329,7 @@ describe("saas block clients", () => {
         type: "text",
         required: true,
         sensitive: false,
+        encrypted: false,
       },
     ]);
   });

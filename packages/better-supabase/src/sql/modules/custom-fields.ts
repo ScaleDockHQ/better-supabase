@@ -1,4 +1,5 @@
 import type { CustomFieldsEvents } from "../../blocks/custom-fields/events.ts";
+import type { CustomFieldType } from "../../core/contracts/field-formats.ts";
 import type {
   ModuleContext,
   ModuleContractFunction,
@@ -18,6 +19,10 @@ import {
   userGrant,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
+import { FIELD_CIPHER_PREFIX } from "./field-encryption.ts";
+
+/** The custom field types whose values `encrypt_field_definition` encrypts. */
+const ENCRYPTABLE_TYPES: readonly CustomFieldType[] = ["text", "email", "url"];
 
 const EVENTS: ModuleEvents<CustomFieldsEvents> = {
   "custom_field.saved": {
@@ -32,11 +37,15 @@ const EVENTS: ModuleEvents<CustomFieldsEvents> = {
     subject: "field-values",
     payload: ["organizationId", "id", "subjectType", "subjectId"],
   },
+  "field_value.viewed": {
+    subject: "field-values",
+    payload: ["organizationId", "subjectType", "subjectId", "ids"],
+  },
 };
 
 const NAMES: ModuleNames = {
   events: EVENTS,
-  options: ["layout"],
+  options: ["layout", "auditReads"],
   tables: {
     definitions: {
       name: "field_definitions",
@@ -53,8 +62,9 @@ const NAMES: ModuleNames = {
         sensitive: "sensitive",
         permission: "permission",
         rank: "rank",
+        encrypted: "encrypted",
       },
-      optional: ["rank"],
+      optional: ["rank", "encrypted"],
     },
     options: {
       name: "field_options",
@@ -117,6 +127,21 @@ function build(ctx: ModuleContext): string {
     OPERATIONS["custom-fields.sensitive"],
   );
 
+  const encryption = encrypts(ctx) ? ctx.of("field-encryption") : undefined;
+
+  const encrypted =
+    encryption === undefined
+      ? ""
+      : `coalesce(d.${ctx.col("definitions", "encrypted")}, false)`;
+
+  const audited = ctx.flag("auditReads", false);
+
+  if (audited && !ctx.installed("audit")) {
+    throw new TypeError(
+      "blocks.custom-fields.options.auditReads needs the audit block; add it to blocks",
+    );
+  }
+
   const tables = ctx.manages
     ? `${
         inline
@@ -131,7 +156,7 @@ function build(ctx: ModuleContext): string {
   ${ctx.col("definitions", "required")} boolean not null default false,
   ${ctx.col("definitions", "sensitive")} boolean not null default false,
   ${ctx.col("definitions", "permission")} text,
-${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  unique (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
+${ctx.has("definitions", "encrypted") ? `  ${ctx.col("definitions", "encrypted")} boolean not null default false,\n` : ""}${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  unique (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
 );
 ${typeCheck(ctx, definitions)}
 ${lockTable(definitions, { read: true })}
@@ -153,7 +178,10 @@ ${lockTable(definitions, { read: true })}
 ${lockTable(values, { read: true })}
 ${inline || !ctx.has("values", "definition") ? "" : `create index if not exists field_values_definition_idx on ${values} (${ctx.col("values", "definition")});`}
 `
-    : "";
+    : !inline && ctx.has("definitions", "encrypted")
+      ? `alter table ${definitions} add column if not exists ${ctx.col("definitions", "encrypted")} boolean not null default false;
+`
+      : "";
 
   const visible = inline
     ? "true"
@@ -209,19 +237,48 @@ ${userGrant(`${ctx.fn("save_field_definition")}(${ctx.idType}, text, text, text,
 
 create or replace function ${ctx.fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text)
 returns jsonb
-language sql
-stable
+language plpgsql
+${audited ? "volatile" : "stable"}
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', v.${ctx.col("values", "id")}, 'text', v.${ctx.col("values", "valueText")})), '[]'::jsonb)
+declare
+  v_values jsonb;${encrypted === "" ? "" : `\n  v_key text;`}${audited ? `\n  v_read jsonb;` : ""}
+begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('tenant:' || read_field_values.tenant::text, false);`}
+  select coalesce(jsonb_agg(jsonb_build_object('id', v.${ctx.col("values", "id")}, 'text', ${encrypted === "" ? `v.${ctx.col("values", "valueText")}` : `case when ${encrypted} then ${encryption?.fn("field_open")}(v_key, v.${ctx.col("values", "valueText")}) else v.${ctx.col("values", "valueText")} end`})), '[]'::jsonb)${
+    audited
+      ? `,
+    jsonb_agg(v.${ctx.col("values", "id")}) filter (where ${inline ? "true" : [encrypted, `coalesce(d.${ctx.col("definitions", "sensitive")}, false)`].filter((part) => part !== "").join(" or ")})`
+      : ""
+  }
+  into v_values${audited ? ", v_read" : ""}
   from ${values} v
   ${inline ? "" : `left join ${definitions} d on d.${ctx.col("definitions", "id")} = v.${ctx.col("values", "definition")}`}
   where v.${ctx.col("values", "tenant")} = read_field_values.tenant
     and v.${ctx.col("values", "subjectType")} = read_field_values.subject_type
     and v.${ctx.col("values", "subjectId")} = read_field_values.subject_id
     and (auth.role() = 'service_role' or ${ctx.scope.can("read_field_values.tenant", read)})
-    and (${visible})
+    and (${visible});${
+      audited
+        ? `
+  if v_read is not null then
+    ${ctx.audit({
+      type: "field_value.viewed",
+      payload: `jsonb_build_object('organizationId', read_field_values.tenant, 'subjectType', read_field_values.subject_type, 'subjectId', read_field_values.subject_id, 'ids', v_read)`,
+      subject: `'field-values/' || read_field_values.subject_id`,
+      tenant: "read_field_values.tenant",
+      audit: {
+        category: "read",
+        targetType: "field_value",
+        recordId: "read_field_values.subject_id",
+        summary: `'Read ' || jsonb_array_length(v_read)::text || ' protected field value(s) of ' || read_field_values.subject_type`,
+      },
+    })}
+  end if;`
+        : ""
+    }
+  return v_values;
+end;
 $$;
 ${userGrant(`${ctx.fn("read_field_values")}(${ctx.idType}, text, text)`)}
 
@@ -238,7 +295,11 @@ begin
     ${fail("FIELD_FORBIDDEN", "not allowed to set custom fields")}
   end if;
   insert into ${values} (${ctx.col("values", "tenant")}, ${ctx.has("values", "definition") && !inline ? `${ctx.col("values", "definition")}, ` : ""}${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "valueText")})
-  values (set_field_value.tenant, ${ctx.has("values", "definition") && !inline ? "set_field_value.definition, " : ""}set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
+  values (set_field_value.tenant, ${ctx.has("values", "definition") && !inline ? "set_field_value.definition, " : ""}set_field_value.subject_type, set_field_value.subject_id, ${
+    encrypted === ""
+      ? "set_field_value.value"
+      : `case when exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and d.${ctx.col("definitions", "encrypted")}) then ${encryption?.fn("field_encrypt")}('tenant:' || set_field_value.tenant::text, set_field_value.value) else set_field_value.value end`
+  })
   returning ${ctx.col("values", "id")} into v_id;
   ${ctx.record({
     type: "field_value.set",
@@ -284,7 +345,71 @@ begin
 end;
 $$;
 ${userGrant(`${ctx.fn("delete_field_definition")}(uuid)`)}
-${inline ? "" : listDefinitions(ctx, definitions, rank, read)}${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}`;
+${inline ? "" : listDefinitions(ctx, definitions, rank, read)}${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}${encrypted === "" ? "" : encryptDefinition(ctx, definitions, values, manage)}`;
+}
+
+/**
+ * Whether definitions can be encrypted: a definition table with the column, and
+ * the field-encryption block.
+ */
+function encrypts(ctx: ModuleContext): boolean {
+  return (
+    ctx.text("layout", "normalized") !== "inline" &&
+    ctx.has("definitions", "encrypted") &&
+    ctx.installed("field-encryption")
+  );
+}
+
+/**
+ * `encrypt_field_definition(definition)`: turns encryption on for a text field
+ * and encrypts the values it already has with the tenant's data key. There is
+ * no way back: a field that holds ciphertext stays encrypted.
+ */
+function encryptDefinition(
+  ctx: ModuleContext,
+  definitions: string,
+  values: string,
+  manage: string,
+): string {
+  const encryption = ctx.of("field-encryption");
+  const id = ctx.col("definitions", "id");
+  const encrypted = ctx.col("definitions", "encrypted");
+  const valueText = ctx.col("values", "valueText");
+
+  return `
+-- Encrypts a text field and the values it already has. It can't be undone.
+create or replace function ${ctx.fn("encrypt_field_definition")}(definition uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_type text;
+  v_key text;
+begin
+  select ${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "type")} into v_tenant, v_type from ${definitions} where ${id} = encrypt_field_definition.definition;
+  if not found then
+    ${fail("FIELD_NOT_FOUND", "field not found", "P0002")}
+  end if;
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
+    ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
+  end if;
+  if v_type not in (${ENCRYPTABLE_TYPES.map((type) => sqlString(type)).join(", ")}) then
+    ${fail("FIELD_NOT_ENCRYPTABLE", "only text fields can be encrypted", "22023")}
+  end if;
+  v_key := ${encryption.fn("field_key")}('tenant:' || v_tenant::text, true);
+  update ${definitions} set ${encrypted} = true where ${id} = encrypt_field_definition.definition;
+  update ${values} set ${valueText} = ${encryption.fn("field_seal")}(v_key, ${valueText})
+  where ${ctx.col("values", "definition")} = encrypt_field_definition.definition
+    and ${valueText} is not null
+    and left(${valueText}, ${String(FIELD_CIPHER_PREFIX.length)}) <> ${sqlString(FIELD_CIPHER_PREFIX)};
+  return true;
+end;
+$$;
+${userGrant(`${ctx.fn("encrypt_field_definition")}(uuid)`)}
+`;
 }
 
 /**
@@ -326,7 +451,12 @@ as $$
     'label', d.${ctx.col("definitions", "label")},
     'type', d.${ctx.col("definitions", "type")},
     'required', d.${ctx.col("definitions", "required")},
-    'sensitive', d.${ctx.col("definitions", "sensitive")},
+    'sensitive', d.${ctx.col("definitions", "sensitive")},${
+      ctx.has("definitions", "encrypted")
+        ? `
+    'encrypted', d.${ctx.col("definitions", "encrypted")},`
+        : ""
+    }
     'rank', ${rank === "" ? "null" : `d.${rank}`}
   ) order by ${order}), '[]'::jsonb)
   from ${definitions} d
@@ -400,6 +530,15 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
             returns: "jsonb",
           },
         ]),
+    ...(encrypts(ctx)
+      ? [
+          {
+            name: "encrypt_field_definition",
+            args: ["uuid"],
+            returns: "boolean",
+          },
+        ]
+      : []),
     ...(ctx.text("layout", "normalized") !== "inline" &&
     ctx.has("definitions", "rank")
       ? [
@@ -420,10 +559,10 @@ export const CUSTOM_FIELDS: ModuleDefinition = {
   description:
     "Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.",
   requires: ["tenant", "access"],
-  integrates: ["outbox"],
+  integrates: ["outbox", "field-encryption", "audit"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -452,8 +591,20 @@ alter table ${definitions} alter column ${rank} set default 'V', alter column ${
 alter table ${definitions} drop column if exists position;`;
       },
     },
+    {
+      from: 2,
+      description:
+        "Field definitions gain an encrypted flag; encrypt_field_definition encrypts a text field's values with the tenant's data key.",
+      sql: (ctx) =>
+        !ctx.manages ||
+        ctx.text("layout", "normalized") === "inline" ||
+        !ctx.has("definitions", "encrypted")
+          ? ""
+          : `alter table ${ctx.table("definitions")} add column if not exists ${ctx.col("definitions", "encrypted")} boolean not null default false;`,
+    },
   ],
   names: NAMES,
+  adoptOptional: () => ({ definitions: ["encrypted"] }),
   contract,
   build,
 };

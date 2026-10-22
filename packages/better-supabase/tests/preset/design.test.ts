@@ -108,7 +108,7 @@ describe("design codes", () => {
     await expect(
       decodeDesign(await deflated(JSON.stringify({ version: 9 }))),
     ).rejects.toThrow(
-      "design: the code needs format 9, and this better-supabase reads up to 5; update better-supabase",
+      "design: the code needs format 9, and this better-supabase reads up to 6; update better-supabase",
     );
   });
 
@@ -203,8 +203,29 @@ describe("design codes", () => {
       },
     };
 
-    expect(designFormat(access)).toBe(DESIGN_FORMAT);
+    expect(designFormat(access)).toBe(5);
     expect(await decodeDesign(await encodeDesign(access))).toEqual(access);
+  });
+
+  it("writes format 6 for encrypted columns and read audits", async () => {
+    const encrypted: CreateDesign = {
+      appTables: {
+        patients: { columns: { ssn: { type: "text", encrypted: true } } },
+      },
+    };
+
+    const audited: CreateDesign = {
+      appTables: {
+        patients: {
+          auditReads: true,
+          columns: { ssn: { type: "text", encrypted: true } },
+        },
+      },
+    };
+
+    expect(designFormat(encrypted)).toBe(DESIGN_FORMAT);
+    expect(designFormat(audited)).toBe(DESIGN_FORMAT);
+    expect(await decodeDesign(await encodeDesign(audited))).toEqual(audited);
   });
 
   it("rejects an unknown column access", async () => {

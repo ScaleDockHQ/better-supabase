@@ -8,6 +8,7 @@ import { DEFAULT_CONVENTIONS } from "./fields.ts";
 export type PresetGroup =
   | "starters"
   | "products"
+  | "verticals"
   | "ai"
   | "platforms"
   | "everything";
@@ -16,6 +17,7 @@ export type PresetGroup =
 export const PRESET_GROUPS: Readonly<Record<PresetGroup, string>> = {
   starters: "Starters",
   products: "Products",
+  verticals: "Verticals",
   ai: "AI",
   platforms: "Platforms",
   everything: "Everything",
@@ -65,6 +67,23 @@ export type PresetName =
   | "docs"
   | "invoicing"
   | "forms"
+  | "property"
+  | "field-service"
+  | "clinic"
+  | "lms"
+  | "events"
+  | "legal"
+  | "spend"
+  | "contracts"
+  | "customer-success"
+  | "logistics"
+  | "pos"
+  | "fitness"
+  | "nonprofit"
+  | "itsm"
+  | "compliance"
+  | "construction"
+  | "claims"
   | "ai"
   | "ai-chat"
   | "ai-agents"
@@ -272,6 +291,266 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     group: "products",
     blocks: [...SAAS, "forms", "templates", "imports"],
   },
+  property: {
+    name: "property",
+    title: "Property management",
+    description:
+      "SaaS plus units in assets, leases with rent and deposits on the ledger and maintenance requests, tenants as parties with a guest portal, comments and attachments.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "assets",
+      "leases",
+      "ledger",
+      "parties",
+      "guests",
+      "comments",
+      "attachments",
+      "reminders",
+    ],
+  },
+  "field-service": {
+    name: "field-service",
+    title: "Field service",
+    description:
+      "SaaS plus a dispatch board of work orders at customer assets, parts from inventory, quotes to invoices, checklists as forms and a signature on completion.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "parties",
+      "dispatch",
+      "assets",
+      "inventory",
+      "quotes",
+      "invoices",
+      "forms",
+      "signatures",
+      "attachments",
+    ],
+  },
+  clinic: {
+    name: "clinic",
+    title: "Clinic and therapy",
+    description:
+      "SaaS plus appointments, intake forms, note templates, consent signatures, field encryption for sensitive values, a client portal and reminders.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "calendar",
+      "bookings",
+      "forms",
+      "templates",
+      "signatures",
+      "custom-fields",
+      "field-encryption",
+      "guests",
+      "reminders",
+    ],
+  },
+  lms: {
+    name: "lms",
+    title: "Courses and learning",
+    description:
+      "SaaS plus courses with lessons, quizzes graded by forms and certificates, enrollments with progress, comments and attachments.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "courses",
+      "enrollments",
+      "forms",
+      "comments",
+      "attachments",
+    ],
+  },
+  events: {
+    name: "events",
+    title: "Events and ticketing",
+    description:
+      "SaaS plus tickets in a catalog, orders, bookings for capacity, QR passes signed with signing keys and checked in, a waitlist and reminders.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "catalog",
+      "orders",
+      "bookings",
+      "passes",
+      "signing-keys",
+      "waitlist",
+      "reminders",
+    ],
+  },
+  legal: {
+    name: "legal",
+    title: "Legal practice",
+    description:
+      "SaaS plus clients as parties, time tracking billed from a rate card into invoices, a trust ledger, documents with versions and signatures.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "parties",
+      "time-tracking",
+      "billable-time",
+      "invoices",
+      "ledger",
+      "documents",
+      "versions",
+      "signatures",
+    ],
+  },
+  spend: {
+    name: "spend",
+    title: "Expenses and spend",
+    description:
+      "SaaS plus expenses with receipts and policies, approvals, reimbursements on the ledger and receipt files for AI extraction.",
+    group: "verticals",
+    blocks: [...SAAS, "expenses", "approvals", "attachments", "ai-files"],
+  },
+  contracts: {
+    name: "contracts",
+    title: "Contracts",
+    description:
+      "SaaS plus a contract lifecycle with renewals and obligations, counterparties as parties, signatures on a frozen version and reminders.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "contracts",
+      "parties",
+      "signatures",
+      "versions",
+      "reminders",
+    ],
+  },
+  "customer-success": {
+    name: "customer-success",
+    title: "Customer success",
+    description:
+      "SaaS plus accounts as parties, health scores from rules and metrics, NPS forms, playbooks as enrollments and engagements.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "parties",
+      "engagements",
+      "scores",
+      "metrics",
+      "rules",
+      "forms",
+      "enrollments",
+      "reminders",
+    ],
+  },
+  logistics: {
+    name: "logistics",
+    title: "Logistics and fleet",
+    description:
+      "SaaS plus shippers as parties, orders, shipments with carrier labels and tracking, and depots and vehicles in assets.",
+    group: "verticals",
+    blocks: [...SAAS, "parties", "orders", "shipments", "assets"],
+  },
+  pos: {
+    name: "pos",
+    title: "Restaurants and POS",
+    description:
+      "SaaS plus a menu in the catalog, orders with a kitchen board, inventory, table bookings, promotions and loyalty points on the ledger.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "catalog",
+      "orders",
+      "inventory",
+      "bookings",
+      "promotions",
+      "ledger",
+    ],
+  },
+  fitness: {
+    name: "fitness",
+    title: "Fitness and memberships",
+    description:
+      "SaaS plus class schedules, bookings, and passes with check-in and class credits, signed with signing keys, plus reminders.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "calendar",
+      "bookings",
+      "passes",
+      "signing-keys",
+      "reminders",
+    ],
+  },
+  nonprofit: {
+    name: "nonprofit",
+    title: "Nonprofit fundraising",
+    description:
+      "SaaS plus donors as parties, gifts and pledges on the ledger, numbered tax receipts, campaign targets and saved views for segments.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "parties",
+      "donations",
+      "ledger",
+      "number-sequences",
+      "targets",
+      "saved-views",
+    ],
+  },
+  itsm: {
+    name: "itsm",
+    title: "IT service management",
+    description:
+      "SaaS plus tickets as work items with SLAs, approvals for changes, an asset registry, relations, incidents with a status page and a knowledge base.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "work-items",
+      "sla",
+      "approvals",
+      "assets",
+      "relations",
+      "incidents",
+      "knowledge",
+    ],
+  },
+  compliance: {
+    name: "compliance",
+    title: "Compliance",
+    description:
+      "SaaS plus frameworks and controls with evidence, recurring evidence tasks and versioned policies that members acknowledge, with evidence files.",
+    group: "verticals",
+    blocks: [...SAAS, "controls", "attachments"],
+  },
+  construction: {
+    name: "construction",
+    title: "Construction",
+    description:
+      "SaaS plus punch lists and RFIs as work items, sites in assets, daily logs as forms, drawings with versions and comments, and approvals for submittals.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "work-items",
+      "assets",
+      "forms",
+      "attachments",
+      "versions",
+      "comments",
+      "approvals",
+    ],
+  },
+  claims: {
+    name: "claims",
+    title: "Insurance and claims",
+    description:
+      "SaaS plus claimants as parties, a claim state machine, approvals, attachments for evidence, SLAs and comments.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "parties",
+      "state-machine",
+      "approvals",
+      "attachments",
+      "sla",
+      "comments",
+    ],
+  },
   ai: {
     name: "ai",
     title: "AI workspace",
@@ -402,6 +681,23 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "docs",
   "invoicing",
   "forms",
+  "property",
+  "field-service",
+  "clinic",
+  "lms",
+  "events",
+  "legal",
+  "spend",
+  "contracts",
+  "customer-success",
+  "logistics",
+  "pos",
+  "fitness",
+  "nonprofit",
+  "itsm",
+  "compliance",
+  "construction",
+  "claims",
   "ai",
   "ai-chat",
   "ai-agents",

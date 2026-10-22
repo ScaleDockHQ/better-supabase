@@ -218,6 +218,21 @@ describe("diffAppTables", () => {
     ).toEqual(["column.changed tasks.notes"]);
   });
 
+  it("turning encryption on or off is breaking", () => {
+    const columns = (ssn: boolean): AppTablesConfig => ({
+      patients: {
+        columns: { ssn: { type: "text", ...(ssn ? { encrypted: true } : {}) } },
+      },
+    });
+
+    expect(kinds(columns(false), columns(true))).toEqual([
+      "column.encrypted patients.ssn !",
+    ]);
+    expect(kinds(columns(true), columns(false))).toEqual([
+      "column.encrypted patients.ssn !",
+    ]);
+  });
+
   it("a looser constraint, a display format and onDelete are safe", () => {
     const before: AppTablesConfig = {
       tasks: {

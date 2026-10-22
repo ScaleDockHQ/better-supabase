@@ -432,7 +432,7 @@ export interface BlockNameRegistry {
   };
   readonly "custom-fields": {
     readonly tables: {
-      readonly "definitions": "id" | "tenant" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank";
+      readonly "definitions": "id" | "tenant" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank" | "encrypted";
       readonly "options": "id" | "definition" | "value" | "label" | "rank";
       readonly "values": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "valueText" | "valueNumber" | "valueDate" | "valueBool" | "optionId" | "valueJson";
     };
@@ -638,6 +638,14 @@ export interface BlockNameRegistry {
       readonly "expense_category": "id" | "tenant_id" | "key" | "name" | "currency" | "limit_amount" | "receipt_over" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "expense_report";
+  };
+  readonly "field-encryption": {
+    readonly tables: {};
+    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_key" | "field_open" | "field_seal";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
   };
   readonly "field-history": {
     readonly tables: {

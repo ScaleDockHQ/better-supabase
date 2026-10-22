@@ -1,6 +1,10 @@
 import type { AppTableConfig } from "../../config/types/app-tables.ts";
 
-import { columnsWithAccess } from "../../config/app-access.ts";
+import {
+  columnsWithAccess,
+  encryptedColumns,
+  hiddenColumns,
+} from "../../config/app-access.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 
 const SCHEMA = "public";
@@ -14,13 +18,13 @@ interface AccessTable {
 
 /**
  * Of `names`, the columns signed-in users read: those without `access:
- * "server"`.
+ * "server"` and not encrypted.
  */
 export function readableColumns(
   config: AppTableConfig,
   names: readonly string[],
 ): readonly string[] {
-  const hidden = new Set(columnsWithAccess(config, "server"));
+  const hidden = new Set(hiddenColumns(config));
 
   return names.filter((column) => !hidden.has(column));
 }
@@ -54,11 +58,20 @@ function privilege(
 /**
  * The pgTAP checks of the column grants (ADR 0051), run as the superuser:
  * signed-in users read a `read` column but don't write it, and neither read nor
- * write a `server` column. Empty without `access` on any column.
+ * write a `server` column. They write an encrypted column (unless its access
+ * says otherwise) but never select its ciphertext. Empty without `access` or
+ * `encrypted` on any column.
  */
 export function columnAccessChecks(table: AccessTable): readonly string[] {
-  const readOnly = columnsWithAccess(table.config, "read");
+  const readOnly = columnsWithAccess(table.config, "read").filter(
+    (column) => table.config.columns?.[column]?.encrypted !== true,
+  );
+
   const hidden = columnsWithAccess(table.config, "server");
+
+  const sealed = encryptedColumns(table.config).filter(
+    (column) => !hidden.includes(column),
+  );
 
   return [
     ...readOnly.flatMap((column) => [
@@ -71,6 +84,16 @@ export function columnAccessChecks(table: AccessTable): readonly string[] {
       privilege(table, column, "INSERT", false),
       privilege(table, column, "UPDATE", false),
     ]),
+    ...sealed.flatMap((column) => {
+      const writes =
+        table.scoped && table.config.columns?.[column]?.access === undefined;
+
+      return [
+        privilege(table, column, "SELECT", false),
+        privilege(table, column, "INSERT", writes),
+        privilege(table, column, "UPDATE", writes),
+      ];
+    }),
   ];
 }
 
@@ -82,10 +105,13 @@ export function columnAccessChecks(table: AccessTable): readonly string[] {
  */
 export function columnAccessRefusals(table: AccessTable): readonly string[] {
   const target = `${sqlIdent(SCHEMA)}.${sqlIdent(table.name)}`;
-  const hidden = columnsWithAccess(table.config, "server");
+  const hidden = hiddenColumns(table.config);
 
   const restricted = table.scoped
-    ? [...columnsWithAccess(table.config, "read"), ...hidden]
+    ? [
+        ...columnsWithAccess(table.config, "read"),
+        ...columnsWithAccess(table.config, "server"),
+      ]
     : [];
 
   return [

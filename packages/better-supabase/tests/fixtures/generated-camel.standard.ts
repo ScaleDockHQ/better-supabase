@@ -4,6 +4,45 @@ import { type TableSchema, tableSchema } from "../../src/index.ts";
 
 import type { InsertOf, Json, RowOf, UpdateOf } from "./generated-camel.ts";
 
+export const clientNotesRow: TableSchema<RowOf<'clientNotes'>> = tableSchema({
+  title: "Client notes",
+  fields: {
+    id: { kind: "uuid" },
+    organizationId: { kind: "uuid" },
+    createdAt: { kind: "datetime", readOnly: true },
+    updatedAt: { kind: "datetime", readOnly: true },
+    clientName: { kind: "string" },
+    diagnosis: { kind: "string", nullable: true },
+    birthDate: { kind: "string", nullable: true },
+  },
+});
+
+export const clientNotesInsert: TableSchema<InsertOf<'clientNotes'>> = tableSchema({
+  title: "Client notes insert",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    organizationId: { kind: "uuid" },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    clientName: { kind: "string" },
+    diagnosis: { kind: "string", nullable: true, optional: true },
+    birthDate: { kind: "string", nullable: true, optional: true },
+  },
+});
+
+export const clientNotesUpdate: TableSchema<UpdateOf<'clientNotes'>> = tableSchema({
+  title: "Client notes update",
+  fields: {
+    id: { kind: "uuid", optional: true },
+    organizationId: { kind: "uuid", optional: true },
+    createdAt: { kind: "datetime", optional: true, readOnly: true },
+    updatedAt: { kind: "datetime", optional: true, readOnly: true },
+    clientName: { kind: "string", optional: true },
+    diagnosis: { kind: "string", nullable: true, optional: true },
+    birthDate: { kind: "string", nullable: true, optional: true },
+  },
+});
+
 export const contactsRow: TableSchema<RowOf<'contacts'>> = tableSchema({
   title: "Contacts",
   fields: {
@@ -593,6 +632,7 @@ export const tasksViewRow: TableSchema<RowOf<'tasksView'>> = tableSchema({
 
 /** Write validators for the validation plugin. */
 export const validators: {
+  readonly clientNotes: { readonly insert: typeof clientNotesInsert; readonly update: typeof clientNotesUpdate };
   readonly contacts: { readonly insert: typeof contactsInsert; readonly update: typeof contactsUpdate };
   readonly customerTags: { readonly insert: typeof customerTagsInsert; readonly update: typeof customerTagsUpdate };
   readonly customers: { readonly insert: typeof customersInsert; readonly update: typeof customersUpdate };
@@ -608,6 +648,7 @@ export const validators: {
   readonly tags: { readonly insert: typeof tagsInsert; readonly update: typeof tagsUpdate };
   readonly tasks: { readonly insert: typeof tasksInsert; readonly update: typeof tasksUpdate };
 } = {
+  clientNotes: { insert: clientNotesInsert, update: clientNotesUpdate },
   contacts: { insert: contactsInsert, update: contactsUpdate },
   customerTags: { insert: customerTagsInsert, update: customerTagsUpdate },
   customers: { insert: customersInsert, update: customersUpdate },
@@ -631,6 +672,13 @@ export const appTableSetArgs: TableSchema<{ args: Json; subject_id: string; subj
     subject_id: {"kind":"string"},
     subject_type: {"kind":"string"},
     tenant: {"kind":"uuid"},
+  },
+});
+
+export const clientNotesRevealArgs: TableSchema<{ ids: string[] }> = tableSchema({
+  title: "client_notes_reveal arguments",
+  fields: {
+    ids: {"kind":"uuid","array":true},
   },
 });
 
