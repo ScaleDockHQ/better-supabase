@@ -162,6 +162,7 @@ expose the module schema itself.
 | [Mail sync](/docs/blocks/mail-sync)                         | `better-supabase/blocks/mail-sync`                                                                                                 | `mail-sync`                            |
 | [Segments](/docs/blocks/segments)                           | `better-supabase/blocks/segments`                                                                                                  | `segments`                             |
 | [Assignment](/docs/blocks/assignment)                       | `better-supabase/blocks/assignment`                                                                                                | `assignment`                           |
+| [Enrichment](/docs/blocks/enrichment)                       | `better-supabase/blocks/enrichment`                                                                                                | `enrichment`                           |
 | [Deals](/docs/blocks/deals)                                 | `better-supabase/blocks/deals`                                                                                                     | `deals`                                |
 | [Work items](/docs/blocks/work-items)                       | `better-supabase/blocks/work-items`                                                                                                | `work-items`                           |
 | [Quotes](/docs/blocks/quotes)                               | `better-supabase/blocks/quotes`                                                                                                    | `quotes`                               |
@@ -323,6 +324,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `mail-sync`          | `tenant`, `access`, `subjects`                                        | `outbox`, `audit`, `parties`, `engagements`, `data-lifecycle`                                                                                    |
 | `segments`           | `tenant`, `access`, `subjects`, `rules`                               | `outbox`, `audit`, `data-lifecycle`                                                                                                              |
 | `assignment`         | `tenant`, `access`, `rules`                                           | `outbox`, `data-lifecycle`                                                                                                                       |
+| `enrichment`         | `tenant`, `access`, `parties`                                         | `outbox`, `data-lifecycle`                                                                                                                       |
 | `ensure-rls`         | none                                                                  | none                                                                                                                                             |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

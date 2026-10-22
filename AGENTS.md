@@ -182,6 +182,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0063: the activity feed moves out of comments into its own `activity` block.
 - 0078: member mailboxes sync into engagements through a versioned `MailProvider` over `fetch`.
 - 0079: segments materialize rules filter trees; assignment queues pick owners by turn, weight and territory.
+- 0080: enrichment stores provider profiles per record and fills only empty columns, through a versioned provider over `fetch`.
 
 ## Pre-release pins
 

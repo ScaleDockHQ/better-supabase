@@ -59,6 +59,7 @@
   "blocks/drive",
   "blocks/employees",
   "blocks/engagements",
+  "blocks/enrichment",
   "blocks/entitlements",
   "blocks/flags",
   "blocks/forms",

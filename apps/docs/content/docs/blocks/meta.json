@@ -87,6 +87,7 @@
     "mail-sync",
     "segments",
     "assignment",
+    "enrichment",
     "collections",
     "deals",
     "work-items",
