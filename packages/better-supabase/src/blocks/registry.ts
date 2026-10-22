@@ -12,6 +12,7 @@ import { aiTasksBlock } from "./ai-tasks/manifest.ts";
 import { announcementsBlock } from "./announcements/manifest.ts";
 import { apiKeysBlock } from "./api-keys/manifest.ts";
 import { approvalsBlock } from "./approvals/manifest.ts";
+import { assetsBlock } from "./assets/manifest.ts";
 import { attachmentsBlock } from "./attachments/manifest.ts";
 import { auditBlock } from "./audit/manifest.ts";
 import { billingBlock } from "./billing/manifest.ts";
@@ -148,6 +149,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   reviewsBlock,
   leaveBlock,
   ledgerBlock,
+  assetsBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

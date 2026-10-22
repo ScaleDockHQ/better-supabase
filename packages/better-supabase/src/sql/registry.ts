@@ -21,6 +21,7 @@ import { AI_TASKS } from "./modules/ai-tasks.ts";
 import { ANNOUNCEMENTS } from "./modules/announcements.ts";
 import { API_KEYS } from "./modules/api-keys.ts";
 import { APPROVALS } from "./modules/approvals.ts";
+import { ASSETS } from "./modules/assets.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
 import { BILLING } from "./modules/billing.ts";
@@ -309,6 +310,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(RULES),
       built(VERCEL_MARKETPLACE),
       built(LEDGER),
+      built(ASSETS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

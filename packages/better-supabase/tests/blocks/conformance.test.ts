@@ -47,6 +47,8 @@ const NO_FIELDS: readonly string[] = [
   "ai-cache",
   // Provider keys and batch jobs the block writes itself.
   "ai-providers",
+  // Locations and assets carry app data in `metadata`.
+  "assets",
   // An append-only log written by audit_event and triggers; adopted
   // columns already come back under `columns`.
   "audit",

@@ -2662,6 +2662,99 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "assets",
+      "title": "Assets and locations",
+      "category": "work",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "bookings",
+        "work-items",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "assets",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "asset": {
+            "table": "assets",
+            "singular": "asset",
+            "primary": true,
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "asset_location": {
+            "table": "locations",
+            "singular": "asset_location",
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          }
+        },
+        "tables": {
+          "assets": {
+            "name": "assets",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "location": "location_id",
+              "kind": "kind",
+              "name": "name",
+              "tag": "tag",
+              "serial": "serial_number",
+              "status": "status",
+              "assigneeType": "assignee_type",
+              "assigneeId": "assignee_id",
+              "latitude": "latitude",
+              "longitude": "longitude",
+              "metadata": "metadata",
+              "retiredAt": "retired_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "locations": {
+            "name": "asset_locations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "parent": "parent_id",
+              "kind": "kind",
+              "name": "name",
+              "code": "code",
+              "address": "address",
+              "latitude": "latitude",
+              "longitude": "longitude",
+              "metadata": "metadata",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "assets.read",
+          "manage": "assets.manage",
+          "assign": "assets.assign"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -4465,6 +4558,105 @@ export const PRESET_CATALOG: PresetCatalog = {
           "ledger_hold.placed",
           "ledger_hold.captured",
           "ledger_hold.released"
+        ]
+      }
+    },
+    {
+      "name": "assets",
+      "sql": [
+        "assets"
+      ],
+      "category": "work",
+      "client": {
+        "export": "assetsBlock",
+        "subpath": "better-supabase/blocks/assets"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Asset"
+        },
+        {
+          "name": "AssetAssignee"
+        },
+        {
+          "name": "AssetAssignment"
+        },
+        {
+          "name": "AssetDetail"
+        },
+        {
+          "name": "AssetEventData"
+        },
+        {
+          "name": "AssetInput"
+        },
+        {
+          "name": "AssetLinks"
+        },
+        {
+          "name": "AssetLinkTarget"
+        },
+        {
+          "name": "AssetListOptions"
+        },
+        {
+          "name": "AssetLocation"
+        },
+        {
+          "name": "AssetLocationDetail"
+        },
+        {
+          "name": "AssetLocationEventData"
+        },
+        {
+          "name": "AssetLocationInput"
+        },
+        {
+          "name": "AssetLocationPatch"
+        },
+        {
+          "name": "AssetLocationStep"
+        },
+        {
+          "name": "AssetPatch"
+        },
+        {
+          "name": "Assets"
+        },
+        {
+          "name": "AssetsEvents"
+        },
+        {
+          "name": "AssetsNear"
+        },
+        {
+          "name": "AssetsNearOptions"
+        },
+        {
+          "name": "AssetsOptions"
+        },
+        {
+          "name": "AssetsSqlOptions"
+        },
+        {
+          "name": "AssetStatus"
+        }
+      ],
+      "sections": {
+        "assets": []
+      },
+      "events": {
+        "type": "AssetsEvents",
+        "types": [
+          "asset_location.created",
+          "asset_location.updated",
+          "asset_location.archived",
+          "asset.created",
+          "asset.updated",
+          "asset.assigned",
+          "asset.released"
         ]
       }
     },

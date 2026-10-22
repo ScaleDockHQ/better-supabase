@@ -61,6 +61,7 @@ import {
   LockKeyholeIcon,
   LogInIcon,
   MailPlusIcon,
+  MapPinnedIcon,
   MegaphoneIcon,
   MessageSquareIcon,
   MessagesSquareIcon,
@@ -192,6 +193,7 @@ export const BLOCK_ICONS = {
   promotions: TicketPercentIcon,
   invoices: ReceiptIcon,
   ledger: ScaleIcon,
+  assets: MapPinnedIcon,
   // Scheduling
   reminders: AlarmClockIcon,
   calendar: CalendarDaysIcon,

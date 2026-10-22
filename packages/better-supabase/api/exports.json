@@ -5849,6 +5849,51 @@
       "RpcClient"
     ]
   },
+  "./blocks/assets": {
+    "values": [
+      "assetsBlock",
+      "assetsEvents",
+      "assetsSection",
+      "createAssets",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "Asset",
+      "AssetAssignee",
+      "AssetAssignment",
+      "AssetDetail",
+      "AssetEventData",
+      "AssetInput",
+      "AssetLinks",
+      "AssetLinkTarget",
+      "AssetListOptions",
+      "AssetLocation",
+      "AssetLocationDetail",
+      "AssetLocationEventData",
+      "AssetLocationInput",
+      "AssetLocationPatch",
+      "AssetLocationStep",
+      "AssetPatch",
+      "Assets",
+      "AssetsEvents",
+      "AssetsNear",
+      "AssetsNearOptions",
+      "AssetsOptions",
+      "AssetsSqlOptions",
+      "AssetStatus",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "GeoArea",
+      "GeoPoint",
+      "RpcClient"
+    ]
+  },
   "./blocks/shared-signals": {
     "values": [
       "CAEP_EVENTS",

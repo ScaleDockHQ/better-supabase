@@ -151,6 +151,21 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "assets": {
+    readonly tables: {
+      readonly "locations": "id" | "tenant" | "parent" | "kind" | "name" | "code" | "address" | "latitude" | "longitude" | "metadata" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "assets": "id" | "tenant" | "location" | "kind" | "name" | "tag" | "serial" | "status" | "assigneeType" | "assigneeId" | "latitude" | "longitude" | "metadata" | "retiredAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "assignments": "id" | "tenant" | "asset" | "assigneeType" | "assigneeId" | "note" | "assignedBy" | "assignedAt" | "releasedAt";
+    };
+    readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_location_check_parent" | "asset_locations_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "get_asset" | "get_asset_location" | "list_asset_locations" | "list_assets" | "release_asset" | "set_asset_link" | "update_asset" | "update_asset_location";
+    readonly actions: "read" | "manage" | "assign";
+    readonly hooks: "before_asset_assign" | "after_asset_assign";
+    readonly entities: {
+      readonly "asset": "id" | "tenant_id" | "location_id" | "kind" | "name" | "tag" | "serial_number" | "status" | "assignee_type" | "assignee_id" | "latitude" | "longitude" | "metadata" | "retired_at" | "created_by" | "created_at" | "updated_at";
+      readonly "asset_location": "id" | "tenant_id" | "parent_id" | "kind" | "name" | "code" | "address" | "latitude" | "longitude" | "metadata" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "asset";
+  };
   readonly "attachments": {
     readonly tables: {
       readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "metadata";

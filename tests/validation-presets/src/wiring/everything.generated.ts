@@ -32,6 +32,7 @@ import { domainsBlock } from "better-supabase/blocks/domains";
 import { reviewsBlock } from "better-supabase/blocks/reviews";
 import { leaveBlock } from "better-supabase/blocks/leave";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
+import { assetsBlock } from "better-supabase/blocks/assets";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
@@ -130,6 +131,7 @@ export const blockSet = defineBlocks(blockConfig, {
   reviews: reviewsBlock,
   leave: leaveBlock,
   ledger: ledgerBlock,
+  assets: assetsBlock,
   drive: driveBlock,
   employees: employeesBlock,
   engagements: engagementsBlock,

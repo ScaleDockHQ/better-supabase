@@ -9,6 +9,7 @@ import type { AiTasksSqlOptions } from "./ai-tasks/options.ts";
 import type { AnnouncementsSqlOptions } from "./announcements/options.ts";
 import type { ApiKeysSqlOptions } from "./api-keys/options.ts";
 import type { ApprovalsSqlOptions } from "./approvals/options.ts";
+import type { AssetsSqlOptions } from "./assets/options.ts";
 import type { AttachmentsSqlOptions } from "./attachments/options.ts";
 import type { AuditSqlOptions } from "./audit/options.ts";
 import type { BillingSqlOptions } from "./billing/options.ts";
@@ -112,6 +113,7 @@ import { aiTasksSqlOptions } from "./ai-tasks/options.ts";
 import { announcementsSqlOptions } from "./announcements/options.ts";
 import { apiKeysSqlOptions } from "./api-keys/options.ts";
 import { approvalsSqlOptions } from "./approvals/options.ts";
+import { assetsSqlOptions } from "./assets/options.ts";
 import { attachmentsSqlOptions } from "./attachments/options.ts";
 import { auditSqlOptions } from "./audit/options.ts";
 import { billingSqlOptions } from "./billing/options.ts";
@@ -264,6 +266,7 @@ export interface BlockOptionsRegistry {
   readonly knowledge: KnowledgeSqlOptions;
   readonly leave: LeaveSqlOptions;
   readonly ledger: None;
+  readonly assets: AssetsSqlOptions;
   readonly memory: MemorySqlOptions;
   readonly metrics: MetricsSqlOptions;
   readonly mfa: None;
@@ -385,6 +388,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   knowledge: knowledgeSqlOptions,
   leave: leaveSqlOptions,
   ledger: NO_OPTIONS,
+  assets: assetsSqlOptions,
   memory: memorySqlOptions,
   metrics: metricsSqlOptions,
   mfa: NO_OPTIONS,
