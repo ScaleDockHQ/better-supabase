@@ -1,6 +1,6 @@
 # 0064: Compose blocks through sections, flows and three layers
 
-- Status: accepted
+- Status: superseded by 0093
 - Date: 2026-10-22
 
 ## Context

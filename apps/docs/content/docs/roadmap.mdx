@@ -150,6 +150,47 @@ verticals become thin blocks and presets on top of them.
     `feedback` presets on it. Shipped; see [Posts](/docs/blocks/posts) and
     [Presets](/docs/presets#vertical-presets).
 
+## Planned: block instances and one data contract
+
+Picking blocks should build a working product. This track gives every
+concept one name, lets you install a block more than once under its own
+names, attaches blocks to your record types by default, and puts app tables
+and block tables behind the same data verbs and generated hooks. It removes
+the layers that duplicate each other: built-in plugins, sections, the
+per-framework block folders, preset codes, the extra UI and API paths and the
+split automation stack. Every phase is breaking, ships as its own pull
+request, and comes with a codemod or a doctor lint. The terms are on the
+[Naming](/docs/concepts/naming#glossary) page, and
+[ADR 0093](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0093-block-instances-and-one-data-contract.md)
+records the decision.
+
+1. **Terminology:** module becomes block, organization replaces tenant in
+   every name you see, and `bs` becomes `bsb` everywhere.
+2. **Config groups** (`database`, `auth`, `records`, `tables`, `blocks`,
+   `adapters`, `gen`, `api`, `tooling`) and one organization resolver.
+3. **The CLI** with one command per job, and a new `remove`.
+4. **Designs replace preset codes** in Create URLs and the CLI.
+5. **Block renames** to plain defaults: `tasks`, `contacts`, `activities`,
+   `queue`, `automations`, `memberships`.
+6. **Every block renameable,** and every primary noun a record type.
+7. **Built-in plugins become block extensions.**
+8. **One data contract** for app tables and block tables.
+9. **Instances:** `block`, `on` and `uses` in config, SQL per instance,
+   consumers that register, attach by default and one client per instance.
+10. **The client and generated hooks,** with no transport or organization in
+    app code.
+11. **Per-framework block folders removed.**
+12. **Record bindings** replace sections and record features.
+13. **One UI path** through registry items.
+14. **One API layer** and one spec entry, with supported and community
+    adapters.
+15. **One automation model** on the outbox and the queue.
+16. **Wired by default:** env, routes, workers and providers from the
+    manifests.
+17. **Presets as products,** with `cms`, `erp` and `pim`.
+18. **Gaps between blocks** people pick together.
+19. **Local-first engines** behind the same hooks.
+
 ## Later
 
 - **A machine-readable capability file** for better-supabase itself, in the

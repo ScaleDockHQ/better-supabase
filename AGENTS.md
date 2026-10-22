@@ -207,6 +207,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0090: confirmed bookings become meeting engagements through a trigger on the bookings table.
 - 0091: sequences run on enrollments and send email steps through a `mailer` port from mail-sync.
 - 0092: posts keep boards and posts; votes, replies and moderation stay in their blocks.
+- 0093: blocks install as named instances behind one data contract; plugins, sections and preset codes go (supersedes 0064).
 
 ## Pre-release pins
 
