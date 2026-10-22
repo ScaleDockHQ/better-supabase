@@ -83,7 +83,8 @@ restores it; the owner or a holder of `messages.moderate` archives.
 ## Channels on a record
 
 Pass `subject` to link a channel to a record, such as a deal room for one
-customer. The caller must be able to read the record.
+customer. The caller must be able to read the record, and the record must
+belong to the channel's tenant.
 `forSubject({ type, id })` lists the channels linked to it that the caller
 can see.
 

@@ -582,6 +582,17 @@ begin
       if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         raise exception 'no such record you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
       end if;
+      -- A record with a tenant column takes conversations in its own tenant only.
+      if coalesce((case (open_conversation.attrs ->> 'subjectType')
+      when 'message' then (select s."tenant_id"::text from "better_supabase"."messages" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'conversation' then (select s."tenant_id"::text from "better_supabase"."conversations" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'task' then (select s."organization_id"::text from "centrakit"."tasks" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'project' then (select s."organization_id"::text from "centrakit"."projects" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::uuid)
+      when 'customer' then (select s."organization_id"::text from "centrakit"."customers" s where s."id" = ((open_conversation.attrs ->> 'subjectId'))::bigint)
+      else null::text
+    end) <> open_conversation.tenant::text, false) then
+        raise exception 'no such record in this organization' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
+      end if;
       select c."id" into v_id from "better_supabase"."conversations" c
       where c."tenant_id" = open_conversation.tenant and c."kind" = 'subject'
         and c."subject_type" = open_conversation.attrs ->> 'subjectType' and c."subject_id" = open_conversation.attrs ->> 'subjectId';

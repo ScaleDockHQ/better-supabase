@@ -47,7 +47,11 @@ it:
 | `subject`  | `subject`           | whoever can read the linked record, one conversation per record      |
 
 Members must hold `messages.read` in the tenant. Sending to a `tenant`
-channel joins the sender to it.
+channel joins the sender to it. A `subject` conversation opens only in the
+record's own tenant: when the record's type has a tenant column in
+`config.subjects` and the row belongs to another tenant, `open_conversation`
+fails with `MESSAGING_NOT_FOUND`, for the service role as well. A type with
+`tenant: false` has no tenant to compare.
 
 ```ts
 import {

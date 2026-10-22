@@ -10,6 +10,7 @@ import {
   schemaPreamble,
   userGrant,
 } from "../shared.ts";
+import { subjectTenant } from "../subject-check-sql.ts";
 import { CHANNELS_NAMES, channelsSql } from "./channels-names.ts";
 
 const NAME = "'^[a-z0-9][a-z0-9_-]{0,79}$'";
@@ -126,6 +127,9 @@ begin
   if nullif(create_channel.attrs ->> 'subjectType', '') is not null
     and not (${SERVICE_CALLER} or coalesce(${subjects.fn("can_subject")}(create_channel.attrs ->> 'subjectType', create_channel.attrs ->> 'subjectId', 'read'), false)) then
     ${fail("CHANNELS_NOT_FOUND", "no such record you can read", "P0002")}
+  end if;
+  if coalesce(${subjectTenant(ctx, "(create_channel.attrs ->> 'subjectType')", "(create_channel.attrs ->> 'subjectId')")} <> create_channel.tenant::text, false) then
+    ${fail("CHANNELS_NOT_FOUND", "no such record in this organization", "P0002")}
   end if;
   if exists (select 1 from ${t("channels")} x where x.${ch("tenant")} = create_channel.tenant and x.${ch("name")} = v_name) then
     ${fail("CHANNELS_NAME_TAKEN", "a channel with this name exists", "23505")}

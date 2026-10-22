@@ -96,6 +96,28 @@ describe("messaging module", () => {
     ).not.toContain("can_subject_for");
   });
 
+  it("opens a record's conversation only in the record's tenant", () => {
+    const sql = renderModules(["messaging"], {
+      modules: {},
+      subjects: {
+        deal: { table: "deals", tenant: "workspace_id" },
+        note: { table: "notes", tenant: false },
+      },
+    })
+      .filter((file) => file.module === "messaging")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `when 'deal' then (select s."workspace_id"::text from "public"."deals" s where s."id"::text = (open_conversation.attrs ->> 'subjectId'))`,
+    );
+    expect(sql).not.toContain(`when 'note' then (select`);
+    expect(sql).toContain(
+      `<> open_conversation.tenant::text, false) then
+        raise exception 'no such record in this organization'`,
+    );
+  });
+
   it("labels its notifications and sends none with options.notify false", () => {
     const render = (options: Readonly<Record<string, unknown>> = {}) =>
       renderModules(["notifications", "messaging"], {

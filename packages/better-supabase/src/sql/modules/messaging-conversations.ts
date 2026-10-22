@@ -2,6 +2,7 @@ import type { MessagingSql } from "./messaging-names.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
+import { subjectTenant } from "../subject-check-sql.ts";
 import { conversationTopic } from "./messaging-names.ts";
 import { conversationReadable, guestOnRecord } from "./messaging-tables.ts";
 
@@ -88,6 +89,8 @@ ${userGrant(`${fn("follow")}(text, uuid, boolean)`)}
 `;
         })()
       : "";
+
+  const otherTenant = `coalesce(${subjectTenant(ctx, "(open_conversation.attrs ->> 'subjectType')", "(open_conversation.attrs ->> 'subjectId')")} <> open_conversation.tenant::text, false)`;
 
   const guestRead = ctx.scope.guest(
     "open_conversation.tenant",
@@ -201,6 +204,10 @@ begin
       end if;
       if not (${q.service}${guestOpen.or} or coalesce(${subjects.fn("can_subject")}(open_conversation.attrs ->> 'subjectType', open_conversation.attrs ->> 'subjectId', 'read'), false)) then
         ${fail("MESSAGING_NOT_FOUND", "no such record you can read", "P0002")}
+      end if;
+      -- A record with a tenant column takes conversations in its own tenant only.
+      if ${otherTenant} then
+        ${fail("MESSAGING_NOT_FOUND", "no such record in this organization", "P0002")}
       end if;
       select c.${cv("id")} into v_id from ${t("conversations")} c
       where c.${cv("tenant")} = open_conversation.tenant and c.${cv("kind")} = 'subject'

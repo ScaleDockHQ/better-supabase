@@ -20,7 +20,9 @@ Comments need tenants: the module runs in the `tenant`
 refuses it. The records come from the
 [subject registry](/docs/blocks/sql#subject-registry) (`config.subjects`).
 Whoever can read a record (`can_subject(type, id, 'read')`) and holds
-`messages.read` in the tenant reads its comments.
+`messages.read` in the tenant reads its comments. A comment goes in the record's own
+tenant only: `create_comment` refuses a record whose tenant column names
+another tenant, even for a member of both.
 
 | Table                       | Holds                                                                                                    |
 | --------------------------- | -------------------------------------------------------------------------------------------------------- |
