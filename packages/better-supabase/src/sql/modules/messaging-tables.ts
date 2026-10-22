@@ -183,6 +183,7 @@ ${lockTable(t("reads"), { read: true })}`,
   primary key (${rm("message")}, ${rm("subjectType")}, ${rm("subjectId")})
 );
 create index if not exists ${idx("messaging_record_mentions_subject_idx")} on ${t("recordMentions")} (${rm("subjectType")}, ${rm("subjectId")}, ${rm("createdAt")} desc, ${rm("message")});
+create index if not exists ${idx("messaging_record_mentions_conversation_idx")} on ${t("recordMentions")} (${rm("conversation")});
 ${lockTable(t("recordMentions"), { read: true })}`,
   };
 }

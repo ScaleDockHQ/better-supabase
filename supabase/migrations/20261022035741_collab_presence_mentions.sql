@@ -871,6 +871,8 @@ ALTER TABLE "better_supabase"."message_record_mentions"
 ALTER TABLE "better_supabase"."message_record_mentions"
   ADD CONSTRAINT "message_record_mentions_message_id_fkey" FOREIGN KEY (message_id) REFERENCES better_supabase.messages(id) ON DELETE CASCADE;
 
+CREATE INDEX messaging_record_mentions_conversation_idx ON better_supabase.message_record_mentions USING btree (conversation_id);
+
 CREATE INDEX messaging_record_mentions_subject_idx ON better_supabase.message_record_mentions USING btree (subject_type, subject_id, created_at DESC, message_id);
 
 CREATE POLICY "message_record_mentions_read" ON "better_supabase"."message_record_mentions"

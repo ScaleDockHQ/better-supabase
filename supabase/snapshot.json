@@ -128300,6 +128300,17 @@
             "predicate": null
           },
           {
+            "name": "messaging_record_mentions_conversation_idx",
+            "columns": [
+              "conversation_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "messaging_record_mentions_subject_idx",
             "columns": [
               "subject_type",

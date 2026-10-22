@@ -222,6 +222,7 @@ create table if not exists "better_supabase"."message_record_mentions" (
   primary key ("message_id", "subject_type", "subject_id")
 );
 create index if not exists messaging_record_mentions_subject_idx on "better_supabase"."message_record_mentions" ("subject_type", "subject_id", "created_at" desc, "message_id");
+create index if not exists messaging_record_mentions_conversation_idx on "better_supabase"."message_record_mentions" ("conversation_id");
 alter table "better_supabase"."message_record_mentions" enable row level security;
 revoke all on "better_supabase"."message_record_mentions" from anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
