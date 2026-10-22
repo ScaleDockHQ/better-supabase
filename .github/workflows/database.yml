@@ -83,7 +83,11 @@ jobs:
         run: pnpm exec supabase test db
 
       - name: Lint SQL
-        run: pnpm exec supabase db lint --local --level warning --fail-on error
+        # `extensions` holds third-party code (PostGIS for the assets block),
+        # whose own functions fail plpgsql_check.
+        run: >-
+          pnpm exec supabase db lint --local --level warning --fail-on error
+          --schema api,better_supabase,public,rbac,workflow
 
       - name: Supabase advisors
         run: pnpm exec supabase db advisors --local --type all --fail-on warn
