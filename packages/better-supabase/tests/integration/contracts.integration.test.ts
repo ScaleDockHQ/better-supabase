@@ -5,7 +5,7 @@ import type { Result } from "../../src/core/result.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { createContracts } from "../../src/blocks/contracts/index.ts";
-import { createSignatures } from "../../src/blocks/forms/index.ts";
+import { createSignatures } from "../../src/blocks/signatures/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";

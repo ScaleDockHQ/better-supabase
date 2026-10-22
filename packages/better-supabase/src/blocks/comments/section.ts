@@ -73,13 +73,21 @@ export const commentsSection: Section<
     client.list(subject, options),
   count: (client: Comments, subjects) => client.counts(subjects),
   timeline: (comments) =>
-    comments.map((comment) => ({
-      id: comment.id,
-      kind: "comment",
-      at: comment.sentAt,
-      ...(comment.authorId === undefined ? {} : { actor: comment.authorId }),
-      row: comment,
-    })),
+    comments.flatMap((comment) =>
+      comment.sentAt === undefined
+        ? []
+        : [
+            {
+              id: comment.id,
+              kind: "comment",
+              at: comment.sentAt,
+              ...(comment.authorId === undefined
+                ? {}
+                : { actor: comment.authorId }),
+              row: comment,
+            },
+          ],
+    ),
   events: [
     "message.sent",
     "message.edited",
