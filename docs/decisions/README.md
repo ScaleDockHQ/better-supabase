@@ -73,7 +73,10 @@ add one, and link it from the code or config it explains.
 | [0065](0065-double-entry-ledger.md)                       | Balances live in one double-entry ledger; inventory stock, leave balances and invoice payments move onto it (breaking)                    |
 | [0066](0066-assets-optional-postgis.md)                   | Assets store coordinates as numbers; PostGIS geography points, areas and GiST indexes are an option                                       |
 | [0067](0067-votes-and-score-models.md)                    | Votes are reactions of kind `vote` with a score per subject; scores come from versioned, tenant-editable models                           |
+| [0068](0068-calendar-availability-in-sql.md)              | Calendar free/busy runs in SQL; appointment schedules are bookings resources with a host                                                  |
+| [0069](0069-document-suggestions-outside-the-log.md)      | Document suggestions are updates held outside the log until an editor accepts them; named versions are version labels                     |
 | [0070](0070-guest-and-portal-access.md)                   | Guests reach granted records through `ctx.scope.guest`, never as members; a provider answers through `portalSubjects` and `portalParties` |
+| [0071](0071-drive-labels-and-version-approvals.md)        | Drive labels are tags; file approvals target one attachment and follow the drive grants                                                   |
 | [0072](0072-subject-merge-handlers.md)                    | A record merge moves every module's rows through handlers marked `better-supabase:subject-merge`                                          |
 | [0073](0073-signed-admission-passes.md)                   | Admission passes carry a token signed with the signing-keys block; the database keeps the nonce and decides every scan                    |
 | [0074](0074-billable-time-rate-card.md)                   | Billable time prices entries from an hourly rate card into draft invoice lines; billed entries lock until the invoice is voided           |

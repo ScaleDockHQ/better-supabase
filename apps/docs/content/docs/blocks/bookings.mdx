@@ -26,13 +26,13 @@ resource's calendar, with `reminders` customers get reminders, and with
 
 ## Tables
 
-| Table                  | Holds                                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `booking_resources`    | A bookable resource in an organization: `name`, `kind`, `capacity` (overlapping seats), an IANA `tz`, a `calendar_id`    |
-| `booking_availability` | Weekly hours: a `weekday` (1 is Monday) with a `starts_at` and `ends_at` time in the resource's zone                     |
-| `booking_exceptions`   | A `during` range that closes the resource, or opens it outside its hours with `available`                                |
-| `booking_services`     | What is booked: `duration`, `buffer_before`, `buffer_after`, the `resource_kinds` that serve it, `step` and `min_notice` |
-| `bookings`             | `resource_id`, `service_id`, `seat`, `during`, `status` (`hold`, `confirmed`, `cancelled`), `hold_expires_at`, customer  |
+| Table                  | Holds                                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `booking_resources`    | A bookable resource in an organization: `name`, `kind`, `capacity` (overlapping seats), an IANA `tz`, a `calendar_id`, a `host_user_id` and `check_busy` |
+| `booking_availability` | Weekly hours: a `weekday` (1 is Monday) with a `starts_at` and `ends_at` time in the resource's zone                                                     |
+| `booking_exceptions`   | A `during` range that closes the resource, or opens it outside its hours with `available`                                                                |
+| `booking_services`     | What is booked: `duration`, `buffer_before`, `buffer_after`, the `resource_kinds` that serve it, `step` and `min_notice`                                 |
+| `bookings`             | `resource_id`, `service_id`, `seat`, `during`, `status` (`hold`, `confirmed`, `cancelled`), `hold_expires_at`, customer                                  |
 
 Each booking also stores `blocked`, its `during` widened by the service's
 buffers. The constraint is on that range:
@@ -232,6 +232,38 @@ returns the series with its bookings.
 
 To pay for classes with a pack of credits, see
 [class credits](/docs/blocks/passes#class-credits).
+
+## Appointment schedules
+
+An appointment schedule is a page where others book time with a member. Build
+it from a resource the member hosts: set `hostUserId` and `checkBusy`, and the
+slots also skip every time the [calendar block](/docs/blocks/calendar#availability)
+reports the host as busy (their own events, invitations they accepted, focus
+time, out of office and approved leave). The resource's weekly hours stay the
+bookable window; the host's working hours don't narrow it.
+
+```ts
+const { id: resourceId } = await bookings
+  .saveResource(organizationId, {
+    name: "Office hours with Ada",
+    kind: "host",
+    tz: "Europe/Amsterdam",
+    hostUserId: ada,
+    checkBusy: true,
+    calendarId: adaCalendarId,
+  })
+  .orThrow();
+```
+
+A booking confirmed on that resource is copied into its calendar. The slots
+don't count that copy as the host being busy, so one booking only closes its
+own time, padded by the service's buffers. `checkBusy` needs the `calendar`
+module; without it the flag has no effect. Share the service through a link
+(below) for a public schedule.
+
+Rooms work the same way without a host: give the room a resource with `kind:
+"room"` and a `capacity`, and let services that need a room list `room` in
+`resourceKinds`.
 
 ## Public booking
 

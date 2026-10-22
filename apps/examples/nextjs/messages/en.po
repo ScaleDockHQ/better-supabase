@@ -2440,11 +2440,13 @@ msgid "All day"
 msgstr "All day"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.dM-p3_"
 msgid "From"
 msgstr "From"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.9j3hXO"
 msgid "To"
 msgstr "To"
@@ -2455,6 +2457,7 @@ msgid "Location"
 msgstr "Location"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.47FYwb"
 msgid "Cancel"
 msgstr "Cancel"
@@ -2960,6 +2963,26 @@ msgstr "Pick one"
 msgctxt "courses.LotwiE"
 msgid "Submit answers"
 msgstr "Submit answers"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.hTxGRa"
+msgid "Working hours saved"
+msgstr "Working hours saved"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.pb74he"
+msgid "Working hours"
+msgstr "Working hours"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.Y-CeYn"
+msgid "Monday to Friday, in your time zone. Free/busy and find-a-time use them."
+msgstr "Monday to Friday, in your time zone. Free/busy and find-a-time use them."
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.jvo0vs"
+msgid "Save"
+msgstr "Save"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
@@ -3958,6 +3981,11 @@ msgid "Files"
 msgstr "Files"
 
 #: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.7hEmx-"
+msgid "Drop or paste files to upload. They download after the virus scan."
+msgstr "Drop or paste files to upload. They download after the virus scan."
+
+#: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.2Ne0Nv"
 msgid "Files download after the virus scan marks them clean."
 msgstr "Files download after the virus scan marks them clean."
@@ -3978,9 +4006,19 @@ msgid "Attach contracts, quotes or anything else about this customer."
 msgstr "Attach contracts, quotes or anything else about this customer."
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.5iaKnS"
-msgid "Upload unfinished"
-msgstr "Upload unfinished"
+msgctxt "customers.lrdlY6"
+msgid "File uploaded"
+msgstr "File uploaded"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hsYvDX"
+msgid "Uploading"
+msgstr "Uploading"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.QLkzoS"
+msgid "Saving"
+msgstr "Saving"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.oCixBp"
@@ -3988,14 +4026,44 @@ msgid "Waiting for scan"
 msgstr "Waiting for scan"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.IZFEUg"
-msgid "Ready"
-msgstr "Ready"
+msgctxt "customers.LwdDVa"
+msgid "Uploaded"
+msgstr "Uploaded"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.qUJTsT"
 msgid "Blocked"
 msgstr "Blocked"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.vXCeIi"
+msgid "Failed"
+msgstr "Failed"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.minycD"
+msgid "Upload progress for {name}"
+msgstr "Upload progress for {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hRJjA7"
+msgid "Retry {name}"
+msgstr "Retry {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.OPIp6Z"
+msgid "Dismiss {name}"
+msgstr "Dismiss {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.5iaKnS"
+msgid "Upload unfinished"
+msgstr "Upload unfinished"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.IZFEUg"
+msgid "Ready"
+msgstr "Ready"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.pRoW6a"
@@ -4008,24 +4076,14 @@ msgid "Download {name}"
 msgstr "Download {name}"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.C_zqJE"
-msgid "The upload failed. Try again."
-msgstr "The upload failed. Try again."
+msgctxt "customers.w6J38y"
+msgid "Upload more"
+msgstr "Upload more"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.lrdlY6"
-msgid "File uploaded"
-msgstr "File uploaded"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.hsYvDX"
-msgid "Uploading"
-msgstr "Uploading"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.6oOCCL"
-msgid "Upload file"
-msgstr "Upload file"
+msgctxt "customers.2jjdVz"
+msgid "Upload files"
+msgstr "Upload files"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.88bXgO"
@@ -4924,9 +4982,24 @@ msgid "You can read this document. Ask an admin for edit access."
 msgstr "You can read this document. Ask an admin for edit access."
 
 #: src/features/documents/components/document-editor.tsx
+msgctxt "documents.UziXES"
+msgid "Your edits become a suggestion that an editor accepts."
+msgstr "Your edits become a suggestion that an editor accepts."
+
+#: src/features/documents/components/document-editor.tsx
 msgctxt "documents.pfzLED"
 msgid "Changes save as you type and show up for everyone editing."
 msgstr "Changes save as you type and show up for everyone editing."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.pBQ5bd"
+msgid "Editing"
+msgstr "Editing"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.N-xlF3"
+msgid "Suggesting"
+msgstr "Suggesting"
 
 #: src/features/documents/components/document-editor.tsx
 msgctxt "documents.9a9-ww"
@@ -4952,6 +5025,51 @@ msgstr "Write the notes here."
 msgctxt "documents.moUq9i"
 msgid "Plain text. Everyone who can read the customer can read it."
 msgstr "Plain text. Everyone who can read the customer can read it."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.y5bka7"
+msgid "Submit suggestion"
+msgstr "Submit suggestion"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.mkAc9X"
+msgid "The suggestions didn't load"
+msgstr "The suggestions didn't load"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.O359cZ"
+msgid "No open suggestions"
+msgstr "No open suggestions"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.gQ-Wnb"
+msgid "Suggested edits wait here until an editor accepts them."
+msgstr "Suggested edits wait here until an editor accepts them."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.FN-iLO"
+msgid "Suggest a change"
+msgstr "Suggest a change"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.Hv0XJn"
+msgid "Suggestions"
+msgstr "Suggestions"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.-CvNGk"
+msgid "Suggested edit"
+msgstr "Suggested edit"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.VzIOKf"
+msgid "Reject"
+msgstr "Reject"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.sjzLbX"
+msgid "Accept"
+msgstr "Accept"
 
 #: src/features/documents/components/document-list.tsx
 msgctxt "documents.JZAFzY"
@@ -5010,6 +5128,31 @@ msgid "Retry"
 msgstr "Retry"
 
 #: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.uPFUUe"
+msgid "Awaiting approval"
+msgstr "Awaiting approval"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.5qaD7s"
+msgid "Rejected"
+msgstr "Rejected"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.oy7udF"
+msgid "Approval cancelled"
+msgstr "Approval cancelled"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.3dBHaS"
+msgid "Approval expired"
+msgstr "Approval expired"
+
+#: src/features/drive/components/drive-explorer.tsx
 msgctxt "drive.UVALem"
 msgid "My drive"
 msgstr "My drive"
@@ -5063,6 +5206,11 @@ msgid "{size} KB"
 msgstr "{size} KB"
 
 #: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.Yc3a19"
+msgid "Approval requested for {name}"
+msgstr "Approval requested for {name}"
+
+#: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.icI5MO"
 msgid "Actions for {name}"
 msgstr "Actions for {name}"
@@ -5071,6 +5219,11 @@ msgstr "Actions for {name}"
 msgctxt "drive.5q3qC0"
 msgid "Download"
 msgstr "Download"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.0JzFLp"
+msgid "Request approval"
+msgstr "Request approval"
 
 #: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.iXNbPf"

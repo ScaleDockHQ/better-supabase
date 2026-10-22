@@ -332,4 +332,109 @@ describe("work-items block, sparse rows and options", () => {
     expect(sprint.teamId).toBe("t1");
     expect(sprint.startsOn.toString()).toBe("1970-01-01");
   });
+
+  it("sends attachments, keeps checklists, a repeat rule and watchers", async () => {
+    const rule = {
+      rrule: "FREQ=WEEKLY",
+      tzid: "Europe/Amsterdam",
+      dtstart: "2026-10-24T09:00:00Z",
+    };
+
+    const entry = {
+      id: "c1",
+      workItemId: "w1",
+      title: "Draft",
+      done: true,
+      doneAt: "2026-10-22T09:00:00Z",
+      doneBy: "u1",
+      rank: "V",
+      createdAt: "2026-10-21T09:00:00Z",
+    };
+
+    const full = {
+      ...ROW,
+      checklist: { total: 2, done: 1 },
+      recurrence: rule,
+      recurs_from: "w0",
+    };
+
+    const t = transport({
+      create_work_item: () => full,
+      get_work_item: (args) => (args["work_item"] === "w1" ? full : null),
+      list_work_item_checklist: () => [entry],
+      save_work_item_checklist_item: () => ({
+        ...entry,
+        done: false,
+        doneAt: null,
+        doneBy: null,
+      }),
+      delete_work_item_checklist_item: () => true,
+      set_work_item_recurrence: (args) =>
+        args["rrule"] === null ? null : rule,
+      repeat_work_item: () => ({ ...full, id: "w2", recurs_from: "w1" }),
+      watch_work_item: () => true,
+      list_work_item_watchers: () => [{ userId: "u2", level: "all" }],
+    });
+
+    const items = createWorkItems({ transport: t });
+
+    const item = await items
+      .create("o", { title: "Report", attachmentIds: ["a1"] })
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toMatchObject({
+      attrs: { title: "Report", attachments: ["a1"] },
+    });
+    expect(item).toMatchObject({
+      checklist: { total: 2, done: 1 },
+      recurrence: { rrule: "FREQ=WEEKLY", tzid: "Europe/Amsterdam" },
+      recursFromId: "w0",
+      fields: { customer_id: 7 },
+    });
+    expect((await items.get("w1").orThrow())?.id).toBe("w1");
+    expect(await items.get("w9").orThrow()).toBeUndefined();
+    expect(await items.checklist("w1").orThrow()).toEqual([
+      {
+        ...entry,
+        doneAt: Temporal.Instant.from(entry.doneAt),
+        createdAt: Temporal.Instant.from(entry.createdAt),
+      },
+    ]);
+
+    const saved = await items
+      .saveChecklistItem("w1", { done: false }, "c1")
+      .orThrow();
+
+    expect(saved.doneAt).toBeUndefined();
+    expect(t.calls.at(-1)?.[1]).toEqual({
+      work_item: "w1",
+      checklist_item: "c1",
+      attrs: { done: false },
+    });
+    await items.saveChecklistItem("w1", { title: "Send" }).orThrow();
+    expect(t.calls.at(-1)?.[1]).toMatchObject({ checklist_item: null });
+    expect(await items.removeChecklistItem("c1").orThrow()).toBe(true);
+
+    expect(
+      (await items.setRecurrence("w1", { rrule: "FREQ=WEEKLY" }).orThrow())
+        ?.dtstart,
+    ).toEqual(Temporal.Instant.from(rule.dtstart));
+    expect(t.calls.at(-1)?.[1]).toEqual({
+      work_item: "w1",
+      rrule: "FREQ=WEEKLY",
+      tzid: "UTC",
+    });
+    expect(await items.setRecurrence("w1", null).orThrow()).toBeUndefined();
+
+    const next = Temporal.Instant.from("2026-10-31T09:00:00Z");
+    expect((await items.repeat("w1", next).orThrow()).recursFromId).toBe("w1");
+    expect(t.calls.at(-1)?.[1]).toEqual({
+      work_item: "w1",
+      due_at: "2026-10-31T09:00:00Z",
+    });
+    expect(await items.watch("w1", "all").orThrow()).toBe(true);
+    expect(await items.watchers("w1").orThrow()).toEqual([
+      { userId: "u2", level: "all" },
+    ]);
+  });
 });

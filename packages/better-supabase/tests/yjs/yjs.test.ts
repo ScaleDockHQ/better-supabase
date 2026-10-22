@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
 
 import type {
+  DecidedSuggestion,
   Documents,
   DocumentState,
+  DocumentSuggestion,
   OpenedDocument,
 } from "../../src/blocks/documents/documents.ts";
 import type { RealtimeClient } from "../../src/realtime/index.ts";
@@ -18,8 +20,9 @@ import {
 
 const DOC_ID = "00000000-0000-4000-8000-000000000001";
 
-function fakeServer(canWrite = true) {
+function fakeServer(canWrite = true, canSuggest = canWrite) {
   const push = vi.fn();
+  const suggestions: DocumentSuggestion[] = [];
   let snapshot: { state: Uint8Array; seq: number } | undefined;
   let updates: { seq: number; update: Uint8Array }[] = [];
   let next = 1;
@@ -52,6 +55,7 @@ function fakeServer(canWrite = true) {
         name: ref.name ?? "body",
         topic: `documents:${DOC_ID}`,
         canWrite,
+        canSuggest,
         createdAt: now,
         updatedAt: now,
         ...stateAfter(0),
@@ -85,6 +89,42 @@ function fakeServer(canWrite = true) {
     },
     saveVersion: () => AsyncResult.ok({ id: "v", number: 1 }),
     versions: () => AsyncResult.ok([]),
+    nameVersion: () => AsyncResult.ok(true),
+    suggest: (documentId, update, summary) => {
+      const suggestion: DocumentSuggestion = {
+        id: `s${String(suggestions.length + 1)}`,
+        documentId,
+        update,
+        status: "open",
+        createdAt: now,
+        ...(summary === undefined ? {} : { summary }),
+      };
+
+      suggestions.push(suggestion);
+
+      return AsyncResult.ok(suggestion);
+    },
+    suggestions: () => AsyncResult.ok(suggestions),
+    decideSuggestion: (id, decision) => {
+      const found = suggestions.find((item) => item.id === id);
+
+      if (found === undefined) {
+        return AsyncResult.err<DecidedSuggestion>({
+          kind: "not_found",
+          message: "suggestion not found",
+        } as never);
+      }
+
+      if (decision !== "accepted") {
+        return AsyncResult.ok({ ...found, status: decision });
+      }
+
+      const seq = next;
+      next += 1;
+      updates.push({ seq, update: found.update });
+
+      return AsyncResult.ok({ ...found, status: decision, seq });
+    },
     version: () => AsyncResult.ok(new Uint8Array()),
     toCompact: () => AsyncResult.ok([DOC_ID]),
   };
@@ -92,6 +132,7 @@ function fakeServer(canWrite = true) {
   return {
     documents,
     push,
+    suggestions,
     count: () => updates.length,
     snapshotSeq: () => snapshot?.seq,
     setOffline: (value: boolean) => {
@@ -292,6 +333,159 @@ describe("createDocumentProvider", () => {
     doc.getText("t").insert(0, "x");
     await provider.flush();
     expect(server.push).not.toHaveBeenCalled();
+    await provider.destroy();
+  });
+
+  it("collects suggest-mode edits into a suggestion an editor accepts", async () => {
+    const server = fakeServer(false, true);
+    const bus = fakeBus();
+    const draft = new Y.Doc();
+    const edited = new Y.Doc();
+
+    const suggester = createDocumentProvider({
+      documents: server.documents,
+      client: bus.client().client,
+      doc: draft,
+      ref,
+      yjs: Y,
+      mode: "suggest",
+    });
+
+    expect((await suggester.submitSuggestion()).ok).toBe(false);
+    await suggester.connect().orThrow();
+    expect(suggester.mode).toBe("suggest");
+    expect(suggester.hasDraft).toBe(false);
+    expect((await suggester.submitSuggestion()).ok).toBe(false);
+    draft.getText("t").insert(0, "new ");
+    draft.getText("t").insert(4, "text");
+    await suggester.flush();
+    expect(server.push).not.toHaveBeenCalled();
+    expect(suggester.hasDraft).toBe(true);
+    const suggestion = await suggester.submitSuggestion("Intro").orThrow();
+    expect(suggestion.summary).toBe("Intro");
+    expect(suggester.hasDraft).toBe(false);
+    expect(server.count()).toBe(0);
+
+    const editorServer = { ...server.documents };
+
+    const editor = createDocumentProvider({
+      documents: {
+        ...editorServer,
+        open: (target) =>
+          editorServer
+            .open(target)
+            .map((opened) => ({ ...opened, canWrite: true })),
+      },
+      client: bus.client().client,
+      doc: edited,
+      ref,
+      yjs: Y,
+    });
+
+    expect((await editor.acceptSuggestion(suggestion.id)).ok).toBe(false);
+    await editor.connect().orThrow();
+    expect(edited.getText("t").toString()).toBe("");
+    const missing = await editor.acceptSuggestion("nope");
+    expect(missing.ok).toBe(false);
+    const decided = await editor.acceptSuggestion(suggestion.id).orThrow();
+    expect(decided.seq).toBe(1);
+    expect(edited.getText("t").toString()).toBe("new text");
+    expect(server.count()).toBe(1);
+    await editor.flush();
+    expect(server.push).not.toHaveBeenCalled();
+    await suggester.destroy();
+    await editor.destroy();
+  });
+
+  it("keeps the draft when a suggestion fails and accepts out of order", async () => {
+    const server = fakeServer();
+    const doc = new Y.Doc();
+    let failing = true;
+
+    const provider = createDocumentProvider({
+      documents: {
+        ...server.documents,
+        suggest: (documentId, update, summary) =>
+          failing
+            ? AsyncResult.err<DocumentSuggestion>({
+                kind: "network",
+                message: "offline",
+              } as never)
+            : server.documents.suggest(documentId, update, summary),
+        decideSuggestion: (id, decision) =>
+          server.documents
+            .decideSuggestion(id, decision)
+            .map((decided) => ({ ...decided, seq: 5 })),
+      },
+      client: fakeBus().client().client,
+      doc,
+      ref,
+      yjs: Y,
+      mode: "suggest",
+    });
+
+    await provider.connect().orThrow();
+    doc.getText("t").insert(0, "one");
+    expect((await provider.submitSuggestion()).ok).toBe(false);
+    expect(provider.hasDraft).toBe(true);
+    failing = false;
+    const suggestion = await provider.submitSuggestion().orThrow();
+    expect(provider.hasDraft).toBe(false);
+    const decided = await provider.acceptSuggestion(suggestion.id).orThrow();
+    expect(decided.seq).toBe(5);
+    await provider.destroy();
+  });
+
+  it("ignores suggest-mode edits without the suggest permission", async () => {
+    const server = fakeServer(false, false);
+    const doc = new Y.Doc();
+
+    const provider = createDocumentProvider({
+      documents: server.documents,
+      client: fakeBus().client().client,
+      doc,
+      ref,
+      yjs: Y,
+    });
+
+    await provider.connect().orThrow();
+    provider.setMode("suggest");
+    doc.getText("t").insert(0, "x");
+    expect(provider.hasDraft).toBe(false);
+    provider.setMode("edit");
+    expect(provider.mode).toBe("edit");
+    await provider.destroy();
+  });
+
+  it("skips the broadcast when an accept carries no sequence number", async () => {
+    const server = fakeServer();
+    const bus = fakeBus().client();
+    const doc = new Y.Doc();
+    const other = new Y.Doc();
+    other.getText("t").insert(0, "late");
+
+    const provider = createDocumentProvider({
+      documents: {
+        ...server.documents,
+        decideSuggestion: () =>
+          AsyncResult.ok<DecidedSuggestion>({
+            id: "s1",
+            documentId: DOC_ID,
+            update: Y.encodeStateAsUpdate(other),
+            status: "accepted",
+            createdAt: temporal().Now.instant(),
+          }),
+      },
+      client: bus.client,
+      doc,
+      ref,
+      yjs: Y,
+    });
+
+    await provider.connect().orThrow();
+    await provider.acceptSuggestion("s1").orThrow();
+    expect(doc.getText("t").toString()).toBe("late");
+    expect(bus.channel.send).not.toHaveBeenCalled();
     await provider.destroy();
   });
 

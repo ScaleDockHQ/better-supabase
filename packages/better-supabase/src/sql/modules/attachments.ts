@@ -1,10 +1,5 @@
 import type { AttachmentsEvents } from "../../blocks/attachments/events.ts";
-import type {
-  ModuleContext,
-  ModuleContractFunction,
-  ModuleEvents,
-  ModuleNames,
-} from "../context.ts";
+import type { ModuleContext, ModuleEvents, ModuleNames } from "../context.ts";
 import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
@@ -28,6 +23,8 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
+import { attachmentsContract } from "./attachments-contract.ts";
+import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
 
 const EVENTS: ModuleEvents<AttachmentsEvents> = {
@@ -48,6 +45,27 @@ const EVENTS: ModuleEvents<AttachmentsEvents> = {
     subject: "attachments",
     payload: ["attachmentId", "organizationId", "status", "uploadedBy"],
     retries: true,
+  },
+  "attachment.replaced": {
+    subject: "attachments",
+    payload: [
+      "attachmentId",
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "uploadedBy",
+      "version",
+    ],
+  },
+  "attachment.restored": {
+    subject: "attachments",
+    payload: [
+      "attachmentId",
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "version",
+    ],
   },
 };
 
@@ -90,8 +108,36 @@ const NAMES: ModuleNames = {
         uploadedAt: "uploaded_at",
         scannedAt: "scanned_at",
         metadata: "metadata",
+        version: "version",
+        width: "width",
+        height: "height",
+        pages: "pages",
       },
       optional: ["metadata"],
+    },
+    versions: {
+      name: "attachment_versions",
+      lifecycle: { user: "uploadedBy", tenant: "tenant" },
+      columns: {
+        id: "id",
+        tenant: "organization_id",
+        attachment: "attachment_id",
+        version: "version",
+        bucket: "bucket",
+        path: "object_path",
+        name: "name",
+        mimeType: "mime_type",
+        size: "size",
+        width: "width",
+        height: "height",
+        pages: "pages",
+        status: "status",
+        detail: "scan_detail",
+        uploadedBy: "uploaded_by",
+        uploadedAt: "uploaded_at",
+        scannedAt: "scanned_at",
+        archivedAt: "archived_at",
+      },
     },
     scans: {
       name: "scanned_objects",
@@ -121,6 +167,9 @@ const PATH_PARTS: Readonly<Record<string, string>> = {
 const pathTemplate = (ctx: ModuleContext): string =>
   ctx.text("path", "{organization_id}/attachments/{id}");
 
+/** Version 2 and later of a file live at its path plus `-v<version>`. */
+const VERSION_SUFFIX = /-v\d+$/;
+
 function pathExpression(ctx: ModuleContext, tenantless = false): string {
   const template = pathTemplate(ctx);
   const where = "blocks.attachments.options.path";
@@ -134,6 +183,12 @@ function pathExpression(ctx: ModuleContext, tenantless = false): string {
   if (!template.startsWith("{organization_id}/")) {
     throw new TypeError(
       `${where} must start with {organization_id}/, so a tenant's files share a prefix`,
+    );
+  }
+
+  if (VERSION_SUFFIX.test(template)) {
+    throw new TypeError(
+      `${where} must not end in -v and digits, which mark a file's later versions`,
     );
   }
 
@@ -237,6 +292,10 @@ function scanBucketsOf(ctx: ModuleContext): readonly string[] {
   return buckets;
 }
 
+/** The argument types of `create_attachment`, before `fields`. */
+const CREATE_ARGS = (id: string): string =>
+  `${id}, text, text, bigint, text, text, jsonb, integer, integer, integer`;
+
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
 const BUCKET = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
 
@@ -250,6 +309,15 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const metadata = ctx.has("attachments", "metadata");
   const c = (logical: string): string => ctx.col("attachments", logical);
   const fn = (name: string): string => ctx.fn(name);
+  const versions = ctx.table("versions");
+  const vc = (logical: string): string => ctx.col("versions", logical);
+  const { current, atCurrent } = versionPaths(c);
+  const pathKey = sqlString(c("path").replaceAll('"', ""));
+
+  // The row as JSON, with object_path set to the current version's path.
+  const rowJson = (row: string): string =>
+    `(to_jsonb(${row}) || jsonb_build_object(${pathKey}, ${current(row)}))`;
+
   const permissions = moduleOperations("attachments");
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const requireScan = ctx.flag("requireScan", true);
@@ -322,7 +390,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const extras = ctx.extraColumns("attachments", RESERVED);
 
   const json = (row: string): string =>
-    withExtraFields(`to_jsonb(${row})`, row, extras);
+    withExtraFields(rowJson(row), row, extras);
 
   const authors = authorLookup(ctx, {
     name: "attachment_authors",
@@ -342,7 +410,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   });
 
   const listJson = (row: string): string => {
-    const base = withExtraFields(`to_jsonb(${row}.*)`, row, extras);
+    const base = withExtraFields(rowJson(row), row, extras);
 
     return authors === undefined
       ? base
@@ -370,6 +438,9 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     c("subjectType"),
     c("subjectId"),
     ...(metadata ? [c("metadata")] : []),
+    c("width"),
+    c("height"),
+    c("pages"),
   ];
 
   const createWithExtras = `
@@ -389,6 +460,9 @@ begin
   v_row.${c("size")} := create_attachment.size;
   v_row.${c("subjectType")} := create_attachment.subject_type;
   v_row.${c("subjectId")} := create_attachment.subject_id;${metadata ? `\n  v_row.${c("metadata")} := coalesce(create_attachment.metadata, '{}');` : ""}
+  v_row.${c("width")} := create_attachment.width;
+  v_row.${c("height")} := create_attachment.height;
+  v_row.${c("pages")} := create_attachment.pages;
   select string_agg(column_name, ', ')
   into v_columns
   from unnest(array[${insertColumns.map((column) => sqlString(column)).join(", ")}]
@@ -444,15 +518,16 @@ end;`;
     audit: false,
   });
 
-  const readable = requireScan
-    ? `a.${c("status")} = 'clean'`
-    : `a.${c("status")} in ('pending', 'clean', 'failed')`;
+  const readable = (row: string, col: (logical: string) => string): string =>
+    requireScan
+      ? `${row}.${col("status")} = 'clean'`
+      : `${row}.${col("status")} in ('pending', 'clean', 'failed')`;
 
   const bucketLiteral = sqlString(bucket);
 
   const uploaded = ctx.record({
     type: "attachment.uploaded",
-    payload: `jsonb_build_object('attachmentId', v_row.${c("id")}, 'organizationId', v_row.${c("tenant")}::text, 'subjectType', v_row.${c("subjectType")}, 'subjectId', v_row.${c("subjectId")}, 'uploadedBy', v_row.${c("uploadedBy")}, 'mimeType', v_row.${c("mimeType")}, 'size', v_row.${c("size")})`,
+    payload: `jsonb_build_object('attachmentId', v_row.${c("id")}, 'organizationId', v_row.${c("tenant")}::text, 'subjectType', v_row.${c("subjectType")}, 'subjectId', v_row.${c("subjectId")}, 'uploadedBy', v_row.${c("uploadedBy")}, 'mimeType', v_row.${c("mimeType")}, 'size', v_row.${c("size")}, 'version', v_row.${c("version")})`,
     subject: `'attachments/' || v_row.${c("id")}::text`,
     tenant: `v_row.${c("tenant")}`,
     audit: {
@@ -469,6 +544,15 @@ end;`;
     tenant: `v_row.${c("tenant")}`,
     key: `'attachment.scanned:' || v_row.${c("id")}::text || ':' || v_row.${c("status")}`,
     audit: false,
+  });
+
+  // Who may change a file's versions: its uploader with attachments.upload,
+  // attachments.manage, or the service role.
+  const versioned = attachmentVersionsSql(ctx, {
+    id,
+    tenantless: tenantless.length > 0,
+    json,
+    mayVersion: `(v_row.${c("uploadedBy")} = auth.uid() and ${inTenant("v_row", "upload")}) or ${canManage("v_row")} or (${SERVICE_CALLER})`,
   });
 
   const policy = (name: string): string => sqlIdent(`bs_attachments_${name}`);
@@ -495,7 +579,13 @@ create table if not exists ${t} (
   ${c("uploadedAt")} timestamptz,
   ${c("scannedAt")} timestamptz,
   check ((${c("subjectType")} is null) = (${c("subjectId")} is null))
-);${
+);
+-- The current version (replace_attachment() adds one) and the image or
+-- document size the client measured: width and height in pixels, pages.
+alter table ${t} add column if not exists ${c("version")} integer not null default 1 check (${c("version")} >= 1);
+alter table ${t} add column if not exists ${c("width")} integer check (${c("width")} > 0);
+alter table ${t} add column if not exists ${c("height")} integer check (${c("height")} > 0);
+alter table ${t} add column if not exists ${c("pages")} integer check (${c("pages")} > 0);${
     metadata
       ? `
 -- App data about the file (a caption, the source, a page count), set on create.
@@ -538,7 +628,7 @@ create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} o
 alter table ${t} enable row level security;
 ${revokeTable(t)}
 grant select, delete on ${t} to authenticated;
-grant insert (${[c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : []), ...extras.map((extra) => extra.ident)].join(", ")}) on ${t} to authenticated;
+grant insert (${[c("tenant"), c("bucket"), c("subjectType"), c("subjectId"), c("name"), c("mimeType"), c("size"), ...(metadata ? [c("metadata")] : []), c("width"), c("height"), c("pages"), ...extras.map((extra) => extra.ident)].join(", ")}) on ${t} to authenticated;
 grant all on ${t} to service_role;
 -- Whether the caller may read a subject: its row is visible to them (the
 -- subject table's own policies apply) and they hold its permission. Files
@@ -569,6 +659,7 @@ drop policy if exists ${sqlIdent(`${ctx.tableName("attachments").name}_delete`)}
 create policy ${sqlIdent(`${ctx.tableName("attachments").name}_delete`)} on ${t} for delete to authenticated
   using (${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")});
 
+${versioned.table}
 -- Whether the caller may run action (insert, select or delete) on the
 -- object at path in bucket: an upload needs the caller's pending record, a
 -- read a ${requireScan ? "clean" : "not infected"} file or the uploader or attachments.manage, a delete
@@ -587,11 +678,21 @@ set search_path = ''
 as $$
   select exists (
     select 1 from ${t} a
-    where a.${c("bucket")} = attachment_object_allowed.bucket and a.${c("path")} = attachment_object_allowed.path
+    where a.${c("bucket")} = attachment_object_allowed.bucket and ${atCurrent("a", "attachment_object_allowed.path")}
       and case attachment_object_allowed.action
         when 'insert' then a.${c("status")} = 'pending' and a.${c("uploadedAt")} is null and a.${c("uploadedBy")} = auth.uid()
-        when 'select' then (${readable} and ${inTenant("a", "read")})
+        when 'select' then (${readable("a", c)} and ${inTenant("a", "read")})
           or a.${c("uploadedBy")} = auth.uid() or ${canManage("a")}
+        when 'delete' then a.${c("uploadedBy")} = auth.uid() or ${canManage("a")}
+        else false
+      end
+  ) or exists (
+    select 1 from ${versions} v
+    join ${t} a on a.${c("id")} = v.${vc("attachment")}
+    where v.${vc("bucket")} = attachment_object_allowed.bucket and v.${vc("path")} = attachment_object_allowed.path
+      and case attachment_object_allowed.action
+        when 'select' then (${readable("v", vc)} and ${inTenant("a", "read")})
+          or v.${vc("uploadedBy")} = auth.uid() or ${canManage("a")}
         when 'delete' then a.${c("uploadedBy")} = auth.uid() or ${canManage("a")}
         else false
       end
@@ -613,7 +714,10 @@ set search_path = ''
 as $$
   select exists (
     select 1 from ${t} a
-    where a.${c("bucket")} = attachment_object_visible.bucket and a.${c("path")} = attachment_object_visible.path
+    where a.${c("bucket")} = attachment_object_visible.bucket and ${atCurrent("a", "attachment_object_visible.path")}
+  ) or exists (
+    select 1 from ${versions} v
+    where v.${vc("bucket")} = attachment_object_visible.bucket and v.${vc("path")} = attachment_object_visible.path
   )
 $$;
 revoke execute on function ${fn("attachment_object_visible")}(text, text) from public, anon;
@@ -632,7 +736,9 @@ create policy ${policy("delete")} on storage.objects for delete to authenticated
 
 -- The caller's new record, for a signed upload URL to its object_path.
 drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);
-${extraFieldsArg(extras).drop(fn("create_attachment"), `${id}, text, text, bigint, text, text, jsonb`)}
+drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb);
+drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb, jsonb);
+${extraFieldsArg(extras).drop(fn("create_attachment"), CREATE_ARGS(id))}
 create or replace function ${fn("create_attachment")}(
   tenant ${id},
   name text,
@@ -640,7 +746,10 @@ create or replace function ${fn("create_attachment")}(
   size bigint,
   subject_type text default null,
   subject_id text default null,
-  metadata jsonb default null${extraFieldsArg(extras).param}
+  metadata jsonb default null,
+  width integer default null,
+  height integer default null,
+  pages integer default null${extraFieldsArg(extras).param}
 )
 returns jsonb
 language ${extras.length === 0 ? "sql" : "plpgsql"}
@@ -649,9 +758,9 @@ set search_path = ''
 as $$${
     extras.length === 0
       ? `
-  insert into ${t} as x (${[c("tenant"), c("bucket"), c("name"), c("mimeType"), c("size"), c("subjectType"), c("subjectId"), ...(metadata ? [c("metadata")] : [])].join(", ")})
-  values (create_attachment.tenant, ${bucketFor}, create_attachment.name, lower(create_attachment.mime_type), create_attachment.size, create_attachment.subject_type, create_attachment.subject_id${metadata ? ", coalesce(create_attachment.metadata, '{}')" : ""})
-  returning to_jsonb(x.*)`
+  insert into ${t} as x (${insertColumns.join(", ")})
+  values (create_attachment.tenant, ${bucketFor}, create_attachment.name, lower(create_attachment.mime_type), create_attachment.size, create_attachment.subject_type, create_attachment.subject_id${metadata ? ", coalesce(create_attachment.metadata, '{}')" : ""}, create_attachment.width, create_attachment.height, create_attachment.pages)
+  returning ${rowJson("x")}`
       : createWithExtras
   }
 $$;
@@ -676,7 +785,7 @@ begin
     return ${json("v_row")};
   end if;
   select o.metadata into v_meta from storage.objects o
-  where o.bucket_id = v_row.${c("bucket")} and o.name = v_row.${c("path")};
+  where o.bucket_id = v_row.${c("bucket")} and o.name = ${current("v_row")};
   if not found then
     ${fail("ATTACHMENT_NOT_UPLOADED", "The file was not uploaded yet", "P0002")}
   end if;
@@ -721,7 +830,7 @@ begin
     return case when v_row.${c("id")} is null then null else ${json("v_row")} end;
   end if;
   insert into ${scans} (${sc("bucket")}, ${sc("path")}, ${sc("status")}, ${sc("detail")}, ${sc("scannedAt")})
-  values (v_row.${c("bucket")}, v_row.${c("path")}, v_row.${c("status")}, v_row.${c("detail")}, now())
+  values (v_row.${c("bucket")}, ${current("v_row")}, v_row.${c("status")}, v_row.${c("detail")}, now())
   on conflict (${sc("bucket")}, ${sc("path")}) do update
     set ${sc("status")} = excluded.${sc("status")}, ${sc("detail")} = excluded.${sc("detail")}, ${sc("scannedAt")} = excluded.${sc("scannedAt")};
   ${scanned}
@@ -758,8 +867,10 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select ${withExtraFields("to_jsonb(a.*)", "a", extras)} from ${t} a where a.${c("id")} = get_attachment.id
+  select ${json("a")} from ${t} a where a.${c("id")} = get_attachment.id
 $$;
+
+${versioned.functions}
 
 create or replace function ${fn("delete_attachment")}(id uuid)
 returns boolean
@@ -878,13 +989,13 @@ revoke execute on function ${fn("set_object_scan")}(text, text, text, text) from
 grant execute on function ${fn("object_clean")}(text, text) to authenticated, service_role;
 grant execute on function ${fn("object_scan")}(text, text) to service_role;
 grant execute on function ${fn("set_object_scan")}(text, text, text, text) to service_role;
-revoke execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb${extraFieldsArg(extras).type}) from public, anon;
+revoke execute on function ${fn("create_attachment")}(${CREATE_ARGS(id)}${extraFieldsArg(extras).type}) from public, anon;
 revoke execute on function ${fn("confirm_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("set_attachment_status")}(uuid, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_attachments")}(${id}, text, text) from public, anon;
 revoke execute on function ${fn("get_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("delete_attachment")}(uuid) from public, anon;
-grant execute on function ${fn("create_attachment")}(${id}, text, text, bigint, text, text, jsonb${extraFieldsArg(extras).type}) to authenticated, service_role;
+grant execute on function ${fn("create_attachment")}(${CREATE_ARGS(id)}${extraFieldsArg(extras).type}) to authenticated, service_role;
 grant execute on function ${fn("confirm_attachment")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("set_attachment_status")}(uuid, text, text) to service_role;
 grant execute on function ${fn("list_attachments")}(${id}, text, text) to authenticated, service_role;
@@ -957,56 +1068,6 @@ values ${values.join(",\n  ")}
 on conflict (id) do nothing;`;
 }
 
-function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
-  const extra = extraFieldsArg(
-    ctx.extraColumns("attachments", RESERVED),
-  ).contract;
-
-  return [
-    {
-      name: "attachment_object_allowed",
-      args: ["text", "text", "text"],
-      returns: "boolean",
-    },
-    { name: "object_clean", args: ["text", "text"], returns: "boolean" },
-    {
-      name: "set_object_scan",
-      args: ["text", "text", "text", "text"],
-      returns: "jsonb",
-    },
-    {
-      name: "create_attachment",
-      args: [
-        "{id}",
-        "text",
-        "text",
-        "bigint",
-        "text",
-        "text",
-        "jsonb",
-        ...extra,
-      ],
-      returns: "jsonb",
-    },
-    { name: "confirm_attachment", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "set_attachment_status",
-      args: ["uuid", "text", "text"],
-      returns: "jsonb",
-    },
-    {
-      name: "list_attachments",
-      args: ["{id}", "text", "text"],
-      returns: "jsonb",
-    },
-    { name: "get_attachment", args: ["uuid"], returns: "jsonb" },
-    { name: "delete_attachment", args: ["uuid"], returns: "boolean" },
-    ...(ctx.installed("profiles")
-      ? [{ name: "attachment_authors", args: ["uuid[]"], returns: "jsonb" }]
-      : []),
-  ];
-}
-
 export const ATTACHMENTS: ModuleDefinition = {
   internal: [
     "attachment_authors",
@@ -1024,7 +1085,7 @@ export const ATTACHMENTS: ModuleDefinition = {
   integrates: ["profiles"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -1039,9 +1100,19 @@ export const ATTACHMENTS: ModuleDefinition = {
         "With profiles, list_attachments returns each file's uploader with a name and avatar.",
       sql: () => "",
     },
+    {
+      from: 3,
+      description:
+        "Files keep versions (replace_attachment, restore_attachment_version) and a width, height and page count; create_attachment takes them after metadata.",
+      sql: () => "",
+    },
   ],
   names: NAMES,
-  contract,
+  contract: (ctx) =>
+    attachmentsContract(
+      ctx,
+      extraFieldsArg(ctx.extraColumns("attachments", RESERVED)).contract,
+    ),
   build,
   data,
 };

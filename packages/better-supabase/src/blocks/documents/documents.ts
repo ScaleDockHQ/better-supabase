@@ -10,6 +10,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import {
   applyTemporal,
   blockCall,
+  optionalInstant,
   optionalText,
   recordOf,
   recordsOf,
@@ -71,15 +72,52 @@ export interface DocumentState {
 export interface OpenedDocument extends DocumentInfo, DocumentState {
   /** Whether the caller may push updates. */
   readonly canWrite: boolean;
+  /**
+   * Whether the caller may suggest changes: editors, and readers who hold
+   * `documents.suggest`.
+   */
+  readonly canSuggest: boolean;
 }
 
 export interface DocumentVersion {
   readonly id: string;
   readonly number: number;
+  /** The version's name; a named version is kept out of retention. */
   readonly label?: string;
+  /** `manual` for a saved version, `auto` for one the app took. */
+  readonly source: string;
+  /** A frozen version keeps its name. */
+  readonly frozen: boolean;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
 }
+
+export type DocumentSuggestionStatus =
+  | "open"
+  | "accepted"
+  | "rejected"
+  | "withdrawn";
+
+/** A suggested change: a Yjs update that is not in the log yet. */
+export interface DocumentSuggestion {
+  readonly id: string;
+  readonly documentId: string;
+  readonly update: Uint8Array;
+  readonly summary?: string;
+  readonly status: DocumentSuggestionStatus;
+  readonly createdBy?: string;
+  readonly createdAt: Temporal.Instant;
+  readonly decidedBy?: string;
+  readonly decidedAt?: Temporal.Instant;
+  readonly note?: string;
+}
+
+export interface DecidedSuggestion extends DocumentSuggestion {
+  /** The update's place in the log, when the suggestion was accepted. */
+  readonly seq?: number;
+}
+
+export type SuggestionDecision = "accepted" | "rejected" | "withdrawn";
 
 export interface Documents {
   /** The document's state; creates it on first open for an editor. */
@@ -107,8 +145,46 @@ export interface Documents {
     state: Uint8Array,
     label?: string,
   ): AsyncResult<{ readonly id: string; readonly number: number }>;
-  /** Newest first; needs the versions module. */
-  versions(documentId: string): AsyncResult<readonly DocumentVersion[]>;
+  /**
+   * Newest first; needs the versions module. `named: true` keeps the versions
+   * with a name.
+   */
+  versions(
+    documentId: string,
+    options?: { readonly named?: boolean },
+  ): AsyncResult<readonly DocumentVersion[]>;
+  /**
+   * Names a version, or removes its name with `null`. A named version is kept
+   * out of retention. Editors; needs the versions module.
+   */
+  nameVersion(
+    documentId: string,
+    versionId: string,
+    label: string | null,
+  ): AsyncResult<boolean>;
+  /**
+   * Stores an update as a suggestion instead of appending it. Editors, and
+   * readers who hold `documents.suggest`.
+   */
+  suggest(
+    documentId: string,
+    update: Uint8Array,
+    summary?: string,
+  ): AsyncResult<DocumentSuggestion>;
+  /** Oldest first. Default status: `open`. */
+  suggestions(
+    documentId: string,
+    options?: { readonly status?: DocumentSuggestionStatus | "all" },
+  ): AsyncResult<readonly DocumentSuggestion[]>;
+  /**
+   * Accepts or rejects a suggestion (editors), or withdraws it (its author).
+   * Accepting appends the update to the log.
+   */
+  decideSuggestion(
+    suggestionId: string,
+    decision: SuggestionDecision,
+    note?: string,
+  ): AsyncResult<DecidedSuggestion>;
   /** A saved state; needs the versions module. */
   version(documentId: string, versionId: string): AsyncResult<Uint8Array>;
   /** Documents with at least `minUpdates` uncompacted updates. Service role. */
@@ -153,6 +229,7 @@ function openedOf(value: unknown): OpenedDocument {
     name: textOf(row["name"]),
     topic: textOf(row["topic"]),
     canWrite: row["canWrite"] === true,
+    canSuggest: row["canSuggest"] === true,
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...stateOf(row, "open_document"),
@@ -166,9 +243,56 @@ function versionOf(value: Record<string, unknown>): DocumentVersion {
   return {
     id: textOf(value["id"]),
     number: seqOf(value["number"], "number"),
+    source: optionalText(value["source"]) ?? "manual",
+    frozen: value["frozen"] === true,
     createdAt: requiredInstant(value["createdAt"], "createdAt"),
     ...(label === undefined ? {} : { label }),
     ...(createdBy === undefined ? {} : { createdBy }),
+  };
+}
+
+const SUGGESTION_STATUSES: ReadonlySet<string> = new Set([
+  "open",
+  "accepted",
+  "rejected",
+  "withdrawn",
+]);
+
+function isSuggestionStatus(value: unknown): value is DocumentSuggestionStatus {
+  return typeof value === "string" && SUGGESTION_STATUSES.has(value);
+}
+
+function suggestionOf(value: unknown, fn: string): DecidedSuggestion {
+  const row = recordOf(value, fn);
+  const status = row["status"];
+
+  if (!isSuggestionStatus(status)) {
+    throw new TypeError(`${fn} returned an unknown status`);
+  }
+
+  const summary = optionalText(row["summary"]);
+  const createdBy = optionalText(row["createdBy"]);
+  const decidedBy = optionalText(row["decidedBy"]);
+  const decidedAt = optionalInstant(row["decidedAt"]);
+  const note = optionalText(row["note"]);
+
+  const seq =
+    row["seq"] === undefined || row["seq"] === null
+      ? undefined
+      : seqOf(row["seq"], "seq");
+
+  return {
+    id: textOf(row["id"]),
+    documentId: textOf(row["documentId"]),
+    update: fromBase64(textOf(row["update"])),
+    status,
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    ...(summary === undefined ? {} : { summary }),
+    ...(createdBy === undefined ? {} : { createdBy }),
+    ...(decidedBy === undefined ? {} : { decidedBy }),
+    ...(decidedAt === undefined ? {} : { decidedAt }),
+    ...(note === undefined ? {} : { note }),
+    ...(seq === undefined ? {} : { seq }),
   };
 }
 
@@ -228,9 +352,42 @@ export function createDocuments(options: DocumentsOptions): Documents {
           };
         },
       ),
-    versions: (documentId) =>
+    versions: (documentId, list = {}) =>
       call("list_document_versions", { document_id: documentId }, (value) =>
-        recordsOf(value, "list_document_versions").map(versionOf),
+        recordsOf(value, "list_document_versions")
+          .map(versionOf)
+          .filter((item) => list.named !== true || item.label !== undefined),
+      ),
+    nameVersion: (documentId, versionId, label) =>
+      call(
+        "name_document_version",
+        { document_id: documentId, version_id: versionId, label },
+        (value) => value === true,
+      ),
+    suggest: (documentId, update, summary) =>
+      call(
+        "suggest_document_change",
+        {
+          document_id: documentId,
+          payload: toBase64(update),
+          summary: summary ?? null,
+        },
+        (value) => suggestionOf(value, "suggest_document_change"),
+      ),
+    suggestions: (documentId, list = {}) =>
+      call(
+        "list_document_suggestions",
+        { document_id: documentId, status: list.status ?? "open" },
+        (value) =>
+          recordsOf(value, "list_document_suggestions").map((item) =>
+            suggestionOf(item, "list_document_suggestions"),
+          ),
+      ),
+    decideSuggestion: (suggestionId, decision, note) =>
+      call(
+        "decide_document_suggestion",
+        { suggestion_id: suggestionId, decision, note: note ?? null },
+        (value) => suggestionOf(value, "decide_document_suggestion"),
       ),
     version: (documentId, versionId) =>
       call(

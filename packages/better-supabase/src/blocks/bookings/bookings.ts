@@ -3,6 +3,7 @@ import type { BlockOptions } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { WeeklyHours } from "../calendar/availability.ts";
 import type { JobHandler } from "../jobs/types.ts";
 import type {
   BookedSeries,
@@ -79,18 +80,18 @@ export interface BookingResourceInput {
    * installed.
    */
   readonly calendarId?: string | null;
+  /**
+   * The member who staffs it: with `checkBusy`, a slot also needs them free in
+   * the calendar block (events, out of office, focus time and leave), which
+   * turns a service into an appointment schedule.
+   */
+  readonly hostUserId?: string | null;
+  /** Default `false`. */
+  readonly checkBusy?: boolean;
   readonly active?: boolean;
 }
 
-/**
- * Weekly opening hours: `weekday` 1 is Monday, times are `HH:MM` in the
- * resource's zone.
- */
-export interface WeeklyHours {
-  readonly weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7;
-  readonly start: string;
-  readonly end: string;
-}
+export type { WeeklyHours };
 
 export interface BookingExceptionInput {
   readonly startsAt: Temporal.Instant;

@@ -33,6 +33,7 @@ import {
   validateRuns,
 } from "./approvals-policies.ts";
 import { approverCheck } from "./approver.ts";
+import { driveSubjectGuard } from "./drive-kit.ts";
 import { providerMembers } from "./tenant.ts";
 
 /** Requests the access-requests module files; their subject is its row. */
@@ -222,15 +223,31 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       ? "false"
       : `${column} in (${linked.map((type) => sqlString(type)).join(", ")})`;
 
+  const drive = driveSubjectGuard(ctx);
+
+  const subjectAccess = (
+    args: {
+      readonly type: string;
+      readonly id: string;
+      readonly tenant: string;
+    },
+    access: "read" | "write",
+  ): string => {
+    const listed = subjectReadable(ctx, subjects, args);
+
+    return drive === undefined
+      ? listed
+      : drive.guard(args.type, args.id, access, listed);
+  };
+
   const declared = (row: string): string =>
-    `(${row}.${c("subjectType")} ${own.length === 1 ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectReadable(
-      ctx,
-      subjects,
+    `(${row}.${c("subjectType")} ${own.length === 1 ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectAccess(
       {
         type: `${row}.${c("subjectType")}`,
         id: `${row}.${c("subjectId")}`,
         tenant: `${row}.${c("tenant")}`,
       },
+      "read",
     )})`;
 
   const readable = (row: string): string =>
@@ -725,7 +742,7 @@ begin
   if v_policy is null then
     ${fail("APPROVAL_POLICY_UNKNOWN", "no approval policy for this subject type and action", "22023")}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectReadable(ctx, subjects, { type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectAccess({ type: "request_approval.subject_type", id: "request_approval.subject_id", tenant: "request_approval.tenant" }, "write")})) then
     ${fail("APPROVAL_FORBIDDEN", "not allowed to request approval for this record")}
   end if;
   ${extras.length === 0 ? "return " : "v_result := "}${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);${
@@ -1060,6 +1077,7 @@ export const APPROVALS: ModuleDefinition = {
     "audit",
     "notifications",
     "jobs",
+    "drive",
     "teams",
     "state-machine",
     "access-requests",

@@ -1,4 +1,6 @@
 export {
+  type ChecklistItem,
+  type ChecklistItemInput,
   type CloseReason,
   createWorkItems,
   type Iteration,
@@ -10,10 +12,19 @@ export {
   type WorkItemInput,
   type WorkItemListOptions,
   type WorkItemNode,
+  type WorkItemRecurrence,
   type WorkItems,
   type WorkItemsOptions,
   type WorkItemState,
+  type WorkItemWatcher,
+  type WorkItemWatchLevel,
 } from "./work-items.ts";
+
+export {
+  nextWorkItemOccurrence,
+  workItemRecurrenceSink,
+  type WorkItemRecurrenceSinkOptions,
+} from "./recurrence.ts";
 
 export {
   extendBlock,
@@ -32,6 +43,13 @@ export {
 } from "../../core/block-transport.ts";
 
 export { workItemsBlock } from "./manifest.ts";
+
+export {
+  workItemChecklistOptimistic,
+  workItemChecklistSection,
+} from "./section.ts";
+
+export type { WorkItemChecklistOptimisticAction } from "./section.ts";
 
 export {
   workItemChangeSchema,

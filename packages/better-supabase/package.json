@@ -531,6 +531,27 @@
       "types": "./dist/blocks/attachments/index.d.ts",
       "default": "./dist/blocks/attachments/index.js"
     },
+    "./blocks/attachments/react": {
+      "@better-supabase/source": "./src/blocks/attachments/react/index.ts",
+      "types": "./dist/blocks/attachments/react/index.d.ts",
+      "react-server": "./dist/blocks/attachments/react/server.js",
+      "default": "./dist/blocks/attachments/react/index.js"
+    },
+    "./blocks/attachments/vue": {
+      "@better-supabase/source": "./src/blocks/attachments/vue/index.ts",
+      "types": "./dist/blocks/attachments/vue/index.d.ts",
+      "default": "./dist/blocks/attachments/vue/index.js"
+    },
+    "./blocks/attachments/svelte": {
+      "@better-supabase/source": "./src/blocks/attachments/svelte/index.ts",
+      "types": "./dist/blocks/attachments/svelte/index.d.ts",
+      "default": "./dist/blocks/attachments/svelte/index.js"
+    },
+    "./blocks/attachments/solid": {
+      "@better-supabase/source": "./src/blocks/attachments/solid/index.ts",
+      "types": "./dist/blocks/attachments/solid/index.d.ts",
+      "default": "./dist/blocks/attachments/solid/index.js"
+    },
     "./blocks/data-lifecycle": {
       "@better-supabase/source": "./src/blocks/data-lifecycle/index.ts",
       "types": "./dist/blocks/data-lifecycle/index.d.ts",
@@ -2037,6 +2058,23 @@
       "./blocks/attachments": {
         "types": "./dist/blocks/attachments/index.d.ts",
         "default": "./dist/blocks/attachments/index.js"
+      },
+      "./blocks/attachments/react": {
+        "types": "./dist/blocks/attachments/react/index.d.ts",
+        "react-server": "./dist/blocks/attachments/react/server.js",
+        "default": "./dist/blocks/attachments/react/index.js"
+      },
+      "./blocks/attachments/vue": {
+        "types": "./dist/blocks/attachments/vue/index.d.ts",
+        "default": "./dist/blocks/attachments/vue/index.js"
+      },
+      "./blocks/attachments/svelte": {
+        "types": "./dist/blocks/attachments/svelte/index.d.ts",
+        "default": "./dist/blocks/attachments/svelte/index.js"
+      },
+      "./blocks/attachments/solid": {
+        "types": "./dist/blocks/attachments/solid/index.d.ts",
+        "default": "./dist/blocks/attachments/solid/index.js"
       },
       "./blocks/data-lifecycle": {
         "types": "./dist/blocks/data-lifecycle/index.d.ts",

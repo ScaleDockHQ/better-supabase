@@ -28,6 +28,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
+import { driveSubjectGuard } from "./drive-kit.ts";
 
 const EVENTS: ModuleEvents<TagsEvents> = {
   "tag.created": {
@@ -191,6 +192,23 @@ function build(ctx: ModuleContext): string {
 
   const bound = links(ctx);
   const list = subjects(ctx);
+  const drive = driveSubjectGuard(ctx);
+
+  const readable = (
+    args: {
+      readonly type: string;
+      readonly id: string;
+      readonly tenant: string;
+    },
+    access: "read" | "write",
+  ): string => {
+    const declared = subjectReadable(ctx, list, args);
+
+    return drive === undefined
+      ? declared
+      : drive.guard(args.type, args.id, access, declared);
+  };
+
   // Outside tenant scope the scope column can be null, and a null tenant
   // still names one set of tags.
   const shared = ctx.scope.kind !== "tenant";
@@ -306,7 +324,7 @@ begin
   ${ctx.scope.bind("tag.tenant")}if not (${mayApply("tag.tenant")}) then
     ${fail("TAG_FORBIDDEN", "not allowed to apply tags")}
   end if;
-  if not (${subjectReadable(ctx, list, { type: "tag.subject_type", id: "tag.subject_id", tenant: "tag.tenant" })}) then
+  if not (${readable({ type: "tag.subject_type", id: "tag.subject_id", tenant: "tag.tenant" }, "write")}) then
     ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to tag this record")}
   end if;
   select ${kind} into v_kind from ${tags} where ${id} = tag.tag_id and ${ctx.scope.eq(tenant, "tag.tenant")};
@@ -426,7 +444,7 @@ begin
   ${ctx.scope.bind("untag.tenant")}if not (${mayApply("untag.tenant")}) then
     ${fail("TAG_FORBIDDEN", "not allowed to apply tags")}
   end if;
-  if not (${subjectReadable(ctx, list, { type: "untag.subject_type", id: "untag.subject_id", tenant: "untag.tenant" })}) then
+  if not (${readable({ type: "untag.subject_type", id: "untag.subject_id", tenant: "untag.tenant" }, "write")}) then
     ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to tag this record")}
   end if;
   ${untagBody(ctx, bound, taggings)}
@@ -478,7 +496,7 @@ begin
   ${ctx.scope.bind("subject_tags.tenant")}if not (auth.role() = 'service_role' or ${ctx.scope.can("subject_tags.tenant", read)} or ${ctx.scope.can("subject_tags.tenant", manage)}) then
     ${fail("TAG_FORBIDDEN", "not allowed to read tags")}
   end if;
-  if not (${subjectReadable(ctx, list, { type: "subject_tags.subject_type", id: "subject_tags.subject_id", tenant: "subject_tags.tenant" })}) then
+  if not (${readable({ type: "subject_tags.subject_type", id: "subject_tags.subject_id", tenant: "subject_tags.tenant" }, "read")}) then
     ${fail("TAG_SUBJECT_FORBIDDEN", "not allowed to read this record's tags")}
   end if;
   ${subjectTagIds(ctx, bound, taggings)}
@@ -626,7 +644,7 @@ export const TAGS: ModuleDefinition = {
   description:
     "Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.",
   requires: ["tenant", "access"],
-  integrates: ["outbox"],
+  integrates: ["outbox", "drive"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 2,

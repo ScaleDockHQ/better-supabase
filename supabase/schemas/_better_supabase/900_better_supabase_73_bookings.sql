@@ -49,9 +49,13 @@ create table if not exists "better_supabase"."booking_resources" (
   "capacity" integer not null default 1 check ("capacity" between 1 and 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
+  "host_user_id" uuid,
+  "check_busy" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now()
 );
+alter table "better_supabase"."booking_resources" add column if not exists "host_user_id" uuid;
+alter table "better_supabase"."booking_resources" add column if not exists "check_busy" boolean not null default false;
 alter table "better_supabase"."booking_resources" enable row level security;
 revoke all on "better_supabase"."booking_resources" from anon, authenticated;
 grant select on "better_supabase"."booking_resources" to authenticated;
@@ -213,11 +217,11 @@ begin
     raise exception 'tz must be an IANA time zone' using errcode = '22023', hint = 'BOOKING_TZ_INVALID';
   end if;
   if v_id is null then
-    insert into "better_supabase"."booking_resources" ("tenant_id", "name", "kind", "capacity", "tz", "active", "calendar_id")
-    values (v_tenant, case when v_item ? 'name' then v_item ->> 'name' else null end, case when v_item ? 'kind' then v_item ->> 'kind' else 'staff' end, case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else 1 end, case when v_item ? 'tz' then v_item ->> 'tz' else 'UTC' end, case when v_item ? 'active' then (v_item ->> 'active')::boolean else true end, case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else null end)
+    insert into "better_supabase"."booking_resources" ("tenant_id", "name", "kind", "capacity", "tz", "active", "calendar_id", "host_user_id", "check_busy")
+    values (v_tenant, case when v_item ? 'name' then v_item ->> 'name' else null end, case when v_item ? 'kind' then v_item ->> 'kind' else 'staff' end, case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else 1 end, case when v_item ? 'tz' then v_item ->> 'tz' else 'UTC' end, case when v_item ? 'active' then (v_item ->> 'active')::boolean else true end, case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else null end, case when v_item ? 'hostUserId' then nullif(v_item ->> 'hostUserId', '')::uuid else null end, case when v_item ? 'checkBusy' then (v_item ->> 'checkBusy')::boolean else false end)
     returning "id" into v_id;
   else
-    update "better_supabase"."booking_resources" set "name" = case when v_item ? 'name' then v_item ->> 'name' else "name" end, "kind" = case when v_item ? 'kind' then v_item ->> 'kind' else "kind" end, "capacity" = case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else "capacity" end, "tz" = case when v_item ? 'tz' then v_item ->> 'tz' else "tz" end, "active" = case when v_item ? 'active' then (v_item ->> 'active')::boolean else "active" end, "calendar_id" = case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else "calendar_id" end
+    update "better_supabase"."booking_resources" set "name" = case when v_item ? 'name' then v_item ->> 'name' else "name" end, "kind" = case when v_item ? 'kind' then v_item ->> 'kind' else "kind" end, "capacity" = case when v_item ? 'capacity' then (v_item ->> 'capacity')::integer else "capacity" end, "tz" = case when v_item ? 'tz' then v_item ->> 'tz' else "tz" end, "active" = case when v_item ? 'active' then (v_item ->> 'active')::boolean else "active" end, "calendar_id" = case when v_item ? 'calendarId' then nullif(v_item ->> 'calendarId', '')::uuid else "calendar_id" end, "host_user_id" = case when v_item ? 'hostUserId' then nullif(v_item ->> 'hostUserId', '')::uuid else "host_user_id" end, "check_busy" = case when v_item ? 'checkBusy' then (v_item ->> 'checkBusy')::boolean else "check_busy" end
     where "id" = v_id and "tenant_id" = v_tenant;
     if not found then
       raise exception 'not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
@@ -364,8 +368,10 @@ grant execute on function "better_supabase"."save_booking_service"(uuid, jsonb) 
 -- of the service's kinds, its weekly hours in its own time zone, plus the
 -- exceptions that open it, minus the ones that close it. Slots start at the
 -- opening time and every step (default the duration) after it, and a slot is
--- open while a seat's bookings, buffers included, leave room for it.
--- local_start is the start in tz (default the resource's zone).
+-- open while a seat's bookings, buffers included, leave room for it. A
+-- resource with a host and check_busy also needs the host free in the
+-- calendar (events, out of office, focus time, leave) over the slot and its
+-- buffers. local_start is the start in tz (default the resource's zone).
 create or replace function "better_supabase"."booking_slots"(service uuid, range_start timestamptz, range_end timestamptz, tz text, only_resource uuid)
 returns table (resource_id uuid, starts_at timestamptz, ends_at timestamptz, local_start timestamp, seats integer)
 language plpgsql
@@ -384,6 +390,7 @@ declare
   v_at timestamptz;
   v_block tstzrange;
   v_free integer;
+  v_busy tstzmultirange := '{}'::tstzmultirange;
 begin
   select sv."tenant_id" as tenant, sv."duration" as duration, sv."buffer_before" as before, sv."buffer_after" as after,
       sv."resource_kinds" as kinds, sv."step" as step, sv."min_notice" as notice
@@ -395,7 +402,7 @@ begin
   v_step := coalesce(v_service.step, v_service.duration);
   v_floor := greatest(booking_slots.range_start, now() + v_service.notice);
   for v_resource in
-    select rs."id" as id, rs."tz" as tz, rs."capacity" as capacity
+    select rs."id" as id, rs."tz" as tz, rs."capacity" as capacity, case when rs."check_busy" then rs."host_user_id" end as host
     from "better_supabase"."booking_resources" rs
     where rs."tenant_id" = v_service.tenant and rs."active"
       and (cardinality(v_service.kinds) = 0 or rs."kind" = any (v_service.kinds))
@@ -411,6 +418,12 @@ begin
       join "better_supabase"."booking_availability" a on a."resource_id" = v_resource.id and a."weekday" = extract(isodow from d.day)::integer;
     v_open := v_open + coalesce((select range_agg(e."during") from "better_supabase"."booking_exceptions" e where e."resource_id" = v_resource.id and e."available"), '{}'::tstzmultirange);
     v_open := v_open - coalesce((select range_agg(e."during") from "better_supabase"."booking_exceptions" e where e."resource_id" = v_resource.id and not e."available"), '{}'::tstzmultirange);
+    v_busy := '{}'::tstzmultirange;
+    if v_resource.host is not null then
+      select coalesce(range_agg(tstzrange(bb.starts_at, bb.ends_at)), '{}'::tstzmultirange) into v_busy
+      from "better_supabase"."calendar_busy_blocks"(v_service.tenant, array[v_resource.host], v_floor - v_service.before, booking_slots.range_end + v_service.after) bb
+      where bb.starts_at < bb.ends_at and not exists (select 1 from "better_supabase"."bookings" bk where bk."calendar_event_id" = bb.event_id and bk."resource_id" = v_resource.id);
+    end if;
     for v_window in select w from unnest(v_open) w loop
       v_at := lower(v_window);
       if v_at < v_floor then
@@ -425,7 +438,7 @@ begin
           where bk."resource_id" = v_resource.id and bk."seat" = seat.seat
             and (bk."status" = 'confirmed' or (bk."status" = 'hold' and bk."hold_expires_at" > now())) and bk."blocked" && v_block
         );
-        if v_free > 0 then
+        if v_free > 0 and not (v_busy && v_block) then
           resource_id := v_resource.id;
           starts_at := v_at;
           ends_at := v_at + v_service.duration;

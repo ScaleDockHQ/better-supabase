@@ -684,4 +684,117 @@ describe.skipIf(!live)("attachments", () => {
       await s.close();
     }
   });
+
+  it("replaces a file, keeps its earlier versions and restores one", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "outbox", "attachments"], {
+        modules: {
+          attachments: { options: { bucket: BUCKET, requireScan: false } },
+        },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const organization = await s.organization(owner, { member });
+
+      const attachments = createAttachments({
+        transport: sqlTransport(s.sql),
+        storage: storage(),
+        requireScan: false,
+        tenant: organization,
+      });
+
+      const store = (path: string) =>
+        s.rows(
+          "insert into storage.objects (bucket_id, name, owner_id, metadata) values ($1, $2, auth.uid()::text, '{}')",
+          [BUCKET, path],
+        );
+
+      await s.asRole(owner);
+
+      const first = (
+        await attachments
+          .upload(null, {
+            name: "logo.png",
+            mimeType: "image/png",
+            size: 3,
+            width: 64,
+            height: 32,
+          })
+          .orThrow()
+      ).attachment;
+
+      await store(first.path);
+      await attachments.confirm(first.id).orThrow();
+
+      const next = await attachments
+        .replace(first.id, {
+          name: "logo-2.png",
+          mimeType: "image/png",
+          size: 3,
+          width: 128,
+          height: 64,
+        })
+        .orThrow();
+
+      expect(next.attachment).toMatchObject({
+        version: 2,
+        status: "pending",
+        width: 128,
+      });
+      expect(next.attachment.path).not.toBe(first.path);
+
+      await store(next.attachment.path);
+      await attachments.confirm(first.id).orThrow();
+
+      const earlier = await attachments.versions(first.id).orThrow();
+
+      expect(
+        earlier.map((version) => [version.version, version.width]),
+      ).toEqual([[1, 64]]);
+
+      const restored = await attachments.restore(first.id, 1).orThrow();
+
+      expect(restored).toMatchObject({
+        version: 1,
+        name: "logo.png",
+        path: first.path,
+        width: 64,
+      });
+      expect(
+        (await attachments.versions(first.id).orThrow()).map(
+          (version) => version.version,
+        ),
+      ).toEqual([2]);
+
+      const missing = await attachments.restore(first.id, 9);
+
+      expect(missing.ok ? undefined : missing.error.hint).toBe(
+        "ATTACHMENT_VERSION_NOT_FOUND",
+      );
+
+      await s.asRole(member);
+
+      const refused = await attachments.replace(first.id, {
+        name: "mine.png",
+        mimeType: "image/png",
+        size: 3,
+      });
+
+      expect(refused.ok ? undefined : refused.error.hint).toBe(
+        "ATTACHMENT_NOT_FOUND",
+      );
+
+      await s.service();
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.outbox_events where type in ('attachment.replaced', 'attachment.restored') and payload ->> 'attachmentId' = $1)",
+          [first.id],
+        ),
+      ).toBe(2);
+    } finally {
+      await s.close();
+    }
+  });
 });

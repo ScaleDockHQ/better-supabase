@@ -9471,9 +9471,10 @@ const VARIANT = {
 } as const satisfies Record<FileState, string>;
 
 /**
- * Files on the customer, in the private `attachments` bucket. The server
- * records each file and signs a one-time upload; the browser sends the bytes. A
- * file downloads once the scanner marked it clean.
+ * Files on the customer, in the private `attachments` bucket. Pick, drop or
+ * paste files: the server records each one and signs its upload,
+ * `useAttachmentUpload` sends the bytes with progress, and the server confirms
+ * it. A file downloads once the scanner marked it clean.
  */
 export function AttachmentsUploader({
   customerId,
@@ -9487,51 +9488,272 @@ export function AttachmentsUploader({
   canRemove: boolean;
 }) {
   const t = useExtracted("customers");
+  const upload = useCustomerUpload(customerId);
 
   return (
     <Card size="sm" data-recipe="attachments-uploader">
       <CardHeader>
         <CardTitle>{t("Files")}</CardTitle>
         <CardDescription>
-          {t("Files download after the virus scan marks them clean.")}
+          {canUpload
+            ? t(
+                "Drop or paste files to upload. They download after the virus scan.",
+              )
+            : t("Files download after the virus scan marks them clean.")}
         </CardDescription>
         {canUpload && files.kind === "ok" && files.data.length > 0 ? (
           <CardAction>
-            <UploadButton customerId={customerId} />
+            <UploadButton busy={upload.busy} onPick={upload.add} />
           </CardAction>
         ) : null}
       </CardHeader>
       <CardContent>
-        {files.kind === "error" ? (
-          <RecordLoadError title={t("The files didn't load")} />
-        ) : files.data.length === 0 ? (
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <PaperclipIcon />
-              </EmptyMedia>
-              <EmptyTitle>{t("No files yet")}</EmptyTitle>
-              <EmptyDescription>
-                {t(
-                  "Attach contracts, quotes or anything else about this customer.",
-                )}
-              </EmptyDescription>
-            </EmptyHeader>
-            {canUpload ? (
-              <EmptyContent>
-                <UploadButton customerId={customerId} />
-              </EmptyContent>
-            ) : null}
-          </Empty>
-        ) : (
-          <FileList
-            customerId={customerId}
-            files={files.data}
-            canRemove={canRemove}
-          />
-        )}
+        <DropZone enabled={canUpload} onFiles={upload.add}>
+          {upload.uploads.length > 0 ? <UploadList upload={upload} /> : null}
+          {files.kind === "error" ? (
+            <RecordLoadError title={t("The files didn't load")} />
+          ) : files.data.length === 0 ? (
+            upload.uploads.length > 0 ? null : (
+              <Empty className="border">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <PaperclipIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>{t("No files yet")}</EmptyTitle>
+                  <EmptyDescription>
+                    {t(
+                      "Attach contracts, quotes or anything else about this customer.",
+                    )}
+                  </EmptyDescription>
+                </EmptyHeader>
+                {canUpload ? (
+                  <EmptyContent>
+                    <UploadButton busy={upload.busy} onPick={upload.add} />
+                  </EmptyContent>
+                ) : null}
+              </Empty>
+            )
+          ) : (
+            <FileList
+              customerId={customerId}
+              files={files.data}
+              canRemove={canRemove}
+            />
+          )}
+        </DropZone>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Uploads to the customer through the server actions, which check
+ * `attachments.upload` and read the page again once a file is confirmed.
+ */
+function useCustomerUpload(customerId: string): AttachmentUploadState {
+  const t = useExtracted("customers");
+  const start = useAction(startAttachmentUpload);
+  const confirm = useAction(confirmAttachment);
+
+  return useAttachmentUpload({
+    subject: { type: "customer", id: customerId },
+    start: (file) =>
+      start.run({
+        customerId,
+        name: file.name,
+        mimeType: file.mimeType,
+        size: file.size,
+      }),
+    confirm: (id) => confirm.run({ id }),
+    refresh: false,
+    onUploaded: () => {
+      toast.success(t("File uploaded"));
+    },
+  });
+}
+
+const asInputs = (files: Iterable<File>): AttachmentFileInput[] =>
+  [...files].map((file) => ({ file, name: file.name }));
+
+const EDITABLE = "input, textarea, select, [contenteditable]";
+
+/**
+ * Takes files dropped on it and files pasted anywhere on the page outside a
+ * text field; a plain wrapper when uploads are off. The Upload button is the
+ * keyboard path, so the zone itself takes no focus.
+ */
+function DropZone({
+  enabled,
+  onFiles,
+  children,
+}: {
+  enabled: boolean;
+  onFiles: (files: readonly AttachmentFileInput[]) => void;
+  children: ReactNode;
+}) {
+  const zone = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const take = useEffectEvent((files: FileList | null | undefined) => {
+    const inputs = asInputs(files ?? []);
+
+    if (inputs.length > 0) {
+      onFiles(inputs);
+    }
+  });
+
+  useEffect(() => {
+    const element = zone.current;
+
+    if (!enabled || !element) {
+      return;
+    }
+
+    const over = (event: DragEvent) => {
+      event.preventDefault();
+      setDragging(true);
+    };
+
+    const leave = () => {
+      setDragging(false);
+    };
+
+    const drop = (event: DragEvent) => {
+      event.preventDefault();
+      setDragging(false);
+      take(event.dataTransfer?.files);
+    };
+
+    const paste = (event: ClipboardEvent) => {
+      const files = event.clipboardData?.files;
+
+      if (
+        !files ||
+        files.length === 0 ||
+        (event.target instanceof Element && event.target.closest(EDITABLE))
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      take(files);
+    };
+
+    element.addEventListener("dragover", over);
+    element.addEventListener("dragleave", leave);
+    element.addEventListener("drop", drop);
+    document.addEventListener("paste", paste);
+
+    return () => {
+      element.removeEventListener("dragover", over);
+      element.removeEventListener("dragleave", leave);
+      element.removeEventListener("drop", drop);
+      document.removeEventListener("paste", paste);
+    };
+  }, [enabled]);
+
+  return (
+    <div
+      ref={zone}
+      data-dragging={(enabled && dragging) || undefined}
+      className="-m-2 flex flex-col gap-3 p-2 transition-colors data-dragging:bg-muted"
+    >
+      {children}
+    </div>
+  );
+}
+
+function UploadList({ upload }: { upload: AttachmentUploadState }) {
+  return (
+    <ul className="flex flex-col divide-y" data-testid="uploads">
+      {upload.uploads.map((item) => (
+        <UploadRow
+          key={item.key}
+          item={item}
+          onRetry={upload.retry}
+          onDismiss={upload.dismiss}
+        />
+      ))}
+    </ul>
+  );
+}
+
+const UPLOAD_VARIANT = {
+  uploading: "info-light",
+  confirming: "info-light",
+  scanning: "info-light",
+  done: "success-light",
+  blocked: "destructive-light",
+  error: "destructive-light",
+} as const satisfies Record<AttachmentUploadItem["status"], string>;
+
+function UploadRow({
+  item,
+  onRetry,
+  onDismiss,
+}: {
+  item: AttachmentUploadItem;
+  onRetry: (key: string) => void;
+  onDismiss: (key: string) => void;
+}) {
+  const t = useExtracted("customers");
+  const errorMessage = useErrorMessage();
+
+  const label: Record<AttachmentUploadItem["status"], string> = {
+    uploading: t("Uploading"),
+    confirming: t("Saving"),
+    scanning: t("Waiting for scan"),
+    done: t("Uploaded"),
+    blocked: t("Blocked"),
+    error: t("Failed"),
+  };
+
+  return (
+    <li className="flex items-center justify-between gap-2 py-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="truncate text-sm font-medium">{item.name}</span>
+        <div className="flex items-center gap-2">
+          <Badge variant={UPLOAD_VARIANT[item.status]}>
+            {label[item.status]}
+          </Badge>
+          {item.status === "uploading" ? (
+            <Progress
+              className="flex-1"
+              value={Math.round(item.progress * 100)}
+              aria-label={t("Upload progress for {name}", { name: item.name })}
+            />
+          ) : item.error === undefined ? null : (
+            <span className="truncate text-xs text-muted-foreground">
+              {errorMessage(item.error)}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        {item.status === "error" ? (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t("Retry {name}", { name: item.name })}
+            onClick={() => {
+              onRetry(item.key);
+            }}
+          >
+            <RotateCwIcon />
+          </Button>
+        ) : null}
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("Dismiss {name}", { name: item.name })}
+          onClick={() => {
+            onDismiss(item.key);
+          }}
+        >
+          <XIcon />
+        </Button>
+      </div>
+    </li>
   );
 }
 
@@ -9615,63 +9837,23 @@ function FileList({
   );
 }
 
-function UploadButton({ customerId }: { customerId: string }) {
+function UploadButton({
+  busy,
+  onPick,
+}: {
+  busy: boolean;
+  onPick: (files: readonly AttachmentFileInput[]) => void;
+}) {
   const t = useExtracted("customers");
-  const errorMessage = useErrorMessage();
-  const supabase = useSupabase();
   const input = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const start = useAction(startAttachmentUpload);
-  const confirm = useAction(confirmAttachment);
-
-  const upload = async (file: File) => {
-    const started = await start.run({
-      customerId,
-      name: file.name,
-      mimeType: file.type,
-      size: file.size,
-    });
-
-    if (!started.ok) {
-      toast.error(errorMessage(started.error));
-
-      return;
-    }
-
-    const { id, bucket, path, token } = started.data;
-
-    const sent = await supabase.storage
-      .from(bucket)
-      .uploadToSignedUrl(path, token, file, { contentType: file.type });
-
-    if (sent.error) {
-      toast.error(t("The upload failed. Try again."));
-
-      return;
-    }
-
-    const confirmed = await confirm.run({ id });
-
-    if (confirmed.ok) {
-      toast.success(t("File uploaded"));
-    } else {
-      toast.error(errorMessage(confirmed.error));
-    }
-  };
 
   const pick = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const inputs = asInputs(event.target.files ?? []);
     event.target.value = "";
 
-    if (!file) {
-      return;
+    if (inputs.length > 0) {
+      onPick(inputs);
     }
-
-    setUploading(true);
-    void upload(file).finally(() => {
-      setUploading(false);
-    });
   };
 
   return (
@@ -9679,18 +9861,15 @@ function UploadButton({ customerId }: { customerId: string }) {
       <input
         ref={input}
         type="file"
+        multiple
         className="sr-only"
         tabIndex={-1}
         aria-hidden
         onChange={pick}
       />
-      <Button
-        size="sm"
-        disabled={uploading}
-        onClick={() => input.current?.click()}
-      >
+      <Button size="sm" onClick={() => input.current?.click()}>
         <UploadIcon />
-        {uploading ? t("Uploading") : t("Upload file")}
+        {busy ? t("Upload more") : t("Upload files")}
       </Button>
     </>
   );
@@ -15051,6 +15230,7 @@ export async function CalendarView({
           >
             <ChevronRightIcon />
           </Link>
+          {calendars.length > 0 ? <WorkingHoursDialog /> : null}
           {canWrite && calendars.length > 0 ? (
             <CreateEventDialog
               calendars={calendars}
@@ -15457,12 +15637,12 @@ export async function RemindersList() {
 
 ## Drive explorer
 
-Folders and files with upload, rename, move and a breadcrumb trail. It loads its data on the server through the block's client; the [drive block](https://bettersupabase.com/blocks/drive) must be installed (`npx better-supabase add drive`). Page: https://bettersupabase.com/recipes/drive-explorer.
+Folders and files with upload, rename, move and a breadcrumb trail, each file with its labels and the approval of its current version. It loads its data on the server through the block's client; the [drive block](https://bettersupabase.com/blocks/drive) must be installed (`npx better-supabase add drive`). Page: https://bettersupabase.com/recipes/drive-explorer.
 
 Web, with shadcn components:
 
 ```bash
-npx shadcn add alert breadcrumb button card empty skeleton table
+npx shadcn add alert badge breadcrumb button card empty skeleton table
 ```
 
 ```tsx title="apps/examples/nextjs/src/features/drive/components/drive-explorer.tsx"
@@ -15482,6 +15662,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/reui/alert";
+import { Badge } from "@/components/reui/badge";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -15511,9 +15692,24 @@ import {
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
 
+import type { DriveItem } from "../drive-queries";
+
 import { getDriveFolder } from "../drive-queries";
 import { DriveItemActions } from "./drive-item-actions";
 import { CreateFolderDialog, UploadFileButton } from "./drive-toolbar";
+
+type Approval = NonNullable<DriveItem["approval"]>;
+
+const APPROVAL_BADGE: Record<
+  Approval,
+  ComponentProps<typeof Badge>["variant"]
+> = {
+  pending: "warning-light",
+  approved: "success-light",
+  rejected: "destructive-light",
+  cancelled: "secondary",
+  expired: "secondary",
+};
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
 async function retry() {
@@ -15555,6 +15751,14 @@ export async function DriveExplorer({
   }
 
   const current = view.crumbs.at(-1);
+
+  const approvalLabels: Record<Approval, string> = {
+    pending: t("Awaiting approval"),
+    approved: t("Approved"),
+    rejected: t("Rejected"),
+    cancelled: t("Approval cancelled"),
+    expired: t("Approval expired"),
+  };
 
   return (
     <Card data-recipe="drive-explorer">
@@ -15625,20 +15829,36 @@ export async function DriveExplorer({
               {view.items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">
-                    {item.kind === "folder" ? (
-                      <Link
-                        href={`/drive/${item.id}`}
-                        className="flex items-center gap-2 transition-colors hover:text-primary"
-                      >
-                        <FolderIcon className="size-4 text-muted-foreground" />
-                        {item.name}
-                      </Link>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <FileIcon className="size-4 text-muted-foreground" />
-                        {item.name}
-                      </span>
-                    )}
+                    <div className="flex flex-col gap-1">
+                      {item.kind === "folder" ? (
+                        <Link
+                          href={`/drive/${item.id}`}
+                          className="flex items-center gap-2 transition-colors hover:text-primary"
+                        >
+                          <FolderIcon className="size-4 text-muted-foreground" />
+                          {item.name}
+                        </Link>
+                      ) : (
+                        <span className="flex flex-wrap items-center gap-2">
+                          <FileIcon className="size-4 text-muted-foreground" />
+                          {item.name}
+                          {item.approval === null ? null : (
+                            <Badge variant={APPROVAL_BADGE[item.approval]}>
+                              {approvalLabels[item.approval]}
+                            </Badge>
+                          )}
+                        </span>
+                      )}
+                      {item.labels.length === 0 ? null : (
+                        <span className="flex flex-wrap gap-1">
+                          {item.labels.map((label) => (
+                            <Badge key={label.id} variant="outline">
+                              {label.name}
+                            </Badge>
+                          ))}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {item.kind === "folder"
@@ -17754,25 +17974,32 @@ export function TemplatesGallerySkeleton() {
 
 ## Document editor
 
-A rich text editor for a document with autosave and collaborators. It loads its data on the server through the block's client; the [documents block](https://bettersupabase.com/blocks/documents) must be installed (`npx better-supabase add documents`). Page: https://bettersupabase.com/recipes/document-editor.
+A rich text editor for a document with autosave, collaborators and a suggestion mode that editors accept or reject. It loads its data on the server through the block's client; the [documents block](https://bettersupabase.com/blocks/documents) must be installed (`npx better-supabase add documents`). Page: https://bettersupabase.com/recipes/document-editor.
 
 Web, with shadcn components:
 
 ```bash
-npx shadcn add alert badge button card field input skeleton textarea
+npx shadcn add alert badge button card empty field input skeleton tabs textarea
 ```
 
 ```tsx title="apps/examples/nextjs/src/features/documents/components/document-editor.tsx"
 "use client";
 
-import type { DocumentProviderStatus } from "better-supabase/yjs";
+import type {
+  DocumentSuggestion,
+  Documents,
+} from "better-supabase/blocks/documents";
+import type {
+  DocumentProviderMode,
+  DocumentProviderStatus,
+} from "better-supabase/yjs";
 
 import { rpcTransport } from "better-supabase/blocks";
 import { createDocuments } from "better-supabase/blocks/documents";
 import { createDocumentProvider } from "better-supabase/yjs";
-import { TriangleAlertIcon } from "lucide-react";
-import { useExtracted } from "next-intl";
-import { useEffect, useId, useRef, useState } from "react";
+import { MessageSquareDiffIcon, TriangleAlertIcon } from "lucide-react";
+import { useExtracted, useFormatter } from "next-intl";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import * as Y from "yjs";
 
 import {
@@ -17790,9 +18017,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useSupabase } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -17847,6 +18083,16 @@ interface DocumentTarget {
   readonly customerId: string;
   readonly customerName: string;
   readonly canWrite: boolean;
+  readonly canSuggest: boolean;
+}
+
+type SuggestionsState =
+  | { readonly kind: "loading" }
+  | { readonly kind: "error" }
+  | { readonly kind: "ok"; readonly items: readonly DocumentSuggestion[] };
+
+function isMode(value: unknown): value is DocumentProviderMode {
+  return value === "edit" || value === "suggest";
 }
 
 /**
@@ -17874,17 +18120,37 @@ function DocumentSession({
   customerId,
   customerName,
   canWrite,
+  canSuggest,
   onRetry,
 }: DocumentTarget & { readonly onRetry: () => void }) {
   const t = useExtracted("documents");
   const fieldId = useId();
   const supabase = useSupabase();
   const editing = useRef<Editing | null>(null);
+
+  const session = useRef<{
+    readonly documents: Documents;
+    readonly provider: ReturnType<typeof createDocumentProvider>;
+  } | null>(null);
+
   const [status, setStatus] = useState<DocumentProviderStatus>("connecting");
   const [failed, setFailed] = useState(false);
   const [writable, setWritable] = useState(false);
+  const [suggestable, setSuggestable] = useState(false);
+  const [documentId, setDocumentId] = useState<string | null>(null);
+
+  const [mode, setMode] = useState<DocumentProviderMode>(
+    canWrite ? "edit" : "suggest",
+  );
+
+  const [hasDraft, setHasDraft] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+
+  const [suggestions, setSuggestions] = useState<SuggestionsState>({
+    kind: "loading",
+  });
 
   useEffect(() => {
     const doc = new Y.Doc();
@@ -17895,11 +18161,13 @@ function DocumentSession({
       setBody(texts.body.toString());
     };
 
+    const documents = createDocuments({
+      transport: rpcTransport(supabase),
+      schema: blockConfig.documents.api,
+    });
+
     const provider = createDocumentProvider({
-      documents: createDocuments({
-        transport: rpcTransport(supabase),
-        schema: blockConfig.documents.api,
-      }),
+      documents,
       client: supabase,
       doc,
       yjs: Y,
@@ -17909,16 +18177,20 @@ function DocumentSession({
         subjectId: customerId,
         name: DOCUMENT_NAME,
       },
+      mode: canWrite ? "edit" : "suggest",
       onStatus: setStatus,
     });
 
     texts.title.observe(sync);
     texts.body.observe(sync);
     editing.current = texts;
+    session.current = { documents, provider };
 
     void provider.connect().then((opened) => {
       if (opened.ok) {
         setWritable(opened.data.canWrite);
+        setSuggestable(opened.data.canSuggest);
+        setDocumentId(opened.data.id);
         sync();
       } else {
         setFailed(true);
@@ -17929,10 +18201,28 @@ function DocumentSession({
       texts.title.unobserve(sync);
       texts.body.unobserve(sync);
       editing.current = null;
+      session.current = null;
       void provider.destroy();
       doc.destroy();
     };
-  }, [supabase, organizationId, customerId]);
+  }, [supabase, organizationId, customerId, canWrite]);
+
+  const loadSuggestions = useCallback(async () => {
+    if (documentId === null || session.current === null) {
+      return;
+    }
+
+    setSuggestions({ kind: "loading" });
+    const listed = await session.current.documents.suggestions(documentId);
+
+    setSuggestions(
+      listed.ok ? { kind: "ok", items: listed.data } : { kind: "error" },
+    );
+  }, [documentId]);
+
+  useEffect(() => {
+    void loadSuggestions();
+  }, [loadSuggestions]);
 
   const statusLabels: Record<DocumentProviderStatus, string> = {
     connecting: t("Connecting"),
@@ -17941,7 +18231,37 @@ function DocumentSession({
     closed: t("Closed"),
   };
 
-  const readOnly = !canWrite || !writable;
+  const editable = canWrite && writable;
+  const suggesting = mode === "suggest" && canSuggest && suggestable;
+  const readOnly = !(suggesting || (mode === "edit" && editable));
+
+  const changeMode = (next: DocumentProviderMode) => {
+    setMode(next);
+    session.current?.provider.setMode(next);
+  };
+
+  const edit = (text: "title" | "body", value: string) => {
+    if (editing.current) {
+      replaceText(editing.current[text], value);
+    }
+
+    setHasDraft(session.current?.provider.hasDraft ?? false);
+  };
+
+  const submit = async () => {
+    if (session.current === null) {
+      return;
+    }
+
+    setSubmitting(true);
+    const stored = await session.current.provider.submitSuggestion();
+    setSubmitting(false);
+
+    if (stored.ok) {
+      setHasDraft(false);
+      await loadSuggestions();
+    }
+  };
 
   if (failed) {
     return (
@@ -17968,17 +18288,34 @@ function DocumentSession({
         <CardDescription>
           {readOnly
             ? t("You can read this document. Ask an admin for edit access.")
-            : t("Changes save as you type and show up for everyone editing.")}
+            : suggesting
+              ? t("Your edits become a suggestion that an editor accepts.")
+              : t("Changes save as you type and show up for everyone editing.")}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex flex-col gap-6">
+        {editable && canSuggest ? (
+          <Tabs
+            value={mode}
+            onValueChange={(value) => {
+              if (isMode(value)) {
+                changeMode(value);
+              }
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="edit">{t("Editing")}</TabsTrigger>
+              <TabsTrigger value="suggest">{t("Suggesting")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        ) : null}
         {status === "connecting" && title === "" && body === "" ? (
           <div className="flex flex-col gap-4" aria-busy="true">
             <Skeleton className="h-9 w-full" />
             <Skeleton className="h-64 w-full" />
           </div>
         ) : (
-          <>
+          <div className="flex flex-col gap-4">
             <Field>
               <FieldLabel htmlFor={`${fieldId}-title`}>{t("Title")}</FieldLabel>
               <Input
@@ -17989,10 +18326,7 @@ function DocumentSession({
                 placeholder={t("Untitled")}
                 onChange={(event) => {
                   setTitle(event.target.value);
-
-                  if (editing.current) {
-                    replaceText(editing.current.title, event.target.value);
-                  }
+                  edit("title", event.target.value);
                 }}
               />
             </Field>
@@ -18006,10 +18340,7 @@ function DocumentSession({
                 placeholder={t("Write the notes here.")}
                 onChange={(event) => {
                   setBody(event.target.value);
-
-                  if (editing.current) {
-                    replaceText(editing.current.body, event.target.value);
-                  }
+                  edit("body", event.target.value);
                 }}
               />
               <FieldDescription>
@@ -18018,10 +18349,178 @@ function DocumentSession({
                 )}
               </FieldDescription>
             </Field>
-          </>
+            {suggesting ? (
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  size="sm"
+                  disabled={!hasDraft || submitting}
+                  onClick={() => {
+                    void submit();
+                  }}
+                >
+                  {t("Submit suggestion")}
+                </Button>
+              </div>
+            ) : null}
+          </div>
         )}
+        <SuggestionList
+          state={suggestions}
+          canDecide={editable}
+          canSuggest={canSuggest && suggestable}
+          onRetry={() => {
+            void loadSuggestions();
+          }}
+          onSuggest={() => {
+            changeMode("suggest");
+          }}
+          onDecide={async (suggestion, decision) => {
+            if (session.current === null) {
+              return;
+            }
+
+            const decided =
+              decision === "accepted"
+                ? await session.current.provider.acceptSuggestion(suggestion.id)
+                : await session.current.documents.decideSuggestion(
+                    suggestion.id,
+                    "rejected",
+                  );
+
+            if (decided.ok) {
+              await loadSuggestions();
+            }
+          }}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+interface SuggestionListProps {
+  readonly state: SuggestionsState;
+  readonly canDecide: boolean;
+  readonly canSuggest: boolean;
+  readonly onRetry: () => void;
+  readonly onSuggest: () => void;
+  readonly onDecide: (
+    suggestion: DocumentSuggestion,
+    decision: "accepted" | "rejected",
+  ) => Promise<void>;
+}
+
+/** The open suggestions; editors accept them into the document or reject them. */
+function SuggestionList({
+  state,
+  canDecide,
+  canSuggest,
+  onRetry,
+  onSuggest,
+  onDecide,
+}: SuggestionListProps) {
+  const t = useExtracted("documents");
+  const format = useFormatter();
+  const [busy, setBusy] = useState<string | null>(null);
+
+  if (state.kind === "loading") {
+    return (
+      <div className="flex flex-col gap-2" aria-busy="true">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-14 w-full" />
+      </div>
+    );
+  }
+
+  if (state.kind === "error") {
+    return (
+      <Alert variant="destructive">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The suggestions didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <Button size="sm" variant="outline" onClick={onRetry}>
+            {t("Retry")}
+          </Button>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  if (state.items.length === 0) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <MessageSquareDiffIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("No open suggestions")}</EmptyTitle>
+          <EmptyDescription>
+            {t("Suggested edits wait here until an editor accepts them.")}
+          </EmptyDescription>
+        </EmptyHeader>
+        {canSuggest ? (
+          <EmptyContent>
+            <Button size="sm" variant="outline" onClick={onSuggest}>
+              {t("Suggest a change")}
+            </Button>
+          </EmptyContent>
+        ) : null}
+      </Empty>
+    );
+  }
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium tracking-tight">{t("Suggestions")}</h3>
+      <ul className="flex flex-col divide-y">
+        {state.items.map((suggestion) => (
+          <li
+            key={suggestion.id}
+            className="flex items-center justify-between gap-4 py-3"
+          >
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm">
+                {suggestion.summary ?? t("Suggested edit")}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {format.relativeTime(
+                  new Date(suggestion.createdAt.epochMilliseconds),
+                )}
+              </span>
+            </div>
+            {canDecide ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    setBusy(suggestion.id);
+                    void onDecide(suggestion, "rejected").finally(() => {
+                      setBusy(null);
+                    });
+                  }}
+                >
+                  {t("Reject")}
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    setBusy(suggestion.id);
+                    void onDecide(suggestion, "accepted").finally(() => {
+                      setBusy(null);
+                    });
+                  }}
+                >
+                  {t("Accept")}
+                </Button>
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

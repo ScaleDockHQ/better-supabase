@@ -340,6 +340,15 @@ export default defineConfig({
               selfApproval: true,
             },
           },
+          // Sign-off on one version of a drive file, from the file's menu.
+          drive_node: {
+            approve: {
+              steps: [
+                { approvers: { permission: "approvals.manage" }, required: 1 },
+              ],
+              selfApproval: true,
+            },
+          },
         },
       },
     },

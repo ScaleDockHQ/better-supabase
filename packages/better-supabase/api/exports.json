@@ -3682,21 +3682,30 @@
       "attachmentsEvents",
       "attachmentsOptimistic",
       "attachmentsSection",
+      "attachmentVersionOf",
       "createAttachments",
       "createAttachmentScanner",
+      "createAttachmentUploadController",
       "createObjectScanner",
       "dbTransport",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "xhrSend"
     ],
     "types": [
       "Attachment",
       "AttachmentBucket",
       "AttachmentDownload",
+      "AttachmentFileInput",
+      "AttachmentImages",
+      "AttachmentImageUrlOptions",
+      "AttachmentReplacement",
       "Attachments",
       "AttachmentScanJob",
       "AttachmentScanner",
       "AttachmentScannerOptions",
+      "AttachmentScanState",
+      "AttachmentSend",
       "AttachmentsEvents",
       "AttachmentsOptimisticAction",
       "AttachmentsOptions",
@@ -3704,6 +3713,14 @@
       "AttachmentStorage",
       "AttachmentsWrites",
       "AttachmentUpload",
+      "AttachmentUploadActions",
+      "AttachmentUploadController",
+      "AttachmentUploadControllerOptions",
+      "AttachmentUploadItem",
+      "AttachmentUploadSnapshot",
+      "AttachmentUploadStatus",
+      "AttachmentUploadTicket",
+      "AttachmentVersion",
       "Author",
       "BlockTransport",
       "NewAttachment",
@@ -3712,6 +3729,57 @@
       "ObjectScannerOptions",
       "ScannedObject",
       "ScanVerdict"
+    ]
+  },
+  "./blocks/attachments/react": {
+    "values": [
+      "useAttachmentUpload"
+    ],
+    "types": [
+      "AttachmentFileInput",
+      "AttachmentScanState",
+      "AttachmentSend",
+      "AttachmentUploadItem",
+      "AttachmentUploadState",
+      "AttachmentUploadStatus",
+      "AttachmentUploadTicket",
+      "UseAttachmentUploadOptions"
+    ]
+  },
+  "./blocks/attachments/vue": {
+    "values": [
+      "useAttachmentUpload"
+    ],
+    "types": [
+      "AttachmentUploadActions",
+      "AttachmentUploadControllerOptions",
+      "AttachmentUploadSnapshot",
+      "BlockOptions",
+      "VueController"
+    ]
+  },
+  "./blocks/attachments/svelte": {
+    "values": [
+      "useAttachmentUpload"
+    ],
+    "types": [
+      "AttachmentUploadActions",
+      "AttachmentUploadControllerOptions",
+      "AttachmentUploadSnapshot",
+      "BlockOptions",
+      "SvelteController"
+    ]
+  },
+  "./blocks/attachments/solid": {
+    "values": [
+      "useAttachmentUpload"
+    ],
+    "types": [
+      "AttachmentUploadActions",
+      "AttachmentUploadControllerOptions",
+      "AttachmentUploadSnapshot",
+      "BlockOptions",
+      "SolidController"
     ]
   },
   "./blocks/data-lifecycle": {
@@ -4389,6 +4457,7 @@
     "types": [
       "CompactDocumentOptions",
       "DocumentProvider",
+      "DocumentProviderMode",
       "DocumentProviderOptions",
       "DocumentProviderStatus",
       "YDocLike",
@@ -6524,20 +6593,24 @@
       "calendarEventInputSchema",
       "calendarEventOf",
       "calendarEvents",
+      "commonFreeTime",
       "createCalendar",
       "createCalendarController",
       "expandOccurrences",
+      "freeBusyOf",
       "fromEventCalendarUpdate",
       "parseIcs",
       "seriesOf",
       "splitRule",
       "toEventCalendarEvents",
       "toEventCalendarResources",
-      "toIcs"
+      "toIcs",
+      "workingHoursOf"
     ],
     "types": [
       "AttendeeResponse",
       "AttendeeRole",
+      "BusyRange",
       "Calendar",
       "CalendarActions",
       "CalendarAttendee",
@@ -6545,6 +6618,7 @@
       "CalendarControllerOptions",
       "CalendarEvent",
       "CalendarEventInput",
+      "CalendarEventKind",
       "CalendarEvents",
       "CalendarEventStatus",
       "CalendarImport",
@@ -6552,9 +6626,12 @@
       "CalendarOccurrence",
       "CalendarOptions",
       "CalendarSnapshot",
+      "CalendarTransparency",
+      "CommonFreeTimeOptions",
       "EventCalendarEvent",
       "EventCalendarOptions",
       "EventCalendarResource",
+      "FreeBusy",
       "IcsEvent",
       "IcsSource",
       "OccurrenceMove",
@@ -6563,7 +6640,10 @@
       "ParsedIcs",
       "SavedCalendarEvent",
       "SplitRules",
-      "ToIcsOptions"
+      "ToIcsOptions",
+      "WeeklyHours",
+      "WorkingHours",
+      "WorkingHoursInput"
     ]
   },
   "./blocks/calendar/react": {
@@ -6835,15 +6915,19 @@
     ],
     "types": [
       "BlockTransport",
+      "DecidedSuggestion",
       "DocumentInfo",
       "DocumentRef",
       "Documents",
       "DocumentsEvents",
       "DocumentsOptions",
       "DocumentState",
+      "DocumentSuggestion",
+      "DocumentSuggestionStatus",
       "DocumentUpdate",
       "DocumentVersion",
-      "OpenedDocument"
+      "OpenedDocument",
+      "SuggestionDecision"
     ]
   },
   "./blocks/drive": {
@@ -6863,6 +6947,8 @@
     "types": [
       "BlockTransport",
       "Drive",
+      "DriveApproval",
+      "DriveApprovalState",
       "DriveBatch",
       "DriveBinEntry",
       "DriveConflict",
@@ -6871,6 +6957,7 @@
       "DriveFile",
       "DriveFileType",
       "DriveGrant",
+      "DriveLabel",
       "DriveLinkView",
       "DriveNode",
       "DriveNodeKind",
@@ -7290,12 +7377,16 @@
       "createWorkItems",
       "dbTransport",
       "extendBlock",
+      "nextWorkItemOccurrence",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
       "workItemChangeSchema",
+      "workItemChecklistOptimistic",
+      "workItemChecklistSection",
       "workItemInputSchema",
       "workItemListFilterSchema",
+      "workItemRecurrenceSink",
       "workItemsBlock",
       "workItemsEvents",
       "wrapTransport"
@@ -7304,6 +7395,8 @@
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
+      "ChecklistItem",
+      "ChecklistItemInput",
       "CloseReason",
       "Iteration",
       "Project",
@@ -7311,14 +7404,19 @@
       "WorkItem",
       "WorkItemChange",
       "WorkItemChangeResult",
+      "WorkItemChecklistOptimisticAction",
       "WorkItemField",
       "WorkItemInput",
       "WorkItemListOptions",
       "WorkItemNode",
+      "WorkItemRecurrence",
+      "WorkItemRecurrenceSinkOptions",
       "WorkItems",
       "WorkItemsEvents",
       "WorkItemsOptions",
-      "WorkItemState"
+      "WorkItemState",
+      "WorkItemWatcher",
+      "WorkItemWatchLevel"
     ]
   },
   "./blocks/quotes": {

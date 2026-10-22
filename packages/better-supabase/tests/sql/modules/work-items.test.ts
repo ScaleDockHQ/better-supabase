@@ -96,4 +96,44 @@ describe("work-items module", () => {
       body("work-items", { modules: { "work-items": { mode: "custom" } } }),
     ).not.toContain("create_work_item");
   });
+
+  it("links files, repeats with extra columns and watches without a tenant column", () => {
+    expect(
+      body(
+        "work-items",
+        {
+          modules: {
+            attachments: {
+              options: { path: "{organization_id}/{subject_type}/{id}" },
+            },
+          },
+        },
+        ["attachments"],
+      ),
+    ).toContain("WORK_ITEM_ATTACHMENTS_PATH");
+    expect(
+      body(
+        "work-items",
+        {
+          modules: {
+            "work-items": { options: { extraColumns: { severity: "text" } } },
+          },
+        },
+        ["reminders"],
+      ),
+    ).toContain(`jsonb_build_object('fields', jsonb_build_object('severity'`);
+
+    const watch = body(
+      "work-items",
+      {
+        modules: {
+          notifications: { columns: { subscriptions: { tenant: null } } },
+        },
+      },
+      ["notifications"],
+    );
+
+    expect(watch).toContain("watch_work_item");
+    expect(watch).not.toContain('and s."organization_id" = x.');
+  });
 });

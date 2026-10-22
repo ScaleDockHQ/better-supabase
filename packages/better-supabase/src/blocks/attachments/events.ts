@@ -11,6 +11,8 @@ export type AttachmentsEvents = {
   readonly "object.uploaded": StorageObjectEventData;
   readonly "attachment.uploaded": AttachmentEventData;
   readonly "attachment.scanned": AttachmentEventData;
+  readonly "attachment.replaced": AttachmentEventData;
+  readonly "attachment.restored": AttachmentEventData;
 };
 
 /** The `attachments` block's event types, for its manifest and `onBlockEvent`. */
@@ -18,4 +20,6 @@ export const attachmentsEvents: Events<AttachmentsEvents> = defineEvents({
   "object.uploaded": event<StorageObjectEventData>(),
   "attachment.uploaded": event<AttachmentEventData>(),
   "attachment.scanned": event<AttachmentEventData>(),
+  "attachment.replaced": event<AttachmentEventData>(),
+  "attachment.restored": event<AttachmentEventData>(),
 });

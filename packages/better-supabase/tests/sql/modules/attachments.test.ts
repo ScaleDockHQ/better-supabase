@@ -275,4 +275,30 @@ describe("attachments module", () => {
       expect(() => sqlOf(["attachments"], options)).toThrow(message);
     }
   });
+
+  it("rejects a version-like path, renders without metadata and nothing in custom mode", () => {
+    expect(() =>
+      sqlOf(["attachments"], { path: "{organization_id}/files/{id}-v2" }),
+    ).toThrow(/-v and digits/);
+
+    const bare = renderModules(["attachments"], {
+      modules: {
+        attachments: { columns: { attachments: { metadata: null } } },
+      },
+    })
+      .filter((file) => file.module === "attachments")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(bare).toContain("create_attachment");
+    expect(bare).not.toContain("create_attachment.metadata");
+    expect(
+      renderModules(["attachments"], {
+        modules: { attachments: { mode: "custom" } },
+      })
+        .filter((file) => file.module === "attachments")
+        .map((file) => file.contents)
+        .join("\n"),
+    ).not.toContain("create or replace function");
+  });
 });

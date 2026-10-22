@@ -54,6 +54,8 @@ await engagements
 
 `update(id, input, subjects?)` changes the keys you pass (`null` clears one) and replaces the records when you pass `subjects`. `complete(id, { outcome })` marks it done now, and `{ done: false }` opens it again. `remove(id)` deletes it.
 
+Installing the block registers engagements as the `engagement` subject, so the [attachments](/docs/blocks/attachments) block keeps files on a task, a call or an email: upload to `{ type: "engagement", id: task.id }` and list them with the same subject. Only people who can read the engagement can add or see its files.
+
 ## Your own fields
 
 `blocks.engagements.options.extraColumns` adds columns to the `engagements` table,

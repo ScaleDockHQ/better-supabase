@@ -63,6 +63,8 @@ export const removeEventReminder = bs.action(
   },
 );
 
+const WORKDAYS = [1, 2, 3, 4, 5] as const;
+
 const Clock = v.pipe(v.string(), v.regex(/^([01]\d|2[0-3]):[0-5]\d$/));
 
 /** Creates the organization's team calendar, in the zone the browser reports. */
@@ -146,5 +148,38 @@ export const createEvent = bs.action(
     refreshCaller(auth);
 
     return ok({ id: saved.data.id });
+  },
+);
+
+/**
+ * Replaces the caller's working hours with the same hours Monday to Friday, in
+ * their browser's zone.
+ */
+export const setWorkingHours = bs.action(
+  {
+    input: v.pipe(
+      v.object({
+        tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
+        start: Clock,
+        end: Clock,
+      }),
+      v.check((input) => input.start < input.end, "End after the start"),
+    ),
+    requireTenant: true,
+    authorize: (session) => can(session, "calendar.read"),
+  },
+  async ({ tz, start, end }, { tenant, supabase, auth }) => {
+    const saved = await blocks(supabase).calendar.setWorkingHours(tenant, {
+      tz,
+      hours: WORKDAYS.map((weekday) => ({ weekday, start, end })),
+    });
+
+    if (!saved.ok) {
+      return saved;
+    }
+
+    refreshCaller(auth);
+
+    return ok({ rows: saved.data });
   },
 );

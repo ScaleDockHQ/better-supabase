@@ -2,6 +2,7 @@
 
 import { useAction, useActionForm } from "better-supabase/react";
 import {
+  BadgeCheckIcon,
   DownloadIcon,
   EllipsisIcon,
   PencilIcon,
@@ -41,6 +42,7 @@ import { useErrorMessage } from "@/lib/use-error-message";
 import {
   downloadDriveFile,
   renameDriveItem,
+  requestDriveApproval,
   trashDriveItem,
 } from "../drive-actions";
 import { GrantsEditor, useDriveSharing } from "./grants-editor";
@@ -79,6 +81,15 @@ export function DriveItemActions({
     },
   });
 
+  const approval = useAction(requestDriveApproval, {
+    onSuccess: () => {
+      toast.success(t("Approval requested for {name}", { name }));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
   return (
     <>
       <DropdownMenu>
@@ -104,6 +115,17 @@ export function DriveItemActions({
             >
               <DownloadIcon />
               {t("Download")}
+            </DropdownMenuItem>
+          ) : null}
+          {kind === "file" ? (
+            <DropdownMenuItem
+              disabled={approval.pending}
+              onClick={() => {
+                void approval.run({ id });
+              }}
+            >
+              <BadgeCheckIcon />
+              {t("Request approval")}
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem

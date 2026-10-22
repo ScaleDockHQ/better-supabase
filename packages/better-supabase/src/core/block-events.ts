@@ -118,6 +118,11 @@ export interface AttachmentEventData {
   readonly size?: number;
   /** `attachment.scanned`: `clean`, `infected` or `failed`. */
   readonly status?: string;
+  /**
+   * The file's current version: on `attachment.uploaded`, `.replaced` and
+   * `.restored`.
+   */
+  readonly version?: number;
 }
 
 /** `data_export.*`, written to the outbox by the data-lifecycle module. */
@@ -498,6 +503,14 @@ export interface DocumentEventData extends SubjectEventData {
   /** The document. */
   readonly id: string;
   readonly name: string;
+}
+
+/** Events about a suggested change to a document. */
+export interface DocumentSuggestionEventData extends DocumentEventData {
+  readonly suggestionId: string;
+  /** Who suggested the change. */
+  readonly authorId: string | null;
+  readonly status: "open" | "accepted" | "rejected" | "withdrawn";
 }
 
 /**

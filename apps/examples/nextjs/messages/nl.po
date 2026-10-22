@@ -2440,11 +2440,13 @@ msgid "All day"
 msgstr "Hele dag"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.dM-p3_"
 msgid "From"
 msgstr "Van"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.9j3hXO"
 msgid "To"
 msgstr "Tot"
@@ -2455,6 +2457,7 @@ msgid "Location"
 msgstr "Locatie"
 
 #: src/features/calendar/components/create-event-dialog.tsx
+#: src/features/calendar/components/working-hours-dialog.tsx
 msgctxt "calendar.47FYwb"
 msgid "Cancel"
 msgstr "Annuleren"
@@ -2960,6 +2963,26 @@ msgstr "Kies er een"
 msgctxt "courses.LotwiE"
 msgid "Submit answers"
 msgstr "Antwoorden versturen"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.hTxGRa"
+msgid "Working hours saved"
+msgstr "Werktijden opgeslagen"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.pb74he"
+msgid "Working hours"
+msgstr "Werktijden"
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.Y-CeYn"
+msgid "Monday to Friday, in your time zone. Free/busy and find-a-time use them."
+msgstr "Maandag tot en met vrijdag, in je eigen tijdzone. Beschikbaarheid en tijd zoeken gebruiken ze."
+
+#: src/features/calendar/components/working-hours-dialog.tsx
+msgctxt "calendar.jvo0vs"
+msgid "Save"
+msgstr "Opslaan"
 
 #: src/features/crm/components/activity-timeline.tsx
 #: src/features/crm/components/log-activity-form.tsx
@@ -3958,6 +3981,11 @@ msgid "Files"
 msgstr "Bestanden"
 
 #: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.7hEmx-"
+msgid "Drop or paste files to upload. They download after the virus scan."
+msgstr "Sleep of plak bestanden om ze te uploaden. Ze zijn te downloaden na de virusscan."
+
+#: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.2Ne0Nv"
 msgid "Files download after the virus scan marks them clean."
 msgstr "Bestanden zijn te downloaden zodra de virusscan ze veilig heeft verklaard."
@@ -3978,9 +4006,19 @@ msgid "Attach contracts, quotes or anything else about this customer."
 msgstr "Voeg contracten, offertes of iets anders over deze klant toe."
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.5iaKnS"
-msgid "Upload unfinished"
-msgstr "Upload niet afgerond"
+msgctxt "customers.lrdlY6"
+msgid "File uploaded"
+msgstr "Bestand geüpload"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hsYvDX"
+msgid "Uploading"
+msgstr "Bezig met uploaden"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.QLkzoS"
+msgid "Saving"
+msgstr "Opslaan"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.oCixBp"
@@ -3988,14 +4026,44 @@ msgid "Waiting for scan"
 msgstr "Wacht op scan"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.IZFEUg"
-msgid "Ready"
-msgstr "Klaar"
+msgctxt "customers.LwdDVa"
+msgid "Uploaded"
+msgstr "Geüpload"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.qUJTsT"
 msgid "Blocked"
 msgstr "Geblokkeerd"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.vXCeIi"
+msgid "Failed"
+msgstr "Mislukt"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.minycD"
+msgid "Upload progress for {name}"
+msgstr "Uploadvoortgang van {name}"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.hRJjA7"
+msgid "Retry {name}"
+msgstr "{name} opnieuw proberen"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.OPIp6Z"
+msgid "Dismiss {name}"
+msgstr "{name} sluiten"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.5iaKnS"
+msgid "Upload unfinished"
+msgstr "Upload niet afgerond"
+
+#: src/features/customers/components/attachments-uploader.tsx
+msgctxt "customers.IZFEUg"
+msgid "Ready"
+msgstr "Klaar"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.pRoW6a"
@@ -4008,24 +4076,14 @@ msgid "Download {name}"
 msgstr "{name} downloaden"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.C_zqJE"
-msgid "The upload failed. Try again."
-msgstr "Het uploaden is mislukt. Probeer het opnieuw."
+msgctxt "customers.w6J38y"
+msgid "Upload more"
+msgstr "Meer uploaden"
 
 #: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.lrdlY6"
-msgid "File uploaded"
-msgstr "Bestand geüpload"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.hsYvDX"
-msgid "Uploading"
-msgstr "Bezig met uploaden"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.6oOCCL"
-msgid "Upload file"
-msgstr "Bestand uploaden"
+msgctxt "customers.2jjdVz"
+msgid "Upload files"
+msgstr "Bestanden uploaden"
 
 #: src/features/customers/components/attachments-uploader.tsx
 msgctxt "customers.88bXgO"
@@ -4924,9 +4982,24 @@ msgid "You can read this document. Ask an admin for edit access."
 msgstr "Je kunt dit document lezen. Vraag een beheerder om bewerkrechten."
 
 #: src/features/documents/components/document-editor.tsx
+msgctxt "documents.UziXES"
+msgid "Your edits become a suggestion that an editor accepts."
+msgstr "Je wijzigingen worden een voorstel dat een redacteur accepteert."
+
+#: src/features/documents/components/document-editor.tsx
 msgctxt "documents.pfzLED"
 msgid "Changes save as you type and show up for everyone editing."
 msgstr "Wijzigingen worden opgeslagen terwijl je typt en zijn zichtbaar voor iedereen die bewerkt."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.pBQ5bd"
+msgid "Editing"
+msgstr "Bewerken"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.N-xlF3"
+msgid "Suggesting"
+msgstr "Voorstellen"
 
 #: src/features/documents/components/document-editor.tsx
 msgctxt "documents.9a9-ww"
@@ -4952,6 +5025,51 @@ msgstr "Schrijf hier de notities."
 msgctxt "documents.moUq9i"
 msgid "Plain text. Everyone who can read the customer can read it."
 msgstr "Platte tekst. Iedereen die de klant kan lezen, kan dit lezen."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.y5bka7"
+msgid "Submit suggestion"
+msgstr "Voorstel indienen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.mkAc9X"
+msgid "The suggestions didn't load"
+msgstr "De voorstellen zijn niet geladen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.O359cZ"
+msgid "No open suggestions"
+msgstr "Geen open voorstellen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.gQ-Wnb"
+msgid "Suggested edits wait here until an editor accepts them."
+msgstr "Voorgestelde wijzigingen wachten hier tot een redacteur ze accepteert."
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.FN-iLO"
+msgid "Suggest a change"
+msgstr "Wijziging voorstellen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.Hv0XJn"
+msgid "Suggestions"
+msgstr "Voorstellen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.-CvNGk"
+msgid "Suggested edit"
+msgstr "Voorgestelde wijziging"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.VzIOKf"
+msgid "Reject"
+msgstr "Afwijzen"
+
+#: src/features/documents/components/document-editor.tsx
+msgctxt "documents.sjzLbX"
+msgid "Accept"
+msgstr "Accepteren"
 
 #: src/features/documents/components/document-list.tsx
 msgctxt "documents.JZAFzY"
@@ -5010,6 +5128,31 @@ msgid "Retry"
 msgstr "Opnieuw proberen"
 
 #: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.uPFUUe"
+msgid "Awaiting approval"
+msgstr "Wacht op goedkeuring"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.6XFO_C"
+msgid "Approved"
+msgstr "Goedgekeurd"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.5qaD7s"
+msgid "Rejected"
+msgstr "Afgewezen"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.oy7udF"
+msgid "Approval cancelled"
+msgstr "Goedkeuring geannuleerd"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.3dBHaS"
+msgid "Approval expired"
+msgstr "Goedkeuring verlopen"
+
+#: src/features/drive/components/drive-explorer.tsx
 msgctxt "drive.UVALem"
 msgid "My drive"
 msgstr "Mijn drive"
@@ -5063,6 +5206,11 @@ msgid "{size} KB"
 msgstr "{size} KB"
 
 #: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.Yc3a19"
+msgid "Approval requested for {name}"
+msgstr "Goedkeuring aangevraagd voor {name}"
+
+#: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.icI5MO"
 msgid "Actions for {name}"
 msgstr "Acties voor {name}"
@@ -5071,6 +5219,11 @@ msgstr "Acties voor {name}"
 msgctxt "drive.5q3qC0"
 msgid "Download"
 msgstr "Downloaden"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.0JzFLp"
+msgid "Request approval"
+msgstr "Goedkeuring aanvragen"
 
 #: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.iXNbPf"

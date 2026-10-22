@@ -517,7 +517,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdAt": "created_at",
               "uploadedAt": "uploaded_at",
               "scannedAt": "scanned_at",
-              "metadata": "metadata"
+              "metadata": "metadata",
+              "version": "version",
+              "width": "width",
+              "height": "height",
+              "pages": "pages"
             }
           }
         },
@@ -916,7 +920,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [
-        "outbox"
+        "outbox",
+        "drive"
       ],
       "manifest": "tags",
       "scopes": [
@@ -1190,7 +1195,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "share-links",
         "reminders",
-        "outbox"
+        "outbox",
+        "leave"
       ],
       "manifest": "calendar",
       "scopes": [
@@ -1246,6 +1252,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "subjectType": "subject_type",
               "subjectId": "subject_id",
               "color": "color",
+              "kind": "kind",
+              "transparency": "transparency",
+              "autoDecline": "auto_decline",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -1394,6 +1403,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "notifications",
         "jobs",
+        "drive",
         "teams",
         "state-machine",
         "access-requests",
@@ -1459,6 +1469,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "write": "write"
               }
             }
+          },
+          "document_suggestion": {
+            "table": "suggestions",
+            "singular": "document_suggestion"
           }
         },
         "tables": {
@@ -1474,11 +1488,28 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
+          },
+          "suggestions": {
+            "name": "document_suggestions",
+            "columns": {
+              "id": "id",
+              "document": "document_id",
+              "tenant": "tenant_id",
+              "update": "payload",
+              "summary": "summary",
+              "status": "status",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "decidedBy": "decided_by",
+              "decidedAt": "decided_at",
+              "note": "note"
+            }
           }
         },
         "keys": {
           "read": "documents.read",
           "write": "documents.write",
+          "suggest": "documents.suggest",
           "manage": "documents.manage"
         }
       }
@@ -1644,7 +1675,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "versions",
         "trash",
         "teams",
-        "share-links"
+        "share-links",
+        "tags",
+        "approvals"
       ],
       "manifest": "drive",
       "scopes": [
@@ -2122,7 +2155,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "notifications",
-        "number-sequences"
+        "number-sequences",
+        "attachments",
+        "reminders"
       ],
       "manifest": "work-items",
       "scopes": [
@@ -2165,6 +2200,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "iteration": {
             "table": "iterations",
             "singular": "iteration"
+          },
+          "checklist_item": {
+            "table": "checklist",
+            "singular": "checklist_item"
           }
         },
         "tables": {
@@ -2196,6 +2235,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "locked": "locked",
               "rank": "rank",
               "archivedAt": "archived_at",
+              "recursFrom": "recurs_from",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -2226,6 +2266,21 @@ export const PRESET_CATALOG: PresetCatalog = {
               "name": "name",
               "startsOn": "starts_on",
               "endsOn": "ends_on",
+              "createdAt": "created_at"
+            }
+          },
+          "checklist": {
+            "name": "work_item_checklist_items",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "item": "work_item_id",
+              "title": "title",
+              "done": "done",
+              "doneAt": "done_at",
+              "doneBy": "done_by",
+              "rank": "rank",
+              "createdBy": "created_by",
               "createdAt": "created_at"
             }
           }
@@ -4427,6 +4482,18 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "AttachmentFileInput"
+        },
+        {
+          "name": "AttachmentImages"
+        },
+        {
+          "name": "AttachmentImageUrlOptions"
+        },
+        {
+          "name": "AttachmentReplacement"
+        },
+        {
           "name": "Attachments",
           "fields": true
         },
@@ -4438,6 +4505,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "AttachmentScannerOptions"
+        },
+        {
+          "name": "AttachmentScanState"
+        },
+        {
+          "name": "AttachmentSend"
         },
         {
           "name": "AttachmentsEvents"
@@ -4460,6 +4533,30 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "AttachmentUpload",
           "fields": true
+        },
+        {
+          "name": "AttachmentUploadActions"
+        },
+        {
+          "name": "AttachmentUploadController"
+        },
+        {
+          "name": "AttachmentUploadControllerOptions"
+        },
+        {
+          "name": "AttachmentUploadItem"
+        },
+        {
+          "name": "AttachmentUploadSnapshot"
+        },
+        {
+          "name": "AttachmentUploadStatus"
+        },
+        {
+          "name": "AttachmentUploadTicket"
+        },
+        {
+          "name": "AttachmentVersion"
         },
         {
           "name": "NewAttachment"
@@ -4486,6 +4583,21 @@ export const PRESET_CATALOG: PresetCatalog = {
               "metadata": {
                 "kind": "json",
                 "optional": true
+              },
+              "width": {
+                "kind": "integer",
+                "minimum": 1,
+                "optional": true
+              },
+              "height": {
+                "kind": "integer",
+                "minimum": 1,
+                "optional": true
+              },
+              "pages": {
+                "kind": "integer",
+                "minimum": 1,
+                "optional": true
               }
             },
             "jsonSchema": {
@@ -4506,7 +4618,19 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "integer",
                   "minimum": 0
                 },
-                "metadata": {}
+                "metadata": {},
+                "width": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "pages": {
+                  "type": "integer",
+                  "minimum": 1
+                }
               },
               "required": [
                 "name",
@@ -4528,7 +4652,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "object.uploaded",
           "attachment.uploaded",
-          "attachment.scanned"
+          "attachment.scanned",
+          "attachment.replaced",
+          "attachment.restored"
         ]
       }
     },
@@ -4653,6 +4779,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarEventInput"
         },
         {
+          "name": "CalendarEventKind"
+        },
+        {
           "name": "CalendarEvents"
         },
         {
@@ -4672,6 +4801,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CalendarSnapshot"
+        },
+        {
+          "name": "CalendarTransparency"
         },
         {
           "name": "EventCalendarEvent"
@@ -4758,6 +4890,29 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "event",
+                  "out_of_office",
+                  "focus_time"
+                ],
+                "optional": true
+              },
+              "transparency": {
+                "kind": "enum",
+                "values": [
+                  "opaque",
+                  "transparent"
+                ],
+                "optional": true,
+                "description": "`transparent` events don't make anyone busy."
+              },
+              "autoDecline": {
+                "kind": "boolean",
+                "optional": true,
+                "description": "On an out-of-office or focus-time block: decline the invitations it covers."
+              },
               "uid": {
                 "kind": "string",
                 "optional": true,
@@ -4839,6 +4994,26 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "string",
                     "null"
                   ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "event",
+                    "out_of_office",
+                    "focus_time"
+                  ]
+                },
+                "transparency": {
+                  "type": "string",
+                  "enum": [
+                    "opaque",
+                    "transparent"
+                  ],
+                  "description": "`transparent` events don't make anyone busy."
+                },
+                "autoDecline": {
+                  "type": "boolean",
+                  "description": "On an out-of-office or focus-time block: decline the invitations it covers."
                 },
                 "uid": {
                   "type": "string",
@@ -4918,6 +5093,29 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "event",
+                  "out_of_office",
+                  "focus_time"
+                ],
+                "optional": true
+              },
+              "transparency": {
+                "kind": "enum",
+                "values": [
+                  "opaque",
+                  "transparent"
+                ],
+                "optional": true,
+                "description": "`transparent` events don't make anyone busy."
+              },
+              "autoDecline": {
+                "kind": "boolean",
+                "optional": true,
+                "description": "On an out-of-office or focus-time block: decline the invitations it covers."
+              },
               "uid": {
                 "kind": "string",
                 "optional": true,
@@ -4999,6 +5197,26 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "string",
                     "null"
                   ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "event",
+                    "out_of_office",
+                    "focus_time"
+                  ]
+                },
+                "transparency": {
+                  "type": "string",
+                  "enum": [
+                    "opaque",
+                    "transparent"
+                  ],
+                  "description": "`transparent` events don't make anyone busy."
+                },
+                "autoDecline": {
+                  "type": "boolean",
+                  "description": "On an out-of-office or focus-time block: decline the invitations it covers."
                 },
                 "uid": {
                   "type": "string",
@@ -5832,6 +6050,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "DocumentState"
         },
         {
+          "name": "DocumentSuggestion"
+        },
+        {
+          "name": "DocumentSuggestionStatus"
+        },
+        {
           "name": "DocumentUpdate"
         },
         {
@@ -5844,7 +6068,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "DocumentsEvents",
         "types": [
-          "document.created"
+          "document.created",
+          "document.suggested",
+          "document.suggestion_accepted",
+          "document.suggestion_rejected"
         ]
       }
     },
@@ -12223,8 +12450,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/work-items"
       },
       "consumes": {},
-      "provides": [],
+      "provides": [
+        "sink"
+      ],
       "entityTypes": [
+        {
+          "name": "ChecklistItem"
+        },
+        {
+          "name": "ChecklistItemInput"
+        },
         {
           "name": "Iteration"
         },
@@ -12243,6 +12478,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "WorkItemChangeResult"
         },
         {
+          "name": "WorkItemChecklistOptimisticAction"
+        },
+        {
           "name": "WorkItemField"
         },
         {
@@ -12256,6 +12494,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "WorkItemNode"
         },
         {
+          "name": "WorkItemRecurrence"
+        },
+        {
+          "name": "WorkItemRecurrenceSinkOptions"
+        },
+        {
           "name": "WorkItems",
           "fields": true
         },
@@ -12267,6 +12511,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "WorkItemState"
+        },
+        {
+          "name": "WorkItemWatcher"
+        },
+        {
+          "name": "WorkItemWatchLevel"
         }
       ],
       "entitySchemas": {
@@ -12336,6 +12586,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "uuid",
                 "optional": true
               },
+              "attachmentIds": {
+                "kind": "uuid",
+                "optional": true,
+                "array": true
+              },
               "fields": {
                 "kind": "json",
                 "optional": true,
@@ -12404,6 +12659,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "stageId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "attachmentIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
                 },
                 "fields": {
                   "description": "The extra columns to set."

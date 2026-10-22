@@ -1,5 +1,5 @@
--- better-supabase module: work-items (0.9.0)
--- @bs-module work-items@1 managed
+-- better-supabase module: work-items
+-- @bs-module work-items@2 managed
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -146,6 +146,30 @@ drop policy if exists work_item_assignees_read on "better_supabase"."work_item_a
 create policy work_item_assignees_read on "better_supabase"."work_item_assignees" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
 
+alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
+create unique index if not exists work_items_recurs_from_idx on "better_supabase"."work_items" ("recurs_from");
+
+create table if not exists "better_supabase"."work_item_checklist_items" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "title" text not null check (length("title") between 1 and 500),
+  "done" boolean not null default false,
+  "done_at" timestamptz,
+  "done_by" uuid,
+  "rank" text collate "C" not null check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "created_by" uuid,
+  "created_at" timestamptz not null default now()
+);
+create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
+alter table "better_supabase"."work_item_checklist_items" enable row level security;
+revoke all on "better_supabase"."work_item_checklist_items" from anon, authenticated;
+grant select on "better_supabase"."work_item_checklist_items" to authenticated;
+grant all on "better_supabase"."work_item_checklist_items" to service_role;
+drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
+create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+
 create or replace function better_supabase.bs_work_item_guard()
 returns trigger
 language plpgsql
@@ -217,6 +241,7 @@ declare
   v_identifier text;
   v_id uuid;
   v_row "better_supabase"."work_items";
+  v_linked integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -255,6 +280,20 @@ begin
     perform "better_supabase"."set_work_item_assignees"(v_id, create_work_item.assignees);
   end if;
   select * into v_row from "better_supabase"."work_items" x where x."id" = v_id;
+  if jsonb_typeof(coalesce((create_work_item.attrs -> 'attachments'), '[]'::jsonb)) <> 'array' then
+      raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'WORK_ITEM_ATTACHMENTS_INVALID';
+    end if;
+    if jsonb_array_length(coalesce((create_work_item.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
+      update "better_supabase"."attachments" f set "subject_type" = 'work_item', "subject_id" = v_row."id"::text
+      where f."id" = any (array(select jsonb_array_elements_text((create_work_item.attrs -> 'attachments'))::uuid))
+        and f."organization_id" = v_row."tenant_id"
+        and (f."subject_type" is null or (f."subject_type" = 'work_item' and f."subject_id" = v_row."id"::text))
+        and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
+      get diagnostics v_linked = row_count;
+      if v_linked <> (select count(distinct x) from jsonb_array_elements_text((create_work_item.attrs -> 'attachments')) x) then
+        raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'WORK_ITEM_ATTACHMENTS_INVALID';
+      end if;
+    end if;
   perform "better_supabase".emit_event('work_item.created', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/work-items');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_work_item_create"(uuid)');
@@ -264,7 +303,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid[]) from public, anon;
@@ -289,6 +328,7 @@ declare
   v_hint text;
   v_reason text;
   v_touched uuid[] := '{}';
+  v_linked integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -340,6 +380,22 @@ begin
         update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'attachments' then
+        select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
+        if jsonb_typeof(coalesce((v_change -> 'value'), '[]'::jsonb)) <> 'array' then
+      raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'WORK_ITEM_ATTACHMENTS_INVALID';
+    end if;
+    if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
+      update "better_supabase"."attachments" f set "subject_type" = 'work_item', "subject_id" = v_row."id"::text
+      where f."id" = any (array(select jsonb_array_elements_text((v_change -> 'value'))::uuid))
+        and f."organization_id" = v_row."tenant_id"
+        and (f."subject_type" is null or (f."subject_type" = 'work_item' and f."subject_id" = v_row."id"::text))
+        and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
+      get diagnostics v_linked = row_count;
+      if v_linked <> (select count(distinct x) from jsonb_array_elements_text((v_change -> 'value')) x) then
+        raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'WORK_ITEM_ATTACHMENTS_INVALID';
+      end if;
+    end if;
       else
         raise exception 'that field can''t be written' using errcode = '22023', hint = 'WORK_ITEM_FIELD_UNKNOWN';
       end case;
@@ -522,7 +578,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) as value, x."number" as number
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) as value, x."number" as number
     from "better_supabase"."work_items" x
     where x."tenant_id" = list_work_items.tenant and x."archived_at" is null
       and (list_work_items.filter ->> 'teamId' is null or x."team_id" = (list_work_items.filter ->> 'teamId')::uuid)
@@ -540,6 +596,234 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_work_items"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_work_items"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
+
+-- Adds a checklist item (checklist_item null) or changes one: title, done,
+-- rank. A new item without a rank goes last.
+create or replace function "better_supabase"."save_work_item_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+  v_id uuid := save_work_item_checklist_item.checklist_item;
+  v_last text;
+  v_done boolean := (save_work_item_checklist_item.attrs ->> 'done')::boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."work_items" x where x."id" = save_work_item_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.write'), false)) and x."archived_at" is null;
+  if v_row."id" is null then
+    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+  end if;
+  begin
+    if v_id is null then
+      select max(y."rank") into v_last from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_row."id";
+      insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
+      values (v_row."tenant_id", v_row."id", trim(save_work_item_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
+        case when v_done then now() end, case when v_done then auth.uid() end,
+        coalesce(save_work_item_checklist_item.attrs ->> 'rank', case
+    when v_last is null then 'V'
+    when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
+    else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+  end), auth.uid())
+      returning "id" into v_id;
+    else
+      update "better_supabase"."work_item_checklist_items" y set
+        "title" = coalesce(trim(save_work_item_checklist_item.attrs ->> 'title'), y."title"),
+        "rank" = coalesce(save_work_item_checklist_item.attrs ->> 'rank', y."rank"),
+        "done" = coalesce(v_done, y."done"),
+        "done_at" = case when v_done is null then y."done_at" when v_done then coalesce(y."done_at", now()) end,
+        "done_by" = case when v_done is null then y."done_by" when v_done then coalesce(y."done_by", auth.uid()) end
+      where y."id" = v_id and y."work_item_id" = v_row."id";
+      if not found then
+        raise exception 'no such checklist item on this work item' using errcode = 'P0002', hint = 'WORK_ITEM_CHECKLIST_ITEM_NOT_FOUND';
+      end if;
+    end if;
+  exception when check_violation or not_null_violation or invalid_text_representation then
+    raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'WORK_ITEM_CHECKLIST_ITEM_INVALID';
+  end;
+  perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/work-items');
+  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."work_item_checklist_items" y where y."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."save_work_item_checklist_item"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_work_item_checklist_item"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_work_item_checklist_item"(checklist_item uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x.* into v_row from "better_supabase"."work_items" x join "better_supabase"."work_item_checklist_items" y on y."work_item_id" = x."id"
+  where y."id" = delete_work_item_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.write'), false)) and x."archived_at" is null;
+  if v_row."id" is null then
+    return false;
+  end if;
+  delete from "better_supabase"."work_item_checklist_items" y where y."id" = delete_work_item_checklist_item.checklist_item;
+  perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/work-items');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_work_item_checklist_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_work_item_checklist_item"(uuid) to authenticated, service_role;
+
+-- An item's checklist, in rank order.
+create or replace function "better_supabase"."list_work_item_checklist"(work_item uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
+  from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = list_work_item_checklist.work_item
+$$;
+revoke execute on function "better_supabase"."list_work_item_checklist"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_work_item_checklist"(uuid) to authenticated, service_role;
+
+-- One item the caller can read, or null.
+create or replace function "better_supabase"."get_work_item"(work_item uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = get_work_item.work_item
+$$;
+revoke execute on function "better_supabase"."get_work_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_work_item"(uuid) to authenticated, service_role;
+
+-- Makes an item repeat: rrule is an RFC 5545 RRULE starting at the item's
+-- due date (now without one) in tzid. A null rrule stops it. Completing the
+-- item then creates the next one through repeat_work_item.
+create or replace function "better_supabase"."set_work_item_recurrence"(work_item uuid, rrule text, tzid text default 'UTC')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."work_items" x where x."id" = set_work_item_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.write'), false)) and x."archived_at" is null;
+  if v_row."id" is null then
+    raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+  end if;
+  if set_work_item_recurrence.rrule is null then
+    delete from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = v_row."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = v_row."id"::text;
+  else
+    if set_work_item_recurrence.rrule !~ '^(RRULE:)?FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[-+,0-9A-Z]+)*$' then
+      raise exception 'rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO' using errcode = '22023', hint = 'WORK_ITEM_RECURRENCE_INVALID';
+    end if;
+    if not exists (select 1 from pg_catalog.pg_timezone_names z where z.name = coalesce(set_work_item_recurrence.tzid, 'UTC')) then
+      raise exception 'tzid must be an IANA time zone' using errcode = '22023', hint = 'WORK_ITEM_RECURRENCE_INVALID';
+    end if;
+    insert into "better_supabase"."recurrence_rules" ("tenant_id", "subject_type", "subject_id", "dtstart", "tzid", "rrule")
+    values (v_row."tenant_id", 'work_item', v_row."id"::text, coalesce(v_row."due_at", now()), coalesce(set_work_item_recurrence.tzid, 'UTC'), regexp_replace(set_work_item_recurrence.rrule, '^RRULE:', ''))
+    on conflict ("tenant_id", "subject_type", "subject_id")
+    do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
+  end if;
+  perform "better_supabase".emit_event('work_item.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('recurrence')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/work-items');
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) -> 'recurrence' from "better_supabase"."work_items" x where x."id" = v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."set_work_item_recurrence"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."set_work_item_recurrence"(uuid, text, text) to authenticated, service_role;
+
+-- Creates the next item of a repeating item, due at due_at: a copy with its
+-- dates shifted, its assignees and an unchecked checklist. The rule moves to
+-- the copy. Runs once per item; a second call returns the same copy.
+create or replace function "better_supabase"."repeat_work_item"(work_item uuid, due_at timestamptz)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_src "better_supabase"."work_items";
+  v_next jsonb;
+  v_id uuid;
+  v_shift interval;
+begin
+  select * into v_src from "better_supabase"."work_items" x where x."id" = repeat_work_item.work_item for update;
+  if v_src."id" is null then
+    raise exception 'work item not found' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+  end if;
+  select x."id" into v_id from "better_supabase"."work_items" x where x."recurs_from" = v_src."id";
+  if v_id is not null then
+    return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
+  end if;
+  v_shift := coalesce(repeat_work_item.due_at - coalesce(v_src."due_at", v_src."end_at", v_src."start_at"), interval '0');
+  v_next := "better_supabase"."create_work_item"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+    'title', v_src."title", 'body', v_src."body", 'parentId', v_src."parent_id", 'teamId', v_src."team_id",
+    'projectId', v_src."project_id", 'priority', v_src."priority", 'estimate', v_src."estimate",
+    'startAt', v_src."start_at" + v_shift, 'endAt', v_src."end_at" + v_shift, 'dueAt', repeat_work_item.due_at,
+    'pipelineId', v_src."pipeline_id")),
+    array(select y."user_id" from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_src."id"));
+  v_id := (v_next ->> 'id')::uuid;
+  update "better_supabase"."work_items" x set "recurs_from" = v_src."id" where x."id" = v_id;
+  insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "rank", "created_by")
+  select y."tenant_id", v_id, y."title", y."rank", y."created_by" from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_src."id";
+  update "better_supabase"."recurrence_rules" rr set "subject_id" = v_id::text
+  where rr."tenant_id" = v_src."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = v_src."id"::text;
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'work_item' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."repeat_work_item"(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function "better_supabase"."repeat_work_item"(uuid, timestamptz) to service_role;
+
+-- Watches (all), follows (participating) or ignores an item the caller can
+-- read; a null level removes the choice.
+create or replace function "better_supabase"."watch_work_item"(work_item uuid, level text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."work_items";
+begin
+  select * into v_row from "better_supabase"."work_items" x where x."id" = watch_work_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.read'), false));
+  if v_row."id" is null then
+    raise exception 'no such work item you can read' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
+  end if;
+  perform "better_supabase"."set_notification_subscription"('work_item', v_row."id"::text, watch_work_item.level, v_row."tenant_id");
+  return watch_work_item.level is not null;
+end;
+$$;
+revoke execute on function "better_supabase"."watch_work_item"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."watch_work_item"(uuid, text) to authenticated, service_role;
+
+-- Who watches (all) or follows (participating) an item: [{ userId, level }].
+create or replace function "better_supabase"."list_work_item_watchers"(work_item uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('userId', s."user_id", 'level', s."level") order by s."level", s."user_id"), '[]'::jsonb)
+  from "better_supabase"."work_items" x
+  join "better_supabase"."notification_subscriptions" s on s."subject_type" = 'work_item' and s."subject_id" = x."id"::text
+    and s."organization_id" = x."tenant_id"
+  where x."id" = list_work_item_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.read'), false)) and s."level" in ('all', 'participating')
+$$;
+revoke execute on function "better_supabase"."list_work_item_watchers"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_work_item_watchers"(uuid) to authenticated, service_role;
 
 -- Creates a project (project null) or changes the keys attrs names: key,
 -- name, ownerId, status, startOn, targetOn, archived.
@@ -719,6 +1003,78 @@ set search_path = ''
 as $$ select "better_supabase"."list_work_items"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."list_work_items"(uuid, jsonb, text, uuid, integer) from public, anon;
 grant execute on function "api"."list_work_items"(uuid, jsonb, text, uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."save_work_item_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_work_item_checklist_item"($1, $2, $3) $$;
+revoke execute on function "api"."save_work_item_checklist_item"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."save_work_item_checklist_item"(uuid, uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."delete_work_item_checklist_item"(checklist_item uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_work_item_checklist_item"($1) $$;
+revoke execute on function "api"."delete_work_item_checklist_item"(uuid) from public, anon;
+grant execute on function "api"."delete_work_item_checklist_item"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_work_item_checklist"(work_item uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_work_item_checklist"($1) $$;
+revoke execute on function "api"."list_work_item_checklist"(uuid) from public, anon;
+grant execute on function "api"."list_work_item_checklist"(uuid) to authenticated, service_role;
+
+create or replace function "api"."get_work_item"(work_item uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_work_item"($1) $$;
+revoke execute on function "api"."get_work_item"(uuid) from public, anon;
+grant execute on function "api"."get_work_item"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_work_item_recurrence"(work_item uuid, rrule text, tzid text default 'UTC')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_work_item_recurrence"($1, $2, $3) $$;
+revoke execute on function "api"."set_work_item_recurrence"(uuid, text, text) from public, anon;
+grant execute on function "api"."set_work_item_recurrence"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."repeat_work_item"(work_item uuid, due_at timestamptz)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."repeat_work_item"($1, $2) $$;
+revoke execute on function "api"."repeat_work_item"(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function "api"."repeat_work_item"(uuid, timestamptz) to service_role;
+
+create or replace function "api"."watch_work_item"(work_item uuid, level text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."watch_work_item"($1, $2) $$;
+revoke execute on function "api"."watch_work_item"(uuid, text) from public, anon;
+grant execute on function "api"."watch_work_item"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."list_work_item_watchers"(work_item uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_work_item_watchers"($1) $$;
+revoke execute on function "api"."list_work_item_watchers"(uuid) from public, anon;
+grant execute on function "api"."list_work_item_watchers"(uuid) to authenticated, service_role;
 
 create or replace function "api"."save_project"(tenant uuid, project uuid, attrs jsonb)
 returns jsonb

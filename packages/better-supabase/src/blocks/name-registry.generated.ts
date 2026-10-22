@@ -168,14 +168,15 @@ export interface BlockNameRegistry {
   };
   readonly "attachments": {
     readonly tables: {
-      readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "metadata";
+      readonly "attachments": "id" | "tenant" | "subjectType" | "subjectId" | "bucket" | "path" | "name" | "mimeType" | "size" | "status" | "detail" | "uploadedBy" | "createdAt" | "uploadedAt" | "scannedAt" | "metadata" | "version" | "width" | "height" | "pages";
+      readonly "versions": "id" | "tenant" | "attachment" | "version" | "bucket" | "path" | "name" | "mimeType" | "size" | "width" | "height" | "pages" | "status" | "detail" | "uploadedBy" | "uploadedAt" | "scannedAt" | "archivedAt";
       readonly "scans": "bucket" | "path" | "status" | "detail" | "createdAt" | "scannedAt";
     };
-    readonly functions: "attachment_object_allowed" | "attachment_object_visible" | "attachment_subject_readable" | "confirm_attachment" | "create_attachment" | "delete_attachment" | "get_attachment" | "list_attachments" | "object_clean" | "object_scan" | "set_attachment_status" | "set_object_scan";
+    readonly functions: "attachment_object_allowed" | "attachment_object_visible" | "attachment_subject_readable" | "confirm_attachment" | "create_attachment" | "delete_attachment" | "get_attachment" | "list_attachment_versions" | "list_attachments" | "object_clean" | "object_scan" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "attachment": "id" | "organization_id" | "subject_type" | "subject_id" | "bucket" | "object_path" | "name" | "mime_type" | "size" | "status" | "scan_detail" | "uploaded_by" | "created_at" | "uploaded_at" | "scanned_at" | "metadata";
+      readonly "attachment": "id" | "organization_id" | "subject_type" | "subject_id" | "bucket" | "object_path" | "name" | "mime_type" | "size" | "status" | "scan_detail" | "uploaded_by" | "created_at" | "uploaded_at" | "scanned_at" | "metadata" | "version" | "width" | "height" | "pages";
     };
     readonly primary: "attachment";
   };
@@ -216,7 +217,7 @@ export interface BlockNameRegistry {
   };
   readonly "bookings": {
     readonly tables: {
-      readonly "resources": "id" | "tenant" | "name" | "kind" | "capacity" | "tz" | "calendar" | "active" | "createdAt";
+      readonly "resources": "id" | "tenant" | "name" | "kind" | "capacity" | "tz" | "calendar" | "host" | "checkBusy" | "active" | "createdAt";
       readonly "availability": "id" | "tenant" | "resource" | "weekday" | "startsAt" | "endsAt";
       readonly "exceptions": "id" | "tenant" | "resource" | "during" | "available" | "reason";
       readonly "services": "id" | "tenant" | "name" | "duration" | "bufferBefore" | "bufferAfter" | "resourceKinds" | "step" | "minNotice" | "holdFor" | "reminderOffsets" | "active" | "createdAt";
@@ -242,14 +243,15 @@ export interface BlockNameRegistry {
   readonly "calendar": {
     readonly tables: {
       readonly "calendars": "id" | "tenant" | "name" | "tz" | "color" | "ownerType" | "ownerId" | "createdAt";
-      readonly "events": "id" | "tenant" | "calendar" | "uid" | "title" | "description" | "location" | "startsAt" | "endsAt" | "allDay" | "tz" | "status" | "rrule" | "exdates" | "recurrence" | "originalStart" | "subjectType" | "subjectId" | "color" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "events": "id" | "tenant" | "calendar" | "uid" | "title" | "description" | "location" | "startsAt" | "endsAt" | "allDay" | "tz" | "status" | "rrule" | "exdates" | "recurrence" | "originalStart" | "subjectType" | "subjectId" | "color" | "kind" | "transparency" | "autoDecline" | "createdBy" | "createdAt" | "updatedAt";
       readonly "attendees": "id" | "tenant" | "event" | "email" | "name" | "user" | "role" | "response";
+      readonly "workingHours": "id" | "tenant" | "user" | "weekday" | "startsAt" | "endsAt" | "tz";
     };
-    readonly functions: "cancel_calendar_occurrence" | "create_calendar" | "delete_calendar" | "delete_calendar_event" | "import_calendar_events" | "list_calendar_events" | "list_calendars" | "remove_calendar_attendee" | "respond_calendar_event" | "save_calendar_event" | "set_calendar_attendee" | "split_calendar_event";
+    readonly functions: "calendar_attendee_auto_decline" | "calendar_block_auto_decline" | "calendar_busy_blocks" | "calendar_free_busy" | "calendar_rule_starts" | "cancel_calendar_occurrence" | "create_calendar" | "delete_calendar" | "delete_calendar_event" | "import_calendar_events" | "list_calendar_events" | "list_calendar_working_hours" | "list_calendars" | "remove_calendar_attendee" | "respond_calendar_event" | "save_calendar_event" | "set_calendar_attendee" | "set_calendar_working_hours" | "split_calendar_event";
     readonly actions: "manage" | "write" | "read";
     readonly hooks: "before_calendar_event_save" | "after_calendar_event_save";
     readonly entities: {
-      readonly "calendar_event": "id" | "tenant_id" | "calendar_id" | "uid" | "title" | "description" | "location" | "starts_at" | "ends_at" | "all_day" | "tz" | "status" | "rrule" | "exdates" | "recurrence_id" | "original_start" | "subject_type" | "subject_id" | "color" | "created_by" | "created_at" | "updated_at";
+      readonly "calendar_event": "id" | "tenant_id" | "calendar_id" | "uid" | "title" | "description" | "location" | "starts_at" | "ends_at" | "all_day" | "tz" | "status" | "rrule" | "exdates" | "recurrence_id" | "original_start" | "subject_type" | "subject_id" | "color" | "kind" | "transparency" | "auto_decline" | "created_by" | "created_at" | "updated_at";
       readonly "calendar": "id" | "tenant_id" | "name" | "tz" | "color" | "owner_type" | "owner_id" | "created_at";
     };
     readonly primary: "calendar_event";
@@ -456,12 +458,14 @@ export interface BlockNameRegistry {
       readonly "documents": "id" | "tenant" | "subjectType" | "subjectId" | "name" | "createdBy" | "createdAt" | "updatedAt";
       readonly "updates": "seq" | "document" | "tenant" | "update" | "actor" | "createdAt";
       readonly "snapshots": "document" | "tenant" | "state" | "seq" | "createdAt";
+      readonly "suggestions": "id" | "document" | "tenant" | "update" | "summary" | "status" | "createdBy" | "createdAt" | "decidedBy" | "decidedAt" | "note";
     };
-    readonly functions: "compact_document" | "document_access" | "document_topic_access" | "document_updates_after" | "documents_to_compact" | "open_document" | "pull_document_updates" | "push_document_update";
-    readonly actions: "read" | "write" | "manage";
+    readonly functions: "compact_document" | "decide_document_suggestion" | "document_access" | "document_topic_access" | "document_updates_after" | "documents_to_compact" | "list_document_suggestions" | "open_document" | "pull_document_updates" | "push_document_update" | "suggest_document_change";
+    readonly actions: "read" | "write" | "suggest" | "manage";
     readonly hooks: "before_document_create" | "after_document_create";
     readonly entities: {
       readonly "document": "id" | "tenant_id" | "subject_type" | "subject_id" | "name" | "created_by" | "created_at" | "updated_at";
+      readonly "document_suggestion": "id" | "document_id" | "tenant_id" | "payload" | "summary" | "status" | "created_by" | "created_at" | "decided_by" | "decided_at" | "note";
     };
     readonly primary: "document";
   };
@@ -1538,18 +1542,20 @@ export interface BlockNameRegistry {
   };
   readonly "work-items": {
     readonly tables: {
-      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "items": "id" | "tenant" | "number" | "identifier" | "title" | "body" | "parent" | "team" | "project" | "iteration" | "priority" | "estimate" | "progress" | "startAt" | "endAt" | "dueAt" | "pipeline" | "stage" | "stageEnteredAt" | "state" | "closeReason" | "closedAt" | "locked" | "rank" | "archivedAt" | "recursFrom" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "checklist": "id" | "tenant" | "item" | "title" | "done" | "doneAt" | "doneBy" | "rank" | "createdBy" | "createdAt";
       readonly "assignees": "tenant" | "item" | "user" | "createdAt";
       readonly "projects": "id" | "tenant" | "key" | "name" | "owner" | "status" | "startOn" | "targetOn" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "iterations": "id" | "tenant" | "team" | "name" | "startsOn" | "endsOn" | "createdAt";
     };
-    readonly functions: "archive_work_item" | "create_work_item" | "delete_work_item" | "list_work_items" | "save_iteration" | "save_project" | "set_work_item_assignees" | "update_work_items" | "work_item_tree";
+    readonly functions: "archive_work_item" | "create_work_item" | "delete_work_item" | "delete_work_item_checklist_item" | "get_work_item" | "list_work_item_checklist" | "list_work_items" | "save_iteration" | "save_project" | "save_work_item_checklist_item" | "set_work_item_assignees" | "update_work_items" | "work_item_tree";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_work_item_create" | "after_work_item_create" | "before_work_item_update" | "after_work_item_update";
     readonly entities: {
-      readonly "work_item": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "work_item": "id" | "tenant_id" | "number" | "identifier" | "title" | "body" | "parent_id" | "team_id" | "project_id" | "iteration_id" | "priority" | "estimate" | "progress" | "start_at" | "end_at" | "due_at" | "pipeline_id" | "stage_id" | "stage_entered_at" | "state" | "close_reason" | "closed_at" | "locked" | "rank" | "archived_at" | "recurs_from" | "created_by" | "created_at" | "updated_at";
       readonly "project": "id" | "tenant_id" | "key" | "name" | "owner_user_id" | "status" | "start_on" | "target_on" | "archived_at" | "created_at" | "updated_at";
       readonly "iteration": "id" | "tenant_id" | "team_id" | "name" | "starts_on" | "ends_on" | "created_at";
+      readonly "checklist_item": "id" | "tenant_id" | "work_item_id" | "title" | "done" | "done_at" | "done_by" | "rank" | "created_by" | "created_at";
     };
     readonly primary: "work_item";
   };

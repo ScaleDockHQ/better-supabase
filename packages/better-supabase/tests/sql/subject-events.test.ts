@@ -88,6 +88,9 @@ const SUBJECT_EVENTS = [
   "approval.expired",
   "approval.delegated",
   "document.created",
+  "document.suggested",
+  "document.suggestion_accepted",
+  "document.suggestion_rejected",
   "stock.reorder_point_reached",
   "drive.node_created",
   "drive.node_renamed",
@@ -156,6 +159,8 @@ const everyTypeListed: Unlisted extends never ? true : false = true;
 /** Events that name a subject only when the row is attached to one. */
 const OPTIONAL_SUBJECT = new Set([
   "attachment.uploaded",
+  "attachment.replaced",
+  "attachment.restored",
   "time_entry.started",
   "time_entry.recorded",
   "time_entry.updated",

@@ -8,8 +8,14 @@ import {
   serviceGrant,
   userGrant,
 } from "../shared.ts";
-import { READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
+import { labelTags, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
 import { liveShareLink } from "./share-links.ts";
+
+/**
+ * The approvals action a drive file's request uses:
+ * `policies.<subjectType>.approve`.
+ */
+const APPROVE = "'approve'";
 
 /** Files, revisions, the bin, stars and links: the drive-files module. */
 export function driveFilesSql(kit: DriveKit): string {
@@ -50,6 +56,45 @@ export function driveFilesSql(kit: DriveKit): string {
     siblings,
   } = kit;
 
+  const tags = labelTags(own);
+
+  const approvals =
+    A !== undefined &&
+    own.installed("approvals") &&
+    own.of("approvals").mode !== "custom"
+      ? own.of("approvals")
+      : undefined;
+
+  const tg = (column: string): string =>
+    tags === undefined ? column : tags.col("taggings", column);
+
+  const tt = (column: string): string =>
+    tags === undefined ? column : tags.col("tags", column);
+
+  const ar = (column: string): string =>
+    approvals === undefined ? column : approvals.col("requests", column);
+
+  const taggedNode = (alias: string, node: string): string =>
+    tags === undefined
+      ? "false"
+      : `${alias}.${tg("subjectType")} = ${tags.cast("taggings", "subjectType", typeLit)} and ${alias}.${tg("subjectId")} = ${node}::text`;
+
+  const labelJson =
+    tags === undefined
+      ? ""
+      : `, 'labels', (select coalesce(jsonb_agg(jsonb_build_object('id', lt.${tt("id")}, 'name', lt.${tt("name")}, 'color', lt.${tt("color")}) order by ${tags.has("tags", "rank") ? `lt.${tt("rank")} collate "C", ` : ""}lt.${tt("name")}, lt.${tt("id")}), '[]'::jsonb)
+      from ${tags.table("taggings")} lg join ${tags.table("tags")} lt on lt.${tt("id")} = lg.${tg("tag")}
+      where ${taggedNode("lg", `($1).${n("id")}`)})`;
+
+  const approvalJson =
+    approvals === undefined
+      ? ""
+      : `, 'approval', (select jsonb_build_object('id', lr.${ar("id")}, 'status', lr.${ar("status")}, 'createdAt', lr.${ar("createdAt")}, 'decidedAt', lr.${ar("decidedAt")})
+      from ${approvals.table("requests")} lr
+      where lr.${ar("subjectType")} = ${typeLit} and lr.${ar("subjectId")} = ($1).${n("id")}::text and lr.${ar("action")} = ${APPROVE}
+        and lr.${ar("payload")} ->> 'attachmentId' = ($1).${n("attachment")}::text
+      order by lr.${ar("createdAt")} desc, lr.${ar("id")} limit 1)`;
+
   const purgeObjects =
     A === undefined
       ? "'[]'::jsonb"
@@ -66,6 +111,9 @@ export function driveFilesSql(kit: DriveKit): string {
     state === undefined
       ? ""
       : `delete from ${state.table("state")} ps where ps.${st("subjectType")} = ${typeLit} and ps.${st("subjectId")} = old.${n("id")}::text;`,
+    tags === undefined
+      ? ""
+      : `delete from ${tags.table("taggings")} pt where ${taggedNode("pt", `old.${n("id")}`)};`,
   ]
     .filter((statement) => statement !== "")
     .join("\n  ");
@@ -623,6 +671,144 @@ revoke all on function ${fn("drive_link")}(text, uuid) from public, anon, authen
 grant execute on function ${fn("drive_link")}(text, uuid) to anon, authenticated, service_role;
 `;
 
+  const labelFunctions =
+    tags === undefined
+      ? ""
+      : `
+-- Puts a tenant tag on a node as a label, or takes it off (applied false),
+-- for an editor of the node; tags' own permission and kind checks apply.
+create or replace function ${fn("drive_label")}(node uuid, tag uuid, applied boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node ${T}%rowtype;
+begin
+  ${READ_ONLY_GUARD}
+  select * into v_node from ${T} x where x.${n("id")} = drive_label.node${live("x")};
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
+    ${notFound}
+  end if;
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
+    ${forbidden("label this item")}
+  end if;
+  if coalesce(drive_label.applied, true) then
+    perform ${tags.fn("tag")}(v_node.${n("tenant")}, ${typeLit}, v_node.${n("id")}::text, drive_label.tag);
+  else
+    perform ${tags.fn("untag")}(v_node.${n("tenant")}, ${typeLit}, v_node.${n("id")}::text, drive_label.tag);
+  end if;
+  return ${withRole("v_node")};
+end;
+$$;
+${userGrant(`${fn("drive_label")}(uuid, uuid, boolean)`)}
+
+-- The nodes in a tenant that carry a label and the caller can read.
+create or replace function ${fn("drive_labeled")}(tenant ${ctx.idType}, tag uuid, page_size integer default 50)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(t.node order by t.ord), '[]'::jsonb) from (
+    select ${withRole("x")} as node, row_number() over (order by ${orderBy("x")}) as ord
+    from ${T} x
+    where x.${n("tenant")} = drive_labeled.tenant${live("x")}
+      and exists (select 1 from ${tags.table("taggings")} lg where ${taggedNode("lg", `x.${n("id")}`)} and lg.${tg("tag")} = drive_labeled.tag)
+      and (${SERVICE_CALLER} or ${canRead(`x.${n("id")}`)})
+    order by ${orderBy("x")}
+    limit ${pageSize("drive_labeled.page_size", 50, 200)}
+  ) t
+$$;
+${userGrant(`${fn("drive_labeled")}(${ctx.idType}, uuid, integer)`)}
+`;
+
+  const approvalFunctions =
+    approvals === undefined || A === undefined
+      ? ""
+      : `
+-- Asks for approval of one stored version of a file: attachment, or the
+-- current one. The request follows those bytes, so a later upload doesn't
+-- inherit it and restoring the version brings it back.
+create or replace function ${fn("drive_request_approval")}(node uuid, attachment uuid default null, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node ${T}%rowtype;
+  v_file ${A}%rowtype;
+  v_revision integer;
+begin
+  ${READ_ONLY_GUARD}
+  select * into v_node from ${T} x where x.${n("id")} = drive_request_approval.node${live("x")};
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
+    ${notFound}
+  end if;
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
+    ${forbidden("ask for approval of this file")}
+  end if;
+  if v_node.${n("kind")} <> 'file' then
+    ${fail("DRIVE_NOT_A_FILE", "only a file can be approved", "22023")}
+  end if;
+  select * into v_file from ${A} f
+  where f.${a("id")} = coalesce(drive_request_approval.attachment, v_node.${n("attachment")})
+    and f.${a("subjectType")} = ${typeLit} and f.${a("subjectId")} = v_node.${n("id")}::text
+    and f.${a("uploadedAt")} is not null;
+  if not found then
+    ${fail("DRIVE_ATTACHMENT_NOT_FOUND", "that version of the file was not found", "P0002")}
+  end if;${
+    versions === undefined
+      ? ""
+      : `
+  select r.${v("number")} into v_revision from ${versions.table("versions")} r
+  where r.${v("subjectType")} = ${typeLit} and r.${v("subjectId")} = v_node.${n("id")}::text
+    and r.${v("content")} ->> 'attachmentId' = v_file.${a("id")}::text
+  order by r.${v("number")} limit 1;`
+  }
+  return ${approvals.fn("request_approval")}(v_node.${n("tenant")}, ${typeLit}, v_node.${n("id")}::text, ${APPROVE},
+    drive_request_approval.reason, jsonb_build_object('attachmentId', v_file.${a("id")}, 'revision', v_revision, 'name', v_file.${a("name")}))
+    || jsonb_build_object('attachmentId', v_file.${a("id")}, 'revision', v_revision, 'current', v_file.${a("id")} = v_node.${n("attachment")});
+end;
+$$;
+${userGrant(`${fn("drive_request_approval")}(uuid, uuid, text)`)}
+
+-- A file's approval requests, newest first, each with the version it is for
+-- and whether that version is the current one. Approvals' read rules apply.
+create or replace function ${fn("drive_approvals")}(node uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node ${T}%rowtype;
+begin
+  select * into v_node from ${T} x where x.${n("id")} = drive_approvals.node${live("x")};
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
+    ${notFound}
+  end if;
+  return (
+    select coalesce(jsonb_agg(r.value || jsonb_build_object(
+      'attachmentId', r.value -> 'payload' ->> 'attachmentId',
+      'revision', (r.value -> 'payload' ->> 'revision')::integer,
+      'current', r.value -> 'payload' ->> 'attachmentId' = v_node.${n("attachment")}::text
+    ) order by r.ordinality), '[]'::jsonb)
+    from jsonb_array_elements(${approvals.fn("list_approvals")}(v_node.${n("tenant")}, null, false, ${typeLit}, v_node.${n("id")}::text, 200, null)) with ordinality r
+    where r.value ->> 'action' = ${APPROVE}
+  );
+end;
+$$;
+${userGrant(`${fn("drive_approvals")}(uuid)`)}
+`;
+
   const attachmentKey =
     ctx.manages && A !== undefined
       ? `
@@ -642,7 +828,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ${nodeJson(fileJson)}
+  select ${nodeJson(`${fileJson}${labelJson}${approvalJson}`)}
 $$;
 revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, authenticated;
 `;
@@ -685,7 +871,7 @@ drop trigger if exists ${ctx.trigger("drive_node_purged")} on ${T};
 create trigger ${ctx.trigger("drive_node_purged")}
   after delete on ${T}
   for each row execute function ${fn("drive_node_purged")}();
-${fileFunctions}${revisionFunctions}${binFunctions}${stateFunctions}${linkFunction}`;
+${fileFunctions}${revisionFunctions}${binFunctions}${stateFunctions}${linkFunction}${labelFunctions}${approvalFunctions}`;
 
   return late;
 }
