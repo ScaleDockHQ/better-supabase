@@ -199,6 +199,28 @@ await comments.create(
 );
 ```
 
+A file anchor points at a page, a region or a moment of one of the record's
+files (see [file anchors](/docs/blocks/messaging#file-anchors)), and
+`anchoredTo` lists a file's comments with their records, for a PDF or video
+viewer that shows them in place:
+
+```ts
+import { fileAnchor } from "better-supabase/blocks/comments";
+
+await comments.create(
+  { type: "contract", id: contractId },
+  {
+    body: "Check this clause",
+    anchor: fileAnchor(pdfId, {
+      page: 3,
+      region: { x: 0.1, y: 0.2, width: 0.5, height: 0.1 },
+    }),
+  },
+);
+
+const onPdf = await comments.anchoredTo(pdfId).orThrow();
+```
+
 ### Attachments
 
 With the [attachments](/docs/blocks/attachments) block, upload files to the

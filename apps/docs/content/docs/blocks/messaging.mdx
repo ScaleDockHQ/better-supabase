@@ -101,6 +101,30 @@ conversation (subject `conversation`) and pass their ids as `attachmentIds`;
 [reactions](/docs/blocks/reactions) block, every message carries its reaction
 summary.
 
+### File anchors
+
+`anchor` on a top-level message says where it points. A file anchor points at
+an attachment on the conversation's record or on one of its messages: a page,
+a region of the page or video frame (fractions from 0 to 1), or a moment or
+span in seconds. `fileAnchor` builds one and throws a `TypeError` when a value
+is out of range, and `send` fails with `MESSAGING_ANCHOR_INVALID` when the
+shape is wrong or the file is on another record. `anchoredTo` lists the
+messages anchored to a file, oldest first:
+
+```ts
+import { fileAnchor } from "better-supabase/blocks/messaging";
+
+await messaging.send(review.id, {
+  body: "The intro runs long",
+  anchor: fileAnchor(videoId, { start: 12.5, end: 20 }),
+});
+
+const notes = await messaging.anchoredTo(videoId).orThrow();
+```
+
+Any other JSON anchor, such as a text range, is stored as it is.
+`isFileAnchor` tells a file anchor from the rest when you render a message.
+
 ## Notifications
 
 With the [notifications](/docs/blocks/notifications) block, sending a message
