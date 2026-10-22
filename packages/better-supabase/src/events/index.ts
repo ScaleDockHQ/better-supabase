@@ -358,6 +358,7 @@ export type {
   EngagementEventData,
   MailAccountEventData,
   MailMessageEventData,
+  MailTrackingEventData,
   PartyEventData,
   PipelineEventData,
   PipelineStageEventData,

@@ -153,7 +153,7 @@ function storeSql(n: MailNames): string {
   return `
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
--- text, html, sentAt }. Returns { id, threadId, created, direction }.
+-- text, html, sentAt, templateVersionId, trackingHash }. Returns { id, threadId, created, direction }.
 create or replace function ${fn("store_mail_message")}(account uuid, message jsonb)
 returns jsonb
 language plpgsql
@@ -168,6 +168,8 @@ declare
   v_rfc text := ${field("messageId")};
   v_from text := lower(coalesce(nullif(trim(store_mail_message.message -> 'from' ->> 'address'), ''), case when jsonb_typeof(store_mail_message.message -> 'from') = 'string' then nullif(trim(store_mail_message.message ->> 'from'), '') end));
   v_direction text := ${field("direction")};
+  v_template text := ${field("templateVersionId")};
+  v_hash text := lower(${field("trackingHash")});
   v_sent timestamptz;
   v_thread uuid;
   v_id uuid;
@@ -176,6 +178,9 @@ begin
   from ${t("accounts")} k where k.${a("id")} = store_mail_message.account;
   if jsonb_typeof(store_mail_message.message) <> 'object' or v_external is null or ${field("sentAt")} is null then
     ${fail("MAIL_MESSAGE_INVALID", "a message needs an externalId and a sentAt", "22023")}
+  end if;
+  if v_template is not null and v_template !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    ${fail("MAIL_MESSAGE_INVALID", "templateVersionId is a uuid", "22023")}
   end if;
   v_sent := (${field("sentAt")})::timestamptz;
   v_direction := coalesce(v_direction, case when v_from = v_account.address then 'outbound' else 'inbound' end);
@@ -198,10 +203,12 @@ begin
     return jsonb_build_object('id', v_id, 'threadId', (select y.${m("thread")} from ${t("messages")} y where y.${m("id")} = v_id), 'created', false, 'direction', v_direction);
   end if;
   insert into ${t("messages")} (${m("tenant")}, ${m("account")}, ${m("thread")}, ${m("externalId")}, ${m("rfcId")}, ${m("direction")},
-    ${m("fromAddress")}, ${m("fromName")}, ${m("to")}, ${m("cc")}, ${m("subject")}, ${m("snippet")}, ${m("bodyText")}, ${m("bodyHtml")}, ${m("sentAt")})
+    ${m("fromAddress")}, ${m("fromName")}, ${m("to")}, ${m("cc")}, ${m("subject")}, ${m("snippet")}, ${m("bodyText")}, ${m("bodyHtml")}, ${m("sentAt")},
+    ${m("templateVersion")}, ${m("trackingHash")})
   values (v_account.tenant, v_account.id, v_thread, v_external, v_rfc, v_direction,
     v_from, nullif(trim(store_mail_message.message -> 'from' ->> 'name'), ''), ${addresses("to")}, ${addresses("cc")},
-    ${field("subject")}, left(${field("snippet")}, 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent)
+    ${field("subject")}, left(${field("snippet")}, 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent,
+    v_template::uuid, case when v_direction = 'outbound' then v_hash end)
   returning ${m("id")} into v_id;
   update ${t("threads")} x set
     ${h("subject")} = coalesce(x.${h("subject")}, ${field("subject")}),
@@ -544,6 +551,11 @@ begin
   ${match}
   ${log}
   if (v_stored ->> 'created')::boolean then
+    if jsonb_typeof(record_sent_mail.message -> 'trackedLinks') = 'array' then
+      insert into ${t("trackedLinks")} (${n.k("tenant")}, ${n.k("message")}, ${n.k("position")}, ${n.k("url")})
+      select v_account.tenant, (v_stored ->> 'id')::uuid, (u.ord - 1)::integer, u.value #>> '{}'
+      from jsonb_array_elements(record_sent_mail.message -> 'trackedLinks') with ordinality u (value, ord);
+    end if;
     v_stored := v_stored || jsonb_build_object('fromAddress', (select k.${a("address")} from ${t("accounts")} k where k.${a("id")} = v_account.id));
     ${record("mail_message.sent", "v_stored", "v_account")}
   end if;
@@ -679,6 +691,111 @@ ${userGrant(`${fn("get_mail_thread")}(uuid)`)}
 `;
 }
 
+/** Opens and clicks on tracked messages, and the stats per template version. */
+function trackingSql(ctx: ModuleContext, n: MailNames): string {
+  const { fn, t, a, m, l, k, e } = n;
+
+  const record = (event: string, url: string, key: string): string =>
+    ctx.record({
+      type: event,
+      payload: `jsonb_build_object('organizationId', v_message.tenant, 'accountId', v_message.account, 'userId', v_message.owner, 'threadId', v_message.thread, 'messageId', v_message.id, 'templateVersionId', v_message.template, 'url', ${url}, 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by s.${l("createdAt")}, s.${l("subjectType")}, s.${l("subjectId")}) from ${t("links")} s where s.${l("thread")} = v_message.thread), '[]'::jsonb))`,
+      subject: `'mail-messages/' || v_message.id`,
+      tenant: "v_message.tenant::text",
+      key,
+      audit: false,
+    });
+
+  return `
+-- For the tracking route: records an open of the tracked message whose token
+-- hashes to hash, or a click on its link at index link. Returns { messageId,
+-- url } (url, the stored link, for a click), or null for an unknown token.
+create or replace function ${fn("track_mail")}(hash text, kind text, link integer, user_agent text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_message record;
+  v_url text;
+  v_event uuid;
+begin
+  if not (${SERVICE_CALLER}) then
+    ${fail("MAIL_FORBIDDEN", "only the service role records tracking")}
+  end if;
+  if track_mail.kind is null or track_mail.kind not in ('open', 'click') then
+    ${fail("MAIL_TRACKING_INVALID", "kind is open or click", "22023")}
+  end if;
+  select y.${m("id")} as id, y.${m("tenant")} as tenant, y.${m("account")} as account, y.${m("thread")} as thread,
+    y.${m("templateVersion")} as template, y.${m("openedAt")} as opened, x.${a("user")} as owner
+  into v_message
+  from ${t("messages")} y join ${t("accounts")} x on x.${a("id")} = y.${m("account")}
+  where y.${m("trackingHash")} = lower(track_mail.hash) and y.${m("direction")} = 'outbound';
+  if v_message.id is null then
+    return null;
+  end if;
+  if track_mail.kind = 'click' then
+    update ${t("trackedLinks")} u set ${k("clickCount")} = u.${k("clickCount")} + 1
+    where u.${k("message")} = v_message.id and u.${k("position")} = track_mail.link
+    returning u.${k("url")} into v_url;
+    if v_url is null then
+      return null;
+    end if;
+  end if;
+  insert into ${t("tracking")} (${e("tenant")}, ${e("message")}, ${e("kind")}, ${e("position")}, ${e("userAgent")})
+  values (v_message.tenant, v_message.id, track_mail.kind, case when track_mail.kind = 'click' then track_mail.link end, left(track_mail.user_agent, 300))
+  returning ${e("id")} into v_event;
+  update ${t("messages")} y set
+    ${m("openedAt")} = coalesce(y.${m("openedAt")}, now()),
+    ${m("openCount")} = y.${m("openCount")} + case when track_mail.kind = 'open' then 1 else 0 end,
+    ${m("clickedAt")} = case when track_mail.kind = 'click' then coalesce(y.${m("clickedAt")}, now()) else y.${m("clickedAt")} end,
+    ${m("clickCount")} = y.${m("clickCount")} + case when track_mail.kind = 'click' then 1 else 0 end
+  where y.${m("id")} = v_message.id;
+  if track_mail.kind = 'click' then
+    ${record("mail_message.clicked", "v_url", "'mail_message_clicked:' || v_event")}
+  elsif v_message.opened is null then
+    ${record("mail_message.opened", "null::text", "'mail_message_opened:' || v_message.id")}
+  end if;
+  return jsonb_build_object('messageId', v_message.id, 'url', v_url);
+end;
+$$;
+${serviceGrant(`${fn("track_mail")}(text, text, integer, text)`)}
+
+-- Per template version, how many messages members sent from shared
+-- mailboxes since a time, and how many were opened, clicked and replied to.
+create or replace function ${fn("mail_template_stats")}(tenant ${ctx.idType}, since timestamptz)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ${ctx.scope.can("mail_template_stats.tenant", n.read)} then
+    ${fail("MAIL_FORBIDDEN", "not allowed to read mail")}
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('templateVersionId', p.template, 'sent', p.sent, 'opened', p.opened, 'clicked', p.clicked, 'replied', p.replied) order by p.sent desc, p.template), '[]'::jsonb)
+    from (
+      select y.${m("templateVersion")} as template, count(*) as sent, count(y.${m("openedAt")}) as opened, count(y.${m("clickedAt")}) as clicked,
+        count(*) filter (where exists (
+          select 1 from ${t("messages")} r
+          where r.${m("thread")} = y.${m("thread")} and r.${m("direction")} = 'inbound' and r.${m("sentAt")} > y.${m("sentAt")}
+        )) as replied
+      from ${t("messages")} y join ${t("accounts")} x on x.${a("id")} = y.${m("account")}
+      where y.${m("tenant")} = mail_template_stats.tenant and y.${m("direction")} = 'outbound'
+        and y.${m("templateVersion")} is not null
+        and (x.${a("share")} = 'records' or x.${a("user")} = auth.uid())
+        and (mail_template_stats.since is null or y.${m("sentAt")} >= mail_template_stats.since)
+      group by y.${m("templateVersion")}
+    ) p
+  );
+end;
+$$;
+${userGrant(`${fn("mail_template_stats")}(${ctx.idType}, timestamptz)`)}
+`;
+}
+
 /** The mail-sync module's functions, after its tables. */
 export function mailSyncFunctions(ctx: ModuleContext, n: MailNames): string {
   return [
@@ -688,5 +805,6 @@ export function mailSyncFunctions(ctx: ModuleContext, n: MailNames): string {
     accountSql(ctx, n),
     messageSql(ctx, n),
     readSql(ctx, n),
+    trackingSql(ctx, n),
   ].join("");
 }

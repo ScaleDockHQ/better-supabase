@@ -863,6 +863,7 @@ export type {
   JobEventData,
   MailAccountEventData,
   MailMessageEventData,
+  MailTrackingEventData,
   MessageEventData,
   PartyEventData,
   PipelineEventData,

@@ -2,7 +2,7 @@
 -- engagements. Acme (…0001) has the owner …a1 and the member …a2; Globex
 -- (…0002) has the owner …a3 (supabase/seed.sql).
 begin;
-select plan(17);
+select plan(27);
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, anon, service_role;
@@ -168,6 +168,97 @@ select is(
   ) ->> 'direction',
   'outbound',
   'a sent message is stored as outbound whatever its sender says'
+);
+select is(
+  api.record_sent_mail((select id from ids where name = 'box'),
+    jsonb_build_object('externalId', 'm4', 'threadId', 't1', 'subject', 'Offer', 'sentAt', '2026-10-02T10:00:00Z',
+      'templateVersionId', '00000000-0000-4000-8000-00000000e0f1',
+      'trackingHash', encode(sha256('tok'::bytea), 'hex'),
+      'trackedLinks', '["https://x.test/offer"]'::jsonb)
+  ) ->> 'template_version_id',
+  '00000000-0000-4000-8000-00000000e0f1',
+  'a sent message keeps the template version it was written from'
+);
+select throws_ok(
+  $$select api.track_mail(encode(sha256('tok'::bytea), 'hex'), 'open', null, null)$$,
+  '42501',
+  null,
+  'a member cannot record tracking; only the tracking route can'
+);
+
+-- The tracking route.
+reset role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+set local role service_role;
+
+select isnt(
+  api.track_mail(encode(sha256('tok'::bytea), 'hex'), 'open', null, 'Mail/1.0') ->> 'messageId',
+  null,
+  'an open of a tracked message is recorded'
+);
+select api.track_mail(encode(sha256('tok'::bytea), 'hex'), 'open', null, null);
+select is(
+  api.track_mail(encode(sha256('tok'::bytea), 'hex'), 'click', 0, null) ->> 'url',
+  'https://x.test/offer',
+  'a click answers with the stored link'
+);
+select is(
+  api.track_mail(encode(sha256('tok'::bytea), 'hex'), 'click', 5, null),
+  null,
+  'a click on a link the message lacks records nothing'
+);
+select is(
+  api.track_mail(encode(sha256('other'::bytea), 'hex'), 'open', null, null),
+  null,
+  'an unknown token records nothing'
+);
+select throws_ok(
+  $$select api.track_mail('x', 'bounce', null, null)$$,
+  '22023',
+  null,
+  'a tracking kind other than open or click is refused'
+);
+
+reset role;
+select is(
+  (select array[open_count, click_count] from better_supabase.mail_messages where external_id = 'm4'),
+  array[2, 1],
+  'the message counts its opens and clicks'
+);
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
+  true
+);
+set local role authenticated;
+
+select is(
+  api.mail_template_stats('00000000-0000-4000-8000-000000000001', null),
+  '[{"templateVersionId": "00000000-0000-4000-8000-00000000e0f1", "sent": 1, "opened": 1, "clicked": 1, "replied": 0}]'::jsonb,
+  'template stats count the sent, opened and clicked messages'
+);
+
+reset role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+set local role service_role;
+select api.ingest_mail((select id from ids where name = 'box'), '[
+  {"externalId":"m5","threadId":"t1","from":{"address":"ann@client.test"},"to":["bob@acme.test"],
+   "subject":"Re: Offer","sentAt":"2026-10-03T09:00:00Z"}
+]', null);
+
+reset role;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
+  true
+);
+set local role authenticated;
+
+select is(
+  api.mail_template_stats('00000000-0000-4000-8000-000000000001', null) -> 0 ->> 'replied',
+  '1',
+  'an inbound message on the thread after the sent one counts as a reply'
 );
 select is(
   api.update_mail_account((select id from ids where name = 'box'), 'private', null) ->> 'share',

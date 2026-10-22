@@ -2797,6 +2797,12 @@ export const PRESET_CATALOG: PresetCatalog = {
               "bodyText": "body_text",
               "bodyHtml": "body_html",
               "sentAt": "sent_at",
+              "templateVersion": "template_version_id",
+              "trackingHash": "tracking_hash",
+              "openedAt": "opened_at",
+              "openCount": "open_count",
+              "clickedAt": "clicked_at",
+              "clickCount": "click_count",
               "createdAt": "created_at"
             }
           }
@@ -5814,6 +5820,14 @@ export const PRESET_CATALOG: PresetCatalog = {
               "threadId": {
                 "kind": "uuid",
                 "optional": true
+              },
+              "templateVersionId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "track": {
+                "kind": "boolean",
+                "optional": true
               }
             },
             "jsonSchema": {
@@ -5847,6 +5861,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "threadId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "templateVersionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "track": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -5864,7 +5885,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "mail_account.connected",
           "mail_account.disconnected",
           "mail_message.received",
-          "mail_message.sent"
+          "mail_message.sent",
+          "mail_message.opened",
+          "mail_message.clicked"
         ]
       }
     },

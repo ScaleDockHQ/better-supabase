@@ -50,6 +50,23 @@ export interface MailMessageEventData {
   readonly subjects: readonly { readonly type: string; readonly id: string }[];
 }
 
+/**
+ * `mail_message.opened` (the first open) and `mail_message.clicked` (each
+ * click): a tracked message its recipient opened, or a link in it they followed
+ * (`url`, null for an open).
+ */
+export interface MailTrackingEventData {
+  readonly organizationId: string;
+  readonly accountId: string;
+  readonly userId: string;
+  readonly threadId: string;
+  readonly messageId: string;
+  /** The template version the message was sent from, when it had one. */
+  readonly templateVersionId: string | null;
+  readonly url: string | null;
+  readonly subjects: readonly { readonly type: string; readonly id: string }[];
+}
+
 /** `collection.created` and `collection.archived`: a list of one subject type. */
 export interface CollectionEventData {
   readonly organizationId: string;

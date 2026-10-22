@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_115_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bs-module mail-sync@1 managed
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send.
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -102,15 +102,50 @@ create table if not exists "better_supabase"."mail_messages" (
   "body_text" text,
   "body_html" text,
   "sent_at" timestamptz not null,
+  "template_version_id" uuid,
+  "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
+  "opened_at" timestamptz,
+  "open_count" integer not null default 0,
+  "clicked_at" timestamptz,
+  "click_count" integer not null default 0,
   "created_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_messages_thread_idx on "better_supabase"."mail_messages" ("thread_id", "sent_at");
 create index if not exists mail_messages_rfc_idx on "better_supabase"."mail_messages" ("account_id", "rfc_message_id") where "rfc_message_id" is not null;
+create unique index if not exists mail_messages_tracking_idx on "better_supabase"."mail_messages" ("tracking_hash") where "tracking_hash" is not null;
+create index if not exists mail_messages_template_idx on "better_supabase"."mail_messages" ("tenant_id", "template_version_id") where "template_version_id" is not null;
 alter table "better_supabase"."mail_messages" enable row level security;
 revoke all on "better_supabase"."mail_messages" from anon, authenticated;
 grant select on "better_supabase"."mail_messages" to authenticated;
 grant all on "better_supabase"."mail_messages" to service_role;
+create table if not exists "better_supabase"."mail_tracked_links" (
+  "tenant_id" uuid not null,
+  "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
+  "position" integer not null check ("position" >= 0),
+  "url" text not null check ("url" ~* '^https?://' and length("url") <= 2048),
+  "click_count" integer not null default 0,
+  "created_at" timestamptz not null default now(),
+  primary key ("message_id", "position")
+);
+alter table "better_supabase"."mail_tracked_links" enable row level security;
+revoke all on "better_supabase"."mail_tracked_links" from anon, authenticated;
+grant select on "better_supabase"."mail_tracked_links" to authenticated;
+grant all on "better_supabase"."mail_tracked_links" to service_role;
+create table if not exists "better_supabase"."mail_tracking_events" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
+  "kind" text not null check ("kind" in ('open', 'click')),
+  "position" integer,
+  "user_agent" text check (length("user_agent") <= 300),
+  "occurred_at" timestamptz not null default now()
+);
+create index if not exists mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
+alter table "better_supabase"."mail_tracking_events" enable row level security;
+revoke all on "better_supabase"."mail_tracking_events" from anon, authenticated;
+grant select on "better_supabase"."mail_tracking_events" to authenticated;
+grant all on "better_supabase"."mail_tracking_events" to service_role;
 create table if not exists "better_supabase"."mail_thread_subjects" (
   "tenant_id" uuid not null,
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
@@ -165,10 +200,16 @@ using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "better_supabase"."mail_thread_subjects";
 create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects" for select to authenticated
 using ("better_supabase"."mail_thread_visible"("thread_id"));
+drop policy if exists mail_tracked_links_read on "better_supabase"."mail_tracked_links";
+create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links" for select to authenticated
+using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+drop policy if exists mail_tracking_events_read on "better_supabase"."mail_tracking_events";
+create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events" for select to authenticated
+using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
--- text, html, sentAt }. Returns { id, threadId, created, direction }.
+-- text, html, sentAt, templateVersionId, trackingHash }. Returns { id, threadId, created, direction }.
 create or replace function "better_supabase"."store_mail_message"(account uuid, message jsonb)
 returns jsonb
 language plpgsql
@@ -183,6 +224,8 @@ declare
   v_rfc text := nullif(trim(store_mail_message.message ->> 'messageId'), '');
   v_from text := lower(coalesce(nullif(trim(store_mail_message.message -> 'from' ->> 'address'), ''), case when jsonb_typeof(store_mail_message.message -> 'from') = 'string' then nullif(trim(store_mail_message.message ->> 'from'), '') end));
   v_direction text := nullif(trim(store_mail_message.message ->> 'direction'), '');
+  v_template text := nullif(trim(store_mail_message.message ->> 'templateVersionId'), '');
+  v_hash text := lower(nullif(trim(store_mail_message.message ->> 'trackingHash'), ''));
   v_sent timestamptz;
   v_thread uuid;
   v_id uuid;
@@ -191,6 +234,9 @@ begin
   from "better_supabase"."mail_accounts" k where k."id" = store_mail_message.account;
   if jsonb_typeof(store_mail_message.message) <> 'object' or v_external is null or nullif(trim(store_mail_message.message ->> 'sentAt'), '') is null then
     raise exception 'a message needs an externalId and a sentAt' using errcode = '22023', hint = 'MAIL_MESSAGE_INVALID';
+  end if;
+  if v_template is not null and v_template !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'templateVersionId is a uuid' using errcode = '22023', hint = 'MAIL_MESSAGE_INVALID';
   end if;
   v_sent := (nullif(trim(store_mail_message.message ->> 'sentAt'), ''))::timestamptz;
   v_direction := coalesce(v_direction, case when v_from = v_account.address then 'outbound' else 'inbound' end);
@@ -213,10 +259,12 @@ begin
     return jsonb_build_object('id', v_id, 'threadId', (select y."thread_id" from "better_supabase"."mail_messages" y where y."id" = v_id), 'created', false, 'direction', v_direction);
   end if;
   insert into "better_supabase"."mail_messages" ("tenant_id", "account_id", "thread_id", "external_id", "rfc_message_id", "direction",
-    "from_address", "from_name", "to_addresses", "cc_addresses", "subject", "snippet", "body_text", "body_html", "sent_at")
+    "from_address", "from_name", "to_addresses", "cc_addresses", "subject", "snippet", "body_text", "body_html", "sent_at",
+    "template_version_id", "tracking_hash")
   values (v_account.tenant, v_account.id, v_thread, v_external, v_rfc, v_direction,
     v_from, nullif(trim(store_mail_message.message -> 'from' ->> 'name'), ''), coalesce((select array_agg(lower(trim(coalesce(e.value ->> 'address', e.value #>> '{}')))) from jsonb_array_elements(case when jsonb_typeof(store_mail_message.message -> 'to') = 'array' then store_mail_message.message -> 'to' else '[]'::jsonb end) e where coalesce(e.value ->> 'address', e.value #>> '{}') like '%@%'), '{}'), coalesce((select array_agg(lower(trim(coalesce(e.value ->> 'address', e.value #>> '{}')))) from jsonb_array_elements(case when jsonb_typeof(store_mail_message.message -> 'cc') = 'array' then store_mail_message.message -> 'cc' else '[]'::jsonb end) e where coalesce(e.value ->> 'address', e.value #>> '{}') like '%@%'), '{}'),
-    nullif(trim(store_mail_message.message ->> 'subject'), ''), left(nullif(trim(store_mail_message.message ->> 'snippet'), ''), 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent)
+    nullif(trim(store_mail_message.message ->> 'subject'), ''), left(nullif(trim(store_mail_message.message ->> 'snippet'), ''), 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent,
+    v_template::uuid, case when v_direction = 'outbound' then v_hash end)
   returning "id" into v_id;
   update "better_supabase"."mail_threads" x set
     "subject" = coalesce(x."subject", nullif(trim(store_mail_message.message ->> 'subject'), '')),
@@ -514,6 +562,9 @@ declare
   v_stored jsonb;
   v_thread uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select k."id" as id, k."tenant_id" as tenant, k."user_id" as owner into v_account
   from "better_supabase"."mail_accounts" k
   where k."id" = record_sent_mail.account and k."user_id" = auth.uid() and k."status" <> 'disconnected';
@@ -528,6 +579,11 @@ begin
   
   
   if (v_stored ->> 'created')::boolean then
+    if jsonb_typeof(record_sent_mail.message -> 'trackedLinks') = 'array' then
+      insert into "better_supabase"."mail_tracked_links" ("tenant_id", "message_id", "position", "url")
+      select v_account.tenant, (v_stored ->> 'id')::uuid, (u.ord - 1)::integer, u.value #>> '{}'
+      from jsonb_array_elements(record_sent_mail.message -> 'trackedLinks') with ordinality u (value, ord);
+    end if;
     v_stored := v_stored || jsonb_build_object('fromAddress', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = v_account.id));
     null;
   end if;
@@ -664,6 +720,96 @@ $$;
 revoke execute on function "better_supabase"."get_mail_thread"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_mail_thread"(uuid) to authenticated, service_role;
 
+-- For the tracking route: records an open of the tracked message whose token
+-- hashes to hash, or a click on its link at index link. Returns { messageId,
+-- url } (url, the stored link, for a click), or null for an unknown token.
+create or replace function "better_supabase"."track_mail"(hash text, kind text, link integer, user_agent text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_message record;
+  v_url text;
+  v_event uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role records tracking' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
+  end if;
+  if track_mail.kind is null or track_mail.kind not in ('open', 'click') then
+    raise exception 'kind is open or click' using errcode = '22023', hint = 'MAIL_TRACKING_INVALID';
+  end if;
+  select y."id" as id, y."tenant_id" as tenant, y."account_id" as account, y."thread_id" as thread,
+    y."template_version_id" as template, y."opened_at" as opened, x."user_id" as owner
+  into v_message
+  from "better_supabase"."mail_messages" y join "better_supabase"."mail_accounts" x on x."id" = y."account_id"
+  where y."tracking_hash" = lower(track_mail.hash) and y."direction" = 'outbound';
+  if v_message.id is null then
+    return null;
+  end if;
+  if track_mail.kind = 'click' then
+    update "better_supabase"."mail_tracked_links" u set "click_count" = u."click_count" + 1
+    where u."message_id" = v_message.id and u."position" = track_mail.link
+    returning u."url" into v_url;
+    if v_url is null then
+      return null;
+    end if;
+  end if;
+  insert into "better_supabase"."mail_tracking_events" ("tenant_id", "message_id", "kind", "position", "user_agent")
+  values (v_message.tenant, v_message.id, track_mail.kind, case when track_mail.kind = 'click' then track_mail.link end, left(track_mail.user_agent, 300))
+  returning "id" into v_event;
+  update "better_supabase"."mail_messages" y set
+    "opened_at" = coalesce(y."opened_at", now()),
+    "open_count" = y."open_count" + case when track_mail.kind = 'open' then 1 else 0 end,
+    "clicked_at" = case when track_mail.kind = 'click' then coalesce(y."clicked_at", now()) else y."clicked_at" end,
+    "click_count" = y."click_count" + case when track_mail.kind = 'click' then 1 else 0 end
+  where y."id" = v_message.id;
+  if track_mail.kind = 'click' then
+    null;
+  elsif v_message.opened is null then
+    null;
+  end if;
+  return jsonb_build_object('messageId', v_message.id, 'url', v_url);
+end;
+$$;
+revoke execute on function "better_supabase"."track_mail"(text, text, integer, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."track_mail"(text, text, integer, text) to service_role;
+
+-- Per template version, how many messages members sent from shared
+-- mailboxes since a time, and how many were opened, clicked and replied to.
+create or replace function "better_supabase"."mail_template_stats"(tenant uuid, since timestamptz)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+    raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('templateVersionId', p.template, 'sent', p.sent, 'opened', p.opened, 'clicked', p.clicked, 'replied', p.replied) order by p.sent desc, p.template), '[]'::jsonb)
+    from (
+      select y."template_version_id" as template, count(*) as sent, count(y."opened_at") as opened, count(y."clicked_at") as clicked,
+        count(*) filter (where exists (
+          select 1 from "better_supabase"."mail_messages" r
+          where r."thread_id" = y."thread_id" and r."direction" = 'inbound' and r."sent_at" > y."sent_at"
+        )) as replied
+      from "better_supabase"."mail_messages" y join "better_supabase"."mail_accounts" x on x."id" = y."account_id"
+      where y."tenant_id" = mail_template_stats.tenant and y."direction" = 'outbound'
+        and y."template_version_id" is not null
+        and (x."share" = 'records' or x."user_id" = auth.uid())
+        and (mail_template_stats.since is null or y."sent_at" >= mail_template_stats.since)
+      group by y."template_version_id"
+    ) p
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."mail_template_stats"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."mail_template_stats"(uuid, timestamptz) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -692,7 +838,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bs-module mail-sync@1 managed
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send.
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -793,15 +939,50 @@ create table if not exists "better_supabase"."mail_messages" (
   "body_text" text,
   "body_html" text,
   "sent_at" timestamptz not null,
+  "template_version_id" uuid,
+  "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
+  "opened_at" timestamptz,
+  "open_count" integer not null default 0,
+  "clicked_at" timestamptz,
+  "click_count" integer not null default 0,
   "created_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_messages_thread_idx on "better_supabase"."mail_messages" ("thread_id", "sent_at");
 create index if not exists mail_messages_rfc_idx on "better_supabase"."mail_messages" ("account_id", "rfc_message_id") where "rfc_message_id" is not null;
+create unique index if not exists mail_messages_tracking_idx on "better_supabase"."mail_messages" ("tracking_hash") where "tracking_hash" is not null;
+create index if not exists mail_messages_template_idx on "better_supabase"."mail_messages" ("tenant_id", "template_version_id") where "template_version_id" is not null;
 alter table "better_supabase"."mail_messages" enable row level security;
 revoke all on "better_supabase"."mail_messages" from anon, authenticated;
 grant select on "better_supabase"."mail_messages" to authenticated;
 grant all on "better_supabase"."mail_messages" to service_role;
+create table if not exists "better_supabase"."mail_tracked_links" (
+  "tenant_id" uuid not null,
+  "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
+  "position" integer not null check ("position" >= 0),
+  "url" text not null check ("url" ~* '^https?://' and length("url") <= 2048),
+  "click_count" integer not null default 0,
+  "created_at" timestamptz not null default now(),
+  primary key ("message_id", "position")
+);
+alter table "better_supabase"."mail_tracked_links" enable row level security;
+revoke all on "better_supabase"."mail_tracked_links" from anon, authenticated;
+grant select on "better_supabase"."mail_tracked_links" to authenticated;
+grant all on "better_supabase"."mail_tracked_links" to service_role;
+create table if not exists "better_supabase"."mail_tracking_events" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
+  "kind" text not null check ("kind" in ('open', 'click')),
+  "position" integer,
+  "user_agent" text check (length("user_agent") <= 300),
+  "occurred_at" timestamptz not null default now()
+);
+create index if not exists mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
+alter table "better_supabase"."mail_tracking_events" enable row level security;
+revoke all on "better_supabase"."mail_tracking_events" from anon, authenticated;
+grant select on "better_supabase"."mail_tracking_events" to authenticated;
+grant all on "better_supabase"."mail_tracking_events" to service_role;
 create table if not exists "better_supabase"."mail_thread_subjects" (
   "tenant_id" uuid not null,
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
@@ -856,10 +1037,16 @@ using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "better_supabase"."mail_thread_subjects";
 create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects" for select to authenticated
 using ("better_supabase"."mail_thread_visible"("thread_id"));
+drop policy if exists mail_tracked_links_read on "better_supabase"."mail_tracked_links";
+create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links" for select to authenticated
+using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+drop policy if exists mail_tracking_events_read on "better_supabase"."mail_tracking_events";
+create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events" for select to authenticated
+using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
--- text, html, sentAt }. Returns { id, threadId, created, direction }.
+-- text, html, sentAt, templateVersionId, trackingHash }. Returns { id, threadId, created, direction }.
 create or replace function "better_supabase"."store_mail_message"(account uuid, message jsonb)
 returns jsonb
 language plpgsql
@@ -874,6 +1061,8 @@ declare
   v_rfc text := nullif(trim(store_mail_message.message ->> 'messageId'), '');
   v_from text := lower(coalesce(nullif(trim(store_mail_message.message -> 'from' ->> 'address'), ''), case when jsonb_typeof(store_mail_message.message -> 'from') = 'string' then nullif(trim(store_mail_message.message ->> 'from'), '') end));
   v_direction text := nullif(trim(store_mail_message.message ->> 'direction'), '');
+  v_template text := nullif(trim(store_mail_message.message ->> 'templateVersionId'), '');
+  v_hash text := lower(nullif(trim(store_mail_message.message ->> 'trackingHash'), ''));
   v_sent timestamptz;
   v_thread uuid;
   v_id uuid;
@@ -882,6 +1071,9 @@ begin
   from "better_supabase"."mail_accounts" k where k."id" = store_mail_message.account;
   if jsonb_typeof(store_mail_message.message) <> 'object' or v_external is null or nullif(trim(store_mail_message.message ->> 'sentAt'), '') is null then
     raise exception 'a message needs an externalId and a sentAt' using errcode = '22023', hint = 'MAIL_MESSAGE_INVALID';
+  end if;
+  if v_template is not null and v_template !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'templateVersionId is a uuid' using errcode = '22023', hint = 'MAIL_MESSAGE_INVALID';
   end if;
   v_sent := (nullif(trim(store_mail_message.message ->> 'sentAt'), ''))::timestamptz;
   v_direction := coalesce(v_direction, case when v_from = v_account.address then 'outbound' else 'inbound' end);
@@ -904,10 +1096,12 @@ begin
     return jsonb_build_object('id', v_id, 'threadId', (select y."thread_id" from "better_supabase"."mail_messages" y where y."id" = v_id), 'created', false, 'direction', v_direction);
   end if;
   insert into "better_supabase"."mail_messages" ("tenant_id", "account_id", "thread_id", "external_id", "rfc_message_id", "direction",
-    "from_address", "from_name", "to_addresses", "cc_addresses", "subject", "snippet", "body_text", "body_html", "sent_at")
+    "from_address", "from_name", "to_addresses", "cc_addresses", "subject", "snippet", "body_text", "body_html", "sent_at",
+    "template_version_id", "tracking_hash")
   values (v_account.tenant, v_account.id, v_thread, v_external, v_rfc, v_direction,
     v_from, nullif(trim(store_mail_message.message -> 'from' ->> 'name'), ''), coalesce((select array_agg(lower(trim(coalesce(e.value ->> 'address', e.value #>> '{}')))) from jsonb_array_elements(case when jsonb_typeof(store_mail_message.message -> 'to') = 'array' then store_mail_message.message -> 'to' else '[]'::jsonb end) e where coalesce(e.value ->> 'address', e.value #>> '{}') like '%@%'), '{}'), coalesce((select array_agg(lower(trim(coalesce(e.value ->> 'address', e.value #>> '{}')))) from jsonb_array_elements(case when jsonb_typeof(store_mail_message.message -> 'cc') = 'array' then store_mail_message.message -> 'cc' else '[]'::jsonb end) e where coalesce(e.value ->> 'address', e.value #>> '{}') like '%@%'), '{}'),
-    nullif(trim(store_mail_message.message ->> 'subject'), ''), left(nullif(trim(store_mail_message.message ->> 'snippet'), ''), 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent)
+    nullif(trim(store_mail_message.message ->> 'subject'), ''), left(nullif(trim(store_mail_message.message ->> 'snippet'), ''), 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent,
+    v_template::uuid, case when v_direction = 'outbound' then v_hash end)
   returning "id" into v_id;
   update "better_supabase"."mail_threads" x set
     "subject" = coalesce(x."subject", nullif(trim(store_mail_message.message ->> 'subject'), '')),
@@ -1311,6 +1505,9 @@ declare
   v_stored jsonb;
   v_thread uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select k."id" as id, k."tenant_id" as tenant, k."user_id" as owner into v_account
   from "better_supabase"."mail_accounts" k
   where k."id" = record_sent_mail.account and k."user_id" = auth.uid() and k."status" <> 'disconnected';
@@ -1325,6 +1522,11 @@ begin
   perform "better_supabase"."match_mail_thread"(v_thread);
   perform "better_supabase"."log_mail_thread"(v_thread);
   if (v_stored ->> 'created')::boolean then
+    if jsonb_typeof(record_sent_mail.message -> 'trackedLinks') = 'array' then
+      insert into "better_supabase"."mail_tracked_links" ("tenant_id", "message_id", "position", "url")
+      select v_account.tenant, (v_stored ->> 'id')::uuid, (u.ord - 1)::integer, u.value #>> '{}'
+      from jsonb_array_elements(record_sent_mail.message -> 'trackedLinks') with ordinality u (value, ord);
+    end if;
     v_stored := v_stored || jsonb_build_object('fromAddress', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = v_account.id));
     perform "better_supabase".emit_event('mail_message.sent', jsonb_build_object('organizationId', v_account.tenant, 'accountId', v_account.id, 'userId', v_account.owner, 'threadId', v_stored ->> 'threadId', 'messageId', v_stored ->> 'id', 'direction', v_stored ->> 'direction', 'fromAddress', v_stored ->> 'fromAddress', 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = (v_stored ->> 'threadId')::uuid), '[]'::jsonb)), 'mail-messages/' || (v_stored ->> 'id'), (v_account.tenant::text)::text, 'mail_message:' || (v_stored ->> 'id'), 'better-supabase/mail-sync');
   end if;
@@ -1461,6 +1663,96 @@ $$;
 revoke execute on function "better_supabase"."get_mail_thread"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_mail_thread"(uuid) to authenticated, service_role;
 
+-- For the tracking route: records an open of the tracked message whose token
+-- hashes to hash, or a click on its link at index link. Returns { messageId,
+-- url } (url, the stored link, for a click), or null for an unknown token.
+create or replace function "better_supabase"."track_mail"(hash text, kind text, link integer, user_agent text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_message record;
+  v_url text;
+  v_event uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role records tracking' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
+  end if;
+  if track_mail.kind is null or track_mail.kind not in ('open', 'click') then
+    raise exception 'kind is open or click' using errcode = '22023', hint = 'MAIL_TRACKING_INVALID';
+  end if;
+  select y."id" as id, y."tenant_id" as tenant, y."account_id" as account, y."thread_id" as thread,
+    y."template_version_id" as template, y."opened_at" as opened, x."user_id" as owner
+  into v_message
+  from "better_supabase"."mail_messages" y join "better_supabase"."mail_accounts" x on x."id" = y."account_id"
+  where y."tracking_hash" = lower(track_mail.hash) and y."direction" = 'outbound';
+  if v_message.id is null then
+    return null;
+  end if;
+  if track_mail.kind = 'click' then
+    update "better_supabase"."mail_tracked_links" u set "click_count" = u."click_count" + 1
+    where u."message_id" = v_message.id and u."position" = track_mail.link
+    returning u."url" into v_url;
+    if v_url is null then
+      return null;
+    end if;
+  end if;
+  insert into "better_supabase"."mail_tracking_events" ("tenant_id", "message_id", "kind", "position", "user_agent")
+  values (v_message.tenant, v_message.id, track_mail.kind, case when track_mail.kind = 'click' then track_mail.link end, left(track_mail.user_agent, 300))
+  returning "id" into v_event;
+  update "better_supabase"."mail_messages" y set
+    "opened_at" = coalesce(y."opened_at", now()),
+    "open_count" = y."open_count" + case when track_mail.kind = 'open' then 1 else 0 end,
+    "clicked_at" = case when track_mail.kind = 'click' then coalesce(y."clicked_at", now()) else y."clicked_at" end,
+    "click_count" = y."click_count" + case when track_mail.kind = 'click' then 1 else 0 end
+  where y."id" = v_message.id;
+  if track_mail.kind = 'click' then
+    perform "better_supabase".emit_event('mail_message.clicked', jsonb_build_object('organizationId', v_message.tenant, 'accountId', v_message.account, 'userId', v_message.owner, 'threadId', v_message.thread, 'messageId', v_message.id, 'templateVersionId', v_message.template, 'url', v_url, 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = v_message.thread), '[]'::jsonb)), 'mail-messages/' || v_message.id, (v_message.tenant::text)::text, 'mail_message_clicked:' || v_event, 'better-supabase/mail-sync');
+  elsif v_message.opened is null then
+    perform "better_supabase".emit_event('mail_message.opened', jsonb_build_object('organizationId', v_message.tenant, 'accountId', v_message.account, 'userId', v_message.owner, 'threadId', v_message.thread, 'messageId', v_message.id, 'templateVersionId', v_message.template, 'url', null::text, 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = v_message.thread), '[]'::jsonb)), 'mail-messages/' || v_message.id, (v_message.tenant::text)::text, 'mail_message_opened:' || v_message.id, 'better-supabase/mail-sync');
+  end if;
+  return jsonb_build_object('messageId', v_message.id, 'url', v_url);
+end;
+$$;
+revoke execute on function "better_supabase"."track_mail"(text, text, integer, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."track_mail"(text, text, integer, text) to service_role;
+
+-- Per template version, how many messages members sent from shared
+-- mailboxes since a time, and how many were opened, clicked and replied to.
+create or replace function "better_supabase"."mail_template_stats"(tenant uuid, since timestamptz)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+    raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('templateVersionId', p.template, 'sent', p.sent, 'opened', p.opened, 'clicked', p.clicked, 'replied', p.replied) order by p.sent desc, p.template), '[]'::jsonb)
+    from (
+      select y."template_version_id" as template, count(*) as sent, count(y."opened_at") as opened, count(y."clicked_at") as clicked,
+        count(*) filter (where exists (
+          select 1 from "better_supabase"."mail_messages" r
+          where r."thread_id" = y."thread_id" and r."direction" = 'inbound' and r."sent_at" > y."sent_at"
+        )) as replied
+      from "better_supabase"."mail_messages" y join "better_supabase"."mail_accounts" x on x."id" = y."account_id"
+      where y."tenant_id" = mail_template_stats.tenant and y."direction" = 'outbound'
+        and y."template_version_id" is not null
+        and (x."share" = 'records' or x."user_id" = auth.uid())
+        and (mail_template_stats.since is null or y."sent_at" >= mail_template_stats.since)
+      group by y."template_version_id"
+    ) p
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."mail_template_stats"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."mail_template_stats"(uuid, timestamptz) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -1489,7 +1781,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_115_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bs-module mail-sync@1 managed
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send.
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1592,15 +1884,50 @@ create table if not exists "app_private"."mail_messages" (
   "body_text" text,
   "body_html" text,
   "sent_at" timestamptz not null,
+  "template_version_id" uuid,
+  "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
+  "opened_at" timestamptz,
+  "open_count" integer not null default 0,
+  "clicked_at" timestamptz,
+  "click_count" integer not null default 0,
   "created_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_messages_thread_idx on "app_private"."mail_messages" ("thread_id", "sent_at");
 create index if not exists mail_messages_rfc_idx on "app_private"."mail_messages" ("account_id", "rfc_message_id") where "rfc_message_id" is not null;
+create unique index if not exists mail_messages_tracking_idx on "app_private"."mail_messages" ("tracking_hash") where "tracking_hash" is not null;
+create index if not exists mail_messages_template_idx on "app_private"."mail_messages" ("tenant_id", "template_version_id") where "template_version_id" is not null;
 alter table "app_private"."mail_messages" enable row level security;
 revoke all on "app_private"."mail_messages" from anon, authenticated;
 grant select on "app_private"."mail_messages" to authenticated;
 grant all on "app_private"."mail_messages" to service_role;
+create table if not exists "app_private"."mail_tracked_links" (
+  "tenant_id" uuid not null,
+  "message_id" uuid not null references "app_private"."mail_messages" ("id") on delete cascade,
+  "position" integer not null check ("position" >= 0),
+  "url" text not null check ("url" ~* '^https?://' and length("url") <= 2048),
+  "click_count" integer not null default 0,
+  "created_at" timestamptz not null default now(),
+  primary key ("message_id", "position")
+);
+alter table "app_private"."mail_tracked_links" enable row level security;
+revoke all on "app_private"."mail_tracked_links" from anon, authenticated;
+grant select on "app_private"."mail_tracked_links" to authenticated;
+grant all on "app_private"."mail_tracked_links" to service_role;
+create table if not exists "app_private"."mail_tracking_events" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "message_id" uuid not null references "app_private"."mail_messages" ("id") on delete cascade,
+  "kind" text not null check ("kind" in ('open', 'click')),
+  "position" integer,
+  "user_agent" text check (length("user_agent") <= 300),
+  "occurred_at" timestamptz not null default now()
+);
+create index if not exists mail_tracking_events_message_idx on "app_private"."mail_tracking_events" ("message_id", "occurred_at");
+alter table "app_private"."mail_tracking_events" enable row level security;
+revoke all on "app_private"."mail_tracking_events" from anon, authenticated;
+grant select on "app_private"."mail_tracking_events" to authenticated;
+grant all on "app_private"."mail_tracking_events" to service_role;
 create table if not exists "app_private"."mail_thread_subjects" (
   "tenant_id" uuid not null,
   "thread_id" uuid not null references "app_private"."mail_threads" ("id") on delete cascade,
@@ -1655,10 +1982,16 @@ using ("app_private"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "app_private"."mail_thread_subjects";
 create policy mail_thread_subjects_read on "app_private"."mail_thread_subjects" for select to authenticated
 using ("app_private"."mail_thread_visible"("thread_id"));
+drop policy if exists mail_tracked_links_read on "app_private"."mail_tracked_links";
+create policy mail_tracked_links_read on "app_private"."mail_tracked_links" for select to authenticated
+using (exists (select 1 from "app_private"."mail_messages" y where y."id" = "message_id" and "app_private"."mail_thread_visible"(y."thread_id")));
+drop policy if exists mail_tracking_events_read on "app_private"."mail_tracking_events";
+create policy mail_tracking_events_read on "app_private"."mail_tracking_events" for select to authenticated
+using (exists (select 1 from "app_private"."mail_messages" y where y."id" = "message_id" and "app_private"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
--- text, html, sentAt }. Returns { id, threadId, created, direction }.
+-- text, html, sentAt, templateVersionId, trackingHash }. Returns { id, threadId, created, direction }.
 create or replace function "app_private"."store_mail_message"(account uuid, message jsonb)
 returns jsonb
 language plpgsql
@@ -1673,6 +2006,8 @@ declare
   v_rfc text := nullif(trim(store_mail_message.message ->> 'messageId'), '');
   v_from text := lower(coalesce(nullif(trim(store_mail_message.message -> 'from' ->> 'address'), ''), case when jsonb_typeof(store_mail_message.message -> 'from') = 'string' then nullif(trim(store_mail_message.message ->> 'from'), '') end));
   v_direction text := nullif(trim(store_mail_message.message ->> 'direction'), '');
+  v_template text := nullif(trim(store_mail_message.message ->> 'templateVersionId'), '');
+  v_hash text := lower(nullif(trim(store_mail_message.message ->> 'trackingHash'), ''));
   v_sent timestamptz;
   v_thread uuid;
   v_id uuid;
@@ -1681,6 +2016,9 @@ begin
   from "app_private"."mail_accounts" k where k."id" = store_mail_message.account;
   if jsonb_typeof(store_mail_message.message) <> 'object' or v_external is null or nullif(trim(store_mail_message.message ->> 'sentAt'), '') is null then
     raise exception 'a message needs an externalId and a sentAt' using errcode = '22023', hint = 'MAIL_MESSAGE_INVALID';
+  end if;
+  if v_template is not null and v_template !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'templateVersionId is a uuid' using errcode = '22023', hint = 'MAIL_MESSAGE_INVALID';
   end if;
   v_sent := (nullif(trim(store_mail_message.message ->> 'sentAt'), ''))::timestamptz;
   v_direction := coalesce(v_direction, case when v_from = v_account.address then 'outbound' else 'inbound' end);
@@ -1703,10 +2041,12 @@ begin
     return jsonb_build_object('id', v_id, 'threadId', (select y."thread_id" from "app_private"."mail_messages" y where y."id" = v_id), 'created', false, 'direction', v_direction);
   end if;
   insert into "app_private"."mail_messages" ("tenant_id", "account_id", "thread_id", "external_id", "rfc_message_id", "direction",
-    "from_address", "from_name", "to_addresses", "cc_addresses", "subject", "snippet", "body_text", "body_html", "sent_at")
+    "from_address", "from_name", "to_addresses", "cc_addresses", "subject", "snippet", "body_text", "body_html", "sent_at",
+    "template_version_id", "tracking_hash")
   values (v_account.tenant, v_account.id, v_thread, v_external, v_rfc, v_direction,
     v_from, nullif(trim(store_mail_message.message -> 'from' ->> 'name'), ''), coalesce((select array_agg(lower(trim(coalesce(e.value ->> 'address', e.value #>> '{}')))) from jsonb_array_elements(case when jsonb_typeof(store_mail_message.message -> 'to') = 'array' then store_mail_message.message -> 'to' else '[]'::jsonb end) e where coalesce(e.value ->> 'address', e.value #>> '{}') like '%@%'), '{}'), coalesce((select array_agg(lower(trim(coalesce(e.value ->> 'address', e.value #>> '{}')))) from jsonb_array_elements(case when jsonb_typeof(store_mail_message.message -> 'cc') = 'array' then store_mail_message.message -> 'cc' else '[]'::jsonb end) e where coalesce(e.value ->> 'address', e.value #>> '{}') like '%@%'), '{}'),
-    nullif(trim(store_mail_message.message ->> 'subject'), ''), left(nullif(trim(store_mail_message.message ->> 'snippet'), ''), 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent)
+    nullif(trim(store_mail_message.message ->> 'subject'), ''), left(nullif(trim(store_mail_message.message ->> 'snippet'), ''), 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent,
+    v_template::uuid, case when v_direction = 'outbound' then v_hash end)
   returning "id" into v_id;
   update "app_private"."mail_threads" x set
     "subject" = coalesce(x."subject", nullif(trim(store_mail_message.message ->> 'subject'), '')),
@@ -2004,6 +2344,9 @@ declare
   v_stored jsonb;
   v_thread uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select k."id" as id, k."tenant_id" as tenant, k."user_id" as owner into v_account
   from "app_private"."mail_accounts" k
   where k."id" = record_sent_mail.account and k."user_id" = auth.uid() and k."status" <> 'disconnected';
@@ -2018,6 +2361,11 @@ begin
   
   
   if (v_stored ->> 'created')::boolean then
+    if jsonb_typeof(record_sent_mail.message -> 'trackedLinks') = 'array' then
+      insert into "app_private"."mail_tracked_links" ("tenant_id", "message_id", "position", "url")
+      select v_account.tenant, (v_stored ->> 'id')::uuid, (u.ord - 1)::integer, u.value #>> '{}'
+      from jsonb_array_elements(record_sent_mail.message -> 'trackedLinks') with ordinality u (value, ord);
+    end if;
     v_stored := v_stored || jsonb_build_object('fromAddress', (select k."address" from "app_private"."mail_accounts" k where k."id" = v_account.id));
     null;
   end if;
@@ -2154,6 +2502,96 @@ $$;
 revoke execute on function "app_private"."get_mail_thread"(uuid) from public, anon;
 grant execute on function "app_private"."get_mail_thread"(uuid) to authenticated, service_role;
 
+-- For the tracking route: records an open of the tracked message whose token
+-- hashes to hash, or a click on its link at index link. Returns { messageId,
+-- url } (url, the stored link, for a click), or null for an unknown token.
+create or replace function "app_private"."track_mail"(hash text, kind text, link integer, user_agent text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_message record;
+  v_url text;
+  v_event uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role records tracking' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
+  end if;
+  if track_mail.kind is null or track_mail.kind not in ('open', 'click') then
+    raise exception 'kind is open or click' using errcode = '22023', hint = 'MAIL_TRACKING_INVALID';
+  end if;
+  select y."id" as id, y."tenant_id" as tenant, y."account_id" as account, y."thread_id" as thread,
+    y."template_version_id" as template, y."opened_at" as opened, x."user_id" as owner
+  into v_message
+  from "app_private"."mail_messages" y join "app_private"."mail_accounts" x on x."id" = y."account_id"
+  where y."tracking_hash" = lower(track_mail.hash) and y."direction" = 'outbound';
+  if v_message.id is null then
+    return null;
+  end if;
+  if track_mail.kind = 'click' then
+    update "app_private"."mail_tracked_links" u set "click_count" = u."click_count" + 1
+    where u."message_id" = v_message.id and u."position" = track_mail.link
+    returning u."url" into v_url;
+    if v_url is null then
+      return null;
+    end if;
+  end if;
+  insert into "app_private"."mail_tracking_events" ("tenant_id", "message_id", "kind", "position", "user_agent")
+  values (v_message.tenant, v_message.id, track_mail.kind, case when track_mail.kind = 'click' then track_mail.link end, left(track_mail.user_agent, 300))
+  returning "id" into v_event;
+  update "app_private"."mail_messages" y set
+    "opened_at" = coalesce(y."opened_at", now()),
+    "open_count" = y."open_count" + case when track_mail.kind = 'open' then 1 else 0 end,
+    "clicked_at" = case when track_mail.kind = 'click' then coalesce(y."clicked_at", now()) else y."clicked_at" end,
+    "click_count" = y."click_count" + case when track_mail.kind = 'click' then 1 else 0 end
+  where y."id" = v_message.id;
+  if track_mail.kind = 'click' then
+    null;
+  elsif v_message.opened is null then
+    null;
+  end if;
+  return jsonb_build_object('messageId', v_message.id, 'url', v_url);
+end;
+$$;
+revoke execute on function "app_private"."track_mail"(text, text, integer, text) from public, anon, authenticated;
+grant execute on function "app_private"."track_mail"(text, text, integer, text) to service_role;
+
+-- Per template version, how many messages members sent from shared
+-- mailboxes since a time, and how many were opened, clicked and replied to.
+create or replace function "app_private"."mail_template_stats"(tenant uuid, since timestamptz)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+    raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('templateVersionId', p.template, 'sent', p.sent, 'opened', p.opened, 'clicked', p.clicked, 'replied', p.replied) order by p.sent desc, p.template), '[]'::jsonb)
+    from (
+      select y."template_version_id" as template, count(*) as sent, count(y."opened_at") as opened, count(y."clicked_at") as clicked,
+        count(*) filter (where exists (
+          select 1 from "app_private"."mail_messages" r
+          where r."thread_id" = y."thread_id" and r."direction" = 'inbound' and r."sent_at" > y."sent_at"
+        )) as replied
+      from "app_private"."mail_messages" y join "app_private"."mail_accounts" x on x."id" = y."account_id"
+      where y."tenant_id" = mail_template_stats.tenant and y."direction" = 'outbound'
+        and y."template_version_id" is not null
+        and (x."share" = 'records' or x."user_id" = auth.uid())
+        and (mail_template_stats.since is null or y."sent_at" >= mail_template_stats.since)
+      group by y."template_version_id"
+    ) p
+  );
+end;
+$$;
+revoke execute on function "app_private"."mail_template_stats"(uuid, timestamptz) from public, anon;
+grant execute on function "app_private"."mail_template_stats"(uuid, timestamptz) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -2182,7 +2620,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_115_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bs-module mail-sync@1 managed
--- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send.
+-- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2283,15 +2721,50 @@ create table if not exists "better_supabase"."mail_messages" (
   "body_text" text,
   "body_html" text,
   "sent_at" timestamptz not null,
+  "template_version_id" uuid,
+  "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
+  "opened_at" timestamptz,
+  "open_count" integer not null default 0,
+  "clicked_at" timestamptz,
+  "click_count" integer not null default 0,
   "created_at" timestamptz not null default now(),
   unique ("account_id", "external_id")
 );
 create index if not exists mail_messages_thread_idx on "better_supabase"."mail_messages" ("thread_id", "sent_at");
 create index if not exists mail_messages_rfc_idx on "better_supabase"."mail_messages" ("account_id", "rfc_message_id") where "rfc_message_id" is not null;
+create unique index if not exists mail_messages_tracking_idx on "better_supabase"."mail_messages" ("tracking_hash") where "tracking_hash" is not null;
+create index if not exists mail_messages_template_idx on "better_supabase"."mail_messages" ("tenant_id", "template_version_id") where "template_version_id" is not null;
 alter table "better_supabase"."mail_messages" enable row level security;
 revoke all on "better_supabase"."mail_messages" from anon, authenticated;
 grant select on "better_supabase"."mail_messages" to authenticated;
 grant all on "better_supabase"."mail_messages" to service_role;
+create table if not exists "better_supabase"."mail_tracked_links" (
+  "tenant_id" uuid not null,
+  "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
+  "position" integer not null check ("position" >= 0),
+  "url" text not null check ("url" ~* '^https?://' and length("url") <= 2048),
+  "click_count" integer not null default 0,
+  "created_at" timestamptz not null default now(),
+  primary key ("message_id", "position")
+);
+alter table "better_supabase"."mail_tracked_links" enable row level security;
+revoke all on "better_supabase"."mail_tracked_links" from anon, authenticated;
+grant select on "better_supabase"."mail_tracked_links" to authenticated;
+grant all on "better_supabase"."mail_tracked_links" to service_role;
+create table if not exists "better_supabase"."mail_tracking_events" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
+  "kind" text not null check ("kind" in ('open', 'click')),
+  "position" integer,
+  "user_agent" text check (length("user_agent") <= 300),
+  "occurred_at" timestamptz not null default now()
+);
+create index if not exists mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
+alter table "better_supabase"."mail_tracking_events" enable row level security;
+revoke all on "better_supabase"."mail_tracking_events" from anon, authenticated;
+grant select on "better_supabase"."mail_tracking_events" to authenticated;
+grant all on "better_supabase"."mail_tracking_events" to service_role;
 create table if not exists "better_supabase"."mail_thread_subjects" (
   "tenant_id" uuid not null,
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
@@ -2346,10 +2819,16 @@ using ("better_supabase"."mail_thread_visible"("thread_id"));
 drop policy if exists mail_thread_subjects_read on "better_supabase"."mail_thread_subjects";
 create policy mail_thread_subjects_read on "better_supabase"."mail_thread_subjects" for select to authenticated
 using ("better_supabase"."mail_thread_visible"("thread_id"));
+drop policy if exists mail_tracked_links_read on "better_supabase"."mail_tracked_links";
+create policy mail_tracked_links_read on "better_supabase"."mail_tracked_links" for select to authenticated
+using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
+drop policy if exists mail_tracking_events_read on "better_supabase"."mail_tracking_events";
+create policy mail_tracking_events_read on "better_supabase"."mail_tracking_events" for select to authenticated
+using (exists (select 1 from "better_supabase"."mail_messages" y where y."id" = "message_id" and "better_supabase"."mail_thread_visible"(y."thread_id")));
 
 -- Stores a message on its account: message is { externalId, threadId,
 -- messageId, direction, from: { address, name }, to, cc, subject, snippet,
--- text, html, sentAt }. Returns { id, threadId, created, direction }.
+-- text, html, sentAt, templateVersionId, trackingHash }. Returns { id, threadId, created, direction }.
 create or replace function "better_supabase"."store_mail_message"(account uuid, message jsonb)
 returns jsonb
 language plpgsql
@@ -2364,6 +2843,8 @@ declare
   v_rfc text := nullif(trim(store_mail_message.message ->> 'messageId'), '');
   v_from text := lower(coalesce(nullif(trim(store_mail_message.message -> 'from' ->> 'address'), ''), case when jsonb_typeof(store_mail_message.message -> 'from') = 'string' then nullif(trim(store_mail_message.message ->> 'from'), '') end));
   v_direction text := nullif(trim(store_mail_message.message ->> 'direction'), '');
+  v_template text := nullif(trim(store_mail_message.message ->> 'templateVersionId'), '');
+  v_hash text := lower(nullif(trim(store_mail_message.message ->> 'trackingHash'), ''));
   v_sent timestamptz;
   v_thread uuid;
   v_id uuid;
@@ -2372,6 +2853,9 @@ begin
   from "better_supabase"."mail_accounts" k where k."id" = store_mail_message.account;
   if jsonb_typeof(store_mail_message.message) <> 'object' or v_external is null or nullif(trim(store_mail_message.message ->> 'sentAt'), '') is null then
     raise exception 'a message needs an externalId and a sentAt' using errcode = '22023', hint = 'MAIL_MESSAGE_INVALID';
+  end if;
+  if v_template is not null and v_template !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'templateVersionId is a uuid' using errcode = '22023', hint = 'MAIL_MESSAGE_INVALID';
   end if;
   v_sent := (nullif(trim(store_mail_message.message ->> 'sentAt'), ''))::timestamptz;
   v_direction := coalesce(v_direction, case when v_from = v_account.address then 'outbound' else 'inbound' end);
@@ -2394,10 +2878,12 @@ begin
     return jsonb_build_object('id', v_id, 'threadId', (select y."thread_id" from "better_supabase"."mail_messages" y where y."id" = v_id), 'created', false, 'direction', v_direction);
   end if;
   insert into "better_supabase"."mail_messages" ("tenant_id", "account_id", "thread_id", "external_id", "rfc_message_id", "direction",
-    "from_address", "from_name", "to_addresses", "cc_addresses", "subject", "snippet", "body_text", "body_html", "sent_at")
+    "from_address", "from_name", "to_addresses", "cc_addresses", "subject", "snippet", "body_text", "body_html", "sent_at",
+    "template_version_id", "tracking_hash")
   values (v_account.tenant, v_account.id, v_thread, v_external, v_rfc, v_direction,
     v_from, nullif(trim(store_mail_message.message -> 'from' ->> 'name'), ''), coalesce((select array_agg(lower(trim(coalesce(e.value ->> 'address', e.value #>> '{}')))) from jsonb_array_elements(case when jsonb_typeof(store_mail_message.message -> 'to') = 'array' then store_mail_message.message -> 'to' else '[]'::jsonb end) e where coalesce(e.value ->> 'address', e.value #>> '{}') like '%@%'), '{}'), coalesce((select array_agg(lower(trim(coalesce(e.value ->> 'address', e.value #>> '{}')))) from jsonb_array_elements(case when jsonb_typeof(store_mail_message.message -> 'cc') = 'array' then store_mail_message.message -> 'cc' else '[]'::jsonb end) e where coalesce(e.value ->> 'address', e.value #>> '{}') like '%@%'), '{}'),
-    nullif(trim(store_mail_message.message ->> 'subject'), ''), left(nullif(trim(store_mail_message.message ->> 'snippet'), ''), 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent)
+    nullif(trim(store_mail_message.message ->> 'subject'), ''), left(nullif(trim(store_mail_message.message ->> 'snippet'), ''), 500), store_mail_message.message ->> 'text', store_mail_message.message ->> 'html', v_sent,
+    v_template::uuid, case when v_direction = 'outbound' then v_hash end)
   returning "id" into v_id;
   update "better_supabase"."mail_threads" x set
     "subject" = coalesce(x."subject", nullif(trim(store_mail_message.message ->> 'subject'), '')),
@@ -2695,6 +3181,9 @@ declare
   v_stored jsonb;
   v_thread uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   select k."id" as id, k."tenant_id" as tenant, k."user_id" as owner into v_account
   from "better_supabase"."mail_accounts" k
   where k."id" = record_sent_mail.account and k."user_id" = auth.uid() and k."status" <> 'disconnected';
@@ -2709,6 +3198,11 @@ begin
   
   
   if (v_stored ->> 'created')::boolean then
+    if jsonb_typeof(record_sent_mail.message -> 'trackedLinks') = 'array' then
+      insert into "better_supabase"."mail_tracked_links" ("tenant_id", "message_id", "position", "url")
+      select v_account.tenant, (v_stored ->> 'id')::uuid, (u.ord - 1)::integer, u.value #>> '{}'
+      from jsonb_array_elements(record_sent_mail.message -> 'trackedLinks') with ordinality u (value, ord);
+    end if;
     v_stored := v_stored || jsonb_build_object('fromAddress', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = v_account.id));
     null;
   end if;
@@ -2844,6 +3338,96 @@ as $$
 $$;
 revoke execute on function "better_supabase"."get_mail_thread"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_mail_thread"(uuid) to authenticated, service_role;
+
+-- For the tracking route: records an open of the tracked message whose token
+-- hashes to hash, or a click on its link at index link. Returns { messageId,
+-- url } (url, the stored link, for a click), or null for an unknown token.
+create or replace function "better_supabase"."track_mail"(hash text, kind text, link integer, user_agent text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_message record;
+  v_url text;
+  v_event uuid;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'only the service role records tracking' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
+  end if;
+  if track_mail.kind is null or track_mail.kind not in ('open', 'click') then
+    raise exception 'kind is open or click' using errcode = '22023', hint = 'MAIL_TRACKING_INVALID';
+  end if;
+  select y."id" as id, y."tenant_id" as tenant, y."account_id" as account, y."thread_id" as thread,
+    y."template_version_id" as template, y."opened_at" as opened, x."user_id" as owner
+  into v_message
+  from "better_supabase"."mail_messages" y join "better_supabase"."mail_accounts" x on x."id" = y."account_id"
+  where y."tracking_hash" = lower(track_mail.hash) and y."direction" = 'outbound';
+  if v_message.id is null then
+    return null;
+  end if;
+  if track_mail.kind = 'click' then
+    update "better_supabase"."mail_tracked_links" u set "click_count" = u."click_count" + 1
+    where u."message_id" = v_message.id and u."position" = track_mail.link
+    returning u."url" into v_url;
+    if v_url is null then
+      return null;
+    end if;
+  end if;
+  insert into "better_supabase"."mail_tracking_events" ("tenant_id", "message_id", "kind", "position", "user_agent")
+  values (v_message.tenant, v_message.id, track_mail.kind, case when track_mail.kind = 'click' then track_mail.link end, left(track_mail.user_agent, 300))
+  returning "id" into v_event;
+  update "better_supabase"."mail_messages" y set
+    "opened_at" = coalesce(y."opened_at", now()),
+    "open_count" = y."open_count" + case when track_mail.kind = 'open' then 1 else 0 end,
+    "clicked_at" = case when track_mail.kind = 'click' then coalesce(y."clicked_at", now()) else y."clicked_at" end,
+    "click_count" = y."click_count" + case when track_mail.kind = 'click' then 1 else 0 end
+  where y."id" = v_message.id;
+  if track_mail.kind = 'click' then
+    null;
+  elsif v_message.opened is null then
+    null;
+  end if;
+  return jsonb_build_object('messageId', v_message.id, 'url', v_url);
+end;
+$$;
+revoke execute on function "better_supabase"."track_mail"(text, text, integer, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."track_mail"(text, text, integer, text) to service_role;
+
+-- Per template version, how many messages members sent from shared
+-- mailboxes since a time, and how many were opened, clicked and replied to.
+create or replace function "better_supabase"."mail_template_stats"(tenant uuid, since timestamptz)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+    raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object('templateVersionId', p.template, 'sent', p.sent, 'opened', p.opened, 'clicked', p.clicked, 'replied', p.replied) order by p.sent desc, p.template), '[]'::jsonb)
+    from (
+      select y."template_version_id" as template, count(*) as sent, count(y."opened_at") as opened, count(y."clicked_at") as clicked,
+        count(*) filter (where exists (
+          select 1 from "better_supabase"."mail_messages" r
+          where r."thread_id" = y."thread_id" and r."direction" = 'inbound' and r."sent_at" > y."sent_at"
+        )) as replied
+      from "better_supabase"."mail_messages" y join "better_supabase"."mail_accounts" x on x."id" = y."account_id"
+      where y."tenant_id" = mail_template_stats.tenant and y."direction" = 'outbound'
+        and y."template_version_id" is not null
+        and (x."share" = 'records' or x."user_id" = auth.uid())
+        and (mail_template_stats.since is null or y."sent_at" >= mail_template_stats.since)
+      group by y."template_version_id"
+    ) p
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."mail_template_stats"(uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."mail_template_stats"(uuid, timestamptz) to authenticated, service_role;
 
 -- blocks.mail-sync.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3001,6 +3585,24 @@ set search_path = ''
 as $$ select "better_supabase"."get_mail_thread"($1) $$;
 revoke execute on function "api"."get_mail_thread"(uuid) from public, anon;
 grant execute on function "api"."get_mail_thread"(uuid) to authenticated, service_role;
+
+create or replace function "api"."track_mail"(hash text, kind text, link integer, user_agent text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."track_mail"($1, $2, $3, $4) $$;
+revoke execute on function "api"."track_mail"(text, text, integer, text) from public, anon, authenticated;
+grant execute on function "api"."track_mail"(text, text, integer, text) to service_role;
+
+create or replace function "api"."mail_template_stats"(tenant uuid, since timestamptz)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."mail_template_stats"($1, $2) $$;
+revoke execute on function "api"."mail_template_stats"(uuid, timestamptz) from public, anon;
+grant execute on function "api"."mail_template_stats"(uuid, timestamptz) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

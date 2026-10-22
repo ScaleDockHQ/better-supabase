@@ -73,10 +73,12 @@ function gmail(): MailProvider & { sent: unknown[] } {
     send: (input) => {
       sent.push(input);
 
+      const id = `g${String(sent.length + 1)}`;
+
       return AsyncResult.ok({
-        externalId: "g2",
+        externalId: id,
         threadId: "gt1",
-        messageId: "<g2@acme.test>",
+        messageId: `<${id}@acme.test>`,
       });
     },
   };
@@ -105,6 +107,7 @@ describe.skipIf(!live)("mail-sync", () => {
         transport,
         credentials,
         providers: [provider],
+        tracking: { url: "https://app.test/api/mail/t" },
       });
 
       await s.as(rep);
@@ -180,6 +183,56 @@ describe.skipIf(!live)("mail-sync", () => {
         ),
       ).toEqual(["inbound", "outbound"]);
 
+      // A tracked send: the provider gets the rewritten HTML, the route counts.
+      const offer = await mail
+        .send(account.id, {
+          threadId: thread!.id,
+          to: [{ address: "ada@client.test" }],
+          subject: "Offer",
+          html: '<p><a href="https://acme.test/offer">Offer</a></p>',
+          templateVersionId: "00000000-0000-4000-8000-0000000000f1",
+        })
+        .orThrow();
+
+      expect(offer).toMatchObject({ tracked: true, openCount: 0 });
+
+      // SAFETY: the last send above had an HTML body.
+      const { html } = (provider.sent.at(-1) as { draft: { html: string } })
+        .draft;
+
+      const click = /href="([^"]+\/c\/[^"]+)"/u.exec(html)?.[1];
+      const open = /src="([^"]+\/o\/[^"]+)"/u.exec(html)?.[1];
+
+      await s.service();
+      expect(
+        (await mail.track(new Request(open!)).orThrow()).headers.get(
+          "content-type",
+        ),
+      ).toBe("image/gif");
+      expect(
+        (await mail.track(new Request(click!)).orThrow()).headers.get(
+          "location",
+        ),
+      ).toBe("https://acme.test/offer");
+      expect(
+        (await mail.track(new Request(click!.replace(/\/0$/u, "/7"))).orThrow())
+          .status,
+      ).toBe(404);
+
+      await s.asRole(rep);
+      expect(
+        (await mail.thread(thread!.id).orThrow())?.messages.at(-1),
+      ).toMatchObject({ openCount: 1, clickCount: 1 });
+      expect(await mail.templateStats(org).orThrow()).toEqual([
+        {
+          templateVersionId: "00000000-0000-4000-8000-0000000000f1",
+          sent: 1,
+          opened: 1,
+          clicked: 1,
+          replied: 0,
+        },
+      ]);
+
       await s.asRole(stranger);
       expect(await mail.thread(thread!.id).orThrow()).toBeUndefined();
 
@@ -202,6 +255,9 @@ describe.skipIf(!live)("mail-sync", () => {
         "mail_account.connected",
         "mail_message.received",
         "mail_message.sent",
+        "mail_message.sent",
+        "mail_message.opened",
+        "mail_message.clicked",
       ]);
     } finally {
       await s.close();
