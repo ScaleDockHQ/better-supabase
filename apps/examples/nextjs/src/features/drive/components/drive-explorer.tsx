@@ -1,3 +1,5 @@
+import type { ComponentProps } from "react";
+
 // #region recipe:drive-explorer
 import {
   FileIcon,
@@ -15,6 +17,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/reui/alert";
+import { Badge } from "@/components/reui/badge";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -44,9 +47,24 @@ import {
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
 
+import type { DriveItem } from "../drive-queries";
+
 import { getDriveFolder } from "../drive-queries";
 import { DriveItemActions } from "./drive-item-actions";
 import { CreateFolderDialog, UploadFileButton } from "./drive-toolbar";
+
+type Approval = NonNullable<DriveItem["approval"]>;
+
+const APPROVAL_BADGE: Record<
+  Approval,
+  ComponentProps<typeof Badge>["variant"]
+> = {
+  pending: "warning-light",
+  approved: "success-light",
+  rejected: "destructive-light",
+  cancelled: "secondary",
+  expired: "secondary",
+};
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
 async function retry() {
@@ -88,6 +106,14 @@ export async function DriveExplorer({
   }
 
   const current = view.crumbs.at(-1);
+
+  const approvalLabels: Record<Approval, string> = {
+    pending: t("Awaiting approval"),
+    approved: t("Approved"),
+    rejected: t("Rejected"),
+    cancelled: t("Approval cancelled"),
+    expired: t("Approval expired"),
+  };
 
   return (
     <Card data-recipe="drive-explorer">
@@ -158,20 +184,36 @@ export async function DriveExplorer({
               {view.items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">
-                    {item.kind === "folder" ? (
-                      <Link
-                        href={`/drive/${item.id}`}
-                        className="flex items-center gap-2 transition-colors hover:text-primary"
-                      >
-                        <FolderIcon className="size-4 text-muted-foreground" />
-                        {item.name}
-                      </Link>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <FileIcon className="size-4 text-muted-foreground" />
-                        {item.name}
-                      </span>
-                    )}
+                    <div className="flex flex-col gap-1">
+                      {item.kind === "folder" ? (
+                        <Link
+                          href={`/drive/${item.id}`}
+                          className="flex items-center gap-2 transition-colors hover:text-primary"
+                        >
+                          <FolderIcon className="size-4 text-muted-foreground" />
+                          {item.name}
+                        </Link>
+                      ) : (
+                        <span className="flex flex-wrap items-center gap-2">
+                          <FileIcon className="size-4 text-muted-foreground" />
+                          {item.name}
+                          {item.approval === null ? null : (
+                            <Badge variant={APPROVAL_BADGE[item.approval]}>
+                              {approvalLabels[item.approval]}
+                            </Badge>
+                          )}
+                        </span>
+                      )}
+                      {item.labels.length === 0 ? null : (
+                        <span className="flex flex-wrap gap-1">
+                          {item.labels.map((label) => (
+                            <Badge key={label.id} variant="outline">
+                              {label.name}
+                            </Badge>
+                          ))}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {item.kind === "folder"

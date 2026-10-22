@@ -4574,6 +4574,31 @@ msgid "Retry"
 msgstr "Retry"
 
 #: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.uPFUUe"
+msgid "Awaiting approval"
+msgstr "Awaiting approval"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.5qaD7s"
+msgid "Rejected"
+msgstr "Rejected"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.oy7udF"
+msgid "Approval cancelled"
+msgstr "Approval cancelled"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.3dBHaS"
+msgid "Approval expired"
+msgstr "Approval expired"
+
+#: src/features/drive/components/drive-explorer.tsx
 msgctxt "drive.UVALem"
 msgid "My drive"
 msgstr "My drive"
@@ -4627,6 +4652,11 @@ msgid "{size} KB"
 msgstr "{size} KB"
 
 #: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.Yc3a19"
+msgid "Approval requested for {name}"
+msgstr "Approval requested for {name}"
+
+#: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.icI5MO"
 msgid "Actions for {name}"
 msgstr "Actions for {name}"
@@ -4635,6 +4665,11 @@ msgstr "Actions for {name}"
 msgctxt "drive.5q3qC0"
 msgid "Download"
 msgstr "Download"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.0JzFLp"
+msgid "Request approval"
+msgstr "Request approval"
 
 #: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.iXNbPf"

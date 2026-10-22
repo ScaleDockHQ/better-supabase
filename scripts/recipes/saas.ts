@@ -505,11 +505,12 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     blocks: ["drive"],
     kind: "screen",
     description:
-      "Folders and files with upload, rename, move and a breadcrumb trail.",
+      "Folders and files with upload, rename, move and a breadcrumb trail, each file with its labels and the approval of its current version.",
     web: {
       file: `${WEB_APP}/src/features/drive/components/drive-explorer.tsx`,
       components: [
         "alert",
+        "badge",
         "breadcrumb",
         "button",
         "card",

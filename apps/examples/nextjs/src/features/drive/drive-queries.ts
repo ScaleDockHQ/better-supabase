@@ -1,4 +1,6 @@
 import "server-only";
+import type { ApprovalStatus } from "better-supabase/blocks/approvals";
+
 import { tenantOf } from "better-supabase/next";
 import { notFound, unstable_rethrow } from "next/navigation";
 
@@ -16,6 +18,9 @@ export interface DriveItem {
   readonly size: number | null;
   /** ISO 8601, so the cached value stays serializable. */
   readonly createdAt: string;
+  readonly labels: readonly { readonly id: string; readonly name: string }[];
+  /** The approval of the file's current version, if one was requested. */
+  readonly approval: ApprovalStatus | null;
 }
 
 export interface DriveCrumbItem {
@@ -76,6 +81,8 @@ async function loadFolder(folderId: string | null) {
       mimeType: node.file?.mimeType ?? null,
       size: node.file?.size ?? null,
       createdAt: node.createdAt.toString(),
+      labels: (node.labels ?? []).map(({ id, name }) => ({ id, name })),
+      approval: node.approval?.status ?? null,
     })),
   };
 }
