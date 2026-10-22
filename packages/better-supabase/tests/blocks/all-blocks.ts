@@ -35,6 +35,7 @@ import type { engagementsBlock } from "../../src/blocks/engagements/manifest.ts"
 import type { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
 import type { ensureRlsBlock } from "../../src/blocks/ensure-rls/manifest.ts";
 import type { entitlementsBlock } from "../../src/blocks/entitlements/manifest.ts";
+import type { fieldEncryptionBlock } from "../../src/blocks/field-encryption/manifest.ts";
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
 import type {
   formsBlock,
@@ -159,6 +160,7 @@ export type AllBlocks = {
   readonly engagements: typeof engagementsBlock;
   readonly ensureRls: typeof ensureRlsBlock;
   readonly entitlements: typeof entitlementsBlock;
+  readonly fieldEncryption: typeof fieldEncryptionBlock;
   readonly flags: typeof flagsBlock;
   readonly forms: typeof formsBlock;
   readonly signatures: typeof signaturesBlock;

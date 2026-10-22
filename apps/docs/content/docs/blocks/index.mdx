@@ -267,7 +267,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `teams`              | `tenant`, `access`                                          | `inbox`, `outbox`, `audit`                                                                                                                       |
 | `tags`               | `tenant`, `access`                                          | `outbox`                                                                                                                                         |
 | `state-machine`      | `tenant`, `access`                                          | `outbox`, `audit`, `approvals`                                                                                                                   |
-| `custom-fields`      | `tenant`, `access`                                          | `outbox`                                                                                                                                         |
+| `custom-fields`      | `tenant`, `access`                                          | `outbox`, `field-encryption`, `audit`                                                                                                            |
 | `share-links`        | `tenant`, `access`                                          | `ai-chat`, `bookings`, `calendar`, `drive`, `forms`, `outbox`, `versions`                                                                        |
 | `reminders`          | `tenant`, `access`, `jobs`                                  | `notifications`, `outbox`                                                                                                                        |
 | `imports`            | `tenant`, `access`, `jobs`                                  | `attachments`, `outbox`                                                                                                                          |
@@ -326,6 +326,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `guests`             | `tenant`, `access`                                          | `outbox`, `audit`, `invoices`, `bookings`, `parties`                                                                                             |
 | `passes`             | `tenant`, `access`                                          | `outbox`, `audit`, `bookings`, `signing-keys`                                                                                                    |
 | `billable-time`      | `tenant`, `access`, `subjects`, `time-tracking`, `invoices` | `outbox`, `audit`                                                                                                                                |
+| `field-encryption`   | none                                                        | none                                                                                                                                             |
 | `ensure-rls`         | none                                                        | none                                                                                                                                             |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

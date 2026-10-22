@@ -16,8 +16,9 @@ export const SAMPLE_ROW_COUNT = 8;
 export type SampleViewer = "member" | "server";
 
 /**
- * The columns of `table` a `viewer` can't select: `access: "server"` ones for a
- * member.
+ * The columns of `table` a `viewer` can't select: `access: "server"` and
+ * encrypted ones for a member, who reads an encrypted column through
+ * `<table>_reveal` instead.
  */
 export function hiddenColumns(
   table: AppTable | undefined,
@@ -28,7 +29,9 @@ export function hiddenColumns(
   }
 
   return Object.entries(table?.columns ?? {})
-    .filter(([, column]) => column.access === "server")
+    .filter(
+      ([, column]) => column.access === "server" || column.encrypted === true,
+    )
     .map(([key]) => key);
 }
 

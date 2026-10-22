@@ -16,6 +16,12 @@ import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 import { FIELD_FORMATS } from "../core/contracts/field-formats.ts";
 import { accessOf, checkColumnAccess } from "./app-access.ts";
 import { computedOf, hasComputed } from "./app-computed.ts";
+import { appDefaultError, isAppDefault } from "./app-defaults.ts";
+import {
+  auditReadsOf,
+  checkEncryptedKeys,
+  encryptedOf,
+} from "./app-encryption.ts";
 import {
   APP_COLUMN_FORMATS,
   APP_COLUMN_TYPES,
@@ -25,10 +31,6 @@ import {
 
 const IDENT = /^[a-z][a-z0-9_]{0,62}$/;
 const BLOCK_NAME = /^[a-z][a-z0-9-]{0,62}$/;
-const TEXT_LITERAL = /^'(?:[^'\\]|'')*'$/;
-const INTEGER = /^-?\d{1,18}$/;
-const NUMBER = /^-?\d{1,30}(?:\.\d{1,30})?$/;
-const MAX_LITERAL = 200;
 
 const MAX_OPTIONS = 100;
 const MAX_OPTION = 100;
@@ -52,6 +54,7 @@ const TABLE_KEYS: ReadonlySet<string> = new Set([
   "rollups",
   "lookups",
   "events",
+  "auditReads",
 ]);
 
 const SUBJECT_KEYS: ReadonlySet<string> = new Set([
@@ -84,6 +87,7 @@ const COLUMN_KEYS: ReadonlySet<string> = new Set([
   "comment",
   "identity",
   "access",
+  "encrypted",
 ]);
 
 const NUMBER_TYPES: ReadonlySet<AppColumnType> = new Set([
@@ -433,6 +437,11 @@ export function appNameLengthError(
         ? [`${table}_${column}_check`]
         : [],
     ),
+    ...(Object.values(config.columns ?? {}).some(
+      (column) => column.encrypted === true,
+    )
+      ? [`${table}_reveal`]
+      : []),
     ...(config.unique ?? []).map((set) => `${table}_${set.join("_")}_key`),
     ...(config.indexes ?? []).map((set) => `${table}_${set.join("_")}_idx`),
   ];
@@ -442,128 +451,6 @@ export function appNameLengthError(
   return long === undefined
     ? undefined
     : `${long} is longer than ${String(MAX_IDENTIFIER)} characters; use shorter table or column names`;
-}
-
-/** The defaults `isAppDefault` accepts, per type, as a message names them. */
-const DEFAULT_EXAMPLES: Record<AppColumnType, string> = {
-  text: "a 'quoted' text",
-  integer: "a whole number",
-  bigint: "a whole number",
-  numeric: "a number",
-  boolean: "true or false",
-  uuid: "gen_random_uuid(), auth.uid() or a 'quoted' value",
-  timestamptz: "now() or a 'quoted' value",
-  date: "now() or a 'quoted' value",
-  jsonb: "'{}' or '[]'",
-  "text[]": "'{}'",
-};
-
-/**
- * Why `value` can't be the default of `column`, or `undefined` when it can: it
- * must be on the `isAppDefault` allowlist, one of the column's `options`, and
- * inside its bounds (`min`, `max`, or those of its format).
- */
-export function appDefaultError(
-  column: Pick<AppColumnConfig, "type" | "options" | "min" | "max" | "format">,
-  value: string,
-): string | undefined {
-  const { type } = column;
-
-  if (!isAppDefault(type, value)) {
-    return `A ${type} column takes ${DEFAULT_EXAMPLES[type]} as its default.`;
-  }
-
-  const literal = TEXT_LITERAL.test(value)
-    ? value.slice(1, -1).replaceAll("''", "'")
-    : undefined;
-
-  if (
-    type === "text" &&
-    column.options !== undefined &&
-    literal !== undefined &&
-    !column.options.includes(literal)
-  ) {
-    return `The default must be one of the options: ${column.options.join(", ")}.`;
-  }
-
-  const bounds =
-    column.format === undefined
-      ? undefined
-      : FIELD_FORMATS[column.format].bounds;
-
-  const min = column.min ?? bounds?.[0];
-  const max = column.max ?? bounds?.[1];
-
-  const size =
-    type === "text"
-      ? literal?.length
-      : NUMBER.test(value)
-        ? Number(value)
-        : undefined;
-
-  if (size === undefined) {
-    return undefined;
-  }
-
-  const what = type === "text" ? "length" : "value";
-
-  if (min !== undefined && size < min) {
-    return `The default's ${what} is below the minimum of ${String(min)}.`;
-  }
-
-  if (max !== undefined && size > max) {
-    return `The default's ${what} is above the maximum of ${String(max)}.`;
-  }
-
-  return undefined;
-}
-
-/** Whether `value` is a default `type` accepts; see `AppColumnConfig.default`. */
-export function isAppDefault(type: AppColumnType, value: string): boolean {
-  switch (value) {
-    case "now()": {
-      return type === "timestamptz" || type === "date";
-    }
-
-    case "gen_random_uuid()":
-    case "auth.uid()": {
-      return type === "uuid";
-    }
-
-    case "true":
-    case "false": {
-      return type === "boolean";
-    }
-
-    case "'{}'": {
-      return type === "jsonb" || type === "text[]" || type === "text";
-    }
-
-    case "'[]'": {
-      return type === "jsonb" || type === "text";
-    }
-
-    default: {
-      break;
-    }
-  }
-
-  if (INTEGER.test(value)) {
-    return type === "integer" || type === "bigint" || type === "numeric";
-  }
-
-  if (NUMBER.test(value)) {
-    return type === "numeric";
-  }
-
-  return (
-    value.length <= MAX_LITERAL &&
-    TEXT_LITERAL.test(value) &&
-    (type === "text" ||
-      type === "uuid" ||
-      type === "date" ||
-      type === "timestamptz")
-  );
 }
 
 function referenceOf(
@@ -703,6 +590,13 @@ function columnOf(
     );
   }
 
+  const encrypted = encryptedOf(where, value["encrypted"], {
+    type,
+    unique,
+    references,
+    identity,
+  });
+
   if (min !== undefined && max !== undefined && min > max) {
     throw new TypeError(
       `${where}: min ${String(min)} is above max ${String(max)}`,
@@ -740,6 +634,7 @@ function columnOf(
     ...(comment === undefined ? {} : { comment }),
     ...(identity === undefined ? {} : { identity }),
     ...(access === undefined ? {} : { access }),
+    ...(encrypted === undefined ? {} : { encrypted }),
   };
 }
 
@@ -1117,6 +1012,10 @@ function tableOf(
     new Set([...reserved, ...added, ...resolved.map(([name]) => name)]),
   );
 
+  const own = Object.fromEntries(resolved);
+  checkEncryptedKeys(where, own, { unique, indexes });
+  const auditReads = auditReadsOf(where, value["auditReads"], own);
+
   return {
     ...(columns === undefined ? {} : { columns: Object.fromEntries(resolved) }),
     ...(scope === undefined ? {} : { scope }),
@@ -1127,6 +1026,7 @@ function tableOf(
     ...(comment === undefined ? {} : { comment }),
     ...(subject === undefined ? {} : { subject }),
     ...(events === undefined ? {} : { events }),
+    ...(auditReads === undefined ? {} : { auditReads }),
   };
 }
 

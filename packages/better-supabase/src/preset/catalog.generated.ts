@@ -953,7 +953,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "access"
       ],
       "integrates": [
-        "outbox"
+        "outbox",
+        "field-encryption",
+        "audit"
       ],
       "manifest": "custom-fields",
       "scopes": [
@@ -3146,6 +3148,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "field-encryption",
+      "title": "Field encryption",
+      "category": "database",
+      "requires": [],
+      "integrates": [],
+      "manifest": "field-encryption"
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -4364,7 +4374,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "custom_field.saved",
           "custom_field.deleted",
-          "field_value.set"
+          "field_value.set",
+          "field_value.viewed"
         ]
       }
     },
@@ -6271,6 +6282,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "export": "entitlementsBlock",
         "subpath": "better-supabase/blocks/entitlements"
       },
+      "consumes": {},
+      "provides": []
+    },
+    {
+      "name": "field-encryption",
+      "sql": [
+        "field-encryption"
+      ],
+      "category": "database",
+      "client": null,
       "consumes": {},
       "provides": []
     },

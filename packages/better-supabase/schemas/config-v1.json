@@ -1535,6 +1535,9 @@
                 "access": {
                   "enum": ["read", "server"],
                   "type": "string"
+                },
+                "encrypted": {
+                  "type": "boolean"
                 }
               },
               "required": ["type"],
@@ -1580,6 +1583,9 @@
           },
           "comment": {
             "type": "string"
+          },
+          "auditReads": {
+            "type": "boolean"
           },
           "subject": {
             "type": "object",
@@ -3764,6 +3770,10 @@
               "layout": {
                 "type": "string",
                 "default": "normalized"
+              },
+              "auditReads": {
+                "type": "boolean",
+                "default": false
               }
             }
           }

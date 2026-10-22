@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@2 managed
+-- @bs-module custom-fields@3 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -53,6 +53,7 @@ create table if not exists "better_supabase"."field_definitions" (
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
+  "encrypted" boolean not null default false,
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
@@ -132,12 +133,16 @@ grant execute on function "better_supabase"."save_field_definition"(uuid, text, 
 
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_values jsonb;
+begin
   select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'text', v."value_text")), '[]'::jsonb)
+  into v_values
   from "better_supabase"."field_values" v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
   where v."tenant_id" = read_field_values.tenant
@@ -145,7 +150,9 @@ as $$
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false))
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+  return v_values;
+end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
@@ -279,13 +286,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 2, 'managed')
+values ('custom-fields', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@2 managed
+-- @bs-module custom-fields@3 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -338,6 +345,7 @@ create table if not exists "better_supabase"."field_definitions" (
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
+  "encrypted" boolean not null default false,
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
@@ -417,12 +425,18 @@ grant execute on function "better_supabase"."save_field_definition"(uuid, text, 
 
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'text', v."value_text")), '[]'::jsonb)
+declare
+  v_values jsonb;
+  v_key text;
+begin
+  v_key := "better_supabase"."field_key"('tenant:' || read_field_values.tenant::text, false);
+  select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'text', case when coalesce(d."encrypted", false) then "better_supabase"."field_open"(v_key, v."value_text") else v."value_text" end)), '[]'::jsonb)
+  into v_values
   from "better_supabase"."field_values" v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
   where v."tenant_id" = read_field_values.tenant
@@ -430,7 +444,9 @@ as $$
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false))
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+  return v_values;
+end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
@@ -451,7 +467,7 @@ begin
     raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
-  values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
+  values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, case when exists (select 1 from "better_supabase"."field_definitions" d where d."id" = set_field_value.definition and d."encrypted") then "better_supabase"."field_encrypt"('tenant:' || set_field_value.tenant::text, set_field_value.value) else set_field_value.value end)
   returning "id" into v_id;
   perform "better_supabase".emit_event('field_value.set', jsonb_build_object('organizationId', set_field_value.tenant, 'id', v_id, 'subjectType', set_field_value.subject_type, 'subjectId', set_field_value.subject_id), 'field-values/' || v_id::text, (set_field_value.tenant)::text, null, 'better-supabase/custom-fields');
   return jsonb_build_object('id', v_id);
@@ -543,6 +559,43 @@ $$;
 revoke execute on function "better_supabase"."rank_field_definition"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_field_definition"(uuid, text) to authenticated, service_role;
 
+-- Encrypts a text field and the values it already has. It can't be undone.
+create or replace function "better_supabase"."encrypt_field_definition"(definition uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_key text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select "tenant_id", "type" into v_tenant, v_type from "better_supabase"."field_definitions" where "id" = encrypt_field_definition.definition;
+  if not found then
+    raise exception 'field not found' using errcode = 'P0002', hint = 'FIELD_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if v_type not in ('text', 'email', 'url') then
+    raise exception 'only text fields can be encrypted' using errcode = '22023', hint = 'FIELD_NOT_ENCRYPTABLE';
+  end if;
+  v_key := "better_supabase"."field_key"('tenant:' || v_tenant::text, true);
+  update "better_supabase"."field_definitions" set "encrypted" = true where "id" = encrypt_field_definition.definition;
+  update "better_supabase"."field_values" set "value_text" = "better_supabase"."field_seal"(v_key, "value_text")
+  where "definition_id" = encrypt_field_definition.definition
+    and "value_text" is not null
+    and left("value_text", 5) <> 'bsf1:';
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."encrypt_field_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."encrypt_field_definition"(uuid) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (
   name text primary key,
@@ -564,13 +617,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 2, 'managed')
+values ('custom-fields', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@2 managed
+-- @bs-module custom-fields@3 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -625,6 +678,7 @@ create table if not exists "app_private"."field_definitions" (
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
+  "encrypted" boolean not null default false,
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
@@ -704,12 +758,16 @@ grant execute on function "app_private"."save_field_definition"(uuid, text, text
 
 create or replace function "app_private"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_values jsonb;
+begin
   select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'text', v."value_text")), '[]'::jsonb)
+  into v_values
   from "app_private"."field_values" v
   left join "app_private"."field_definitions" d on d."id" = v."definition_id"
   where v."tenant_id" = read_field_values.tenant
@@ -717,7 +775,9 @@ as $$
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false))
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+  return v_values;
+end;
 $$;
 revoke execute on function "app_private"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."read_field_values"(uuid, text, text) to authenticated, service_role;
@@ -851,13 +911,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 2, 'managed')
+values ('custom-fields', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@2 managed
+-- @bs-module custom-fields@3 managed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -910,6 +970,7 @@ create table if not exists "better_supabase"."field_definitions" (
   "required" boolean not null default false,
   "sensitive" boolean not null default false,
   "permission" text,
+  "encrypted" boolean not null default false,
   "rank" text collate "C" not null default 'V',
   unique ("tenant_id", "entity", "key")
 );
@@ -989,12 +1050,16 @@ grant execute on function "better_supabase"."save_field_definition"(uuid, text, 
 
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_values jsonb;
+begin
   select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'text', v."value_text")), '[]'::jsonb)
+  into v_values
   from "better_supabase"."field_values" v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
   where v."tenant_id" = read_field_values.tenant
@@ -1002,7 +1067,9 @@ as $$
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false))
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+  return v_values;
+end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
@@ -1212,13 +1279,13 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 2, 'managed')
+values ('custom-fields', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_61_custom_fields.sql
 -- better-supabase module: custom-fields
--- @bs-module custom-fields@2 adopt
+-- @bs-module custom-fields@3 adopt
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1301,12 +1368,16 @@ grant execute on function "better_supabase"."save_field_definition"(uuid, text, 
 
 create or replace function "better_supabase"."read_field_values"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+declare
+  v_values jsonb;
+begin
   select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'text', v."value_text")), '[]'::jsonb)
+  into v_values
   from "better_supabase"."field_values" v
   left join "better_supabase"."field_definitions" d on d."id" = v."definition_id"
   where v."tenant_id" = read_field_values.tenant
@@ -1314,7 +1385,9 @@ as $$
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false))
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+  return v_values;
+end;
 $$;
 revoke execute on function "better_supabase"."read_field_values"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."read_field_values"(uuid, text, text) to authenticated, service_role;
@@ -1448,6 +1521,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('custom-fields', 2, 'adopt')
+values ('custom-fields', 3, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

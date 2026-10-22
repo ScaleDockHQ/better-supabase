@@ -439,6 +439,7 @@ const appTables = v.record(
           comment: v.optional(v.string()),
           identity: v.optional(v.boolean()),
           access: v.optional(v.picklist(APP_COLUMN_ACCESS)),
+          encrypted: v.optional(v.boolean()),
         }),
       ),
     ),
@@ -448,6 +449,7 @@ const appTables = v.record(
     unique: v.optional(v.array(v.array(v.string()))),
     indexes: v.optional(v.array(v.array(v.string()))),
     comment: v.optional(v.string()),
+    auditReads: v.optional(v.boolean()),
     subject: v.optional(
       v.strictObject({
         type: v.string(),

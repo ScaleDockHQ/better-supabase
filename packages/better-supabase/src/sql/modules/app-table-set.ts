@@ -22,7 +22,10 @@ export interface SettableTable {
 export function settableColumns(config: AppTableConfig): readonly string[] {
   return Object.entries(config.columns ?? {})
     .filter(
-      ([, column]) => column.identity !== true && column.access === undefined,
+      ([, column]) =>
+        column.identity !== true &&
+        column.access === undefined &&
+        column.encrypted !== true,
     )
     .map(([name]) => name);
 }

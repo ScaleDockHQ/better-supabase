@@ -29,12 +29,12 @@ export type { ExpandedConfig } from "./config.ts";
 
 export {
   APP_NAME_MAX,
-  appDefaultError,
   appIdentifierError,
   appNameLengthError,
   appReservedColumns,
-  isAppDefault,
 } from "../config/app-tables.ts";
+
+export { appDefaultError, isAppDefault } from "../config/app-defaults.ts";
 
 export {
   APP_COLUMN_FORMATS,
