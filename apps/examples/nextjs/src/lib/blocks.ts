@@ -6,6 +6,7 @@ import { apiKeysBlock } from "better-supabase/blocks/api-keys";
 import { approvalsBlock } from "better-supabase/blocks/approvals";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
+import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
 import { bulkBlock } from "better-supabase/blocks/bulk";
 import { calendarBlock } from "better-supabase/blocks/calendar";
@@ -139,6 +140,7 @@ const blockSet = defineBlocks(blockConfig, {
   ledger: ledgerBlock,
   guests: guestsBlock,
   passes: passesBlock,
+  "billable-time": billableTimeBlock,
   orders: ordersBlock,
   promotions: promotionsBlock,
   calendar: calendarBlock,

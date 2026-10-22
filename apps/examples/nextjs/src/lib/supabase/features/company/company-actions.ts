@@ -18,6 +18,10 @@ export const issueCompanyPasses = companyRecord.actions.passes.issue;
 
 export const revokeCompanyPasses = companyRecord.actions.passes.revoke;
 
+export const setRateCompanyBillableTime = companyRecord.actions.billableTime.setRate;
+
+export const invoiceCompanyBillableTime = companyRecord.actions.billableTime.invoice;
+
 export const linkCompanyRelations = companyRecord.actions.relations.link;
 
 export const unlinkCompanyRelations = companyRecord.actions.relations.unlink;

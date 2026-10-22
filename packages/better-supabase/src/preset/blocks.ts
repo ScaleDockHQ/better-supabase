@@ -120,4 +120,5 @@ export const PRESET_BLOCKS: readonly (string | null)[] = [
   "ledger",
   "guests",
   "passes",
+  "billable-time",
 ];

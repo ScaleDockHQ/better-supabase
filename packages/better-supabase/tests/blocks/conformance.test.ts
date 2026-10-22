@@ -50,6 +50,8 @@ const NO_FIELDS: readonly string[] = [
   // An append-only log written by audit_event and triggers; adopted
   // columns already come back under `columns`.
   "audit",
+  // A rate is a price on the rate card; it carries no app fields.
+  "billable-time",
   // Customer rows mirror Stripe and are written by the webhook sync.
   "billing",
   // Run records of the block's own bulk jobs.

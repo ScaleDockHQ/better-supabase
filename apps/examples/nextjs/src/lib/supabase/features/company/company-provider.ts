@@ -14,6 +14,8 @@ import {
   revokeCompanyGuests,
   issueCompanyPasses,
   revokeCompanyPasses,
+  setRateCompanyBillableTime,
+  invoiceCompanyBillableTime,
   linkCompanyRelations,
   unlinkCompanyRelations,
   createCompanyShareLinks,
@@ -41,6 +43,10 @@ const writes = {
   passes: {
     issue: issueCompanyPasses,
     revoke: revokeCompanyPasses,
+  },
+  billableTime: {
+    setRate: setRateCompanyBillableTime,
+    invoice: invoiceCompanyBillableTime,
   },
   relations: {
     link: linkCompanyRelations,

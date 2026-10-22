@@ -12,6 +12,7 @@ import type { apiKeysBlock } from "../../src/blocks/api-keys/manifest.ts";
 import type { approvalsBlock } from "../../src/blocks/approvals/manifest.ts";
 import type { attachmentsBlock } from "../../src/blocks/attachments/manifest.ts";
 import type { auditBlock } from "../../src/blocks/audit/manifest.ts";
+import type { billableTimeBlock } from "../../src/blocks/billable-time/manifest.ts";
 import type { billingBlock } from "../../src/blocks/billing/manifest.ts";
 import type { bookingsBlock } from "../../src/blocks/bookings/manifest.ts";
 import type { bulkBlock } from "../../src/blocks/bulk/manifest.ts";
@@ -170,6 +171,7 @@ export type AllBlocks = {
   readonly webhookInbox: typeof webhookInboxBlock;
   readonly guests: typeof guestsBlock;
   readonly passes: typeof passesBlock;
+  readonly "billable-time": typeof billableTimeBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

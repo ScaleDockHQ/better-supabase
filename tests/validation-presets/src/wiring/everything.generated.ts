@@ -34,6 +34,7 @@ import { leaveBlock } from "better-supabase/blocks/leave";
 import { ledgerBlock } from "better-supabase/blocks/ledger";
 import { guestsBlock } from "better-supabase/blocks/guests";
 import { passesBlock } from "better-supabase/blocks/passes";
+import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
@@ -134,6 +135,7 @@ export const blockSet = defineBlocks(blockConfig, {
   ledger: ledgerBlock,
   guests: guestsBlock,
   passes: passesBlock,
+  billableTime: billableTimeBlock,
   drive: driveBlock,
   employees: employeesBlock,
   engagements: engagementsBlock,

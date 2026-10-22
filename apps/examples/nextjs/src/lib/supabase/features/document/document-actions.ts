@@ -18,6 +18,10 @@ export const issueDocumentPasses = documentRecord.actions.passes.issue;
 
 export const revokeDocumentPasses = documentRecord.actions.passes.revoke;
 
+export const setRateDocumentBillableTime = documentRecord.actions.billableTime.setRate;
+
+export const invoiceDocumentBillableTime = documentRecord.actions.billableTime.invoice;
+
 export const linkDocumentRelations = documentRecord.actions.relations.link;
 
 export const unlinkDocumentRelations = documentRecord.actions.relations.unlink;

@@ -18,6 +18,10 @@ export const issueDealPasses = dealRecord.actions.passes.issue;
 
 export const revokeDealPasses = dealRecord.actions.passes.revoke;
 
+export const setRateDealBillableTime = dealRecord.actions.billableTime.setRate;
+
+export const invoiceDealBillableTime = dealRecord.actions.billableTime.invoice;
+
 export const linkDealRelations = dealRecord.actions.relations.link;
 
 export const unlinkDealRelations = dealRecord.actions.relations.unlink;

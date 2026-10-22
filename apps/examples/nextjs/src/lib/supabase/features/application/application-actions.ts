@@ -18,6 +18,10 @@ export const issueApplicationPasses = applicationRecord.actions.passes.issue;
 
 export const revokeApplicationPasses = applicationRecord.actions.passes.revoke;
 
+export const setRateApplicationBillableTime = applicationRecord.actions.billableTime.setRate;
+
+export const invoiceApplicationBillableTime = applicationRecord.actions.billableTime.invoice;
+
 export const linkApplicationRelations = applicationRecord.actions.relations.link;
 
 export const unlinkApplicationRelations = applicationRecord.actions.relations.unlink;

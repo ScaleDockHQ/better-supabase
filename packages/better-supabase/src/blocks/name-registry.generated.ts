@@ -175,6 +175,19 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "billable-time": {
+    readonly tables: {
+      readonly "rates": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "rate" | "currency" | "effectiveFrom" | "createdBy" | "createdAt";
+      readonly "billed": "entry" | "tenant" | "invoice" | "rate" | "currency" | "seconds" | "createdAt";
+    };
+    readonly functions: "billable_time_guard" | "billable_time_release" | "delete_time_rate" | "invoice_from_time" | "list_invoiced_time" | "list_time_rates" | "set_time_rate" | "time_rate" | "unbilled_time";
+    readonly actions: "read" | "manage" | "invoice";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "time_rate": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "rate" | "currency" | "effective_from" | "created_by" | "created_at";
+    };
+    readonly primary: "time_rate";
+  };
   readonly "billing": {
     readonly tables: {
       readonly "customers": "tenant" | "customer" | "createdAt";

@@ -981,6 +981,11 @@
       "types": "./dist/blocks/passes/index.d.ts",
       "default": "./dist/blocks/passes/index.js"
     },
+    "./blocks/billable-time": {
+      "@better-supabase/source": "./src/blocks/billable-time/index.ts",
+      "types": "./dist/blocks/billable-time/index.d.ts",
+      "default": "./dist/blocks/billable-time/index.js"
+    },
     "./blocks/shared-signals": {
       "@better-supabase/source": "./src/blocks/shared-signals/index.ts",
       "types": "./dist/blocks/shared-signals/index.d.ts",
@@ -2329,6 +2334,10 @@
       "./blocks/passes": {
         "types": "./dist/blocks/passes/index.d.ts",
         "default": "./dist/blocks/passes/index.js"
+      },
+      "./blocks/billable-time": {
+        "types": "./dist/blocks/billable-time/index.d.ts",
+        "default": "./dist/blocks/billable-time/index.js"
       },
       "./blocks/shared-signals": {
         "types": "./dist/blocks/shared-signals/index.d.ts",

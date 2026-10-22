@@ -14,6 +14,8 @@ import {
   revokeProjectGuests,
   issueProjectPasses,
   revokeProjectPasses,
+  setRateProjectBillableTime,
+  invoiceProjectBillableTime,
   linkProjectRelations,
   unlinkProjectRelations,
   createProjectShareLinks,
@@ -43,6 +45,10 @@ const writes = {
   passes: {
     issue: issueProjectPasses,
     revoke: revokeProjectPasses,
+  },
+  billableTime: {
+    setRate: setRateProjectBillableTime,
+    invoice: invoiceProjectBillableTime,
   },
   relations: {
     link: linkProjectRelations,

@@ -18,6 +18,10 @@ export const issueCalendarEventPasses = calendarEventRecord.actions.passes.issue
 
 export const revokeCalendarEventPasses = calendarEventRecord.actions.passes.revoke;
 
+export const setRateCalendarEventBillableTime = calendarEventRecord.actions.billableTime.setRate;
+
+export const invoiceCalendarEventBillableTime = calendarEventRecord.actions.billableTime.invoice;
+
 export const linkCalendarEventRelations = calendarEventRecord.actions.relations.link;
 
 export const unlinkCalendarEventRelations = calendarEventRecord.actions.relations.unlink;

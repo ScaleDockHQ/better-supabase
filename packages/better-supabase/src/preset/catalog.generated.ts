@@ -2817,6 +2817,58 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "billable-time",
+      "title": "Billable time",
+      "category": "commerce",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "time-tracking",
+        "invoices"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "billable-time",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "time_rate": {
+            "table": "rates",
+            "singular": "time_rate",
+            "plural": "time_rates",
+            "primary": true
+          }
+        },
+        "tables": {
+          "rates": {
+            "name": "time_rates",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "user": "user_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "rate": "rate",
+              "currency": "currency",
+              "effectiveFrom": "effective_from",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "billable_time.read",
+          "manage": "billable_time.manage",
+          "invoice": "billable_time.invoice"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -5022,6 +5074,116 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pass.revoked",
           "pass.admitted",
           "pass.rejected"
+        ]
+      }
+    },
+    {
+      "name": "billable-time",
+      "sql": [
+        "billable-time"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "billableTimeBlock",
+        "subpath": "better-supabase/blocks/billable-time"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "TimeRate"
+        },
+        {
+          "name": "TimeRateInput"
+        },
+        {
+          "name": "TimeRateListOptions"
+        },
+        {
+          "name": "TimeRateLookup"
+        },
+        {
+          "name": "TimeRateSectionInput"
+        }
+      ],
+      "entitySchemas": {
+        "time_rate": {
+          "input": {
+            "title": "TimeRateInput",
+            "fields": {
+              "rate": {
+                "kind": "custom"
+              },
+              "userId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "subject": {
+                "kind": "json",
+                "optional": true,
+                "description": "The record the rate applies to: `{ type, id }`."
+              },
+              "effectiveFrom": {
+                "kind": "plainDate",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "TimeRateInput",
+              "type": "object",
+              "properties": {
+                "rate": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "userId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subject": {
+                  "description": "The record the rate applies to: `{ type, id }`."
+                },
+                "effectiveFrom": {
+                  "type": "string",
+                  "format": "date"
+                }
+              },
+              "required": [
+                "rate"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "billableTime": [
+          "setRate",
+          "invoice"
+        ]
+      },
+      "events": {
+        "type": "BillableTimeEvents",
+        "types": [
+          "time.invoiced"
         ]
       }
     },

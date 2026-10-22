@@ -14,6 +14,8 @@ import {
   revokeDriveNodeGuests,
   issueDriveNodePasses,
   revokeDriveNodePasses,
+  setRateDriveNodeBillableTime,
+  invoiceDriveNodeBillableTime,
   linkDriveNodeRelations,
   unlinkDriveNodeRelations,
   createDriveNodeShareLinks,
@@ -41,6 +43,10 @@ const writes = {
   passes: {
     issue: issueDriveNodePasses,
     revoke: revokeDriveNodePasses,
+  },
+  billableTime: {
+    setRate: setRateDriveNodeBillableTime,
+    invoice: invoiceDriveNodeBillableTime,
   },
   relations: {
     link: linkDriveNodeRelations,

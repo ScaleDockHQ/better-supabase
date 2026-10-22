@@ -2,6 +2,7 @@
 
 import { accessBlock } from "better-supabase/blocks/access";
 import { attachmentsBlock } from "better-supabase/blocks/attachments";
+import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { defineRecordFeature } from "better-supabase/records";
 import { guestsBlock } from "better-supabase/blocks/guests";
@@ -26,6 +27,7 @@ export const engagementFeature = defineRecordFeature({
     ledger: ledgerBlock,
     guests: guestsBlock,
     passes: passesBlock,
+    billableTime: billableTimeBlock,
     relations: relationsBlock,
     shareLinks: shareLinksBlock,
     sla: slaBlock,

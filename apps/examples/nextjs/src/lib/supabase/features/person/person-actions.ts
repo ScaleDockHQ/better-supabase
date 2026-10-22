@@ -18,6 +18,10 @@ export const issuePersonPasses = personRecord.actions.passes.issue;
 
 export const revokePersonPasses = personRecord.actions.passes.revoke;
 
+export const setRatePersonBillableTime = personRecord.actions.billableTime.setRate;
+
+export const invoicePersonBillableTime = personRecord.actions.billableTime.invoice;
+
 export const linkPersonRelations = personRecord.actions.relations.link;
 
 export const unlinkPersonRelations = personRecord.actions.relations.unlink;

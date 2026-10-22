@@ -23,6 +23,7 @@ import { API_KEYS } from "./modules/api-keys.ts";
 import { APPROVALS } from "./modules/approvals.ts";
 import { ATTACHMENTS } from "./modules/attachments.ts";
 import { AUDIT } from "./modules/audit.ts";
+import { BILLABLE_TIME } from "./modules/billable-time.ts";
 import { BILLING } from "./modules/billing.ts";
 import { BOOKINGS } from "./modules/bookings.ts";
 import { BULK } from "./modules/bulk.ts";
@@ -313,6 +314,7 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(LEDGER),
       built(GUESTS),
       built(PASSES),
+      built(BILLABLE_TIME),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

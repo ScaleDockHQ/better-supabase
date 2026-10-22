@@ -14,6 +14,8 @@ import {
   revokeEngagementGuests,
   issueEngagementPasses,
   revokeEngagementPasses,
+  setRateEngagementBillableTime,
+  invoiceEngagementBillableTime,
   linkEngagementRelations,
   unlinkEngagementRelations,
   createEngagementShareLinks,
@@ -41,6 +43,10 @@ const writes = {
   passes: {
     issue: issueEngagementPasses,
     revoke: revokeEngagementPasses,
+  },
+  billableTime: {
+    setRate: setRateEngagementBillableTime,
+    invoice: invoiceEngagementBillableTime,
   },
   relations: {
     link: linkEngagementRelations,

@@ -14,6 +14,8 @@ import {
   revokeDocumentGuests,
   issueDocumentPasses,
   revokeDocumentPasses,
+  setRateDocumentBillableTime,
+  invoiceDocumentBillableTime,
   linkDocumentRelations,
   unlinkDocumentRelations,
   createDocumentShareLinks,
@@ -41,6 +43,10 @@ const writes = {
   passes: {
     issue: issueDocumentPasses,
     revoke: revokeDocumentPasses,
+  },
+  billableTime: {
+    setRate: setRateDocumentBillableTime,
+    invoice: invoiceDocumentBillableTime,
   },
   relations: {
     link: linkDocumentRelations,

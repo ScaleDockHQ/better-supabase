@@ -18,6 +18,10 @@ export const issueTaskPasses = taskRecord.actions.passes.issue;
 
 export const revokeTaskPasses = taskRecord.actions.passes.revoke;
 
+export const setRateTaskBillableTime = taskRecord.actions.billableTime.setRate;
+
+export const invoiceTaskBillableTime = taskRecord.actions.billableTime.invoice;
+
 export const linkTaskRelations = taskRecord.actions.relations.link;
 
 export const unlinkTaskRelations = taskRecord.actions.relations.unlink;

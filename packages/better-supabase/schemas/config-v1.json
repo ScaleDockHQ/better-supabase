@@ -1774,6 +1774,7 @@
               "approvals",
               "attachments",
               "audit",
+              "billable-time",
               "billing",
               "bookings",
               "bulk",
@@ -1923,6 +1924,9 @@
             },
             "audit": {
               "$ref": "#/$defs/blocks/audit"
+            },
+            "billable-time": {
+              "$ref": "#/$defs/blocks/billable-time"
             },
             "billing": {
               "$ref": "#/$defs/blocks/billing"
@@ -3525,6 +3529,17 @@
               },
               "values": {}
             }
+          }
+        }
+      },
+      "billable-time": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

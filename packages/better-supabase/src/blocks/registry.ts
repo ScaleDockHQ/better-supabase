@@ -14,6 +14,7 @@ import { apiKeysBlock } from "./api-keys/manifest.ts";
 import { approvalsBlock } from "./approvals/manifest.ts";
 import { attachmentsBlock } from "./attachments/manifest.ts";
 import { auditBlock } from "./audit/manifest.ts";
+import { billableTimeBlock } from "./billable-time/manifest.ts";
 import { billingBlock } from "./billing/manifest.ts";
 import { bookingsBlock } from "./bookings/manifest.ts";
 import { bulkBlock } from "./bulk/manifest.ts";
@@ -152,6 +153,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   ledgerBlock,
   guestsBlock,
   passesBlock,
+  billableTimeBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

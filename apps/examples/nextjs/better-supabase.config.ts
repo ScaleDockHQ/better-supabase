@@ -398,6 +398,7 @@ export default defineConfig({
     bookings: {},
     guests: {},
     passes: {},
+    "billable-time": {},
     reminders: {},
     "drive-files": {},
     drive: {},

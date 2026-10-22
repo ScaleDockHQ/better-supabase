@@ -18,6 +18,10 @@ export const issueEngagementPasses = engagementRecord.actions.passes.issue;
 
 export const revokeEngagementPasses = engagementRecord.actions.passes.revoke;
 
+export const setRateEngagementBillableTime = engagementRecord.actions.billableTime.setRate;
+
+export const invoiceEngagementBillableTime = engagementRecord.actions.billableTime.invoice;
+
 export const linkEngagementRelations = engagementRecord.actions.relations.link;
 
 export const unlinkEngagementRelations = engagementRecord.actions.relations.unlink;

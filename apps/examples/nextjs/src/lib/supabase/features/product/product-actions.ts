@@ -18,6 +18,10 @@ export const issueProductPasses = productRecord.actions.passes.issue;
 
 export const revokeProductPasses = productRecord.actions.passes.revoke;
 
+export const setRateProductBillableTime = productRecord.actions.billableTime.setRate;
+
+export const invoiceProductBillableTime = productRecord.actions.billableTime.invoice;
+
 export const linkProductRelations = productRecord.actions.relations.link;
 
 export const unlinkProductRelations = productRecord.actions.relations.unlink;

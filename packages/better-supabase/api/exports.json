@@ -5939,6 +5939,48 @@
       "RpcClient"
     ]
   },
+  "./blocks/billable-time": {
+    "values": [
+      "billableTimeBlock",
+      "billableTimeEvents",
+      "billableTimeSection",
+      "createBillableTime",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "timeInvoiceSectionInputSchema",
+      "timeRateInputSchema",
+      "timeRateSectionInputSchema",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BillableTime",
+      "BillableTimeEvents",
+      "BillableTimeGrouping",
+      "BillableTimeLine",
+      "BillableTimeOptions",
+      "BillableTimeQuery",
+      "BillableTimeScope",
+      "BillableTimeWrites",
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "InvoicedTimeEntry",
+      "InvoiceFromTimeInput",
+      "RpcClient",
+      "TimeInvoice",
+      "TimeInvoicedEventData",
+      "TimeInvoiceSectionInput",
+      "TimeRate",
+      "TimeRateInput",
+      "TimeRateListOptions",
+      "TimeRateLookup",
+      "TimeRateSectionInput",
+      "UnbilledTime"
+    ]
+  },
   "./blocks/shared-signals": {
     "values": [
       "CAEP_EVENTS",

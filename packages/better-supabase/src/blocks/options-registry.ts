@@ -278,6 +278,7 @@ export interface BlockOptionsRegistry {
   readonly outbox: OutboxSqlOptions;
   readonly parties: PartiesSqlOptions;
   readonly passes: PassesSqlOptions;
+  readonly "billable-time": None;
   readonly pgtap: None;
   readonly pipelines: PipelinesSqlOptions;
   readonly profiles: ProfilesSqlOptions;
@@ -401,6 +402,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   outbox: outboxSqlOptions,
   parties: partiesSqlOptions,
   passes: passesSqlOptions,
+  "billable-time": NO_OPTIONS,
   pgtap: NO_OPTIONS,
   pipelines: pipelinesSqlOptions,
   profiles: profilesSqlOptions,

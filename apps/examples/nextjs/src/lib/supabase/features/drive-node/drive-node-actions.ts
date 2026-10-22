@@ -18,6 +18,10 @@ export const issueDriveNodePasses = driveNodeRecord.actions.passes.issue;
 
 export const revokeDriveNodePasses = driveNodeRecord.actions.passes.revoke;
 
+export const setRateDriveNodeBillableTime = driveNodeRecord.actions.billableTime.setRate;
+
+export const invoiceDriveNodeBillableTime = driveNodeRecord.actions.billableTime.invoice;
+
 export const linkDriveNodeRelations = driveNodeRecord.actions.relations.link;
 
 export const unlinkDriveNodeRelations = driveNodeRecord.actions.relations.unlink;
