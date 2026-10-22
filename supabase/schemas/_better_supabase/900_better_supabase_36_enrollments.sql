@@ -589,7 +589,7 @@ begin
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and v_row."user_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
-  -- A course's quiz lesson completes only through a passing submission.
+  -- A course's steps follow its lessons, so they change only through courses.
   if v_row."program" like 'course:%' then
     raise exception 'this enrollment belongs to a course; complete its lessons through courses' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
   end if;

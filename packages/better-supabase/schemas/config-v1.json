@@ -1785,6 +1785,7 @@
               "collections",
               "comments",
               "connectors",
+              "courses",
               "credentials",
               "custom-fields",
               "data-lifecycle",
@@ -1961,6 +1962,9 @@
             },
             "connectors": {
               "$ref": "#/$defs/blocks/connectors"
+            },
+            "courses": {
+              "$ref": "#/$defs/blocks/courses"
             },
             "credentials": {
               "$ref": "#/$defs/blocks/credentials"
@@ -3732,6 +3736,19 @@
                 "type": "string",
                 "default": "1 hour"
               },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "courses": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
               "extraColumns": {}
             }
           }

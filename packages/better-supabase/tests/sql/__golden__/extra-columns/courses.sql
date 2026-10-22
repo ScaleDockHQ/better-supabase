@@ -68,7 +68,7 @@ create table if not exists "better_supabase"."course_modules" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists "course_modules_course_idx" on "better_supabase"."course_modules" ("course_id", "rank");
+create index if not exists "course_modules_parent_idx" on "better_supabase"."course_modules" ("course_id", "rank");
 
 create table if not exists "better_supabase"."course_lessons" (
   "id" uuid primary key default gen_random_uuid(),
@@ -92,7 +92,7 @@ create table if not exists "better_supabase"."course_lessons" (
   check (("kind" = 'quiz') = ("form_id" is not null))
 );
 create index if not exists "course_lessons_module_idx" on "better_supabase"."course_lessons" ("module_id", "rank");
-create index if not exists "course_lessons_course_idx" on "better_supabase"."course_lessons" ("course_id");
+create index if not exists "course_lessons_parent_idx" on "better_supabase"."course_lessons" ("course_id");
 create index if not exists "course_lessons_form_idx" on "better_supabase"."course_lessons" ("form_id") where "form_id" is not null;
 
 -- A learner's state in one lesson of the course they are enrolled in. The
@@ -115,7 +115,7 @@ create table if not exists "better_supabase"."course_lesson_progress" (
   constraint "course_lesson_progress_pkey" primary key ("enrollment_id", "lesson_id")
 );
 create index if not exists "course_lesson_progress_lesson_idx" on "better_supabase"."course_lesson_progress" ("lesson_id");
-create index if not exists "course_lesson_progress_course_idx" on "better_supabase"."course_lesson_progress" ("course_id");
+create index if not exists "course_lesson_progress_parent_idx" on "better_supabase"."course_lesson_progress" ("course_id");
 create index if not exists "course_lesson_progress_user_idx" on "better_supabase"."course_lesson_progress" ("user_id");
 
 -- One per completed enrollment of a course that issues certificates. code is
@@ -131,7 +131,7 @@ create table if not exists "better_supabase"."course_certificates" (
   "revoked_at" timestamptz,
   constraint "course_certificates_enrollment_key" unique ("enrollment_id")
 );
-create index if not exists "course_certificates_course_idx" on "better_supabase"."course_certificates" ("course_id");
+create index if not exists "course_certificates_parent_idx" on "better_supabase"."course_certificates" ("course_id");
 create index if not exists "course_certificates_user_idx" on "better_supabase"."course_certificates" ("user_id");
 
 alter table "better_supabase"."courses" enable row level security;
