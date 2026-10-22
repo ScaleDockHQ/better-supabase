@@ -1,3 +1,7 @@
+-- Alters bookings, which already holds rows: fail fast instead of queueing
+-- behind long queries (doctor BS233).
+SET local lock_timeout = '5s';
+
 SET local check_function_bodies = off;
 
 CREATE TABLE "better_supabase"."booking_series" (
@@ -1825,7 +1829,10 @@ ALTER TABLE "better_supabase"."booking_series"
   ADD CONSTRAINT "booking_series_service_id_fkey" FOREIGN KEY (service_id) REFERENCES better_supabase.booking_services(id) ON DELETE RESTRICT;
 
 ALTER TABLE "better_supabase"."bookings"
-  ADD CONSTRAINT "bookings_series_id_fkey" FOREIGN KEY (series_id) REFERENCES better_supabase.booking_series(id) ON DELETE SET NULL;
+  ADD CONSTRAINT "bookings_series_id_fkey" FOREIGN KEY (series_id) REFERENCES better_supabase.booking_series(id) ON DELETE SET NULL NOT VALID;
+
+ALTER TABLE "better_supabase"."bookings"
+  VALIDATE CONSTRAINT "bookings_series_id_fkey";
 
 ALTER TABLE "better_supabase"."engagement_notes"
   ADD CONSTRAINT "engagement_notes_engagement_id_fkey" FOREIGN KEY (engagement_id) REFERENCES better_supabase.engagements(id) ON DELETE CASCADE;
@@ -1867,8 +1874,6 @@ CREATE INDEX booking_series_resource_idx ON better_supabase.booking_series USING
 CREATE INDEX booking_series_service_idx ON better_supabase.booking_series USING btree (service_id);
 
 CREATE INDEX booking_series_tenant_idx ON better_supabase.booking_series USING btree (tenant_id, starts_at);
-
-CREATE INDEX bookings_series_idx ON better_supabase.bookings USING btree (series_id, during);
 
 CREATE INDEX engagement_recordings_file_idx ON better_supabase.engagement_recordings USING btree (file_id);
 
