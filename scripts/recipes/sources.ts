@@ -1,5 +1,6 @@
 import type { RecipeSource } from "./types.ts";
 
+import { OPERATIONS_RECIPES } from "./operations.ts";
 /**
  * The recipe list that `build-recipes.ts` renders. A recipe with a `web` side
  * is available; the planned ones in `planned.ts` name what they wait for.
@@ -818,6 +819,7 @@ export const RECIPES: readonly RecipeSource[] = [
     },
   },
   ...SAAS_RECIPES,
+  ...OPERATIONS_RECIPES,
   ...RECORD_RECIPES,
   ...PLANNED,
 ];
