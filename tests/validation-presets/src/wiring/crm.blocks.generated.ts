@@ -7,9 +7,9 @@ import {
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
-import type { CommentsEvents } from "better-supabase/blocks/comments";
 import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
 import type { EngagementsEvents } from "better-supabase/blocks/engagements";
+import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { PartiesEvents } from "better-supabase/blocks/parties";
@@ -54,6 +54,16 @@ export const blockConfig = {
     options: {},
   },
   entitlements: {
+    schema: "better_supabase",
+    options: {},
+  },
+  messaging: {
+    schema: "better_supabase",
+    options: {
+      topic: "messages",
+    },
+  },
+  activity: {
     schema: "better_supabase",
     options: {},
   },
@@ -127,6 +137,9 @@ export const blockConfig = {
  * @public
  */
 export const permissions = {
+  activity: {
+    read: "activity.read",
+  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -141,20 +154,19 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
-  comment: {
-    read: "comments.read",
-    write: "comments.create",
-    upload: "comments.create",
-  },
   comments: {
-    read: "comments.read",
-    create: "comments.create",
-    moderate: "comments.moderate",
-    activity: "activity.read",
+    read: "messages.read",
+    create: "messages.send",
+    moderate: "messages.moderate",
   },
   company: {
     read: "parties.read",
     write: "parties.write",
+  },
+  conversation: {
+    read: "messages.read",
+    write: "messages.send",
+    upload: "messages.send",
   },
   "custom-fields": {
     manage: "custom_fields.manage",
@@ -174,6 +186,16 @@ export const permissions = {
     invite: "members.invite",
     revoke: "members.invite",
     view: "members.invite",
+  },
+  message: {
+    read: "messages.read",
+    write: "messages.send",
+    upload: "messages.send",
+  },
+  messaging: {
+    read: "messages.read",
+    send: "messages.send",
+    moderate: "messages.moderate",
   },
   notifications: {
     send: "notifications.send",
@@ -232,13 +254,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "comments.create" | "comments.moderate" | "comments.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "engagements.manage" | "engagements.read" | "engagements.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
+export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "engagements.manage" | "engagements.read" | "engagements.write" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CommentsEvents & CustomFieldsEvents & EngagementsEvents & NotificationsEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & SavedViewsEvents & SettingsEvents & TagsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CustomFieldsEvents & EngagementsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & SavedViewsEvents & SettingsEvents & TagsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -257,15 +279,16 @@ export const blockEvents: Events<BlockEvents> = {
     "billing.subscription_created",
     "billing.subscription_deleted",
     "billing.subscription_updated",
-    "comment.created",
-    "comment.deleted",
-    "comment.mentioned",
     "company.archived",
     "company.created",
     "company.merged",
     "company.person_linked",
     "company.person_unlinked",
     "company.updated",
+    "conversation.archived",
+    "conversation.created",
+    "conversation.member_added",
+    "conversation.member_removed",
     "custom_field.deleted",
     "custom_field.saved",
     "engagement.completed",
@@ -279,6 +302,11 @@ export const blockEvents: Events<BlockEvents> = {
     "invitation.resent",
     "invitation.revoked",
     "invitation.updated",
+    "message.deleted",
+    "message.edited",
+    "message.pinned",
+    "message.resolved",
+    "message.sent",
     "notification.bounced",
     "notification.clicked",
     "notification.complained",
@@ -343,15 +371,16 @@ export const blockEventSchemas = {
   "billing.subscription_created": true,
   "billing.subscription_deleted": true,
   "billing.subscription_updated": true,
-  "comment.created": true,
-  "comment.deleted": true,
-  "comment.mentioned": true,
   "company.archived": true,
   "company.created": true,
   "company.merged": true,
   "company.person_linked": true,
   "company.person_unlinked": true,
   "company.updated": true,
+  "conversation.archived": true,
+  "conversation.created": true,
+  "conversation.member_added": true,
+  "conversation.member_removed": true,
   "custom_field.deleted": true,
   "custom_field.saved": true,
   "engagement.completed": true,
@@ -365,6 +394,11 @@ export const blockEventSchemas = {
   "invitation.resent": true,
   "invitation.revoked": true,
   "invitation.updated": true,
+  "message.deleted": true,
+  "message.edited": true,
+  "message.pinned": true,
+  "message.resolved": true,
+  "message.sent": true,
   "notification.bounced": true,
   "notification.clicked": true,
   "notification.complained": true,
@@ -415,5 +449,6 @@ export const blockEventSchemas = {
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */
 export const topics = {
+  messaging: () => "messages",
   notifications: (v: { readonly userId: string }) => `notifications:${String(v.userId)}`,
 } as const;

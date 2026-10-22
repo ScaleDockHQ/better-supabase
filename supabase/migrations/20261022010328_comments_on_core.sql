@@ -24,8 +24,6 @@ DROP FUNCTION "better_supabase"."attachment_subject_readable"(text, text, uuid);
 
 DROP FUNCTION "better_supabase"."comment_counts"(uuid, text, text[]);
 
-DROP FUNCTION "better_supabase"."comments_subject_deleted"();
-
 DROP FUNCTION "better_supabase"."list_comments"(uuid, text, text, timestamp WITH time zone, integer, integer, uuid);
 
 DROP FUNCTION "better_supabase"."reaction_subject_visible"(text, text, uuid);
@@ -739,7 +737,7 @@ begin
   if not found then
     return;
   end if;
-  foreach v_user in array array(select distinct x from unnest(array[v_msg."author_id"] || v_msg."mentions") x where x is not null) loop
+  foreach v_user in array array(select distinct x from unnest(array[v_msg."author_id"] || v_msg."mentions") x where x = v_msg."author_id" or coalesce(better_supabase.can_user(x, 'tenant', v_msg."tenant_id", 'messages.read'), false)) loop
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
     values (v_conv."tenant_id", v_user, v_conv."subject_type", v_conv."subject_id", 'participating')
     on conflict do nothing;
@@ -781,6 +779,22 @@ begin
     join "better_supabase"."conversations" c on c."id" = (e.row ->> 'conversation_id')::uuid
     left join "better_supabase"."comment_tasks" t on t."message_id" = (e.row ->> 'id')::uuid
   );
+end;
+$function$;
+
+CREATE OR REPLACE FUNCTION better_supabase.comments_subject_deleted()
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path TO ''
+  AS $function$
+declare
+  v_type text := tg_argv[0];
+  v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
+begin
+  delete from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_id and (v_tenant is null or c."tenant_id"::text = v_tenant);
+  return null;
 end;
 $function$;
 
@@ -2676,6 +2690,7 @@ begin
     where x is distinct from v_msg."author_id"
       and coalesce(better_supabase.can_user(x, 'tenant', v_msg."tenant_id", 'messages.read'), false)
         and (v_conv."access" <> 'members' or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = v_conv."id" and k."user_id" = x))
+        and (v_conv."access" <> 'subject' or case v_conv."subject_type" when 'message' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'conversation' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'channel' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'company' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'person' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'deal' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'engagement' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'work_item' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'employee' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'product' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'product_variant' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'calendar_event' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'document' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'customer' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'drive_node' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) when 'application' then coalesce("better_supabase"."can_subject_for"(x, v_conv."subject_type", v_conv."subject_id", 'read'), false) else true end)
   );
   if v_msg."mention_scope" is not null then
     v_mentioned := v_mentioned || array(
@@ -5276,6 +5291,16 @@ end;
 $function$;
 
 CREATE INDEX comment_tasks_task_idx ON better_supabase.comment_tasks USING btree (task_id);
+
+CREATE TRIGGER bs_comments_product_variant_cascade
+  AFTER DELETE ON better_supabase.product_variants
+  FOR EACH ROW
+  EXECUTE FUNCTION better_supabase.comments_subject_deleted('product_variant', 'id', 'tenant_id');
+
+CREATE TRIGGER bs_comments_product_cascade
+  AFTER DELETE ON better_supabase.products
+  FOR EACH ROW
+  EXECUTE FUNCTION better_supabase.comments_subject_deleted('product', 'id', 'tenant_id');
 
 CREATE POLICY "activity_entries_read" ON "better_supabase"."activity_entries"
   FOR SELECT

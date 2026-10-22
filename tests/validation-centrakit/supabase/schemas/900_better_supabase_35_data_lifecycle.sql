@@ -1,4 +1,4 @@
--- better-supabase module: data-lifecycle (0.8.0)
+-- better-supabase module: data-lifecycle
 -- @bs-module data-lifecycle@6 managed
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -381,7 +381,6 @@ as $$
     ('user', 'better_supabase.notification_suppressions', '"better_supabase"."notification_suppressions"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.user_settings', '"better_supabase"."user_settings"', 'user_id', true, '{}'::text[], true),
     ('user', 'centrakit.file_node', '"centrakit"."file_node"', 'created_by', true, '{}'::text[], true),
-    ('user', 'better_supabase.comments', '"better_supabase"."comments"', 'author_id', true, '{}'::text[], true),
     ('user', 'better_supabase.attachments', '"better_supabase"."attachments"', 'uploaded_by', true, '{}'::text[], true),
     ('user', 'centrakit.teams', '"centrakit"."teams"', 'created_by', true, '{}'::text[], true),
     ('user', 'centrakit.team_members', '"centrakit"."team_members"', 'user_id', true, '{}'::text[], true),
@@ -389,6 +388,11 @@ as $$
     ('user', 'centrakit.share_links', '"centrakit"."share_links"', 'created_by', true, '{}'::text[], true),
     ('user', 'centrakit.reminders', '"centrakit"."reminders"', 'user_id', true, '{}'::text[], true),
     ('user', 'centrakit.import_runs', '"centrakit"."import_runs"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.conversations', '"better_supabase"."conversations"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.conversation_members', '"better_supabase"."conversation_members"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.messages', '"better_supabase"."messages"', 'author_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.message_edits', '"better_supabase"."message_edits"', 'edited_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.thread_reads', '"better_supabase"."thread_reads"', 'user_id', true, '{}'::text[], true),
     ('organization', 'centrakit.audit_logs', '"centrakit"."audit_logs"', 'organization_id', false, '{}'::text[], true),
     ('organization', 'centrakit.organization_users', '"centrakit"."organization_users"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.organization_invitations', '"centrakit"."organization_invitations"', 'organization_id', true, array['token']::text[], true),
@@ -410,8 +414,7 @@ as $$
     ('organization', 'better_supabase.organization_settings', '"better_supabase"."organization_settings"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.file_node', '"centrakit"."file_node"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'centrakit.file_node_grant', '"centrakit"."file_node_grant"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.comments', '"better_supabase"."comments"', 'organization_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.activity_entries', '"better_supabase"."activity_entries"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.comment_tasks', '"better_supabase"."comment_tasks"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.attachments', '"better_supabase"."attachments"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'organization_id', true, '{}'::text[], false),
     ('organization', 'centrakit.organization_number_sequences', '"centrakit"."organization_number_sequences"', 'tenant_id', true, '{}'::text[], true),
@@ -426,7 +429,12 @@ as $$
     ('organization', 'centrakit.share_links', '"centrakit"."share_links"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.recurrence_rules', '"centrakit"."recurrence_rules"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.reminders', '"centrakit"."reminders"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'centrakit.import_runs', '"centrakit"."import_runs"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'centrakit.import_runs', '"centrakit"."import_runs"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.conversations', '"better_supabase"."conversations"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.conversation_members', '"better_supabase"."conversation_members"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.messages', '"better_supabase"."messages"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.message_edits', '"better_supabase"."message_edits"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.thread_reads', '"better_supabase"."thread_reads"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
   union all
   select 'organization'::text, n.nspname || '.' || c.relname, format('%I.%I', n.nspname, c.relname), a.attname::text, true, '{}'::text[], true
@@ -436,7 +444,7 @@ as $$
   where c.relkind in ('r', 'p')
     and n.nspname in ('centrakit')
     and not c.relispartition
-    and n.nspname || '.' || c.relname not in ('centrakit.audit_logs', 'centrakit.organization_users', 'better_supabase.platform_roles', 'centrakit.profiles', 'centrakit.notification_recipients', 'centrakit.notification_subscriptions', 'centrakit.notification_preferences', 'better_supabase.notification_suppressions', 'better_supabase.user_settings', 'centrakit.file_node', 'better_supabase.comments', 'better_supabase.attachments', 'centrakit.teams', 'centrakit.team_members', 'centrakit.status_history', 'centrakit.share_links', 'centrakit.reminders', 'centrakit.import_runs', 'centrakit.organization_invitations', 'better_supabase.permission_overrides', 'better_supabase.support_sessions', 'better_supabase.support_requests', 'centrakit.workflow_events', 'centrakit.notification_events', 'centrakit.notification_deliveries', 'better_supabase.notification_delivery_events', 'centrakit.webhook_destinations', 'centrakit.webhook_destination_secrets', 'centrakit.webhook_deliveries', 'centrakit.inbound_webhooks', 'better_supabase.api_keys', 'better_supabase.organization_settings', 'centrakit.file_node_grant', 'better_supabase.activity_entries', 'better_supabase.retention_policies', 'centrakit.organization_number_sequences', 'centrakit.organization_tags', 'better_supabase.status_stages', 'better_supabase.subject_lifecycles', 'centrakit.field_definitions', 'centrakit.field_values', 'centrakit.recurrence_rules')
+    and n.nspname || '.' || c.relname not in ('centrakit.audit_logs', 'centrakit.organization_users', 'better_supabase.platform_roles', 'centrakit.profiles', 'centrakit.notification_recipients', 'centrakit.notification_subscriptions', 'centrakit.notification_preferences', 'better_supabase.notification_suppressions', 'better_supabase.user_settings', 'centrakit.file_node', 'better_supabase.attachments', 'centrakit.teams', 'centrakit.team_members', 'centrakit.status_history', 'centrakit.share_links', 'centrakit.reminders', 'centrakit.import_runs', 'better_supabase.conversations', 'better_supabase.conversation_members', 'better_supabase.messages', 'better_supabase.message_edits', 'better_supabase.thread_reads', 'centrakit.organization_invitations', 'better_supabase.permission_overrides', 'better_supabase.support_sessions', 'better_supabase.support_requests', 'centrakit.workflow_events', 'centrakit.notification_events', 'centrakit.notification_deliveries', 'better_supabase.notification_delivery_events', 'centrakit.webhook_destinations', 'centrakit.webhook_destination_secrets', 'centrakit.webhook_deliveries', 'centrakit.inbound_webhooks', 'better_supabase.api_keys', 'better_supabase.organization_settings', 'centrakit.file_node_grant', 'better_supabase.comment_tasks', 'better_supabase.retention_policies', 'centrakit.organization_number_sequences', 'centrakit.organization_tags', 'better_supabase.status_stages', 'better_supabase.subject_lifecycles', 'centrakit.field_definitions', 'centrakit.field_values', 'centrakit.recurrence_rules')
     and not (n.nspname || '.' || c.relname like 'centrakit.audit\_%')
     and not (n.nspname || '.' || c.relname like 'centrakit.roles')
     and not (n.nspname || '.' || c.relname like 'centrakit.user\_roles')
@@ -448,7 +456,7 @@ as $$
   where c.relkind in ('r', 'p')
     and n.nspname in ('centrakit')
     and not c.relispartition
-    and n.nspname || '.' || c.relname not in ('centrakit.audit_logs', 'centrakit.organization_users', 'better_supabase.platform_roles', 'centrakit.profiles', 'centrakit.notification_recipients', 'centrakit.notification_subscriptions', 'centrakit.notification_preferences', 'better_supabase.notification_suppressions', 'better_supabase.user_settings', 'centrakit.file_node', 'better_supabase.comments', 'better_supabase.attachments', 'centrakit.teams', 'centrakit.team_members', 'centrakit.status_history', 'centrakit.share_links', 'centrakit.reminders', 'centrakit.import_runs', 'centrakit.organization_invitations', 'better_supabase.permission_overrides', 'better_supabase.support_sessions', 'better_supabase.support_requests', 'centrakit.workflow_events', 'centrakit.notification_events', 'centrakit.notification_deliveries', 'better_supabase.notification_delivery_events', 'centrakit.webhook_destinations', 'centrakit.webhook_destination_secrets', 'centrakit.webhook_deliveries', 'centrakit.inbound_webhooks', 'better_supabase.api_keys', 'better_supabase.organization_settings', 'centrakit.file_node_grant', 'better_supabase.activity_entries', 'better_supabase.retention_policies', 'centrakit.organization_number_sequences', 'centrakit.organization_tags', 'better_supabase.status_stages', 'better_supabase.subject_lifecycles', 'centrakit.field_definitions', 'centrakit.field_values', 'centrakit.recurrence_rules')
+    and n.nspname || '.' || c.relname not in ('centrakit.audit_logs', 'centrakit.organization_users', 'better_supabase.platform_roles', 'centrakit.profiles', 'centrakit.notification_recipients', 'centrakit.notification_subscriptions', 'centrakit.notification_preferences', 'better_supabase.notification_suppressions', 'better_supabase.user_settings', 'centrakit.file_node', 'better_supabase.attachments', 'centrakit.teams', 'centrakit.team_members', 'centrakit.status_history', 'centrakit.share_links', 'centrakit.reminders', 'centrakit.import_runs', 'better_supabase.conversations', 'better_supabase.conversation_members', 'better_supabase.messages', 'better_supabase.message_edits', 'better_supabase.thread_reads', 'centrakit.organization_invitations', 'better_supabase.permission_overrides', 'better_supabase.support_sessions', 'better_supabase.support_requests', 'centrakit.workflow_events', 'centrakit.notification_events', 'centrakit.notification_deliveries', 'better_supabase.notification_delivery_events', 'centrakit.webhook_destinations', 'centrakit.webhook_destination_secrets', 'centrakit.webhook_deliveries', 'centrakit.inbound_webhooks', 'better_supabase.api_keys', 'better_supabase.organization_settings', 'centrakit.file_node_grant', 'better_supabase.comment_tasks', 'better_supabase.retention_policies', 'centrakit.organization_number_sequences', 'centrakit.organization_tags', 'better_supabase.status_stages', 'better_supabase.subject_lifecycles', 'centrakit.field_definitions', 'centrakit.field_values', 'centrakit.recurrence_rules')
     and not (n.nspname || '.' || c.relname like 'centrakit.audit\_%')
     and not (n.nspname || '.' || c.relname like 'centrakit.roles')
     and not (n.nspname || '.' || c.relname like 'centrakit.user\_roles')

@@ -52,6 +52,7 @@ import { knowledgeBlock } from "better-supabase/blocks/knowledge";
 import { memoryBlock } from "better-supabase/blocks/memory";
 import { messagingBlock } from "better-supabase/blocks/messaging";
 import { channelsBlock } from "better-supabase/blocks/channels";
+import { activityBlock } from "better-supabase/blocks/activity";
 import { metricsBlock } from "better-supabase/blocks/metrics";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { numberSequencesBlock } from "better-supabase/blocks/number-sequences";
@@ -151,6 +152,7 @@ export const blockSet = defineBlocks(blockConfig, {
   memory: memoryBlock,
   messaging: messagingBlock,
   channels: channelsBlock,
+  activity: activityBlock,
   metrics: metricsBlock,
   notifications: notificationsBlock,
   numberSequences: numberSequencesBlock,

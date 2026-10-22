@@ -10,6 +10,12 @@ import { centrakitProvider } from "./src/provider.ts";
 // its tables in `public`; the fixture puts them in `centrakit`.
 export default defineConfig({
   authorization: centrakitProvider(),
+  // The records comments attach to.
+  subjects: {
+    task: { table: "centrakit.tasks", idType: "uuid" },
+    project: { table: "centrakit.projects", idType: "uuid", scope: "project" },
+    customer: { table: "centrakit.customers", idType: "bigint" },
+  },
   blocks: {
     access: {
       model: "provider",
@@ -424,17 +430,21 @@ export default defineConfig({
       options: { roles: ["viewer", "commenter", "editor"] },
     },
     "realtime-tables": {},
+    subjects: {},
+    // Comments are messages on the messaging core; CentraKit's provider names
+    // its comment permissions, so messaging checks those keys.
+    messaging: {
+      permissions: {
+        read: "comments.read",
+        send: "comments.create",
+        moderate: "comments.moderate",
+      },
+    },
     comments: {
-      options: {
-        subjects: {
-          task: { table: "centrakit.tasks", idType: "uuid" },
-          project: {
-            table: "centrakit.projects",
-            idType: "uuid",
-            scope: "project",
-          },
-          customer: { table: "centrakit.customers", idType: "bigint" },
-        },
+      permissions: {
+        read: "comments.read",
+        create: "comments.create",
+        moderate: "comments.moderate",
       },
     },
     attachments: {

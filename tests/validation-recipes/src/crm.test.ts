@@ -44,7 +44,7 @@ describe.skipIf(!live)("CRM recipe", () => {
 
       expect(await watchers.relay()).toBeGreaterThanOrEqual(3);
       expect(await received(s, member, subjectId)).toEqual([
-        "subject.commented",
+        "comment.posted",
         "subject.moved",
         "subject.tagged",
       ]);

@@ -48,7 +48,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
         renderItem={({ item }) => (
           <View style={{ paddingVertical: 8 }}>
             <Text style={{ color: "#737373", fontSize: 12 }}>
-              {item.createdAt.toLocaleString()}
+              {(item.sentAt ?? item.createdAt).toLocaleString()}
             </Text>
             <Text>{item.body}</Text>
           </View>

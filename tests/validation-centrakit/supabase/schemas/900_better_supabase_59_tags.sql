@@ -1,4 +1,4 @@
--- better-supabase module: tags (0.9.0)
+-- better-supabase module: tags
 -- @bs-module tags@2 adopt
 -- Tenant tags with a kind, and a link from a tag to a subject. Adopt mode can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
@@ -103,7 +103,7 @@ begin
     raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   if not (case tag.subject_type
-    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id"::text = tag.subject_id and s."organization_id" = tag.tenant)
+    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = (tag.subject_id)::uuid and s."organization_id" = tag.tenant)
     else false
   end) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
@@ -129,7 +129,7 @@ begin
   case tag.subject_type
     when 'task' then
       insert into "centrakit"."task_tags" ("task_id", "tag_id")
-      values (tag.subject_id, tag.tag_id)
+      values (tag.subject_id::uuid, tag.tag_id)
       on conflict do nothing;
     else
       raise exception 'this subject has no link table' using errcode = '22023', hint = 'TAG_SUBJECT_UNKNOWN';
@@ -218,7 +218,7 @@ begin
     raise exception 'not allowed to apply tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   if not (case untag.subject_type
-    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id"::text = untag.subject_id and s."organization_id" = untag.tenant)
+    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = (untag.subject_id)::uuid and s."organization_id" = untag.tenant)
     else false
   end) then
     raise exception 'not allowed to tag this record' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';
@@ -274,7 +274,7 @@ begin
     raise exception 'not allowed to read tags' using errcode = '42501', hint = 'TAG_FORBIDDEN';
   end if;
   if not (case subject_tags.subject_type
-    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id"::text = subject_tags.subject_id and s."organization_id" = subject_tags.tenant)
+    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = (subject_tags.subject_id)::uuid and s."organization_id" = subject_tags.tenant)
     else false
   end) then
     raise exception 'not allowed to read this record''s tags' using errcode = '42501', hint = 'TAG_SUBJECT_FORBIDDEN';

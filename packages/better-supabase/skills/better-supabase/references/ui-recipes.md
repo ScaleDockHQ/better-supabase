@@ -846,10 +846,10 @@ export function CommentThread({
                     t("Someone")}
                 </span>{" "}
                 <span className="text-xs text-muted-foreground">
-                  {format.dateTime(comment.createdAt.epochMilliseconds, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
+                  {format.dateTime(
+                    (comment.sentAt ?? comment.createdAt).epochMilliseconds,
+                    { dateStyle: "medium", timeStyle: "short" },
+                  )}
                 </span>
               </p>
               <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
@@ -938,7 +938,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
         renderItem={({ item }) => (
           <View style={{ paddingVertical: 8 }}>
             <Text style={{ color: "#737373", fontSize: 12 }}>
-              {item.createdAt.toLocaleString()}
+              {(item.sentAt ?? item.createdAt).toLocaleString()}
             </Text>
             <Text>{item.body}</Text>
           </View>
@@ -19393,7 +19393,7 @@ export async function ProjectPage({
               authors={Object.fromEntries(
                 members.data.map((member) => [member.userId, member.name]),
               )}
-              canComment={can(session, "comments.create")}
+              canComment={can(session, "messages.send")}
             />
           </CardContent>
         </Card>

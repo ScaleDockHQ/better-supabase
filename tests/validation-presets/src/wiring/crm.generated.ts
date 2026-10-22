@@ -11,6 +11,8 @@ import { commentsBlock } from "better-supabase/blocks/comments";
 import { customFieldsBlock } from "better-supabase/blocks/custom-fields";
 import { engagementsBlock } from "better-supabase/blocks/engagements";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
+import { messagingBlock } from "better-supabase/blocks/messaging";
+import { activityBlock } from "better-supabase/blocks/activity";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
 import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
@@ -37,6 +39,8 @@ export const blockSet = defineBlocks(blockConfig, {
   customFields: customFieldsBlock,
   engagements: engagementsBlock,
   entitlements: entitlementsBlock,
+  messaging: messagingBlock,
+  activity: activityBlock,
   notifications: notificationsBlock,
   onboarding: onboardingBlock,
   organizations: organizationsBlock,

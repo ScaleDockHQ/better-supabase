@@ -16,7 +16,6 @@ import { NOTIFICATION_TYPES } from "./notification-types.ts";
  * maps them.
  */
 export const WATCHED = {
-  "comment.created": "subject.commented",
   "subject.tagged": "subject.tagged",
   "status.changed": "subject.moved",
   "share_link.created": "subject.shared",

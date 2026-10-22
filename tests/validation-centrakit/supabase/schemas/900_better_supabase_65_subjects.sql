@@ -1,0 +1,327 @@
+-- better-supabase module: subjects
+-- @bs-module subjects@1 managed
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- The app's subject registry (config.subjects, ADR 0020). Each function runs
+-- as the caller, so the subject table's own policies decide what is visible.
+create or replace function "better_supabase"."subject_types"()
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select '{message,conversation,task,project,customer}'::text[]
+$$;
+revoke execute on function "better_supabase"."subject_types"() from public, anon;
+grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
+
+create or replace function "better_supabase"."subject_title"(subject_type text, subject_id text)
+returns text
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  case subject_title.subject_type
+    when 'message' then
+      return (select s."body"::text from "better_supabase"."messages" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+    when 'conversation' then
+      return (select s."title"::text from "better_supabase"."conversations" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    else
+      return null;
+  end case;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."subject_title"(text, text) from public, anon;
+grant execute on function "better_supabase"."subject_title"(text, text) to authenticated, service_role;
+
+create or replace function "better_supabase"."subject_url"(subject_type text, subject_id text)
+returns text
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  case subject_url.subject_type
+    when '' then null;
+    else
+      return null;
+  end case;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."subject_url"(text, text) from public, anon;
+grant execute on function "better_supabase"."subject_url"(text, text) to authenticated, service_role;
+
+-- Titles and paths for many subjects in one call: refs is a JSON array of
+-- { "type", "id" }, the result one of { type, id, title, url }. A row the
+-- caller can't see, an unknown type or a soft-deleted row returns nothing.
+create or replace function "better_supabase"."subject_titles"(refs jsonb)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  found jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(subject_titles.refs) is distinct from 'array' then
+    raise exception 'refs must be a JSON array of { type, id }'
+      using errcode = '22023', hint = 'SUBJECT_REFS_INVALID';
+  end if;
+  if jsonb_array_length(subject_titles.refs) > 500 then
+    raise exception 'subject_titles takes at most 500 refs'
+      using errcode = '22023', hint = 'SUBJECT_REFS_TOO_MANY';
+  end if;
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'message', 'id', s."id"::text,
+      'title', s."body"::text, 'url', null::text))
+    from "better_supabase"."messages" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'message')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'conversation', 'id', s."id"::text,
+      'title', s."title"::text, 'url', null::text))
+    from "better_supabase"."conversations" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'conversation')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'task', 'id', s."id"::text,
+      'title', null::text, 'url', null::text))
+    from "centrakit"."tasks" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'task')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'project', 'id', s."id"::text,
+      'title', null::text, 'url', null::text))
+    from "centrakit"."projects" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'project')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'customer', 'id', s."id"::text,
+      'title', null::text, 'url', null::text))
+    from "centrakit"."customers" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'customer')::bigint[])), '[]'::jsonb);
+  return found;
+exception
+  when invalid_text_representation then
+    raise exception 'a subject id does not match its type''s id column'
+      using errcode = '22023', hint = 'SUBJECT_ID_INVALID';
+end;
+$$;
+revoke execute on function "better_supabase"."subject_titles"(jsonb) from public, anon;
+grant execute on function "better_supabase"."subject_titles"(jsonb) to authenticated, service_role;
+
+-- True when the caller can see the subject row and, for an action with a
+-- key in config.subjects.<type>.permissions, holds that key in the
+-- subject's tenant (or on the record, through the subject's scope).
+create or replace function "better_supabase"."can_subject"(subject_type text, subject_id text, action text)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  case can_subject.subject_type
+    when 'message' then
+      return exists (
+        select 1 from "better_supabase"."messages" s
+        where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
+          else true
+        end)
+      );
+    when 'conversation' then
+      return exists (
+        select 1 from "better_supabase"."conversations" s
+        where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
+          else true
+        end)
+      );
+    when 'task' then
+      return exists (
+        select 1 from "centrakit"."tasks" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and true
+      );
+    when 'project' then
+      return exists (
+        select 1 from "centrakit"."projects" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and true
+      );
+    when 'customer' then
+      return exists (
+        select 1 from "centrakit"."customers" s
+        where s."id" = (can_subject.subject_id)::bigint
+          and true
+      );
+    else
+      return false;
+  end case;
+  return false;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subject"(text, text, text) from public, anon;
+grant execute on function "better_supabase"."can_subject"(text, text, text) to authenticated, service_role;
+
+-- A record page's header and tab badges in one call: the subject's title and
+-- path, how many rows each named section has and whether any is newer than
+-- seen_at. Runs as the caller, so each count is what the caller can read;
+-- null when the caller can't read the subject. An unknown section is left out.
+create or replace function "better_supabase"."record_summary"(subject_type text, subject_id text, sections text[], seen_at timestamptz default null)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_counts jsonb := '{}'::jsonb;
+  v_unread jsonb := '{}'::jsonb;
+  v_count bigint;
+  v_latest timestamptz;
+  v_seen timestamptz;
+begin
+  if coalesce(cardinality(record_summary.sections), 0) > 20 then
+    raise exception 'record_summary takes at most 20 sections'
+      using errcode = '22023', hint = 'RECORD_SECTIONS_TOO_MANY';
+  end if;
+  if not "better_supabase"."can_subject"(record_summary.subject_type, record_summary.subject_id, 'read') then
+    return null;
+  end if;
+  if 'comments' = any (record_summary.sections) then
+    select count(*), max(x."sent_at")
+      into v_count, v_latest
+      from "better_supabase"."messages" x
+      join "better_supabase"."conversations" c on c."id" = x."conversation_id"
+        and c."kind" = 'subject'
+      where c."subject_type"::text = record_summary.subject_type
+        and c."subject_id"::text = record_summary.subject_id
+        and x."sent_at" is not null and x."deleted_at" is null;
+    v_seen := coalesce((select "better_supabase"."conversation_read_at"(c."id") from "better_supabase"."conversations" c
+        where c."kind" = 'subject'
+          and c."subject_type" = record_summary.subject_type
+          and c."subject_id" = record_summary.subject_id), record_summary.seen_at);
+    v_counts := v_counts || jsonb_build_object('comments', v_count);
+    v_unread := v_unread || jsonb_build_object('comments',
+      v_seen is not null and v_latest is not null and v_latest > v_seen);
+  end if;
+  if 'attachments' = any (record_summary.sections) then
+    select count(*), max(x."uploaded_at")
+      into v_count, v_latest
+      from "better_supabase"."attachments" x
+      where x."subject_type"::text = record_summary.subject_type
+        and x."subject_id"::text = record_summary.subject_id
+        and x."uploaded_at" is not null and x."status" <> 'infected';
+    v_seen := record_summary.seen_at;
+    v_counts := v_counts || jsonb_build_object('attachments', v_count);
+    v_unread := v_unread || jsonb_build_object('attachments',
+      v_seen is not null and v_latest is not null and v_latest > v_seen);
+  end if;
+  return jsonb_build_object(
+    'type', record_summary.subject_type,
+    'id', record_summary.subject_id,
+    'title', "better_supabase"."subject_title"(record_summary.subject_type, record_summary.subject_id),
+    'url', "better_supabase"."subject_url"(record_summary.subject_type, record_summary.subject_id),
+    'counts', v_counts,
+    'unread', v_unread);
+end;
+$$;
+revoke execute on function "better_supabase"."record_summary"(text, text, text[], timestamptz) from public, anon;
+grant execute on function "better_supabase"."record_summary"(text, text, text[], timestamptz) to authenticated, service_role;
+
+-- can_subject for another user, for server code that decides who receives
+-- an event. It reads the row past its policies and asks can_user for the
+-- action's key in config.subjects.<type>.permissions, so an action without
+-- a key is false and a share-link grant never counts. A provider that
+-- can't answer for others (no idsWithFor) gives false.
+create or replace function "better_supabase"."can_subject_for"(member uuid, subject_type text, subject_id text, action text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  case can_subject_for.subject_type
+    when 'message' then
+      return exists (
+        select 1 from "better_supabase"."messages" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.create'), false)
+          else false
+        end
+      );
+    when 'conversation' then
+      return exists (
+        select 1 from "better_supabase"."conversations" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.create'), false)
+          when 'upload' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.create'), false)
+          else false
+        end
+      );
+    when 'task' then
+      return exists (
+        select 1 from "centrakit"."tasks" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and false
+      );
+    when 'project' then
+      return exists (
+        select 1 from "centrakit"."projects" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and false
+      );
+    when 'customer' then
+      return exists (
+        select 1 from "centrakit"."customers" s
+        where s."id" = (can_subject_for.subject_id)::bigint
+          and false
+      );
+    else
+      return false;
+  end case;
+  return false;
+exception
+  when feature_not_supported then
+    return false;
+end;
+$$;
+revoke execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, text) to service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.modules (
+  name text primary key,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.modules enable row level security;
+revoke all on better_supabase.modules from anon, authenticated;
+grant select on better_supabase.modules to service_role;

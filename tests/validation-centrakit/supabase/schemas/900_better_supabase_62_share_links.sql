@@ -74,7 +74,11 @@ begin
     v_subject_ok := case create_share_link.subject_type
     when 'drive_node' then exists (select 1 from "centrakit"."file_node" s where s."id"::text = create_share_link.subject_id and s."organization_id"::text = create_share_link.tenant::text)
     else case create_share_link.subject_type
-    when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'comments.read'), false)
+    when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'comments.read'), false)
+    when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'comments.read'), false)
+    when 'task' then exists (select 1 from "centrakit"."tasks" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant)
+    when 'project' then exists (select 1 from "centrakit"."projects" s where s."id" = (create_share_link.subject_id)::uuid and s."organization_id" = create_share_link.tenant)
+    when 'customer' then exists (select 1 from "centrakit"."customers" s where s."id" = (create_share_link.subject_id)::bigint and s."organization_id" = create_share_link.tenant)
     else null
   end
   end;

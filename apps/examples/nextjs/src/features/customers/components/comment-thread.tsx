@@ -71,10 +71,10 @@ export function CommentThread({
                     t("Someone")}
                 </span>{" "}
                 <span className="text-xs text-muted-foreground">
-                  {format.dateTime(comment.createdAt.epochMilliseconds, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
+                  {format.dateTime(
+                    (comment.sentAt ?? comment.createdAt).epochMilliseconds,
+                    { dateStyle: "medium", timeStyle: "short" },
+                  )}
                 </span>
               </p>
               <p className="text-sm whitespace-pre-wrap">{comment.body}</p>

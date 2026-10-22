@@ -228,7 +228,7 @@ begin
   if not found then
     return;
   end if;
-  foreach v_user in array array(select distinct x from unnest(array[v_msg."author_id"] || v_msg."mentions") x where x is not null) loop
+  foreach v_user in array array(select distinct x from unnest(array[v_msg."author_id"] || v_msg."mentions") x where x = v_msg."author_id" or coalesce(better_supabase.can_user(x, 'tenant', v_msg."tenant_id", 'messages.read'), false)) loop
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
     values (v_conv."tenant_id", v_user, v_conv."subject_type", v_conv."subject_id", 'participating')
     on conflict do nothing;
@@ -415,6 +415,33 @@ end;
 $$;
 revoke execute on function "better_supabase"."assign_comment"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."assign_comment"(uuid, uuid, jsonb) to authenticated, service_role;
+-- options.subjects with cascade: deleting a subject row deletes its comments rows.
+create or replace function "better_supabase"."comments_subject_deleted"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := tg_argv[0];
+  v_id text := to_jsonb(old) ->> tg_argv[1];
+  v_tenant text := case when tg_nargs > 2 then to_jsonb(old) ->> tg_argv[2] end;
+begin
+  delete from "better_supabase"."conversations" c where c."kind" = 'subject' and c."subject_type" = v_type and c."subject_id" = v_id and (v_tenant is null or c."tenant_id"::text = v_tenant);
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."comments_subject_deleted"() from public, anon, authenticated;
+
+drop trigger if exists "bs_comments_product_cascade" on "better_supabase"."products";
+create trigger "bs_comments_product_cascade"
+  after delete on "better_supabase"."products"
+  for each row execute function "better_supabase"."comments_subject_deleted"('product', 'id', 'tenant_id');
+
+drop trigger if exists "bs_comments_product_variant_cascade" on "better_supabase"."product_variants";
+create trigger "bs_comments_product_variant_cascade"
+  after delete on "better_supabase"."product_variants"
+  for each row execute function "better_supabase"."comments_subject_deleted"('product_variant', 'id', 'tenant_id');
 
 -- blocks.comments.api: entry points for the Data API.
 create schema if not exists "api";
