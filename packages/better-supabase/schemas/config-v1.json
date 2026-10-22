@@ -1785,6 +1785,8 @@
               "collections",
               "comments",
               "connectors",
+              "contracts",
+              "controls",
               "credentials",
               "custom-fields",
               "data-lifecycle",
@@ -1807,6 +1809,7 @@
               "identities",
               "imports",
               "inbox",
+              "incidents",
               "inventory",
               "invitations",
               "invoices",
@@ -1962,6 +1965,12 @@
             "connectors": {
               "$ref": "#/$defs/blocks/connectors"
             },
+            "contracts": {
+              "$ref": "#/$defs/blocks/contracts"
+            },
+            "controls": {
+              "$ref": "#/$defs/blocks/controls"
+            },
             "credentials": {
               "$ref": "#/$defs/blocks/credentials"
             },
@@ -2027,6 +2036,9 @@
             },
             "inbox": {
               "$ref": "#/$defs/blocks/inbox"
+            },
+            "incidents": {
+              "$ref": "#/$defs/blocks/incidents"
             },
             "inventory": {
               "$ref": "#/$defs/blocks/inventory"
@@ -3737,6 +3749,36 @@
           }
         }
       },
+      "contracts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reminderDays": {
+                "type": "number",
+                "default": 14
+              },
+              "extraColumns": {}
+            }
+          }
+        }
+      },
+      "controls": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
+            }
+          }
+        }
+      },
       "credentials": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4130,6 +4172,19 @@
                 "type": "boolean",
                 "default": true
               }
+            }
+          }
+        }
+      },
+      "incidents": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {}
             }
           }
         }

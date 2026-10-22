@@ -3146,6 +3146,345 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "contracts",
+      "title": "Contracts",
+      "category": "crm",
+      "requires": [
+        "tenant",
+        "access",
+        "subjects",
+        "versions",
+        "signatures",
+        "reminders"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "contracts",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "contracts",
+      "entities": {
+        "specs": {
+          "contract": {
+            "table": "contracts",
+            "singular": "contract",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "obligation": {
+            "table": "obligations",
+            "singular": "obligation"
+          }
+        },
+        "tables": {
+          "contracts": {
+            "name": "contracts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "description": "description",
+              "counterpartyType": "counterparty_type",
+              "counterpartyId": "counterparty_id",
+              "owner": "owner_id",
+              "status": "status",
+              "value": "value",
+              "currency": "currency",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "autoRenew": "auto_renew",
+              "renewalMonths": "renewal_months",
+              "noticeDays": "notice_days",
+              "renewedCount": "renewed_count",
+              "signatureRequest": "signature_request_id",
+              "signedAt": "signed_at",
+              "terminatedAt": "terminated_at",
+              "terminationReason": "termination_reason",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "obligations": {
+            "name": "contract_obligations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "contract": "contract_id",
+              "title": "title",
+              "description": "description",
+              "dueOn": "due_on",
+              "owner": "owner_id",
+              "status": "status",
+              "completedAt": "completed_at",
+              "completedBy": "completed_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "contracts.read",
+          "write": "contracts.write",
+          "manage": "contracts.manage"
+        }
+      }
+    },
+    {
+      "name": "controls",
+      "title": "Compliance controls",
+      "category": "admin",
+      "requires": [
+        "tenant",
+        "access",
+        "versions"
+      ],
+      "integrates": [
+        "attachments",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "controls",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "controls",
+      "entities": {
+        "specs": {
+          "control": {
+            "table": "controls",
+            "singular": "control",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "control_framework": {
+            "table": "frameworks",
+            "singular": "control_framework"
+          },
+          "evidence_task": {
+            "table": "tasks",
+            "singular": "evidence_task"
+          },
+          "policy": {
+            "table": "policies",
+            "singular": "policy",
+            "plural": "policies",
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          }
+        },
+        "tables": {
+          "controls": {
+            "name": "controls",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "framework": "framework_id",
+              "code": "code",
+              "title": "title",
+              "description": "description",
+              "owner": "owner_id",
+              "applicable": "applicable",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "frameworks": {
+            "name": "control_frameworks",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "version": "version",
+              "description": "description",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "tasks": {
+            "name": "evidence_tasks",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "control": "control_id",
+              "title": "title",
+              "assignee": "assignee_id",
+              "intervalDays": "interval_days",
+              "dueOn": "due_on",
+              "lastCollectedAt": "last_collected_at",
+              "notifiedFor": "notified_for",
+              "active": "active",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "policies": {
+            "name": "policies",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "title": "title",
+              "owner": "owner_id",
+              "requiresAck": "requires_acknowledgement",
+              "currentVersion": "current_version_id",
+              "versionNumber": "version_number",
+              "publishedAt": "published_at",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "controls.read",
+          "manage": "controls.manage",
+          "collect": "controls.collect",
+          "acknowledge": "controls.acknowledge"
+        }
+      }
+    },
+    {
+      "name": "incidents",
+      "title": "Incidents",
+      "category": "developer",
+      "requires": [
+        "tenant",
+        "access"
+      ],
+      "integrates": [
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "incidents",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "incidents",
+      "entities": {
+        "specs": {
+          "incident": {
+            "table": "incidents",
+            "singular": "incident",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "status_component": {
+            "table": "components",
+            "singular": "status_component"
+          },
+          "postmortem": {
+            "table": "postmortems",
+            "singular": "postmortem"
+          },
+          "status_page": {
+            "table": "pages",
+            "singular": "status_page"
+          }
+        },
+        "tables": {
+          "incidents": {
+            "name": "incidents",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "title": "title",
+              "description": "description",
+              "severity": "severity",
+              "status": "status",
+              "public": "public",
+              "commander": "commander_id",
+              "startedAt": "started_at",
+              "resolvedAt": "resolved_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "components": {
+            "name": "status_components",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "description": "description",
+              "group": "group_name",
+              "public": "public",
+              "status": "status",
+              "position": "position",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "postmortems": {
+            "name": "incident_postmortems",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "incident": "incident_id",
+              "summary": "summary",
+              "impact": "impact",
+              "rootCause": "root_cause",
+              "resolution": "resolution",
+              "actionItems": "action_items",
+              "status": "status",
+              "publishedAt": "published_at",
+              "author": "author_id",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "pages": {
+            "name": "status_pages",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "slug": "slug",
+              "title": "title",
+              "description": "description",
+              "published": "published",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "incidents.read",
+          "write": "incidents.write",
+          "manage": "incidents.manage"
+        }
+      }
+    },
+    {
       "name": "ensure-rls",
       "title": "RLS on every new table",
       "category": "database",
@@ -5703,6 +6042,1006 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "time.invoiced"
         ]
+      }
+    },
+    {
+      "name": "contracts",
+      "sql": [
+        "contracts"
+      ],
+      "category": "crm",
+      "client": {
+        "export": "contractsBlock",
+        "subpath": "better-supabase/blocks/contracts"
+      },
+      "consumes": {},
+      "provides": [],
+      "entitySchemas": {
+        "contract": {
+          "input": {
+            "title": "ContractInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "counterparty": {
+                "kind": "json",
+                "optional": true,
+                "description": "The counterparty, a registered subject: `{ type, id }`."
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "value": {
+                "kind": "custom",
+                "optional": true
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "autoRenew": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "renewalMonths": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 120
+              },
+              "noticeDays": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 3650
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ContractInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "counterparty": {
+                  "description": "The counterparty, a registered subject: `{ type, id }`."
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "value": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "autoRenew": {
+                  "type": "boolean"
+                },
+                "renewalMonths": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 120
+                },
+                "noticeDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3650
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "ContractChanges",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "counterparty": {
+                "kind": "json",
+                "optional": true,
+                "description": "The counterparty, a registered subject: `{ type, id }`."
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "value": {
+                "kind": "custom",
+                "optional": true
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "autoRenew": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "renewalMonths": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 120
+              },
+              "noticeDays": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "maximum": 3650
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ContractChanges",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "counterparty": {
+                  "description": "The counterparty, a registered subject: `{ type, id }`."
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "value": {
+                  "title": "Money",
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string",
+                      "pattern": "^-?\\d+$",
+                      "description": "The amount in minor units."
+                    },
+                    "currency": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ],
+                  "additionalProperties": false
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "autoRenew": {
+                  "type": "boolean"
+                },
+                "renewalMonths": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 120
+                },
+                "noticeDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3650
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "obligation": {
+          "input": {
+            "title": "ObligationInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 4000
+              },
+              "dueOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "obligationId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ObligationInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                "dueOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "obligationId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "sections": {
+        "contracts": []
+      }
+    },
+    {
+      "name": "controls",
+      "sql": [
+        "controls"
+      ],
+      "category": "admin",
+      "client": {
+        "export": "controlsBlock",
+        "subpath": "better-supabase/blocks/controls"
+      },
+      "consumes": {},
+      "provides": [],
+      "entitySchemas": {
+        "control_framework": {
+          "input": {
+            "title": "ControlFrameworkInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "version": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 64
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ControlFrameworkInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "version": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "control": {
+          "input": {
+            "title": "ControlInput",
+            "fields": {
+              "frameworkId": {
+                "kind": "uuid"
+              },
+              "code": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "applicable": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "controlId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ControlInput",
+              "type": "object",
+              "properties": {
+                "frameworkId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "applicable": {
+                  "type": "boolean"
+                },
+                "controlId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "frameworkId",
+                "code",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "evidence_task": {
+          "input": {
+            "title": "EvidenceTaskInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "intervalDays": {
+                "kind": "integer",
+                "minimum": 1,
+                "maximum": 3650
+              },
+              "dueOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "assigneeId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "active": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "evidenceTaskId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "EvidenceTaskInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "intervalDays": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 3650
+                },
+                "dueOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "assigneeId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "evidenceTaskId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "title",
+                "intervalDays"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "policy": {
+          "input": {
+            "title": "PolicyInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "requiresAcknowledgement": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "policyId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PolicyInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "requiresAcknowledgement": {
+                  "type": "boolean"
+                },
+                "policyId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "incidents",
+      "sql": [
+        "incidents"
+      ],
+      "category": "developer",
+      "client": {
+        "export": "incidentsBlock",
+        "subpath": "better-supabase/blocks/incidents"
+      },
+      "consumes": {},
+      "provides": [],
+      "entitySchemas": {
+        "incident": {
+          "input": {
+            "title": "IncidentInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "severity": {
+                "kind": "enum",
+                "values": [
+                  "sev1",
+                  "sev2",
+                  "sev3",
+                  "sev4"
+                ],
+                "optional": true
+              },
+              "public": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "commanderId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "message": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "impacts": {
+                "kind": "json",
+                "optional": true,
+                "array": true,
+                "description": "The affected components: `[{ componentId, impact }]`."
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "IncidentInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "sev1",
+                    "sev2",
+                    "sev3",
+                    "sev4"
+                  ]
+                },
+                "public": {
+                  "type": "boolean"
+                },
+                "commanderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "message": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "impacts": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The affected components: `[{ componentId, impact }]`."
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "change": {
+            "title": "IncidentChanges",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "severity": {
+                "kind": "enum",
+                "values": [
+                  "sev1",
+                  "sev2",
+                  "sev3",
+                  "sev4"
+                ],
+                "optional": true
+              },
+              "public": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "commanderId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "IncidentChanges",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "sev1",
+                    "sev2",
+                    "sev3",
+                    "sev4"
+                  ]
+                },
+                "public": {
+                  "type": "boolean"
+                },
+                "commanderId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "status_component": {
+          "input": {
+            "title": "StatusComponentInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              },
+              "group": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "public": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "position": {
+                "kind": "integer",
+                "optional": true
+              },
+              "componentId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "StatusComponentInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "group": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "public": {
+                  "type": "boolean"
+                },
+                "position": {
+                  "type": "integer"
+                },
+                "componentId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "postmortem": {
+          "input": {
+            "title": "PostmortemInput",
+            "fields": {
+              "summary": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "impact": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "rootCause": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "resolution": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "actionItems": {
+                "kind": "json",
+                "optional": true,
+                "array": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "PostmortemInput",
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "impact": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "rootCause": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "resolution": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "actionItems": {
+                  "type": "array",
+                  "items": {}
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "status_page": {
+          "input": {
+            "title": "StatusPageInput",
+            "fields": {
+              "slug": {
+                "kind": "string",
+                "minLength": 2,
+                "maxLength": 63
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              },
+              "published": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "StatusPageInput",
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 63
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "published": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "slug",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
       }
     },
     {

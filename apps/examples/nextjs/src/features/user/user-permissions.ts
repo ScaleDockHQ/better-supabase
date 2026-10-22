@@ -167,6 +167,9 @@ export const PERMISSIONS = [
   "enrollments.read",
   "enrollments.enroll",
   "enrollments.manage",
+  "contracts.read",
+  "controls.read",
+  "incidents.read",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -331,6 +334,9 @@ const grants = {
     "enrollments.read",
     "enrollments.enroll",
     "enrollments.manage",
+    "contracts.read",
+    "controls.read",
+    "incidents.read",
   ],
   member: [
     "customers.read",
@@ -407,6 +413,9 @@ const grants = {
     "scores.read",
     "moderation.report",
     "enrollments.read",
+    "contracts.read",
+    "controls.read",
+    "incidents.read",
   ],
 } satisfies Readonly<Record<Role, "*" | readonly Permission[]>>;
 

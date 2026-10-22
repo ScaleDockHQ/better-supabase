@@ -792,4 +792,60 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  {
+    slug: "contract-renewals",
+    title: "Contract renewals",
+    blocks: ["contracts"],
+    kind: "component",
+    description:
+      "Active contracts with their value, end date and notice deadline, the nearest deadline first, so a renewal is decided in time.",
+    web: {
+      file: `${WEB_APP}/src/features/compliance/components/contract-renewals.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "empty",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "control-posture",
+    title: "Control posture",
+    blocks: ["controls"],
+    kind: "component",
+    description:
+      "One card per compliance framework with its passing, failing and not started controls, then the overdue evidence tasks.",
+    web: {
+      file: `${WEB_APP}/src/features/compliance/components/control-posture.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "empty",
+        "progress",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "status-page",
+    title: "Status page",
+    blocks: ["incidents"],
+    kind: "screen",
+    description:
+      "A public status page: the overall status, each public component with its daily uptime, and the public incident updates.",
+    web: {
+      file: `${WEB_APP}/src/features/status/components/status-page.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
 ];

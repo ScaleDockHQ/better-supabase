@@ -12,6 +12,7 @@ import {
   SquareKanbanIcon,
   TableIcon,
   ShieldCheckIcon,
+  ShieldHalfIcon,
   ContactRoundIcon,
   KanbanIcon,
   FileTextIcon,
@@ -89,6 +90,7 @@ const ICONS = {
   imports: FileUpIcon,
   trash: Trash2Icon,
   metrics: ChartColumnIcon,
+  compliance: ShieldHalfIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
   workflowBuilder: WaypointsIcon,
@@ -213,6 +215,10 @@ function useNavLabel() {
 
       case "metrics": {
         return t("Metrics");
+      }
+
+      case "compliance": {
+        return t("Compliance");
       }
 
       case "notifications": {

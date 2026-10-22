@@ -16,6 +16,9 @@ import { assetsBlock } from "./assets/manifest.ts";
 import { attachmentsBlock } from "./attachments/manifest.ts";
 import { auditBlock } from "./audit/manifest.ts";
 import { billableTimeBlock } from "./billable-time/manifest.ts";
+import { contractsBlock } from "./contracts/manifest.ts";
+import { controlsBlock } from "./controls/manifest.ts";
+import { incidentsBlock } from "./incidents/manifest.ts";
 import { billingBlock } from "./billing/manifest.ts";
 import { bookingsBlock } from "./bookings/manifest.ts";
 import { bulkBlock } from "./bulk/manifest.ts";
@@ -162,6 +165,9 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   guestsBlock,
   passesBlock,
   billableTimeBlock,
+  contractsBlock,
+  controlsBlock,
+  incidentsBlock,
   driveBlock,
   employeesBlock,
   engagementsBlock,

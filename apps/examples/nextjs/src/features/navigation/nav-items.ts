@@ -27,6 +27,7 @@ export type NavId =
   | "imports"
   | "trash"
   | "metrics"
+  | "compliance"
   | "notifications"
   | "workflows"
   | "workflowBuilder"
@@ -166,6 +167,12 @@ export const navItems: readonly NavItem[] = [
   },
   { id: "trash", href: "/trash", group: "workspace", requires: "trash.read" },
   { id: "metrics", href: "/metrics", group: "workspace" },
+  {
+    id: "compliance",
+    href: "/compliance",
+    group: "workspace",
+    requires: "controls.read",
+  },
   { id: "notifications", href: "/notifications", group: "workspace" },
   {
     id: "workflows",

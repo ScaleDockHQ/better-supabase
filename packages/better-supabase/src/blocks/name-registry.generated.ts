@@ -330,6 +330,40 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "contracts": {
+    readonly tables: {
+      readonly "contracts": "id" | "tenant" | "title" | "description" | "counterpartyType" | "counterpartyId" | "owner" | "status" | "value" | "currency" | "startsOn" | "endsOn" | "autoRenew" | "renewalMonths" | "noticeDays" | "renewedCount" | "signatureRequest" | "signedAt" | "terminatedAt" | "terminationReason" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "obligations": "id" | "tenant" | "contract" | "title" | "description" | "dueOn" | "owner" | "status" | "completedAt" | "completedBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "contract_apply_status" | "contract_schedule_renewal" | "contract_signature_settled" | "create_contract" | "delete_obligation" | "get_contract" | "list_contracts" | "list_obligations" | "run_contract_renewals" | "save_obligation" | "send_contract_for_signature" | "set_obligation_status" | "transition_contract" | "update_contract";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "contract": "id" | "tenant_id" | "title" | "description" | "counterparty_type" | "counterparty_id" | "owner_id" | "status" | "value" | "currency" | "starts_on" | "ends_on" | "auto_renew" | "renewal_months" | "notice_days" | "renewed_count" | "signature_request_id" | "signed_at" | "terminated_at" | "termination_reason" | "created_by" | "created_at" | "updated_at";
+      readonly "obligation": "id" | "tenant_id" | "contract_id" | "title" | "description" | "due_on" | "owner_id" | "status" | "completed_at" | "completed_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "contract";
+  };
+  readonly "controls": {
+    readonly tables: {
+      readonly "frameworks": "id" | "tenant" | "key" | "name" | "version" | "description" | "createdAt" | "updatedAt";
+      readonly "controls": "id" | "tenant" | "framework" | "code" | "title" | "description" | "owner" | "applicable" | "createdAt" | "updatedAt";
+      readonly "evidence": "id" | "tenant" | "control" | "task" | "attachment" | "note" | "collectedBy" | "collectedAt" | "validUntil";
+      readonly "tasks": "id" | "tenant" | "control" | "title" | "assignee" | "intervalDays" | "dueOn" | "lastCollectedAt" | "notifiedFor" | "active" | "createdAt" | "updatedAt";
+      readonly "policies": "id" | "tenant" | "key" | "title" | "owner" | "requiresAck" | "currentVersion" | "versionNumber" | "publishedAt" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "acknowledgements": "id" | "tenant" | "policy" | "version" | "user" | "acknowledgedAt";
+    };
+    readonly functions: "acknowledge_policy" | "add_control_evidence" | "archive_policy" | "control_posture" | "get_control" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "list_policies" | "notify_overdue_evidence_tasks" | "policy_acknowledgements" | "publish_policy" | "remove_control_evidence" | "save_control" | "save_control_framework" | "save_evidence_task" | "save_policy";
+    readonly actions: "read" | "manage" | "collect" | "acknowledge";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "control": "id" | "tenant_id" | "framework_id" | "code" | "title" | "description" | "owner_id" | "applicable" | "created_at" | "updated_at";
+      readonly "control_framework": "id" | "tenant_id" | "key" | "name" | "version" | "description" | "created_at" | "updated_at";
+      readonly "evidence_task": "id" | "tenant_id" | "control_id" | "title" | "assignee_id" | "interval_days" | "due_on" | "last_collected_at" | "notified_for" | "active" | "created_at" | "updated_at";
+      readonly "policy": "id" | "tenant_id" | "key" | "title" | "owner_id" | "requires_acknowledgement" | "current_version_id" | "version_number" | "published_at" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "control";
+  };
   readonly "credentials": {
     readonly tables: {
       readonly "secrets": "provider" | "name" | "tenant" | "scope" | "vaultId" | "secret" | "updatedAt";
@@ -591,6 +625,27 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "incidents": {
+    readonly tables: {
+      readonly "components": "id" | "tenant" | "name" | "description" | "group" | "public" | "status" | "position" | "createdAt" | "updatedAt";
+      readonly "history": "id" | "tenant" | "component" | "status" | "startedAt" | "endedAt";
+      readonly "incidents": "id" | "tenant" | "title" | "description" | "severity" | "status" | "public" | "commander" | "startedAt" | "resolvedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "updates": "id" | "tenant" | "incident" | "status" | "body" | "public" | "author" | "createdAt";
+      readonly "impacts": "tenant" | "incident" | "component" | "impact";
+      readonly "postmortems": "id" | "tenant" | "incident" | "summary" | "impact" | "rootCause" | "resolution" | "actionItems" | "status" | "publishedAt" | "author" | "createdAt" | "updatedAt";
+      readonly "pages": "id" | "tenant" | "slug" | "title" | "description" | "published" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "delete_status_component" | "get_incident" | "get_status_page" | "incident_apply_impacts" | "incident_refresh_components" | "list_incidents" | "list_status_components" | "open_incident" | "post_incident_update" | "public_status_page" | "publish_postmortem" | "save_postmortem" | "save_status_component" | "save_status_page" | "set_incident_impacts" | "update_incident";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "incident": "id" | "tenant_id" | "title" | "description" | "severity" | "status" | "public" | "commander_id" | "started_at" | "resolved_at" | "created_by" | "created_at" | "updated_at";
+      readonly "status_component": "id" | "tenant_id" | "name" | "description" | "group_name" | "public" | "status" | "position" | "created_at" | "updated_at";
+      readonly "postmortem": "id" | "tenant_id" | "incident_id" | "summary" | "impact" | "root_cause" | "resolution" | "action_items" | "status" | "published_at" | "author_id" | "created_at" | "updated_at";
+      readonly "status_page": "id" | "tenant_id" | "slug" | "title" | "description" | "published" | "created_at" | "updated_at";
+    };
+    readonly primary: "incident";
   };
   readonly "inventory": {
     readonly tables: {

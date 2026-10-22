@@ -34,6 +34,8 @@ import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
+import { CONTRACTS } from "./modules/contracts.ts";
+import { CONTROLS } from "./modules/controls.ts";
 import { CREDENTIALS } from "./modules/credentials.ts";
 import { CUSTOM_FIELDS } from "./modules/custom-fields.ts";
 import { DATA_LIFECYCLE } from "./modules/data-lifecycle.ts";
@@ -55,6 +57,7 @@ import { IDEMPOTENCY } from "./modules/idempotency.ts";
 import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
+import { INCIDENTS } from "./modules/incidents.ts";
 import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
 import { INVOICES } from "./modules/invoices.ts";
@@ -323,6 +326,9 @@ export const SQL_MODULES: Readonly<Record<string, SqlModule>> =
       built(GUESTS),
       built(PASSES),
       built(BILLABLE_TIME),
+      built(CONTRACTS),
+      built(CONTROLS),
+      built(INCIDENTS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

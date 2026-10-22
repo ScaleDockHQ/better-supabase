@@ -61,6 +61,9 @@ import type {
 import type { OutboxSqlOptions } from "./outbox/options.ts";
 import type { PartiesSqlOptions } from "./parties/options.ts";
 import type { PassesSqlOptions } from "./passes/options.ts";
+import type { ContractsSqlOptions } from "./contracts/options.ts";
+import type { ControlsSqlOptions } from "./controls/options.ts";
+import type { IncidentsSqlOptions } from "./incidents/options.ts";
 import type { PipelinesSqlOptions } from "./pipelines/options.ts";
 import type { ProfilesSqlOptions } from "./profiles/options.ts";
 import type { PromotionsSqlOptions } from "./promotions/options.ts";
@@ -169,6 +172,9 @@ import {
 import { outboxSqlOptions } from "./outbox/options.ts";
 import { partiesSqlOptions } from "./parties/options.ts";
 import { passesSqlOptions } from "./passes/options.ts";
+import { contractsSqlOptions } from "./contracts/options.ts";
+import { controlsSqlOptions } from "./controls/options.ts";
+import { incidentsSqlOptions } from "./incidents/options.ts";
 import { pipelinesSqlOptions } from "./pipelines/options.ts";
 import { profilesSqlOptions } from "./profiles/options.ts";
 import { promotionsSqlOptions } from "./promotions/options.ts";
@@ -288,6 +294,9 @@ export interface BlockOptionsRegistry {
   readonly parties: PartiesSqlOptions;
   readonly passes: PassesSqlOptions;
   readonly "billable-time": None;
+  readonly contracts: ContractsSqlOptions;
+  readonly controls: ControlsSqlOptions;
+  readonly incidents: IncidentsSqlOptions;
   readonly pgtap: None;
   readonly pipelines: PipelinesSqlOptions;
   readonly profiles: ProfilesSqlOptions;
@@ -416,6 +425,9 @@ export const BLOCK_OPTION_SCHEMAS: {
   parties: partiesSqlOptions,
   passes: passesSqlOptions,
   "billable-time": NO_OPTIONS,
+  contracts: contractsSqlOptions,
+  controls: controlsSqlOptions,
+  incidents: incidentsSqlOptions,
   pgtap: NO_OPTIONS,
   pipelines: pipelinesSqlOptions,
   profiles: profilesSqlOptions,

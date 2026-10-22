@@ -1597,6 +1597,21 @@
       "types": "./dist/blocks/billable-time/index.d.ts",
       "default": "./dist/blocks/billable-time/index.js"
     },
+    "./blocks/contracts": {
+      "@better-supabase/source": "./src/blocks/contracts/index.ts",
+      "types": "./dist/blocks/contracts/index.d.ts",
+      "default": "./dist/blocks/contracts/index.js"
+    },
+    "./blocks/controls": {
+      "@better-supabase/source": "./src/blocks/controls/index.ts",
+      "types": "./dist/blocks/controls/index.d.ts",
+      "default": "./dist/blocks/controls/index.js"
+    },
+    "./blocks/incidents": {
+      "@better-supabase/source": "./src/blocks/incidents/index.ts",
+      "types": "./dist/blocks/incidents/index.d.ts",
+      "default": "./dist/blocks/incidents/index.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -2850,6 +2865,18 @@
       "./blocks/billable-time": {
         "types": "./dist/blocks/billable-time/index.d.ts",
         "default": "./dist/blocks/billable-time/index.js"
+      },
+      "./blocks/contracts": {
+        "types": "./dist/blocks/contracts/index.d.ts",
+        "default": "./dist/blocks/contracts/index.js"
+      },
+      "./blocks/controls": {
+        "types": "./dist/blocks/controls/index.d.ts",
+        "default": "./dist/blocks/controls/index.js"
+      },
+      "./blocks/incidents": {
+        "types": "./dist/blocks/incidents/index.d.ts",
+        "default": "./dist/blocks/incidents/index.js"
       },
       "./package.json": "./package.json"
     },
