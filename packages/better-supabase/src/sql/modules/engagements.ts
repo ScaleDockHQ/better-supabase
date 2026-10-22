@@ -20,6 +20,12 @@ import {
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { moduleOperations } from "./access-model.ts";
+import {
+  RECORDING_TABLES,
+  recordingsContract,
+  recordingsOn,
+  recordingsSql,
+} from "./engagements-recordings.ts";
 
 /** The engagement types `options.types` falls back to. */
 const ENGAGEMENT_TYPES = ["call", "email", "meeting", "note", "task"] as const;
@@ -37,6 +43,20 @@ const EVENTS: ModuleEvents<EngagementsEvents> = {
   "engagement.updated": { subject: "engagements", payload: [...PAYLOAD] },
   "engagement.completed": { subject: "engagements", payload: [...PAYLOAD] },
   "engagement.deleted": { subject: "engagements", payload: [...PAYLOAD] },
+  "engagement.recorded": {
+    subject: "engagements",
+    payload: [...PAYLOAD, "recordingId"],
+  },
+  "engagement.transcribed": {
+    subject: "engagements",
+    payload: [...PAYLOAD, "recordingId"],
+    retries: true,
+  },
+  "engagement.summarized": {
+    subject: "engagements",
+    payload: [...PAYLOAD],
+    retries: true,
+  },
 };
 
 const NAMES: ModuleNames = {
@@ -54,7 +74,7 @@ const NAMES: ModuleNames = {
   },
   events: EVENTS,
   hooks: ["before_engagement_log", "after_engagement_log"],
-  options: ["types", "extraColumns"],
+  options: ["types", "extraColumns", "recordings"],
   tables: {
     engagements: {
       name: "engagements",
@@ -87,6 +107,7 @@ const NAMES: ModuleNames = {
         position: "position",
       },
     },
+    ...RECORDING_TABLES,
   },
 };
 
@@ -121,21 +142,29 @@ function build(ctx: ModuleContext): string {
   const typeList = `${sqlString(`{${types(ctx).join(",")}}`)}::text[]`;
   const canSubject = ctx.of("subjects").fn("can_subject");
 
-  const payload = (id: string, type: string, tenant: string): string =>
-    `jsonb_build_object('organizationId', ${tenant}, 'engagementId', ${id}, 'type', ${type}, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects)`;
+  const payload = (
+    id: string,
+    type: string,
+    tenant: string,
+    extra: string,
+  ): string =>
+    `jsonb_build_object('organizationId', ${tenant}, 'engagementId', ${id}, 'type', ${type}, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects${extra === "" ? "" : `, ${extra}`})`;
 
   const record = (
     event: string,
     id: string,
     type: string,
     tenant: string,
+    extra = "",
+    key?: string,
   ): string =>
     ctx.record({
       type: event,
-      payload: payload(id, type, tenant),
+      payload: payload(id, type, tenant, extra),
       subject: `'engagements/' || ${id}::text`,
       tenant: `${tenant}::text`,
       audit: false,
+      ...(key === undefined ? {} : { key }),
     });
 
   const editable = (alias: string): string =>
@@ -466,10 +495,22 @@ as $$
   ) p
 $$;
 ${userGrant(`${fn("open_engagements")}(${ctx.idType}, uuid, timestamptz, integer)`)}
-`;
+${
+  recordingsOn(ctx)
+    ? recordingsSql(ctx, {
+        editable,
+        record,
+        manage,
+        row,
+        loadSubjects: (id) =>
+          `v_subjects := ${subjectsOf(id)};
+  v_first := v_subjects -> 0;`,
+      })
+    : ""
+}`;
 }
 
-function contract(): readonly ModuleContractFunction[] {
+function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   return [
     {
       name: "log_engagement",
@@ -498,8 +539,11 @@ function contract(): readonly ModuleContractFunction[] {
       args: ["{id}", "uuid", "timestamptz", "integer"],
       returns: "jsonb",
     },
+    ...(recordingsOn(ctx) ? recordingsContract() : []),
   ];
 }
+
+const REQUIRES = ["tenant", "access", "subjects"] as const;
 
 export const ENGAGEMENTS: ModuleDefinition = {
   name: "engagements",
@@ -507,8 +551,12 @@ export const ENGAGEMENTS: ModuleDefinition = {
   title: "Engagements",
   description:
     "Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.",
-  requires: ["tenant", "access", "subjects"],
-  integrates: ["outbox", "notifications"],
+  requires: [...REQUIRES],
+  dependencies: (layout) =>
+    layout.modules?.["engagements"]?.options?.["recordings"] === true
+      ? [...REQUIRES, "ai-files"]
+      : [...REQUIRES],
+  integrates: ["outbox", "notifications", "ai-files", "jobs"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

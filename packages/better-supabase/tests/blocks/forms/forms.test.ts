@@ -131,6 +131,86 @@ describe("forms client", () => {
     ]);
   });
 
+  it("reads a submission's score and the NPS rollup", async () => {
+    const fake = transport({
+      get_form_submission: () => ({
+        ...SUBMISSION,
+        score: "3",
+        maxScore: 4,
+        passed: true,
+      }),
+      list_form_submissions: () => [
+        { ...SUBMISSION, score: 1, maxScore: 4, passed: null },
+        { ...SUBMISSION, score: null, maxScore: null, passed: null },
+      ],
+      form_nps: () => ({
+        field: "nps",
+        responses: 3,
+        promoters: 2,
+        passives: 0,
+        detractors: 1,
+        score: 33.3,
+        periods: [
+          {
+            start: AT,
+            responses: 3,
+            promoters: 2,
+            passives: 0,
+            detractors: 1,
+            score: 33.3,
+          },
+        ],
+      }),
+    });
+
+    const forms = createForms({ transport: fake, schema: "app" });
+    expect((await forms.getSubmission("s1").orThrow()).score).toEqual({
+      score: 3,
+      maxScore: 4,
+      passed: true,
+    });
+    const [unmarked, draft] = await forms.listSubmissions("f1").orThrow();
+    expect(unmarked?.score).toEqual({ score: 1, maxScore: 4 });
+    expect(draft?.score).toBeUndefined();
+
+    const nps = await forms
+      .nps("f1", {
+        field: "nps",
+        since: Temporal.Instant.from(AT),
+        bucket: "month",
+      })
+      .orThrow();
+
+    expect(nps).toMatchObject({ field: "nps", score: 33.3, responses: 3 });
+    expect(nps.periods[0]?.start.toString()).toBe(AT);
+    expect(fake.calls.at(-1)).toEqual([
+      "form_nps",
+      { form_id: "f1", field: "nps", since: AT, until: null, bucket: "month" },
+    ]);
+  });
+
+  it("leaves the NPS score out without responses", async () => {
+    const fake = transport({
+      form_nps: () => ({
+        field: "nps",
+        responses: 0,
+        promoters: 0,
+        passives: 0,
+        detractors: 0,
+        score: null,
+        periods: [],
+      }),
+    });
+
+    const forms = createForms({ transport: fake, schema: "app" });
+    const nps = await forms.nps("f1").orThrow();
+    expect(nps.score).toBeUndefined();
+    expect(fake.calls[0]).toEqual([
+      "form_nps",
+      { form_id: "f1", field: null, since: null, until: null, bucket: null },
+    ]);
+  });
+
   it("submits, reviews, lists and deletes submissions", async () => {
     const fake = transport({
       submit_form: () => SUBMISSION,

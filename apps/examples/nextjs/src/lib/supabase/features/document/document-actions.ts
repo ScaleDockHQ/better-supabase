@@ -22,6 +22,14 @@ export const setRateDocumentBillableTime = documentRecord.actions.billableTime.s
 
 export const invoiceDocumentBillableTime = documentRecord.actions.billableTime.invoice;
 
+export const createDocumentDispatch = documentRecord.actions.dispatch.create;
+
+export const cancelDocumentDispatch = documentRecord.actions.dispatch.cancel;
+
+export const createDocumentShipments = documentRecord.actions.shipments.create;
+
+export const cancelDocumentShipments = documentRecord.actions.shipments.cancel;
+
 export const linkDocumentRelations = documentRecord.actions.relations.link;
 
 export const unlinkDocumentRelations = documentRecord.actions.relations.unlink;

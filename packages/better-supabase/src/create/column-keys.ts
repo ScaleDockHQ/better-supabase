@@ -58,6 +58,19 @@ export function lockedWithoutDefault(column: AppColumn): boolean {
   );
 }
 
+/**
+ * Whether a column can be encrypted: not a `text[]`, and no unique key,
+ * reference or identity, which only work on the stored value.
+ */
+export function encryptable(column: AppColumn): boolean {
+  return (
+    column.type !== "text[]" &&
+    column.unique !== true &&
+    column.references === undefined &&
+    column.identity !== true
+  );
+}
+
 /** Whether `min` and `max` apply to a `type` column, as a value or a length. */
 export function takesBounds(type: AppColumnType): boolean {
   return type === "text" || NUMBER_TYPES.has(type);
@@ -94,6 +107,7 @@ export function fitted(column: AppColumn): AppColumn {
     identity,
     default: fallback,
     nullable,
+    encrypted,
     ...rest
   } = column;
 
@@ -130,6 +144,10 @@ export function fitted(column: AppColumn): AppColumn {
 
   if (counted) {
     next.identity = true;
+  }
+
+  if (encrypted === true && encryptable(next)) {
+    next.encrypted = true;
   }
 
   return next;

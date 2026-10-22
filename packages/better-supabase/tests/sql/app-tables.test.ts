@@ -657,3 +657,73 @@ describe("appTables column access", () => {
     ).toThrow("expose sets the grants");
   });
 });
+
+describe("appTables encrypted columns", () => {
+  const ENCRYPTED: AppTablesConfig = {
+    patients: {
+      auditReads: true,
+      subject: { type: "patient" },
+      columns: {
+        name: { type: "text", nullable: false },
+        ssn: { type: "text", encrypted: true, min: 9, max: 11 },
+        email: { type: "text", encrypted: true, format: "email" },
+        born_on: { type: "date", encrypted: true },
+        diagnosis: { type: "text", encrypted: true, access: "server" },
+      },
+    },
+    notes: {
+      scope: "user",
+      columns: { body: { type: "text", encrypted: true, nullable: false } },
+    },
+    keys: {
+      scope: "none",
+      id: "bigint",
+      columns: { secret: { type: "jsonb", encrypted: true } },
+    },
+  };
+
+  const SEALED = [...BLOCKS, "field-encryption", "audit"];
+
+  it("stores ciphertext, seals it in a trigger and reveals it through a definer function", async () => {
+    const files = render(SEALED, { appTables: ENCRYPTED });
+    const schema = files.find((file) => file.kind === "schema")?.contents;
+    const test = files.find((file) => file.kind === "test")?.contents;
+
+    expect(schema).toContain('add column if not exists "born_on" text');
+    expect(schema).not.toContain('"patients_ssn_check"');
+    expect(schema).toContain('"better_supabase"."patients_seal"()');
+    expect(schema).toContain(
+      'create or replace function "public"."patients_reveal"(ids uuid[])',
+    );
+    expect(schema).toContain(
+      'create or replace function "public"."keys_reveal"(ids bigint[])',
+    );
+    expect(schema).toContain("case when v_service then");
+    expect(schema).toContain(
+      'if not (char_length(new."ssn") >= 9 and char_length(new."ssn") <= 11) then',
+    );
+    expect(schema).toContain("category => 'read'");
+    expect(schema).not.toContain('t."ssn" from');
+    expect(test).toContain("public.patients.ssn is ciphertext at rest");
+    expect(test).toContain(
+      "a signed-in user does not reveal a row of public.patients outside their scope",
+    );
+    expect(test).toContain("a signed-in user cannot read public.patients.ssn");
+
+    await expect(golden(files)).toMatchFileSnapshot(
+      "__golden__/app-tables/encrypted.sql",
+    );
+  });
+
+  it("needs the field-encryption block", () => {
+    expect(() => render(BLOCKS, { appTables: ENCRYPTED })).toThrow(
+      "needs the field-encryption block",
+    );
+  });
+
+  it("needs the audit block for auditReads", () => {
+    expect(() =>
+      render([...BLOCKS, "field-encryption"], { appTables: ENCRYPTED }),
+    ).toThrow("auditReads needs the audit block");
+  });
+});

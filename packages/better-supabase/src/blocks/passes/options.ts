@@ -8,10 +8,19 @@ export type PassesSqlOptions = {
   readonly checkInOpens?: string;
   /** How long a drop-in counts against a resource's capacity. */
   readonly dropInLength?: string;
+  /**
+   * Lets a pass with a number of uses pay for bookings. Needs bookings. Off by
+   * default.
+   */
+  readonly credits?: boolean;
+  /** How long before a class a cancellation still refunds its credit. */
+  readonly creditRefundBefore?: string;
 };
 
 export const passesSqlOptions: BlockOptionsSchema<PassesSqlOptions> =
   blockOptions<PassesSqlOptions>({
     checkInOpens: option.string({ default: "1 hour" }),
     dropInLength: option.string({ default: "2 hours" }),
+    credits: option.boolean({ default: false }),
+    creditRefundBefore: option.string({ default: "12 hours" }),
   });

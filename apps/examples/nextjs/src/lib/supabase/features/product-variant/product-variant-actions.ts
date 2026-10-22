@@ -22,6 +22,14 @@ export const setRateProductVariantBillableTime = productVariantRecord.actions.bi
 
 export const invoiceProductVariantBillableTime = productVariantRecord.actions.billableTime.invoice;
 
+export const createProductVariantDispatch = productVariantRecord.actions.dispatch.create;
+
+export const cancelProductVariantDispatch = productVariantRecord.actions.dispatch.cancel;
+
+export const createProductVariantShipments = productVariantRecord.actions.shipments.create;
+
+export const cancelProductVariantShipments = productVariantRecord.actions.shipments.cancel;
+
 export const linkProductVariantRelations = productVariantRecord.actions.relations.link;
 
 export const unlinkProductVariantRelations = productVariantRecord.actions.relations.unlink;

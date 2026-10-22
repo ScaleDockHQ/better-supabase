@@ -16,6 +16,10 @@ import {
   revokeWorkItemPasses,
   setRateWorkItemBillableTime,
   invoiceWorkItemBillableTime,
+  createWorkItemDispatch,
+  cancelWorkItemDispatch,
+  createWorkItemShipments,
+  cancelWorkItemShipments,
   linkWorkItemRelations,
   unlinkWorkItemRelations,
   createWorkItemShareLinks,
@@ -47,6 +51,14 @@ const writes = {
   billableTime: {
     setRate: setRateWorkItemBillableTime,
     invoice: invoiceWorkItemBillableTime,
+  },
+  dispatch: {
+    create: createWorkItemDispatch,
+    cancel: cancelWorkItemDispatch,
+  },
+  shipments: {
+    create: createWorkItemShipments,
+    cancel: cancelWorkItemShipments,
   },
   relations: {
     link: linkWorkItemRelations,

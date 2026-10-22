@@ -111,6 +111,7 @@ one set of categories:
 | `data`          | row changes from the table trigger, attachments, exports     |
 | `ai`            | agents, tool policies and approvals, chat shares             |
 | `integration`   | connectors, incoming and outgoing webhooks                   |
+| `read`          | decrypted or sensitive values, when a table opts in          |
 
 An adopted log whose `category` column has a check of its own maps the
 shared names with `values`, the same way it maps actor kinds:
@@ -136,6 +137,24 @@ blocks: { flags: { audit: false } },
 `support-sessions` still works and puts every entry of that module under one
 category, but it is deprecated: map the shared categories with `values`
 instead.
+
+## Read audits
+
+A clinic or a regulated app has to show who looked at a record, not only who
+changed it. Reads are audited where values are decrypted, so a query that
+skips the definer path can't read the value either:
+
+- an app table with [`auditReads: true`](/docs/blocks/app-tables#encrypted-columns)
+  writes `<type>.viewed` for each `<table>_reveal` call;
+- [`custom-fields`](/docs/blocks/custom-fields#encrypted-fields) with
+  `options.auditReads` writes `field_value.viewed` for each `readValues` call
+  that returns an encrypted or sensitive value.
+
+Each entry has the category `read`, the acting member and the tenant, and
+names the rows in `metadata.ids`. One call writes one entry per tenant
+whatever the number of rows, so listing a page of records costs one insert.
+List them with `category: "read"`; [retention](#retention) purges them with
+the other entries.
 
 ## Recording CloudEvents
 

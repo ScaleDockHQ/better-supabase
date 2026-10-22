@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { ModuleLayout } from "../../../src/sql/module-types.ts";
 
-import { renderModules } from "../../../src/sql/render.ts";
+import {
+  customContracts,
+  moduleTopics,
+  renderModules,
+} from "../../../src/sql/render.ts";
 
 const sqlOf = (names: readonly string[], layout: ModuleLayout = {}): string =>
   renderModules([...names], layout)
@@ -84,5 +88,90 @@ describe("orders module", () => {
         modules: { orders: { options: { paymentWindowMinutes: 0 } } },
       }),
     ).toThrow(/paymentWindowMinutes/);
+  });
+});
+
+describe("orders module, kitchen", () => {
+  const KITCHEN: ModuleLayout = {
+    modules: { orders: { options: { kitchen: true } } },
+  };
+
+  it("owns the kitchen topic only with the option", () => {
+    expect(moduleTopics(["catalog", "orders"])).toEqual([]);
+    expect(moduleTopics(["catalog", "orders"], KITCHEN)).toEqual([
+      { module: "orders", topic: "kitchen:{organizationId}" },
+    ]);
+  });
+
+  it("adds nothing by default", () => {
+    const sql = sqlOf(["catalog", "orders"]);
+    expect(sql).not.toContain("order_line_preparations");
+    expect(sql).not.toContain("kitchen_stations");
+  });
+
+  it("adds stations, routes and line states with indexed keys", () => {
+    const sql = sqlOf(["catalog", "orders"], KITCHEN);
+
+    for (const table of [
+      "kitchen_stations",
+      "kitchen_routes",
+      "order_line_preparations",
+    ]) {
+      expect(sql).toContain(
+        `create table if not exists "better_supabase"."${table}"`,
+      );
+    }
+
+    for (const index of [
+      "kitchen_routes_station_idx",
+      "order_line_preparations_order_idx",
+      "order_line_preparations_station_idx",
+    ]) {
+      expect(sql).toContain(`create index if not exists ${index}`);
+    }
+
+    expect(sql).toContain(`references "better_supabase"."products" ("id")`);
+    expect(sql).toContain(
+      "check (\"state\" in ('queued', 'preparing', 'ready', 'served'))",
+    );
+    expect(sql).toContain("better_supabase.tenant_ids_with('orders.prepare')");
+  });
+
+  it("broadcasts each change on the tenant's kitchen topic", () => {
+    const sql = sqlOf(["catalog", "orders"], KITCHEN);
+    expect(sql).toContain("realtime.send(");
+    expect(sql).toContain("'kitchen:' || new.\"tenant_id\"::text");
+    expect(sql).toContain("like 'kitchen:%'");
+  });
+
+  it("emits prepared and served once per order with outbox installed", () => {
+    expect(sqlOf(["catalog", "orders"], KITCHEN)).not.toContain(
+      "'order.prepared'",
+    );
+    const sql = sqlOf(["catalog", "outbox", "orders"], KITCHEN);
+    expect(sql).toContain("'order.prepared'");
+    expect(sql).toContain("'order.served'");
+    expect(sql).toContain("'order.prepared:' || v_order.id::text");
+  });
+
+  it("lists the kitchen functions in the contract only when on", () => {
+    const names = (options: Record<string, unknown>) =>
+      customContracts(["catalog", "orders"], {
+        modules: { orders: { mode: "custom", options } },
+      })
+        .find((contract) => contract.module === "orders")
+        ?.functions.map((fn) => fn.name);
+
+    expect(names({})).not.toContain("send_order_to_kitchen");
+    expect(names({ kitchen: true })).toEqual(
+      expect.arrayContaining([
+        "save_kitchen_station",
+        "send_order_to_kitchen",
+        "set_line_preparation",
+        "bump_kitchen_ticket",
+        "kitchen_queue",
+        "order_board",
+      ]),
+    );
   });
 });

@@ -147,6 +147,7 @@ begin
   for v_item in select value from jsonb_array_elements(coalesce(log_engagement.subjects, '[]')) loop
     if not (case (v_item ->> 'type')
       when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
+      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -159,6 +160,17 @@ begin
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'lease' then exists (select 1 from "better_supabase"."lease_agreements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'maintenance_request' then exists (select 1 from "better_supabase"."maintenance_requests" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -261,6 +273,7 @@ begin
   for v_item in select value from jsonb_array_elements(coalesce(update_engagement.subjects, '[]')) loop
     if not (case (v_item ->> 'type')
       when 'comment' then exists (select 1 from "better_supabase"."comments" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
+      when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -273,6 +286,17 @@ begin
       when 'calendar_event' then exists (select 1 from "better_supabase"."calendar_events" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'lease' then exists (select 1 from "better_supabase"."lease_agreements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'maintenance_request' then exists (select 1 from "better_supabase"."maintenance_requests" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'customer' then exists (select 1 from "public"."customers" s where s."id" = ((v_item ->> 'id'))::uuid and s."organization_id"::text = v_tenant::text)
       when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -450,6 +474,374 @@ $$;
 revoke execute on function "better_supabase"."open_engagements"(uuid, uuid, timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."open_engagements"(uuid, uuid, timestamptz, integer) to authenticated, service_role;
 
+-- Recordings of calls and meetings: an ai-files file on an engagement,
+-- waiting for its transcript until a transcriber saves one.
+create table if not exists "better_supabase"."engagement_recordings" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "engagement_id" uuid not null references "better_supabase"."engagements" ("id") on delete cascade,
+  "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
+  "filename" text not null,
+  "media_type" text not null,
+  "status" text not null default 'pending' check ("status" in ('pending', 'transcribed', 'failed')),
+  "language" text,
+  "duration_seconds" integer check ("duration_seconds" >= 0),
+  "error" text,
+  "model" text,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "transcribed_at" timestamptz,
+  unique ("engagement_id", "file_id")
+);
+create index if not exists engagement_recordings_file_idx on "better_supabase"."engagement_recordings" ("file_id");
+create index if not exists engagement_recordings_pending_idx on "better_supabase"."engagement_recordings" ("created_at") where "status" = 'pending';
+alter table "better_supabase"."engagement_recordings" enable row level security;
+revoke all on "better_supabase"."engagement_recordings" from anon, authenticated;
+grant select on "better_supabase"."engagement_recordings" to authenticated;
+grant all on "better_supabase"."engagement_recordings" to service_role;
+drop policy if exists engagement_recordings_read on "better_supabase"."engagement_recordings";
+create policy engagement_recordings_read on "better_supabase"."engagement_recordings" for select to authenticated
+using (exists (select 1 from "better_supabase"."engagements" ex where ex."id" = "engagement_id"));
+
+-- A transcript, one row per speaker turn, offsets in milliseconds from the
+-- start of the recording.
+create table if not exists "better_supabase"."engagement_transcript_segments" (
+  "recording_id" uuid not null references "better_supabase"."engagement_recordings" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "position" integer not null check ("position" >= 1),
+  "speaker" text,
+  "speaker_user_id" uuid,
+  "starts_ms" integer not null check ("starts_ms" >= 0),
+  "ends_ms" integer not null,
+  "text" text not null,
+  "confidence" real check ("confidence" between 0 and 1),
+  primary key ("recording_id", "position"),
+  check ("ends_ms" >= "starts_ms")
+);
+alter table "better_supabase"."engagement_transcript_segments" enable row level security;
+revoke all on "better_supabase"."engagement_transcript_segments" from anon, authenticated;
+grant select on "better_supabase"."engagement_transcript_segments" to authenticated;
+grant all on "better_supabase"."engagement_transcript_segments" to service_role;
+drop policy if exists engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments";
+create policy engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments" for select to authenticated
+using (exists (select 1 from "better_supabase"."engagement_recordings" rx where rx."id" = "recording_id"));
+
+-- Notes on an engagement: a summary and action items, written by an AI
+-- note taker or a member. One row per engagement; saving replaces it.
+create table if not exists "better_supabase"."engagement_notes" (
+  "engagement_id" uuid primary key references "better_supabase"."engagements" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "summary" text not null check (length("summary") between 1 and 20000),
+  "action_items" jsonb not null default '[]' check (jsonb_typeof("action_items") = 'array'),
+  "model" text,
+  "source" text not null default 'ai' check ("source" in ('ai', 'member')),
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."engagement_notes" enable row level security;
+revoke all on "better_supabase"."engagement_notes" from anon, authenticated;
+grant select on "better_supabase"."engagement_notes" to authenticated;
+grant all on "better_supabase"."engagement_notes" to service_role;
+drop policy if exists engagement_notes_read on "better_supabase"."engagement_notes";
+create policy engagement_notes_read on "better_supabase"."engagement_notes" for select to authenticated
+using (exists (select 1 from "better_supabase"."engagements" ex where ex."id" = "engagement_id"));
+
+-- Attaches a ready ai-files file of the engagement's tenant as a recording.
+-- The author, the owner and engagements.manage may attach; the file must be
+-- the caller's own unless they manage engagements. With the jobs block a
+-- transcription job goes on the engagements.transcribe queue.
+create or replace function "better_supabase"."attach_engagement_recording"(engagement uuid, file uuid, language text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_recording uuid;
+  v_subjects jsonb;
+  v_first jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."type" into v_tenant, v_type
+  from "better_supabase"."engagements" x where x."id" = attach_engagement_recording.engagement and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false));
+  if v_tenant is null then
+    raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."ai_files" fx
+    where fx."id" = attach_engagement_recording.file
+      and fx."organization_id"::text = v_tenant::text
+      and fx."status" = 'ready'
+      and (auth.role() = 'service_role' or fx."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_tenant, 'engagements.manage'), false))
+  ) then
+    raise exception 'no such ready file in this organization' using errcode = 'P0002', hint = 'AI_FILE_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."engagement_recordings" ("tenant_id", "engagement_id", "file_id", "filename", "media_type", "language", "created_by")
+  select v_tenant, attach_engagement_recording.engagement, fx."id", fx."filename", fx."media_type", nullif(trim(attach_engagement_recording.language), ''), auth.uid()
+  from "better_supabase"."ai_files" fx where fx."id" = attach_engagement_recording.file
+  on conflict ("engagement_id", "file_id") do nothing
+  returning "id" into v_recording;
+  if v_recording is null then
+    raise exception 'the file is already a recording of this engagement' using errcode = '23505', hint = 'ENGAGEMENT_RECORDING_EXISTS';
+  end if;
+  v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = attach_engagement_recording.engagement), '[]'::jsonb);
+  v_first := v_subjects -> 0;
+  perform "better_supabase".emit_event('engagement.recorded', jsonb_build_object('organizationId', v_tenant, 'engagementId', attach_engagement_recording.engagement, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects, 'recordingId', v_recording), 'engagements/' || attach_engagement_recording.engagement::text, (v_tenant::text)::text, null, 'better-supabase/engagements');
+  perform "better_supabase"."enqueue_job"(queue => 'engagements.transcribe', payload => jsonb_build_object('recordingId', v_recording), dedupe_key => 'engagements.transcribe:' || v_recording::text, dedupe_running => false);
+  return (select jsonb_build_object('id', rx."id", 'organizationId', rx."tenant_id", 'engagementId', rx."engagement_id", 'fileId', rx."file_id", 'filename', rx."filename", 'mediaType', rx."media_type", 'status', rx."status", 'language', rx."language", 'durationSeconds', rx."duration_seconds", 'error', rx."error", 'model', rx."model", 'segmentCount', (select count(*)::integer from "better_supabase"."engagement_transcript_segments" sc where sc."recording_id" = rx."id"), 'createdBy', rx."created_by", 'createdAt', rx."created_at", 'transcribedAt', rx."transcribed_at") from "better_supabase"."engagement_recordings" rx where rx."id" = v_recording);
+end;
+$$;
+revoke execute on function "better_supabase"."attach_engagement_recording"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."attach_engagement_recording"(uuid, uuid, text) to authenticated, service_role;
+
+-- An engagement's recordings, oldest first, as the caller may read them.
+create or replace function "better_supabase"."engagement_recordings"(engagement uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', rx."id", 'organizationId', rx."tenant_id", 'engagementId', rx."engagement_id", 'fileId', rx."file_id", 'filename', rx."filename", 'mediaType', rx."media_type", 'status', rx."status", 'language', rx."language", 'durationSeconds', rx."duration_seconds", 'error', rx."error", 'model', rx."model", 'segmentCount', (select count(*)::integer from "better_supabase"."engagement_transcript_segments" sc where sc."recording_id" = rx."id"), 'createdBy', rx."created_by", 'createdAt', rx."created_at", 'transcribedAt', rx."transcribed_at") order by rx."created_at", rx."id"), '[]'::jsonb)
+  from "better_supabase"."engagement_recordings" rx
+  where rx."engagement_id" = engagement_recordings.engagement
+$$;
+revoke execute on function "better_supabase"."engagement_recordings"(uuid) from public, anon;
+grant execute on function "better_supabase"."engagement_recordings"(uuid) to authenticated, service_role;
+
+-- One recording, for the transcription job; null when the caller can't read it.
+create or replace function "better_supabase"."get_engagement_recording"(recording uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', rx."id", 'organizationId', rx."tenant_id", 'engagementId', rx."engagement_id", 'fileId', rx."file_id", 'filename', rx."filename", 'mediaType', rx."media_type", 'status', rx."status", 'language', rx."language", 'durationSeconds', rx."duration_seconds", 'error', rx."error", 'model', rx."model", 'segmentCount', (select count(*)::integer from "better_supabase"."engagement_transcript_segments" sc where sc."recording_id" = rx."id"), 'createdBy', rx."created_by", 'createdAt', rx."created_at", 'transcribedAt', rx."transcribed_at")
+  from "better_supabase"."engagement_recordings" rx
+  where rx."id" = get_engagement_recording.recording
+$$;
+revoke execute on function "better_supabase"."get_engagement_recording"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_engagement_recording"(uuid) to authenticated, service_role;
+
+-- A transcript in order, after position after (0 for the start).
+create or replace function "better_supabase"."engagement_transcript"(recording uuid, after integer, page_size integer)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(p.value order by p.position), '[]'::jsonb)
+  from (
+    select jsonb_build_object('position', sx."position", 'speaker', sx."speaker", 'speakerUserId', sx."speaker_user_id", 'startMs', sx."starts_ms", 'endMs', sx."ends_ms", 'text', sx."text", 'confidence', sx."confidence") as value, sx."position" as position
+    from "better_supabase"."engagement_transcript_segments" sx
+    where sx."recording_id" = engagement_transcript.recording
+      and sx."position" > coalesce(engagement_transcript.after, 0)
+    order by sx."position"
+    limit least(greatest(coalesce(engagement_transcript.page_size, 500), 1), 5000)
+  ) p
+$$;
+revoke execute on function "better_supabase"."engagement_transcript"(uuid, integer, integer) from public, anon;
+grant execute on function "better_supabase"."engagement_transcript"(uuid, integer, integer) to authenticated, service_role;
+
+-- Replaces a recording's transcript: segments is [{ speaker, speakerUserId,
+-- startMs, endMs, text, confidence }] in order, attrs { language,
+-- durationSeconds, model }. The service role (a transcription job) and
+-- whoever may edit the engagement may save one.
+create or replace function "better_supabase"."save_engagement_transcript"(recording uuid, segments jsonb, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_recording uuid := save_engagement_transcript.recording;
+  v_engagement uuid;
+  v_tenant uuid;
+  v_type text;
+  v_item jsonb;
+  v_position integer;
+  v_subjects jsonb;
+  v_first jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select rx."engagement_id", rx."tenant_id", x."type" into v_engagement, v_tenant, v_type
+  from "better_supabase"."engagement_recordings" rx
+  join "better_supabase"."engagements" x on x."id" = rx."engagement_id"
+  where rx."id" = v_recording and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  for update of rx;
+  if v_engagement is null then
+    raise exception 'no such recording you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_RECORDING_NOT_FOUND';
+  end if;
+  if jsonb_typeof(save_engagement_transcript.segments) is distinct from 'array'
+    or jsonb_array_length(save_engagement_transcript.segments) > 20000 then
+    raise exception 'segments must be a list of at most 20000 { startMs, endMs, text }' using errcode = '22023', hint = 'ENGAGEMENT_TRANSCRIPT_INVALID';
+  end if;
+  for v_item, v_position in select value, ordinality from jsonb_array_elements(save_engagement_transcript.segments) with ordinality loop
+    if jsonb_typeof(v_item) is distinct from 'object'
+      or jsonb_typeof(v_item -> 'text') is distinct from 'string'
+      or jsonb_typeof(v_item -> 'startMs') is distinct from 'number'
+      or jsonb_typeof(v_item -> 'endMs') is distinct from 'number'
+      or (v_item ->> 'startMs')::numeric < 0
+      or (v_item ->> 'endMs')::numeric < (v_item ->> 'startMs')::numeric
+      or jsonb_typeof(coalesce(v_item -> 'confidence', 'null')) not in ('number', 'null') then
+      raise exception 'segment % needs startMs <= endMs and a text', v_position using errcode = '22023', hint = 'ENGAGEMENT_TRANSCRIPT_INVALID';
+    end if;
+  end loop;
+  delete from "better_supabase"."engagement_transcript_segments" sx where sx."recording_id" = v_recording;
+  insert into "better_supabase"."engagement_transcript_segments" ("recording_id", "tenant_id", "position", "speaker", "speaker_user_id", "starts_ms", "ends_ms", "text", "confidence")
+  select v_recording, v_tenant, i.ordinality::integer, nullif(i.value ->> 'speaker', ''), nullif(i.value ->> 'speakerUserId', '')::uuid,
+    round((i.value ->> 'startMs')::numeric)::integer, round((i.value ->> 'endMs')::numeric)::integer, i.value ->> 'text', (i.value ->> 'confidence')::real
+  from jsonb_array_elements(save_engagement_transcript.segments) with ordinality i;
+  update "better_supabase"."engagement_recordings" rx set
+    "status" = 'transcribed',
+    "error" = null,
+    "language" = coalesce(nullif(save_engagement_transcript.attrs ->> 'language', ''), rx."language"),
+    "duration_seconds" = coalesce((save_engagement_transcript.attrs ->> 'durationSeconds')::integer, rx."duration_seconds"),
+    "model" = coalesce(nullif(save_engagement_transcript.attrs ->> 'model', ''), rx."model"),
+    "transcribed_at" = now()
+  where rx."id" = v_recording;
+  v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = v_engagement), '[]'::jsonb);
+  v_first := v_subjects -> 0;
+  perform "better_supabase".emit_event('engagement.transcribed', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_engagement, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects, 'recordingId', v_recording), 'engagements/' || v_engagement::text, (v_tenant::text)::text, 'engagement.transcribed:' || v_recording::text || ':' || md5(save_engagement_transcript.segments::text), 'better-supabase/engagements');
+  return (select jsonb_build_object('id', rx."id", 'organizationId', rx."tenant_id", 'engagementId', rx."engagement_id", 'fileId', rx."file_id", 'filename', rx."filename", 'mediaType', rx."media_type", 'status', rx."status", 'language', rx."language", 'durationSeconds', rx."duration_seconds", 'error', rx."error", 'model', rx."model", 'segmentCount', (select count(*)::integer from "better_supabase"."engagement_transcript_segments" sc where sc."recording_id" = rx."id"), 'createdBy', rx."created_by", 'createdAt', rx."created_at", 'transcribedAt', rx."transcribed_at") from "better_supabase"."engagement_recordings" rx where rx."id" = v_recording);
+end;
+$$;
+revoke execute on function "better_supabase"."save_engagement_transcript"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_engagement_transcript"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- Marks a recording failed with the transcriber's error. Service only.
+create or replace function "better_supabase"."fail_engagement_recording"(recording uuid, error text)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  with failed as (
+    update "better_supabase"."engagement_recordings" rx set "status" = 'failed', "error" = left(fail_engagement_recording.error, 2000)
+    where rx."id" = fail_engagement_recording.recording and rx."status" <> 'transcribed'
+    returning 1
+  )
+  select exists (select 1 from failed)
+$$;
+revoke execute on function "better_supabase"."fail_engagement_recording"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."fail_engagement_recording"(uuid, text) to service_role;
+
+-- Recordings that wait for a transcript, oldest first, for a drain without
+-- the jobs block. Service only.
+create or replace function "better_supabase"."pending_engagement_recordings"(batch integer)
+returns uuid[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(array_agg(p.id order by p.at), '{}')
+  from (
+    select rx."id" as id, rx."created_at" as at
+    from "better_supabase"."engagement_recordings" rx
+    where rx."status" = 'pending'
+    order by rx."created_at"
+    limit least(greatest(coalesce(pending_engagement_recordings.batch, 20), 1), 200)
+  ) p
+$$;
+revoke execute on function "better_supabase"."pending_engagement_recordings"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."pending_engagement_recordings"(integer) to service_role;
+
+-- Saves an engagement's notes: notes { summary, actionItems: [{ text,
+-- ownerId, dueAt }], model, source }. Replaces earlier notes.
+create or replace function "better_supabase"."save_engagement_notes"(engagement uuid, notes jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_summary text := nullif(trim(save_engagement_notes.notes ->> 'summary'), '');
+  v_items jsonb := coalesce(save_engagement_notes.notes -> 'actionItems', '[]'::jsonb);
+  v_subjects jsonb;
+  v_first jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."type" into v_tenant, v_type
+  from "better_supabase"."engagements" x where x."id" = save_engagement_notes.engagement and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false));
+  if v_tenant is null then
+    raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
+  end if;
+  if v_summary is null or length(v_summary) > 20000 then
+    raise exception 'notes need a summary of at most 20000 characters' using errcode = '22023', hint = 'ENGAGEMENT_NOTES_INVALID';
+  end if;
+  if jsonb_typeof(v_items) <> 'array' or exists (
+    select 1 from jsonb_array_elements(v_items) i
+    where jsonb_typeof(i.value) <> 'object' or jsonb_typeof(i.value -> 'text') is distinct from 'string'
+  ) then
+    raise exception 'actionItems must be a list of { text }' using errcode = '22023', hint = 'ENGAGEMENT_NOTES_INVALID';
+  end if;
+  insert into "better_supabase"."engagement_notes" ("engagement_id", "tenant_id", "summary", "action_items", "model", "source", "created_by")
+  values (save_engagement_notes.engagement, v_tenant, v_summary, v_items, nullif(save_engagement_notes.notes ->> 'model', ''),
+    case when save_engagement_notes.notes ->> 'source' = 'member' then 'member' else 'ai' end, auth.uid())
+  on conflict ("engagement_id") do update set
+    "summary" = excluded."summary", "action_items" = excluded."action_items",
+    "model" = excluded."model", "source" = excluded."source", "updated_at" = now();
+  v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = save_engagement_notes.engagement), '[]'::jsonb);
+  v_first := v_subjects -> 0;
+  perform "better_supabase".emit_event('engagement.summarized', jsonb_build_object('organizationId', v_tenant, 'engagementId', save_engagement_notes.engagement, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || save_engagement_notes.engagement::text, (v_tenant::text)::text, 'engagement.summarized:' || save_engagement_notes.engagement::text || ':' || md5(save_engagement_notes.notes::text), 'better-supabase/engagements');
+  return (select jsonb_build_object('engagementId', nx."engagement_id", 'organizationId', nx."tenant_id", 'summary', nx."summary", 'actionItems', nx."action_items", 'model', nx."model", 'source', nx."source", 'createdBy', nx."created_by", 'createdAt', nx."created_at", 'updatedAt', nx."updated_at") from "better_supabase"."engagement_notes" nx where nx."engagement_id" = save_engagement_notes.engagement);
+end;
+$$;
+revoke execute on function "better_supabase"."save_engagement_notes"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_engagement_notes"(uuid, jsonb) to authenticated, service_role;
+
+-- An engagement with the transcripts of its recordings in order, for a note
+-- taker: { engagement, segments: [{ recordingId, position, ... }] }. Null
+-- when the caller can't read it.
+create or replace function "better_supabase"."engagement_with_transcripts"(engagement uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'engagement', to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()),
+    'segments', coalesce((
+      select jsonb_agg(jsonb_build_object('position', sx."position", 'speaker', sx."speaker", 'speakerUserId', sx."speaker_user_id", 'startMs', sx."starts_ms", 'endMs', sx."ends_ms", 'text', sx."text", 'confidence', sx."confidence") || jsonb_build_object('recordingId', rx."id") order by rx."created_at", rx."id", sx."position")
+      from "better_supabase"."engagement_recordings" rx
+      join "better_supabase"."engagement_transcript_segments" sx on sx."recording_id" = rx."id"
+      where rx."engagement_id" = x."id"
+    ), '[]'::jsonb)
+  )
+  from "better_supabase"."engagements" x
+  where x."id" = engagement_with_transcripts.engagement
+$$;
+revoke execute on function "better_supabase"."engagement_with_transcripts"(uuid) from public, anon;
+grant execute on function "better_supabase"."engagement_with_transcripts"(uuid) to authenticated, service_role;
+
+-- An engagement's notes, or null.
+create or replace function "better_supabase"."engagement_notes"(engagement uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('engagementId', nx."engagement_id", 'organizationId', nx."tenant_id", 'summary', nx."summary", 'actionItems', nx."action_items", 'model', nx."model", 'source', nx."source", 'createdBy', nx."created_by", 'createdAt', nx."created_at", 'updatedAt', nx."updated_at") from "better_supabase"."engagement_notes" nx where nx."engagement_id" = engagement_notes.engagement
+$$;
+revoke execute on function "better_supabase"."engagement_notes"(uuid) from public, anon;
+grant execute on function "better_supabase"."engagement_notes"(uuid) to authenticated, service_role;
+
 -- blocks.engagements.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -534,6 +926,96 @@ set search_path = ''
 as $$ select "better_supabase"."open_engagements"($1, $2, $3, $4) $$;
 revoke execute on function "api"."open_engagements"(uuid, uuid, timestamptz, integer) from public, anon;
 grant execute on function "api"."open_engagements"(uuid, uuid, timestamptz, integer) to authenticated, service_role;
+
+create or replace function "api"."attach_engagement_recording"(engagement uuid, file uuid, language text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."attach_engagement_recording"($1, $2, $3) $$;
+revoke execute on function "api"."attach_engagement_recording"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."attach_engagement_recording"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."engagement_recordings"(engagement uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."engagement_recordings"($1) $$;
+revoke execute on function "api"."engagement_recordings"(uuid) from public, anon;
+grant execute on function "api"."engagement_recordings"(uuid) to authenticated, service_role;
+
+create or replace function "api"."get_engagement_recording"(recording uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_engagement_recording"($1) $$;
+revoke execute on function "api"."get_engagement_recording"(uuid) from public, anon;
+grant execute on function "api"."get_engagement_recording"(uuid) to authenticated, service_role;
+
+create or replace function "api"."engagement_transcript"(recording uuid, after integer, page_size integer)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."engagement_transcript"($1, $2, $3) $$;
+revoke execute on function "api"."engagement_transcript"(uuid, integer, integer) from public, anon;
+grant execute on function "api"."engagement_transcript"(uuid, integer, integer) to authenticated, service_role;
+
+create or replace function "api"."save_engagement_transcript"(recording uuid, segments jsonb, attrs jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_engagement_transcript"($1, $2, $3) $$;
+revoke execute on function "api"."save_engagement_transcript"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "api"."save_engagement_transcript"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+create or replace function "api"."fail_engagement_recording"(recording uuid, error text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."fail_engagement_recording"($1, $2) $$;
+revoke execute on function "api"."fail_engagement_recording"(uuid, text) from public, anon, authenticated;
+grant execute on function "api"."fail_engagement_recording"(uuid, text) to service_role;
+
+create or replace function "api"."pending_engagement_recordings"(batch integer)
+returns uuid[]
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."pending_engagement_recordings"($1) $$;
+revoke execute on function "api"."pending_engagement_recordings"(integer) from public, anon, authenticated;
+grant execute on function "api"."pending_engagement_recordings"(integer) to service_role;
+
+create or replace function "api"."save_engagement_notes"(engagement uuid, notes jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_engagement_notes"($1, $2) $$;
+revoke execute on function "api"."save_engagement_notes"(uuid, jsonb) from public, anon;
+grant execute on function "api"."save_engagement_notes"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."engagement_with_transcripts"(engagement uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."engagement_with_transcripts"($1) $$;
+revoke execute on function "api"."engagement_with_transcripts"(uuid) from public, anon;
+grant execute on function "api"."engagement_with_transcripts"(uuid) to authenticated, service_role;
+
+create or replace function "api"."engagement_notes"(engagement uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."engagement_notes"($1) $$;
+revoke execute on function "api"."engagement_notes"(uuid) from public, anon;
+grant execute on function "api"."engagement_notes"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.modules (

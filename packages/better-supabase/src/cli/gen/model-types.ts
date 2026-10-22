@@ -1,4 +1,4 @@
-import type { ResolvedConfig } from "../../config/index.ts";
+import type { AppColumnType, ResolvedConfig } from "../../config/index.ts";
 import type {
   Casing,
   Codec,
@@ -135,6 +135,20 @@ export interface DraftTable {
 
 export const applyCasing = (name: string, casing: Casing): string =>
   casing === "camel" ? toCamel(name) : name;
+
+/** The Postgres type name of each app column type, as introspection reports it. */
+export const APP_COLUMN_UDT: Readonly<Record<AppColumnType, string>> = {
+  text: "text",
+  integer: "int4",
+  bigint: "int8",
+  numeric: "numeric",
+  boolean: "bool",
+  uuid: "uuid",
+  timestamptz: "timestamptz",
+  date: "date",
+  jsonb: "jsonb",
+  "text[]": "_text",
+};
 
 export const CODEC_TYPE: Record<Codec, string> = {
   instant: "Temporal.Instant",

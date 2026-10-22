@@ -5,6 +5,8 @@ import { defineFactory } from "../../src/testing/index.ts";
 
 import type { InsertOf } from "./generated-camel.ts";
 
+const clientNotesFactory: Factory<InsertOf<"clientNotes">, "organizationId", "organizationId"> = defineFactory<InsertOf<"clientNotes">, "organizationId", "organizationId">((n) => ({ "clientName": `client-name-${String(n)}` }), { "organizationId": "id" });
+
 const contactsFactory: Factory<InsertOf<"contacts">, "organizationId", "organizationId"> = defineFactory<InsertOf<"contacts">, "organizationId", "organizationId">((n) => ({ "email": `user${String(n)}@example.com` }), { "organizationId": "id" });
 
 const customerTagsFactory: Factory<InsertOf<"customerTags">, "customerId" | "tagId" | "organizationId", "customerId" | "tagId" | "organizationId"> = defineFactory<InsertOf<"customerTags">, "customerId" | "tagId" | "organizationId", "customerId" | "tagId" | "organizationId">((_n) => ({}), { "customerId": "id", "tagId": "id", "organizationId": "id" });
@@ -38,6 +40,7 @@ const tasksFactory: Factory<InsertOf<"tasks">, "organizationId" | "assigneeId" |
  * entity under the name the config gives it.
  */
 export const factories: {
+  readonly clientNotes: typeof clientNotesFactory;
   readonly contacts: typeof contactsFactory;
   readonly customerTags: typeof customerTagsFactory;
   readonly customers: typeof customersFactory;
@@ -53,6 +56,7 @@ export const factories: {
   readonly tags: typeof tagsFactory;
   readonly tasks: typeof tasksFactory;
 } = {
+  clientNotes: clientNotesFactory,
   contacts: contactsFactory,
   customerTags: customerTagsFactory,
   customers: customersFactory,

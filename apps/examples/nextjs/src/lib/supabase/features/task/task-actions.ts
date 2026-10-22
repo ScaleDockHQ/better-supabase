@@ -22,6 +22,14 @@ export const setRateTaskBillableTime = taskRecord.actions.billableTime.setRate;
 
 export const invoiceTaskBillableTime = taskRecord.actions.billableTime.invoice;
 
+export const createTaskDispatch = taskRecord.actions.dispatch.create;
+
+export const cancelTaskDispatch = taskRecord.actions.dispatch.cancel;
+
+export const createTaskShipments = taskRecord.actions.shipments.create;
+
+export const cancelTaskShipments = taskRecord.actions.shipments.cancel;
+
 export const linkTaskRelations = taskRecord.actions.relations.link;
 
 export const unlinkTaskRelations = taskRecord.actions.relations.unlink;

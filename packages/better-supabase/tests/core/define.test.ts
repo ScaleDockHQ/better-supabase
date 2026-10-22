@@ -158,7 +158,7 @@ describe("connect", () => {
     const db = betterSupabase.connect(fake());
     expect(db.$table("tags")).toBe(db.tags);
     expect(() => db.$table("nope" as never)).toThrow(
-      /^better-supabase: unknown table "nope"\. Known: contacts, customerTags, customers/,
+      /^better-supabase: unknown table "nope"\. Known: clientNotes, contacts, customerTags, customers/,
     );
   });
 

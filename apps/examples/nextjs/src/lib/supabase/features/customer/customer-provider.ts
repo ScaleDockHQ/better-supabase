@@ -16,6 +16,10 @@ import {
   revokeCustomerPasses,
   setRateCustomerBillableTime,
   invoiceCustomerBillableTime,
+  createCustomerDispatch,
+  cancelCustomerDispatch,
+  createCustomerShipments,
+  cancelCustomerShipments,
   linkCustomerRelations,
   unlinkCustomerRelations,
   createCustomerShareLinks,
@@ -49,6 +53,14 @@ const writes = {
   billableTime: {
     setRate: setRateCustomerBillableTime,
     invoice: invoiceCustomerBillableTime,
+  },
+  dispatch: {
+    create: createCustomerDispatch,
+    cancel: cancelCustomerDispatch,
+  },
+  shipments: {
+    create: createCustomerShipments,
+    cancel: cancelCustomerShipments,
   },
   relations: {
     link: linkCustomerRelations,

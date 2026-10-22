@@ -4,14 +4,28 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { AiFiles } from "../ai-files/types.ts";
+import type { JobHandler } from "../jobs/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type {
+  EngagementNotes,
+  EngagementNotesInput,
+  EngagementRecording,
+  NoteTaker,
+  Transcriber,
+  Transcript,
+  TranscriptSegment,
+} from "./recordings.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
+import { injectableOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult, ok } from "../../core/result.ts";
+import { DbException, dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
+  errorText,
   instantArg,
   isRecord,
   optionalInstant,
@@ -21,6 +35,14 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import {
+  notesArg,
+  notesOf,
+  recordingOf,
+  segmentOf,
+  segmentsArg,
+  transcriptOf,
+} from "./recordings.ts";
 
 /** A record an engagement is on. */
 export interface EngagementSubject {
@@ -120,6 +142,64 @@ export interface Engagements<F extends object = Record<never, never>> {
       readonly limit?: number;
     },
   ): AsyncResult<Engagement<F>[]>;
+  /**
+   * Attaches a ready ai-files file as a call or meeting recording
+   * (`options.recordings`). With the jobs block it queues a transcription on
+   * `engagements.transcribe`.
+   */
+  attachRecording(
+    engagementId: string,
+    fileId: string,
+    options?: { readonly language?: string },
+  ): AsyncResult<EngagementRecording>;
+  /** An engagement's recordings, oldest first. */
+  recordings(engagementId: string): AsyncResult<EngagementRecording[]>;
+  /** A recording's speaker turns in order (500 by default, at most 5000). */
+  transcript(
+    recordingId: string,
+    options?: { readonly after?: number; readonly limit?: number },
+  ): AsyncResult<TranscriptSegment[]>;
+  /** Replaces a recording's transcript, from a transcriber or an import. */
+  saveTranscript(
+    recordingId: string,
+    transcript: Transcript & { readonly model?: string },
+  ): AsyncResult<EngagementRecording>;
+  /**
+   * Transcribes a recording with `transcriber`, reading the file through
+   * `files`, and saves the result. Runs on `service` when given.
+   */
+  transcribe(
+    recordingId: string,
+    options?: { readonly signal?: AbortSignal },
+  ): AsyncResult<EngagementRecording>;
+  /**
+   * The handler for the `engagements.transcribe` queue. The last attempt marks
+   * the recording failed with the error.
+   */
+  transcribeJob(): JobHandler<{ readonly recordingId: string }>;
+  /**
+   * Transcribes pending recordings without a queue (service role). Returns how
+   * many succeeded; a failure marks its recording failed.
+   */
+  drainRecordings(options?: {
+    readonly batch?: number;
+    readonly signal?: AbortSignal;
+  }): AsyncResult<number>;
+  /** The engagement's notes, or `undefined`. */
+  notes(engagementId: string): AsyncResult<EngagementNotes | undefined>;
+  /** Saves notes a member wrote, replacing earlier ones. */
+  saveNotes(
+    engagementId: string,
+    notes: EngagementNotesInput,
+  ): AsyncResult<EngagementNotes>;
+  /**
+   * Writes the engagement's notes with `noteTaker` from its transcripts and
+   * saves them.
+   */
+  summarize(
+    engagementId: string,
+    options?: { readonly signal?: AbortSignal },
+  ): AsyncResult<EngagementNotes>;
 }
 
 export interface EngagementsOptions<
@@ -140,7 +220,30 @@ export interface EngagementsOptions<
   readonly hooks?: NoInfer<BlockHooks<Engagements<FieldsOf<S>>>>;
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
+  /** Calls as the service role, for `transcribe`, its job and the drain. */
+  readonly service?: BlockTransport;
+  /** The ai-files block, which `transcribe` reads recordings through. */
+  readonly files?: AiFiles;
+  /** Turns recordings into transcripts, for `transcribe`. */
+  readonly transcriber?: Transcriber;
+  /** Writes notes from transcripts, for `summarize`. */
+  readonly noteTaker?: NoteTaker;
 }
+
+const missing = <T>(what: string, hint: string): AsyncResult<T> =>
+  AsyncResult.err(
+    dbError("invalid_request", `createEngagements has no ${what}`, { hint }),
+  );
+
+/** Runs a transcriber or note taker, its throw as an `unexpected` error. */
+const provider = <T>(hint: string, run: () => Promise<T>): AsyncResult<T> =>
+  AsyncResult.from(async () => {
+    try {
+      return ok(await run());
+    } catch (cause) {
+      return err(dbError("unexpected", errorText(cause), { hint }));
+    }
+  });
 
 function engagementOf(value: unknown): Engagement {
   const row = recordOf(value, "engagement");
@@ -208,6 +311,15 @@ export function createEngagements<
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const service = blockCall(
+    options.service ?? options.transport,
+    options.schema,
+    options.mappers,
+  );
+
+  const transcriber = injectableOf("transcriber", options.transcriber);
+  const noteTaker = injectableOf("note taker", options.noteTaker);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "engagement fields",
@@ -253,6 +365,94 @@ export function createEngagements<
       fields: valid,
     }));
   };
+
+  const saveTranscript: Engagements<F>["saveTranscript"] = (
+    recordingId,
+    transcript,
+  ) =>
+    service(
+      "save_engagement_transcript",
+      {
+        recording: recordingId,
+        segments: segmentsArg(transcript.segments),
+        attrs: {
+          language: transcript.language ?? null,
+          durationSeconds: transcript.durationSeconds ?? null,
+          model: transcript.model ?? null,
+        },
+      },
+      recordingOf,
+    );
+
+  const transcribe: Engagements<F>["transcribe"] = (
+    recordingId,
+    transcribeOptions = {},
+  ) => {
+    const { files } = options;
+
+    if (transcriber === undefined) {
+      return missing("transcriber", "ENGAGEMENT_NO_TRANSCRIBER");
+    }
+
+    if (files === undefined) {
+      return missing("files block", "ENGAGEMENT_NO_FILES");
+    }
+
+    return service(
+      "get_engagement_recording",
+      { recording: recordingId },
+      (value) => (value === null ? undefined : recordingOf(value)),
+    )
+      .andThen((recording) =>
+        recording === undefined
+          ? AsyncResult.err(
+              dbError("not_found", "no such recording", {
+                hint: "ENGAGEMENT_RECORDING_NOT_FOUND",
+              }),
+            )
+          : files.files
+              .sign(recording.fileId)
+              .map((url) => ({ recording, url })),
+      )
+      .andThen(({ recording, url }) =>
+        provider("ENGAGEMENT_TRANSCRIBE_FAILED", () =>
+          transcriber.transcribe(
+            {
+              file: {
+                id: recording.fileId,
+                filename: recording.filename,
+                mediaType: recording.mediaType,
+              },
+              url,
+              read: () =>
+                files.files
+                  .read(recording.fileId)
+                  .map(({ data }) => data)
+                  .orThrow(),
+              ...(recording.language === undefined
+                ? {}
+                : { language: recording.language }),
+            },
+            transcribeOptions.signal === undefined
+              ? {}
+              : { signal: transcribeOptions.signal },
+          ),
+        ),
+      )
+      .andThen((transcript) =>
+        saveTranscript(recordingId, {
+          ...transcript,
+          model: transcriber.model,
+        }),
+      );
+  };
+
+  const fail = (recordingId: string, error: string) =>
+    service(
+      "fail_engagement_recording",
+      { recording: recordingId, error },
+      (value) => value === true,
+    );
 
   const client: Engagements<F> = {
     log: (organizationId, input, subjects) =>
@@ -322,6 +522,134 @@ export function createEngagements<
         },
         (value) => recordsOf(value, "open_engagements").map(engagementOf),
       ).andThen(parsedAll),
+    attachRecording: (engagementId, fileId, attach = {}) =>
+      call(
+        "attach_engagement_recording",
+        {
+          engagement: engagementId,
+          file: fileId,
+          language: attach.language ?? null,
+        },
+        recordingOf,
+      ),
+    recordings: (engagementId) =>
+      call("engagement_recordings", { engagement: engagementId }, (value) =>
+        recordsOf(value, "engagement_recordings").map(recordingOf),
+      ),
+    transcript: (recordingId, page = {}) =>
+      call(
+        "engagement_transcript",
+        {
+          recording: recordingId,
+          after: page.after ?? null,
+          page_size: page.limit ?? null,
+        },
+        (value) => recordsOf(value, "engagement_transcript").map(segmentOf),
+      ),
+    saveTranscript,
+    transcribe,
+    transcribeJob: () => async (payload, job, signal) => {
+      const result = await transcribe(payload.recordingId, { signal });
+
+      if (result.ok) {
+        return;
+      }
+
+      if (job.attempts >= job.maxAttempts) {
+        await fail(payload.recordingId, result.error.message);
+      }
+
+      throw new DbException(result.error);
+    },
+    drainRecordings: (drain = {}) =>
+      service(
+        "pending_engagement_recordings",
+        { batch: drain.batch ?? null },
+        (value) => (Array.isArray(value) ? value.map(textOf) : []),
+      ).andThen((ids) =>
+        AsyncResult.from(async () => {
+          let done = 0;
+
+          for (const id of ids) {
+            if (drain.signal?.aborted) {
+              break;
+            }
+
+            const result = await transcribe(
+              id,
+              drain.signal === undefined ? {} : { signal: drain.signal },
+            );
+
+            if (result.ok) {
+              done += 1;
+            } else {
+              await fail(id, result.error.message);
+            }
+          }
+
+          return ok(done);
+        }),
+      ),
+    notes: (engagementId) =>
+      call("engagement_notes", { engagement: engagementId }, (value) =>
+        value === null ? undefined : notesOf(value),
+      ),
+    saveNotes: (engagementId, notes) =>
+      call(
+        "save_engagement_notes",
+        {
+          engagement: engagementId,
+          notes: notesArg(notes, "member", undefined),
+        },
+        notesOf,
+      ),
+    summarize: (engagementId, summarizeOptions = {}) => {
+      if (noteTaker === undefined) {
+        return missing("note taker", "ENGAGEMENT_NO_NOTE_TAKER");
+      }
+
+      return call(
+        "engagement_with_transcripts",
+        { engagement: engagementId },
+        (value) => value,
+      )
+        .andThen((value) =>
+          value === null
+            ? AsyncResult.err(
+                dbError("not_found", "no such engagement", {
+                  hint: "ENGAGEMENT_NOT_FOUND",
+                }),
+              )
+            : parsed(
+                engagementOf(recordOf(value, "engagement")["engagement"]),
+              ).map((engagement) => ({
+                engagement,
+                transcript: transcriptOf(
+                  recordOf(value, "engagement")["segments"],
+                ),
+              })),
+        )
+        .andThen((input) =>
+          provider("ENGAGEMENT_SUMMARIZE_FAILED", () =>
+            noteTaker.summarize(
+              input,
+              summarizeOptions.signal === undefined
+                ? {}
+                : { signal: summarizeOptions.signal },
+            ),
+          ),
+        )
+        .andThen((notes) =>
+          call(
+            "save_engagement_notes",
+            {
+              engagement: engagementId,
+              notes: notesArg(notes, "ai", noteTaker.model),
+            },
+            notesOf,
+          ),
+        );
+    },
   };
 
   return withBlockHooks(client, options.hooks, {

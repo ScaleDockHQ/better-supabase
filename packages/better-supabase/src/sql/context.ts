@@ -233,6 +233,7 @@ export const AUDIT_CATEGORIES = [
   "data",
   "ai",
   "integration",
+  "read",
 ] as const;
 
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
@@ -438,6 +439,12 @@ export interface ModuleContext {
    * neither applies, so it is always a valid statement.
    */
   record(action: ModuleAction): string;
+  /**
+   * PL/pgSQL that writes the action to the audit log only, with no outbox
+   * event, for reads that leave no change behind. `null;` without the `audit`
+   * module or when `audit` is `false`.
+   */
+  audit(action: ModuleAction): string;
   /**
    * PL/pgSQL that calls `notify(fields)` as the service role, which `notify()`
    * requires, then restores the caller's claims. The function declares
@@ -1222,6 +1229,12 @@ export function createModuleContext(
       );
 
       return parts.length === 0 ? NOTHING : parts.join("\n  ");
+    },
+    audit(action) {
+      checkEvent(action);
+      const entry = auditEntry(action);
+
+      return entry === "" ? NOTHING : entry;
     },
     notify(fields, options = {}) {
       declares("notifications");

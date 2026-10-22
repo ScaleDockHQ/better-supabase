@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
+import { sendToKitchen } from "../kitchen-actions";
 import {
   cancelOrder,
   deliverFulfillment,
@@ -108,7 +109,22 @@ export function OrderTransitions({
     onError,
   });
 
+  const kitchen = useAction(sendToKitchen, {
+    onSuccess: (lines) => {
+      toast.success(
+        lines === 0
+          ? t("Already in the kitchen")
+          : t(
+              "{count, plural, one {# line} other {# lines}} sent to the kitchen",
+              { count: lines },
+            ),
+      );
+    },
+    onError,
+  });
+
   const pending =
+    kitchen.pending ||
     pay.pending ||
     cancel.pending ||
     fulfill.pending ||
@@ -155,6 +171,17 @@ export function OrderTransitions({
               }}
             >
               {t("Create fulfillment")}
+            </Button>
+          ) : null}
+          {status === "paid" ? (
+            <Button
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                void kitchen.run({ orderId });
+              }}
+            >
+              {t("Send to kitchen")}
             </Button>
           ) : null}
           {toShip ? (

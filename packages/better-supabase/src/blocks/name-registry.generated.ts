@@ -220,7 +220,8 @@ export interface BlockNameRegistry {
       readonly "availability": "id" | "tenant" | "resource" | "weekday" | "startsAt" | "endsAt";
       readonly "exceptions": "id" | "tenant" | "resource" | "during" | "available" | "reason";
       readonly "services": "id" | "tenant" | "name" | "duration" | "bufferBefore" | "bufferAfter" | "resourceKinds" | "step" | "minNotice" | "holdFor" | "reminderOffsets" | "active" | "createdAt";
-      readonly "bookings": "id" | "tenant" | "resource" | "service" | "seat" | "during" | "blocked" | "status" | "holdExpiresAt" | "customerName" | "customerEmail" | "customerUser" | "notes" | "accessHash" | "calendarEvent" | "createdBy" | "createdAt" | "updatedAt" | "cancelledAt" | "cancelReason";
+      readonly "bookings": "id" | "tenant" | "resource" | "service" | "seat" | "during" | "blocked" | "status" | "holdExpiresAt" | "customerName" | "customerEmail" | "customerUser" | "notes" | "accessHash" | "calendarEvent" | "createdBy" | "createdAt" | "updatedAt" | "cancelledAt" | "cancelReason" | "series";
+      readonly "series": "id" | "tenant" | "service" | "resource" | "rule" | "startsAt" | "tz" | "customerName" | "customerEmail" | "customerUser" | "status" | "endsAt" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_booking_exception" | "available_slots" | "booking_slots" | "cancel_booking" | "change_booking" | "confirm_booking" | "delete_booking_exception" | "expire_booking_holds" | "expire_booking_holds_in" | "hold_booking" | "list_bookings" | "place_booking" | "save_booking_resource" | "save_booking_service" | "set_booking_availability";
     readonly actions: "manage" | "create" | "read";
@@ -330,6 +331,59 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "contracts": {
+    readonly tables: {
+      readonly "contracts": "id" | "tenant" | "title" | "description" | "counterpartyType" | "counterpartyId" | "owner" | "status" | "value" | "currency" | "startsOn" | "endsOn" | "autoRenew" | "renewalMonths" | "noticeDays" | "renewedCount" | "signatureRequest" | "signedAt" | "terminatedAt" | "terminationReason" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "obligations": "id" | "tenant" | "contract" | "title" | "description" | "dueOn" | "owner" | "status" | "completedAt" | "completedBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "contract_apply_status" | "contract_schedule_renewal" | "contract_signature_settled" | "create_contract" | "delete_obligation" | "get_contract" | "list_contracts" | "list_obligations" | "run_contract_renewals" | "save_obligation" | "send_contract_for_signature" | "set_obligation_status" | "transition_contract" | "update_contract";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "contract": "id" | "tenant_id" | "title" | "description" | "counterparty_type" | "counterparty_id" | "owner_id" | "status" | "value" | "currency" | "starts_on" | "ends_on" | "auto_renew" | "renewal_months" | "notice_days" | "renewed_count" | "signature_request_id" | "signed_at" | "terminated_at" | "termination_reason" | "created_by" | "created_at" | "updated_at";
+      readonly "obligation": "id" | "tenant_id" | "contract_id" | "title" | "description" | "due_on" | "owner_id" | "status" | "completed_at" | "completed_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "contract";
+  };
+  readonly "controls": {
+    readonly tables: {
+      readonly "frameworks": "id" | "tenant" | "key" | "name" | "version" | "description" | "createdAt" | "updatedAt";
+      readonly "controls": "id" | "tenant" | "framework" | "code" | "title" | "description" | "owner" | "applicable" | "createdAt" | "updatedAt";
+      readonly "evidence": "id" | "tenant" | "control" | "task" | "attachment" | "note" | "collectedBy" | "collectedAt" | "validUntil";
+      readonly "tasks": "id" | "tenant" | "control" | "title" | "assignee" | "intervalDays" | "dueOn" | "lastCollectedAt" | "notifiedFor" | "active" | "createdAt" | "updatedAt";
+      readonly "policies": "id" | "tenant" | "key" | "title" | "owner" | "requiresAck" | "currentVersion" | "versionNumber" | "publishedAt" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "acknowledgements": "id" | "tenant" | "policy" | "version" | "user" | "acknowledgedAt";
+    };
+    readonly functions: "acknowledge_policy" | "add_control_evidence" | "archive_policy" | "control_posture" | "get_control" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "list_policies" | "notify_overdue_evidence_tasks" | "policy_acknowledgements" | "publish_policy" | "remove_control_evidence" | "save_control" | "save_control_framework" | "save_evidence_task" | "save_policy";
+    readonly actions: "read" | "manage" | "collect" | "acknowledge";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "control": "id" | "tenant_id" | "framework_id" | "code" | "title" | "description" | "owner_id" | "applicable" | "created_at" | "updated_at";
+      readonly "control_framework": "id" | "tenant_id" | "key" | "name" | "version" | "description" | "created_at" | "updated_at";
+      readonly "evidence_task": "id" | "tenant_id" | "control_id" | "title" | "assignee_id" | "interval_days" | "due_on" | "last_collected_at" | "notified_for" | "active" | "created_at" | "updated_at";
+      readonly "policy": "id" | "tenant_id" | "key" | "title" | "owner_id" | "requires_acknowledgement" | "current_version_id" | "version_number" | "published_at" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "control";
+  };
+  readonly "courses": {
+    readonly tables: {
+      readonly "courses": "id" | "tenant" | "key" | "title" | "summary" | "status" | "certificate" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "modules": "id" | "tenant" | "course" | "title" | "rank" | "createdAt" | "updatedAt";
+      readonly "lessons": "id" | "tenant" | "course" | "module" | "title" | "kind" | "body" | "mediaUrl" | "form" | "required" | "minutes" | "rank" | "createdAt" | "updatedAt";
+      readonly "progress": "enrollment" | "lesson" | "tenant" | "course" | "user" | "startedAt" | "completedAt" | "attempts" | "submission" | "score" | "maxScore" | "passed" | "updatedAt";
+      readonly "certificates": "id" | "tenant" | "course" | "enrollment" | "user" | "code" | "issuedAt" | "revokedAt";
+    };
+    readonly functions: "complete_course_lesson" | "course_finish" | "course_json" | "course_learner_json" | "course_lesson" | "course_lesson_done" | "course_outline" | "course_progress" | "course_steps" | "course_sync" | "delete_course" | "delete_course_lesson" | "delete_course_module" | "enroll_in_course" | "enrollment_ensure" | "enrollment_mark" | "list_course_learners" | "list_courses" | "revoke_course_certificate" | "save_course" | "save_course_lesson" | "save_course_module" | "start_course_lesson" | "unenroll_from_course" | "verify_course_certificate";
+    readonly actions: "read" | "enroll" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "course": "id" | "tenant_id" | "key" | "title" | "summary" | "status" | "issues_certificate" | "created_by" | "created_at" | "updated_at";
+      readonly "course_module": "id" | "tenant_id" | "course_id" | "title" | "rank" | "created_at" | "updated_at";
+      readonly "course_lesson": "id" | "tenant_id" | "course_id" | "module_id" | "title" | "kind" | "body" | "media_url" | "form_id" | "required" | "duration_minutes" | "rank" | "created_at" | "updated_at";
+      readonly "course_certificate": "id" | "tenant_id" | "course_id" | "enrollment_id" | "user_id" | "code" | "issued_at" | "revoked_at";
+    };
+    readonly primary: "course";
+  };
   readonly "credentials": {
     readonly tables: {
       readonly "secrets": "provider" | "name" | "tenant" | "scope" | "vaultId" | "secret" | "updatedAt";
@@ -342,7 +396,7 @@ export interface BlockNameRegistry {
   };
   readonly "custom-fields": {
     readonly tables: {
-      readonly "definitions": "id" | "tenant" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank";
+      readonly "definitions": "id" | "tenant" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank" | "encrypted";
       readonly "options": "id" | "definition" | "value" | "label" | "rank";
       readonly "values": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "valueText" | "valueNumber" | "valueDate" | "valueBool" | "optionId" | "valueJson";
     };
@@ -380,6 +434,23 @@ export interface BlockNameRegistry {
     };
     readonly primary: "deal";
   };
+  readonly "dispatch": {
+    readonly tables: {
+      readonly "workOrders": "id" | "tenant" | "title" | "description" | "priority" | "status" | "technician" | "startsAt" | "endsAt" | "location" | "asset" | "booking" | "subjectType" | "subjectId" | "address" | "enRouteAt" | "arrivedAt" | "completedAt" | "cancelledAt" | "cancelReason" | "completionNote" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "routes": "id" | "tenant" | "technician" | "routeDate" | "plannedBy" | "createdAt" | "updatedAt";
+      readonly "stops": "id" | "tenant" | "route" | "workOrder" | "position";
+      readonly "parts": "id" | "tenant" | "workOrder" | "name" | "quantity" | "unit" | "asset" | "variant" | "location" | "recordedBy" | "createdAt";
+    };
+    readonly functions: "create_work_order" | "dispatch_board" | "get_work_order" | "list_work_order_parts" | "list_work_orders" | "plan_dispatch_route" | "record_work_order_part" | "remove_work_order_part" | "schedule_work_order" | "set_work_order_status" | "technician_day" | "unschedule_work_order" | "update_work_order";
+    readonly actions: "read" | "manage" | "work";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "work_order": "id" | "tenant_id" | "title" | "description" | "priority" | "status" | "technician_id" | "starts_at" | "ends_at" | "location_id" | "asset_id" | "booking_id" | "subject_type" | "subject_id" | "address" | "en_route_at" | "arrived_at" | "completed_at" | "cancelled_at" | "cancel_reason" | "completion_note" | "created_by" | "created_at" | "updated_at";
+      readonly "dispatch_route": "id" | "tenant_id" | "technician_id" | "route_date" | "planned_by" | "created_at" | "updated_at";
+      readonly "work_order_part": "id" | "tenant_id" | "work_order_id" | "name" | "quantity" | "unit" | "asset_id" | "variant_id" | "location_id" | "recorded_by" | "created_at";
+    };
+    readonly primary: "work_order";
+  };
   readonly "documents": {
     readonly tables: {
       readonly "documents": "id" | "tenant" | "subjectType" | "subjectId" | "name" | "createdBy" | "createdAt" | "updatedAt";
@@ -403,6 +474,24 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "donations": {
+    readonly tables: {
+      readonly "funds": "id" | "tenant" | "key" | "name" | "kind" | "goal" | "currency" | "startsOn" | "endsOn" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "pledges": "id" | "tenant" | "donorType" | "donorId" | "fund" | "amount" | "currency" | "frequency" | "startsOn" | "endsOn" | "status" | "provider" | "providerCustomer" | "note" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "receipts": "id" | "tenant" | "donorType" | "donorId" | "sequence" | "number" | "kind" | "year" | "amount" | "currency" | "issuedAt" | "voidedAt" | "voidReason";
+      readonly "donations": "id" | "tenant" | "donorType" | "donorId" | "fund" | "pledge" | "periodStart" | "amount" | "currency" | "receivedOn" | "method" | "status" | "provider" | "paymentReference" | "transaction" | "refundTransaction" | "receipt" | "note" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "archive_donation_fund" | "create_pledge" | "donation_settle" | "due_pledge_installments" | "get_gift" | "issue_gift_receipt" | "issue_yearly_receipt" | "list_donation_funds" | "list_donation_receipts" | "list_gifts" | "list_pledges" | "open_gift" | "record_gift" | "record_gift_payment" | "save_donation_fund" | "update_pledge" | "void_donation_receipt" | "yearly_giving_summary";
+    readonly actions: "read" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "donation": "id" | "tenant_id" | "donor_type" | "donor_id" | "fund_id" | "pledge_id" | "period_start" | "amount" | "currency" | "received_on" | "method" | "status" | "provider" | "payment_reference" | "transaction_id" | "refund_transaction_id" | "receipt_id" | "note" | "created_by" | "created_at" | "updated_at";
+      readonly "pledge": "id" | "tenant_id" | "donor_type" | "donor_id" | "fund_id" | "amount" | "currency" | "frequency" | "starts_on" | "ends_on" | "status" | "provider" | "provider_customer" | "note" | "created_by" | "created_at" | "updated_at";
+      readonly "donation_fund": "id" | "tenant_id" | "key" | "name" | "kind" | "goal" | "currency" | "starts_on" | "ends_on" | "archived_at" | "created_at" | "updated_at";
+      readonly "donation_receipt": "id" | "tenant_id" | "donor_type" | "donor_id" | "sequence" | "number" | "kind" | "year" | "amount" | "currency" | "issued_at" | "voided_at" | "void_reason";
+    };
+    readonly primary: "donation";
   };
   readonly "drive": {
     readonly tables: {
@@ -441,6 +530,9 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt";
       readonly "links": "tenant" | "engagement" | "subjectType" | "subjectId" | "position";
+      readonly "recordings": "id" | "tenant" | "engagement" | "file" | "filename" | "mediaType" | "status" | "language" | "durationSeconds" | "error" | "model" | "createdBy" | "createdAt" | "transcribedAt";
+      readonly "segments": "recording" | "tenant" | "position" | "speaker" | "speakerUser" | "startsMs" | "endsMs" | "text" | "confidence";
+      readonly "notes": "engagement" | "tenant" | "summary" | "actionItems" | "model" | "source" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "complete_engagement" | "delete_engagement" | "engagements_of" | "log_engagement" | "next_engagement" | "open_engagements" | "update_engagement";
     readonly actions: "read" | "write" | "manage";
@@ -481,6 +573,30 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "expenses": {
+    readonly tables: {
+      readonly "categories": "id" | "tenant" | "key" | "name" | "currency" | "limitAmount" | "receiptOver" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "reports": "id" | "tenant" | "user" | "title" | "currency" | "note" | "approval" | "submittedAt" | "approvedAt" | "approvalTransaction" | "reimbursedAt" | "reimbursement" | "cancelledAt" | "createdAt" | "updatedAt";
+      readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
+    readonly actions: "read" | "submit" | "approve" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "expense_report": "id" | "tenant_id" | "user_id" | "title" | "currency" | "note" | "approval_id" | "submitted_at" | "approved_at" | "approval_transaction_id" | "reimbursed_at" | "reimbursement_transaction_id" | "cancelled_at" | "created_at" | "updated_at";
+      readonly "expense_line": "id" | "tenant_id" | "report_id" | "category_id" | "spent_on" | "description" | "merchant" | "amount" | "created_at" | "updated_at";
+      readonly "expense_category": "id" | "tenant_id" | "key" | "name" | "currency" | "limit_amount" | "receipt_over" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "expense_report";
+  };
+  readonly "field-encryption": {
+    readonly tables: {};
+    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_key" | "field_open" | "field_seal";
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "flags": {
     readonly tables: {
       readonly "flags": "key" | "type" | "description" | "variants" | "defaultVariant" | "enabled" | "archived" | "rules" | "rolloutPercentage" | "rolloutVariant" | "updatedAt";
@@ -496,9 +612,10 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "forms": "id" | "tenant" | "key" | "title" | "description" | "status" | "currentVersion" | "createdBy" | "createdAt" | "updatedAt";
       readonly "versions": "id" | "tenant" | "form" | "number" | "definition" | "schema" | "createdBy" | "createdAt";
-      readonly "submissions": "id" | "tenant" | "form" | "version" | "subjectType" | "subjectId" | "respondent" | "answers" | "status" | "source" | "reviewedBy" | "reviewedAt" | "createdAt" | "submittedAt" | "updatedAt";
+      readonly "submissions": "id" | "tenant" | "form" | "version" | "subjectType" | "subjectId" | "respondent" | "answers" | "status" | "source" | "reviewedBy" | "reviewedAt" | "createdAt" | "submittedAt" | "updatedAt" | "score" | "maxScore" | "passed";
+      readonly "answerKeys": "version" | "tenant" | "answers" | "createdAt";
     };
-    readonly functions: "create_form" | "delete_form_submission" | "form_condition_schema" | "form_field_schema" | "form_resolve" | "form_schema" | "form_submission_save" | "get_form" | "get_form_submission" | "get_form_version" | "list_form_submissions" | "list_forms" | "publish_form_version" | "review_form_submission" | "submit_form" | "update_form";
+    readonly functions: "create_form" | "delete_form_submission" | "form_answer_matches" | "form_answer_merge" | "form_answer_split" | "form_condition_holds" | "form_condition_schema" | "form_correct_fits" | "form_field_schema" | "form_nps" | "form_resolve" | "form_schema" | "form_score" | "form_submission_save" | "get_form" | "get_form_submission" | "get_form_version" | "list_form_submissions" | "list_forms" | "publish_form_version" | "review_form_submission" | "submit_form" | "update_form";
     readonly actions: "read" | "manage" | "submit" | "review";
     readonly hooks: "before_form_publish" | "after_form_publish" | "before_form_submission" | "after_form_submission" | "before_public_form_submission";
     readonly entities: {};
@@ -592,6 +709,27 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "incidents": {
+    readonly tables: {
+      readonly "components": "id" | "tenant" | "name" | "description" | "group" | "public" | "status" | "position" | "createdAt" | "updatedAt";
+      readonly "history": "id" | "tenant" | "component" | "status" | "startedAt" | "endedAt";
+      readonly "incidents": "id" | "tenant" | "title" | "description" | "severity" | "status" | "public" | "commander" | "startedAt" | "resolvedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "updates": "id" | "tenant" | "incident" | "status" | "body" | "public" | "author" | "createdAt";
+      readonly "impacts": "tenant" | "incident" | "component" | "impact";
+      readonly "postmortems": "id" | "tenant" | "incident" | "summary" | "impact" | "rootCause" | "resolution" | "actionItems" | "status" | "publishedAt" | "author" | "createdAt" | "updatedAt";
+      readonly "pages": "id" | "tenant" | "slug" | "title" | "description" | "published" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "delete_status_component" | "get_incident" | "get_status_page" | "incident_apply_impacts" | "incident_refresh_components" | "list_incidents" | "list_status_components" | "open_incident" | "post_incident_update" | "public_status_page" | "publish_postmortem" | "save_postmortem" | "save_status_component" | "save_status_page" | "set_incident_impacts" | "update_incident";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "incident": "id" | "tenant_id" | "title" | "description" | "severity" | "status" | "public" | "commander_id" | "started_at" | "resolved_at" | "created_by" | "created_at" | "updated_at";
+      readonly "status_component": "id" | "tenant_id" | "name" | "description" | "group_name" | "public" | "status" | "position" | "created_at" | "updated_at";
+      readonly "postmortem": "id" | "tenant_id" | "incident_id" | "summary" | "impact" | "root_cause" | "resolution" | "action_items" | "status" | "published_at" | "author_id" | "created_at" | "updated_at";
+      readonly "status_page": "id" | "tenant_id" | "slug" | "title" | "description" | "published" | "created_at" | "updated_at";
+    };
+    readonly primary: "incident";
+  };
   readonly "inventory": {
     readonly tables: {
       readonly "locations": "id" | "tenant" | "code" | "name" | "kind" | "active" | "createdAt" | "updatedAt";
@@ -657,6 +795,21 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "leases": {
+    readonly tables: {
+      readonly "leases": "id" | "tenant" | "unit" | "partyType" | "partyId" | "title" | "status" | "startsOn" | "endsOn" | "rent" | "currency" | "frequency" | "deposit" | "depositHold" | "renewedAt" | "terminatedOn" | "terminationReason" | "metadata" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "charges": "id" | "tenant" | "lease" | "periodStart" | "periodEnd" | "amount" | "currency" | "transaction" | "createdAt";
+      readonly "maintenance": "id" | "tenant" | "unit" | "lease" | "title" | "description" | "priority" | "status" | "reportedBy" | "assignee" | "resolvedAt" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "activate_lease" | "create_lease" | "file_maintenance_request" | "get_lease" | "list_lease_charges" | "list_leases" | "list_maintenance_requests" | "post_due_rent" | "record_rent_payment" | "renew_lease" | "terminate_lease" | "update_maintenance_request";
+    readonly actions: "read" | "manage" | "maintain";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "lease": "id" | "tenant_id" | "unit_id" | "party_type" | "party_id" | "title" | "status" | "starts_on" | "ends_on" | "rent" | "currency" | "frequency" | "deposit" | "deposit_hold_id" | "renewed_at" | "terminated_on" | "termination_reason" | "metadata" | "created_by" | "created_at" | "updated_at";
+      readonly "maintenance_request": "id" | "tenant_id" | "unit_id" | "lease_id" | "title" | "description" | "priority" | "status" | "reported_by" | "assignee_id" | "resolved_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "lease";
+  };
   readonly "leave": {
     readonly tables: {
       readonly "types": "id" | "tenant" | "key" | "name" | "unit" | "paid" | "tracked" | "allowance" | "carryoverMax" | "color" | "archivedAt" | "createdAt" | "updatedAt";
@@ -676,7 +829,7 @@ export interface BlockNameRegistry {
       readonly "balances": "account" | "tenant" | "balance" | "held" | "available" | "updatedAt";
       readonly "holds": "id" | "tenant" | "account" | "amount" | "status" | "referenceType" | "referenceId" | "expiresAt" | "transaction" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "capture_ledger_hold" | "close_ledger_account" | "expire_ledger_holds" | "get_ledger_transaction" | "ledger_account_entries" | "ledger_account_for" | "ledger_append_only" | "ledger_apply_entry" | "ledger_check_balanced" | "ledger_post" | "ledger_read_grants" | "ledger_unhold" | "list_ledger_accounts" | "open_ledger_account" | "place_ledger_hold" | "post_ledger_transaction" | "release_ledger_hold" | "reverse_ledger_transaction";
+    readonly functions: "capture_ledger_hold" | "close_ledger_account" | "expire_ledger_holds" | "get_ledger_transaction" | "ledger_account_entries" | "ledger_account_for" | "ledger_append_only" | "ledger_apply_entry" | "ledger_capture" | "ledger_check_balanced" | "ledger_hold" | "ledger_post" | "ledger_read_grants" | "ledger_release" | "ledger_unhold" | "list_ledger_accounts" | "open_ledger_account" | "place_ledger_hold" | "post_ledger_transaction" | "release_ledger_hold" | "reverse_ledger_transaction";
     readonly actions: "read" | "manage" | "post";
     readonly hooks: "before_ledger_transaction_post" | "after_ledger_transaction_post";
     readonly entities: {
@@ -792,9 +945,12 @@ export interface BlockNameRegistry {
       readonly "returns": "id" | "tenant" | "order" | "status" | "reason" | "requestedBy" | "createdAt" | "receivedAt";
       readonly "returnLines": "tenant" | "return" | "line" | "quantity";
       readonly "refunds": "id" | "tenant" | "order" | "payment" | "return" | "amount" | "currency" | "status" | "reason" | "providerReference" | "createdAt" | "completedAt";
+      readonly "kitchenStations": "id" | "tenant" | "key" | "name" | "position" | "isDefault" | "active" | "createdAt" | "updatedAt";
+      readonly "kitchenRoutes": "product" | "tenant" | "station";
+      readonly "preparations": "line" | "tenant" | "order" | "station" | "state" | "note" | "queuedAt" | "startedAt" | "readyAt" | "servedAt" | "updatedAt" | "updatedBy";
     };
     readonly functions: "add_to_cart" | "cancel_fulfillment" | "cancel_order" | "cart_totals" | "complete_refund" | "create_cart" | "create_fulfillment" | "create_refund" | "delete_shipping_rate" | "deliver_fulfillment" | "expire_orders" | "get_order" | "merge_carts" | "order_cancel" | "order_json" | "order_transition" | "place_order" | "price_cart" | "receive_return" | "record_payment" | "reject_return" | "request_return" | "save_shipping_rate" | "set_cart_details" | "set_cart_line" | "set_cart_shipping_rate" | "set_order_tax_transaction" | "ship_fulfillment" | "shipping_options";
-    readonly actions: "manage" | "read";
+    readonly actions: "manage" | "read" | "prepare";
     readonly hooks: "before_order_place" | "after_order_place" | "before_fulfillment_create" | "after_fulfillment_create" | "before_refund_create" | "after_refund_create";
     readonly entities: {};
     readonly primary: never;
@@ -841,6 +997,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
       readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
+      readonly "credits": "id" | "tenant" | "pass" | "booking" | "delta" | "reason" | "createdBy" | "createdAt";
     };
     readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
     readonly actions: "read" | "manage" | "checkIn";
@@ -1106,6 +1263,22 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "shipments": {
+    readonly tables: {
+      readonly "shipments": "id" | "tenant" | "reference" | "status" | "fromAddress" | "toAddress" | "fromLocation" | "subjectType" | "subjectId" | "carrier" | "service" | "trackingNumber" | "trackingUrl" | "labelId" | "labelUrl" | "labelFormat" | "labelCost" | "currency" | "labeledAt" | "deliveredAt" | "cancelledAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "packages": "id" | "tenant" | "shipment" | "position" | "weight" | "length" | "width" | "height" | "reference";
+      readonly "trackingEvents": "id" | "tenant" | "shipment" | "externalId" | "status" | "occurredAt" | "description" | "location" | "source" | "createdAt";
+    };
+    readonly functions: "cancel_shipment" | "create_shipment" | "get_shipment" | "ingest_tracking_events" | "list_shipments" | "list_tracking_events" | "record_tracking_events" | "set_shipment_label";
+    readonly actions: "read" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "shipment": "id" | "tenant_id" | "reference" | "status" | "from_address" | "to_address" | "from_location_id" | "subject_type" | "subject_id" | "carrier" | "service" | "tracking_number" | "tracking_url" | "label_id" | "label_url" | "label_format" | "label_cost" | "currency" | "labeled_at" | "delivered_at" | "cancelled_at" | "created_by" | "created_at" | "updated_at";
+      readonly "shipment_package": "id" | "tenant_id" | "shipment_id" | "position" | "weight_grams" | "length_mm" | "width_mm" | "height_mm" | "reference";
+      readonly "shipment_tracking_event": "id" | "tenant_id" | "shipment_id" | "external_id" | "status" | "occurred_at" | "description" | "location" | "source" | "created_at";
+    };
+    readonly primary: "shipment";
   };
   readonly "signatures": {
     readonly tables: {

@@ -83,4 +83,33 @@ describe("SQL module output", () => {
 
     await expect(out).toMatchFileSnapshot(`__golden__/${module}.sql`);
   });
+
+  it("gives every table one owning module", () => {
+    const owners = new Map<string, Set<string>>();
+
+    const files = renderModules(
+      NAMES.filter((name) => name !== "pgtap"),
+      {},
+    );
+
+    for (const file of files) {
+      for (const match of file.contents.matchAll(CREATE_TABLE)) {
+        const table = (match[1] ?? "").replaceAll('"', "");
+        const modules = owners.get(table) ?? new Set<string>();
+        modules.add(file.module);
+        owners.set(table, modules);
+      }
+    }
+
+    const shared = [...owners]
+      .filter(([table, modules]) => modules.size > 1 && table !== REGISTRY)
+      .map(([table, modules]) => `${table}: ${[...modules].join(", ")}`);
+
+    expect(shared).toEqual([]);
+  });
 });
+
+const CREATE_TABLE = /create table (?:if not exists )?("?\w+"?\."?\w+"?)/giu;
+
+/** The modules registry every module writes its row to. */
+const REGISTRY = "better_supabase.modules";

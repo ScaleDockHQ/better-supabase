@@ -9,6 +9,7 @@ export type BookingsEvents = {
   readonly "booking.confirmed": SchedulingEventData;
   readonly "booking.cancelled": SchedulingEventData;
   readonly "booking.expired": SchedulingEventData;
+  readonly "booking.rescheduled": SchedulingEventData;
 };
 
 /** The `bookings` block's event types, for its manifest and `onBlockEvent`. */
@@ -17,4 +18,5 @@ export const bookingsEvents: Events<BookingsEvents> = defineEvents({
   "booking.confirmed": event<SchedulingEventData>(),
   "booking.cancelled": event<SchedulingEventData>(),
   "booking.expired": event<SchedulingEventData>(),
+  "booking.rescheduled": event<SchedulingEventData>(),
 });

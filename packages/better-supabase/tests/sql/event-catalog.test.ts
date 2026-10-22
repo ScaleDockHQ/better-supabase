@@ -24,13 +24,22 @@ const OWNER = new Map(
 /** Rendered with every module, so each optional event path is on. */
 const RECORDED = (() => {
   const files = renderModules(Object.keys(SQL_MODULES), {
-    modules: { audit: { options: { restricted: true } } },
+    modules: {
+      audit: { options: { restricted: true } },
+      bookings: { options: { recurring: true } },
+      engagements: { options: { recordings: true } },
+      orders: { options: { kitchen: true } },
+      passes: { options: { credits: true } },
+    },
   });
 
   const byModule = new Map<string, Set<string>>();
 
   for (const file of files) {
-    for (const match of file.contents.matchAll(/emit_event\('([a-z_.]+)'/g)) {
+    // An audit-only event (`ctx.audit`) reaches the audit log, not the outbox.
+    for (const match of file.contents.matchAll(
+      /(?:emit_event\(|audit_event\(\s*event_type => )'([a-z_.]+)'/g,
+    )) {
       const types = byModule.get(file.module) ?? new Set<string>();
       types.add(match[1] ?? "");
       byModule.set(file.module, types);
@@ -41,7 +50,11 @@ const RECORDED = (() => {
 })();
 
 /** Events only a module option turns on. */
-const OPTIONAL = new Set(["object.uploaded", "pipeline.stage_changed"]);
+const OPTIONAL = new Set([
+  "field_value.viewed",
+  "object.uploaded",
+  "pipeline.stage_changed",
+]);
 
 const declared = (module: string): string[] =>
   Object.keys(SQL_MODULES[module]?.names?.events ?? {});

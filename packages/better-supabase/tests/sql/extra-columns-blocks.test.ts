@@ -105,6 +105,27 @@ const CASES = [
     write: "save_connector_server.fields",
     read: "list_connector_servers",
   },
+  {
+    module: "leases",
+    needs: ["organizations", "subjects", "assets", "ledger"],
+    table: "lease_agreements",
+    write: "create_lease.fields",
+    read: "get_lease",
+  },
+  {
+    module: "expenses",
+    needs: ["organizations", "attachments", "approvals", "ledger"],
+    table: "expense_reports",
+    write: "create_expense_report.fields",
+    read: "get_expense_report",
+  },
+  {
+    module: "donations",
+    needs: ["organizations", "subjects", "ledger"],
+    table: "donations",
+    write: "record_gift.fields",
+    read: "list_gifts",
+  },
 ] as const;
 
 const sqlOf = (

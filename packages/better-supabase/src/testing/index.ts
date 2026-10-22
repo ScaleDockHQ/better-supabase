@@ -106,6 +106,8 @@ export { testPaymentProvider } from "./kits/payment-provider.ts";
 
 export { testTaxProvider } from "./kits/tax-provider.ts";
 
+export { testShipmentCarrier } from "./kits/shipment-carrier.ts";
+
 export { testIncomingDestination } from "./kits/incoming-destination.ts";
 
 export { testPlugin } from "./kits/plugin.ts";
@@ -170,6 +172,8 @@ export type { TestPaymentProviderOptions } from "./kits/payment-provider.ts";
 
 export type { TestTaxProviderOptions } from "./kits/tax-provider.ts";
 
+export type { TestShipmentCarrierOptions } from "./kits/shipment-carrier.ts";
+
 export type { TestIncomingDestinationOptions } from "./kits/incoming-destination.ts";
 
 export type { TestPluginOptions } from "./kits/plugin.ts";
@@ -184,6 +188,8 @@ export {
   testEmbedder,
   testEveDocumentBackend,
   testGraphCompiler,
+  testNoteTaker,
+  testTranscriber,
 } from "./injectables.ts";
 
 export type {
@@ -192,6 +198,8 @@ export type {
   TestEmbedderOptions,
   TestEveDocumentBackendOptions,
   TestGraphCompilerOptions,
+  TestNoteTakerOptions,
+  TestTranscriberOptions,
 } from "./injectables.ts";
 
 export { testNotificationChannel } from "./notification-channel.ts";

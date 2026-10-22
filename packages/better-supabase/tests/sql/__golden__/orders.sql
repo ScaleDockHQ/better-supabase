@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_84_orders.sql
 -- better-supabase module: orders
 -- @bs-module orders@1 managed
--- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds.
+-- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1767,7 +1767,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_84_orders.sql
 -- better-supabase module: orders
 -- @bs-module orders@1 managed
--- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds.
+-- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3609,7 +3609,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_84_orders.sql
 -- better-supabase module: orders
 -- @bs-module orders@1 managed
--- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds.
+-- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -5377,7 +5377,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_84_orders.sql
 -- better-supabase module: orders
 -- @bs-module orders@1 managed
--- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds.
+-- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

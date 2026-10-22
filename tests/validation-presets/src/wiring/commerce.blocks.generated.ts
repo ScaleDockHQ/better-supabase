@@ -168,6 +168,7 @@ export const permissions = {
   orders: {
     manage: "orders.manage",
     read: "orders.read",
+    prepare: "orders.prepare",
   },
   organizations: {
     update: "organization.update",
@@ -205,7 +206,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "promotions.manage" | "promotions.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.access.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -265,7 +266,9 @@ export const blockEvents: Events<BlockEvents> = {
     "order.fulfilled",
     "order.paid",
     "order.placed",
+    "order.prepared",
     "order.refunded",
+    "order.served",
     "organization.created",
     "organization.deleted",
     "organization.member_added",
@@ -363,7 +366,9 @@ export const blockEventSchemas = {
   "order.fulfilled": true,
   "order.paid": true,
   "order.placed": true,
+  "order.prepared": true,
   "order.refunded": true,
+  "order.served": true,
   "organization.created": true,
   "organization.deleted": true,
   "organization.member_added": true,

@@ -130,6 +130,85 @@ const validate = (
 ) => schema["~standard"].validate(value) as { issues?: unknown[] };
 
 describe("createPasses", () => {
+  it("books a class with a credit and reads the credit ledger", async () => {
+    const fake = fakeTransport({
+      book_with_credit: {
+        id: "b2",
+        resourceId: "r1",
+        serviceId: "s1",
+        seat: 1,
+        startsAt: AT,
+        endsAt: LATER,
+        status: "confirmed",
+        customerUserId: "u2",
+        passId: "p1",
+        creditsLeft: 4,
+      },
+      list_pass_credits: [
+        {
+          id: "e2",
+          organizationId: "org-1",
+          passId: "p1",
+          bookingId: "b2",
+          delta: 1,
+          reason: "refund",
+          createdBy: null,
+          createdAt: LATER,
+        },
+        {
+          id: "e1",
+          organizationId: "org-1",
+          passId: "p1",
+          bookingId: "b2",
+          delta: -1,
+          reason: "booking",
+          createdBy: "u2",
+          createdAt: AT,
+        },
+      ],
+    });
+
+    const passes = createPasses({ transport: fake.transport, tenant: "org-1" });
+
+    const booked = await passes
+      .bookWithCredit("p1", {
+        serviceId: "s1",
+        resourceId: "r1",
+        startsAt: Temporal.Instant.from(AT),
+        customer: { name: "Jane" },
+      })
+      .orThrow();
+
+    expect(booked).toMatchObject({
+      id: "b2",
+      status: "confirmed",
+      passId: "p1",
+      creditsLeft: 4,
+    });
+    expect(booked.startsAt.toString()).toBe(AT);
+
+    const entries = await passes.credits("p1").orThrow();
+    expect(entries.map((entry) => [entry.reason, entry.delta])).toEqual([
+      ["refund", 1],
+      ["booking", -1],
+    ]);
+    expect(entries[0]).not.toHaveProperty("createdBy");
+    expect(entries[1]).toMatchObject({ bookingId: "b2", createdBy: "u2" });
+    expect(fake.calls).toEqual([
+      [
+        "book_with_credit",
+        {
+          pass_id: "p1",
+          service: "s1",
+          resource: "r1",
+          starts_at: AT,
+          customer: { name: "Jane" },
+        },
+      ],
+      ["list_pass_credits", { pass_id: "p1" }],
+    ]);
+  });
+
   it("issues a ticket for a booking in the block's tenant", async () => {
     const fake = fakeTransport({ issue_pass: PASS });
     const passes = createPasses({ transport: fake.transport, tenant: "org-1" });
