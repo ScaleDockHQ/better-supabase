@@ -998,16 +998,16 @@ describe("createDonations", () => {
       payments: fakePayments().provider,
     });
 
+    const { reference, ...canceled } = event({ type: "payment.canceled" });
+
+    expect(reference).toBe(GIFT_ID);
+
     const outcomes = await Promise.all([
       donations.handlePaymentEvent(event()).orThrow(),
       donations
         .handlePaymentEvent(event({ type: "payment.failed", reference: "o1" }))
         .orThrow(),
-      donations
-        .handlePaymentEvent(
-          event({ type: "payment.canceled", reference: undefined }),
-        )
-        .orThrow(),
+      donations.handlePaymentEvent(canceled).orThrow(),
       donations
         .handlePaymentEvent(event({ type: "payment.processing" }))
         .orThrow(),
