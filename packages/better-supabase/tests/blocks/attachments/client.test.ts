@@ -6,6 +6,7 @@ import type {
   AttachmentUploadTicket,
 } from "../../../src/blocks/attachments/client.ts";
 import type { NewAttachment } from "../../../src/blocks/attachments/index.ts";
+import type { Result } from "../../../src/core/result.ts";
 
 import {
   createAttachmentUploadController,
@@ -319,7 +320,7 @@ describe("createAttachmentUploadController after a dismiss", () => {
   it("ignores a late start, progress, confirm and refresh", async () => {
     const started = deferred<ReturnType<typeof ok<AttachmentUploadTicket>>>();
     const confirmed = deferred<ReturnType<typeof ok<AttachmentScanState>>>();
-    const refreshed = deferred<ReturnType<typeof err>>();
+    const refreshed = deferred<Result<AttachmentScanState>>();
     let progress: ((fraction: number) => void) | undefined;
     const ticket = { id: "a1", signedUrl: "https://s/upload/a1" };
 
