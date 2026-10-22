@@ -46,7 +46,8 @@ export interface StripeClient {
   readonly billingPortal: {
     readonly sessions: {
       create(params: {
-        readonly customer: string;
+        readonly customer?: string;
+        readonly customer_account?: string;
         readonly return_url?: string;
       }): Promise<{ readonly id: string; readonly url: string }>;
     };
@@ -90,6 +91,20 @@ export interface StripeClient {
         },
         options?: { readonly idempotencyKey?: string },
       ): Promise<unknown>;
+    };
+  };
+  /**
+   * Stripe's v2 API. `billing` with `customerAccounts` creates the tenant's
+   * Accounts v2 account through it.
+   */
+  readonly v2?: {
+    readonly core: {
+      readonly accounts: {
+        create(
+          params: Readonly<Record<string, unknown>>,
+          options?: { readonly idempotencyKey?: string },
+        ): Promise<{ readonly id: string }>;
+      };
     };
   };
   readonly webhooks: {

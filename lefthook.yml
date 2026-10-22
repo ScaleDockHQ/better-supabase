@@ -3,7 +3,9 @@ pre-commit:
   jobs:
     - name: fix
       glob: "*.{ts,tsx,mts,cts,js,mjs,cjs,json,jsonc,md,mdx,css,yml,yaml}"
-      exclude: "{.agents,.cursor,.claude}/**"
+      exclude:
+        - "{.agents,.cursor,.claude}/**"
+        - "tests/validation-*/src/wiring/*.generated.ts"
       run: pnpm exec ultracite fix {staged_files}
       stage_fixed: true
     - name: lint

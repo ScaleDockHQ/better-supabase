@@ -5370,6 +5370,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "BillingEvents",
         "types": [
           "billing.customer_linked",
+          "billing.account_linked",
           "billing.checkout_completed",
           "billing.subscription_created",
           "billing.subscription_updated",

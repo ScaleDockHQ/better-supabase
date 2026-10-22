@@ -630,4 +630,165 @@ describe.skipIf(!live)("billing", () => {
       await s.close();
     }
   });
+
+  it("bills a tenant as a Stripe Accounts v2 account and records its customer", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "billing", "entitlements"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const legacy = await s.organization(owner);
+      await s.service();
+
+      const calls: [string, unknown][] = [];
+
+      const stripe = {
+        customers: {
+          create: async () => {
+            throw new Error("account mode never creates a v1 customer");
+          },
+        },
+        checkout: {
+          sessions: {
+            create: async (params: unknown) => {
+              calls.push(["checkout.create", params]);
+
+              return { id: "cs_1", url: "https://checkout.stripe.com/c/cs_1" };
+            },
+          },
+        },
+        billingPortal: {
+          sessions: {
+            create: async (params: unknown) => {
+              calls.push(["portal.create", params]);
+
+              return { id: "bps_1", url: "https://billing.stripe.com/p/1" };
+            },
+          },
+        },
+        v2: {
+          core: {
+            accounts: {
+              create: async (params: unknown) => {
+                calls.push(["accounts.create", params]);
+
+                return { id: "acct_bs_test1" };
+              },
+            },
+          },
+        },
+      } as unknown as StripeClient;
+
+      const billing = createBilling({
+        stripe,
+        transport: sqlTransport(s.sql),
+        customerAccounts: true,
+      });
+
+      await billing
+        .checkout(organization, {
+          price: "price_seat",
+          successUrl: "https://app.test/billing",
+        })
+        .orThrow();
+      expect(calls.at(-1)).toMatchObject([
+        "checkout.create",
+        { customer_account: "acct_bs_test1" },
+      ]);
+      expect(await billing.account(organization).orThrow()).toBe(
+        "acct_bs_test1",
+      );
+      expect(await billing.customer(organization).orThrow()).toBeUndefined();
+      expect(
+        await s.value(
+          `better_supabase.tenant_stripe_customer('${organization}')`,
+        ),
+      ).toBeNull();
+
+      const refused = async (sql: string): Promise<string> => {
+        await s.client.query("savepoint refused");
+
+        try {
+          await s.client.query(sql, [legacy]);
+
+          return "";
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        } finally {
+          await s.client.query("rollback to savepoint refused");
+        }
+      };
+
+      expect(
+        await refused(
+          "insert into better_supabase.billing_customers (organization_id) values ($1)",
+        ),
+      ).toMatch(/bs_billing_customers_party/);
+      expect(
+        await refused(
+          "select better_supabase.link_billing_account($1, 'cus_not_an_account')",
+        ),
+      ).toMatch(/check constraint/);
+
+      const outcome = await billing
+        .handleStripeEvent({
+          id: "evt_1",
+          type: "customer.subscription.created",
+          data: {
+            object: {
+              id: "sub_1",
+              status: "active",
+              customer: "cus_bs_made",
+              customer_account: "acct_bs_test1",
+            },
+          },
+        })
+        .orThrow();
+
+      expect(outcome).toMatchObject({
+        event: "billing.subscription_created",
+        organizationId: organization,
+        customerId: "cus_bs_made",
+        accountId: "acct_bs_test1",
+      });
+      expect(await billing.customer(organization).orThrow()).toBe(
+        "cus_bs_made",
+      );
+      expect(
+        await s.value(
+          `better_supabase.tenant_stripe_customer('${organization}')`,
+        ),
+      ).toBe("cus_bs_made");
+      expect(
+        await s.value(
+          "better_supabase.link_billing_customer($1, 'cus_bs_other')",
+          [organization],
+        ),
+      ).toBe("cus_bs_made");
+      expect(await billing.status(organization).orThrow()).toMatchObject({
+        customerId: "cus_bs_made",
+        accountId: "acct_bs_test1",
+      });
+
+      await billing.portal(organization, { returnUrl: "https://app.test" });
+      expect(calls.at(-1)).toEqual([
+        "portal.create",
+        { customer_account: "acct_bs_test1", return_url: "https://app.test" },
+      ]);
+
+      await s.value("better_supabase.link_billing_customer($1, 'cus_bs_old')", [
+        legacy,
+      ]);
+      await billing
+        .checkout(legacy, { price: "price_seat", successUrl: "https://a" })
+        .orThrow();
+      expect(calls.at(-1)).toMatchObject([
+        "checkout.create",
+        { customer: "cus_bs_old" },
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
 });

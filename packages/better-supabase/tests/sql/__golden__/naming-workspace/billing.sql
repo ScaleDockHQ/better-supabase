@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_31_billing.sql
 -- better-supabase module: billing
--- @bs-module billing@2 managed
+-- @bs-module billing@3 managed
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8,12 +8,19 @@
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Each tenant's Stripe customer. The entitlements module reads it as its
--- customer source when config.entitlements.customer is unset.
+-- customer source when config.entitlements.customer is unset. A tenant billed
+-- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
+-- linked cus_ id at the first checkout, and the webhook records it.
 create table if not exists "better_supabase"."billing_customers" (
   "workspace_id" uuid primary key,
-  "stripe_customer_id" text not null unique check ("stripe_customer_id" ~ '^cus_'),
+  "stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_'),
+  "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_'),
   "created_at" timestamptz not null default now()
 );
+alter table "better_supabase"."billing_customers" add column if not exists "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_');
+alter table "better_supabase"."billing_customers" alter column "stripe_customer_id" drop not null;
+alter table "better_supabase"."billing_customers" drop constraint if exists bs_billing_customers_party;
+alter table "better_supabase"."billing_customers" add constraint bs_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);
 alter table "better_supabase"."billing_customers" enable row level security;
 revoke all on "better_supabase"."billing_customers" from anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
@@ -33,6 +40,19 @@ as $$
   where b."workspace_id" = billing_customer.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_customer.tenant, 'billing.read'), false))
 $$;
 
+-- The tenant's Stripe Accounts v2 account (acct_), when it is billed as one.
+create or replace function "better_supabase"."billing_account"(tenant uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select b."stripe_customer_account_id" from "better_supabase"."billing_customers" b
+  where b."workspace_id" = billing_account.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_account.tenant, 'billing.read'), false))
+$$;
+
+-- The tenant of a customer (cus_) or an account (acct_).
 create or replace function "better_supabase"."billing_customer_tenant"(customer text)
 returns uuid
 language sql
@@ -40,11 +60,14 @@ stable
 security definer
 set search_path = ''
 as $$
-  select b."workspace_id" from "better_supabase"."billing_customers" b where b."stripe_customer_id" = billing_customer_tenant.customer
+  select b."workspace_id" from "better_supabase"."billing_customers" b
+  where b."stripe_customer_id" = billing_customer_tenant.customer
+    or b."stripe_customer_account_id" = billing_customer_tenant.customer
 $$;
 
--- Links tenant to customer once. Returns the customer that is linked, which
--- is the earlier one when two checkouts raced.
+-- Links tenant to customer once, or records the customer Stripe created for
+-- the tenant's account. Returns the customer that is linked, which is the
+-- earlier one when two checkouts raced.
 create or replace function "better_supabase"."link_billing_customer"(tenant uuid, customer text)
 returns text
 language plpgsql
@@ -53,13 +76,35 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "better_supabase"."billing_customers" ("workspace_id", "stripe_customer_id")
+  insert into "better_supabase"."billing_customers" as b ("workspace_id", "stripe_customer_id")
   values (link_billing_customer.tenant, link_billing_customer.customer)
-  on conflict ("workspace_id") do nothing;
+  on conflict ("workspace_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"
+    where b."stripe_customer_id" is null;
   if found then
     null;
   end if;
   return (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."workspace_id" = link_billing_customer.tenant);
+end;
+$$;
+
+-- Links tenant to a Stripe Accounts v2 account once. Returns the account that
+-- is linked, which is the earlier one when two calls raced.
+create or replace function "better_supabase"."link_billing_account"(tenant uuid, account text)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  insert into "better_supabase"."billing_customers" as b ("workspace_id", "stripe_customer_account_id")
+  values (link_billing_account.tenant, link_billing_account.account)
+  on conflict ("workspace_id") do update set "stripe_customer_account_id" = excluded."stripe_customer_account_id"
+    where b."stripe_customer_account_id" is null;
+  if found then
+    null;
+  end if;
+  return (select b."stripe_customer_account_id" from "better_supabase"."billing_customers" b where b."workspace_id" = link_billing_account.tenant);
 end;
 $$;
 
@@ -531,7 +576,7 @@ begin
 end;
 $$;
 
--- For the billing page: { customer, seats, subscription }.
+-- For the billing page: { customer, account, seats, subscription }.
 create or replace function "better_supabase"."billing_status"(tenant uuid)
 returns jsonb
 language plpgsql
@@ -545,6 +590,7 @@ begin
   end if;
   return jsonb_build_object(
     'customer', (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."workspace_id" = billing_status.tenant),
+    'account', (select b."stripe_customer_account_id" from "better_supabase"."billing_customers" b where b."workspace_id" = billing_status.tenant),
     'seats', "better_supabase"."billing_seat_count"(tenant),
     'subscription', "better_supabase"."billing_subscription_item"(tenant)
   );
@@ -563,6 +609,8 @@ grant execute on function "better_supabase"."billing_payment_methods"(uuid) to a
 grant execute on function "better_supabase"."billing_customer_details"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."billing_tax_ids"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."billing_customer"(uuid) from public, anon;
+revoke execute on function "better_supabase"."billing_account"(uuid) from public, anon;
+revoke execute on function "better_supabase"."link_billing_account"(uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."billing_customer_tenant"(text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."link_billing_customer"(uuid, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."billing_seat_count"(uuid) from public, anon, authenticated;
@@ -576,6 +624,8 @@ grant execute on function "better_supabase"."billing_all_invoices"(text, integer
 grant execute on function "better_supabase"."billing_subscription"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."billing_all_subscriptions"(text, integer, bigint) to authenticated, service_role;
 grant execute on function "better_supabase"."billing_customer"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."billing_account"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."link_billing_account"(uuid, text) to service_role;
 grant execute on function "better_supabase"."billing_customer_tenant"(text) to service_role;
 grant execute on function "better_supabase"."link_billing_customer"(uuid, text) to service_role;
 grant execute on function "better_supabase"."billing_seat_count"(uuid) to service_role;
@@ -603,6 +653,6 @@ grant select on better_supabase.modules to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.modules (name, version, mode)
-values ('billing', 2, 'managed')
+values ('billing', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

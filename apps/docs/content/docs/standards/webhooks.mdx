@@ -82,6 +82,14 @@ const inbox = createWebhookInbox({
 });
 ```
 
+Stripe signs Connect events (snapshot events for a connected account, with
+`account` set) and the thin event notifications of event destinations (`object:
+"v2.core.event"`, with `related_object` and, for a connected account,
+`context`) with the same header, so `verifyStripeWebhook` and
+`stripeInboxVerify` take all of them and store the payload as it arrived. A
+thin notification has no `data.object`: fetch the full event with
+`stripe.v2.core.events.retrieve(id)` when you process it.
+
 `signStripeWebhook(secret, body)` builds the header for tests.
 
 ## Database webhooks

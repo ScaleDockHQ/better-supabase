@@ -5,9 +5,11 @@ import type {
 import type { Result } from "../../core/result.ts";
 import type { StripeClient } from "../stripe.ts";
 import type { BillingEvents } from "./events.ts";
+import type { BillingParty } from "./stripe-helpers.ts";
 import type {
   Billing,
   BillingOptions,
+  CustomerAccountOptions,
   CustomerDetails,
   PlatformListOptions,
   SeatSync,
@@ -37,6 +39,7 @@ import { lazyStripe } from "../stripe.ts";
 import {
   ORGANIZATION_KEY,
   SEAT_EVENT,
+  accountParams,
   checkoutParams,
   customerIdOf,
   isStripeEvent,
@@ -88,6 +91,83 @@ export function createBilling(options: BillingOptions): Billing {
       textOf,
     );
 
+  const missing = (what: string): Result<never> =>
+    err(
+      dbError("invalid_request", `The Stripe client has no ${what}`, {
+        hint: "BILLING_STRIPE_CLIENT",
+      }),
+    );
+
+  const accountMode =
+    options.customerAccounts !== undefined &&
+    options.customerAccounts !== false;
+
+  const accountOptions: CustomerAccountOptions =
+    typeof options.customerAccounts === "object"
+      ? options.customerAccounts
+      : {};
+
+  const account = (organizationId: string): AsyncResult<string | undefined> =>
+    call("billing_account", { tenant: organizationId }, optionalText);
+
+  const linkAccount = (
+    organizationId: string,
+    accountId: string,
+  ): AsyncResult<string> =>
+    call(
+      "link_billing_account",
+      { tenant: organizationId, account: accountId },
+      textOf,
+    );
+
+  const ensureAccount = (
+    organizationId: string,
+    details: CustomerDetails = {},
+  ): AsyncResult<string> =>
+    account(organizationId).andThen(async (existing) => {
+      if (existing !== undefined) {
+        return ok(existing);
+      }
+
+      const resolved = await stripeCall(async () =>
+        accountOptions.resolve?.(organizationId),
+      );
+
+      if (!resolved.ok) {
+        return resolved;
+      }
+
+      let accountId = resolved.data;
+
+      if (accountId === undefined) {
+        const created = await withStripe(async (client) =>
+          client.v2?.core.accounts.create(
+            accountParams(organizationId, details, accountOptions.params),
+            // Two first calls racing for one organization get one account.
+            { idempotencyKey: `account:${organizationId}` },
+          ),
+        );
+
+        if (!created.ok) {
+          return created;
+        }
+
+        if (created.data === undefined) {
+          return missing("v2.core.accounts");
+        }
+
+        accountId = created.data.id;
+      }
+
+      const linked = await linkAccount(organizationId, accountId);
+
+      if (linked.ok && linked.data === accountId) {
+        emit("billing.account_linked", { organizationId, accountId });
+      }
+
+      return linked;
+    });
+
   const ensureCustomer = (
     organizationId: string,
     details: CustomerDetails = {},
@@ -95,6 +175,20 @@ export function createBilling(options: BillingOptions): Billing {
     customer(organizationId).andThen(async (existing) => {
       if (existing !== undefined) {
         return ok(existing);
+      }
+
+      if (accountMode) {
+        const ensured = await ensureAccount(organizationId, details);
+
+        return ensured.ok
+          ? err(
+              dbError(
+                "not_found",
+                "Stripe creates the account's customer at its first checkout",
+                { hint: "BILLING_CUSTOMER_PENDING" },
+              ),
+            )
+          : ensured;
       }
 
       const created = await withStripe((client) =>
@@ -124,6 +218,54 @@ export function createBilling(options: BillingOptions): Billing {
 
       return linked;
     });
+
+  /**
+   * Whom Stripe bills for the tenant, without creating anyone: the account
+   * first with `customerAccounts`, the customer first without.
+   */
+  const partyOf = (
+    organizationId: string,
+  ): AsyncResult<BillingParty | undefined> =>
+    customer(organizationId).andThen(
+      async (customerId): Promise<Result<BillingParty | undefined>> => {
+        if (customerId !== undefined && !accountMode) {
+          return ok({ customer: customerId });
+        }
+
+        const accountId = await account(organizationId);
+
+        if (!accountId.ok) {
+          return accountId;
+        }
+
+        if (accountId.data !== undefined) {
+          return ok({ customer_account: accountId.data });
+        }
+
+        return ok(
+          customerId === undefined ? undefined : { customer: customerId },
+        );
+      },
+    );
+
+  const checkoutParty = (
+    organizationId: string,
+    details: CustomerDetails,
+  ): AsyncResult<BillingParty> =>
+    accountMode
+      ? partyOf(organizationId).andThen(async (found) =>
+          found === undefined
+            ? ensureAccount(organizationId, details).map(
+                (accountId): BillingParty => ({ customer_account: accountId }),
+              )
+            : ok(found),
+        )
+      : ensureCustomer(organizationId, details).map(
+          (customerId): BillingParty => ({ customer: customerId }),
+        );
+
+  const tenantOf = (id: string): AsyncResult<string | undefined> =>
+    call("billing_customer_tenant", { customer: id }, optionalText);
 
   const seats = (organizationId: string): AsyncResult<number> =>
     call("billing_seat_count", { tenant: organizationId }, (value) =>
@@ -218,10 +360,19 @@ export function createBilling(options: BillingOptions): Billing {
         event: undefined,
         organizationId: undefined,
         customerId: undefined,
+        accountId: undefined,
         invalidated: [],
       };
 
       if (!isStripeEvent(input)) {
+        return ok(ignored);
+      }
+
+      if (
+        options.connectEvents === "ignore" &&
+        typeof input.account === "string" &&
+        input.account !== ""
+      ) {
         return ok(ignored);
       }
 
@@ -232,24 +383,50 @@ export function createBilling(options: BillingOptions): Billing {
       }
 
       const customerId = customerIdOf(object["customer"]);
+      const accountId = customerIdOf(object["customer_account"]);
+      const unlinked = { ...ignored, customerId, accountId };
 
       if (input.type === "checkout.session.completed") {
         const organizationId =
           metadataTenant(object) ?? optionalText(object["client_reference_id"]);
 
-        if (organizationId === undefined || customerId === undefined) {
-          return ok({ ...ignored, customerId });
+        if (
+          organizationId === undefined ||
+          (customerId === undefined && accountId === undefined)
+        ) {
+          return ok(unlinked);
         }
 
-        const linked = await link(organizationId, customerId);
+        if (accountId !== undefined) {
+          const linked = await linkAccount(organizationId, accountId);
 
-        if (!linked.ok) {
-          return linked;
+          if (!linked.ok) {
+            return linked;
+          }
+
+          if (linked.data !== accountId) {
+            return ok(unlinked);
+          }
+        }
+
+        let linkedCustomer: string | undefined;
+
+        if (customerId !== undefined) {
+          const linked = await link(organizationId, customerId);
+
+          if (!linked.ok) {
+            return linked;
+          }
+
+          linkedCustomer = linked.data;
         }
 
         emit("billing.checkout_completed", {
           organizationId,
-          customerId: linked.data,
+          ...(linkedCustomer === undefined
+            ? {}
+            : { customerId: linkedCustomer }),
+          ...(accountId === undefined ? {} : { accountId }),
           stripeEventId: input.id,
           ...(typeof object["subscription"] === "string"
             ? { subscriptionId: object["subscription"] }
@@ -259,7 +436,8 @@ export function createBilling(options: BillingOptions): Billing {
         return ok({
           event: "billing.checkout_completed",
           organizationId,
-          customerId: linked.data,
+          customerId: linkedCustomer,
+          accountId,
           invalidated: [],
         });
       }
@@ -272,37 +450,91 @@ export function createBilling(options: BillingOptions): Billing {
         } as const
       )[input.type];
 
-      if (type === undefined || customerId === undefined) {
+      if (type === undefined) {
+        if (accountId === undefined || customerId === undefined) {
+          return ok(ignored);
+        }
+
+        const tenant = await tenantOf(accountId);
+
+        if (!tenant.ok) {
+          return tenant;
+        }
+
+        if (tenant.data !== undefined) {
+          const linked = await link(tenant.data, customerId);
+
+          if (!linked.ok) {
+            return linked;
+          }
+        }
+
+        return ok({ ...unlinked, organizationId: tenant.data });
+      }
+
+      if (customerId === undefined && accountId === undefined) {
         return ok(ignored);
       }
 
-      const tenant = await call(
-        "billing_customer_tenant",
-        { customer: customerId },
-        optionalText,
-      );
+      const tenant =
+        customerId === undefined ? ok(undefined) : await tenantOf(customerId);
 
       if (!tenant.ok) {
         return tenant;
       }
 
       let organizationId = tenant.data;
+
+      if (organizationId === undefined && accountId !== undefined) {
+        const byAccount = await tenantOf(accountId);
+
+        if (!byAccount.ok) {
+          return byAccount;
+        }
+
+        organizationId = byAccount.data;
+
+        if (organizationId !== undefined && customerId !== undefined) {
+          const linked = await link(organizationId, customerId);
+
+          if (!linked.ok) {
+            return linked;
+          }
+        }
+      }
+
       const claimed = metadataTenant(object);
 
       if (organizationId === undefined && claimed !== undefined) {
-        const linked = await link(claimed, customerId);
+        let matches = true;
 
-        if (!linked.ok) {
-          return linked;
+        if (accountId !== undefined) {
+          const linked = await linkAccount(claimed, accountId);
+
+          if (!linked.ok) {
+            return linked;
+          }
+
+          matches = linked.data === accountId;
         }
 
-        if (linked.data === customerId) {
+        if (matches && customerId !== undefined) {
+          const linked = await link(claimed, customerId);
+
+          if (!linked.ok) {
+            return linked;
+          }
+
+          matches = linked.data === customerId;
+        }
+
+        if (matches) {
           organizationId = claimed;
         }
       }
 
       if (organizationId === undefined) {
-        return ok({ ...ignored, customerId });
+        return ok(unlinked);
       }
 
       if (options.subscriptions === "webhook") {
@@ -319,7 +551,8 @@ export function createBilling(options: BillingOptions): Billing {
 
       emit(type, {
         organizationId,
-        customerId,
+        ...(customerId === undefined ? {} : { customerId }),
+        ...(accountId === undefined ? {} : { accountId }),
         subscriptionId: textOf(object["id"]),
         stripeEventId: input.id,
         ...(typeof object["status"] === "string"
@@ -331,6 +564,7 @@ export function createBilling(options: BillingOptions): Billing {
         event: type,
         organizationId,
         customerId,
+        accountId,
         invalidated: await invalidate(input),
       });
     });
@@ -405,13 +639,6 @@ export function createBilling(options: BillingOptions): Billing {
     );
   };
 
-  const missing = (what: string): Result<never> =>
-    err(
-      dbError("invalid_request", `The Stripe client has no ${what}`, {
-        hint: "BILLING_STRIPE_CLIENT",
-      }),
-    );
-
   const subscription = (
     organizationId: string,
   ): AsyncResult<SubscriptionItem> =>
@@ -485,7 +712,9 @@ export function createBilling(options: BillingOptions): Billing {
 
   const client: Billing = {
     customer,
+    account,
     ensureCustomer,
+    ensureAccount,
     changePlan: (organizationId, change) =>
       priceOf(change).andThen((price) =>
         subscription(organizationId).andThen(async (found) => {
@@ -660,66 +889,63 @@ export function createBilling(options: BillingOptions): Billing {
       checkoutBlock(organizationId)
         .andThen(() => priceOf(checkout))
         .andThen((price) =>
-          ensureCustomer(organizationId, checkout).andThen(
-            async (customerId) => {
-              const quantity =
-                checkout.quantity === "seats"
-                  ? await seats(organizationId)
-                  : ok(checkout.quantity ?? 1);
+          checkoutParty(organizationId, checkout).andThen(async (party) => {
+            const quantity =
+              checkout.quantity === "seats"
+                ? await seats(organizationId)
+                : ok(checkout.quantity ?? 1);
 
-              if (!quantity.ok) {
-                return quantity;
+            if (!quantity.ok) {
+              return quantity;
+            }
+
+            const lineItems = [{ price, quantity: quantity.data }];
+
+            for (const extra of checkout.items ?? []) {
+              const extraPrice = await priceOf(extra);
+
+              if (!extraPrice.ok) {
+                return extraPrice;
               }
 
-              const lineItems = [{ price, quantity: quantity.data }];
-
-              for (const extra of checkout.items ?? []) {
-                const extraPrice = await priceOf(extra);
-
-                if (!extraPrice.ok) {
-                  return extraPrice;
-                }
-
-                lineItems.push({
-                  price: extraPrice.data,
-                  quantity: extra.quantity ?? 1,
-                });
-              }
-
-              const mode = checkout.mode ?? "subscription";
-
-              return withStripe(async (client) => {
-                const params = checkoutParams(
-                  {
-                    customer: customerId,
-                    mode,
-                    client_reference_id: organizationId,
-                    line_items: lineItems,
-                    success_url: checkout.successUrl,
-                    ...(checkout.cancelUrl === undefined
-                      ? {}
-                      : { cancel_url: checkout.cancelUrl }),
-                  },
-                  checkout.params,
-                  organizationId,
-                  customerId,
-                );
-
-                const session = await client.checkout.sessions.create(
-                  params,
-                  checkout.idempotencyKey === undefined
-                    ? undefined
-                    : { idempotencyKey: checkout.idempotencyKey },
-                );
-
-                return { id: session.id, url: session.url ?? undefined };
+              lineItems.push({
+                price: extraPrice.data,
+                quantity: extra.quantity ?? 1,
               });
-            },
-          ),
+            }
+
+            const mode = checkout.mode ?? "subscription";
+
+            return withStripe(async (client) => {
+              const params = checkoutParams(
+                {
+                  mode,
+                  client_reference_id: organizationId,
+                  line_items: lineItems,
+                  success_url: checkout.successUrl,
+                  ...(checkout.cancelUrl === undefined
+                    ? {}
+                    : { cancel_url: checkout.cancelUrl }),
+                },
+                checkout.params,
+                organizationId,
+                party,
+              );
+
+              const session = await client.checkout.sessions.create(
+                params,
+                checkout.idempotencyKey === undefined
+                  ? undefined
+                  : { idempotencyKey: checkout.idempotencyKey },
+              );
+
+              return { id: session.id, url: session.url ?? undefined };
+            });
+          }),
         ),
     portal: (organizationId, portal) =>
-      customer(organizationId).andThen(async (customerId) => {
-        if (customerId === undefined) {
+      partyOf(organizationId).andThen(async (party) => {
+        if (party === undefined) {
           return err(
             dbError("not_found", "This tenant has no Stripe customer yet", {
               hint: "BILLING_NO_CUSTOMER",
@@ -729,7 +955,7 @@ export function createBilling(options: BillingOptions): Billing {
 
         return withStripe(async (client) => {
           const session = await client.billingPortal.sessions.create({
-            customer: customerId,
+            ...party,
             return_url: portal.returnUrl,
           });
 
@@ -742,6 +968,7 @@ export function createBilling(options: BillingOptions): Billing {
 
         return {
           customerId: optionalText(row["customer"]),
+          accountId: optionalText(row["account"]),
           seats: Number(row["seats"] ?? 0),
           subscription: subscriptionItemOf(row["subscription"]),
         };

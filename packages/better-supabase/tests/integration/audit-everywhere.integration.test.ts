@@ -35,6 +35,7 @@ const RECORDED = [
   "flag.saved",
   "flag.override_set",
   "flag.deleted",
+  "billing.account_linked",
   "billing.customer_linked",
   "credential.set",
   "credential.deleted",
@@ -107,6 +108,10 @@ async function actions(s: BlockSession): Promise<string> {
     organization,
   ]);
   await s.value("better_supabase.delete_flag($1)", [`beta-${suffix}`]);
+  await s.value("better_supabase.link_billing_account($1, $2)", [
+    organization,
+    `acct_${suffix}`,
+  ]);
   await s.value("better_supabase.link_billing_customer($1, $2)", [
     organization,
     `cus_${suffix}`,

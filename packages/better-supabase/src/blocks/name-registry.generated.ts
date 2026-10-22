@@ -230,10 +230,10 @@ export interface BlockNameRegistry {
   };
   readonly "billing": {
     readonly tables: {
-      readonly "customers": "tenant" | "customer" | "createdAt";
+      readonly "customers": "tenant" | "customer" | "account" | "createdAt";
       readonly "subscriptions": "tenant" | "subscription" | "status" | "price" | "plan" | "periodEnd" | "cancelAt" | "eventAt" | "updatedAt";
     };
-    readonly functions: "billing_all_customers" | "billing_all_invoices" | "billing_all_subscriptions" | "billing_customer" | "billing_customer_details" | "billing_customer_tenant" | "billing_invoices" | "billing_payment_methods" | "billing_plan_price" | "billing_platform_customers" | "billing_platform_invoices" | "billing_platform_subscriptions" | "billing_seat_count" | "billing_status" | "billing_stripe_rows" | "billing_subscription" | "billing_subscription_item" | "billing_tax_ids" | "billing_tenant_subscription" | "link_billing_customer";
+    readonly functions: "billing_account" | "billing_all_customers" | "billing_all_invoices" | "billing_all_subscriptions" | "billing_customer" | "billing_customer_details" | "billing_customer_tenant" | "billing_invoices" | "billing_payment_methods" | "billing_plan_price" | "billing_platform_customers" | "billing_platform_invoices" | "billing_platform_subscriptions" | "billing_seat_count" | "billing_status" | "billing_stripe_rows" | "billing_subscription" | "billing_subscription_item" | "billing_tax_ids" | "billing_tenant_subscription" | "link_billing_account" | "link_billing_customer";
     readonly actions: "read" | "manage" | "viewAll";
     readonly hooks: never;
     readonly entities: {};

@@ -63,6 +63,47 @@ export interface BillingOptions extends BlockTemporalOptions {
     readonly sql: SqlClient;
     readonly invalidate: (userId: string) => void;
   };
+  /**
+   * Bills tenants as Stripe Accounts v2 accounts with the `customer`
+   * configuration instead of v1 customers. `checkout` creates or reuses the
+   * tenant's account and passes it as `customer_account` to Checkout, as does
+   * `portal`. Stripe creates the account's linked customer at the first
+   * checkout, and `handleStripeEvent` records it. A tenant that already has a
+   * v1 customer keeps it. Needs `v2.core.accounts` on the Stripe client.
+   * Default `false`.
+   */
+  readonly customerAccounts?: boolean | CustomerAccountOptions;
+  /**
+   * `ignore` skips Connect events (those with `event.account`, sent for a
+   * connected account) in `handleStripeEvent`, for an endpoint or event
+   * destination that receives both platform and connected account events while
+   * the block bills on the platform. Default `handle`.
+   */
+  readonly connectEvents?: "handle" | "ignore";
+}
+
+/** `customerAccounts` in `createBilling`. */
+export interface CustomerAccountOptions {
+  /**
+   * The tenant's existing Accounts v2 account, such as the connected account it
+   * already sells through, or `undefined` to create one. The account needs the
+   * `customer` configuration before Stripe bills it.
+   */
+  readonly resolve?: (
+    tenant: string,
+  ) => string | undefined | Promise<string | undefined>;
+  /**
+   * More `v2.core.accounts.create` parameters, merged deeply over the block's
+   * (`contact_email`, `display_name`, `configuration.customer` and the tenant
+   * in `metadata.organization_id`), or a function of the tenant and the details
+   * that returns them.
+   */
+  readonly params?:
+    | Readonly<Record<string, unknown>>
+    | ((
+        tenant: string,
+        details: CustomerDetails,
+      ) => Readonly<Record<string, unknown>>);
 }
 
 export interface CustomerDetails {
@@ -122,6 +163,8 @@ export interface SubscriptionItem {
 
 export interface BillingStatus {
   readonly customerId: string | undefined;
+  /** The tenant's Accounts v2 account, when it is billed as one. */
+  readonly accountId: string | undefined;
   readonly seats: number;
   readonly subscription: SubscriptionItem | undefined;
 }
@@ -137,6 +180,8 @@ export interface SeatSync {
 export interface StripeEvent {
   readonly id: string;
   readonly type: string;
+  /** The connected account a Connect event happened on. */
+  readonly account?: string | null;
   /** Unix seconds; orders subscription events in webhook mode. */
   readonly created?: number;
   readonly data: { readonly object: unknown };
@@ -147,6 +192,8 @@ export interface StripeEventOutcome {
   readonly event: BlockEventType<BillingEvents> | undefined;
   readonly organizationId: string | undefined;
   readonly customerId: string | undefined;
+  /** The event object's `customer_account`, for a tenant billed as an account. */
+  readonly accountId: string | undefined;
   /** Members whose sessions were invalidated. */
   readonly invalidated: readonly string[];
 }
@@ -213,10 +260,27 @@ export interface Billing {
   /** The tenant's Stripe customer, or `undefined` before the first checkout. */
   customer(organizationId: string): AsyncResult<string | undefined>;
   /**
+   * The tenant's Stripe Accounts v2 account (`acct_`), or `undefined` when it
+   * is not billed as one.
+   */
+  account(organizationId: string): AsyncResult<string | undefined>;
+  /**
    * The tenant's customer, created in Stripe (with the tenant in `metadata`)
-   * when there is none.
+   * when there is none. With `customerAccounts`, a tenant without a customer
+   * gets its account instead, and this fails with `not_found`
+   * (`BILLING_CUSTOMER_PENDING`) until Stripe creates the account's customer at
+   * the first checkout.
    */
   ensureCustomer(
+    organizationId: string,
+    details?: CustomerDetails,
+  ): AsyncResult<string>;
+  /**
+   * The tenant's Accounts v2 account: the linked one, the one
+   * `customerAccounts.resolve` returns, or a new one with the `customer`
+   * configuration (and the tenant in `metadata`), which it links.
+   */
+  ensureAccount(
     organizationId: string,
     details?: CustomerDetails,
   ): AsyncResult<string>;
@@ -224,7 +288,11 @@ export interface Billing {
     organizationId: string,
     options: CheckoutOptions,
   ): AsyncResult<{ readonly id: string; readonly url: string | undefined }>;
-  /** A customer portal session; `not_found` before the tenant has a customer. */
+  /**
+   * A customer portal session, for the tenant's account with
+   * `customerAccounts`; `not_found` before the tenant has a customer or an
+   * account.
+   */
   portal(
     organizationId: string,
     options: { readonly returnUrl: string },
@@ -342,8 +410,9 @@ export interface Billing {
   ): AsyncResult<string>;
   /**
    * Handles `checkout.session.completed` and `customer.subscription.*`: links
-   * the customer, emits `billing.*` events and invalidates sessions. Other
-   * events are ignored. Call it from `inbox.process`.
+   * the customer, emits `billing.*` events and invalidates sessions. Any other
+   * event with a `customer_account` of a linked tenant records the account's
+   * customer; other events are ignored. Call it from `inbox.process`.
    */
   handleStripeEvent(event: unknown): AsyncResult<StripeEventOutcome>;
 }
