@@ -4662,7 +4662,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         customers: 0,
         notes: [],
         organization: null,
-        busiest: null,
+        busiest: [],
       });
     } finally {
       await pool.query(`drop function if exists public.rs_block_${RUN}(jsonb)`);
