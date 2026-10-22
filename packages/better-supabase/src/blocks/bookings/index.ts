@@ -20,6 +20,18 @@ export {
 } from "./bookings.ts";
 
 export {
+  bookingSeriesOf,
+  formatRecurrence,
+  parseRecurrence,
+  type BookedSeries,
+  type BookingRecurrence,
+  type BookingSeries,
+  type BookingSeriesScope,
+  type BookingSeriesStatus,
+  type BookingWeekday,
+} from "./series.ts";
+
+export {
   slotsByDay,
   toEventCalendarBookings,
   type BookingEventOptions,

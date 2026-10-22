@@ -220,7 +220,8 @@ export interface BlockNameRegistry {
       readonly "availability": "id" | "tenant" | "resource" | "weekday" | "startsAt" | "endsAt";
       readonly "exceptions": "id" | "tenant" | "resource" | "during" | "available" | "reason";
       readonly "services": "id" | "tenant" | "name" | "duration" | "bufferBefore" | "bufferAfter" | "resourceKinds" | "step" | "minNotice" | "holdFor" | "reminderOffsets" | "active" | "createdAt";
-      readonly "bookings": "id" | "tenant" | "resource" | "service" | "seat" | "during" | "blocked" | "status" | "holdExpiresAt" | "customerName" | "customerEmail" | "customerUser" | "notes" | "accessHash" | "calendarEvent" | "createdBy" | "createdAt" | "updatedAt" | "cancelledAt" | "cancelReason";
+      readonly "bookings": "id" | "tenant" | "resource" | "service" | "seat" | "during" | "blocked" | "status" | "holdExpiresAt" | "customerName" | "customerEmail" | "customerUser" | "notes" | "accessHash" | "calendarEvent" | "createdBy" | "createdAt" | "updatedAt" | "cancelledAt" | "cancelReason" | "series";
+      readonly "series": "id" | "tenant" | "service" | "resource" | "rule" | "startsAt" | "tz" | "customerName" | "customerEmail" | "customerUser" | "status" | "endsAt" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_booking_exception" | "available_slots" | "booking_slots" | "cancel_booking" | "change_booking" | "confirm_booking" | "delete_booking_exception" | "expire_booking_holds" | "expire_booking_holds_in" | "hold_booking" | "list_bookings" | "place_booking" | "save_booking_resource" | "save_booking_service" | "set_booking_availability";
     readonly actions: "manage" | "create" | "read";
@@ -795,9 +796,12 @@ export interface BlockNameRegistry {
       readonly "returns": "id" | "tenant" | "order" | "status" | "reason" | "requestedBy" | "createdAt" | "receivedAt";
       readonly "returnLines": "tenant" | "return" | "line" | "quantity";
       readonly "refunds": "id" | "tenant" | "order" | "payment" | "return" | "amount" | "currency" | "status" | "reason" | "providerReference" | "createdAt" | "completedAt";
+      readonly "kitchenStations": "id" | "tenant" | "key" | "name" | "position" | "isDefault" | "active" | "createdAt" | "updatedAt";
+      readonly "kitchenRoutes": "product" | "tenant" | "station";
+      readonly "preparations": "line" | "tenant" | "order" | "station" | "state" | "note" | "queuedAt" | "startedAt" | "readyAt" | "servedAt" | "updatedAt" | "updatedBy";
     };
     readonly functions: "add_to_cart" | "cancel_fulfillment" | "cancel_order" | "cart_totals" | "complete_refund" | "create_cart" | "create_fulfillment" | "create_refund" | "delete_shipping_rate" | "deliver_fulfillment" | "expire_orders" | "get_order" | "merge_carts" | "order_cancel" | "order_json" | "order_transition" | "place_order" | "price_cart" | "receive_return" | "record_payment" | "reject_return" | "request_return" | "save_shipping_rate" | "set_cart_details" | "set_cart_line" | "set_cart_shipping_rate" | "set_order_tax_transaction" | "ship_fulfillment" | "shipping_options";
-    readonly actions: "manage" | "read";
+    readonly actions: "manage" | "read" | "prepare";
     readonly hooks: "before_order_place" | "after_order_place" | "before_fulfillment_create" | "after_fulfillment_create" | "before_refund_create" | "after_refund_create";
     readonly entities: {};
     readonly primary: never;
@@ -844,6 +848,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
       readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
+      readonly "credits": "id" | "tenant" | "pass" | "booking" | "delta" | "reason" | "createdBy" | "createdAt";
     };
     readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
     readonly actions: "read" | "manage" | "checkIn";

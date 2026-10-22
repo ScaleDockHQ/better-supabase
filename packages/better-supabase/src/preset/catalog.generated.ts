@@ -3567,7 +3567,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "booking.reserved",
           "booking.confirmed",
           "booking.cancelled",
-          "booking.expired"
+          "booking.expired",
+          "booking.rescheduled"
         ]
       }
     },
@@ -5593,7 +5594,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pass.issued",
           "pass.revoked",
           "pass.admitted",
-          "pass.rejected"
+          "pass.rejected",
+          "pass.credit_used",
+          "pass.credit_refunded"
         ]
       }
     },
@@ -6707,7 +6710,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fulfillment.shipped",
           "fulfillment.delivered",
           "return.requested",
-          "return.received"
+          "return.received",
+          "order.prepared",
+          "order.served"
         ]
       }
     },

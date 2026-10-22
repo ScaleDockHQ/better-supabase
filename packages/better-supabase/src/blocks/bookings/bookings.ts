@@ -4,6 +4,12 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../jobs/types.ts";
+import type {
+  BookedSeries,
+  BookingRecurrence,
+  BookingSeries,
+  BookingSeriesScope,
+} from "./series.ts";
 
 import {
   allWithFields,
@@ -25,6 +31,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { bookingSeriesOf, recurrenceItem } from "./series.ts";
 
 export interface BookingsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -153,6 +160,8 @@ export interface Booking {
   readonly createdAt?: Temporal.Instant;
   readonly cancelledAt?: Temporal.Instant;
   readonly cancelReason?: string;
+  /** The series it belongs to (`options.recurring`). */
+  readonly seriesId?: string;
 }
 
 /**
@@ -225,6 +234,41 @@ export interface Bookings<F extends object = Record<never, never>> {
   ): AsyncResult<(Booking & F)[]>;
   /** Cancels every hold whose time is up. Service only. */
   expireHolds(): AsyncResult<number>;
+  /**
+   * Books every occurrence of a rule from `startsAt`, confirmed, as one series
+   * (`options.recurring`). A taken occurrence fails the whole series with
+   * `BOOKING_SERIES_CONFLICT`, unless `skipConflicts` leaves it out.
+   */
+  bookSeries(
+    serviceId: string,
+    resourceId: string,
+    startsAt: Temporal.Instant,
+    rule: BookingRecurrence,
+    customer?: BookingCustomer & Partial<F>,
+    options?: { readonly skipConflicts?: boolean },
+  ): AsyncResult<BookedSeries<Booking & F>>;
+  /**
+   * Moves a booking to `startsAt`, or with `scope: "following"` this one and
+   * every later occurrence of its series by the same amount, all or nothing.
+   * Resolves to the moved bookings.
+   */
+  reschedule(
+    bookingId: string,
+    startsAt: Temporal.Instant,
+    options?: { readonly scope?: BookingSeriesScope },
+  ): AsyncResult<(Booking & F)[]>;
+  /**
+   * Cancels this occurrence and, by default, every later one of its series.
+   * Resolves to the number of bookings cancelled.
+   */
+  cancelSeries(
+    bookingId: string,
+    options?: { readonly scope?: BookingSeriesScope; readonly reason?: string },
+  ): AsyncResult<number>;
+  /** A series with its occurrences, as the caller's policies allow. */
+  series(
+    seriesId: string,
+  ): AsyncResult<BookingSeries & { readonly bookings: (Booking & F)[] }>;
   /** The handler for the `bookings.expire-holds` queue. */
   readonly job: JobHandler<unknown>;
   /**
@@ -285,6 +329,7 @@ export function bookingOf(value: unknown): Booking {
     ...instant("createdAt"),
     ...instant("cancelledAt"),
     ...text("cancelReason"),
+    ...text("seriesId"),
   };
 }
 
@@ -384,6 +429,14 @@ export function createBookings<
   const expireHolds: Bookings["expireHolds"] = () =>
     service("expire_booking_holds", {}, Number);
 
+  const many = (value: unknown, what: string): AsyncResult<(Booking & F)[]> =>
+    AsyncResult.from(() =>
+      allWithFields(
+        fields,
+        recordsOf(value, what).map((raw) => [raw, bookingOf(raw)] as const),
+      ),
+    );
+
   const change = (bookingId: string, accessToken: string, to: BookingStatus) =>
     one("public_change_booking", {
       booking: bookingId,
@@ -469,6 +522,65 @@ export function createBookings<
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
     expireHolds,
+    bookSeries: (
+      serviceId,
+      resourceId,
+      startsAt,
+      rule,
+      customer,
+      seriesOptions,
+    ) =>
+      customerOf(customer).andThen((item) =>
+        call(
+          "book_series",
+          {
+            service: serviceId,
+            resource: resourceId,
+            starts_at: String(startsAt),
+            rule: recurrenceItem(rule),
+            customer: item,
+            skip_conflicts: seriesOptions?.skipConflicts ?? false,
+          },
+          (value) => recordOf(value, "booked series"),
+        ).andThen((row) =>
+          many(row["bookings"], "bookings").map((bookings) => ({
+            series: bookingSeriesOf(row["series"]),
+            bookings,
+            skipped: (Array.isArray(row["skipped"]) ? row["skipped"] : []).map(
+              (at) => requiredInstant(at, "skipped"),
+            ),
+          })),
+        ),
+      ),
+    reschedule: (bookingId, startsAt, moveOptions) =>
+      call(
+        "reschedule_booking",
+        {
+          booking: bookingId,
+          starts_at: String(startsAt),
+          scope: moveOptions?.scope ?? "one",
+        },
+        (value) => value,
+      ).andThen((value) => many(value, "bookings")),
+    cancelSeries: (bookingId, cancelOptions) =>
+      call(
+        "cancel_booking_series",
+        {
+          booking: bookingId,
+          scope: cancelOptions?.scope ?? "following",
+          reason: cancelOptions?.reason ?? null,
+        },
+        Number,
+      ),
+    series: (seriesId) =>
+      call("get_booking_series", { series_id: seriesId }, (value) =>
+        recordOf(value, "booking series"),
+      ).andThen((row) =>
+        many(row["bookings"], "bookings").map((bookings) => ({
+          ...bookingSeriesOf(row),
+          bookings,
+        })),
+      ),
     job: async () => {
       await expireHolds().orThrow();
     },
