@@ -509,6 +509,80 @@ const bs = 1;
     expect(applyCodemod(v015, source).text).toBe(source);
   });
 
+  it("renames block subpaths and the exports named after a block", () => {
+    const source = `import { createWorkItems, workItemsBlock } from "better-supabase/blocks/work-items";
+import { useAccess } from "better-supabase/blocks/access/react";
+import { createRules as rules } from "better-supabase/blocks/rules";
+
+const items = createWorkItems(db);
+`;
+
+    expect(applyCodemod(v015, source).text)
+      .toBe(`import { createTasks, tasksBlock } from "better-supabase/blocks/tasks";
+import { useAccess } from "better-supabase/blocks/permissions/react";
+import { createAutomations as rules } from "better-supabase/blocks/automations";
+
+const items = createTasks(db);
+`);
+  });
+
+  it("renames blocks, preset blocks and operations in the config", () => {
+    const source = `import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  preset: { blocks: ["work-items", "audit"] },
+  blocks: {
+    "work-items": { ownership: "owned" },
+    rules: true,
+  },
+  auth: {
+    authorization: { operations: { "flags.manage": "owner", "audit.read": "admin" } },
+  },
+});
+`;
+
+    expect(applyCodemod(v015, source, "/app/better-supabase.config.ts").text)
+      .toBe(`import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  preset: { blocks: ["tasks", "audit"] },
+  blocks: {
+    "tasks": { ownership: "owned" },
+    automations: true,
+  },
+  auth: {
+    authorization: { operations: { "feature-flags.manage": "owner", "audit.read": "admin" } },
+  },
+});
+`);
+  });
+
+  it("renames block names in a JSON config", () => {
+    const source = `${JSON.stringify({ blocks: ["jobs", "audit"], preset: { blocks: ["access"] } }, null, 2)}\n`;
+
+    const { text } = applyCodemod(
+      v015,
+      source,
+      "/app/better-supabase.config.json",
+    );
+
+    expect(JSON.parse(text)).toEqual({
+      blocks: ["queue", "audit"],
+      preset: { blocks: ["permissions"] },
+    });
+  });
+
+  it("lists event source filters for review", () => {
+    const { review } = applyCodemod(
+      v015,
+      `if (event.source === "better-supabase/work-items") {}\n`,
+    );
+
+    expect(review.map((line) => line.message)).toEqual([
+      expect.stringContaining("Event sources"),
+    ]);
+  });
+
   it("lists cache tags and the debug route for review", () => {
     const { review } = applyCodemod(
       v015,

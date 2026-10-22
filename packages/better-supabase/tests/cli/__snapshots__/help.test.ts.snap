@@ -23,9 +23,9 @@ Options
   --tables <schema.table,...>               The existing tables, as table or schema.table; the block's other tables are looked up by their default names
   --casing <snake|camel>                    Row keys: snake keeps the database's names (the default), camel renames them in the query
   --scope <tenant|user|none>                Row ownership (database.sql.owner): tenant (the default), user or none for one shared space
-  --tenant-name <name>                      What a tenant is called (blocks.tenant.names.organization): organization (the default), workspace, team or another lowercase name
-  --access <roles|catalog|provider|custom>  Auth and permissions (blocks.access.model): roles (the default), catalog, provider or custom
-  --id-type <uuid|text|bigint|integer>      The type of the access block's ids (blocks.access.idType): uuid (the default), text, bigint or integer
+  --tenant-name <name>                      What a tenant is called (blocks.memberships.names.organization): organization (the default), workspace, team or another lowercase name
+  --access <roles|catalog|provider|custom>  Auth and permissions (blocks.permissions.model): roles (the default), catalog, provider or custom
+  --id-type <uuid|text|bigint|integer>      The type of the permissions block's ids (blocks.permissions.idType): uuid (the default), text, bigint or integer
   --api <none|api>                          API schema (database.sql.api): none (the default) or api for security invoker wrappers in an api schema
   --snapshot <file>                         Read a saved snapshot instead of the database
   --db-url-stdin                            Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
@@ -318,7 +318,7 @@ Docs: https://bettersupabase.com/docs/cli/codemod
 exports[`help > documents codemod 0.15 1`] = `
 "Usage: better-supabase codemod 0.15 [options] [path...]
 
-Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, and CLI calls use the new commands
+Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands
 
 Arguments
   [path...]  Files or directories to rewrite (default: the project)
@@ -355,7 +355,7 @@ Commands
   0.6   Changes from 0.5 to 0.6: kits become blocks and modules
   0.9   Changes from 0.8 to 0.9: sql.modules becomes blocks, and CLI calls use the new subcommands and flags
   0.11  Changes from 0.10 to 0.11: adopted outgoing webhooks get an explicit defaultFormat
-  0.15  Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, and CLI calls use the new commands
+  0.15  Changes from 0.14 to 0.15: the runtime instance bs becomes bsb, exports take their block, record and provider names, the config regroups, renamed blocks take their 0.15 names, and CLI calls use the new commands
 
 Global options
   --cwd <dir>            Project directory
@@ -847,9 +847,9 @@ Writes better-supabase.config.ts, src/lib/supabase/index.ts and glue for the fra
 Options
   --casing <snake|camel>                    Row keys: snake keeps the database's names (the default), camel renames them in the query
   --scope <tenant|user|none>                Row ownership (database.sql.owner): tenant (the default), user or none for one shared space
-  --tenant-name <name>                      What a tenant is called (blocks.tenant.names.organization): organization (the default), workspace, team or another lowercase name
-  --access <roles|catalog|provider|custom>  Auth and permissions (blocks.access.model): roles (the default), catalog, provider or custom
-  --id-type <uuid|text|bigint|integer>      The type of the access block's ids (blocks.access.idType): uuid (the default), text, bigint or integer
+  --tenant-name <name>                      What a tenant is called (blocks.memberships.names.organization): organization (the default), workspace, team or another lowercase name
+  --access <roles|catalog|provider|custom>  Auth and permissions (blocks.permissions.model): roles (the default), catalog, provider or custom
+  --id-type <uuid|text|bigint|integer>      The type of the permissions block's ids (blocks.permissions.idType): uuid (the default), text, bigint or integer
   --api <none|api>                          API schema (database.sql.api): none (the default) or api for security invoker wrappers in an api schema
   --integration <integration,...>           Integrations to add next to the detected ones: next, hono, orpc, edge, expo, mcp, client, react
   --package <dir>                           Workspace package to write to, relative to --cwd

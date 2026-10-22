@@ -10,6 +10,11 @@ import type { ConfigEdit } from "./sql/config-edit.ts";
 import { BLOCK_EVENT_RENAMES } from "../events/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import {
+  BLOCK_EXPORT_RENAMES,
+  BLOCK_SUBPATH_RENAMES,
+  renameSubpaths,
+} from "./codemod-block-renames.ts";
+import {
   CLI_CALL_FILE,
   cliCallHints,
   rewriteCliCalls,
@@ -22,6 +27,7 @@ import {
   thenConvertPresetCode,
 } from "./codemod-preset-code.ts";
 import { migrateCliCall } from "./core/moved.ts";
+import { withBlockNames } from "./sql/config-block-names.ts";
 import { mask } from "./sql/config-edit.ts";
 import { groupConfigJson, groupConfigSource } from "./sql/config-group.ts";
 import {
@@ -45,6 +51,8 @@ export interface Codemod {
    * import is used.
    */
   readonly imports?: Readonly<Record<string, string>>;
+  /** `better-supabase/<subpath>` import specifiers, renamed. */
+  readonly subpaths?: Readonly<Record<string, string>>;
   /**
    * Local bindings, renamed where a file declares or imports them and imports
    * from `better-supabase` or a `supabase` module.
@@ -454,7 +462,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.15": {
     name: "0.15",
     description:
-      "Regroups better-supabase.config.* into database, auth, gen, api and tooling (subjects to records, appTables to tables, integrations to adapters, a block's mode, scope, entities and hooks to ownership, owner, names and callbacks, claims.tenant and the tenant plugin's column to auth.organization); renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; rewrites CLI calls in package.json scripts and GitHub workflows to the 0.15 commands (apply and adopt to add, sql sync and sql upgrade to upgrade, introspect to gen --save-snapshot, seed to db seed, env, run, keys and stack to dev); turns a 0.14 preset code in the config's preset into the preset name or object it holds, and a 0.14 design file into a design with its preset inside; cache tags, query keys and the debug header and route that start with bs are listed for review",
+      "Regroups better-supabase.config.* into database, auth, gen, api and tooling (subjects to records, appTables to tables, integrations to adapters, a block's mode, scope, entities and hooks to ownership, owner, names and callbacks, claims.tenant and the tenant plugin's column to auth.organization); renames the runtime instance bs to bsb (the CLI's short name) where a file creates, imports or destructures it, and the bs key on request contexts (ctx.bs, c.var.bs, locals.bs, context.bs) to bsb; renames imports: SqlModule to BlockSql, ModuleDefinition to BlockSqlDefinition and the other Module* SQL types to BlockSql*, SubjectRef to RecordRef, entityForm to recordForm, ShipmentCarrier to ShippingProvider, QueueBackend to QueueProvider; rewrites CLI calls in package.json scripts and GitHub workflows to the 0.15 commands (apply and adopt to add, sql sync and sql upgrade to upgrade, introspect to gen --save-snapshot, seed to db seed, env, run, keys and stack to dev); renames the blocks 0.15 renamed (work-items to tasks, parties to contacts, engagements to activities, access to permissions, rules to automations, jobs to queue, flags to feature-flags, activity to timeline and the rest of the 0.14 to 0.15 guide's table) in the config's blocks and preset.blocks, in operation names under auth.authorization.operations, in better-supabase/blocks/<name> imports and in the exports named after them; turns a 0.14 preset code in the config's preset into the preset name or object it holds, and a 0.14 design file into a design with its preset inside; cache tags, query keys and the debug header and route that start with bs are listed for review",
     bindings: {
       bs: "bsb",
       SqlModule: "BlockSql",
@@ -484,10 +492,15 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       TransportQueueBackendOptions: "TransportQueueProviderOptions",
       VercelQueueBackendOptions: "VercelQueueProviderOptions",
     },
+    imports: BLOCK_EXPORT_RENAMES,
+    subpaths: BLOCK_SUBPATH_RENAMES,
     members: [{ from: "bs", to: "bsb" }],
     configFile: (source, json) =>
       thenConvertPresetCode(
-        json ? groupConfigJson(source) : groupConfigSource(source),
+        withBlockNames(
+          json ? groupConfigJson(source) : groupConfigSource(source),
+          json,
+        ),
         json,
       ),
     designFile: convertDesignFile,
@@ -506,6 +519,12 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       {
         pattern: /["'`]bs:t:/,
         message: "Realtime change topics are `bsb:t:<schema>.<table>`",
+      },
+      {
+        pattern:
+          /["'`]better-supabase\/(?:work-items|parties|engagements|targets|number-sequences|actor|ensure-rls|grants|shared-signals|service-principals|support-sessions|bulk|controls|passes|ai-tasks|ai-providers|workflow-builder|jobs|flags|access|rules|identities|sessions|tenant|activity|workflow-sdk-world)[./"'`]/,
+        message:
+          "Event sources are `better-supabase/<block>` under the 0.15 block name (`better-supabase/tasks`, not `better-supabase/work-items`); update CloudEvent source filters",
       },
     ],
   },
@@ -1106,6 +1125,10 @@ export function applyCodemod(
     if (json) {
       return { text, review: refused };
     }
+  }
+
+  if (codemod.subpaths) {
+    text = renameSubpaths(text, codemod.subpaths);
   }
 
   if (codemod.imports) {

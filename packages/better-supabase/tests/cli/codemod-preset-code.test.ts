@@ -9,6 +9,7 @@ import {
 } from "../../src/cli/codemod-preset-code.ts";
 import { applyCodemod, CODEMODS } from "../../src/cli/codemod.ts";
 import { presetOf } from "../../src/preset/index.ts";
+import { currentBlockName } from "../../src/sql/index.ts";
 import fixture from "./fixtures/preset-codes-0.14.json" with { type: "json" };
 
 const codemod = CODEMODS["0.15"]!;
@@ -23,7 +24,9 @@ describe("decodeLegacyPresetCode", () => {
     const { blocks: expected, ...expectedFields } = preset;
 
     expect(fields).toEqual(expectedFields);
-    expect(sorted(blocks as readonly string[])).toEqual(sorted(expected));
+    expect(sorted(blocks as readonly string[])).toEqual(
+      sorted(expected.map(currentBlockName)),
+    );
   });
 
   it("doesn't take a preset name or a design code for a code", () => {
@@ -45,7 +48,9 @@ describe("convertConfigPresetCode", () => {
 
       const written = edit.ok ? JSON.parse(edit.text).preset : undefined;
 
-      expect(sorted(presetOf(written).blocks)).toEqual(sorted(preset.blocks));
+      expect(sorted(presetOf(written).blocks)).toEqual(
+        sorted(preset.blocks.map(currentBlockName)),
+      );
       expect(presetOf(written).framework).toBe(preset.framework);
     },
   );
