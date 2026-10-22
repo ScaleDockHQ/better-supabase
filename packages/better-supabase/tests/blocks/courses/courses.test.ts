@@ -135,7 +135,6 @@ describe("createCourses", () => {
       .save({
         key: "security-basics",
         title: "Security basics",
-        summary: undefined,
         fields: { level: "intro" },
       })
       .orThrow();

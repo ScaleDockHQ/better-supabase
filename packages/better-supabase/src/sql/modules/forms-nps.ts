@@ -6,7 +6,7 @@ import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
 
 /** The periods `form_nps` groups answers by, in UTC. */
-export const NPS_BUCKETS = ["day", "week", "month", "quarter", "year"] as const;
+const NPS_BUCKETS = ["day", "week", "month", "quarter", "year"] as const;
 
 /**
  * The NPS counts of the `answer` column of `alias` as a jsonb object:

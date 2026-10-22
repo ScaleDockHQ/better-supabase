@@ -34,6 +34,7 @@ import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { GuestsEvents } from "better-supabase/blocks/guests";
 import type { PassesEvents } from "better-supabase/blocks/passes";
 import type { BillableTimeEvents } from "better-supabase/blocks/billable-time";
+import type { CoursesEvents } from "better-supabase/blocks/courses";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { EngagementsEvents } from "better-supabase/blocks/engagements";
@@ -1060,7 +1061,7 @@ export type PermissionKey = "access_requests.create" | "access_requests.manage" 
 export type RoleName = "admin" | "member" | "owner";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & CommentsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiProvidersEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & CommentsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & CoursesEvents & DriveEvents & EmployeesEvents & EngagementsEvents & FlagsEvents & FormsEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & PartiesEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & RulesEvents & SavedViewsEvents & ServicePrincipalsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & WorkflowBuilderEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -1133,6 +1134,14 @@ export const blockEvents: Events<BlockEvents> = {
     "connector.saved",
     "connector_grant.created",
     "connector_grant.revoked",
+    "course.completed",
+    "course.deleted",
+    "course.enrolled",
+    "course.saved",
+    "course.unenrolled",
+    "course_certificate.issued",
+    "course_certificate.revoked",
+    "course_lesson.completed",
     "custom_field.deleted",
     "custom_field.saved",
     "data_export.completed",
@@ -1458,6 +1467,14 @@ export const blockEventSchemas = {
   "connector.saved": true,
   "connector_grant.created": true,
   "connector_grant.revoked": true,
+  "course.completed": true,
+  "course.deleted": true,
+  "course.enrolled": true,
+  "course.saved": true,
+  "course.unenrolled": true,
+  "course_certificate.issued": true,
+  "course_certificate.revoked": true,
+  "course_lesson.completed": true,
   "custom_field.deleted": true,
   "custom_field.saved": true,
   "data_export.completed": true,
