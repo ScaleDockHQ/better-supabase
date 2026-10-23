@@ -25,7 +25,8 @@ the deal team. Add your own deal columns with `blocks.deals.options.extraColumns
 
 The `crm` preset brings the SaaS blocks (organizations, notifications, the
 outbox, ...) plus parties, pipelines, deals, quotes, targets, engagements,
-tags, comments, an activity feed, custom fields, saved views and search. The
+tags, comments, an activity feed, custom fields, saved views and search, and
+the sales engagement blocks below. The
 deals block registers `deal` as a subject, so the config names no
 `subjects.deal`; set the deal page on the block's entity and add `reminders`
 for follow-ups:
@@ -65,6 +66,26 @@ const deal = await deals
 
 The first pipeline of a type becomes its default. The deal's owner (the
 caller, unless you pass `ownerId`) watches it.
+
+## Leads and outreach
+
+A lead is a person in [contacts](/docs/blocks/contacts) with the `lead`
+lifecycle, not a table of its own, so a lead that buys stays the same row.
+The preset adds the blocks that find, rank and work those leads:
+
+| Block                                     | Role in the app                                                   |
+| ----------------------------------------- | ----------------------------------------------------------------- |
+| [mail-sync](/docs/blocks/mail-sync)       | Each rep's mailbox, synced into engagements on the contact        |
+| [sequences](/docs/blocks/sequences)       | Email steps a lead is enrolled in, sent through the mailbox       |
+| [segments](/docs/blocks/segments)         | Saved rules such as "leads in the Netherlands with no owner"      |
+| [assignment](/docs/blocks/assignment)     | Queues that hand new leads to reps by turn, weight or territory   |
+| [enrichment](/docs/blocks/enrichment)     | Company and person details from a provider, filling empty fields  |
+| [lead-scoring](/docs/blocks/lead-scoring) | A score per lead from its fields and activity, rescored on change |
+| [forecasts](/docs/blocks/forecasts)       | Forecast snapshots of the open deals per period and rep           |
+
+Mail sync and enrichment call a provider you pass at runtime (a
+`MailProvider` and an enrichment provider over `fetch`); the database side
+installs without one.
 
 ## Event flow
 

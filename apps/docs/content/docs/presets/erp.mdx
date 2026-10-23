@@ -1,0 +1,64 @@
+---
+title: ERP
+description: The erp preset installs parties, a catalog, stock by location, quotes priced from the catalog, orders that invoice when paid, employees with time and leave, and expenses.
+---
+
+The `erp` preset is for a small ERP in the style of Odoo or NetSuite: sell
+from a catalog, keep stock per location, quote and invoice customers, and
+track the people who do the work.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "erp" });
+```
+
+`npx better-supabase init --preset erp` starts a new project from it, and
+`npx better-supabase add --preset erp` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                       | Role in the app                                      |
+| ------------------------------------------- | ---------------------------------------------------- |
+| [contacts](/docs/blocks/contacts)           | Customers and suppliers                              |
+| [catalog](/docs/blocks/catalog)             | Products, variants and price lists                   |
+| [inventory](/docs/blocks/inventory)         | Stock per variant and location, and purchase orders  |
+| [assets](/docs/blocks/assets)               | The warehouses and sites stock is kept at            |
+| [quotes](/docs/blocks/quotes)               | Quotes for a customer, priced from the catalog       |
+| [orders](/docs/blocks/orders)               | Orders, their payment and fulfilment                 |
+| [invoices](/docs/blocks/invoices)           | Invoices and their payments, on the ledger           |
+| [numbering](/docs/blocks/numbering)         | Gapless sequences for your own document numbers      |
+| [employees](/docs/blocks/employees)         | The org chart, with each member's employee record    |
+| [time-tracking](/docs/blocks/time-tracking) | Timesheets with weekly approval                      |
+| [leave](/docs/blocks/leave)                 | Leave requests and balances                          |
+| [expenses](/docs/blocks/expenses)           | Expense reports with receipts, policies and approval |
+| [saved-views](/docs/blocks/saved-views)     | Saved filters for each list                          |
+
+## How the blocks connect
+
+The blocks pick each other up when they are installed together, with no
+config:
+
+- A quote line that names a catalog variant takes its price and title when
+  it leaves them out ([quotes](/docs/blocks/quotes)). A line with no price
+  for the quote's currency fails with `LINES_INVALID`.
+- A paid order creates, issues and pays an invoice and returns its id
+  ([orders](/docs/blocks/orders)). Orders paid before invoices was installed
+  have no invoice.
+- Inventory keeps its locations in the assets registry, so a warehouse is
+  an asset ([inventory](/docs/blocks/inventory)).
+- Time entries and leave requests carry the `employee_id` of their member,
+  which employees keeps current when a member's employee record changes
+  ([employees](/docs/blocks/employees#time-and-leave)).
+
+## With ReUI
+
+- Data Grid for orders and invoices, with Filters on status and customer.
+- A Badge for each invoice's status (draft, issued, paid, void).
+- Kanban for open quotes by status.

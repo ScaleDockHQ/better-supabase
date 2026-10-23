@@ -116,7 +116,12 @@ registry (ADR 0046) and one scheduler on the queue. Preset codes give way
 to the design JSON (ADR 0040, ADR 0058): the config's `preset` takes a name
 or an object with the conventions that differ and the blocks, a design
 carries it in its own `preset` key (format 7), a design file is that JSON,
-and `codemod 0.15` converts a 0.14 code with a frozen copy of its decoder. The config groups into `database`,
+and `codemod 0.15` converts a 0.14 code with a frozen copy of its decoder.
+Named presets carry instances: vertical nouns rename a block (`helpdesk` and
+`itsm` say tickets and issues), and options set how blocks meet (`cms` and
+`pim` make the attachments bucket public). A lead stays a contacts person in
+the `lead` lifecycle rather than a second deals instance, so a lead that
+buys is the same row. The config groups into `database`,
 `auth`, `records`, `tables`, `blocks`, `adapters`, `gen`, `api` and
 `tooling`, with one organization resolver at `auth.organization`. The CLI
 keeps one command per job and gains `remove`.
