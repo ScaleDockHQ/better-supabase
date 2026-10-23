@@ -8070,16 +8070,37 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "ChannelProduct"
+        },
+        {
+          "name": "ChannelProductsOptions"
+        },
+        {
+          "name": "LocalizedProduct"
+        },
+        {
           "name": "ProductInput"
         },
         {
           "name": "ProductKind"
         },
         {
+          "name": "ProductMedia"
+        },
+        {
+          "name": "ProductMediaInput"
+        },
+        {
           "name": "ProductStatus"
         },
         {
+          "name": "ProductTranslation"
+        },
+        {
           "name": "SavedProduct"
+        },
+        {
+          "name": "SavedProductMedia"
         }
       ],
       "entitySchemas": {
@@ -13233,6 +13254,23 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "ContentEntry"
+        },
+        {
+          "name": "ContentEntryEventData"
+        },
+        {
+          "name": "ContentEntryInput"
+        },
+        {
+          "name": "ContentEntryUpdate"
+        },
+        {
+          "name": "PublishedContentEntry"
+        }
+      ],
       "entitySchemas": {
         "content_entry": {
           "input": {
@@ -13340,6 +13378,18 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "events": {
+        "type": "ContentEvents",
+        "types": [
+          "content_entry.created",
+          "content_entry.updated",
+          "content_entry.publish_requested",
+          "content_entry.scheduled",
+          "content_entry.unscheduled",
+          "content_entry.published",
+          "content_entry.archived"
+        ]
       }
     },
     {
@@ -16338,6 +16388,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "QuoteLineInput"
+        },
+        {
           "name": "Quotes",
           "fields": true
         },
@@ -18209,6 +18262,25 @@ export const PRESET_CATALOG: PresetCatalog = {
       "targets": [
         "@lib/jobs.ts",
         "~/app/api/jobs/drain/route.ts"
+      ]
+    },
+    {
+      "name": "ai-chat-next",
+      "title": "AI chat routes (Next.js)",
+      "blocks": [
+        "ai-chat"
+      ],
+      "frameworks": [
+        "next"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [
+        "@lib/assistant.ts",
+        "~/app/api/chat/route.ts",
+        "~/app/api/chat/[id]/stream/route.ts",
+        "~/app/api/chat/[id]/stop/route.ts"
       ]
     },
     {
