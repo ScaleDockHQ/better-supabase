@@ -1621,6 +1621,26 @@ variable, or start the app with `better-supabase dev run -- <cmd>`, which sets t
 stack's values over the shell's. Doctor only checks this when the shell
 exports a `SUPABASE_*` variable and the local stack is running.
 
+### BS504
+
+**Error: env key a block needs is missing.** An installed block declares an env
+key, such as `CRON_SECRET` for the outbox relay or `STRIPE_WEBHOOK_SECRET` for
+billing, and no env file lists it and the shell doesn't set it. The route or
+worker that reads it then fails at runtime. `better-supabase add` and `init`
+append the keys to `.env.example`; set them in `.env.local` and in every
+deployed environment. Optional keys, like `AI_GATEWAY_API_KEY` (the OIDC token
+works on Vercel), are never reported.
+
+### BS505
+
+**Error: required provider is not wired.** A block that can't run without an
+implementation is installed: enrichment needs an `EnrichmentProvider` and
+mail-sync needs its `MailProvider`s. No app source passes the instance one with
+`.with(...)` or `.using(...)`. `add` writes a commented stub for it in
+`providers.ts`, next to `blocks.generated.ts`. Fill in the stub, then spread
+`...providers` into `defineBlocks(blockConfig, { ...blocks, ...providers })`.
+Comments don't count, so the finding stays until the stub is real code.
+
 ## Dependencies
 
 ### BS601

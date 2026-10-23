@@ -737,6 +737,45 @@ and drain the `block_ticks` queue with `blockTickHandler`
 ([Block timers](/docs/blocks/queue#block-timers)). A cron route that already
 calls `sla.check()` or `sequences.runDue()` keeps working.
 
+## Blocks declare their wiring
+
+Block manifests now declare their env keys, providers, routes and workers,
+and `add` and `init` write the wiring: missing keys at the end of
+`.env.example`, commented provider stubs in `providers.ts` next to
+`blocks.generated.ts`, and a numbered checklist for the routes, the crons,
+the block timers and the actions to register.
+`add` also renders installed blocks again when a new block changes their SQL.
+
+Two new doctor checks fail on an app that was already missing wiring:
+
+- BS504: a required env key, such as `CRON_SECRET` for the outbox or
+  `STRIPE_WEBHOOK_SECRET` for billing, that no env file lists. Add the key to
+  `.env.example` and set it.
+- BS505: enrichment or mail-sync installed with no provider passed. Pass it
+  where you build the blocks:
+
+```ts title="src/lib/supabase/providers.ts"
+import { peopleDataLabsEnrichment } from "better-supabase/blocks/enrichment";
+import { gmailMail, outlookMail } from "better-supabase/blocks/mail-sync";
+
+import { blocks } from "./blocks.generated.ts";
+
+export const providers = {
+  enrichment: blocks.enrichment.with({
+    provider: peopleDataLabsEnrichment({
+      apiKey: process.env["PDL_API_KEY"] ?? "",
+    }),
+  }),
+  "mail-sync": blocks["mail-sync"].with({
+    providers: [gmailMail(), outlookMail()],
+  }),
+} satisfies Partial<typeof blocks>;
+```
+
+Then spread it: `defineBlocks(blockConfig, { ...blocks, ...providers })`.
+Run `bsb add <block>` for an installed block to have the stubs and keys
+written for you.
+
 ## Doctor finds what is left
 
 `better-supabase doctor` reports BS418 for app code that still imports a

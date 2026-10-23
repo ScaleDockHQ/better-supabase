@@ -536,14 +536,27 @@ function presetManifest(
       ? withSchemas
       : { ...withSchemas, record: Object.keys(block.record.writes ?? {}) };
 
-  return manifest.client !== null &&
+  const withEvents =
+    manifest.client !== null &&
     block.events.types.length > 0 &&
     (types.get(subpath) ?? []).includes(eventsType)
-    ? {
-        ...withSections,
-        events: { type: eventsType, types: [...block.events.types] },
-      }
-    : withSections;
+      ? {
+          ...withSections,
+          events: { type: eventsType, types: [...block.events.types] },
+        }
+      : withSections;
+
+  const wiring = Object.fromEntries(
+    (
+      ["env", "providers", "routes", "workers", "actions", "schedules"] as const
+    ).flatMap((key) => {
+      const value = block[key];
+
+      return value === undefined || value.length === 0 ? [] : [[key, value]];
+    }),
+  );
+
+  return { ...withEvents, ...wiring };
 }
 
 const PORT_NAMES: readonly PortName[] = [
@@ -706,6 +719,7 @@ const registrySchema = v.object({
         ),
         [],
       ),
+      envVars: v.optional(v.record(v.string(), v.string())),
       meta: v.object({
         block: names,
         frameworks: v.array(v.string()),
@@ -733,9 +747,13 @@ function glueItems(): PresetGlueItem[] {
       targets: item.files.map((file) => file.target ?? file.path),
     } satisfies PresetGlueItem;
 
+    const envVars = Object.keys(item.envVars ?? {});
+
+    const withEnv = envVars.length === 0 ? glue : { ...glue, envVars };
+
     return item.meta.preset === undefined
-      ? glue
-      : { ...glue, preset: item.meta.preset };
+      ? withEnv
+      : { ...withEnv, preset: item.meta.preset };
   });
 }
 

@@ -53,6 +53,7 @@ import {
   workflowOf,
 } from "./shared.ts";
 import { STACK_RULES } from "./stacks.ts";
+import { WIRING_RULES } from "./wiring.ts";
 import { WORKFLOW_BUILDER_RULES } from "./workflow-builder.ts";
 
 export { lineOf };
@@ -135,6 +136,8 @@ export interface DoctorContext {
   /** Better-supabase's peers and the versions the project installs (BS601). */
   readonly peers?: readonly PeerVersion[];
   readonly stackEnv?: StackEnvCheck;
+  /** The variables the shell exports (BS504). */
+  readonly shellEnv?: Readonly<Record<string, string | undefined>>;
   /** The machine's shared memory segments and managed stacks (BS700, BS701). */
   readonly localStacks?: LocalStackCheck;
 }
@@ -1072,6 +1075,7 @@ export const RULES: readonly Rule[] = [
   ...ADOPTION_RULES,
   ...MIGRATION_SAFETY_RULES,
   ...ENV_RULES,
+  ...WIRING_RULES,
   ...STACK_RULES,
 ].toSorted((a, b) => byCodePoint(a.code, b.code));
 

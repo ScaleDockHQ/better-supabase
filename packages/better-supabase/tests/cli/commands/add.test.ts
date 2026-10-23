@@ -50,6 +50,20 @@ describe("add", () => {
     );
   });
 
+  it("renders an installed block again when one it integrates with lands", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({ blocks: ["promotions"] }),
+    );
+
+    const result = await run(["add", "outbox", "--cwd", dir]);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(
+      "Re-rendered promotions: it integrates with outbox.",
+    );
+  });
+
   it("writes the data migration with --adopt and no block", async () => {
     const result = await run(["add", "--adopt", "--dry-run", "--cwd", dir]);
 

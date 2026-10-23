@@ -17,4 +17,23 @@ export const ordersBlock: BlockOf<"orders", typeof createOrders, OrdersEvents> =
     category: "commerce",
     recipes: ["order-detail", "kitchen-display", "order-state-board"],
     actions: [{ kind: "orders.from_quote", title: "Order the accepted quote" }],
+    providers: [
+      {
+        option: "payments",
+        type: "PaymentProvider",
+        from: "better-supabase/commerce",
+        required: false,
+        description:
+          "Takes payments; without one, payments are recorded by hand.",
+        example: "stripePayments({ stripe })",
+      },
+      {
+        option: "tax",
+        type: "TaxProvider",
+        from: "better-supabase/commerce",
+        required: false,
+        description: "Computes tax on order lines.",
+        example: "fixedRates({ rates })",
+      },
+    ],
   });

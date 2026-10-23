@@ -16,4 +16,15 @@ export const enrichmentBlock: BlockOf<
   events: enrichmentEvents,
   create: createEnrichment,
   category: "crm",
+  providers: [
+    {
+      option: "provider",
+      type: "EnrichmentProvider",
+      from: "better-supabase/blocks/enrichment",
+      required: true,
+      description: "Looks companies and people up.",
+      example:
+        'peopleDataLabsEnrichment({ apiKey: process.env["PDL_API_KEY"] ?? "" })',
+    },
+  ],
 });

@@ -26,4 +26,14 @@ export const mailSyncBlock: BlockOf<
   provides: { mailer: (client) => client },
   create: createMailSync,
   category: "crm",
+  providers: [
+    {
+      option: "providers",
+      type: "MailProvider",
+      from: "better-supabase/blocks/mail-sync",
+      required: true,
+      description: "Reads and sends each member's mailbox.",
+      example: "[gmailMail(), outlookMail()]",
+    },
+  ],
 });

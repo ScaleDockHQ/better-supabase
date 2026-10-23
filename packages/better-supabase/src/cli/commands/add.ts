@@ -51,6 +51,7 @@ import {
   resolveIntegrations,
   TEMPLATES,
 } from "../templates.ts";
+import { wiringChecklist, wiringFiles, wiringFor } from "../wiring.ts";
 import { ADOPT_ARGS, runAdopt, snapshotTables } from "./adopt.ts";
 import { APPLY_ARGS, runApply } from "./apply.ts";
 import { blockNames } from "./blocks.ts";
@@ -183,7 +184,32 @@ async function addBlocks(
 
   const glueLine = glue.length > 0 ? glueCommand(glue) : undefined;
 
-  if (glueLine !== undefined) {
+  const wiring = wiringFor([...wanted].map((name) => ({ name, block: name })));
+
+  const written = await wiringFiles(context, wiring, (path) =>
+    readIfExists(resolve(config.root, path)),
+  );
+
+  if (written.files.length > 0) {
+    const applied = await applyPlan(
+      {
+        root: config.root,
+        regenerate: "better-supabase add",
+        files: written.files,
+      },
+      { "dry-run": args["dry-run"] },
+    );
+
+    lines.push("", ...changeLines(applied));
+  }
+
+  lines.push(...(written.notes.length > 0 ? ["", ...written.notes] : []));
+
+  const checklist = wiringChecklist(context, wiring, glueLine);
+
+  if (checklist.length > 0) {
+    lines.push("", "To finish the wiring:", ...checklist);
+  } else if (glueLine !== undefined) {
     lines.push("", `Glue for ${frameworks.join(", ")}: ${glueLine}`);
   }
 
@@ -195,6 +221,18 @@ async function addBlocks(
       modules: added.data,
       clients: clients.map((client) => client.key),
       ...(glueLine === undefined ? {} : { glue: glueLine }),
+      wiring: {
+        env: wiring.env.map((entry) => entry.key),
+        providers: wiring.providers.map(
+          (entry) => `${entry.instance}.${entry.provider.option}`,
+        ),
+        workers: wiring.workers.map((worker) => worker.name),
+        actions: wiring.actions.map((action) => action.kind),
+        schedules: wiring.schedules.map(
+          (schedule) => `${schedule.block}.${schedule.name}`,
+        ),
+        files: written.files.map((file) => file.path),
+      },
     },
     ...(added.next === undefined ? {} : { next: added.next }),
   };

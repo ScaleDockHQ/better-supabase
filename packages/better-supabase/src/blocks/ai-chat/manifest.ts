@@ -20,4 +20,13 @@ export const aiChatBlock: BlockOf<
   client: "ai-chat",
   category: "ai",
   recipes: ["chat-with-history"],
+  env: [
+    {
+      key: "AI_GATEWAY_API_KEY",
+      description:
+        "Server-only: the Vercel AI Gateway key the chat route calls models with (on Vercel the OIDC token works instead).",
+      required: false,
+    },
+  ],
+  routes: ["ai-chat"],
 });

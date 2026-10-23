@@ -120,9 +120,12 @@ also:
   `better-supabase upgrade` does
 - writes `lib/blocks.ts`, which wires the blocks that have a TypeScript
   client with `defineBlocks`
-- prints the `npx shadcn@latest add @better-supabase/...` command for the
-  [registry glue](/docs/registry) that fits the preset's framework and
-  platforms
+- writes the [wiring](#the-wiring-and-the-checklist) the preset's blocks
+  need: their env keys in `.env.example` and their provider stubs in
+  `providers.ts`
+- prints a numbered checklist with the `npx shadcn@latest add
+@better-supabase/...` command for the [registry glue](/docs/registry) that
+  fits the preset's framework and platforms
 
 A preset that can't install, such as one whose blocks need tenants under
 scope `user`, stops `init` with the reason. In a terminal without
@@ -223,6 +226,42 @@ of those blocks that fits the frameworks in the config or `package.json`,
 and the command that turns the files into a migration.
 `better-supabase blocks list` shows the names. `--force` overwrites files
 that exist.
+
+A new block can change the SQL of blocks you already have: organizations
+renders its audit triggers once audit is installed, and entitlements reads
+plan quotas once billing is. `add` renders those installed blocks again, writes
+only the files whose output changed, and prints `Re-rendered <block>: it
+integrates with <new block>` for each.
+
+### The wiring and the checklist
+
+Each block's manifest declares what the app has to provide for it: env keys,
+providers, routes and workers. `add` and `init` write what they can and print
+the rest as a numbered checklist:
+
+- **Env keys.** Missing keys go to the end of `.env.example`, each under its
+  description, so `CRON_SECRET=` appears once for the outbox and the queue.
+  Set them in `.env.local` and in every deployed environment.
+- **Providers.** A block that takes an implementation (enrichment's
+  `EnrichmentProvider`, mail-sync's `MailProvider`s, the shipping carriers,
+  the order payments and tax) gets a commented stub in `providers.ts`, next to
+  `blocks.generated.ts`. Fill it in and spread it into `defineBlocks`:
+  `defineBlocks(blockConfig, { ...blocks, ...providers })`.
+- **Routes.** The outbox relay, the queue drain, the Stripe webhook and the AI
+  chat route are registry items; the checklist names the `npx shadcn@latest add`
+  command for your framework.
+- **Workers.** The checklist names each route a cron calls, with its schedule
+  and the `Authorization: Bearer $CRON_SECRET` header.
+- **Block timers.** The SLA, sequences, AI schedules and workflows blocks run
+  timers on the queue; the checklist lists them and names
+  `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
+  and the `blockTickHandler` drain ([Block timers](/docs/blocks/queue#block-timers)).
+- **Actions.** The checklist lists the action kinds the installed blocks ship,
+  such as `tasks.from_conversation`, to register in the rules consumer's
+  `createActionRegistry` so their default automations run.
+
+[Doctor](/docs/cli/doctor) fails on what is left: BS504 on a required env key
+no env file lists, BS505 on a required provider that is still a comment.
 
 `add --preset <name|code|url>` applies a preset to the config you have
 (`--only`, `--package` and `--allow-breaking`), and `add --adopt <block>

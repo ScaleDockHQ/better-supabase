@@ -119,6 +119,11 @@ the `better-supabase-auth` skill.
 - Clients are keyed by instance: `defineBlocks(blockConfig, { labels: tagsBlock })`,
   and `bsb.record(<type>Record)` from `@/lib/supabase/records/<type>` for a
   record's timeline, actions and tags.
+- After `bsb add <block>`, follow its numbered checklist. Keys go in
+  `.env.example`; set them in `.env.local`. Fill in the provider stubs in
+  `lib/supabase/providers.ts` and spread them:
+  `defineBlocks(blockConfig, { ...blocks, ...providers })`. Doctor fails on a
+  missing env key (BS504) or an unwired required provider (BS505).
 - A preset can write instances too (`preset: { blocks, instances }`); your
   own `blocks` entry for the same key wins.
 - A block's React hooks are registry items: `npx shadcn add
