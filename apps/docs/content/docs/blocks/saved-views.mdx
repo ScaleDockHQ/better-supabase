@@ -221,11 +221,15 @@ disposed with the component.
 import { useBlockController } from "better-supabase/vue";
 import { createSavedViewsController } from "better-supabase/blocks/saved-views";
 
-const { state } = useBlockController(createSavedViewsController, {
-  load: () => loadViews(),
-  urlState: () => readUrlState(),
-  setUrlState: (next) => writeUrlState(next),
-});
+const { state } = useBlockController(
+  createSavedViewsController,
+  {
+    load: () => loadViews(),
+    urlState: () => readUrlState(),
+    setUrlState: (next) => writeUrlState(next),
+  },
+  false,
+);
 </script>
 
 <template>
@@ -256,7 +260,7 @@ is disposed with the component.
     load: () => loadViews(),
     urlState: () => readUrlState(),
     setUrlState: (next) => writeUrlState(next),
-  });
+  }, false);
 </script>
 
 <ul>
@@ -280,11 +284,15 @@ import { useBlockController } from "better-supabase/solid";
 import { createSavedViewsController } from "better-supabase/blocks/saved-views";
 
 export function Component() {
-  const { state } = useBlockController(createSavedViewsController, {
-    load: () => loadViews(),
-    urlState: () => readUrlState(),
-    setUrlState: (next) => writeUrlState(next),
-  });
+  const { state } = useBlockController(
+    createSavedViewsController,
+    {
+      load: () => loadViews(),
+      urlState: () => readUrlState(),
+      setUrlState: (next) => writeUrlState(next),
+    },
+    false,
+  );
   return (
     <ul>
       <For each={state().views ?? []}>{(view) => <li>{view.name}</li>}</For>

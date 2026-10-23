@@ -335,6 +335,7 @@ const { state, actions } = useBlockController(
       attachments.confirm(id).map((file) => ({ status: file.status })),
     refresh: status,
   },
+  false,
 );
 </script>
 ```
@@ -349,10 +350,15 @@ import { createAttachmentUploadController } from "better-supabase/blocks/attachm
 import { useBlockController } from "better-supabase/svelte";
 import { useBlockController as useSolidController } from "better-supabase/solid";
 
-const uploads = useBlockController(createAttachmentUploadController, options);
+const uploads = useBlockController(
+  createAttachmentUploadController,
+  options,
+  false,
+);
 const { state, actions } = useSolidController(
   createAttachmentUploadController,
   options,
+  false,
 );
 ```
 
