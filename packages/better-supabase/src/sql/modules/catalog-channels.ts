@@ -134,8 +134,12 @@ create table if not exists ${t("channels")} (
   ${c("channels", "createdAt")} timestamptz not null default now(),
   ${c("channels", "updatedAt")} timestamptz not null default now(),
   unique (${c("channels", "tenant")}, ${c("channels", "key")})
-);${lists ? `
-create index if not exists ${ctx.naming.rename("catalog_channels_price_list_idx")} on ${t("channels")} (${c("channels", "priceList")});` : ""}
+);${
+      lists
+        ? `
+create index if not exists ${ctx.naming.rename("catalog_channels_price_list_idx")} on ${t("channels")} (${c("channels", "priceList")});`
+        : ""
+    }
 ${lockTable(t("channels"), { read: true })}
 ${readPolicy(ctx, names, "channels")}`);
   }
@@ -399,9 +403,11 @@ function listingFunctions(ctx: BlockSqlContext, names: Names): string {
   const channels = ctx.table("channels");
   const listings = ctx.table("channelProducts");
   const products = ctx.table("products");
+
   const translations = translationsOn(ctx)
     ? ctx.table("productTranslations")
     : "";
+
   const k = (column: string): string => ctx.col("channels", column);
   const l = (column: string): string => ctx.col("channelProducts", column);
   const p = (column: string): string => ctx.col("products", column);
