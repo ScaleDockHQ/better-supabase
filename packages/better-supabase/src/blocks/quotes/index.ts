@@ -36,3 +36,5 @@ export { quotesBlock } from "./manifest.ts";
 export { quotesEvents } from "./events.ts";
 
 export type { QuotesEvents } from "./events.ts";
+
+export { QUOTE_TO_ORDER, QUOTES_AUTOMATIONS } from "./automations.ts";

@@ -232,16 +232,17 @@ export interface BlockNameRegistry {
   };
   readonly "automations": {
     readonly tables: {
-      readonly "rules": "id" | "tenant" | "subjectType" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "stopProcessing" | "rank" | "version" | "createdBy" | "updatedBy" | "createdAt" | "updatedAt";
+      readonly "rules": "id" | "tenant" | "subjectType" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "stopProcessing" | "rank" | "version" | "createdBy" | "updatedBy" | "createdAt" | "updatedAt" | "defaultKey";
+      readonly "defaults": "key" | "block" | "subjectType" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "updatedAt";
       readonly "versions": "rule" | "version" | "tenant" | "name" | "conditions" | "actions" | "savedBy" | "savedAt";
       readonly "evaluations": "id" | "tenant" | "rule" | "version" | "subjectType" | "subjectId" | "trigger" | "matched" | "results" | "mode" | "evaluatedBy" | "evaluatedAt";
       readonly "fields": "subjectType" | "id" | "label" | "description" | "type" | "path" | "columnType" | "nullable" | "options" | "operators" | "position" | "updatedAt";
     };
-    readonly functions: "matching_rules" | "rank_rule" | "record_rule_evaluation" | "remove_rule" | "rule_boolean" | "rule_bounds" | "rule_check" | "rule_date" | "rule_equal" | "rule_evaluate" | "rule_evaluations_list" | "rule_field_map" | "rule_fields_list" | "rule_get" | "rule_list" | "rule_matches" | "rule_moment" | "rule_node" | "rule_numeric" | "rule_positive" | "rule_text" | "rule_versions_list" | "rules_list" | "run_rules" | "save_rule" | "set_rule_enabled" | "sync_rule_fields";
+    readonly functions: "install_default_rules" | "matching_rules" | "rank_rule" | "record_rule_evaluation" | "remove_rule" | "reset_default_rule" | "rule_boolean" | "rule_bounds" | "rule_check" | "rule_date" | "rule_equal" | "rule_evaluate" | "rule_evaluations_list" | "rule_field_map" | "rule_fields_list" | "rule_get" | "rule_list" | "rule_matches" | "rule_moment" | "rule_node" | "rule_numeric" | "rule_positive" | "rule_text" | "rule_versions_list" | "rules_list" | "run_rules" | "save_rule" | "set_rule_enabled" | "sync_rule_fields";
     readonly actions: "read" | "edit" | "publish" | "admin";
     readonly hooks: never;
     readonly entities: {
-      readonly "rule": "id" | "organization_id" | "subject_type" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "stop_processing" | "rank" | "version" | "created_by" | "updated_by" | "created_at" | "updated_at";
+      readonly "rule": "id" | "organization_id" | "subject_type" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "stop_processing" | "rank" | "version" | "created_by" | "updated_by" | "created_at" | "updated_at" | "default_key";
     };
     readonly primary: "rule";
   };
@@ -1842,7 +1843,7 @@ export interface BlockNameRegistry {
       readonly "alerts": "id" | "definition" | "onEvent" | "threshold" | "channel" | "createdBy" | "createdAt";
       readonly "alertFires": "alert" | "run" | "firedAt";
     };
-    readonly functions: "check_workflow_alerts" | "fork_workflow_definition" | "publish_workflow_version" | "record_workflow_node_run" | "remove_workflow_alert" | "remove_workflow_credential" | "remove_workflow_definition" | "remove_workflow_trigger" | "rotate_workflow_webhook_token" | "save_workflow_alert" | "save_workflow_credential" | "save_workflow_definition" | "save_workflow_draft" | "save_workflow_trigger" | "set_workflow_definition_grant" | "set_workflow_opt_out" | "start_test_run" | "sync_workflow_steps" | "validate_workflow_graph" | "workflow_alerts_list" | "workflow_credential_get" | "workflow_credentials_list" | "workflow_definition_get" | "workflow_definition_grants_list" | "workflow_definitions_list" | "workflow_event_targets" | "workflow_graph_permissions" | "workflow_node_runs_list" | "workflow_run_principal" | "workflow_runs_alert" | "workflow_start_target" | "workflow_steps_list" | "workflow_subject_start_target" | "workflow_triggers_list" | "workflow_version_get" | "workflow_versions_list" | "workflow_webhook_target";
+    readonly functions: "check_workflow_alerts" | "fork_workflow_definition" | "publish_workflow_version" | "record_workflow_node_run" | "remove_workflow_alert" | "remove_workflow_credential" | "remove_workflow_definition" | "remove_workflow_trigger" | "rotate_workflow_webhook_token" | "save_workflow_alert" | "save_workflow_credential" | "save_workflow_definition" | "save_workflow_draft" | "save_workflow_trigger" | "set_workflow_definition_grant" | "set_workflow_opt_out" | "start_test_run" | "sync_workflow_steps" | "validate_workflow_graph" | "workflow_alerts_list" | "workflow_credential_get" | "workflow_credentials_list" | "workflow_definition_get" | "workflow_definition_grants_list" | "workflow_definitions_list" | "workflow_graph_permissions" | "workflow_node_runs_list" | "workflow_run_principal" | "workflow_runs_alert" | "workflow_start_target" | "workflow_steps_list" | "workflow_subject_start_target" | "workflow_triggers_list" | "workflow_version_get" | "workflow_versions_list" | "workflow_webhook_target";
     readonly actions: "read" | "run" | "edit" | "publish" | "admin";
     readonly hooks: never;
     readonly entities: {

@@ -36,7 +36,7 @@ import {
   saveTrigger,
 } from "../builder-actions";
 
-const KINDS = ["webhook", "schedule", "event", "manual"] as const;
+const KINDS = ["webhook", "schedule", "manual"] as const;
 const Kind = v.picklist(KINDS);
 
 type Kind = v.InferOutput<typeof Kind>;
@@ -93,7 +93,6 @@ export function TriggerSheet({
   const labels = {
     webhook: t("Webhook"),
     schedule: t("Schedule"),
-    event: t("Event"),
     manual: t("Manual"),
   } satisfies Record<Kind, string>;
 
@@ -175,7 +174,6 @@ export function TriggerSheet({
               definition,
               kind,
               cron: String(form.get("cron") ?? ""),
-              event: String(form.get("event") ?? ""),
             });
           }}
         >
@@ -209,17 +207,6 @@ export function TriggerSheet({
                 id={`${id}-cron`}
                 name="cron"
                 defaultValue="0 9 * * *"
-                className="font-mono"
-              />
-            </Field>
-          ) : null}
-          {kind === "event" ? (
-            <Field>
-              <FieldLabel htmlFor={`${id}-event`}>{t("Event type")}</FieldLabel>
-              <Input
-                id={`${id}-event`}
-                name="event"
-                placeholder="customer.created"
                 className="font-mono"
               />
             </Field>

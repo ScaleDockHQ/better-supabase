@@ -6,7 +6,7 @@ import { createAutomations } from "./automations.ts";
 import { automationsEvents } from "./events.ts";
 import { automationsSqlOptions } from "./options.ts";
 
-/** The `rules` block's manifest (ADR 0029). */
+/** The `automations` block's manifest (ADR 0029). */
 export const automationsBlock: BlockOf<
   "automations",
   typeof createAutomations,
@@ -19,4 +19,11 @@ export const automationsBlock: BlockOf<
   create: createAutomations,
   category: "automation",
   recipes: ["rule-builder"],
+  actions: [
+    { kind: "approvals.request", title: "Request an approval" },
+    { kind: "notify", title: "Send a notification" },
+    { kind: "set_field", title: "Set a field" },
+    { kind: "webhook", title: "Send a webhook" },
+    { kind: "workflow", title: "Start a workflow" },
+  ],
 });

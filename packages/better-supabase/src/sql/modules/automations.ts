@@ -17,6 +17,7 @@ import {
   SERVICE_CALLER,
   schemaPreamble,
 } from "../shared.ts";
+import { defaultRulesSql } from "./automations-defaults-sql.ts";
 import { operatorTable, rulesEvaluator } from "./automations-evaluate.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -72,6 +73,22 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         updatedBy: "updated_by",
         createdAt: "created_at",
+        updatedAt: "updated_at",
+        defaultKey: "default_key",
+      },
+    },
+    defaults: {
+      name: "rule_defaults",
+      columns: {
+        key: "key",
+        block: "block",
+        subjectType: "subject_type",
+        trigger: "trigger",
+        name: "name",
+        description: "description",
+        conditions: "conditions",
+        actions: "actions",
+        enabled: "enabled",
         updatedAt: "updated_at",
       },
     },
@@ -159,6 +176,8 @@ function build(ctx: BlockSqlContext): string {
   const rv = (column: string): string => ctx.col("versions", column);
   const re = (column: string): string => ctx.col("evaluations", column);
   const rf = (column: string): string => ctx.col("fields", column);
+  const d = ctx.table("defaults");
+  const rd = (column: string): string => ctx.col("defaults", column);
   const keys = moduleOperations("automations");
   const read = ctx.permission("read", keys.read);
   const edit = ctx.permission("edit", keys.edit);
@@ -179,7 +198,7 @@ function build(ctx: BlockSqlContext): string {
     `(${SERVICE_CALLER} or (case when ${enabled} then ${ctx.scope.can(tenant, publish)} else ${ctx.scope.can(tenant, edit)} end))`;
 
   const ruleJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'trigger', ${row}.${r("trigger")}, 'name', ${row}.${r("name")}, 'description', ${row}.${r("description")}, 'conditions', ${row}.${r("conditions")}, 'actions', ${row}.${r("actions")}, 'enabled', ${row}.${r("enabled")}, 'stopProcessing', ${row}.${r("stopProcessing")}, 'rank', ${row}.${r("rank")}, 'version', ${row}.${r("version")}, 'createdBy', ${row}.${r("createdBy")}, 'updatedBy', ${row}.${r("updatedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'trigger', ${row}.${r("trigger")}, 'name', ${row}.${r("name")}, 'description', ${row}.${r("description")}, 'conditions', ${row}.${r("conditions")}, 'actions', ${row}.${r("actions")}, 'enabled', ${row}.${r("enabled")}, 'stopProcessing', ${row}.${r("stopProcessing")}, 'rank', ${row}.${r("rank")}, 'version', ${row}.${r("version")}, 'createdBy', ${row}.${r("createdBy")}, 'updatedBy', ${row}.${r("updatedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}, 'defaultKey', ${row}.${r("defaultKey")})`;
 
   const fieldJson = (row: string): string =>
     `jsonb_build_object('subjectType', ${row}.${rf("subjectType")}, 'id', ${row}.${rf("id")}, 'label', ${row}.${rf("label")}, 'description', ${row}.${rf("description")}, 'type', ${row}.${rf("type")}, 'column', ${row}.${rf("path")}, 'columnType', ${row}.${rf("columnType")}, 'nullable', ${row}.${rf("nullable")}, 'options', ${row}.${rf("options")}, 'operators', ${row}.${rf("operators")})`;
@@ -225,6 +244,8 @@ function build(ctx: BlockSqlContext): string {
     matching: `${fn("matching_rules")}(${id}, text, text, jsonb, text)`,
     record: `${fn("record_rule_evaluation")}(uuid, text, boolean, jsonb, text)`,
     run: `${fn("run_rules")}(${id}, text, text, text, jsonb, text)`,
+    install: `${fn("install_default_rules")}(${id})`,
+    reset: `${fn("reset_default_rule")}(uuid)`,
     evaluations: `${fn("rule_evaluations_list")}(uuid, timestamptz, integer)`,
   };
 
@@ -254,12 +275,13 @@ function build(ctx: BlockSqlContext): string {
     signatures.enable,
     signatures.rank,
     signatures.remove,
+    signatures.reset,
     signatures.matching,
     signatures.record,
     signatures.evaluations,
   ];
 
-  const service = [signatures.sync, signatures.run];
+  const service = [signatures.sync, signatures.run, signatures.install];
 
   const grants = [
     ...pure.map(
@@ -302,7 +324,26 @@ create table if not exists ${t} (
 create index if not exists ${ctx.naming.rename("rules_trigger_idx")} on ${t} (${r("tenant")}, ${r("subjectType")}, ${r("trigger")}, ${r("rank")});
 create index if not exists ${ctx.naming.rename("rules_created_by_idx")} on ${t} (${r("createdBy")}) where ${r("createdBy")} is not null;
 create index if not exists ${ctx.naming.rename("rules_updated_by_idx")} on ${t} (${r("updatedBy")}) where ${r("updatedBy")} is not null;
+alter table ${t} add column if not exists ${r("defaultKey")} text;
+create unique index if not exists ${ctx.naming.rename("rules_default_key_idx")} on ${t} (${r("tenant")}, ${r("defaultKey")}) where ${r("defaultKey")} is not null;
 ${lockTable(t)}
+
+-- The automations blocks ship (defineBlock automations). Each organization
+-- gets its own copy in rules the first time its rules run or are listed, and
+-- may turn it off or edit it; reset_default_rule restores the shipped one.
+create table if not exists ${d} (
+  ${rd("key")} text primary key check (length(${rd("key")}) <= 128 and ${rd("key")} ~ ${sqlString(ACTION_KIND)}),
+  ${rd("block")} text not null,
+  ${rd("subjectType")} text not null check (${rd("subjectType")} ~ ${sqlString(SUBJECT_TYPE)}),
+  ${rd("trigger")} text not null check (length(${rd("trigger")}) <= 128 and ${rd("trigger")} ~ ${sqlString(TRIGGER)}),
+  ${rd("name")} text not null check (length(${rd("name")}) between 1 and 200),
+  ${rd("description")} text check (length(${rd("description")}) <= 2000),
+  ${rd("conditions")} jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
+  ${rd("actions")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${rd("actions")}) = 'array'),
+  ${rd("enabled")} boolean not null default true,
+  ${rd("updatedAt")} timestamptz not null default now()
+);
+${lockTable(d)}
 
 -- Every saved version of a rule's conditions and actions.
 create table if not exists ${v} (
@@ -565,7 +606,7 @@ begin
     ${fail("RULE_INVALID", "A rule needs a name of at most 200 characters", "22023")}
   end if;
   v_fields := ${fn("rule_field_map")}(v_subject_type);
-  if v_fields = '{}'::jsonb then
+  if v_fields = '{}'::jsonb and v_old.${r("defaultKey")} is null then
     ${raise("No rule fields for %; sync them first", "22023", "RULE_SUBJECT_UNKNOWN", "v_subject_type")}
   end if;
   perform ${fn("rule_check")}(v_conditions, v_fields, 1);
@@ -622,7 +663,6 @@ $$;
 create or replace function ${fn("rules_list")}(tenant ${id}, subject_type text default null, trigger text default null, enabled boolean default null)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
@@ -630,6 +670,7 @@ begin
   if not ${can("rules_list.tenant", read)} then
     ${fail("RULE_FORBIDDEN", "You may not read this organization's rules")}
   end if;
+  perform ${fn("install_default_rules")}(rules_list.tenant);
   return (
     select coalesce(jsonb_agg(${ruleJson("x")} order by x.${r("subjectType")}, x.${r("trigger")}, x.${r("rank")} collate "C"), '[]'::jsonb)
     from ${t} x
@@ -758,6 +799,9 @@ begin
   if v_row.${r("id")} is null or not ${can(`v_row.${r("tenant")}`, admin)} then
     return false;
   end if;
+  if v_row.${r("defaultKey")} is not null then
+    ${fail("RULE_DEFAULT", "A block ships this automation; turn it off instead of removing it", "22023")}
+  end if;
   delete from ${t} x where x.${r("id")} = v_row.${r("id")};
   ${ruleEvent("rule.removed", "v_row")}
   return true;
@@ -837,7 +881,8 @@ $$;
 
 -- For database triggers and jobs (service role): evaluates the enabled rules
 -- for a trigger, logs each one live and returns the matches as
--- matching_rules does.
+-- matching_rules does. A null subject_type tests every rule for the trigger,
+-- each against its own subject type's fields.
 create or replace function ${fn("run_rules")}(tenant ${id}, subject_type text, trigger text, subject_id text, subject jsonb, time_zone text default 'UTC')
 returns jsonb
 language plpgsql
@@ -853,13 +898,18 @@ begin
   if not (${SERVICE_CALLER}) then
     ${fail("RULE_FORBIDDEN", "Only the service role runs rules")}
   end if;
+  perform ${fn("install_default_rules")}(run_rules.tenant);
   v_fields := ${fn("rule_field_map")}(run_rules.subject_type);
   for v_rule in
     select * from ${t} x
-    where x.${r("tenant")} = run_rules.tenant and x.${r("subjectType")} = run_rules.subject_type
+    where x.${r("tenant")} = run_rules.tenant
+      and (run_rules.subject_type is null or x.${r("subjectType")} = run_rules.subject_type)
       and x.${r("trigger")} = run_rules.trigger and x.${r("enabled")}
     order by x.${r("rank")} collate "C"
   loop
+    if run_rules.subject_type is null then
+      v_fields := ${fn("rule_field_map")}(v_rule.${r("subjectType")});
+    end if;
     v_result := ${fn("rule_evaluate")}(v_rule.${r("conditions")}, run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform ${fn("record_rule_evaluation")}(v_rule.${r("id")}, run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
@@ -870,6 +920,8 @@ begin
   return v_matches;
 end;
 $$;
+
+${defaultRulesSql({ ctx, can, canKey, keyFor, read, ruleEvent, ruleJson })}
 
 -- A rule's evaluation log, newest first.
 create or replace function ${fn("rule_evaluations_list")}(rule uuid, before timestamptz default null, page_size integer default 50)
@@ -948,6 +1000,8 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "text", "text", "jsonb", "text"],
       returns: "jsonb",
     },
+    { name: "install_default_rules", args: ["{id}"], returns: "integer" },
+    { name: "reset_default_rule", args: ["uuid"], returns: "jsonb" },
     {
       name: "rule_evaluations_list",
       args: ["uuid", "timestamptz", "integer"],
@@ -961,7 +1015,7 @@ export const RULES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Rules",
   description:
-    "Tenant-editable rules: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the app runs. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.",
+    "Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.",
   requires: ["memberships", "permissions"],
   integrates: [],
   target: "schema",

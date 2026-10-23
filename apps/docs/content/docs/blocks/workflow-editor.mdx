@@ -421,7 +421,6 @@ const token = await builder.triggers.rotateToken(triggerId).orThrow(); // shown 
 | `manual`   | `builder.run()` from your UI                                                                                                                        |
 | `webhook`  | `builder.triggers.webhook(request)` in a route: the token in the path or a `Bearer` header, the JSON body as the input                              |
 | `schedule` | `triggers.syncSchedule(trigger)` creates a [workflows schedule](/docs/blocks/workflows#schedules) from `config.cron` through the `workflows` option |
-| `event`    | `builder.triggers.onEvent(event)` from your outbox consumer starts every definition listening for `config.type`                                     |
 | `form`     | Your form calls `run()`; `config.schema` holds its fields                                                                                           |
 | `chat`     | Your chat calls `run()`                                                                                                                             |
 
@@ -436,53 +435,14 @@ JSON arrives as `{ body: "<text>" }`. An `Idempotency-Key`
 header keys the start, so a retried delivery starts one run. Only the
 token's SHA-256 is stored; rotating it ends the old one.
 
-An event trigger's `config.when` narrows which events start it. It is a
-filter condition (see [Filter conditions](#filter-conditions)) whose field
-ids start at `type`, `memberships` or `payload`:
-
-```ts
-await builder.triggers
-  .upsert({
-    definition: id,
-    kind: "event",
-    config: {
-      type: "expense.submitted",
-      when: {
-        fields: [{ id: "payload.amount", type: "number" }],
-        filter: {
-          id: "root",
-          type: "group",
-          combinator: "and",
-          rules: [
-            {
-              id: "large",
-              type: "rule",
-              path: ["payload", "amount"],
-              operator: "gt",
-              value: 500,
-            },
-          ],
-        },
-      },
-    },
-  })
-  .orThrow();
-```
-
-`onEvent` skips a trigger whose `when` doesn't match the event, and
-`triggers.upsert` refuses a `when` it can't use (`invalid_input`).
-
 ### Start from outbox events
 
-`builder.sink()` is an [outbox](/docs/blocks/outbox) consumer handler that
-passes each event to `triggers.onEvent`. App tables with
-[`events`](/docs/blocks/app-tables#events) then start the definitions whose
-event trigger names `task.created` or `task.updated`. A failed start throws,
-so the outbox retries the batch.
-
-```ts
-await outbox.consume("workflows", serviceBuilder.sink());
-```
+A definition doesn't listen for outbox events itself. An
+[automation](/docs/blocks/automations) does: its trigger is the event type,
+its conditions are a filter tree over the subject, and its `workflow` action
+starts the definition on the event's record, keyed by automation, action and
+event so a redelivered event starts one run. Register `workflowAction` with
+the builder in the [action registry](/docs/blocks/automations#actions).
 
 `syncSchedule` writes through the `workflows` option, the workflows block
 built with a transport that may create schedules (the service role);
@@ -710,7 +670,7 @@ match a definition on their `bsb.definition` attribute, which
 | `workflow_graph_permissions(graph)`                                                                                                                    | `authenticated`, `service_role` | The permissions a graph's steps need             |
 | `workflow_run_principal(version, tenant)`                                                                                                              | `service_role`                  | Whom a published version's steps run as          |
 | `save_workflow_trigger`, `workflow_triggers_list`, `remove_workflow_trigger`, `rotate_workflow_webhook_token`                                          | `authenticated`, `service_role` | Triggers                                         |
-| `workflow_webhook_target(token)`, `workflow_event_targets(type, tenant)`                                                                               | `service_role`                  | What a webhook or an event starts                |
+| `workflow_webhook_target(token)`                                                                                                                       | `service_role`                  | What a webhook starts                            |
 | `save_workflow_credential`, `workflow_credentials_list`, `remove_workflow_credential`                                                                  | `authenticated`, `service_role` | Credentials                                      |
 | `workflow_credential_get(id)`                                                                                                                          | `service_role`                  | A credential's ref, for `resolve`                |
 | `sync_workflow_steps(steps)`, `workflow_steps_list()`                                                                                                  | `service_role`, `authenticated` | The step library                                 |

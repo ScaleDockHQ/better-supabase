@@ -8,6 +8,7 @@ import type {
 } from "../config/blocks.ts";
 import type { ResolvedInstance } from "../config/instances.ts";
 import type { SubjectsConfig } from "../config/types/subjects.ts";
+import type { DefaultAutomation } from "../core/automation.ts";
 import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
@@ -21,6 +22,7 @@ import { instancePrefix } from "../config/instances.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { defaultRuleRow } from "./default-rule-row.ts";
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
@@ -490,6 +492,13 @@ export interface BlockSqlContext {
     dedupe: string,
     options?: { readonly delay?: string },
   ): string;
+  /**
+   * Row SQL for `data` that ships an automation as a default rule
+   * (`rule_defaults`): every organization gets its own copy, which it may turn
+   * off or edit. The trigger and subject type follow the module's entity
+   * renames. `''` without the `automations` module or a block in `requires`.
+   */
+  automation(spec: DefaultAutomation): string;
   /**
    * The `text[]` of a tenant's entitlements, or `fallback` without the
    * `entitlements` module.
@@ -1413,6 +1422,30 @@ export function createModuleContext(
 
       return `perform ${jobs.fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => ${payload}${delay}, dedupe_key => ${dedupe}, dedupe_running => false);`;
     },
+    automation(spec) {
+      const needs = spec.requires ?? [];
+
+      for (const name of ["automations", ...needs]) {
+        declares(name);
+      }
+
+      if (!["automations", ...needs].every((name) => installed.has(name))) {
+        return "";
+      }
+
+      const rules = createModuleContext("automations", namesOf, shared);
+
+      if (rules.mode === "custom") {
+        return "";
+      }
+
+      return defaultRuleRow(
+        rules,
+        instance,
+        (name) => entityNaming.rename(name),
+        spec,
+      );
+    },
     entitlements,
     retention,
     held,
@@ -1466,9 +1499,7 @@ export function contractSignature(
 
 /** The manifest's options schema of `module`, when it is a built-in module. */
 function optionSchemaOf(module: string): BlockOptionsSchema | undefined {
-  const entry = Object.entries(BLOCK_OPTION_SCHEMAS).find(
+  return Object.entries(BLOCK_OPTION_SCHEMAS).find(
     ([name]) => name === module,
-  );
-
-  return entry?.[1];
+  )?.[1];
 }

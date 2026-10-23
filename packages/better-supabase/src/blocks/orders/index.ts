@@ -83,3 +83,5 @@ export { ordersBlock } from "./manifest.ts";
 export { ordersEvents } from "./events.ts";
 
 export type { OrdersEvents } from "./events.ts";
+
+export { orderFromQuoteAction, type OrderFromQuoteOptions } from "./actions.ts";

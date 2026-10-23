@@ -683,6 +683,60 @@ export default defineConfig({
 The new `cms`, `erp` and `pim` presets start a content site, a small ERP
 and a product catalog ([Presets](/docs/presets#named-presets)).
 
+## Flows become default automations
+
+`better-supabase/flows` is removed, with `createFlows`, `defineFlow` and the
+built-in flows. The blocks that fed another now ship
+[default automations](/docs/blocks/automations#default-automations), rows
+every organization copies and may turn off, edit or reset:
+
+| 0.14 flow                | 0.15 default automation               | Action to register              |
+| ------------------------ | ------------------------------------- | ------------------------------- |
+| `conversationToWorkItem` | Open a task for each new conversation | `taskFromConversationAction`    |
+| `applicationToEmployee`  | Preboard each hired candidate         | `employeeFromApplicationAction` |
+| `quoteToOrder`           | Order each accepted quote (off)       | `orderFromQuoteAction`          |
+| `bookingToEngagement`    | none: the bookings trigger does it    | none                            |
+
+Run `bsb upgrade` so the automations module creates `rule_defaults`, then
+replace `createFlows` in the outbox consumer with one action registry:
+
+```ts
+const actions = createActionRegistry([
+  notifyAction(notifications),
+  taskFromConversationAction({ clients: (tenant) => blocksFor(tenant) }),
+]);
+const sink = createRuleSink({
+  rules: rulesAdmin,
+  dispatcher: createRuleDispatcher({ actions }),
+});
+await outbox.consume("rules", sink);
+```
+
+`createRuleDispatcher` takes `actions` instead of `handlers`: wrap a custom
+handler in `defineAction({ kind, title, run })`. `RuleActionHandler` and
+`RuleActionCall` are now `ActionHandler` and `ActionCall`, and the hints
+`RULE_ACTION_UNKNOWN` and `RULE_ACTION_INVALID` are now `ACTION_UNKNOWN` and
+`ACTION_CONFIG_INVALID`. A `load` that returns `undefined` no longer skips
+the event; it falls back to `eventTarget(event)`, so return early in the
+consumer for events you don't want rules to see. A block you uninstall
+leaves its default automations behind; turn them off.
+
+## Workflows start from automations
+
+Workflow-editor triggers of kind `event` are gone, with `triggers.onEvent`,
+`builder.sink()`, `triggerMatches` and `triggerWhenProblem`. `bsb upgrade`
+deletes the event triggers. Recreate each one as an automation whose trigger
+is the event type, whose conditions replace `config.when`, and whose action is
+`{ kind: "workflow", config: { definition } }`; register
+`workflowAction(builder)` in the action registry.
+
+The timers of the SLA, sequences, AI schedules and workflows blocks run from
+the queue: schedule them with
+`jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
+and drain the `block_ticks` queue with `blockTickHandler`
+([Block timers](/docs/blocks/queue#block-timers)). A cron route that already
+calls `sla.check()` or `sequences.runDue()` keeps working.
+
 ## Doctor finds what is left
 
 `better-supabase doctor` reports BS418 for app code that still imports a

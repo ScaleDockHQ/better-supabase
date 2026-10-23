@@ -2,6 +2,7 @@ import type { BlockOf } from "../define-block.ts";
 import type { QuotesEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
+import { QUOTES_AUTOMATIONS } from "./automations.ts";
 import { quotesEvents } from "./events.ts";
 import { quotesSqlOptions } from "./options.ts";
 import { createQuotes } from "./quotes.ts";
@@ -16,4 +17,5 @@ export const quotesBlock: BlockOf<"quotes", typeof createQuotes, QuotesEvents> =
     create: createQuotes,
     category: "crm",
     recipes: ["quote-builder"],
+    automations: QUOTES_AUTOMATIONS,
   });

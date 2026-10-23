@@ -20,6 +20,12 @@ export const employeesBlock: BlockOf<
   create: createEmployees,
   category: "people",
   recipes: ["employee-directory"],
+  actions: [
+    {
+      kind: "employees.from_application",
+      title: "Preboard the hired candidate",
+    },
+  ],
   schemas: {
     employee: { input: employeeInputSchema, change: employeeChangeSchema },
   },

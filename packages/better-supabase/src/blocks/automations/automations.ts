@@ -1,10 +1,15 @@
 /// <reference lib="esnext.temporal" />
 
+import type {
+  ActionContext,
+  ActionOrigin,
+  ActionRef,
+  ActionRegistry,
+} from "../../core/automation.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { Result } from "../../core/result.ts";
 import type {
   FilterEvaluation,
   FilterRecordField,
@@ -18,6 +23,7 @@ import type {
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { RuleField, RuleFieldCatalog } from "./fields.ts";
 
+import { actionKey } from "../../core/automation.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -37,12 +43,8 @@ import {
 } from "../shared.ts";
 import { ruleFilterFieldInfo } from "./fields.ts";
 
-/** What a rule runs when it matches: a kind the app handles and its settings. */
-export interface RuleAction {
-  /** Such as `approvals.request` or `notifications.send`. */
-  readonly kind: string;
-  readonly config?: Readonly<Record<string, unknown>>;
-}
+/** What a rule runs when it matches: an action reference (ADR 0046). */
+export type RuleAction = ActionRef;
 
 export interface Rule {
   readonly id: string;
@@ -64,6 +66,12 @@ export interface Rule {
   readonly updatedBy: string | undefined;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /**
+   * The key of the default automation this rule copies (`rule_defaults`), or
+   * `undefined` for a rule the organization wrote. A default can't be removed;
+   * turn it off or `resetDefault` it.
+   */
+  readonly defaultKey: string | undefined;
 }
 
 /** `upsert`'s input: left-out keys keep their value on an existing rule. */
@@ -167,9 +175,15 @@ export interface Automations {
   move(id: string, rank: string): AsyncResult<Rule>;
   /**
    * Removes a rule with its history (needs `rules.admin`); `false` when there
-   * is none to remove.
+   * is none to remove. A default automation fails with `RULE_DEFAULT`; turn it
+   * off instead.
    */
   remove(id: string): AsyncResult<boolean>;
+  /**
+   * Restores a default automation to what its block ships (needs `rules.edit`,
+   * or `rules.publish` when it is or becomes enabled).
+   */
+  resetDefault(id: string): AsyncResult<Rule>;
   /** Saved versions, newest first. */
   versions(id: string): AsyncResult<readonly RuleVersion[]>;
   /** The evaluation log, newest first. */
@@ -281,6 +295,7 @@ export function ruleOf(value: unknown): Rule {
     updatedBy: optionalText(row["updatedBy"]),
     createdAt: toInstant(textOf(row["createdAt"])),
     updatedAt: toInstant(textOf(row["updatedAt"])),
+    defaultKey: optionalText(row["defaultKey"]),
   };
 }
 
@@ -427,6 +442,7 @@ export function createAutomations(options: AutomationsOptions): Automations {
       call("set_rule_enabled", { id, enabled }, ruleOf),
     move: (id, rank) => call("rank_rule", { id, rank }, ruleOf),
     remove: (id) => call("remove_rule", { id }, (value) => value === true),
+    resetDefault: (id) => call("reset_default_rule", { id }, ruleOf),
     versions: (id) =>
       call("rule_versions_list", { id }, (value) =>
         recordsOf(value, "rule_versions_list").map(versionOf),
@@ -491,6 +507,16 @@ export function createAutomations(options: AutomationsOptions): Automations {
   });
 }
 
+/**
+ * What `run` tests: like `RuleSubject`, with a null subject type for every rule
+ * of the trigger.
+ */
+export interface RuleRun extends Omit<RuleSubject, "subjectType"> {
+  /** `null` tests every rule for the trigger, each on its own fields. */
+  readonly subjectType: string | null;
+  readonly subjectId?: string;
+}
+
 export interface RulesAdminOptions extends BlockTemporalOptions {
   /**
    * A service-role transport: `sync_rule_fields` and `run_rules` are granted to
@@ -510,7 +536,7 @@ export interface AutomationsAdmin {
    */
   run(
     organizationId: string,
-    input: RuleSubject & { readonly subjectId?: string },
+    input: RuleRun,
   ): AsyncResult<readonly RuleMatch[]>;
 }
 
@@ -561,26 +587,7 @@ export function createAutomationsAdmin(
   };
 }
 
-/**
- * What a handler receives: the action, the rule it belongs to and the dispatch
- * context.
- */
-export interface RuleActionCall<C = unknown> {
-  readonly action: RuleAction;
-  readonly rule: Rule;
-  readonly results: Readonly<Record<string, boolean | null>>;
-  readonly context: C;
-}
-
-/**
- * Runs one action kind. Return a `Result`; a throw becomes an `unexpected`
- * error.
- */
-export type RuleActionHandler<C = unknown> = (
-  call: RuleActionCall<C>,
-) => Result<unknown> | PromiseLike<Result<unknown>>;
-
-/** The outcome of one action: its value, or the error its handler returned. */
+/** The outcome of one action: its value, or the error its action returned. */
 export type RuleActionOutcome =
   | {
       readonly ruleId: string;
@@ -595,53 +602,54 @@ export type RuleActionOutcome =
       readonly error: DbError;
     };
 
-export interface RuleDispatcherOptions<C> {
-  /** A handler per action kind, such as `approvals.request`. */
-  readonly handlers: Readonly<Record<string, RuleActionHandler<C>>>;
+export interface RuleDispatcherOptions {
+  /**
+   * The actions of every installed block (`createActionRegistry`), the same
+   * registry workflow and sequence steps run.
+   */
+  readonly actions: ActionRegistry;
 }
 
-export interface RuleDispatcher<C = unknown> {
+export interface RuleDispatcher {
   /**
    * Runs the actions of `matches` in order. A failed action doesn't stop the
-   * others; each one's outcome comes back. A kind without a handler is an
-   * `invalid_request` outcome with the hint `RULE_ACTION_UNKNOWN`.
+   * others; each one's outcome comes back. A kind no registered action handles
+   * is an `invalid_request` outcome with the hint `ACTION_UNKNOWN`. An empty
+   * `subjectType` in `context` takes each rule's.
    */
   dispatch(
     matches: readonly RuleMatch[],
-    context: C,
+    context: ActionContext,
   ): AsyncResult<readonly RuleActionOutcome[]>;
 }
 
-/** Runs matched rules' actions with the app's handlers. */
-export function createRuleDispatcher<C = unknown>(
-  options: RuleDispatcherOptions<C>,
-): RuleDispatcher<C> {
+/** Runs matched rules' actions through the action registry. */
+export function createRuleDispatcher(
+  options: RuleDispatcherOptions,
+): RuleDispatcher {
   const runOne = async (
-    call: RuleActionCall<C>,
+    action: RuleAction,
+    rule: Rule,
+    shared: ActionContext,
   ): Promise<RuleActionOutcome> => {
-    const { action, rule } = call;
-    const handler = options.handlers[action.kind];
+    const origin: ActionOrigin = {
+      type: "automation",
+      id: rule.id,
+      name: rule.name,
+      trigger: rule.trigger,
+    };
 
-    if (handler === undefined) {
-      return {
-        ruleId: rule.id,
-        kind: action.kind,
-        ok: false,
-        error: dbError(
-          "invalid_request",
-          `No handler for the rule action "${action.kind}"`,
-          { hint: "RULE_ACTION_UNKNOWN" },
-        ),
-      };
-    }
+    const context =
+      shared.subjectType === ""
+        ? { ...shared, subjectType: rule.subjectType }
+        : shared;
 
-    let result: Result<unknown>;
-
-    try {
-      result = await handler(call);
-    } catch (cause) {
-      result = err(dbError("unexpected", errorText(cause)));
-    }
+    const result = await options.actions.run({
+      action,
+      origin,
+      context,
+      key: actionKey(origin, action.kind, context),
+    });
 
     return result.ok
       ? { ruleId: rule.id, kind: action.kind, ok: true, value: result.data }
@@ -656,14 +664,7 @@ export function createRuleDispatcher<C = unknown>(
         for (const match of matches) {
           for (const action of match.rule.actions) {
             // Actions run in rule order, one at a time.
-            outcomes.push(
-              await runOne({
-                action,
-                rule: match.rule,
-                results: match.results,
-                context,
-              }),
-            );
+            outcomes.push(await runOne(action, match.rule, context));
           }
         }
 
@@ -677,42 +678,76 @@ export interface RuleSinkEvent {
   readonly id: string;
   readonly type: string;
   readonly payload?: unknown;
+  /** The CloudEvents subject, such as `conversations/<id>`. */
+  readonly subject?: string | null;
   readonly tenant?: string | null;
 }
 
 /**
  * What `load` returns for an event the rules should see: the subject and the
- * dispatch context.
+ * action context.
  */
-export interface RuleSinkTarget<C> {
+export interface RuleSinkTarget {
   readonly organizationId: string;
-  readonly subjectType: string;
+  /** The subject type whose rules run. Absent: every rule for the trigger. */
+  readonly subjectType?: string;
   readonly subjectId?: string;
   /** The record the field catalog's columns read. */
   readonly subject: Readonly<Record<string, unknown>>;
   readonly timeZone?: string;
-  readonly context: C;
+  /** Default: built from the target and the event. */
+  readonly context?: ActionContext;
 }
 
-export interface RuleSinkOptions<C> {
+export interface RuleSinkOptions {
   /** `rules.run` from `createAutomationsAdmin`, which logs each evaluation live. */
   readonly rules: Pick<AutomationsAdmin, "run">;
-  readonly dispatcher: RuleDispatcher<C>;
+  readonly dispatcher: RuleDispatcher;
   /**
    * Reads the subject an event is about, such as the app table row named by
-   * `payload.id`. `undefined` skips the event.
+   * `payload.id`. `undefined`, or no `load`, falls back to the event itself
+   * (`eventTarget`), which is what the automations blocks ship test.
    */
-  readonly load: (
+  readonly load?: (
     event: RuleSinkEvent,
-  ) =>
-    | RuleSinkTarget<C>
-    | undefined
-    | PromiseLike<RuleSinkTarget<C> | undefined>;
+  ) => RuleSinkTarget | undefined | PromiseLike<RuleSinkTarget | undefined>;
   /** Receives each event's action outcomes, failed ones included. */
   readonly onOutcomes?: (
     event: RuleSinkEvent,
     outcomes: readonly RuleActionOutcome[],
   ) => void;
+}
+
+function payloadOf(event: RuleSinkEvent): Readonly<Record<string, unknown>> {
+  return isRecord(event.payload) ? event.payload : {};
+}
+
+/**
+ * The target for an event no `load` reads: the organization from the outbox
+ * tenant or `payload.organizationId`, the id from the CloudEvents subject
+ * (`conversations/<id>`) or `payload.id`, and the payload as the subject. Every
+ * rule for the trigger runs. `undefined` for an event without an organization.
+ */
+export function eventTarget(event: RuleSinkEvent): RuleSinkTarget | undefined {
+  const payload = payloadOf(event);
+  const organization = event.tenant ?? payload["organizationId"];
+
+  if (typeof organization !== "string" || organization === "") {
+    return undefined;
+  }
+
+  const fromSubject =
+    typeof event.subject === "string" && event.subject.includes("/")
+      ? event.subject.slice(event.subject.lastIndexOf("/") + 1)
+      : undefined;
+
+  const id = fromSubject ?? payload["id"];
+
+  return {
+    organizationId: organization,
+    ...(typeof id === "string" && id !== "" ? { subjectId: id } : {}),
+    subject: payload,
+  };
 }
 
 /**
@@ -722,12 +757,12 @@ export interface RuleSinkOptions<C> {
  * fails, so the outbox retries the event; a failed action goes to `onOutcomes`
  * instead, since a retry would run the others again.
  */
-export function createRuleSink<C = unknown>(
-  options: RuleSinkOptions<C>,
+export function createRuleSink(
+  options: RuleSinkOptions,
 ): (events: readonly RuleSinkEvent[]) => Promise<void> {
   return async (events) => {
     for (const event of events) {
-      const target = await options.load(event);
+      const target = (await options.load?.(event)) ?? eventTarget(event);
 
       if (target === undefined) {
         continue;
@@ -735,7 +770,7 @@ export function createRuleSink<C = unknown>(
 
       const matches = await options.rules
         .run(target.organizationId, {
-          subjectType: target.subjectType,
+          subjectType: target.subjectType ?? null,
           trigger: event.type,
           subject: target.subject,
           ...(target.subjectId === undefined
@@ -751,8 +786,16 @@ export function createRuleSink<C = unknown>(
         continue;
       }
 
+      const context: ActionContext = target.context ?? {
+        organizationId: target.organizationId,
+        subjectType: target.subjectType ?? "",
+        subjectId: target.subjectId ?? "",
+        payload: payloadOf(event),
+        eventId: event.id,
+      };
+
       const outcomes = await options.dispatcher
-        .dispatch(matches, target.context)
+        .dispatch(matches, context)
         .orThrow();
 
       options.onOutcomes?.(event, outcomes);

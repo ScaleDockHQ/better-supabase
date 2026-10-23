@@ -27,8 +27,10 @@ update, the names of the changed columns. An update that changes only
 The table needs the outbox block; the renderer refuses the config without it.
 `gen blocks` writes `appTableEvents`, a typed event map over
 `AppTableEventData`. Delivery stays with the outbox consumers:
-`createRuleSink` runs the rules for each event and dispatches the actions,
-and `WorkflowBuilder.sink()` starts the workflows whose trigger matches.
+`createRuleSink` runs the rules for each event and dispatches the actions.
+`WorkflowBuilder.sink()` started the workflows whose trigger matched until
+ADR 0093 removed event triggers; an automation's `workflow` action starts
+them now.
 
 Rules get four built-in actions next to `approvals`: `notify`, `setField`,
 `webhook` and `workflow`. Each is a factory over a structural interface, so

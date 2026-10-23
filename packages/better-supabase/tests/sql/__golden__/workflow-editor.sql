@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_44_workflow_editor.sql
 -- better-supabase module: workflow-editor
--- @bsb-block workflow-editor@2 managed
+-- @bsb-block workflow-editor@3 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -181,12 +181,12 @@ create policy workflow_versions_read on "better_supabase"."workflow_versions" fo
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
--- SHA-256 only; schedule, event, form and chat triggers keep their settings
+-- SHA-256 only; schedule, form and chat triggers keep their settings
 -- in config for the app to bind.
 create table if not exists "better_supabase"."workflow_triggers" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'event', 'form', 'chat')),
+  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat')),
   "config" jsonb not null default '{}'::jsonb,
   "enabled" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -1483,45 +1483,6 @@ $$;
 revoke execute on function "better_supabase"."workflow_webhook_target"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_webhook_target"(text) to service_role;
 
--- The enabled event triggers listening for type (config.type) in tenant,
--- with the tenant the run belongs to and the subject types their definition
--- runs on (service role; the outbox consumer calls it). System definitions
--- listen in every tenant; a tenant that opted out of one is left out.
-create or replace function "better_supabase"."workflow_event_targets"(type text, tenant uuid default null)
-returns jsonb
-language sql
-stable
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'trigger', jsonb_build_object(
-    'id', x."id",
-    'definition', x."definition_id",
-    'kind', x."kind",
-    'config', x."config",
-    'enabled', x."enabled",
-    'createdAt', x."created_at",
-    'updatedAt', x."updated_at"
-  ),
-    'tenant', coalesce(y."tenant_id", workflow_event_targets.tenant),
-    'subjectTypes', to_jsonb(y."subject_types")
-  ) order by x."created_at"), '[]'::jsonb)
-  from "better_supabase"."workflow_triggers" x
-  join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
-  where x."kind" = 'event' and x."enabled"
-    and x."config" ->> 'type' = workflow_event_targets.type
-    and (
-      y."tenant_id" is not distinct from workflow_event_targets.tenant
-      or (y."scope" = 'system' and workflow_event_targets.tenant is not null)
-    )
-    and not exists (
-      select 1 from "better_supabase"."workflow_opt_outs" z
-      where z."tenant_id" = workflow_event_targets.tenant and z."definition_id" = y."id"
-    );
-$$;
-revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
-
 -- Creates or replaces a credential reference: workflow.admin in tenant.
 create or replace function "better_supabase"."save_workflow_credential"(
   tenant uuid,
@@ -1970,13 +1931,13 @@ grant select on better_supabase.blocks to service_role;
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-editor', 2, 'managed')
+values ('workflow-editor', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_44_workflow_editor.sql
 -- better-supabase module: workflow-editor
--- @bsb-block workflow-editor@2 managed
+-- @bsb-block workflow-editor@3 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2157,12 +2118,12 @@ create policy workflow_versions_read on "better_supabase"."workflow_versions" fo
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
--- SHA-256 only; schedule, event, form and chat triggers keep their settings
+-- SHA-256 only; schedule, form and chat triggers keep their settings
 -- in config for the app to bind.
 create table if not exists "better_supabase"."workflow_triggers" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'event', 'form', 'chat')),
+  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat')),
   "config" jsonb not null default '{}'::jsonb,
   "enabled" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -3495,45 +3456,6 @@ $$;
 revoke execute on function "better_supabase"."workflow_webhook_target"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_webhook_target"(text) to service_role;
 
--- The enabled event triggers listening for type (config.type) in tenant,
--- with the tenant the run belongs to and the subject types their definition
--- runs on (service role; the outbox consumer calls it). System definitions
--- listen in every tenant; a tenant that opted out of one is left out.
-create or replace function "better_supabase"."workflow_event_targets"(type text, tenant uuid default null)
-returns jsonb
-language sql
-stable
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'trigger', jsonb_build_object(
-    'id', x."id",
-    'definition', x."definition_id",
-    'kind', x."kind",
-    'config', x."config",
-    'enabled', x."enabled",
-    'createdAt', x."created_at",
-    'updatedAt', x."updated_at"
-  ),
-    'tenant', coalesce(y."tenant_id", workflow_event_targets.tenant),
-    'subjectTypes', to_jsonb(y."subject_types")
-  ) order by x."created_at"), '[]'::jsonb)
-  from "better_supabase"."workflow_triggers" x
-  join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
-  where x."kind" = 'event' and x."enabled"
-    and x."config" ->> 'type' = workflow_event_targets.type
-    and (
-      y."tenant_id" is not distinct from workflow_event_targets.tenant
-      or (y."scope" = 'system' and workflow_event_targets.tenant is not null)
-    )
-    and not exists (
-      select 1 from "better_supabase"."workflow_opt_outs" z
-      where z."tenant_id" = workflow_event_targets.tenant and z."definition_id" = y."id"
-    );
-$$;
-revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
-
 -- Creates or replaces a credential reference: workflow.admin in tenant.
 create or replace function "better_supabase"."save_workflow_credential"(
   tenant uuid,
@@ -3984,13 +3906,13 @@ grant select on better_supabase.blocks to service_role;
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-editor', 2, 'managed')
+values ('workflow-editor', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_44_workflow_editor.sql
 -- better-supabase module: workflow-editor
--- @bsb-block workflow-editor@2 managed
+-- @bsb-block workflow-editor@3 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4173,12 +4095,12 @@ create policy workflow_versions_read on "app_private"."workflow_versions" for se
   using ("definition_id" in (select x."id" from "app_private"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
--- SHA-256 only; schedule, event, form and chat triggers keep their settings
+-- SHA-256 only; schedule, form and chat triggers keep their settings
 -- in config for the app to bind.
 create table if not exists "app_private"."workflow_triggers" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "app_private"."workflow_definitions" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'event', 'form', 'chat')),
+  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat')),
   "config" jsonb not null default '{}'::jsonb,
   "enabled" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -5475,45 +5397,6 @@ $$;
 revoke execute on function "app_private"."workflow_webhook_target"(text) from public, anon, authenticated;
 grant execute on function "app_private"."workflow_webhook_target"(text) to service_role;
 
--- The enabled event triggers listening for type (config.type) in tenant,
--- with the tenant the run belongs to and the subject types their definition
--- runs on (service role; the outbox consumer calls it). System definitions
--- listen in every tenant; a tenant that opted out of one is left out.
-create or replace function "app_private"."workflow_event_targets"(type text, tenant uuid default null)
-returns jsonb
-language sql
-stable
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'trigger', jsonb_build_object(
-    'id', x."id",
-    'definition', x."definition_id",
-    'kind', x."kind",
-    'config', x."config",
-    'enabled', x."enabled",
-    'createdAt', x."created_at",
-    'updatedAt', x."updated_at"
-  ),
-    'tenant', coalesce(y."tenant_id", workflow_event_targets.tenant),
-    'subjectTypes', to_jsonb(y."subject_types")
-  ) order by x."created_at"), '[]'::jsonb)
-  from "app_private"."workflow_triggers" x
-  join "app_private"."workflow_definitions" y on y."id" = x."definition_id"
-  where x."kind" = 'event' and x."enabled"
-    and x."config" ->> 'type' = workflow_event_targets.type
-    and (
-      y."tenant_id" is not distinct from workflow_event_targets.tenant
-      or (y."scope" = 'system' and workflow_event_targets.tenant is not null)
-    )
-    and not exists (
-      select 1 from "app_private"."workflow_opt_outs" z
-      where z."tenant_id" = workflow_event_targets.tenant and z."definition_id" = y."id"
-    );
-$$;
-revoke execute on function "app_private"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
-grant execute on function "app_private"."workflow_event_targets"(text, uuid) to service_role;
-
 -- Creates or replaces a credential reference: workflow.admin in tenant.
 create or replace function "app_private"."save_workflow_credential"(
   tenant uuid,
@@ -5962,13 +5845,13 @@ grant select on better_supabase.blocks to service_role;
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-editor', 2, 'managed')
+values ('workflow-editor', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_44_workflow_editor.sql
 -- better-supabase module: workflow-editor
--- @bsb-block workflow-editor@2 managed
+-- @bsb-block workflow-editor@3 managed
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6149,12 +6032,12 @@ create policy workflow_versions_read on "better_supabase"."workflow_versions" fo
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
--- SHA-256 only; schedule, event, form and chat triggers keep their settings
+-- SHA-256 only; schedule, form and chat triggers keep their settings
 -- in config for the app to bind.
 create table if not exists "better_supabase"."workflow_triggers" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'event', 'form', 'chat')),
+  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat')),
   "config" jsonb not null default '{}'::jsonb,
   "enabled" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -7451,45 +7334,6 @@ $$;
 revoke execute on function "better_supabase"."workflow_webhook_target"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_webhook_target"(text) to service_role;
 
--- The enabled event triggers listening for type (config.type) in tenant,
--- with the tenant the run belongs to and the subject types their definition
--- runs on (service role; the outbox consumer calls it). System definitions
--- listen in every tenant; a tenant that opted out of one is left out.
-create or replace function "better_supabase"."workflow_event_targets"(type text, tenant uuid default null)
-returns jsonb
-language sql
-stable
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'trigger', jsonb_build_object(
-    'id', x."id",
-    'definition', x."definition_id",
-    'kind', x."kind",
-    'config', x."config",
-    'enabled', x."enabled",
-    'createdAt', x."created_at",
-    'updatedAt', x."updated_at"
-  ),
-    'tenant', coalesce(y."tenant_id", workflow_event_targets.tenant),
-    'subjectTypes', to_jsonb(y."subject_types")
-  ) order by x."created_at"), '[]'::jsonb)
-  from "better_supabase"."workflow_triggers" x
-  join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
-  where x."kind" = 'event' and x."enabled"
-    and x."config" ->> 'type' = workflow_event_targets.type
-    and (
-      y."tenant_id" is not distinct from workflow_event_targets.tenant
-      or (y."scope" = 'system' and workflow_event_targets.tenant is not null)
-    )
-    and not exists (
-      select 1 from "better_supabase"."workflow_opt_outs" z
-      where z."tenant_id" = workflow_event_targets.tenant and z."definition_id" = y."id"
-    );
-$$;
-revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
-grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
-
 -- Creates or replaces a credential reference: workflow.admin in tenant.
 create or replace function "better_supabase"."save_workflow_credential"(
   tenant uuid,
@@ -8150,15 +7994,6 @@ as $$ select "better_supabase"."workflow_webhook_target"($1) $$;
 revoke execute on function "api"."workflow_webhook_target"(text) from public, anon, authenticated;
 grant execute on function "api"."workflow_webhook_target"(text) to service_role;
 
-create or replace function "api"."workflow_event_targets"(type text, tenant uuid default null)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."workflow_event_targets"($1, $2) $$;
-revoke execute on function "api"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
-grant execute on function "api"."workflow_event_targets"(text, uuid) to service_role;
-
 create or replace function "api"."save_workflow_credential"(tenant uuid, kind text, name text, ref jsonb, scopes text[] default '{}')
 returns jsonb
 language sql
@@ -8291,6 +8126,6 @@ grant select on better_supabase.blocks to service_role;
 create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-editor', 2, 'managed')
+values ('workflow-editor', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

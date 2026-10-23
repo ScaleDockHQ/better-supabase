@@ -16,4 +16,5 @@ export const ordersBlock: BlockOf<"orders", typeof createOrders, OrdersEvents> =
     create: createOrders,
     category: "commerce",
     recipes: ["order-detail", "kitchen-display", "order-state-board"],
+    actions: [{ kind: "orders.from_quote", title: "Order the accepted quote" }],
   });

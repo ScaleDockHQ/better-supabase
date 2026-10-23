@@ -22,8 +22,6 @@ import {
   nodeOf,
   readPath,
   topologicalOrder,
-  triggerMatches,
-  triggerWhenProblem,
   validateGraph,
 } from "../../../src/blocks/workflow-editor/graph.ts";
 import { fakeRuntime, GRAPH } from "./fixture.ts";
@@ -168,60 +166,6 @@ describe("conditions", () => {
         conditionOf({ id: "c", kind: "condition", config: bad }),
       ).toBeUndefined();
     }
-  });
-
-  it("lets an event start a trigger only when its when matches", () => {
-    const when = {
-      fields: [
-        { id: "type", type: "text" },
-        { id: "payload.submittedAt", type: "date", columnType: "date" },
-      ],
-      filter: {
-        id: "root",
-        type: "group",
-        combinator: "and",
-        rules: [
-          {
-            id: "t",
-            type: "rule",
-            path: ["type"],
-            operator: "is",
-            value: "expense.submitted",
-          },
-          {
-            id: "d",
-            type: "rule",
-            path: ["payload", "submittedAt"],
-            operator: "is_after",
-            value: { date: "2026-01-01" },
-          },
-        ],
-      },
-    };
-
-    const event = {
-      type: "expense.submitted",
-      payload: { submittedAt: "2026-10-19" },
-    };
-
-    expect(triggerMatches({}, event)).toBe(true);
-    expect(triggerMatches({ when }, event)).toBe(true);
-    expect(
-      triggerMatches(
-        { when },
-        { ...event, payload: { submittedAt: "2025-12-31" } },
-      ),
-    ).toBe(false);
-    expect(triggerMatches({ when: { filter: {}, fields: [] } }, event)).toBe(
-      false,
-    );
-    expect(triggerWhenProblem({ when })).toBeUndefined();
-    expect(triggerWhenProblem({})).toBeUndefined();
-    expect(
-      triggerWhenProblem({
-        when: { ...when, fields: [{ id: "input.x", type: "text" }] },
-      }),
-    ).toContain("config.when");
   });
 
   it("approves anything but approved: false", () => {

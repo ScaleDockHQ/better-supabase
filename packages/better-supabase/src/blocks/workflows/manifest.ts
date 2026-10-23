@@ -14,6 +14,15 @@ export const workflowsBlock: BlockOf<
   "workflows"
 > = defineBlock({
   name: "workflows",
+  schedules: [
+    {
+      name: "tick",
+      cron: "* * * * *",
+      runs: "schedules.tick() and admission.tick()",
+      description:
+        "Starts every due workflow schedule once and the queued starts that have room.",
+    },
+  ],
   sql: ["workflows"],
   events: workflowsEvents,
   provides: { workflows: (client) => client },

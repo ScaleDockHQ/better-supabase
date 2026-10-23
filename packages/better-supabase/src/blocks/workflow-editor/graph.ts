@@ -273,59 +273,6 @@ export function matchesFilter(
   ).matched;
 }
 
-const EVENT_PATH = /^(type|tenant|payload)(\.[^.]+)*$/;
-
-/**
- * The event an event trigger's `config.when` reads: `type`, `tenant` and
- * `payload...`.
- */
-export interface TriggerEvent {
-  readonly type: string;
-  readonly tenant?: string | null | undefined;
-  readonly payload?: unknown;
-}
-
-/**
- * Whether an event trigger's `config.when` (a `WorkflowFilterCondition` over
- * `type`, `tenant` and `payload...`) lets `event` start a run. True without a
- * `when`; false when `when` isn't a valid one.
- */
-export function triggerMatches(
-  config: Readonly<Record<string, unknown>>,
-  event: TriggerEvent,
-): boolean {
-  const when = config["when"];
-
-  if (when === undefined) {
-    return true;
-  }
-
-  const condition = filterConditionOf(when, EVENT_PATH);
-
-  return (
-    condition !== undefined &&
-    matchesFilter(condition, {
-      type: event.type,
-      tenant: event.tenant ?? null,
-      payload: event.payload ?? {},
-    })
-  );
-}
-
-/**
- * Why an event trigger's `config.when` can't be used, or `undefined` when it
- * can.
- */
-export function triggerWhenProblem(
-  config: Readonly<Record<string, unknown>>,
-): string | undefined {
-  const when = config["when"];
-
-  return when === undefined || filterConditionOf(when, EVENT_PATH) !== undefined
-    ? undefined
-    : "config.when is a { filter, fields } filter with at least one finished rule over type, tenant or payload fields";
-}
-
 /** The node's condition, or `undefined` when its config isn't one. */
 export function conditionOf(
   node: WorkflowGraphNode,

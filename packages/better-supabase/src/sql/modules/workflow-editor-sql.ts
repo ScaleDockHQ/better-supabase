@@ -456,8 +456,6 @@ export function builderRuntimeSql(s: BuilderSql): string {
     cn,
     ca,
     cf,
-    o,
-    co,
     r,
     cr,
     allowed,
@@ -603,36 +601,6 @@ as $$
     and x.${ct("enabled")};
 $$;
 ${serviceGrant(`${fn("workflow_webhook_target")}(text)`)}
-
--- The enabled event triggers listening for type (config.type) in tenant,
--- with the tenant the run belongs to and the subject types their definition
--- runs on (service role; the outbox consumer calls it). System definitions
--- listen in every tenant; a tenant that opted out of one is left out.
-create or replace function ${fn("workflow_event_targets")}(type text, tenant ${id} default null)
-returns jsonb
-language sql
-stable
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'trigger', ${triggerJson("x")},
-    'tenant', coalesce(y.${cd("tenant")}, workflow_event_targets.tenant),
-    'subjectTypes', to_jsonb(y.${cd("subjectTypes")})
-  ) order by x.${ct("createdAt")}), '[]'::jsonb)
-  from ${t} x
-  join ${d} y on y.${cd("id")} = x.${ct("definition")}
-  where x.${ct("kind")} = 'event' and x.${ct("enabled")}
-    and x.${ct("config")} ->> 'type' = workflow_event_targets.type
-    and (
-      y.${cd("tenant")} is not distinct from workflow_event_targets.tenant
-      or (y.${cd("scope")} = 'system' and workflow_event_targets.tenant is not null)
-    )
-    and not exists (
-      select 1 from ${o} z
-      where z.${co("tenant")} = workflow_event_targets.tenant and z.${co("definition")} = y.${cd("id")}
-    );
-$$;
-${serviceGrant(`${fn("workflow_event_targets")}(text, ${id})`)}
 
 -- Creates or replaces a credential reference: workflow.admin in tenant.
 create or replace function ${fn("save_workflow_credential")}(

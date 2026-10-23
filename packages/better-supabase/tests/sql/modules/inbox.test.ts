@@ -123,8 +123,8 @@ describe("inbox module", () => {
 
   it("keeps files in attachments instead of a bucket of its own", () => {
     expect(
-      INBOX.data?.(moduleContext("inbox", { modules: {} }), {}),
-    ).toBeUndefined();
+      INBOX.data?.(moduleContext("inbox", { modules: {} }), {}) ?? "",
+    ).not.toContain("storage.buckets");
     expect(body()).not.toContain("inbox-files");
   });
 

@@ -112,20 +112,33 @@ const matches = await createAutomationsAdmin({ transport: serviceTransport })
 
 ## Actions
 
-Actions are references, never code: the database stores `{ kind, config }` and your app runs them. `createRuleDispatcher` maps each kind to a handler that returns a `Result`, and `dispatch` runs the actions of every match in order. A failed action doesn't stop the others, a handler that throws becomes an `unexpected` outcome, and a kind without a handler is an `invalid_request` outcome with the hint `RULE_ACTION_UNKNOWN`.
+Actions are references, never code: the database stores `{ kind, config }` and your app runs them. One action registry serves automations, workflow action steps and sequence action steps. `defineAction` declares an action with a kind, a title for the editor, an optional Standard Schema for its config and a `run` that returns a `Result`. `createActionRegistry` collects the actions of every installed block and throws when two of them handle the same kind.
+
+`createRuleDispatcher({ actions })` runs the actions of every match in order. A failed action doesn't stop the others, an action that throws becomes an `unexpected` outcome, a kind the registry lacks is an `invalid_request` outcome with the hint `ACTION_UNKNOWN`, and a config that fails the action's schema is a `validation` outcome with the hint `ACTION_CONFIG_INVALID`.
 
 ```ts
 import { createApprovals } from "better-supabase/blocks/approvals";
 import {
   approvalsAction,
+  createActionRegistry,
   createRuleDispatcher,
+  defineAction,
 } from "better-supabase/blocks/automations";
+import { ok } from "better-supabase";
 
-const dispatcher = createRuleDispatcher({
-  handlers: {
-    "approvals.request": approvalsAction(createApprovals({ transport })),
-  },
-});
+const actions = createActionRegistry([
+  approvalsAction(createApprovals({ transport })),
+  defineAction({
+    kind: "crm.tag",
+    title: "Tag the customer",
+    run: async ({ context, action }) => {
+      await tagCustomer(context.subjectId, String(action.config?.tag));
+      return ok(null);
+    },
+  }),
+]);
+
+const dispatcher = createRuleDispatcher({ actions });
 
 const outcomes = await dispatcher
   .dispatch(matches, {
@@ -137,31 +150,55 @@ const outcomes = await dispatcher
   .orThrow();
 ```
 
+`run` receives the action, its origin (the automation, workflow run or sequence enrollment that started it) and the context, plus a `key` that stays the same for every retry of this action for this event. Pass the key on as an idempotency key.
+
 `approvalsAction` starts an [approval request](/docs/blocks/approvals) for the action in `config.action`, which must be a policy action your approvals options name for the subject type.
 
-Four more handlers cover the common actions. Each takes the part of a client it calls, so you pass the block you already built:
+Four more actions cover the common cases. Each takes the part of a client it calls, so you pass the block you already built:
 
-| Handler                     | Config                                                | What it does                                                                         |
+| Action                      | Config                                                | What it does                                                                         |
 | --------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `notifyAction(notifier)`    | `type`, `recipients` and or `recipientField`, `data`  | sends the notification to the listed user ids and the one in the payload column      |
 | `setFieldAction(setField)`  | `field`, `value`                                      | calls your setter with the subject and the value; the setter decides what it accepts |
 | `webhookAction(webhooks)`   | `endpointId`, `type` (defaults to the rule's trigger) | queues an outgoing webhook delivery with the subject and the payload                 |
 | `workflowAction(workflows)` | `definition`                                          | starts the workflow definition on the subject, with the payload as its input         |
 
-A config without the keys a handler needs is an `invalid_request` outcome with the hint `RULE_ACTION_INVALID`. `notify` and `workflow` key each send by rule, action and event, so a retried event sends once.
+`notify` and `workflow` key each send by rule, action and event, so a retried event sends once.
 
 ```ts
-const dispatcher = createRuleDispatcher({
-  handlers: {
-    notify: notifyAction(notifications),
-    set_field: setFieldAction(({ subjectId, field, value }) =>
-      db.tasks.update(subjectId, { [field]: value }),
-    ),
-    webhook: webhookAction(webhooks),
-    workflow: workflowAction(workflowBuilder),
-  },
-});
+const actions = createActionRegistry([
+  notifyAction(notifications),
+  setFieldAction(({ subjectId, field, value }) =>
+    db.tasks.update(subjectId, { [field]: value }),
+  ),
+  webhookAction(webhooks),
+  workflowAction(workflowBuilder),
+]);
 ```
+
+### Conversion actions
+
+A conversion action creates a record in its block from a record in another and links it `created_from` the source, once: a retried event finds the link and creates nothing. The target blocks ship them:
+
+| Action                          | Block       | Creates                                                |
+| ------------------------------- | ----------- | ------------------------------------------------------ |
+| `taskFromConversationAction`    | `tasks`     | a task from an inbox conversation                      |
+| `employeeFromApplicationAction` | `employees` | an employee from a hired candidate                     |
+| `orderFromQuoteAction`          | `orders`    | an order from an accepted quote, through your `create` |
+
+Each takes `clients`, which returns the block clients for one organization, such as `createBlocks` over a service connection with `tenant: () => tenant`. `defineConversionAction` builds your own from a `load`, a `map` into the target's input schema and a `create`.
+
+## Default automations
+
+A block that feeds another ships default automations: rows its SQL module writes to `rule_defaults`, which every organization gets its own copy of the first time its rules run or are listed. The organization turns them off or edits them like any rule. `resetDefault(id)` puts the shipped version back, and removing one fails with the hint `RULE_DEFAULT`.
+
+| Default                                | Block    | Trigger                     | Action                       | Ships when               |
+| -------------------------------------- | -------- | --------------------------- | ---------------------------- | ------------------------ |
+| Open a task for each new conversation  | `inbox`  | `inbox_conversation.opened` | `tasks.from_conversation`    | `tasks` is installed     |
+| Preboard each hired candidate          | `hiring` | `application.hired`         | `employees.from_application` | `employees` is installed |
+| Order each accepted quote (turned off) | `quotes` | `quote.accepted`            | `orders.from_quote`          | `orders` is installed    |
+
+A rule copied from a default carries its `defaultKey`. Register the matching conversion action in the registry, and the sink's `eventTarget` fallback runs the default without a `load` for its event.
 
 ## Run rules from events
 
@@ -197,7 +234,7 @@ export const POST = async () =>
   Response.json(await outbox.consume("rules", sink));
 ```
 
-`load` returning `undefined` skips the event. A failed evaluation throws, so the outbox retries the batch; a failed action goes to `onOutcomes` instead, because a retry would run the other actions again.
+`load` returning `undefined`, or no `load`, falls back to `eventTarget(event)`: the organization from the outbox tenant or `payload.organizationId`, the id from the CloudEvents subject or `payload.id`, and the payload as the subject. An event without an organization is skipped. A failed evaluation throws, so the outbox retries the batch; a failed action goes to `onOutcomes` instead, because a retry would run the other actions again.
 
 ## Editor
 
@@ -374,6 +411,10 @@ blocks: {
 | `RULE_ACTIONS_INVALID`  | actions aren't a list of `{ kind, config }` with a dotted lowercase kind |
 | `RULE_RANK_INVALID`     | the rank isn't a rank key                                                |
 | `RULE_FIELDS_INVALID`   | `syncFields` got a field with a bad id, type or column type              |
+| `RULE_DEFAULT`          | the rule is a block's default automation; turn it off instead            |
+| `RULE_NOT_DEFAULT`      | `resetDefault` got a rule no block ships                                 |
+| `ACTION_UNKNOWN`        | no action in the registry handles the kind                               |
+| `ACTION_CONFIG_INVALID` | the action's config fails its schema                                     |
 
 ## Events
 

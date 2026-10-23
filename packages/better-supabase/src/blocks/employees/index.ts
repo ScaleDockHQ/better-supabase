@@ -40,3 +40,9 @@ export { employeesEvents } from "./events.ts";
 export type { EmployeesEvents } from "./events.ts";
 
 export { employeeChangeSchema, employeeInputSchema } from "./schemas.ts";
+
+export {
+  employeeFromApplicationAction,
+  type EmployeeFromApplicationClients,
+  type EmployeeFromApplicationOptions,
+} from "./actions.ts";

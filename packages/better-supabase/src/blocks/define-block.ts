@@ -1,3 +1,8 @@
+import type {
+  ActionDescriptor,
+  BlockSchedule,
+  DefaultAutomation,
+} from "../core/automation.ts";
 import type { EventMap, Events } from "../core/block-events.ts";
 import type { BlockContext } from "./create-blocks.ts";
 import type { BlockSchemas } from "./entity-schema.ts";
@@ -117,6 +122,18 @@ export interface BlockDefinition<
    * tables the block serves.
    */
   readonly extension?: string;
+  /**
+   * The action kinds the block's TypeScript side ships for the action registry
+   * (ADR 0046), for the automation editor's catalog.
+   */
+  readonly actions?: readonly ActionDescriptor[];
+  /**
+   * The automations the block ships. Its SQL module writes them as default
+   * rows, which each organization may turn off or edit.
+   */
+  readonly automations?: readonly DefaultAutomation[];
+  /** The timers the block runs on the queue. */
+  readonly schedules?: readonly BlockSchedule[];
 }
 
 /**
@@ -163,6 +180,12 @@ export interface Block<
   readonly record: R;
   /** The export that builds the block's repository extension, if any. */
   readonly extension: string | undefined;
+  /** The action kinds the block ships. */
+  readonly actions: readonly ActionDescriptor[];
+  /** The automations the block ships as default rows. */
+  readonly automations: readonly DefaultAutomation[];
+  /** The timers the block runs on the queue. */
+  readonly schedules: readonly BlockSchedule[];
   /**
    * The options `with` set, passed to `create` and the providers over the
    * shared ones.
@@ -203,6 +226,9 @@ export interface AnyBlock {
   readonly invalidates?: BlockInvalidates;
   readonly record?: AnyRecordBinding | undefined;
   readonly extension?: string | undefined;
+  readonly actions?: readonly ActionDescriptor[];
+  readonly automations?: readonly DefaultAutomation[];
+  readonly schedules?: readonly BlockSchedule[];
   readonly settings: object;
   with(settings: never): AnyBlock;
   using(create: never): AnyBlock;
@@ -305,6 +331,9 @@ function blockOf<
     invalidates: parts.invalidates ?? {},
     record: parts.record,
     extension: parts.extension,
+    actions: parts.actions ?? [],
+    automations: parts.automations ?? [],
+    schedules: parts.schedules ?? [],
     settings,
     with: (more) => blockOf(parts, create, { ...settings, ...more }),
     using: (next) => blockOf(parts, next, settings),

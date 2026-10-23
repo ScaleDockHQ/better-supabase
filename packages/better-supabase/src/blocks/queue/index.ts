@@ -8,6 +8,21 @@ export type { BlockTransport } from "../../core/block-transport.ts";
 
 export { assertCron, nextCronRun } from "./cron.ts";
 
+export {
+  BLOCK_SCHEDULE_PREFIX,
+  BLOCK_TICKS_QUEUE,
+  blockSchedules,
+  blockTickHandler,
+  blockTickSchema,
+} from "./block-schedules.ts";
+
+export type {
+  BlockScheduleDefinition,
+  BlockTick,
+  BlockTickRun,
+  ScheduledBlock,
+} from "./block-schedules.ts";
+
 export { devDrain, devDrainSecret } from "./dev.ts";
 
 export type { DevDrain, DevDrainOptions } from "./dev.ts";

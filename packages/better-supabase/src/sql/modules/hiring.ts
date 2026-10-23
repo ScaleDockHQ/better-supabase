@@ -8,6 +8,7 @@ import type {
 import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { APPLICATION_TO_EMPLOYEE } from "../../blocks/hiring/automations.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
@@ -20,6 +21,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
+import { shippedAutomation } from "./automation-defaults.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const APPLICATION = [
@@ -632,11 +634,16 @@ export const HIRING: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "subjects", "pipelines"],
   // The pipelines module binds the applications table, so the table comes first.
   before: "pipelines",
-  integrates: ["outbox"],
+  integrates: ["outbox", "automations", "employees"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,
   names: NAMES,
   contract,
   build,
+  data: (ctx) =>
+    shippedAutomation(ctx, APPLICATION_TO_EMPLOYEE, {
+      module: "employees",
+      singular: "employee",
+    }),
 };
