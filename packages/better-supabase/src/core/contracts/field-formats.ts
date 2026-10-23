@@ -2,9 +2,8 @@ import type { FormFieldType } from "./form-definition.ts";
 
 /**
  * The one field vocabulary: the formats an app table column takes and the types
- * a custom field takes. App tables render each format's check from here,
- * `scaffold screens` picks the input, and the forms block answers a custom
- * field with the form field type it maps to.
+ * a custom field takes. App tables render each format's check from here, and
+ * the forms block answers a custom field with the form field type it maps to.
  */
 
 /** The Postgres column types a format fits. */

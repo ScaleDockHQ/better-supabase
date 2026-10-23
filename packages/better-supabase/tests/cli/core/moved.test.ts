@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { migrateCliCall } from "../../../src/cli/core/moved.ts";
+import { migrateCliCall, movedCommand } from "../../../src/cli/core/moved.ts";
 
 describe("migrateCliCall", () => {
   it("moves openapi into spec emit and spec check into emit --check", () => {
@@ -81,5 +81,15 @@ describe("migrateCliCall", () => {
     expect(migrateCliCall(["gen", "--only", "types"])).toBeUndefined();
     expect(migrateCliCall(["exec", "--", "--strict"])).toBeUndefined();
     expect(migrateCliCall(["--cwd", "app", "doctor"])).toBeUndefined();
+  });
+});
+
+describe("movedCommand", () => {
+  it("names what replaces a removed command", () => {
+    const error = movedCommand(["scaffold", "screens", "tasks"]);
+
+    expect(error?.code).toBe("unknown_command");
+    expect(error?.message).toContain('"scaffold screens" was removed in 0.15');
+    expect(movedCommand(["scaffold", "api"])).toBeUndefined();
   });
 });
