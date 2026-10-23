@@ -426,3 +426,52 @@ the next schema migration, which drops the legacy table.
 `better-supabase codemod 0.15` lists the calls to `fileMaintenance`,
 `updateMaintenance`, `listMaintenance` and `maintenanceRequestInputSchema`
 for review. See [Leases](/docs/blocks/leases#maintenance-requests).
+
+## Presets write instances
+
+A preset object takes `instances`: `blocks` entries with `block`, `names`,
+`options`, `tables`, `on` and `uses`. The `helpdesk` and `itsm` presets now
+name the tasks block's work items `ticket` and its projects `issue`, so their
+tables, functions and generated hooks say tickets; `property` adds a
+`maintenance` instance of tasks. To keep the 0.14 names on a project that
+uses one of these presets, set the names back in your own entry, which wins
+over the preset's:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  preset: "helpdesk",
+  blocks: { tasks: { names: { work_item: "work_item", project: "project" } } },
+});
+```
+
+A design with a preset object that has `instances` is format 8
+([Designs](/docs/presets/designs)). See
+[Instances in a preset](/docs/presets#instances-in-a-preset).
+
+## Doctor finds what is left
+
+`better-supabase doctor` reports BS418 for app code that still imports a
+renamed block subpath or plugin subpath, an export named after a renamed
+block, or a record feature, leases maintenance or pass credit API that 0.15
+removed. A config key that moved fails to load with its new place, so after
+the codemod a clean doctor run means nothing from 0.14 is left.
+
+## Upgrade order
+
+Upgrade in this order, so each step starts from code that loads:
+
+1. Install better-supabase 0.15.
+2. Run `npx better-supabase codemod 0.15` and review the diff, with its list
+   of calls to check by hand.
+3. Run `npx better-supabase upgrade`, then generate and apply the migration
+   (`supabase db schema declarative sync`, or `better-supabase db diff`).
+4. Copy the rows you keep from `maintenance_requests_legacy` into the tasks
+   instance before the next schema migration drops it.
+5. Run `npx better-supabase gen`, which writes the record types and the
+   instance-keyed `blocks.generated.ts`.
+6. Run `npx better-supabase doctor` and fix each BS418 finding, then your
+   typecheck and tests.
+
+The same steps work as a prompt for a coding agent: give it this page, the
+codemod's review list and the doctor output, and ask it to work through the
+steps in order and stop when doctor and the typecheck are clean.
