@@ -92,6 +92,7 @@ const NAMES: BlockSqlNames = {
     "allowedMimeTypes",
     "path",
     "scanBuckets",
+    "publicBuckets",
     "extraColumns",
   ],
   tables: {
@@ -284,6 +285,34 @@ const mimeMatch = (column: string, types: readonly string[]): string =>
     )
     .join(" or ");
 
+/**
+ * `options.publicBuckets`: the module's buckets Storage serves without a signed
+ * URL. Their files are readable once uploaded, so they need `requireScan:
+ * false`.
+ */
+function publicBucketsOf(
+  ctx: BlockSqlContext,
+  buckets: readonly string[],
+): ReadonlySet<string> {
+  const listed = ctx.list("publicBuckets", []);
+
+  for (const id of listed) {
+    if (!buckets.includes(id)) {
+      throw new TypeError(
+        `blocks.attachments.options.publicBuckets: "${id}" is not one of the attachment buckets (${buckets.join(", ")})`,
+      );
+    }
+  }
+
+  if (listed.length > 0 && ctx.flag("requireScan", true)) {
+    throw new TypeError(
+      "blocks.attachments.options.publicBuckets needs requireScan: false: a public bucket serves a file before any scan",
+    );
+  }
+
+  return new Set(listed);
+}
+
 /** `options.scanBuckets`: buckets whose new objects get a pending scan row. */
 function scanBucketsOf(ctx: BlockSqlContext): readonly string[] {
   const buckets = ctx.list("scanBuckets", []);
@@ -392,6 +421,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   ];
 
   const bucketList = buckets.map(sqlString).join(", ");
+  publicBucketsOf(ctx, buckets);
   const extras = ctx.extraColumns("attachments", RESERVED);
 
   const json = (row: string): string =>
@@ -1015,7 +1045,7 @@ grant execute on function ${fn("get_attachment")}(uuid) to authenticated, servic
 grant execute on function ${fn("delete_attachment")}(uuid) to authenticated, service_role;`;
 }
 
-// An existing bucket keeps its settings.
+// An existing bucket keeps its size limit and MIME types.
 function data(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -1040,18 +1070,22 @@ function data(ctx: BlockSqlContext): string {
     }
   }
 
+  const open = publicBucketsOf(ctx, [...rows.keys()]);
+
   const values = [...rows].map(([id, types]) => {
     const mimeArray =
       types.length === 0
         ? "null"
         : `array[${types.map(sqlString).join(", ")}]::text[]`;
 
-    return `(${sqlString(id)}, ${sqlString(id)}, false, ${String(maxSize)}, ${mimeArray})`;
+    return `(${sqlString(id)}, ${sqlString(id)}, ${String(open.has(id))}, ${String(maxSize)}, ${mimeArray})`;
   });
 
+  // options.publicBuckets decides public on every run; the rest stays as the
+  // app set it.
   return `insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ${values.join(",\n  ")}
-on conflict (id) do nothing;`;
+on conflict (id) do update set public = excluded.public;`;
 }
 
 export const ATTACHMENTS: BlockSqlDefinition = {
@@ -1067,12 +1101,12 @@ export const ATTACHMENTS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Attachments",
   description:
-    "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.",
+    "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.",
   requires: ["memberships", "permissions"],
   integrates: ["profiles"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -1091,6 +1125,12 @@ export const ATTACHMENTS: BlockSqlDefinition = {
       from: 3,
       description:
         "Files keep versions (replace_attachment, restore_attachment_version) and a width, height and page count; create_attachment takes them after metadata.",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "options.publicBuckets makes chosen attachment buckets public, and the data file sets each bucket's public flag on every run.",
       sql: () => "",
     },
   ],

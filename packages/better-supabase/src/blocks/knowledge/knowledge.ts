@@ -206,6 +206,16 @@ export interface Knowledge {
       fileId: string,
       document?: Partial<NewKnowledgeDocument>,
     ): AsyncResult<KnowledgeDocument>;
+    /**
+     * Creates a pending document for a ready ai-files file and enqueues its
+     * ingestion on `options.ingestQueue` (`queue_knowledge_file`, with the
+     * ai-files and jobs blocks). `ingestJob()` does the work.
+     */
+    queue(
+      organizationId: string,
+      fileId: string,
+      document?: Partial<NewKnowledgeDocument>,
+    ): AsyncResult<KnowledgeDocument>;
   };
   /**
    * Embeds a document's pending chunks (service role). Returns how many still
@@ -220,6 +230,13 @@ export interface Knowledge {
    * document failed with the error.
    */
   embedJob(): JobHandler<{ readonly document_id: string }>;
+  /**
+   * The handler for the `knowledge_ingest` queue: reads the document's file
+   * through `options.files`, extracts its text and writes the chunks, which
+   * enqueues their embedding. Runs as the service role, so `files` needs a
+   * service transport. The last attempt marks the document failed.
+   */
+  ingestJob(): JobHandler<{ readonly document_id: string }>;
   /**
    * Processes pending documents without a queue (service role). Returns how
    * many. A document is marked failed only after `attempts` (default 3) tries
@@ -493,6 +510,60 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         ),
     );
 
+  const readFile = (
+    fileId: string,
+  ): AsyncResult<{ readonly file: AiFile; readonly text: string }> => {
+    const files = options.files;
+
+    if (!files) {
+      return AsyncResult.err(
+        dbError("invalid_request", "createKnowledge has no files block", {
+          hint: "KNOWLEDGE_NO_FILES",
+        }),
+      );
+    }
+
+    return files.files.read(fileId).andThen(({ file, data }) =>
+      AsyncResult.from(async () => {
+        try {
+          return ok({ file, text: await extract(file, data) });
+        } catch (cause) {
+          return err(unsupported(cause));
+        }
+      }),
+    );
+  };
+
+  const ingestQueued = (documentId: string): AsyncResult<KnowledgeDocument> =>
+    service(
+      "get_knowledge_document",
+      { document_id: documentId },
+      (value) => value,
+    )
+      .andThen(found)
+      .andThen((document) =>
+        document.fileId === undefined
+          ? AsyncResult.err<KnowledgeDocument>(
+              dbError("invalid_request", "The document has no file", {
+                hint: "KNOWLEDGE_NO_FILE",
+              }),
+            )
+          : readFile(document.fileId).andThen(({ text }) =>
+              run(() => Promise.resolve(chunk(text, options.chunking))).andThen(
+                (chunks) =>
+                  service(
+                    "write_knowledge_chunks",
+                    {
+                      document_id: documentId,
+                      chunks: { items: chunks },
+                      model: embedder?.model,
+                    },
+                    (value) => value,
+                  ).andThen(found),
+              ),
+            ),
+      );
+
   const embed = (
     values: readonly string[],
     signal: AbortSignal | undefined,
@@ -610,25 +681,23 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
     ingest: {
       text: (organizationId, { text, ...document }) =>
         fromText(organizationId, document, text),
-      file: (organizationId, fileId, document = {}) => {
-        const files = options.files;
-
-        if (!files) {
-          return AsyncResult.err(
-            dbError("invalid_request", "createKnowledge has no files block", {
-              hint: "KNOWLEDGE_NO_FILES",
-            }),
-          );
-        }
-
-        return files.files.read(fileId).andThen(({ file, data }) =>
-          AsyncResult.from(async () => {
-            try {
-              return ok(await extract(file, data));
-            } catch (cause) {
-              return err(unsupported(cause));
-            }
-          }).andThen((text) =>
+      queue: (organizationId, fileId, document = {}) =>
+        call(
+          "queue_knowledge_file",
+          {
+            tenant: organizationId,
+            file_id: fileId,
+            title: document.title,
+            scope: document.scope,
+            scope_id: document.scopeId,
+            source: document.source,
+            metadata: document.metadata,
+            owner: document.ownerId,
+          },
+          documentOf,
+        ),
+      file: (organizationId, fileId, document = {}) =>
+        readFile(fileId).andThen(({ file, text }) =>
             fromText(
               organizationId,
               {
@@ -639,11 +708,26 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
               },
               text,
             ),
-          ),
-        );
-      },
+        ),
     },
     process,
+    ingestJob: () => async (payload, job) => {
+      const result = await ingestQueued(payload.document_id);
+
+      if (result.ok) {
+        return;
+      }
+
+      if (job.attempts >= job.maxAttempts) {
+        await service(
+          "fail_knowledge_document",
+          { document_id: payload.document_id, error: result.error.message },
+          (value) => value,
+        );
+      }
+
+      throw new DbException(result.error);
+    },
     embedJob: () => async (payload, job, signal) => {
       const result = await process(payload.document_id, { signal });
 

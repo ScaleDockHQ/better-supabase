@@ -278,6 +278,9 @@ const NAMES: BlockSqlNames = {
     "temporaryTtl",
     "staleAfter",
     "sandboxIdleAfter",
+    "meterUsage",
+    "inputMeter",
+    "outputMeter",
     "extraColumns",
   ],
   tables: {
@@ -1045,10 +1048,16 @@ export const AI_CHAT: BlockSqlDefinition = {
   description:
     "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
   requires: ["memberships", "permissions", "streams"],
-  integrates: ["entitlements", "ai-keys", "approvals", "data-lifecycle"],
+  integrates: [
+    "entitlements",
+    "ai-keys",
+    "approvals",
+    "data-lifecycle",
+    "usage",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   names: NAMES,
   upgrades: [
     {
@@ -1062,6 +1071,12 @@ export const AI_CHAT: BlockSqlDefinition = {
       from: 2,
       description:
         "purge_ai_chats skips temporary chats under a data-lifecycle legal hold.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "With usage, release_ai_chat_stream records each run's input and output tokens on the ai.input_tokens and ai.output_tokens meters (options.meterUsage, inputMeter, outputMeter).",
       sql: () => "",
     },
   ],

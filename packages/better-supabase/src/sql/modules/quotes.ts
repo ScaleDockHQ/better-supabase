@@ -223,12 +223,27 @@ export const QUOTES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Quotes",
   description:
-    "Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals.",
+    "Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.",
   requires: ["memberships", "permissions", "subjects"],
-  integrates: ["outbox", "notifications", "numbering", "deals", "relations"],
+  integrates: [
+    "outbox",
+    "notifications",
+    "numbering",
+    "deals",
+    "relations",
+    "catalog",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "With catalog, set_quote_lines prices a line that names a product variant and has no unitAmount from the catalog, in the quote's currency, and titles it when it has no description.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

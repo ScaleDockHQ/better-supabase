@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
--- @bsb-block leave@2 managed
--- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
+-- @bsb-block leave@3 managed
+-- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -741,14 +741,14 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leave', 2, 'managed')
+values ('leave', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
--- @bsb-block leave@2 managed
--- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
+-- @bsb-block leave@3 managed
+-- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -848,6 +848,54 @@ drop policy if exists leave_requests_read on "better_supabase"."leave_requests";
 create policy leave_requests_read on "better_supabase"."leave_requests" for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leave.read')));
 
+
+-- leave_requests.employee_id: the employee behind the row's user, kept in step with
+-- employees by the two triggers below.
+alter table "better_supabase"."leave_requests" add column if not exists employee_id uuid references "better_supabase"."employees" ("id") on delete set null;
+create index if not exists "leave_requests_employee_idx" on "better_supabase"."leave_requests" (employee_id) where employee_id is not null;
+
+create or replace function better_supabase.bsb_leave_requests_employee()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  new.employee_id := (
+    select x."id" from "better_supabase"."employees" x
+    where x."tenant_id" = new."tenant_id" and x."user_id" = new."user_id"
+  );
+  return new;
+end;
+$$;
+revoke execute on function better_supabase.bsb_leave_requests_employee() from public, anon, authenticated;
+drop trigger if exists bsb_leave_requests_employee on "better_supabase"."leave_requests";
+create trigger bsb_leave_requests_employee before insert or update of "user_id" on "better_supabase"."leave_requests"
+for each row execute function better_supabase.bsb_leave_requests_employee();
+
+create or replace function better_supabase.bsb_leave_requests_employee_sync()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and old."user_id" is not null then
+    update "better_supabase"."leave_requests" set employee_id = null
+    where employee_id = old."id" and "user_id" is distinct from new."user_id";
+  end if;
+  if new."user_id" is not null then
+    update "better_supabase"."leave_requests" set employee_id = new."id"
+    where "tenant_id" = new."tenant_id" and "user_id" = new."user_id"
+      and employee_id is distinct from new."id";
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_leave_requests_employee_sync() from public, anon, authenticated;
+drop trigger if exists bsb_leave_requests_employee_sync on "better_supabase"."employees";
+create trigger bsb_leave_requests_employee_sync after insert or update of "user_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_leave_requests_employee_sync();
 
 -- Posts one leave movement to a member's account of a type and period:
 -- against the type's taken account for taken leave, the member's account
@@ -1524,14 +1572,14 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leave', 2, 'managed')
+values ('leave', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
--- @bsb-block leave@2 managed
--- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
+-- @bsb-block leave@3 managed
+-- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2273,14 +2321,14 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leave', 2, 'managed')
+values ('leave', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
--- @bsb-block leave@2 managed
--- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.
+-- @bsb-block leave@3 managed
+-- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3152,6 +3200,6 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leave', 2, 'managed')
+values ('leave', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

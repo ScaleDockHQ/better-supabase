@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
+import { sqlString } from "../../core/template.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
@@ -21,6 +22,52 @@ import {
   serviceOnlyGuard,
   transitionFunction,
 } from "./orders-shared.ts";
+
+/**
+ * With the invoices block, the PL/pgSQL that turns a newly paid order into an
+ * issued, paid invoice (`origin` the order) and takes its identifier as the
+ * order's invoice number. Each line is billed at its net amount with the tax
+ * rate its tax implies, so the invoice can differ from the order by rounding.
+ */
+function orderInvoice(
+  ctx: BlockSqlContext,
+): { readonly create: string; readonly id: string } | undefined {
+  if (!ctx.installed("invoices")) {
+    return undefined;
+  }
+
+  const invoices = ctx.of("invoices");
+  const ic = (column: string): string =>
+    sqlString(invoices.colName("invoices", column));
+  const o = columns(ctx, "orders");
+  const ol = columns(ctx, "orderLines");
+  const net = `(l.${ol("total")} - l.${ol("tax")})`;
+  const variantType = sqlString(
+    ctx.of("catalog").naming.rename("product_variant"),
+  );
+
+  const lines = `(select coalesce(jsonb_agg(jsonb_build_object(
+      'description', case when l.${ol("quantity")} = 1 then l.${ol("title")} else l.${ol("title")} || ' x ' || l.${ol("quantity")}::text end,
+      'quantity', 1, 'unitAmount', ${net}::text, 'currency', v_order.currency,
+      'taxRateBps', case when ${net} > 0 then round(l.${ol("tax")} * 10000.0 / ${net})::integer else 0 end,
+      'product', case when l.${ol("variant")} is null then null else jsonb_build_object('type', ${variantType}, 'id', l.${ol("variant")}::text) end)
+      order by l.${ol("position")}), '[]'::jsonb)
+    from ${ctx.table("orderLines")} l where l.${ol("order")} = v_order.id)
+    || (select case when x.${o("shippingTotal")} > 0 then jsonb_build_array(jsonb_build_object('description', 'Shipping', 'quantity', 1, 'unitAmount', x.${o("shippingTotal")}::text, 'currency', v_order.currency)) else '[]'::jsonb end
+    from ${ctx.table("orders")} x where x.${o("id")} = v_order.id)`;
+
+  return {
+    id: invoices.colName("invoices", "id"),
+    create: `v_invoice := ${invoices.fn("create_invoice")}(v_order.tenant,
+      jsonb_build_object('title', 'Order ' || v_order.number, 'currency', v_order.currency, 'termsDays', 0,
+        'origin', jsonb_build_object('type', 'order', 'id', v_order.id::text)),
+      ${lines});
+    v_invoice := ${invoices.fn("issue_invoice")}((v_invoice ->> ${ic("id")})::uuid, current_date);
+    v_invoice := ${invoices.fn("record_invoice_payment")}((v_invoice ->> ${ic("id")})::uuid, (v_invoice ->> ${ic("total")})::bigint,
+      v_order.currency, now(), 'order', 'order:' || v_order.id::text);
+    v_number := v_invoice ->> ${ic("identifier")};`,
+  };
+}
 
 const PAYMENT_STATUSES =
   "('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')";
@@ -215,6 +262,8 @@ export function checkoutFunctions(
     ? ctx.of("promotions")
     : undefined;
 
+  const invoice = orderInvoice(ctx);
+
   const taxOf = (key: string): string => amountOf(`(e ->> '${key}')`);
 
   const load = (id: string, lock: boolean): string =>
@@ -376,7 +425,7 @@ declare
   v_paid bigint;
   v_newly boolean := false;
   v_seq bigint;
-  v_number text;
+  v_number text;${invoice ? "\n  v_invoice jsonb;" : ""}
   v_claims text;
 begin
   ${serviceOnlyGuard()}
@@ -416,7 +465,7 @@ begin
   update ${orders} x set ${o("paidTotal")} = v_paid, ${o("updatedAt")} = now() where x.${o("id")} = v_order.id;
   if v_order.status = 'pending_payment' and v_paid >= v_order.total then
     perform ${fn("order_transition")}(v_order.id, 'paid');${commitLines(ctx)}
-    ${assignNumber(ctx, "invoice", "v_order.tenant", { seq: "v_seq", number: "v_number" })}
+    ${invoice ? invoice.create : assignNumber(ctx, "invoice", "v_order.tenant", { seq: "v_seq", number: "v_number" })}
     update ${orders} x set ${o("invoiceNumber")} = v_number, ${o("invoiceSequence")} = v_seq, ${o("invoicedAt")} = now()
     where x.${o("id")} = v_order.id;
     ${ctx.record({
@@ -438,7 +487,7 @@ begin
   end if;
   return jsonb_build_object('orderId', v_order.id, 'status', (select x.${o("status")} from ${orders} x where x.${o("id")} = v_order.id),
     'paidTotal', v_paid::text, 'newlyPaid', v_newly,
-    'invoiceNumber', coalesce(v_number, v_order.invoice_number));
+    'invoiceNumber', coalesce(v_number, v_order.invoice_number)${invoice ? `, 'invoiceId', v_invoice ->> ${sqlString(invoice.id)}` : ""});
 end;
 $$;
 ${serviceGrant(`${fn("record_payment")}(uuid, text, text, text, text, bigint, bigint, bigint)`)}

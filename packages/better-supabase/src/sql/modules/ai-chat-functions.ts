@@ -14,6 +14,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { aiChatExtras } from "./ai-chat-extras.ts";
+import { metersOf } from "./usage-meters.ts";
 
 const FINAL_RUN_STATES = FINAL.map(sqlString).join(", ");
 
@@ -427,6 +428,48 @@ function messageJson(names: AiChatNames, row: string, native: string): string {
   return `jsonb_build_object('id', ${row}.${m.id}, 'parent_id', ${row}.${m.parent}, 'role', ${row}.${m.role}, 'parts', ${row}.${m.parts}, 'metadata', ${row}.${m.metadata}, 'format', ${row}.${m.format}, 'native', case when ${native} then ${row}.${m.native} end, 'model', ${row}.${m.model}, 'status', ${row}.${m.status}, 'created_at', ${row}.${m.createdAt})`;
 }
 
+const METER = /^[a-z][a-z0-9_.:-]{0,63}$/;
+
+/**
+ * PL/pgSQL that records a released run's tokens on the usage meters
+ * (`options.inputMeter`, `options.outputMeter`), once per run. Empty without
+ * the usage block or with `options.meterUsage: false`. With a meter catalog
+ * (`blocks.usage.options.meters`) a meter it lacks is skipped, not an error.
+ */
+function runMetering(ctx: BlockSqlContext, names: AiChatNames): string {
+  if (!ctx.installed("usage") || !ctx.flag("meterUsage", true)) {
+    return "";
+  }
+
+  const usage = ctx.of("usage");
+  const catalog = metersOf(usage) !== undefined;
+  const ch = names.c.chats;
+
+  const meter = (option: string, fallback: string, key: string): string => {
+    const name = ctx.text(option, fallback);
+
+    if (!METER.test(name)) {
+      throw new TypeError(
+        `blocks.ai-chat.options.${option}: "${name}" is not a meter name`,
+      );
+    }
+
+    const quantity = `v_usage -> ${sqlString(key)}`;
+
+    return `
+    if jsonb_typeof(${quantity}) = 'number' and (${quantity})::numeric > 0${catalog ? ` and ${usage.fn("usage_meters")}() ? ${sqlString(name)}` : ""} then
+      perform ${usage.fn("record_usage")}(v_tenant, ${sqlString(name)}, (${quantity})::numeric, 'ai_run:' || v_run || ':' || ${sqlString(key)}, 'ai-chat', jsonb_build_object('chatId', release_ai_chat_stream.chat, 'runId', v_run), v_owner);
+    end if;`;
+  };
+
+  return `
+  if v_run is not null and jsonb_typeof(v_usage) = 'object' then
+    select x.${ch.tenant} into v_tenant from ${names.t.chats} x where x.${ch.id} = release_ai_chat_stream.chat;
+    if v_tenant is not null then${meter("inputMeter", "ai.input_tokens", "inputTokens")}${meter("outputMeter", "ai.output_tokens", "outputTokens")}
+    end if;
+  end if;`;
+}
+
 function messages(ctx: BlockSqlContext, names: AiChatNames): string {
   const fn = (name: string): string => ctx.fn(name);
   const { t } = names;
@@ -442,6 +485,8 @@ function messages(ctx: BlockSqlContext, names: AiChatNames): string {
   if not found or not (${SERVICE_CALLER} or v_chat.${ch.owner} = (select auth.uid())) then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", `${name}.chat`)}
   end if;`;
+
+  const metering = runMetering(ctx, names);
 
   const serviceOnly = raise(
     "Only the server saves replies",
@@ -774,7 +819,15 @@ as $$
 #variable_conflict use_variable
 declare
   v_status text := coalesce(release_ai_chat_stream.status, 'completed');
-  v_found boolean := false;
+  v_found boolean := false;${
+    metering === ""
+      ? ""
+      : `
+  v_run uuid;
+  v_usage jsonb;
+  v_owner uuid;
+  v_tenant ${ctx.idType};`
+  }
 begin
   if not ${SERVICE_CALLER} then
     ${serviceOnly}
@@ -789,7 +842,12 @@ begin
     ${r.error} = release_ai_chat_stream.error,
     ${r.cost} = coalesce(release_ai_chat_stream.cost_micro_usd, x.${r.cost}),
     ${r.endedAt} = coalesce(x.${r.endedAt}, now())
-  where x.${r.chat} = release_ai_chat_stream.chat and x.${r.stream} = release_ai_chat_stream.stream;
+  where x.${r.chat} = release_ai_chat_stream.chat and x.${r.stream} = release_ai_chat_stream.stream${
+    metering === ""
+      ? ";"
+      : `
+  returning x.${r.id}, x.${r.usage}, x.${r.owner} into v_run, v_usage, v_owner;${metering}`
+  }
   update ${t.chats} x set ${ch.activeStream} = null, ${ch.activeRun} = null, ${ch.updatedAt} = now()
   where x.${ch.id} = release_ai_chat_stream.chat and x.${ch.activeStream} = release_ai_chat_stream.stream
   returning true into v_found;

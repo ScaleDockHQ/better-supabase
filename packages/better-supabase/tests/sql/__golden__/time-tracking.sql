@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_88_time_tracking.sql
 -- better-supabase module: time-tracking
--- @bsb-block time-tracking@2 managed
+-- @bsb-block time-tracking@3 managed
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -174,6 +174,10 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- employees keeps employee_id current, also on a locked week.
+  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+    return new;
+  end if;
   if tg_op in ('UPDATE', 'DELETE') and "better_supabase"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
     raise exception 'this week''s timesheet is submitted or approved' using errcode = '55000', hint = 'TIME_PERIOD_LOCKED';
   end if;
@@ -842,13 +846,13 @@ grant select on better_supabase.blocks to service_role;
 create extension if not exists "btree_gist" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('time-tracking', 2, 'managed')
+values ('time-tracking', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_88_time_tracking.sql
 -- better-supabase module: time-tracking
--- @bsb-block time-tracking@2 managed
+-- @bsb-block time-tracking@3 managed
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1022,6 +1026,10 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- employees keeps employee_id current, also on a locked week.
+  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+    return new;
+  end if;
   if tg_op in ('UPDATE', 'DELETE') and "better_supabase"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
     raise exception 'this week''s timesheet is submitted or approved' using errcode = '55000', hint = 'TIME_PERIOD_LOCKED';
   end if;
@@ -1717,13 +1725,13 @@ grant select on better_supabase.blocks to service_role;
 create extension if not exists "btree_gist" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('time-tracking', 2, 'managed')
+values ('time-tracking', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_88_time_tracking.sql
 -- better-supabase module: time-tracking
--- @bsb-block time-tracking@2 managed
+-- @bsb-block time-tracking@3 managed
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1899,6 +1907,10 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- employees keeps employee_id current, also on a locked week.
+  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+    return new;
+  end if;
   if tg_op in ('UPDATE', 'DELETE') and "app_private"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
     raise exception 'this week''s timesheet is submitted or approved' using errcode = '55000', hint = 'TIME_PERIOD_LOCKED';
   end if;
@@ -2567,13 +2579,13 @@ grant select on better_supabase.blocks to service_role;
 create extension if not exists "btree_gist" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('time-tracking', 2, 'managed')
+values ('time-tracking', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_88_time_tracking.sql
 -- better-supabase module: time-tracking
--- @bsb-block time-tracking@2 managed
+-- @bsb-block time-tracking@3 managed
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2747,6 +2759,10 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- employees keeps employee_id current, also on a locked week.
+  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+    return new;
+  end if;
   if tg_op in ('UPDATE', 'DELETE') and "better_supabase"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
     raise exception 'this week''s timesheet is submitted or approved' using errcode = '55000', hint = 'TIME_PERIOD_LOCKED';
   end if;
@@ -3552,13 +3568,13 @@ grant select on better_supabase.blocks to service_role;
 create extension if not exists "btree_gist" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('time-tracking', 2, 'managed')
+values ('time-tracking', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_88_time_tracking.sql
 -- better-supabase module: time-tracking
--- @bsb-block time-tracking@2 adopt
+-- @bsb-block time-tracking@3 adopt
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3637,6 +3653,10 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- employees keeps employee_id current, also on a locked week.
+  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+    return new;
+  end if;
   if tg_op in ('UPDATE', 'DELETE') and "better_supabase"."time_week_locked"(old."tenant_id", old."user_id", old."started_at") then
     raise exception 'this week''s timesheet is submitted or approved' using errcode = '55000', hint = 'TIME_PERIOD_LOCKED';
   end if;
@@ -4303,6 +4323,6 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('time-tracking', 2, 'adopt')
+values ('time-tracking', 3, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { EmployeeNames } from "./employees-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
 import {
   addExtraColumns,
   fail,
@@ -368,7 +369,14 @@ function build(ctx: BlockSqlContext): string {
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
-${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}`;
+${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${
+    ctx.installed("time-tracking")
+      ? employeeKeySql(ctx, {
+          owner: ctx.of("time-tracking"),
+          table: "entries",
+        })
+      : ""
+  }`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -426,12 +434,29 @@ export const EMPLOYEES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Employees",
   description:
-    "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.",
+    "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "relations", "hiring"],
+  integrates: ["outbox", "relations", "hiring", "time-tracking"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "With time-tracking, time entries gain employee_id, backfilled and kept current by triggers.",
+      sql: (ctx) =>
+        ctx.installed("time-tracking")
+          ? employeeKeyBackfillSql(ctx, {
+              owner: ctx.of("time-tracking"),
+              table: "entries",
+              quiet: [
+                ctx.of("time-tracking").naming.rename("bsb_time_entry_guard"),
+              ],
+            })
+          : "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

@@ -1,7 +1,11 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
+import {
+  catalogLineFallback,
+  lineItemsSql,
+  TOTAL_COLUMNS,
+} from "../line-items-sql.ts";
 import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import {
@@ -61,6 +65,9 @@ export function createdFromLink(
 }
 
 export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
+  const catalogPrice = ctx.installed("catalog")
+    ? catalogLineFallback(ctx)
+    : undefined;
   const { fn, t, c } = n;
   const q = (column: string): string => c("quotes", column);
   const l = (column: string): string => c("lines", column);
@@ -313,6 +320,7 @@ ${lineItemsSql(
     guard: `if not exists (select 1 from ${t("quotes")} x where x.${q("id")} = v_parent and ${editable("x")}) then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
   end if;`,
+    ...(catalogPrice ? { fallback: catalogPrice } : {}),
   },
 )}
 -- Sends a quote: it gets a public link the customer opens, and can't

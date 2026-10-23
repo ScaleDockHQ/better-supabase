@@ -721,7 +721,7 @@ export const ORDERS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Orders",
   description:
-    "Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.",
+    "Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.",
   requires: ["memberships", "permissions", "catalog"],
   integrates: [
     "outbox",
@@ -729,10 +729,19 @@ export const ORDERS: BlockSqlDefinition = {
     "promotions",
     "numbering",
     "state-machine",
+    "invoices",
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "With invoices, record_payment creates an issued, paid invoice for a newly paid order and stores its identifier as the order's invoice number.",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   contract,
   build,

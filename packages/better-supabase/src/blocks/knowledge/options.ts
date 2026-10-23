@@ -8,6 +8,7 @@ export type KnowledgeSqlOptions = {
   readonly type?: string;
   readonly textSearch?: string;
   readonly embedQueue?: string;
+  readonly ingestQueue?: string;
 };
 
 export const knowledgeSqlOptions: BlockOptionsSchema<KnowledgeSqlOptions> =
@@ -16,4 +17,5 @@ export const knowledgeSqlOptions: BlockOptionsSchema<KnowledgeSqlOptions> =
     type: option.string({ default: "vector" }),
     textSearch: option.string({ default: "simple" }),
     embedQueue: option.string({ default: "knowledge_embed" }),
+    ingestQueue: option.string({ default: "knowledge_ingest" }),
   });

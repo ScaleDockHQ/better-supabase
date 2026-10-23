@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
--- @bsb-block employees@1 managed
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.
+-- @bsb-block employees@2 managed
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -704,14 +704,14 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('employees', 1, 'managed')
+values ('employees', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
--- @bsb-block employees@1 managed
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.
+-- @bsb-block employees@2 managed
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1439,6 +1439,54 @@ $$;
 revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
+-- time_entries.employee_id: the employee behind the row's user, kept in step with
+-- employees by the two triggers below.
+alter table "better_supabase"."time_entries" add column if not exists employee_id uuid references "better_supabase"."employees" ("id") on delete set null;
+create index if not exists "time_entries_employee_idx" on "better_supabase"."time_entries" (employee_id) where employee_id is not null;
+
+create or replace function better_supabase.bsb_time_entries_employee()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  new.employee_id := (
+    select x."id" from "better_supabase"."employees" x
+    where x."tenant_id" = new."tenant_id" and x."user_id" = new."user_id"
+  );
+  return new;
+end;
+$$;
+revoke execute on function better_supabase.bsb_time_entries_employee() from public, anon, authenticated;
+drop trigger if exists bsb_time_entries_employee on "better_supabase"."time_entries";
+create trigger bsb_time_entries_employee before insert or update of "user_id" on "better_supabase"."time_entries"
+for each row execute function better_supabase.bsb_time_entries_employee();
+
+create or replace function better_supabase.bsb_time_entries_employee_sync()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and old."user_id" is not null then
+    update "better_supabase"."time_entries" set employee_id = null
+    where employee_id = old."id" and "user_id" is distinct from new."user_id";
+  end if;
+  if new."user_id" is not null then
+    update "better_supabase"."time_entries" set employee_id = new."id"
+    where "tenant_id" = new."tenant_id" and "user_id" = new."user_id"
+      and employee_id is distinct from new."id";
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function better_supabase.bsb_time_entries_employee_sync() from public, anon, authenticated;
+drop trigger if exists bsb_time_entries_employee_sync on "better_supabase"."employees";
+create trigger bsb_time_entries_employee_sync after insert or update of "user_id" on "better_supabase"."employees"
+for each row execute function better_supabase.bsb_time_entries_employee_sync();
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1461,14 +1509,14 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('employees', 1, 'managed')
+values ('employees', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
--- @bsb-block employees@1 managed
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.
+-- @bsb-block employees@2 managed
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2173,14 +2221,14 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('employees', 1, 'managed')
+values ('employees', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
--- @bsb-block employees@1 managed
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.
+-- @bsb-block employees@2 managed
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2986,14 +3034,14 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('employees', 1, 'managed')
+values ('employees', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== adopt: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
--- @bsb-block employees@1 adopt
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.
+-- @bsb-block employees@2 adopt
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3605,6 +3653,6 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('employees', 1, 'adopt')
+values ('employees', 2, 'adopt')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

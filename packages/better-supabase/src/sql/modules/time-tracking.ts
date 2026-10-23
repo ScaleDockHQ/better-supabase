@@ -480,6 +480,10 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- employees keeps employee_id current, also on a locked week.
+  if tg_op = 'UPDATE' and (to_jsonb(new) - 'employee_id') = (to_jsonb(old) - 'employee_id') then
+    return new;
+  end if;
   if tg_op in ('UPDATE', 'DELETE') and ${fn("time_week_locked")}(old.${e("tenant")}, old.${e("user")}, old.${e("startedAt")}) then
     ${fail("TIME_PERIOD_LOCKED", "this week's timesheet is submitted or approved", "55000")}
   end if;
@@ -1051,13 +1055,19 @@ export const TIME_TRACKING: BlockSqlDefinition = {
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "The rate is bigint minor units per hour with a rate_currency (ADR 0037); start_timer and log_time take rate_currency.",
       sql: upgradeRateToMoney,
+    },
+    {
+      from: 2,
+      description:
+        "The entry guard lets through an update that changes only employee_id, which employees keeps current.",
+      sql: () => "",
     },
   ],
   names: NAMES,
