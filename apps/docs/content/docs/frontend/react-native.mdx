@@ -43,9 +43,10 @@ take the same `bsb`.
 
 ## Block hooks on a device
 
-The block hooks, such as `useNotifications` from
-`better-supabase/blocks/notifications/react`, run in React Native as they
-do in React DOM: their state lives in a [controller](/docs/frontend/block-controllers)
+The block hooks, such as `useNotifications` from the
+`@better-supabase/use-notifications` registry item (`npx shadcn add
+@better-supabase/use-notifications` writes `hooks/use-notifications.ts`),
+run in React Native as they do in React DOM: their state lives in a [controller](/docs/frontend/block-controllers)
 that reaches the platform only through ports. Pass the Expo modules you
 installed to `nativePorts`:
 

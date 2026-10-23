@@ -67,6 +67,17 @@ describe("BS418", () => {
     ).toEqual([expect.stringContaining("`requireOrganization`")]);
   });
 
+  it("points the block framework subpaths at the registry hooks", () => {
+    expect(
+      check([
+        {
+          path: "src/tags.tsx",
+          text: 'import { useTagInput } from "better-supabase/blocks/tags/react";',
+        },
+      ]),
+    ).toEqual([expect.stringContaining("@better-supabase/use-<block>")]);
+  });
+
   it("passes code on the 0.15 names", () => {
     expect(
       check([

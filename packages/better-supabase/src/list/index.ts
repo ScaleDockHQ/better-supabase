@@ -20,6 +20,7 @@ export type {
   FilterField,
   FilterFieldType,
   FilterGroupNode,
+  FilterLimits,
   FilterNode,
   FilterOperatorArity,
   FilterOperatorSpec,

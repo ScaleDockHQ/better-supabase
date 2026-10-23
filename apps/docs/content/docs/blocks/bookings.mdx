@@ -299,11 +299,14 @@ returns a `rate_limited` error with the seconds to wait.
 
 `useAvailableSlots` loads the open slots of a visible range and holds one. It
 is typed structurally, so it needs no UI library. Pass `token` on a public page.
+The hook is a registry item: install it with
+`npx shadcn add @better-supabase/use-bookings`, which writes
+`hooks/use-bookings.ts` into the app.
 
 ```tsx
 "use client";
 
-import { useAvailableSlots } from "better-supabase/blocks/bookings/react";
+import { useAvailableSlots } from "@/hooks/use-bookings";
 
 const slots = useAvailableSlots({ serviceId, range: { start, end } });
 
@@ -320,22 +323,24 @@ cancelled bookings are left out.
 
 ## Vue
 
-`better-supabase/blocks/bookings/vue` exports `useAvailableSlots`. It takes
-the options of `createAvailableSlotsController`; the controller needs no
+`useBlockController` from `better-supabase/vue` runs
+`createAvailableSlotsController` with its options; the controller needs no
 provider. `state` is a shallow ref of the snapshot and `actions` are the
 controller's actions. The work starts on mount, and the controller is
 disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useAvailableSlots } from "better-supabase/blocks/bookings/vue";
-import { createBookings } from "better-supabase/blocks/bookings";
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createAvailableSlotsController,
+  createBookings,
+} from "better-supabase/blocks/bookings";
 import { rpcTransport } from "better-supabase/blocks";
 
 const { serviceId } = defineProps<{ serviceId: string }>();
 const supabase = useSupabase();
-const { state } = useAvailableSlots({
+const { state } = useBlockController(createAvailableSlotsController, {
   client: createBookings({ transport: rpcTransport(supabase) }),
   serviceId,
   range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
@@ -355,22 +360,27 @@ Call `actions.setRange(range)` when the visible range changes.
 
 ## Svelte
 
-`better-supabase/blocks/bookings/svelte` exports `useAvailableSlots`. It
-takes the options of `createAvailableSlotsController`; the controller needs
-no provider. The hook returns a readable store of the snapshot, read with
+`useBlockController` from `better-supabase/svelte` runs
+`createAvailableSlotsController` with its options; the controller needs no
+provider. It returns a readable store of the snapshot, read with
 `$`, with the actions on `.actions`. The work starts on mount, and the
 controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useAvailableSlots } from "better-supabase/blocks/bookings/svelte";
-  import { createBookings } from "better-supabase/blocks/bookings";
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
+  import {
+    createAvailableSlotsController,
+    createBookings,
+  } from "better-supabase/blocks/bookings";
   import { rpcTransport } from "better-supabase/blocks";
 
   let { serviceId }: { serviceId: string } = $props();
   const { supabase } = getBetterSupabase();
-  const slots = useAvailableSlots({
+  const slots = useBlockController(createAvailableSlotsController, {
     client: createBookings({ transport: rpcTransport(supabase) }),
     serviceId,
     range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
@@ -386,22 +396,24 @@ controller is disposed with the component.
 
 ## Solid
 
-`better-supabase/blocks/bookings/solid` exports `useAvailableSlots`. It
-takes the options of `createAvailableSlotsController`; the controller needs
-no provider. `state()` reads the snapshot through `from`, and `actions` are
+`useBlockController` from `better-supabase/solid` runs
+`createAvailableSlotsController` with its options; the controller needs no
+provider. `state()` reads the snapshot through `from`, and `actions` are
 the controller's actions. The work starts on mount, and the controller is
 disposed with the owner.
 
 ```tsx title="Component.tsx"
 import { For } from "solid-js";
-import { useSupabase } from "better-supabase/solid";
-import { useAvailableSlots } from "better-supabase/blocks/bookings/solid";
-import { createBookings } from "better-supabase/blocks/bookings";
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import {
+  createAvailableSlotsController,
+  createBookings,
+} from "better-supabase/blocks/bookings";
 import { rpcTransport } from "better-supabase/blocks";
 
 export function Component(props: { serviceId: string }) {
   const supabase = useSupabase();
-  const { state } = useAvailableSlots({
+  const { state } = useBlockController(createAvailableSlotsController, {
     client: createBookings({ transport: rpcTransport(supabase) }),
     serviceId: props.serviceId,
     range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },

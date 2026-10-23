@@ -153,10 +153,10 @@ export interface CatalogBlock {
    */
   readonly subpath: string | null;
   /**
-   * The `better-supabase/blocks/<name>/react` entry and its source file, when
-   * there is one.
+   * The registry item with the block's React hooks
+   * (`@better-supabase/use-<name>`) and its source file, when there is one.
    */
-  readonly react: { readonly subpath: string; readonly source: string } | null;
+  readonly react: { readonly item: string; readonly source: string } | null;
   /** The docs page that covers the module. */
   readonly docs: string;
 }
@@ -282,7 +282,7 @@ export function buildCatalog(): Catalog {
 
   const blocks = Object.values(SQL_MODULES).map((module): CatalogBlock => {
     const subpath = `./blocks/${module.name}`;
-    const reactSource = exports.get(`${subpath}/react`);
+    const reactSource = `packages/registry/items/hooks/use-${module.name}.ts`;
 
     return {
       name: module.name,
@@ -296,13 +296,9 @@ export function buildCatalog(): Catalog {
       subpath: exports.has(subpath)
         ? `better-supabase${subpath.slice(1)}`
         : null,
-      react:
-        reactSource === undefined
-          ? null
-          : {
-              subpath: `better-supabase${subpath.slice(1)}/react`,
-              source: reactSource,
-            },
+      react: existsSync(join(ROOT, reactSource))
+        ? { item: `@better-supabase/use-${module.name}`, source: reactSource }
+        : null,
       docs: docsPage(module.name, pages),
     };
   });

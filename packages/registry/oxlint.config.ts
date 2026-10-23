@@ -19,5 +19,27 @@ export default defineConfig({
         "turbo/no-undeclared-env-vars": "off",
       },
     },
+    {
+      // The block hooks moved here from the library, which turns these rules
+      // off for the same code (see its oxlint config and ADR 0002): they read
+      // block settings as dictionaries and keep absent options absent under
+      // exactOptionalPropertyTypes. Their tests replace React with a loose
+      // stand-in. 88 findings in items/hooks and 100 in the tests when
+      // measured.
+      files: [
+        "items/hooks/**/*.ts",
+        "tests/hooks/**/*.ts",
+        "tests/fixtures/**/*.ts",
+      ],
+      rules: {
+        "anti-slop/no-conditional-empty-object-spread": "off",
+        "anti-slop/no-known-value-widening": "off",
+        "anti-slop/no-object-parameters": "off",
+        "anti-slop/no-runtime-typeof": "off",
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/no-unknown-returns": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
+      },
+    },
   ],
 });

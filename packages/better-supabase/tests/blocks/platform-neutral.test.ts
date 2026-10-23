@@ -3,7 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// Block controllers and their React bindings run in React DOM and React
+// Block controllers and their registry React hooks run in React DOM and React
 // Native alike: platform needs go through the ports in `client/ports.ts`.
 // This walks each one's relative imports, as the WinterTC check does, and
 // rejects DOM globals and React Native imports anywhere in the closure.
@@ -78,19 +78,20 @@ const controllers = blocks
   .map((entry) => `blocks/${entry.name}/client.ts`)
   .filter((file) => existsSync(resolve(SRC, file)));
 
-const bindings = blocks
+const HOOKS = resolve(import.meta.dirname, "../../../registry/items/hooks");
+
+const hooks = blocks
   .filter((entry) => entry.isDirectory())
-  .map((entry) => `blocks/${entry.name}/react/index.ts`)
-  .filter((file) => existsSync(resolve(SRC, file)));
+  .map((entry) => resolve(HOOKS, `use-${entry.name}.ts`))
+  .filter((file) => existsSync(file));
 
 describe("platform-neutral block clients", () => {
-  it("gives every React binding a controller", () => {
-    expect(bindings.length).toBeGreaterThan(0);
+  it("gives every registry block hook a controller", () => {
+    expect(hooks.length).toBeGreaterThan(0);
 
-    for (const binding of bindings) {
-      expect(controllers).toContain(
-        binding.replace("/react/index.ts", "/client.ts"),
-      );
+    for (const hook of hooks) {
+      const block = relative(HOOKS, hook).replaceAll(/^use-|\.ts$/g, "");
+      expect(controllers).toContain(`blocks/${block}/client.ts`);
     }
   });
 
@@ -110,7 +111,7 @@ describe("platform-neutral block clients", () => {
     },
   );
 
-  it.each(bindings)("%s uses no DOM global or React Native", async (file) => {
+  it.each(hooks)("%s uses no DOM global or React Native", async (file) => {
     const { files, externals } = await closure(file);
 
     const imports = [...externals]

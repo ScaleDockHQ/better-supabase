@@ -12,11 +12,11 @@ checks apply as for any other write.
 
 ```ts
 import { createUndo, sqlTransport } from "better-supabase/blocks/undo";
-import { useUndoStack } from "better-supabase/blocks/undo/react";
+import { useUndoStack } from "@/hooks/use-undo";
 ```
 
-The undo subpaths add no SQL module; they call the functions of the blocks
-that returned the token.
+The undo block adds no SQL module; it calls the functions of the blocks that
+returned the token.
 
 ## Apply a token
 
@@ -58,14 +58,15 @@ is already gone.
 
 ## Keep a stack in the browser
 
-`useUndoStack` keeps the newest tokens (20 by default) for a toast's Undo
-button or a Cmd+Z handler. `push` ignores a `null` token, so you can push
+`useUndoStack` is a registry item: `npx shadcn add @better-supabase/use-undo`
+writes `hooks/use-undo.ts` into the app. The hook keeps the newest tokens (20
+by default) for a toast's Undo button or a Cmd+Z handler. `push` ignores a `null` token, so you can push
 every result without checking which methods have an inverse.
 
 ```tsx title="app/tasks/task-list.tsx"
 "use client";
 
-import { useUndoStack } from "better-supabase/blocks/undo/react";
+import { useUndoStack } from "@/hooks/use-undo";
 
 const stack = useUndoStack({ apply: undoAction });
 
@@ -85,16 +86,18 @@ instead.
 
 ## Vue
 
-`better-supabase/blocks/undo/vue` exports `useUndoStack`. It takes the
-options of `createUndoController`; the controller needs no provider. `state`
-is a shallow ref of the snapshot and `actions` are the controller's actions.
+`useBlockController` from `better-supabase/vue` runs `createUndoController`
+with its options; the controller needs no provider. `state` is a shallow ref of the snapshot and `actions` are the controller's actions.
 The work starts on mount, and the controller is disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
-import { useUndoStack } from "better-supabase/blocks/undo/vue";
+import { useBlockController } from "better-supabase/vue";
+import { createUndoController } from "better-supabase/blocks/undo";
 
-const { state, actions } = useUndoStack({ apply: undoAction });
+const { state, actions } = useBlockController(createUndoController, {
+  apply: undoAction,
+});
 </script>
 
 <template>
@@ -107,17 +110,18 @@ const { state, actions } = useUndoStack({ apply: undoAction });
 
 ## Svelte
 
-`better-supabase/blocks/undo/svelte` exports `useUndoStack`. It takes the
-options of `createUndoController`; the controller needs no provider. The
-hook returns a readable store of the snapshot, read with `$`, with the
+`useBlockController` from `better-supabase/svelte` runs
+`createUndoController` with its options; the controller needs no provider.
+It returns a readable store of the snapshot, read with `$`, with the
 actions on `.actions`. The work starts on mount, and the controller is
 disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { useUndoStack } from "better-supabase/blocks/undo/svelte";
+  import { useBlockController } from "better-supabase/svelte";
+  import { createUndoController } from "better-supabase/blocks/undo";
 
-  const stack = useUndoStack({
+  const stack = useBlockController(createUndoController, {
     apply: undoAction,
   });
 </script>
@@ -128,17 +132,20 @@ disposed with the component.
 
 ## Solid
 
-`better-supabase/blocks/undo/solid` exports `useUndoStack`. It takes the
-options of `createUndoController`; the controller needs no provider.
+`useBlockController` from `better-supabase/solid` runs
+`createUndoController` with its options; the controller needs no provider.
 `state()` reads the snapshot through `from`, and `actions` are the
 controller's actions. The work starts on mount, and the controller is
 disposed with the owner.
 
 ```tsx title="Component.tsx"
-import { useUndoStack } from "better-supabase/blocks/undo/solid";
+import { useBlockController } from "better-supabase/solid";
+import { createUndoController } from "better-supabase/blocks/undo";
 
 export function Component() {
-  const { state, actions } = useUndoStack({ apply: undoAction });
+  const { state, actions } = useBlockController(createUndoController, {
+    apply: undoAction,
+  });
   return (
     <>
       <p>{state().entries.length}</p>

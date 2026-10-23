@@ -1,6 +1,5 @@
 "use client";
 
-import { useInboxWidget } from "better-supabase/blocks/inbox/react";
 import { LifeBuoyIcon, SendIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useRef, useState } from "react";
@@ -17,6 +16,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { useInboxWidget } from "@/hooks/use-inbox";
 import { useAuth } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 

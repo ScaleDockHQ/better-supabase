@@ -113,7 +113,9 @@ permissionFlags(set, { edit: permissions.invoices.write }); // { canEdit: true }
 for a payload query that returns rows together with what the caller may do
 with them. A call without a tenant fails with the hint `TENANT_REQUIRED`.
 
-In React, `usePermission(key)` returns `undefined` while it loads, then true
+The React hooks are a registry item: `npx shadcn add
+@better-supabase/use-permissions` writes `hooks/use-permissions.ts` into the
+app. `usePermission(key)` returns `undefined` while it loads, then true
 or false, and `<Can>` renders its children only for a caller who holds the
 key. The hooks of one render share one `my_permissions` call per tenant, so a
 table whose rows each check a key costs one round trip. They read the
@@ -122,7 +124,7 @@ client's tenant unless you pass `tenant`:
 ```tsx title="components/task-import-action.tsx"
 "use client";
 
-import { Can } from "better-supabase/blocks/permissions/react";
+import { Can } from "@/hooks/use-permissions";
 
 import { permissions } from "@/lib/supabase/blocks.generated";
 
@@ -135,27 +137,29 @@ export function TaskImportAction({ projectId }: { projectId: string }) {
 }
 ```
 
-`createPermissionsController` is the same logic without React, and
-`better-supabase/blocks/permissions/vue`, `/svelte` and `/solid` export
-`usePermissions` over it. Those bindings have no `<Can>` component; render
+`createPermissionsController` is the same logic without React. Vue, Svelte
+and Solid run it with `useBlockController` from `better-supabase/vue`,
+`/svelte` and `/solid` (see
+[Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)).
+Those bindings have no `<Can>` component; render
 on `can(state.permissions, key)` with `v-if`, `{#if}` or `<Show>`. Wrap the
 client in `batchPermissions` so the components of one render share a call.
 The [Can recipe](/docs/registry/ui-recipes/can) shows it in the Next.js example.
 
 ```vue title="ImportButton.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
 import { rpcTransport } from "better-supabase/blocks";
 import {
   batchPermissions,
   can,
   createPermissions,
+  createPermissionsController,
 } from "better-supabase/blocks/permissions";
-import { usePermissions } from "better-supabase/blocks/permissions/vue";
 
 const props = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
-const { state } = usePermissions({
+const { state } = useBlockController(createPermissionsController, {
   client: batchPermissions(
     createPermissions({ transport: rpcTransport(supabase), schema: "api" }),
   ),
@@ -171,14 +175,18 @@ const { state } = usePermissions({
 
 ```svelte title="ImportButton.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
+  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
   import { rpcTransport } from "better-supabase/blocks";
-  import { batchPermissions, can, createPermissions } from "better-supabase/blocks/permissions";
-  import { usePermissions } from "better-supabase/blocks/permissions/svelte";
+  import {
+    batchPermissions,
+    can,
+    createPermissions,
+    createPermissionsController,
+  } from "better-supabase/blocks/permissions";
 
   let { organizationId }: { organizationId: string } = $props();
   const { supabase } = getBetterSupabase();
-  const access = usePermissions({
+  const access = useBlockController(createPermissionsController, {
     client: batchPermissions(createPermissions({ transport: rpcTransport(supabase), schema: "api" })),
     keys: ["imports.manage"],
     tenant: organizationId,
@@ -192,18 +200,18 @@ const { state } = usePermissions({
 
 ```tsx title="ImportButton.tsx"
 import { Show } from "solid-js";
-import { useSupabase } from "better-supabase/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
 import { rpcTransport } from "better-supabase/blocks";
 import {
   batchPermissions,
   can,
   createPermissions,
+  createPermissionsController,
 } from "better-supabase/blocks/permissions";
-import { usePermissions } from "better-supabase/blocks/permissions/solid";
 
 export function ImportButton(props: { organizationId: string }) {
   const supabase = useSupabase();
-  const { state } = usePermissions({
+  const { state } = useBlockController(createPermissionsController, {
     client: batchPermissions(
       createPermissions({ transport: rpcTransport(supabase), schema: "api" }),
     ),

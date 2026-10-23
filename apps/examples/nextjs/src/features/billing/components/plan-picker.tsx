@@ -1,14 +1,14 @@
 // #region recipe:plan-picker
 "use client";
 
-import type { PlanCatalog } from "better-supabase/blocks/billing/react";
 import type { Money } from "better-supabase/commerce";
 
 import { DbException } from "better-supabase";
-import { usePlanPicker } from "better-supabase/blocks/billing/react";
 import { formatMoney } from "better-supabase/commerce";
 import { useExtracted, useLocale } from "next-intl";
 import { toast } from "sonner";
+
+import type { PlanCatalog } from "@/hooks/use-billing";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { usePlanPicker } from "@/hooks/use-billing";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { PlanOption } from "../billing-queries";

@@ -70,8 +70,9 @@ urls.task({ projectId: task.project_id }); // "/projects/…"
 
 ## In the browser
 
-`useSubject(ref)` from `better-supabase/blocks/subjects/react` returns
-`subject`: `undefined` while it loads, `null` when the caller can't read the
+The React hooks are a registry item: `npx shadcn add
+@better-supabase/use-subjects` writes `hooks/use-subjects.ts` into the app.
+`useSubject(ref)` returns `subject`: `undefined` while it loads, `null` when the caller can't read the
 record, then `{ type, id, title, url }`. `useSubjects(refs)` resolves a list
 and returns `get(ref)`. Every `useSubject` and `useSubjects` of one render
 joins one `subject_titles` call, so a table with a subject link in each row
@@ -80,7 +81,7 @@ costs one round trip. Both expose `error` and `refresh` for a retry.
 ```tsx title="components/subject-link.tsx"
 "use client";
 
-import { useSubject } from "better-supabase/blocks/subjects/react";
+import { useSubject } from "@/hooks/use-subjects";
 
 export function SubjectLink({ subject }: { subject: RecordRef }) {
   const { subject: resolved } = useSubject(subject);
@@ -92,9 +93,11 @@ export function SubjectLink({ subject }: { subject: RecordRef }) {
 }
 ```
 
-`createSubjectsController` is the same logic without React, and
-`better-supabase/blocks/subjects/vue`, `/svelte` and `/solid` export
-`useSubjects` over it. Wrap the client in `batchSubjects` so the components
+`createSubjectsController` is the same logic without React. Vue, Svelte and
+Solid run it with `useBlockController` from `better-supabase/vue`, `/svelte`
+and `/solid` (see
+[Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)).
+Wrap the client in `batchSubjects` so the components
 of one render share a call. The [Subject link](/docs/registry/ui-recipes/subject-link) and
 [Subject chip](/docs/registry/ui-recipes/subject-chip) recipes show both in the Next.js example: the
 related records panel and the approvals queue.
@@ -102,19 +105,19 @@ related records panel and the approvals queue.
 ```vue title="SubjectTitle.vue"
 <script setup lang="ts">
 import { computed } from "vue";
-import { useSupabase } from "better-supabase/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
 import { rpcTransport } from "better-supabase/blocks";
 import {
   batchSubjects,
   createSubjects,
+  createSubjectsController,
   subjectKey,
 } from "better-supabase/blocks/subjects";
-import { useSubjects } from "better-supabase/blocks/subjects/vue";
 
 const props = defineProps<{ type: string; id: string }>();
 const supabase = useSupabase();
 const ref = { type: props.type, id: props.id };
-const { state } = useSubjects({
+const { state } = useBlockController(createSubjectsController, {
   client: batchSubjects(
     createSubjects({ transport: rpcTransport(supabase), schema: "api" }),
   ),
@@ -130,14 +133,18 @@ const subject = computed(() => state.value.subjects?.[subjectKey(ref)]);
 
 ```svelte title="SubjectTitle.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
+  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
   import { rpcTransport } from "better-supabase/blocks";
-  import { batchSubjects, createSubjects, subjectKey } from "better-supabase/blocks/subjects";
-  import { useSubjects } from "better-supabase/blocks/subjects/svelte";
+  import {
+    batchSubjects,
+    createSubjects,
+    createSubjectsController,
+    subjectKey,
+  } from "better-supabase/blocks/subjects";
 
   let { type, id }: { type: string; id: string } = $props();
   const { supabase } = getBetterSupabase();
-  const subjects = useSubjects({
+  const subjects = useBlockController(createSubjectsController, {
     client: batchSubjects(createSubjects({ transport: rpcTransport(supabase), schema: "api" })),
     refs: [{ type, id }],
   });
@@ -147,19 +154,19 @@ const subject = computed(() => state.value.subjects?.[subjectKey(ref)]);
 ```
 
 ```tsx title="SubjectTitle.tsx"
-import { useSupabase } from "better-supabase/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
 import { rpcTransport } from "better-supabase/blocks";
 import {
   batchSubjects,
   createSubjects,
+  createSubjectsController,
   subjectKey,
 } from "better-supabase/blocks/subjects";
-import { useSubjects } from "better-supabase/blocks/subjects/solid";
 
 export function SubjectTitle(props: { type: string; id: string }) {
   const supabase = useSupabase();
   const ref = { type: props.type, id: props.id };
-  const { state } = useSubjects({
+  const { state } = useBlockController(createSubjectsController, {
     client: batchSubjects(
       createSubjects({ transport: rpcTransport(supabase), schema: "api" }),
     ),

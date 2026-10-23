@@ -94,7 +94,10 @@ Native ones from Expo modules the app passes in, importing none of them.
 
 The static check is `tests/blocks/platform-neutral.test.ts`. It reads names,
 not scopes, so neutral code doesn't name a local `window` or `document`.
-The Vue, Svelte and Solid entries are generated from each block's
+ADR 0093 later removed the per-block framework entries: React hooks are
+registry items (`@better-supabase/use-<block>`), and Vue, Svelte and Solid
+call `useBlockController` from their framework entry directly. Before that,
+the Vue, Svelte and Solid entries were generated from each block's
 `client.ts` by `pnpm --filter better-supabase gen:bindings`
 (`tests/blocks/bindings/render.ts`, with a drift test). Each hook calls the
 framework's `useBlockController` (`src/blocks/{vue,svelte,solid}-controller.ts`),

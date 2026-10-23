@@ -10,7 +10,12 @@ import root, {
 export default defineConfig({
   extends: [root, react],
   settings,
-  ignorePatterns,
+  ignorePatterns: [
+    ...ignorePatterns,
+    // Copied from the better-supabase registry; packages/registry lints the
+    // items and its tests keep these copies identical.
+    "src/hooks/use-*.ts",
+  ],
   overrides: [
     {
       // Examples read env where they create the client, the way the

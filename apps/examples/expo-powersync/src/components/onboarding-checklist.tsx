@@ -1,8 +1,8 @@
 // #region recipe:onboarding-checklist
-import { useOnboarding } from "better-supabase/blocks/onboarding/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { ActivityIndicator, Text, View } from "react-native";
 
+import { useOnboarding } from "../hooks/use-onboarding";
 import { API_SCHEMA } from "../lib/blocks";
 import { gettingStarted } from "../lib/onboarding";
 

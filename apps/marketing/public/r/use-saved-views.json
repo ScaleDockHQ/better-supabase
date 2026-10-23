@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-saved-views",
+  "title": "useSavedViews",
+  "description": "useSavedViews: the saved-views block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-saved-views.ts",
+      "content": "\"use client\";\n\nimport type {\n  ListUrlState,\n  SavedViewLike,\n  SavedViewsActions,\n  SavedViewsMatch,\n  SavedViewsSyncOptions,\n} from \"better-supabase/blocks/saved-views\";\n\nimport {\n  createSavedViewsController,\n  matchSavedViews,\n} from \"better-supabase/blocks/saved-views\";\nimport { useController, useLatest } from \"better-supabase/react\";\n\nexport type { SavedViewLike } from \"better-supabase/blocks/saved-views\";\n\nexport interface UseSavedViewsOptions<\n  V extends SavedViewLike,\n> extends SavedViewsSyncOptions<V> {\n  /**\n   * The list's URL state: the values of nuqs\n   * `useQueryStates(list.nuqs(createParser))`.\n   */\n  readonly urlState: ListUrlState;\n  /** Its setter, which `apply` calls with every key so stale ones clear. */\n  readonly setUrlState: (next: Record<string, unknown>) => unknown;\n}\n\nexport interface SavedViewsState<V extends SavedViewLike>\n  extends SavedViewsMatch<V>, SavedViewsActions<V> {\n  /** `undefined` until the first load. */\n  readonly views: readonly V[] | undefined;\n  readonly error: unknown;\n}\n\n/**\n * Saved views of one list, synced with its URL state and, through `getState`\n * and `onApplyState`, with the table's columns, grouping, density and layout.\n * Pair it with nuqs and a view menu (ReUI's Filters toolbar, a Select or a Tabs\n * list):\n *\n * ```tsx\n * const [urlState, setUrlState] = useQueryStates(\n *   tasksList.nuqs(createParser),\n * );\n * const views = useSavedViews({\n *   load: () => listViews(organizationId, \"tasks\"),\n *   save: ({ name, state, id }) =>\n *     saveView({ organizationId, list: \"tasks\", name, state, id }),\n *   urlState,\n *   setUrlState,\n *   getState: () => ({ columns, density }),\n *   onApplyState: (state) => showState(state),\n * });\n * ```\n */\nexport function useSavedViews<V extends SavedViewLike>(\n  options: UseSavedViewsOptions<V>,\n): SavedViewsState<V> {\n  const latest = useLatest(options);\n\n  const { view } = useController(\n    () =>\n      createSavedViewsController<V>({\n        load: () => latest.current.load(),\n        urlState: () => latest.current.urlState,\n        setUrlState: (next) => latest.current.setUrlState(next),\n        getState: () => latest.current.getState?.() ?? {},\n        onApplyState: (state, applied) => {\n          latest.current.onApplyState?.(state, applied);\n        },\n        save: (input) => needs(latest.current.save, \"save\")(input),\n        remove: (id) => needs(latest.current.remove, \"remove\")(id),\n        duplicate: (input) =>\n          needs(latest.current.duplicate, \"duplicate\")(input),\n        setPreference: (id, preference) =>\n          needs(latest.current.setPreference, \"setPreference\")(id, preference),\n        openDefault: options.openDefault !== false,\n      }),\n    [latest],\n  );\n\n  const match = matchSavedViews(view, options.urlState, options.getState?.());\n\n  return {\n    views: view.views,\n    error: view.error,\n    ...match,\n    apply: view.apply,\n    saveCurrent: view.saveCurrent,\n    remove: view.remove,\n    duplicate: view.duplicate,\n    setPreference: view.setPreference,\n    refresh: view.refresh,\n  };\n}\n\nfunction needs<T>(value: T | undefined, name: string): T {\n  if (value === undefined) {\n    throw new Error(`useSavedViews: pass \\`${name}\\``);\n  }\n\n  return value;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-saved-views.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "saved-views",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the saved-views block (`npx better-supabase add saved-views`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/saved-views.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

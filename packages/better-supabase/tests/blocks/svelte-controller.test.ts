@@ -5,7 +5,7 @@ import type { SvelteController } from "../../src/blocks/svelte-controller.ts";
 import type { EnvOptions } from "../fixtures/block-bindings.ts";
 
 import { useBlockController } from "../../src/blocks/svelte-controller.ts";
-import { useUndoStack } from "../../src/blocks/undo/svelte/index.ts";
+import { createUndoController } from "../../src/blocks/undo/index.ts";
 import { setBetterSupabase } from "../../src/svelte/index.ts";
 import { testControllerBinding } from "../../src/testing/kits/controller-binding.ts";
 import {
@@ -122,7 +122,14 @@ describe("useBlockController (Svelte)", () => {
   });
 
   it("runs a generated wrapper without a provider when its controller needs none", () => {
-    const mounted = mount(() => useUndoStack({ apply: async () => undefined }));
+    const mounted = mount(() =>
+      useBlockController(
+        createUndoController,
+        { apply: async () => undefined },
+        false,
+      ),
+    );
+
     mounted.bound.actions.push({ v: 1, calls: [] }, "Moved");
     expect(mounted.read().entries.map((entry) => entry.label)).toEqual([
       "Moved",

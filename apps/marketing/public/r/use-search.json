@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-search",
+  "title": "useCommandSearch",
+  "description": "useCommandSearch: the search block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-search.ts",
+      "content": "\"use client\";\n\nimport type {\n  CommandSearchActions,\n  CommandSearchSnapshot,\n} from \"better-supabase/blocks/search\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createCommandSearchController,\n  createSearch,\n} from \"better-supabase/blocks/search\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\n\nexport { groupHits } from \"better-supabase/blocks/search\";\n\nexport type {\n  CommandSearchGroup,\n  CommandSearchItem,\n} from \"better-supabase/blocks/search\";\n\nexport interface UseCommandSearchOptions {\n  /** One tenant. Default: every tenant the caller can read. */\n  readonly organizationId?: string | null;\n  readonly types?: readonly string[];\n  /** Results per query. Default 20. */\n  readonly limit?: number;\n  /** Recents and favorites shown before the user types. Default 5. */\n  readonly listLimit?: number;\n  /** Milliseconds between the last keystroke and the query. Default 150. */\n  readonly debounceMs?: number;\n  /**\n   * Toggles the dialog on Cmd+K and Ctrl+K through the client's keyboard port\n   * (`webKeyboard()` on the web; none on React Native). Default true.\n   */\n  readonly shortcut?: boolean;\n  /**\n   * The schema the calls go to: the module schema (default `better_supabase`),\n   * or the API schema from `blocks.<module>.api`.\n   */\n  readonly schema?: string;\n}\n\nexport interface CommandSearchState\n  extends CommandSearchSnapshot, CommandSearchActions {}\n\n/**\n * State for a Cmd+K dialog over the `search` module: a debounced query that\n * ignores stale responses, favorites and recents for an empty query, and\n * `select` that records the open. Render it with any command palette.\n *\n * ```tsx\n * const search = useCommandSearch({ organizationId });\n * <CommandDialog open={search.open} onOpenChange={search.setOpen}>\n *   <CommandInput value={search.query} onValueChange={search.setQuery} />\n * </CommandDialog>;\n * ```\n */\nexport function useCommandSearch(\n  options: UseCommandSearchOptions = {},\n): CommandSearchState {\n  const { supabase, ports } = useBlockEnv();\n  const { schema, organizationId, limit, listLimit, debounceMs } = options;\n  const keyboard = (options.shortcut ?? true) ? ports.keyboard : undefined;\n  const typesKey = options.types?.join(\"\\u0000\") ?? null;\n\n  return useController(\n    () =>\n      createCommandSearchController({\n        client: createSearch({\n          transport: rpcTransport(supabase),\n          ...(schema === undefined ? {} : { schema }),\n        }),\n        ...(keyboard === undefined ? {} : { keyboard }),\n        organizationId: organizationId ?? null,\n        ...(typesKey === null ? {} : { types: typesKey.split(\"\\u0000\") }),\n        ...(limit === undefined ? {} : { limit }),\n        ...(listLimit === undefined ? {} : { listLimit }),\n        ...(debounceMs === undefined ? {} : { debounceMs }),\n      }),\n    [\n      supabase,\n      schema,\n      keyboard,\n      organizationId,\n      typesKey,\n      limit,\n      listLimit,\n      debounceMs,\n    ],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-search.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "search",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the search block (`npx better-supabase add search`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/search.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

@@ -1,7 +1,6 @@
 // #region recipe:usage-meter
 "use client";
 
-import { useUsageMeter } from "better-supabase/blocks/usage/react";
 import { tenantOf } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -14,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUsageMeter } from "@/hooks/use-usage";
 import { useAuth } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 

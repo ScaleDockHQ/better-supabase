@@ -253,14 +253,15 @@ if (!hasEntitlement(session, organizationId, "exports"))
 This is UX: the policy above still decides.
 
 `hasEntitlement` also takes the client's `useAuth()` snapshot. In a Client
-Component, `useFeatureGate` from `better-supabase/blocks/entitlements/react`
-checks the active organization (or `organizationId`) and follows the
-session, so the gate opens as soon as a refresh after checkout brings the
-new claim. `allowed` is `undefined` while the session loads. The same hook
-runs in React DOM and React Native.
+Component, `useFeatureGate` checks the active organization (or `organizationId`)
+and follows the session, so the gate opens as soon as a refresh after checkout
+brings the new claim. `allowed` is `undefined` while the session loads. The same
+hook runs in React DOM and React Native. It is a registry item: install it with
+`npx shadcn add @better-supabase/use-entitlements`, which writes
+`hooks/use-entitlements.ts` into the app.
 
 ```tsx title="components/feature-gate.tsx"
-import { useFeatureGate } from "better-supabase/blocks/entitlements/react";
+import { useFeatureGate } from "@/hooks/use-entitlements";
 
 export function FeatureGate({ feature, children }) {
   const { allowed } = useFeatureGate(feature);
@@ -271,17 +272,22 @@ export function FeatureGate({ feature, children }) {
 
 It takes `claim` and `tenantClaim` when `auth.claims.features` or
 `auth.organization.claim` rename them. `createFeatureGateController` from
-`better-supabase/blocks/entitlements` is the same logic without React, and
-`better-supabase/blocks/entitlements/vue`, `/svelte` and `/solid` export
-`useFeatureGate` over it, taking the controller's options with `auth` from
-the provider. The [feature gate recipe](/docs/registry/ui-recipes/feature-gate) shows it
-in the Next.js and Expo examples.
+`better-supabase/blocks/entitlements` is the same logic without React. Vue,
+Svelte and Solid run it with `useBlockController` from `better-supabase/vue`,
+`/svelte` and `/solid`, taking the controller's options with `auth` from the
+provider
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)). The
+[feature gate recipe](/docs/registry/ui-recipes/feature-gate) shows it in the
+Next.js and Expo examples.
 
 ```vue title="ExportButton.vue"
 <script setup lang="ts">
-import { useFeatureGate } from "better-supabase/blocks/entitlements/vue";
+import { createFeatureGateController } from "better-supabase/blocks/entitlements";
+import { useBlockController } from "better-supabase/vue";
 
-const { state } = useFeatureGate({ feature: "exports" });
+const { state } = useBlockController(createFeatureGateController, {
+  feature: "exports",
+});
 </script>
 
 <template>
@@ -291,19 +297,25 @@ const { state } = useFeatureGate({ feature: "exports" });
 
 ```svelte title="ExportButton.svelte"
 <script lang="ts">
-  import { useFeatureGate } from "better-supabase/blocks/entitlements/svelte";
+  import { createFeatureGateController } from "better-supabase/blocks/entitlements";
+  import { useBlockController } from "better-supabase/svelte";
 
-  const gate = useFeatureGate({ feature: "exports" });
+  const gate = useBlockController(createFeatureGateController, {
+    feature: "exports",
+  });
 </script>
 
 {#if $gate.allowed}<button>Export CSV</button>{/if}
 ```
 
 ```tsx title="ExportButton.tsx"
-import { useFeatureGate } from "better-supabase/blocks/entitlements/solid";
+import { createFeatureGateController } from "better-supabase/blocks/entitlements";
+import { useBlockController } from "better-supabase/solid";
 
 export function ExportButton() {
-  const { state } = useFeatureGate({ feature: "exports" });
+  const { state } = useBlockController(createFeatureGateController, {
+    feature: "exports",
+  });
   return state().allowed ? <button>Export CSV</button> : null;
 }
 ```

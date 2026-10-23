@@ -1,8 +1,9 @@
 // #region recipe:feature-gate
 import type { ReactNode } from "react";
 
-import { useFeatureGate } from "better-supabase/blocks/entitlements/react";
 import { ActivityIndicator, Text, View } from "react-native";
+
+import { useFeatureGate } from "../hooks/use-entitlements";
 
 /**
  * Renders `children` only when the active organization's plan includes

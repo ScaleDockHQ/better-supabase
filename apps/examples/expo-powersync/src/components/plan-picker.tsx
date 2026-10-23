@@ -1,9 +1,9 @@
 // #region recipe:plan-picker
-import { usePlanPicker } from "better-supabase/blocks/billing/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import * as WebBrowser from "expo-web-browser";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
+import { usePlanPicker } from "../hooks/use-billing";
 import { loadPlanCatalog, startCheckout } from "../lib/billing";
 
 const price = (cents: number) =>

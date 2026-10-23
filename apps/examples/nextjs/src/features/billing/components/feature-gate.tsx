@@ -3,7 +3,6 @@
 
 import type { ReactNode } from "react";
 
-import { useFeatureGate } from "better-supabase/blocks/entitlements/react";
 import { LockIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -11,6 +10,7 @@ import type { Entitlement } from "@/lib/claims";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFeatureGate } from "@/hooks/use-entitlements";
 import { Link } from "@/i18n/navigation";
 
 /**

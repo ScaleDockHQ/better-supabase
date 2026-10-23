@@ -1,8 +1,8 @@
 // #region recipe:audit-log-table
-import { useAuditLog } from "better-supabase/blocks/audit/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { ActivityIndicator, Button, Pressable, Text, View } from "react-native";
 
+import { useAuditLog } from "../hooks/use-audit";
 import { API_SCHEMA } from "../lib/blocks";
 
 /** A row of chips that filters by one value, or by none. */

@@ -3,7 +3,6 @@
 
 import type { SubmitEvent } from "react";
 
-import { useTagInput } from "better-supabase/blocks/tags/react";
 import { XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -12,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTagInput } from "@/hooks/use-tags";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**

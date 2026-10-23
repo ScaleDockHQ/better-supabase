@@ -1,9 +1,9 @@
 // #region recipe:invite-dialog
-import { useInvitations } from "better-supabase/blocks/organizations/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { useState } from "react";
 import { Button, Modal, Pressable, Text, TextInput, View } from "react-native";
 
+import { useInvitations } from "../hooks/use-organizations";
 import { API_SCHEMA } from "../lib/blocks";
 
 const ROLES = ["member", "admin"] as const;

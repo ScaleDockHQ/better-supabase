@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-entitlements",
+  "title": "useFeatureGate",
+  "description": "useFeatureGate: the entitlements block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-entitlements.ts",
+      "content": "\"use client\";\n\nimport type {\n  EntitlementClaimOptions,\n  FeatureGateActions,\n  FeatureGateSnapshot,\n} from \"better-supabase/blocks/entitlements\";\n\nimport { createFeatureGateController } from \"better-supabase/blocks/entitlements\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\n\nexport interface UseFeatureGateOptions {\n  /** The organization to check. Default the session's active one. */\n  readonly organizationId?: string | null;\n  /**\n   * `config.claims.features` (default `features`), or `{ claim, keys }` for\n   * short codes.\n   */\n  readonly claim?: string | EntitlementClaimOptions;\n  /** The tenant claim, `config.claims.tenant` (default `tenant_id`). */\n  readonly tenantClaim?: string;\n}\n\nexport interface FeatureGateState\n  extends FeatureGateSnapshot, FeatureGateActions {}\n\n/**\n * Whether the active organization's plan includes `feature`, from the provider\n * session's plan-features claim; `allowed` is `undefined` while the session\n * loads. UX only: RLS enforces the feature. The same hook runs in React DOM and\n * React Native.\n *\n * ```tsx\n * const { allowed } = useFeatureGate(\"exports\");\n * ```\n */\nexport function useFeatureGate(\n  feature: string,\n  options: UseFeatureGateOptions = {},\n): FeatureGateState {\n  const { auth } = useBlockEnv();\n  const { organizationId, claim, tenantClaim } = options;\n  const claimKey = typeof claim === \"object\" ? JSON.stringify(claim) : claim;\n\n  return useController(\n    () =>\n      createFeatureGateController({\n        auth,\n        feature,\n        ...(organizationId === undefined ? {} : { organizationId }),\n        ...(claim === undefined ? {} : { claim }),\n        ...(tenantClaim === undefined ? {} : { tenantClaim }),\n      }),\n    [auth, feature, organizationId, claimKey, tenantClaim],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-entitlements.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "entitlements",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the entitlements block (`npx better-supabase add entitlements`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/entitlements.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

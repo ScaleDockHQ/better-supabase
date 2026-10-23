@@ -1,11 +1,6 @@
 // #region recipe:settings-layout
 import type { SettingEntries } from "better-supabase/blocks/settings";
-import type {
-  SettingField,
-  SettingsState,
-} from "better-supabase/blocks/settings/react";
 
-import { useSettings } from "better-supabase/blocks/settings/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import {
   ActivityIndicator,
@@ -17,6 +12,9 @@ import {
   View,
 } from "react-native";
 
+import type { SettingField, SettingsState } from "../hooks/use-settings";
+
+import { useSettings } from "../hooks/use-settings";
 import { API_SCHEMA } from "../lib/blocks";
 import { settings } from "../lib/settings";
 

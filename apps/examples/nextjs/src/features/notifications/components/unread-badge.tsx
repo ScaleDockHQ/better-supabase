@@ -3,12 +3,12 @@
 
 import type { NotificationCounts } from "better-supabase/blocks/notifications";
 
-import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { BellIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { useNotifications } from "@/hooks/use-notifications";
 import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
 

@@ -27,6 +27,10 @@ export type { BlockTransport } from "../../core/block-transport.ts";
 
 export { createCommandSearchController } from "./client.ts";
 
+export { groupHits } from "./groups.ts";
+
+export type { CommandSearchGroup, CommandSearchItem } from "./groups.ts";
+
 export type {
   CommandSearchActions,
   CommandSearchController,

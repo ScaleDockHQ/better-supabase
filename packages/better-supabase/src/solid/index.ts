@@ -96,6 +96,12 @@ export {
   useBlockQuery,
 } from "./block-hooks.ts";
 
+export { useBlockController } from "../blocks/solid-controller.ts";
+
+export type { SolidController } from "../blocks/solid-controller.ts";
+
+export type { BlockOptions } from "../blocks/block-env.ts";
+
 export { defineDataHooks } from "./data-hooks.ts";
 
 export type { DataHooks, DataView } from "./data-hooks.ts";

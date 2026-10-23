@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-forms",
+  "title": "useQuestionnaire",
+  "description": "useQuestionnaire: the forms block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-forms.ts",
+      "content": "\"use client\";\n\nimport type {\n  QuestionnaireActions,\n  QuestionnaireOptions,\n  QuestionnaireSnapshot,\n} from \"better-supabase/blocks/forms\";\n\nimport { createQuestionnaireController } from \"better-supabase/blocks/forms\";\nimport { useController, useLatest } from \"better-supabase/react\";\n\nexport type UseQuestionnaireOptions = QuestionnaireOptions;\n\nexport interface QuestionnaireView\n  extends QuestionnaireSnapshot, QuestionnaireActions {}\n\n/**\n * A multi-step form over a form version: the visible steps, the answers, and\n * per-field issues checked against the version's JSON Schema. The steps feed a\n * Stepper; the fields render with any input components. A new `form` starts\n * over from `initialAnswers`.\n *\n * ```tsx\n * const q = useQuestionnaire({\n *   form: version,\n *   onSubmit: (answers) => forms.submit(formId, answers),\n * });\n * ```\n */\nexport function useQuestionnaire(\n  options: UseQuestionnaireOptions,\n): QuestionnaireView {\n  const latest = useLatest(options);\n  const { form, initialAnswers } = options;\n\n  return useController(\n    () =>\n      createQuestionnaireController({\n        form,\n        ...(initialAnswers === undefined ? {} : { initialAnswers }),\n        onSubmit: (answers) => latest.current.onSubmit(answers),\n      }),\n    [form, latest],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-forms.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "forms",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the forms block (`npx better-supabase add forms`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/forms.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

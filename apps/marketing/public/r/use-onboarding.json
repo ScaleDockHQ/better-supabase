@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-onboarding",
+  "title": "useOnboarding",
+  "description": "useOnboarding: the onboarding block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-onboarding.ts",
+      "content": "\"use client\";\n\nimport type {\n  Checklist,\n  ChecklistScope,\n  OnboardingActions,\n  OnboardingSnapshot,\n} from \"better-supabase/blocks/onboarding\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createOnboarding,\n  createOnboardingController,\n} from \"better-supabase/blocks/onboarding\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\n\nexport interface UseOnboardingOptions {\n  /** The organization, for an organization checklist. */\n  readonly organizationId?: string | null;\n  /**\n   * The schema the calls go to: the module schema (default `better_supabase`),\n   * or the API schema from `blocks.<module>.api`.\n   */\n  readonly schema?: string;\n}\n\nexport interface OnboardingState<Id extends string>\n  extends OnboardingSnapshot<Id>, OnboardingActions<Id> {}\n\n/**\n * A checklist's progress for the signed-in user, or for an organization with\n * `organizationId`, through the browser client.\n *\n * ```tsx\n * const { progress, complete } = useOnboarding(gettingStarted, {\n *   organizationId,\n * });\n * ```\n */\nexport function useOnboarding<Id extends string, Scope extends ChecklistScope>(\n  checklist: Checklist<Id, Scope>,\n  options: UseOnboardingOptions = {},\n): OnboardingState<Id> {\n  const { supabase, auth } = useBlockEnv();\n  const { organizationId, schema } = options;\n\n  return useController(\n    () =>\n      createOnboardingController<Id, Scope>({\n        client: createOnboarding({\n          transport: rpcTransport(supabase),\n          ...(schema === undefined ? {} : { schema }),\n        }),\n        checklist,\n        auth,\n        organizationId: organizationId ?? null,\n      }),\n    [checklist, supabase, auth, organizationId, schema],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-onboarding.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "onboarding",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the onboarding block (`npx better-supabase add onboarding`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/onboarding.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

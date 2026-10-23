@@ -1,5 +1,4 @@
 // #region recipe:comment-thread
-import { useComments } from "better-supabase/blocks/comments/react";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -9,6 +8,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+import { useComments } from "../hooks/use-comments";
 
 /** A customer's comments, oldest first, with a box to add one. */
 export function CommentThread({ customerId }: { readonly customerId: string }) {

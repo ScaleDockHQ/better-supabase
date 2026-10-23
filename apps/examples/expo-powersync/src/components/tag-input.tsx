@@ -1,5 +1,4 @@
 // #region recipe:tag-input
-import { useTagInput } from "better-supabase/blocks/tags/react";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -9,6 +8,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+import { useTagInput } from "../hooks/use-tags";
 
 /**
  * A customer's tags as chips that remove themselves when pressed, the

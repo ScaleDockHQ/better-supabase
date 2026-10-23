@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-announcements",
+  "title": "useAnnouncements",
+  "description": "useAnnouncements: the announcements block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-announcements.ts",
+      "content": "\"use client\";\n\nimport type {\n  AnnouncementsActions,\n  AnnouncementsSnapshot,\n} from \"better-supabase/blocks/announcements\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createAnnouncements,\n  createAnnouncementsController,\n} from \"better-supabase/blocks/announcements\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\n\nexport interface UseAnnouncementsOptions {\n  /** The active tenant, for tenant, role and plan audiences. */\n  readonly organizationId?: string | null;\n  /**\n   * The topic the module broadcasts to\n   * (`blockConfig.announcements.options.topic` from `blocks.generated.ts`);\n   * `null` loads once.\n   */\n  readonly topic?: string | null;\n  /**\n   * The schema the calls go to: the module schema (default `better_supabase`),\n   * or the API schema from `blocks.<module>.api`.\n   */\n  readonly schema?: string;\n}\n\nexport interface AnnouncementsState\n  extends AnnouncementsSnapshot, AnnouncementsActions {}\n\n/**\n * The signed-in user's live announcements, loaded again whenever staff publish,\n * change or remove one.\n *\n * ```tsx\n * const { items, dismiss } = useAnnouncements({ organizationId });\n * ```\n */\nexport function useAnnouncements(\n  options: UseAnnouncementsOptions = {},\n): AnnouncementsState {\n  const { supabase, auth, ports } = useBlockEnv();\n  const { organizationId, topic, schema } = options;\n\n  return useController(\n    () =>\n      createAnnouncementsController({\n        client: createAnnouncements({\n          transport: rpcTransport(supabase),\n          ...(schema === undefined ? {} : { schema }),\n        }),\n        auth,\n        ports,\n        ...(organizationId === undefined ? {} : { organizationId }),\n        ...(topic === undefined ? {} : { topic }),\n      }),\n    [supabase, auth, ports, organizationId, topic, schema],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-announcements.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "announcements",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the announcements block (`npx better-supabase add announcements`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/announcements.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

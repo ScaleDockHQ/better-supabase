@@ -100,18 +100,17 @@ const rooms = await channels
 
 ## A chat screen
 
-The hooks come from `better-supabase/blocks/messaging/react` and read the
-client from the app's provider (see
+The hooks are a registry item: install them with
+`npx shadcn add @better-supabase/use-messaging`, which writes
+`hooks/use-messaging.ts` into the app. They read the client from the app's
+provider (see
 [block controllers](/docs/frontend/block-controllers)). Both stay live over
 the conversations' Realtime topics.
 
 ```tsx
 "use client";
 
-import {
-  useConversations,
-  useMessages,
-} from "better-supabase/blocks/messaging/react";
+import { useConversations, useMessages } from "@/hooks/use-messaging";
 
 export function ChannelList() {
   const { conversations } = useConversations({ kinds: ["channel"] });
@@ -163,27 +162,32 @@ from shadcn components; the Next.js example serves it at `/chat`.
 
 ## Vue, Svelte and Solid
 
-`better-supabase/blocks/messaging/vue`, `/svelte` and `/solid` export
-`useMessages` and `useConversations`. Each takes the options of the
-controller it wraps, so pass a messaging client; `auth` and `ports` come from
-the app's better-supabase plugin, store or provider unless you pass them.
-`useConversations` also takes `enabled`, which is `true` once the caller acts
-in a tenant.
+`useBlockController` from `better-supabase/vue`, `/svelte` and `/solid` runs
+`createMessagesController` or `createConversationsController` with its options,
+so pass a messaging client
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)); `auth` and
+`ports` come from the app's better-supabase plugin, store or provider unless you
+pass them. `createConversationsController` also takes `enabled`, which is `true`
+once the caller acts in a tenant.
 
 ```vue title="Messages.vue"
 <script setup lang="ts">
 import {
+  createMessagesController,
   createMessaging,
   rpcTransport,
 } from "better-supabase/blocks/messaging";
-import { useMessages } from "better-supabase/blocks/messaging/vue";
+import { useBlockController } from "better-supabase/vue";
 
 const { channelId } = defineProps<{ channelId: string }>();
 const client = createMessaging({
   transport: rpcTransport(supabase),
   tenant: () => organizationId,
 });
-const { state, actions } = useMessages({ client, conversationId: channelId });
+const { state, actions } = useBlockController(createMessagesController, {
+  client,
+  conversationId: channelId,
+});
 </script>
 
 <template>
@@ -196,9 +200,14 @@ const { state, actions } = useMessages({ client, conversationId: channelId });
 
 ```svelte title="Channels.svelte"
 <script lang="ts">
-  import { useConversations } from "better-supabase/blocks/messaging/svelte";
+  import { createConversationsController } from "better-supabase/blocks/messaging";
+  import { useBlockController } from "better-supabase/svelte";
 
-  const channels = useConversations({ client, enabled: true, kinds: ["channel"] });
+  const channels = useBlockController(createConversationsController, {
+    client,
+    enabled: true,
+    kinds: ["channel"],
+  });
 </script>
 
 <ul>
@@ -210,10 +219,11 @@ const { state, actions } = useMessages({ client, conversationId: channelId });
 
 ```tsx title="Channels.tsx"
 import { For } from "solid-js";
-import { useConversations } from "better-supabase/blocks/messaging/solid";
+import { createConversationsController } from "better-supabase/blocks/messaging";
+import { useBlockController } from "better-supabase/solid";
 
 export function Channels() {
-  const { state } = useConversations({
+  const { state } = useBlockController(createConversationsController, {
     client,
     enabled: true,
     kinds: ["channel"],

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-permissions",
+  "title": "usePermissions, usePermission",
+  "description": "usePermissions and usePermission: the permissions block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-permissions.ts",
+      "content": "\"use client\";\n\nimport type { BlockEnv } from \"better-supabase/blocks\";\nimport type {\n  PermissionsActions,\n  PermissionSource,\n  PermissionsSnapshot,\n} from \"better-supabase/blocks/permissions\";\nimport type { ReactNode } from \"react\";\n\nimport { envBlockOptions } from \"better-supabase/blocks\";\nimport {\n  batchPermissions,\n  can,\n  createPermissions,\n  createPermissionsController,\n} from \"better-supabase/blocks/permissions\";\nimport {\n  useBlockEnv,\n  useBlockTenant,\n  useController,\n} from \"better-supabase/react\";\n\nexport type { PermissionSet } from \"better-supabase/blocks/permissions\";\n\nconst sources = new WeakMap<BlockEnv[\"supabase\"], PermissionSource>();\n\n/** One batched access client per supabase-js client, shared by its hooks. */\nfunction sourceOf(env: BlockEnv): PermissionSource {\n  let source = sources.get(env.supabase);\n\n  if (source === undefined) {\n    source = batchPermissions(\n      createPermissions(envBlockOptions(env, \"access\")),\n    );\n    sources.set(env.supabase, source);\n  }\n\n  return source;\n}\n\nexport interface UsePermissionsOptions {\n  /** The organization to check in. Default the client's tenant. */\n  readonly tenant?: string;\n}\n\nexport interface PermissionsState<K extends string = string>\n  extends PermissionsSnapshot, PermissionsActions {\n  /** Whether the caller holds `key`; false while loading. */\n  readonly can: (key: K) => boolean;\n}\n\n/**\n * Which of `keys` the caller holds in the client's tenant, through the access\n * contract. The hooks rendered in the same tick share one `my_permissions`\n * call. UX only: RLS checks every key again.\n *\n * ```tsx\n * const { can } = usePermissions([permissions.invoices.write]);\n * ```\n */\nexport function usePermissions<const K extends string>(\n  keys: readonly K[],\n  options: UsePermissionsOptions = {},\n): PermissionsState<K> {\n  const env = useBlockEnv();\n  const current = useBlockTenant(env);\n  const tenant = options.tenant ?? current;\n  const key = [...new Set(keys)].toSorted().join(\"\\n\");\n\n  const { view } = useController(\n    () =>\n      createPermissionsController<K>({\n        // SAFETY: the shared source checks any key; `K` only narrows the result.\n        client: sourceOf(env),\n        auth: env.auth,\n        // SAFETY: `key` joins the keys of `keys`, all `K`.\n        keys: (key === \"\" ? [] : key.split(\"\\n\")) as K[],\n        tenant,\n      }),\n    [env, tenant, key],\n  );\n\n  return { ...view, can: (wanted) => can(view.permissions, wanted) };\n}\n\n/**\n * Whether the caller holds `key` in the client's tenant: `undefined` while it\n * loads, then true or false.\n *\n * ```tsx\n * const canEdit = usePermission(permissions.invoices.write);\n * ```\n */\nexport function usePermission<const K extends string>(\n  key: K,\n  options: UsePermissionsOptions = {},\n): boolean | undefined {\n  const { permissions, can: holds } = usePermissions([key], options);\n\n  return permissions === undefined ? undefined : holds(key);\n}\n\nexport interface CanProps<K extends string = string> {\n  /** The permission key, such as `permissions.invoices.write`. */\n  readonly permission: K;\n  /** The organization to check in. Default the client's tenant. */\n  readonly tenant?: string;\n  /** Shown while loading and when the caller lacks the key. Default nothing. */\n  readonly fallback?: ReactNode;\n  readonly children?: ReactNode;\n}\n\n/**\n * Renders `children` when the caller holds `permission`, else `fallback`.\n *\n * ```tsx\n * <Can permission={permissions.invoices.write}>\n *   <Button>Edit</Button>\n * </Can>;\n * ```\n */\nexport function Can<const K extends string>(props: CanProps<K>): ReactNode {\n  const allowed = usePermission(\n    props.permission,\n    props.tenant === undefined ? {} : { tenant: props.tenant },\n  );\n\n  return allowed === true ? props.children : (props.fallback ?? null);\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-permissions.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "permissions",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the permissions block (`npx better-supabase add permissions`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/permissions.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

@@ -1,6 +1,5 @@
 "use client";
 
-import { useConversation } from "better-supabase/blocks/inbox/react";
 import { useAction } from "better-supabase/react";
 import {
   CheckCheckIcon,
@@ -23,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useConversation } from "@/hooks/use-inbox";
 import { useAuth } from "@/lib/hooks";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";

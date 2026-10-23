@@ -264,6 +264,666 @@
       }
     },
     {
+      "name": "use-ai-chat",
+      "type": "registry:hook",
+      "title": "useAiChats, useAiChatTree, useAiModels, useAiShare",
+      "description": "useAiChats, useAiChatTree, useAiModels and useAiShare: the ai-chat block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-ai-chat.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-ai-chat.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the ai-chat block (`npx better-supabase add ai-chat`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/ai-chat.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "ai-chat",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-announcements",
+      "type": "registry:hook",
+      "title": "useAnnouncements",
+      "description": "useAnnouncements: the announcements block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-announcements.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-announcements.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the announcements block (`npx better-supabase add announcements`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/announcements.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "announcements",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-api-keys",
+      "type": "registry:hook",
+      "title": "useApiKeys",
+      "description": "useApiKeys: the api-keys block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-api-keys.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-api-keys.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the api-keys block (`npx better-supabase add api-keys`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/api-keys.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "api-keys",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-attachments",
+      "type": "registry:hook",
+      "title": "useAttachmentUpload",
+      "description": "useAttachmentUpload: the attachments block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-attachments.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-attachments.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the attachments block (`npx better-supabase add attachments`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/attachments.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "attachments",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-audit",
+      "type": "registry:hook",
+      "title": "useAuditLog",
+      "description": "useAuditLog: the audit block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-audit.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-audit.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the audit block (`npx better-supabase add audit`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/audit.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "audit",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-automations",
+      "type": "registry:hook",
+      "title": "useRuleBuilder",
+      "description": "useRuleBuilder: the automations block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-automations.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-automations.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the automations block (`npx better-supabase add automations`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/automations.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "automations",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-billing",
+      "type": "registry:hook",
+      "title": "usePlanPicker",
+      "description": "usePlanPicker: the billing block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-billing.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-billing.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the billing block (`npx better-supabase add billing`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/billing.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "billing",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-bookings",
+      "type": "registry:hook",
+      "title": "useAvailableSlots",
+      "description": "useAvailableSlots: the bookings block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-bookings.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-bookings.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the bookings block (`npx better-supabase add bookings`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/bookings.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "bookings",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-calendar",
+      "type": "registry:hook",
+      "title": "useCalendar",
+      "description": "useCalendar: the calendar block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-calendar.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-calendar.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the calendar block (`npx better-supabase add calendar`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/calendar.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "calendar",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-comments",
+      "type": "registry:hook",
+      "title": "useComments",
+      "description": "useComments: the comments block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-comments.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-comments.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the comments block (`npx better-supabase add comments`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/comments.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "comments",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-entitlements",
+      "type": "registry:hook",
+      "title": "useFeatureGate",
+      "description": "useFeatureGate: the entitlements block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-entitlements.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-entitlements.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the entitlements block (`npx better-supabase add entitlements`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/entitlements.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "entitlements",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-forms",
+      "type": "registry:hook",
+      "title": "useQuestionnaire",
+      "description": "useQuestionnaire: the forms block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-forms.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-forms.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the forms block (`npx better-supabase add forms`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/forms.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "forms",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-inbox",
+      "type": "registry:hook",
+      "title": "useInbox, useConversation, useInboxWidget",
+      "description": "useInbox, useConversation and useInboxWidget: the inbox block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-inbox.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-inbox.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the inbox block (`npx better-supabase add inbox`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/inbox.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "inbox",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-messaging",
+      "type": "registry:hook",
+      "title": "useMessages, useConversations",
+      "description": "useMessages and useConversations: the messaging block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-messaging.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-messaging.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the messaging block (`npx better-supabase add messaging`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/messaging.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "messaging",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-mfa",
+      "type": "registry:hook",
+      "title": "useMfa, useStepUp",
+      "description": "useMfa and useStepUp: the mfa block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-mfa.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-mfa.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the mfa block (`npx better-supabase add mfa`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/auth/mfa-sso.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "mfa",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-notifications",
+      "type": "registry:hook",
+      "title": "useNotifications",
+      "description": "useNotifications: the notifications block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-notifications.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-notifications.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the notifications block (`npx better-supabase add notifications`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/notifications.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "notifications",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-onboarding",
+      "type": "registry:hook",
+      "title": "useOnboarding",
+      "description": "useOnboarding: the onboarding block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-onboarding.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-onboarding.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the onboarding block (`npx better-supabase add onboarding`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/onboarding.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "onboarding",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-organizations",
+      "type": "registry:hook",
+      "title": "useOrganizations, useMembers, useInvitations",
+      "description": "useOrganizations, useMembers and useInvitations: the organizations block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-organizations.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-organizations.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the organizations block (`npx better-supabase add organizations`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/organizations.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "organizations",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-permissions",
+      "type": "registry:hook",
+      "title": "usePermissions, usePermission",
+      "description": "usePermissions and usePermission: the permissions block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-permissions.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-permissions.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the permissions block (`npx better-supabase add permissions`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/permissions.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "permissions",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-reactions",
+      "type": "registry:hook",
+      "title": "useReactions",
+      "description": "useReactions: the reactions block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-reactions.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-reactions.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the reactions block (`npx better-supabase add reactions`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/reactions.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "reactions",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-saved-views",
+      "type": "registry:hook",
+      "title": "useSavedViews",
+      "description": "useSavedViews: the saved-views block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-saved-views.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-saved-views.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the saved-views block (`npx better-supabase add saved-views`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/saved-views.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "saved-views",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-search",
+      "type": "registry:hook",
+      "title": "useCommandSearch",
+      "description": "useCommandSearch: the search block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-search.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-search.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the search block (`npx better-supabase add search`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/search.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "search",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-session-revocation",
+      "type": "registry:hook",
+      "title": "useOAuthConsent, useOAuthGrants",
+      "description": "useOAuthConsent and useOAuthGrants: the session-revocation block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-session-revocation.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-session-revocation.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the session-revocation block (`npx better-supabase add session-revocation`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/auth/oauth-consent.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "session-revocation",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-settings",
+      "type": "registry:hook",
+      "title": "useSettings",
+      "description": "useSettings: the settings block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-settings.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-settings.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the settings block (`npx better-supabase add settings`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/settings.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "settings",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-subjects",
+      "type": "registry:hook",
+      "title": "useSubjects, useSubject",
+      "description": "useSubjects and useSubject: the subjects block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-subjects.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-subjects.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the subjects block (`npx better-supabase add subjects`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/subjects.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "subjects",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-tags",
+      "type": "registry:hook",
+      "title": "useTagInput",
+      "description": "useTagInput: the tags block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-tags.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-tags.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the tags block (`npx better-supabase add tags`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/tags.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "tags",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-undo",
+      "type": "registry:hook",
+      "title": "useUndoStack",
+      "description": "useUndoStack: the undo block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-undo.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-undo.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs a block that returns undo tokens (`relations` or `audit`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/undo.",
+      "categories": ["hook"],
+      "meta": {
+        "block": ["relations", "audit"],
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-usage",
+      "type": "registry:hook",
+      "title": "useUsageMeter",
+      "description": "useUsageMeter: the usage block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-usage.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-usage.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the usage block (`npx better-supabase add usage`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/usage.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "usage",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-workflow-editor",
+      "type": "registry:hook",
+      "title": "useWorkflowEditor, useWorkflowCanvasRun",
+      "description": "useWorkflowEditor and useWorkflowCanvasRun: the workflow-editor block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-workflow-editor.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-workflow-editor.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the workflow-editor block (`npx better-supabase add workflow-editor`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/workflow-editor.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "workflow-editor",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
+      "name": "use-workflows",
+      "type": "registry:hook",
+      "title": "useWorkflowRuns, useWorkflowRun",
+      "description": "useWorkflowRuns and useWorkflowRun: the workflows block's controllers as React hooks, for React DOM and React Native.",
+      "dependencies": ["better-supabase@^0.14.0"],
+      "files": [
+        {
+          "path": "items/hooks/use-workflows.ts",
+          "type": "registry:hook",
+          "target": "@hooks/use-workflows.ts"
+        }
+      ],
+      "envVars": {},
+      "docs": "Needs the workflows block (`npx better-supabase add workflows`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/workflows.",
+      "categories": ["hook"],
+      "meta": {
+        "block": "workflows",
+        "platforms": ["web", "native"],
+        "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
+      }
+    },
+    {
       "name": "use-rule-editor",
       "type": "registry:hook",
       "title": "useRuleEditor",
@@ -283,7 +943,8 @@
         "block": "automations",
         "platforms": ["web", "native"],
         "frameworks": ["next", "vite", "tanstack-start", "react-router", "expo"]
-      }
+      },
+      "registryDependencies": ["@better-supabase/use-automations"]
     },
     {
       "name": "push-native",

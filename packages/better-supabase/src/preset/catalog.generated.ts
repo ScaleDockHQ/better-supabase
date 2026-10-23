@@ -18033,6 +18033,637 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
+      "name": "use-ai-chat",
+      "title": "useAiChats, useAiChatTree, useAiModels, useAiShare",
+      "blocks": [
+        "ai-chat"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-ai-chat.ts"
+      ]
+    },
+    {
+      "name": "use-announcements",
+      "title": "useAnnouncements",
+      "blocks": [
+        "announcements"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-announcements.ts"
+      ]
+    },
+    {
+      "name": "use-api-keys",
+      "title": "useApiKeys",
+      "blocks": [
+        "api-keys"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-api-keys.ts"
+      ]
+    },
+    {
+      "name": "use-attachments",
+      "title": "useAttachmentUpload",
+      "blocks": [
+        "attachments"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-attachments.ts"
+      ]
+    },
+    {
+      "name": "use-audit",
+      "title": "useAuditLog",
+      "blocks": [
+        "audit"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-audit.ts"
+      ]
+    },
+    {
+      "name": "use-automations",
+      "title": "useRuleBuilder",
+      "blocks": [
+        "automations"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-automations.ts"
+      ]
+    },
+    {
+      "name": "use-billing",
+      "title": "usePlanPicker",
+      "blocks": [
+        "billing"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-billing.ts"
+      ]
+    },
+    {
+      "name": "use-bookings",
+      "title": "useAvailableSlots",
+      "blocks": [
+        "bookings"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-bookings.ts"
+      ]
+    },
+    {
+      "name": "use-calendar",
+      "title": "useCalendar",
+      "blocks": [
+        "calendar"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-calendar.ts"
+      ]
+    },
+    {
+      "name": "use-comments",
+      "title": "useComments",
+      "blocks": [
+        "comments"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-comments.ts"
+      ]
+    },
+    {
+      "name": "use-entitlements",
+      "title": "useFeatureGate",
+      "blocks": [
+        "entitlements"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-entitlements.ts"
+      ]
+    },
+    {
+      "name": "use-forms",
+      "title": "useQuestionnaire",
+      "blocks": [
+        "forms"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-forms.ts"
+      ]
+    },
+    {
+      "name": "use-inbox",
+      "title": "useInbox, useConversation, useInboxWidget",
+      "blocks": [
+        "inbox"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-inbox.ts"
+      ]
+    },
+    {
+      "name": "use-messaging",
+      "title": "useMessages, useConversations",
+      "blocks": [
+        "messaging"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-messaging.ts"
+      ]
+    },
+    {
+      "name": "use-mfa",
+      "title": "useMfa, useStepUp",
+      "blocks": [
+        "mfa"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-mfa.ts"
+      ]
+    },
+    {
+      "name": "use-notifications",
+      "title": "useNotifications",
+      "blocks": [
+        "notifications"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-notifications.ts"
+      ]
+    },
+    {
+      "name": "use-onboarding",
+      "title": "useOnboarding",
+      "blocks": [
+        "onboarding"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-onboarding.ts"
+      ]
+    },
+    {
+      "name": "use-organizations",
+      "title": "useOrganizations, useMembers, useInvitations",
+      "blocks": [
+        "organizations"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-organizations.ts"
+      ]
+    },
+    {
+      "name": "use-permissions",
+      "title": "usePermissions, usePermission",
+      "blocks": [
+        "permissions"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-permissions.ts"
+      ]
+    },
+    {
+      "name": "use-reactions",
+      "title": "useReactions",
+      "blocks": [
+        "reactions"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-reactions.ts"
+      ]
+    },
+    {
+      "name": "use-saved-views",
+      "title": "useSavedViews",
+      "blocks": [
+        "saved-views"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-saved-views.ts"
+      ]
+    },
+    {
+      "name": "use-search",
+      "title": "useCommandSearch",
+      "blocks": [
+        "search"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-search.ts"
+      ]
+    },
+    {
+      "name": "use-session-revocation",
+      "title": "useOAuthConsent, useOAuthGrants",
+      "blocks": [
+        "session-revocation"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-session-revocation.ts"
+      ]
+    },
+    {
+      "name": "use-settings",
+      "title": "useSettings",
+      "blocks": [
+        "settings"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-settings.ts"
+      ]
+    },
+    {
+      "name": "use-subjects",
+      "title": "useSubjects, useSubject",
+      "blocks": [
+        "subjects"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-subjects.ts"
+      ]
+    },
+    {
+      "name": "use-tags",
+      "title": "useTagInput",
+      "blocks": [
+        "tags"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-tags.ts"
+      ]
+    },
+    {
+      "name": "use-undo",
+      "title": "useUndoStack",
+      "blocks": [
+        "relations",
+        "audit"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-undo.ts"
+      ]
+    },
+    {
+      "name": "use-usage",
+      "title": "useUsageMeter",
+      "blocks": [
+        "usage"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-usage.ts"
+      ]
+    },
+    {
+      "name": "use-workflow-editor",
+      "title": "useWorkflowEditor, useWorkflowCanvasRun",
+      "blocks": [
+        "workflow-editor"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-workflow-editor.ts"
+      ]
+    },
+    {
+      "name": "use-workflows",
+      "title": "useWorkflowRuns, useWorkflowRun",
+      "blocks": [
+        "workflows"
+      ],
+      "frameworks": [
+        "next",
+        "vite",
+        "tanstack-start",
+        "react-router",
+        "expo"
+      ],
+      "platforms": [
+        "web",
+        "native"
+      ],
+      "targets": [
+        "@hooks/use-workflows.ts"
+      ]
+    },
+    {
       "name": "use-rule-editor",
       "title": "useRuleEditor",
       "blocks": [

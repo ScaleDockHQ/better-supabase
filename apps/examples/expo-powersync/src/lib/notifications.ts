@@ -4,9 +4,9 @@ import {
   createNotifications,
   rpcTransport,
 } from "better-supabase/blocks/notifications";
-import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { useAuth } from "better-supabase/react";
 
+import { useNotifications } from "../hooks/use-notifications";
 import { supabase } from "./supabase/client.native";
 
 /** Reads counts only, so it needs no notification types. */

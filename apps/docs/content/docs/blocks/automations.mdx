@@ -201,12 +201,12 @@ export const POST = async () =>
 
 ## Editor
 
-`useRuleBuilder` from `better-supabase/blocks/automations/react` holds the editor state of one rule: the subject type's fields, the condition tree with your edits, the problems `checkRuleConditions` finds, whether anything changed, and `upsert`. Pass `rule: null` to start a new rule from `initial` (an empty `and` group by default).
+`useRuleBuilder` holds the editor state of one rule: the subject type's fields, the condition tree with your edits, the problems `checkRuleConditions` finds, whether anything changed, and `upsert`. Pass `rule: null` to start a new rule from `initial` (an empty `and` group by default). The hook is a registry item: install it with `npx shadcn add @better-supabase/use-automations`, which writes `hooks/use-automations.ts` into the app.
 
 ```tsx title="components/rule-editor.tsx"
 "use client";
 
-import { useRuleBuilder } from "better-supabase/blocks/automations/react";
+import { useRuleBuilder } from "@/hooks/use-automations";
 
 export function RuleEditor({ organizationId }: { organizationId: string }) {
   const builder = useRuleBuilder({
@@ -248,20 +248,20 @@ The tree helpers the controller uses (`findNode`, `insertNode`, `moveNode`, `rem
 
 ## Vue
 
-`better-supabase/blocks/automations/vue` exports `useRuleBuilder`. It takes the options of `createRuleBuilderController` with a `client` from `createAutomations`; `auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref of the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the component.
+`useBlockController` from `better-supabase/vue` runs `createRuleBuilderController` with its options and a `client` from `createAutomations`; `auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref of the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useRuleBuilder } from "better-supabase/blocks/automations/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
 import {
   createAutomations,
+  createRuleBuilderController,
   rpcTransport,
 } from "better-supabase/blocks/automations";
 
 const { organizationId } = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
-const { state, actions } = useRuleBuilder({
+const { state, actions } = useBlockController(createRuleBuilderController, {
   client: createAutomations({ transport: rpcTransport(supabase) }),
   organizationId,
   rule: null,
@@ -279,17 +279,23 @@ const { state, actions } = useRuleBuilder({
 
 ## Svelte
 
-`better-supabase/blocks/automations/svelte` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `setBetterSupabase(bsb)` unless you pass them. The hook returns a readable store of the snapshot, read with `$`, with the actions on `.actions`. The work starts on mount, and the controller is disposed with the component.
+`useBlockController` from `better-supabase/svelte` runs `createRuleBuilderController` with the same options; `auth` and `ports` come from `setBetterSupabase(bsb)` unless you pass them. It returns a readable store of the snapshot, read with `$`, with the actions on `.actions`. The work starts on mount, and the controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useRuleBuilder } from "better-supabase/blocks/automations/svelte";
-  import { createAutomations, rpcTransport } from "better-supabase/blocks/automations";
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
+  import {
+    createAutomations,
+    createRuleBuilderController,
+    rpcTransport,
+  } from "better-supabase/blocks/automations";
 
   let { organizationId }: { organizationId: string } = $props();
   const { supabase } = getBetterSupabase();
-  const builder = useRuleBuilder({
+  const builder = useBlockController(createRuleBuilderController, {
     client: createAutomations({ transport: rpcTransport(supabase) }),
     organizationId,
     rule: null,
@@ -305,19 +311,19 @@ const { state, actions } = useRuleBuilder({
 
 ## Solid
 
-`better-supabase/blocks/automations/solid` exports `useRuleBuilder`, with the same options; `auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the owner.
+`useBlockController` from `better-supabase/solid` runs `createRuleBuilderController` with the same options; `auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the owner.
 
 ```tsx title="Component.tsx"
-import { useSupabase } from "better-supabase/solid";
-import { useRuleBuilder } from "better-supabase/blocks/automations/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
 import {
   createAutomations,
+  createRuleBuilderController,
   rpcTransport,
 } from "better-supabase/blocks/automations";
 
 export function Component(props: { organizationId: string }) {
   const supabase = useSupabase();
-  const { state, actions } = useRuleBuilder({
+  const { state, actions } = useBlockController(createRuleBuilderController, {
     client: createAutomations({ transport: rpcTransport(supabase) }),
     organizationId: props.organizationId,
     rule: null,

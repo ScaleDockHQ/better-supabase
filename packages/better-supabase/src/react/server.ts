@@ -1,5 +1,13 @@
 import type { SupportView } from "../auth/support-view.ts";
 import type { AuthSession } from "../auth/view.ts";
+import type {
+  useController as clientUseController,
+  useLatest as clientUseLatest,
+} from "../blocks/react-controller.ts";
+import type {
+  useBlockEnv as clientUseBlockEnv,
+  useBlockTenant as clientUseBlockTenant,
+} from "../blocks/react-env.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { LiveCountSeed } from "../realtime/live.ts";
 import type {
@@ -273,3 +281,26 @@ export const useRecordListState: typeof clientUseRecordListState =
  */
 export const useRecordForm: typeof clientUseRecordForm =
   clientOnly("useRecordForm");
+
+/**
+ * The `react-server` build of `useController`: run the block method and await
+ * it instead.
+ */
+export const useController: typeof clientUseController =
+  clientOnly("useController");
+
+/** The `react-server` build of `useLatest`: use the value directly instead. */
+export const useLatest: typeof clientUseLatest = clientOnly("useLatest");
+
+/**
+ * The `react-server` build of `useBlockEnv`: call the block on `await bsb.db()`
+ * instead.
+ */
+export const useBlockEnv: typeof clientUseBlockEnv = clientOnly("useBlockEnv");
+
+/**
+ * The `react-server` build of `useBlockTenant`: read the tenant from `await
+ * bsb.context()` instead.
+ */
+export const useBlockTenant: typeof clientUseBlockTenant =
+  clientOnly("useBlockTenant");

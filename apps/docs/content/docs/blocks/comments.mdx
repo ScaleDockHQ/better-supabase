@@ -347,14 +347,16 @@ topic rejoins.
 
 ## In the browser
 
-`useComments` from `better-supabase/blocks/comments/react` loads one record's
-thread through the provider's client and keeps it current after `add`,
-`edit`, `remove`, `resolve` and `pin`. It joins the record conversation's
-topic once the record has a conversation, so other people's comments arrive
-too. The same hook runs in React DOM and React Native.
+`useComments` loads one record's thread through the provider's client and keeps
+it current after `add`, `edit`, `remove`, `resolve` and `pin`. It joins the
+record conversation's topic once the record has a conversation, so other
+people's comments arrive too. The same hook runs in React DOM and React Native.
+It is a registry item: install it with `npx shadcn add
+@better-supabase/use-comments`, which writes `hooks/use-comments.ts` into the
+app.
 
 ```tsx title="components/comment-thread.tsx"
-import { useComments } from "better-supabase/blocks/comments/react";
+import { useComments } from "@/hooks/use-comments";
 
 const { comments, error, add, resolve } = useComments({
   subject: { type: "project", id: projectId },
@@ -379,25 +381,29 @@ client's organization: the client's `organization` option, then the
 session's organization claim. The thread waits while there is no tenant.
 
 `createCommentsController` from `better-supabase/blocks/comments` is the same
-logic without React, and `better-supabase/blocks/comments/vue`, `/svelte` and
-`/solid` export `useComments` over it, taking the controller's options (a
-client built with its `tenant`, `subject` and `topic`) with `auth` and
-`ports` from the provider. The
-[comment thread recipe](/docs/registry/ui-recipes/comment-thread) shows it in the Next.js and
-Expo examples.
+logic without React. Vue, Svelte and Solid run it with `useBlockController` from
+`better-supabase/vue`, `/svelte` and `/solid`, taking the controller's options
+(a client built with its `tenant`, `subject` and `topic`) with `auth` and
+`ports` from the provider
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)). The
+[comment thread recipe](/docs/registry/ui-recipes/comment-thread) shows it in
+the Next.js and Expo examples.
 
 ```vue title="CommentCount.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useComments } from "better-supabase/blocks/comments/vue";
-import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createComments,
+  createCommentsController,
+  rpcTransport,
+} from "better-supabase/blocks/comments";
 
 const { organizationId, projectId } = defineProps<{
   organizationId: string;
   projectId: string;
 }>();
 const supabase = useSupabase();
-const { state, actions } = useComments({
+const { state, actions } = useBlockController(createCommentsController, {
   client: createComments({
     transport: rpcTransport(supabase),
     tenant: organizationId,
@@ -414,13 +420,19 @@ const { state, actions } = useComments({
 
 ```svelte title="CommentCount.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useComments } from "better-supabase/blocks/comments/svelte";
-  import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
+  import {
+    createComments,
+    createCommentsController,
+    rpcTransport,
+  } from "better-supabase/blocks/comments";
 
   let { organizationId, projectId }: { organizationId: string; projectId: string } = $props();
   const { supabase } = getBetterSupabase();
-  const thread = useComments({
+  const thread = useBlockController(createCommentsController, {
     client: createComments({
       transport: rpcTransport(supabase),
       tenant: organizationId,
@@ -433,16 +445,19 @@ const { state, actions } = useComments({
 ```
 
 ```tsx title="CommentCount.tsx"
-import { useSupabase } from "better-supabase/solid";
-import { useComments } from "better-supabase/blocks/comments/solid";
-import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import {
+  createComments,
+  createCommentsController,
+  rpcTransport,
+} from "better-supabase/blocks/comments";
 
 export function CommentCount(props: {
   organizationId: string;
   projectId: string;
 }) {
   const supabase = useSupabase();
-  const { state } = useComments({
+  const { state } = useBlockController(createCommentsController, {
     client: createComments({
       transport: rpcTransport(supabase),
       tenant: props.organizationId,

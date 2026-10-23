@@ -84,10 +84,10 @@ const emoji = await reactions.customEmoji().orThrow();
 
 ## Realtime
 
-Every change broadcasts `changed` with the `subjectType` and `subjectId` to `reactions:{organizationId}` (`options.topic` renames the prefix). Members with `reactions.read` can join it. `useReactions` from `better-supabase/blocks/reactions/react` loads the subjects on screen and loads them again when one of them changes. It reads the schema and the topic from the `blocks` config passed to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`), so `topic` is only needed to override it (`null` loads without listening), and it acts in the client's tenant: the client's `organization` option, then the session's organization claim. It waits while there is no tenant.
+Every change broadcasts `changed` with the `subjectType` and `subjectId` to `reactions:{organizationId}` (`options.topic` renames the prefix). Members with `reactions.read` can join it. `useReactions` is a registry item: `npx shadcn add @better-supabase/use-reactions` writes `hooks/use-reactions.ts` into the app. The hook loads the subjects on screen and loads them again when one of them changes. It reads the schema and the topic from the `blocks` config passed to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`), so `topic` is only needed to override it (`null` loads without listening), and it acts in the client's tenant: the client's `organization` option, then the session's organization claim. It waits while there is no tenant.
 
 ```tsx
-import { useReactions } from "better-supabase/blocks/reactions/react";
+import { useReactions } from "@/hooks/use-reactions";
 
 const { reactions, toggle } = useReactions({
   subjects: comments.map((comment) => ({ type: "message", id: comment.id })),
@@ -100,8 +100,8 @@ await toggle({ type: "message", id: commentId }, "🎉");
 
 ## Vue
 
-`better-supabase/blocks/reactions/vue` exports `useReactions`. It takes the
-options of `createReactionsController`: a client built with its `tenant`, the
+`useBlockController` from `better-supabase/vue` runs
+`createReactionsController` with its options: a client built with its `tenant`, the
 same `tenant` for the topic, `subjects` and an optional `topic`; `auth` and `ports` come from
 `app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref
 of the snapshot and `actions` are the controller's actions. The work starts
@@ -109,10 +109,10 @@ on mount, and the controller is disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useReactions } from "better-supabase/blocks/reactions/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
 import {
   createReactions,
+  createReactionsController,
   rpcTransport,
 } from "better-supabase/blocks/reactions";
 
@@ -121,7 +121,7 @@ const { organizationId, commentIds } = defineProps<{
   commentIds: string[];
 }>();
 const supabase = useSupabase();
-const { state, actions } = useReactions({
+const { state, actions } = useBlockController(createReactionsController, {
   client: createReactions({
     transport: rpcTransport(supabase),
     tenant: organizationId,
@@ -139,21 +139,24 @@ const { state, actions } = useReactions({
 
 ## Svelte
 
-`better-supabase/blocks/reactions/svelte` exports `useReactions`. It takes
-the options of `createReactionsController`; `auth` and `ports` come from
-`setBetterSupabase(bsb)` unless you pass them. The hook returns a readable
+`useBlockController` from `better-supabase/svelte` runs
+`createReactionsController` with its options; `auth` and `ports` come from
+`setBetterSupabase(bsb)` unless you pass them. It returns a readable
 store of the snapshot, read with `$`, with the actions on `.actions`. The
 work starts on mount, and the controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useReactions } from "better-supabase/blocks/reactions/svelte";
-  import { createReactions, rpcTransport } from "better-supabase/blocks/reactions";
+  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import {
+    createReactions,
+    createReactionsController,
+    rpcTransport,
+  } from "better-supabase/blocks/reactions";
 
   let { organizationId, commentIds }: { organizationId: string; commentIds: string[] } = $props();
   const { supabase } = getBetterSupabase();
-  const reactions = useReactions({
+  const reactions = useBlockController(createReactionsController, {
     client: createReactions({
       transport: rpcTransport(supabase),
       tenant: organizationId,
@@ -169,17 +172,17 @@ work starts on mount, and the controller is disposed with the component.
 
 ## Solid
 
-`better-supabase/blocks/reactions/solid` exports `useReactions`. It takes
-the options of `createReactionsController`; `auth` and `ports` come from
+`useBlockController` from `better-supabase/solid` runs
+`createReactionsController` with its options; `auth` and `ports` come from
 `<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads
 the snapshot through `from`, and `actions` are the controller's actions. The
 work starts on mount, and the controller is disposed with the owner.
 
 ```tsx title="Component.tsx"
-import { useSupabase } from "better-supabase/solid";
-import { useReactions } from "better-supabase/blocks/reactions/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
 import {
   createReactions,
+  createReactionsController,
   rpcTransport,
 } from "better-supabase/blocks/reactions";
 
@@ -188,7 +191,7 @@ export function Component(props: {
   commentIds: string[];
 }) {
   const supabase = useSupabase();
-  const { state, actions } = useReactions({
+  const { state, actions } = useBlockController(createReactionsController, {
     client: createReactions({
       transport: rpcTransport(supabase),
       tenant: props.organizationId,

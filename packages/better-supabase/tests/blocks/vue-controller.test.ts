@@ -11,7 +11,7 @@ import { renderToString } from "vue/server-renderer";
 
 import type { EnvOptions } from "../fixtures/block-bindings.ts";
 
-import { useUndoStack } from "../../src/blocks/undo/vue/index.ts";
+import { createUndoController } from "../../src/blocks/undo/index.ts";
 import { useBlockController } from "../../src/blocks/vue-controller.ts";
 import { testControllerBinding } from "../../src/testing/kits/controller-binding.ts";
 import { betterSupabase } from "../../src/vue/index.ts";
@@ -83,7 +83,11 @@ describe("useBlockController (Vue)", () => {
     const scope = effectScope();
 
     const undo = scope.run(() =>
-      useUndoStack({ apply: async () => undefined }),
+      useBlockController(
+        createUndoController,
+        { apply: async () => undefined },
+        false,
+      ),
     )!;
 
     undo.actions.push({ v: 1, calls: [] }, "Moved");

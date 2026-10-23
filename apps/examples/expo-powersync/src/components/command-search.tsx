@@ -1,5 +1,4 @@
 // #region recipe:command-search
-import { useCommandSearch } from "better-supabase/blocks/search/react";
 import {
   Modal,
   Pressable,
@@ -9,6 +8,7 @@ import {
   View,
 } from "react-native";
 
+import { useCommandSearch } from "../hooks/use-search";
 import { API_SCHEMA } from "../lib/blocks";
 
 function heading(key: string): string {

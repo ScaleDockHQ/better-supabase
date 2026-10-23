@@ -28,9 +28,14 @@ covers the rest of the OAuth server setup.
 
 ## The consent page
 
-`useOAuthConsent` from `better-supabase/blocks/session-revocation/react`
-(`createOAuthConsentController` in `better-supabase/blocks/session-revocation`, with
-Vue, Svelte and Solid bindings) reads the request for `authorization_id`.
+`useOAuthConsent` (`createOAuthConsentController` in
+`better-supabase/blocks/session-revocation`) reads the request for
+`authorization_id`. The React hook is a registry item: install it with
+`npx shadcn add @better-supabase/use-session-revocation`, which writes
+`hooks/use-session-revocation.ts` into the app. Vue, Svelte and Solid run the
+controller with `useBlockController` from `better-supabase/vue`, `/svelte`
+and `/solid` (see
+[Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)).
 Auth answers with the client, the user and the requested scopes, or with a
 `redirect_url` when the user approved this client before; the controller
 then leaves at once:
@@ -38,7 +43,7 @@ then leaves at once:
 ```tsx title="src/features/auth/components/oauth-consent-form.tsx"
 "use client";
 
-import { useOAuthConsent } from "better-supabase/blocks/session-revocation/react";
+import { useOAuthConsent } from "@/hooks/use-session-revocation";
 
 const { request, deciding, error, approve, deny } = useOAuthConsent({
   authorizationId, // from the URL
@@ -65,15 +70,15 @@ The approved client acts as the user: its tokens carry the user's `sub`, so
 RLS and every repository call see the same rows the user does. The page says
 so next to the scopes.
 
-The Vue, Svelte and Solid bindings take `oauth` themselves:
+In Vue, Svelte and Solid, pass `oauth` to the controller yourself:
 
 ```vue title="Consent.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useOAuthConsent } from "better-supabase/blocks/session-revocation/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import { createOAuthConsentController } from "better-supabase/blocks/session-revocation";
 
 const props = defineProps<{ authorizationId: string }>();
-const { state, actions } = useOAuthConsent({
+const { state, actions } = useBlockController(createOAuthConsentController, {
   oauth: useSupabase().auth.oauth,
   authorizationId: props.authorizationId,
 });
@@ -89,22 +94,26 @@ const { state, actions } = useOAuthConsent({
 
 ```svelte title="Grants.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useOAuthGrants } from "better-supabase/blocks/session-revocation/svelte";
+  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { createOAuthGrantsController } from "better-supabase/blocks/session-revocation";
 
   const { supabase } = getBetterSupabase();
-  const grants = useOAuthGrants({ oauth: supabase.auth.oauth });
+  const grants = useBlockController(createOAuthGrantsController, {
+    oauth: supabase.auth.oauth,
+  });
 </script>
 
 <p>{$grants.grants?.length ?? 0} connected agents</p>
 ```
 
 ```tsx title="Grants.tsx"
-import { useSupabase } from "better-supabase/solid";
-import { useOAuthGrants } from "better-supabase/blocks/session-revocation/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import { createOAuthGrantsController } from "better-supabase/blocks/session-revocation";
 
 export function Grants() {
-  const { state } = useOAuthGrants({ oauth: useSupabase().auth.oauth });
+  const { state } = useBlockController(createOAuthGrantsController, {
+    oauth: useSupabase().auth.oauth,
+  });
   return <p>{state().grants?.length ?? 0} connected agents</p>;
 }
 ```

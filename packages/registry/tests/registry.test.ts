@@ -148,6 +148,24 @@ describe("registry.json", () => {
   );
 });
 
+describe("the examples' copies of the hook items", () => {
+  const apps = ["nextjs", "expo-powersync"].map((app) =>
+    resolve(ROOT, "../../apps/examples", app, "src/hooks"),
+  );
+
+  const copies = apps.flatMap((dir) =>
+    readdirSync(dir)
+      .filter((file) => names.has(file.replace(/\.ts$/, "")))
+      .map((file) => [join(dir, file), file] as const),
+  );
+
+  it.each(copies)("%s matches items/hooks/%s", (path, file) => {
+    expect(readFileSync(path, "utf-8")).toBe(
+      readFileSync(join(ROOT, "items/hooks", file), "utf-8"),
+    );
+  });
+});
+
 describe("apps/marketing/public/r", () => {
   const out = mkdtempSync(join(tmpdir(), "registry-"));
 

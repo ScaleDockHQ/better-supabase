@@ -85,8 +85,11 @@ an `aal2` session and the redirect back to `next` passes. Without
 ## Enrolment and step-up controllers
 
 `better-supabase/blocks/mfa` has two headless controllers over
-`supabase.auth.mfa`, with hooks for React, Vue, Svelte and Solid
-(`better-supabase/blocks/mfa/react` and the others).
+`supabase.auth.mfa`. The React hooks are a registry item: install them with
+`npx shadcn add @better-supabase/use-mfa`, which writes `hooks/use-mfa.ts`
+into the app. Vue, Svelte and Solid run the controllers with
+`useBlockController` from `better-supabase/vue`, `/svelte` and `/solid`
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)).
 
 - `useMfa()` (`createMfaController`) is for a security settings page. It
   lists the factors and reads the assurance level. `enroll()` keeps the QR
@@ -104,7 +107,7 @@ an `aal2` session and the redirect back to `next` passes. Without
 
 import type { DbError } from "better-supabase";
 
-import { needsStepUp, useStepUp } from "better-supabase/blocks/mfa/react";
+import { needsStepUp, useStepUp } from "@/hooks/use-mfa";
 import { useState } from "react";
 
 export function StepUp(props: {
@@ -129,14 +132,16 @@ export function StepUp(props: {
 }
 ```
 
-The Vue, Svelte and Solid bindings take `mfa` themselves:
+In Vue, Svelte and Solid, pass `mfa` to the controller yourself:
 
 ```vue title="TwoFactor.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useMfa } from "better-supabase/blocks/mfa/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import { createMfaController } from "better-supabase/blocks/mfa";
 
-const { state, actions } = useMfa({ mfa: useSupabase().auth.mfa });
+const { state, actions } = useBlockController(createMfaController, {
+  mfa: useSupabase().auth.mfa,
+});
 </script>
 
 <template>
@@ -147,22 +152,26 @@ const { state, actions } = useMfa({ mfa: useSupabase().auth.mfa });
 
 ```svelte title="StepUp.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useStepUp } from "better-supabase/blocks/mfa/svelte";
+  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import { createStepUpController } from "better-supabase/blocks/mfa";
 
   const { supabase } = getBetterSupabase();
-  const stepUp = useStepUp({ mfa: supabase.auth.mfa });
+  const stepUp = useBlockController(createStepUpController, {
+    mfa: supabase.auth.mfa,
+  });
 </script>
 
 {#if !$stepUp.satisfied}<p>Enter a code from your authenticator.</p>{/if}
 ```
 
 ```tsx title="Factors.tsx"
-import { useSupabase } from "better-supabase/solid";
-import { useMfa } from "better-supabase/blocks/mfa/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import { createMfaController } from "better-supabase/blocks/mfa";
 
 export function Factors() {
-  const { state } = useMfa({ mfa: useSupabase().auth.mfa });
+  const { state } = useBlockController(createMfaController, {
+    mfa: useSupabase().auth.mfa,
+  });
   return <p>{state().factors?.length ?? 0} factors</p>;
 }
 ```

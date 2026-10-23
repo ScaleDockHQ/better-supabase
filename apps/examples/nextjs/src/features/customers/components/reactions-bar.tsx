@@ -1,7 +1,6 @@
 "use client";
 
 import { subjectKey } from "better-supabase/blocks";
-import { useReactions } from "better-supabase/blocks/reactions/react";
 import { TriangleAlertIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState } from "react";
@@ -15,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useReactions } from "@/hooks/use-reactions";
 
 // #region recipe:reactions-bar
 

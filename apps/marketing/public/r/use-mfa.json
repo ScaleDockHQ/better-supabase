@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-mfa",
+  "title": "useMfa, useStepUp",
+  "description": "useMfa and useStepUp: the mfa block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-mfa.ts",
+      "content": "\"use client\";\n\nimport type {\n  MfaActions,\n  MfaSnapshot,\n  StepUpActions,\n  StepUpSnapshot,\n} from \"better-supabase/blocks/mfa\";\n\nimport {\n  createMfaController,\n  createStepUpController,\n} from \"better-supabase/blocks/mfa\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\n\nexport type {\n  MfaAssurance,\n  MfaEnrollment,\n  MfaFactor,\n} from \"better-supabase/blocks/mfa\";\n\nexport { needsStepUp } from \"better-supabase/blocks/mfa\";\n\nexport interface UseMfaOptions {\n  /** The issuer authenticator apps show; default: the Auth Site URL's host. */\n  readonly issuer?: string;\n}\n\nexport interface MfaState extends MfaSnapshot, MfaActions {}\n\nexport interface StepUpState extends StepUpSnapshot, StepUpActions {}\n\n/**\n * The user's MFA factors through the browser client, for a security settings\n * page: `enroll` keeps a QR code in `enrollment`, `verify` confirms it with the\n * first code, and `unenroll` removes a factor.\n *\n * ```tsx\n * const { factors, enrollment, enroll, verify } = useMfa();\n * ```\n */\nexport function useMfa(options: UseMfaOptions = {}): MfaState {\n  const { supabase, auth } = useBlockEnv();\n  const { issuer } = options;\n\n  return useController(\n    () =>\n      createMfaController({\n        mfa: supabase.auth.mfa,\n        auth,\n        ...(issuer === undefined ? {} : { issuer }),\n      }),\n    [supabase, auth, issuer],\n  ).view;\n}\n\n/**\n * Raises the session to `aal2` with a code from a verified factor. Show it when\n * a call fails with `needsStepUp(error)`, and retry the call once `satisfied`\n * is true.\n *\n * ```tsx\n * const { satisfied, verify } = useStepUp();\n * ```\n */\nexport function useStepUp(): StepUpState {\n  const { supabase, auth } = useBlockEnv();\n\n  return useController(\n    () => createStepUpController({ mfa: supabase.auth.mfa, auth }),\n    [supabase, auth],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-mfa.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "mfa",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the mfa block (`npx better-supabase add mfa`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/auth/mfa-sso.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

@@ -1,8 +1,8 @@
 // #region recipe:members-table
-import { useMembers } from "better-supabase/blocks/organizations/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
+import { useMembers } from "../hooks/use-organizations";
 import { API_SCHEMA } from "../lib/blocks";
 
 /**

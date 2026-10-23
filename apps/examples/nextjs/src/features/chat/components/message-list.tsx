@@ -3,7 +3,6 @@
 
 import type { Message } from "better-supabase/blocks/messaging";
 
-import { useMessages } from "better-supabase/blocks/messaging/react";
 import { MessagesSquareIcon, RotateCwIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useRef } from "react";
@@ -29,6 +28,7 @@ import {
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMessages } from "@/hooks/use-messaging";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { MessageComposer } from "./message-composer";

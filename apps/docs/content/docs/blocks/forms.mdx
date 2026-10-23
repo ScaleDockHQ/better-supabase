@@ -221,19 +221,23 @@ An unknown, revoked or expired token fails with `FORM_LINK_INVALID`. With the `r
 
 ## Vue
 
-`better-supabase/blocks/forms/vue` exports `useQuestionnaire`. It takes the
-options of `createQuestionnaireController`; the controller needs no
-provider. `state` is a shallow ref of the snapshot and `actions` are the
+`useBlockController` from `better-supabase/vue` runs
+`createQuestionnaireController` with its options, as
+[Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)
+explains. `state` is a shallow ref of the snapshot and `actions` are the
 controller's actions. The work starts on mount, and the controller is
 disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
-import { useQuestionnaire } from "better-supabase/blocks/forms/vue";
-import type { QuestionnaireForm } from "better-supabase/blocks/forms";
+import { useBlockController } from "better-supabase/vue";
+import {
+  createQuestionnaireController,
+  type QuestionnaireForm,
+} from "better-supabase/blocks/forms";
 
 const { version } = defineProps<{ version: QuestionnaireForm }>();
-const { state, actions } = useQuestionnaire({
+const { state, actions } = useBlockController(createQuestionnaireController, {
   form: version,
   onSubmit: (answers) => submitForm(formId, answers),
 });
@@ -250,19 +254,21 @@ answers)`.
 
 ## Svelte
 
-`better-supabase/blocks/forms/svelte` exports `useQuestionnaire`. It takes
-the options of `createQuestionnaireController`; the controller needs no
-provider. The hook returns a readable store of the snapshot, read with `$`,
-with the actions on `.actions`. The work starts on mount, and the controller
-is disposed with the component.
+`useBlockController` from `better-supabase/svelte` runs
+`createQuestionnaireController` with its options. It returns a readable store of
+the snapshot, read with `$`, with the actions on `.actions`. The work starts on
+mount, and the controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { useQuestionnaire } from "better-supabase/blocks/forms/svelte";
-  import type { QuestionnaireForm } from "better-supabase/blocks/forms";
+  import { useBlockController } from "better-supabase/svelte";
+  import {
+    createQuestionnaireController,
+    type QuestionnaireForm,
+  } from "better-supabase/blocks/forms";
 
   let { version }: { version: QuestionnaireForm } = $props();
-  const questionnaire = useQuestionnaire({
+  const questionnaire = useBlockController(createQuestionnaireController, {
     form: version,
     onSubmit: (answers) => submitForm(formId, answers),
   });
@@ -274,18 +280,20 @@ is disposed with the component.
 
 ## Solid
 
-`better-supabase/blocks/forms/solid` exports `useQuestionnaire`. It takes
-the options of `createQuestionnaireController`; the controller needs no
-provider. `state()` reads the snapshot through `from`, and `actions` are the
-controller's actions. The work starts on mount, and the controller is
-disposed with the owner.
+`useBlockController` from `better-supabase/solid` runs
+`createQuestionnaireController` with its options. `state()` reads the snapshot
+through `from`, and `actions` are the controller's actions. The work starts on
+mount, and the controller is disposed with the owner.
 
 ```tsx title="Component.tsx"
-import { useQuestionnaire } from "better-supabase/blocks/forms/solid";
-import type { QuestionnaireForm } from "better-supabase/blocks/forms";
+import { useBlockController } from "better-supabase/solid";
+import {
+  createQuestionnaireController,
+  type QuestionnaireForm,
+} from "better-supabase/blocks/forms";
 
 export function Component(props: { version: QuestionnaireForm }) {
-  const { state, actions } = useQuestionnaire({
+  const { state, actions } = useBlockController(createQuestionnaireController, {
     form: props.version,
     onSubmit: (answers) => submitForm(formId, answers),
   });
@@ -304,11 +312,11 @@ The module records `form.created`, `form_version.published`, `form_submission.su
 
 ## With ReUI
 
-`useQuestionnaire` from `better-supabase/blocks/forms/react` holds the answers, the visible steps and the issues per field for one version, so a ReUI Stepper and its questionnaire layouts render the form without other state:
+`useQuestionnaire` is a registry item: install it with `npx shadcn add @better-supabase/use-forms`, which writes `hooks/use-forms.ts` into the app. It holds the answers, the visible steps and the issues per field for one version, so a ReUI Stepper and its questionnaire layouts render the form without other state:
 
 ```tsx
 "use client";
-import { useQuestionnaire } from "better-supabase/blocks/forms/react";
+import { useQuestionnaire } from "@/hooks/use-forms";
 
 const q = useQuestionnaire({
   form: version,

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-billing",
+  "title": "usePlanPicker",
+  "description": "usePlanPicker: the billing block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-billing.ts",
+      "content": "\"use client\";\n\nimport type { Result } from \"better-supabase\";\nimport type {\n  CheckoutStarted,\n  PlanCatalog,\n  PlanOption,\n  PlanPickerActions,\n  PlanPickerSnapshot,\n} from \"better-supabase/blocks/billing\";\n\nimport { createPlanPickerController } from \"better-supabase/blocks/billing\";\nimport { useBlockEnv, useController, useLatest } from \"better-supabase/react\";\n\nexport type {\n  CheckoutStarted,\n  PlanCatalog,\n  PlanOption,\n} from \"better-supabase/blocks/billing\";\n\nexport interface UsePlanPickerOptions<P extends { readonly key: string }> {\n  /**\n   * The plans and the current one, such as a server action; it throws on\n   * failure.\n   */\n  readonly load: () => Promise<PlanCatalog<P>>;\n  /** What a server already loaded: the first load is skipped. */\n  readonly initial?: PlanCatalog<P>;\n  /** A server action that starts Checkout for a plan key and returns its URL. */\n  readonly checkout: (plan: string) => Promise<Result<CheckoutStarted>>;\n  /**\n   * Opens the Checkout URL: `location.assign` on the web,\n   * `WebBrowser.openBrowserAsync` in React Native.\n   */\n  readonly open: (url: string) => void | Promise<void>;\n}\n\nexport interface PlanPickerState<P>\n  extends PlanPickerSnapshot<P>, PlanPickerActions {\n  /** The current plan's entry in `plans`. */\n  readonly active: P | undefined;\n}\n\n/**\n * The plans with the tenant's current one, for a plan picker. `choose` starts\n * Checkout through the server action you pass and opens the URL it returns;\n * Stripe is only ever called on the server. The same hook runs in React DOM and\n * React Native.\n *\n * ```tsx\n * const { plans, current, pending, choose } = usePlanPicker({\n *   load,\n *   checkout,\n *   open,\n * });\n * ```\n */\nexport function usePlanPicker<P extends { readonly key: string } = PlanOption>(\n  options: UsePlanPickerOptions<P>,\n): PlanPickerState<P> {\n  const { auth } = useBlockEnv();\n  const latest = useLatest(options);\n\n  const view = useController(() => {\n    const { initial } = latest.current;\n\n    return createPlanPickerController<P>({\n      auth,\n      load: () => latest.current.load(),\n      ...(initial === undefined ? {} : { initial }),\n      checkout: (plan) => latest.current.checkout(plan),\n      open: (url) => latest.current.open(url),\n    });\n  }, [auth, latest]).view;\n\n  const active = view.plans?.find((plan) => plan.key === view.current);\n\n  return { ...view, active };\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-billing.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "billing",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the billing block (`npx better-supabase add billing`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/billing.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

@@ -1,7 +1,6 @@
 // #region recipe:workflow-runs
 "use client";
 
-import { useWorkflowRuns } from "better-supabase/blocks/workflows/react";
 import { WorkflowIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -22,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useWorkflowRuns } from "@/hooks/use-workflows";
 import { Link } from "@/i18n/navigation";
 
 import { statusVariant, workflowName } from "../workflow-labels";
