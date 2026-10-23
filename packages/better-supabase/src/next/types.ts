@@ -471,6 +471,39 @@ export interface BetterNext<
    * server action.
    */
   stopSupport(): Promise<ActionResult<{ readonly ended: boolean }>>;
+  /**
+   * Signs in with an email and a password from a server action. It writes the
+   * session cookies, stores the verified session for the next render and
+   * returns `redirectTo`: `credentials.next` when it is a same-origin path,
+   * else `options.fallback` (`/`). The client then calls
+   * `router.replace(redirectTo)` once.
+   */
+  signIn(
+    credentials: SignInCredentials,
+    options?: SignInOptions,
+  ): Promise<ActionResult<SignedIn>>;
+}
+
+export interface SignInCredentials {
+  readonly email: string;
+  readonly password: string;
+  /** The `?next=` value from the sign-in URL; checked before use. */
+  readonly next?: string | null;
+}
+
+export interface SignInOptions {
+  /** Where to go when `next` is missing or not a same-origin path. */
+  readonly fallback?: string;
+}
+
+/** What `signIn` returns: plain data, safe across the action boundary. */
+export interface SignedIn {
+  readonly redirectTo: string;
+  /**
+   * The user has a verified MFA factor: send them to the challenge (with
+   * `redirectTo` as its `next`) before `redirectTo`.
+   */
+  readonly mfa: boolean;
 }
 
 /** What `startSupport` returns: plain data, safe across the action boundary. */

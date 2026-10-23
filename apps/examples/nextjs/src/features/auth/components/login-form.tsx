@@ -1,6 +1,5 @@
 "use client";
 
-import { useSessionChange } from "better-supabase/next/client";
 import { useExtracted, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useActionState, useId } from "react";
@@ -20,41 +19,36 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { sessionChanged } from "@/features/user/user-actions";
 import { Link } from "@/i18n/navigation";
-import { useSupabase } from "@/lib/hooks";
 
-import { safeNext } from "../safe-next";
+import { signIn } from "../auth-actions";
 
 export function LoginForm() {
   const t = useExtracted("auth");
   const fieldId = useId();
   const locale = useLocale();
-  const supabase = useSupabase();
-  const changeSession = useSessionChange(sessionChanged, useRouter());
+  const router = useRouter();
 
   const [error, submit, pending] = useActionState(
     async (_previous: string | null, form: FormData) => {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const result = await signIn({
         email: String(form.get("email")),
         password: String(form.get("password")),
+        next: new URLSearchParams(window.location.search).get("next"),
+        locale,
       });
 
-      if (signInError) {
-        return signInError.code === "invalid_credentials"
+      if (!result.ok) {
+        return result.error.code === "invalid_credentials"
           ? t("That email and password don't match.")
-          : signInError.message;
+          : result.error.message;
       }
 
-      // A verified factor means this session must reach aal2 first.
-      const { data: aal } =
-        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-
-      const next = safeNext(`/${locale}`);
-      await changeSession(
-        aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2"
-          ? `/${locale}/mfa?next=${encodeURIComponent(next)}`
-          : next,
+      const { redirectTo, mfa } = result.data;
+      router.replace(
+        mfa
+          ? `/${locale}/mfa?next=${encodeURIComponent(redirectTo)}`
+          : redirectTo,
       );
 
       return null;

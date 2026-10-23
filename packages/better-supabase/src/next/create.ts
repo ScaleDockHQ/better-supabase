@@ -72,6 +72,7 @@ import {
 } from "./proxy.ts";
 import { recordServer } from "./record.ts";
 import { resourceRoutes } from "./resources.ts";
+import { signInWithPassword } from "./sign-in.ts";
 import {
   STATS_URL_HEADER,
   endedRedirect,
@@ -858,6 +859,21 @@ export function createNext<
       return stopped.ok
         ? { ok: true, data: { ended: stopped.data.ended }, error: null }
         : { ok: false, data: null, error: stopped.error };
+    },
+
+    async signIn(credentials, signInOptions = {}) {
+      const request = await incomingRequest();
+
+      return signInWithPassword(credentials, signInOptions, {
+        env: base.env,
+        auth: options.auth,
+        request,
+        jar: await cookies(),
+        seed: async (accessToken) => {
+          const verified = await base.resolve(bearerRequest(accessToken));
+          await base.sessions.seed(verified.auth);
+        },
+      });
     },
 
     cacheTag(table, id, tagOptions = {}) {

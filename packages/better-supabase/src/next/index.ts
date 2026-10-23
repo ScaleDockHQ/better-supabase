@@ -17,6 +17,8 @@ export {
 
 export type { SessionSnapshot } from "../auth/snapshot.ts";
 
+export { safeRedirectPath } from "../auth/sign-in.ts";
+
 export {
   recordListServer,
   type RecordListServer,
@@ -79,6 +81,9 @@ export type {
   RouteOptions,
   ScopeOptions,
   SessionStaleOptions,
+  SignedIn,
+  SignInCredentials,
+  SignInOptions,
   SupportStarted,
 } from "./types.ts";
 

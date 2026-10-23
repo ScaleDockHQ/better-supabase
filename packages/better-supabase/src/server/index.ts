@@ -287,6 +287,10 @@ export {
   snapshotOf,
 } from "../auth/snapshot.ts";
 
+export { passwordGrant, safeRedirectPath } from "../auth/sign-in.ts";
+
+export type { PasswordGrantOptions } from "../auth/sign-in.ts";
+
 export type {
   SessionMemo,
   SessionMemoOptions,
