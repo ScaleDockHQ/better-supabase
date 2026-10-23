@@ -3,7 +3,7 @@ import type { EventName, EventHandler } from "../../src/core/events.ts";
 import { writeSession } from "../../src/auth/session.ts";
 import { signer, USER } from "./test-server.ts";
 
-export const COOKIE: string = "sb-abcdefghijklmnopqrst-auth-token";
+const COOKIE = "sb-abcdefghijklmnopqrst-auth-token";
 
 const NAVIGATION = {
   "sec-fetch-dest": "document",
@@ -11,7 +11,7 @@ const NAVIGATION = {
 };
 
 /** A session cookie whose access token expired a minute ago. */
-export async function expiredCookie(refreshToken: string): Promise<string> {
+async function expiredCookie(refreshToken: string): Promise<string> {
   const token = await signer.sign({ sub: USER, expiresIn: -60 });
 
   return writeSession([], COOKIE, {
