@@ -8,6 +8,7 @@ import type { BlockSqlContext } from "./context.ts";
 export interface BlockContributions {
   readonly approvals: ApprovalContribution;
   readonly "bulk-actions": BulkActionContribution;
+  readonly numbering: NumberingContribution;
   readonly pipelines: PipelineContribution;
   readonly "share-links": ShareLinkContribution;
   readonly subjects: SubjectContribution;
@@ -58,6 +59,17 @@ export interface BulkActionContribution {
   readonly run: string;
   /** Variables the statements declare, such as `v_tag uuid;`. */
   readonly declare?: string;
+}
+
+/**
+ * A number sequence the contributing block draws from, for when the app doesn't
+ * configure `blocks.numbering.options.entities.<entity>` itself.
+ */
+export interface NumberingContribution {
+  /** The entity name, after the instance's entity names. */
+  readonly entity: string;
+  /** The default entry: `{ period, format }` and the other entity keys. */
+  readonly entry: Readonly<Record<string, unknown>>;
 }
 
 /** A record table of the contributing block that runs on pipelines. */

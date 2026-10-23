@@ -253,6 +253,17 @@ export const REVIEW_0_15: readonly {
       "A block client's `save` is `upsert` (segments, courses, memory, automations, workflow-editor, ai-chat sessions, sequences, feature-flags, reminders, templates, saved-views, ai-keys, calendar, goals, pipelines, connector sessions), and so are `set` on ai-cache and on ai-files `providerFiles`; editor controllers and settings keep their verbs",
   },
   {
+    pattern:
+      /\b(?:fileMaintenance|updateMaintenance|listMaintenance|maintenanceRequestInputSchema)\b|maintenance_request\.(?:filed|updated)/,
+    message:
+      'Leases no longer tracks maintenance requests: install a tasks instance (`maintenance: { block: "tasks", names: { work_item: "maintenance_request" } }`) and call its client; the upgrade renames the old table to `maintenance_requests_legacy`',
+  },
+  {
+    pattern: /\bpass_credit_entries\b/,
+    message:
+      "Class credits live on the ledger: read them with `credits(passId)` or the ledger client instead of `pass_credit_entries`",
+  },
+  {
     pattern: /limit: 1 \}\)\.map\(\(rows\) => rows\[0\] \?\? null\)/,
     message:
       "This was `findFirst`. Read sets and query specs have no `.map`: there, use `get({ where }, { optional: true })` when the filter matches one row, or destructure the first row of `list({ limit: 1 })`",

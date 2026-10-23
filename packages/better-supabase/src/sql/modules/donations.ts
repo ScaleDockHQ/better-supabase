@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -17,6 +17,7 @@ import {
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { donationsFunctions, GIFT_RESERVED } from "./donations-functions.ts";
+import { sequencesTable } from "./numbering.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const GIFT_PAYLOAD = [
@@ -468,16 +469,52 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+function receiptEntity(ctx: BlockSqlContext): string {
+  return ctx.resolved.entityNaming.rename("donation_receipt");
+}
+
+function receiptNumbersUpgrade(ctx: BlockSqlContext): string {
+  const numbering = ctx.of("numbering");
+  const sequences = numbering.table("sequences");
+  const seq = (column: string): string => numbering.col("sequences", column);
+  const receipt = (column: string): string => ctx.col("receipts", column);
+
+  return `${sequencesTable(numbering)}
+insert into ${sequences} (${seq("tenant")}, ${seq("entity")}, ${seq("period")}, ${seq("lastNumber")})
+select r.${receipt("tenant")}, ${numbering.cast("sequences", "entity", sqlString(receiptEntity(ctx)))}, '', max(r.${receipt("sequence")})
+from ${ctx.table("receipts")} r
+group by r.${receipt("tenant")}
+on conflict (${seq("tenant")}, ${seq("entity")}, ${seq("period")})
+do update set ${seq("lastNumber")} = greatest(${sequences}.${seq("lastNumber")}, excluded.${seq("lastNumber")});`;
+}
+
 export const DONATIONS: BlockSqlDefinition = {
   name: "donations",
   scopes: ["tenant"],
   title: "Donations",
   description:
     "Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.",
-  requires: ["memberships", "permissions", "subjects", "ledger"],
-  integrates: ["outbox", "audit", "numbering"],
+  requires: ["memberships", "permissions", "subjects", "ledger", "numbering"],
+  integrates: ["outbox", "audit"],
+  contributes: {
+    numbering: (own) => [
+      {
+        entity: receiptEntity(own),
+        entry: { period: "none", format: "R-{n}" },
+      },
+    ],
+  },
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Numbers receipts with the numbering block, starting after each organization's highest receipt.",
+      sql: receiptNumbersUpgrade,
+    },
+  ],
   names: NAMES,
   contract,
   internal: ["donation_settle"],

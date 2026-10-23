@@ -24,13 +24,10 @@ export const LEASE_RESERVED = ["fields"] as const;
 export function leasesFunctions(ctx: BlockSqlContext): string {
   const assets = ctx.of("assets");
   const ledger = ctx.of("ledger");
-  const members = ctx.of("memberships");
   const leases = ctx.table("leases");
   const charges = ctx.table("charges");
-  const maintenance = ctx.table("maintenance");
   const l = (column: string): string => ctx.col("leases", column);
   const c = (column: string): string => ctx.col("charges", column);
-  const m = (column: string): string => ctx.col("maintenance", column);
   const as = (column: string): string => assets.col("assets", column);
   const la = (column: string): string => ledger.col("accounts", column);
   const lb = (column: string): string => ledger.col("balances", column);
@@ -44,7 +41,6 @@ export function leasesFunctions(ctx: BlockSqlContext): string {
   const ops = moduleOperations("leases");
   const read = ctx.permission("read", ops.read);
   const manage = ctx.permission("manage", ops.manage);
-  const maintain = ctx.permission("maintain", ops.maintain);
   const e = (name: string): string => ctx.resolved.entityNaming.rename(name);
   const leaseType = ctx.resolved.entities["lease"]?.to.singular ?? "lease";
   const leaseKey = sqlString(e("leaseId"));
@@ -105,9 +101,6 @@ export function leasesFunctions(ctx: BlockSqlContext): string {
   const chargeJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'leaseId', ${row}.${c("lease")}, 'periodStart', ${row}.${c("periodStart")}, 'periodEnd', ${row}.${c("periodEnd")}, 'amount', ${row}.${c("amount")}::text, 'currency', ${row}.${c("currency")}, 'transactionId', ${row}.${c("transaction")}, 'createdAt', ${row}.${c("createdAt")})`;
 
-  const maintenanceJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'unitId', ${row}.${m("unit")}, 'leaseId', ${row}.${m("lease")}, 'title', ${row}.${m("title")}, 'description', ${row}.${m("description")}, 'priority', ${row}.${m("priority")}, 'status', ${row}.${m("status")}, 'reportedBy', ${row}.${m("reportedBy")}, 'assigneeId', ${row}.${m("assignee")}, 'resolvedAt', ${row}.${m("resolvedAt")}, 'createdAt', ${row}.${m("createdAt")}, 'updatedAt', ${row}.${m("updatedAt")})`;
-
   const leaseRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
       type,
@@ -123,33 +116,11 @@ export function leasesFunctions(ctx: BlockSqlContext): string {
       },
     });
 
-  const maintenanceRecord = (
-    type: string,
-    row: string,
-    summary: string,
-  ): string =>
-    ctx.record({
-      type,
-      payload: `jsonb_build_object('organizationId', ${row}.${m("tenant")}, 'id', ${row}.${m("id")}, 'unitId', ${row}.${m("unit")}, 'leaseId', ${row}.${m("lease")}, 'priority', ${row}.${m("priority")}, 'status', ${row}.${m("status")})`,
-      subject: `'maintenance-requests/' || ${row}.${m("id")}::text`,
-      tenant: `${row}.${m("tenant")}`,
-      audit: {
-        category: "data",
-        targetType: "maintenance_request",
-        recordId: `${row}.${m("id")}::text`,
-        targetLabel: `${row}.${m("title")}`,
-        summary: `'${summary}'`,
-      },
-    });
-
   const loadLease = (id: string, permission: string, lock = false): string => `
   select * into v_row from ${leases} x where x.${l("id")} = ${id}${lock ? " for update" : ""};
   if not found or not ${can(`v_row.${l("tenant")}`, permission)} then
     ${notFound}
   end if;`;
-
-  const unitInTenant = (unit: string, tenant: string): string =>
-    `exists (select 1 from ${assets.table("assets")} u where u.${as("id")} = ${unit} and u.${as("tenant")} = ${tenant})`;
 
   return `
 -- Creates a draft lease of a unit (an asset) to a party (a registered
@@ -537,119 +508,5 @@ begin${loadLease("list_lease_charges.lease_id", read)}
 end;
 $$;
 ${userGrant(`${fn("list_lease_charges")}(uuid, integer)`)}
-
--- Files a maintenance request on a unit, optionally for one of its leases.
-create or replace function ${fn("file_maintenance_request")}(tenant ${idType}, unit_id uuid, title text, description text default null, priority text default 'normal', lease_id uuid default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row ${maintenance}%rowtype;
-begin
-  if not (${can("file_maintenance_request.tenant", maintain)} or ${ctx.can("tenant", "file_maintenance_request.tenant", manage)}) then
-    ${forbidden("not allowed to file maintenance requests")}
-  end if;
-  if not ${unitInTenant("file_maintenance_request.unit_id", "file_maintenance_request.tenant")} then
-    ${invalid("LEASE_UNIT_INVALID", "the unit is unknown or not in this organization")}
-  end if;
-  if file_maintenance_request.lease_id is not null and not exists (
-    select 1 from ${leases} x where x.${l("id")} = file_maintenance_request.lease_id
-      and x.${l("tenant")} = file_maintenance_request.tenant and x.${l("unit")} = file_maintenance_request.unit_id
-  ) then
-    ${invalid("LEASE_NOT_FOUND", "the lease is unknown or not a lease of this unit")}
-  end if;
-  if coalesce(file_maintenance_request.priority, 'normal') not in ('low', 'normal', 'high', 'urgent') then
-    ${invalid("MAINTENANCE_INVALID", "priority is low, normal, high or urgent")}
-  end if;
-  if nullif(trim(file_maintenance_request.title), '') is null then
-    ${invalid("MAINTENANCE_INVALID", "a maintenance request needs a title")}
-  end if;
-  insert into ${maintenance} (${m("tenant")}, ${m("unit")}, ${m("lease")}, ${m("title")}, ${m("description")}, ${m("priority")}, ${m("reportedBy")})
-  values (file_maintenance_request.tenant, file_maintenance_request.unit_id, file_maintenance_request.lease_id, trim(file_maintenance_request.title),
-    nullif(trim(file_maintenance_request.description), ''), coalesce(file_maintenance_request.priority, 'normal'), auth.uid())
-  returning * into v_row;
-  ${maintenanceRecord("maintenance_request.filed", "v_row", "filed a maintenance request")}
-  return ${maintenanceJson("v_row")};
-end;
-$$;
-${userGrant(`${fn("file_maintenance_request")}(${idType}, uuid, text, text, text, uuid)`)}
-
--- Moves a maintenance request along (open, in_progress, resolved,
--- cancelled), reprioritizes it or assigns it to a member. Null keeps a value.
-create or replace function ${fn("update_maintenance_request")}(request_id uuid, status text default null, priority text default null, assignee_id uuid default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row ${maintenance}%rowtype;
-begin
-  select * into v_row from ${maintenance} x where x.${m("id")} = update_maintenance_request.request_id for update;
-  if not found or not ${can(`v_row.${m("tenant")}`, manage)} then
-    ${fail("MAINTENANCE_NOT_FOUND", "no such maintenance request you can change", "P0002")}
-  end if;
-  if update_maintenance_request.status is not null and update_maintenance_request.status not in ('open', 'in_progress', 'resolved', 'cancelled') then
-    ${invalid("MAINTENANCE_INVALID", "status is open, in_progress, resolved or cancelled")}
-  end if;
-  if update_maintenance_request.priority is not null and update_maintenance_request.priority not in ('low', 'normal', 'high', 'urgent') then
-    ${invalid("MAINTENANCE_INVALID", "priority is low, normal, high or urgent")}
-  end if;
-  if update_maintenance_request.assignee_id is not null and not exists (
-    select 1 from ${members.table("memberships")} y
-    where y.${members.col("memberships", "tenant")} = v_row.${m("tenant")} and y.${members.col("memberships", "user")} = update_maintenance_request.assignee_id
-  ) then
-    ${invalid("MAINTENANCE_INVALID", "the assignee is not a member of this organization")}
-  end if;
-  update ${maintenance} x set
-      ${m("status")} = coalesce(update_maintenance_request.status, x.${m("status")}),
-      ${m("priority")} = coalesce(update_maintenance_request.priority, x.${m("priority")}),
-      ${m("assignee")} = coalesce(update_maintenance_request.assignee_id, x.${m("assignee")}),
-      ${m("resolvedAt")} = case when coalesce(update_maintenance_request.status, x.${m("status")}) = 'resolved' then coalesce(x.${m("resolvedAt")}, now()) end,
-      ${m("updatedAt")} = now()
-    where x.${m("id")} = v_row.${m("id")}
-    returning * into v_row;
-  ${maintenanceRecord("maintenance_request.updated", "v_row", "updated a maintenance request")}
-  return ${maintenanceJson("v_row")};
-end;
-$$;
-${userGrant(`${fn("update_maintenance_request")}(uuid, text, text, uuid)`)}
-
--- Maintenance requests, newest first: every one with leases.read, else the
--- ones the caller filed.
-create or replace function ${fn("list_maintenance_requests")}(tenant ${idType}, unit_id uuid default null, lease_id uuid default null, status text default null, page_size integer default 100)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_all boolean := ${can("list_maintenance_requests.tenant", read)};
-begin
-  if not (v_all or ${ctx.can("tenant", "list_maintenance_requests.tenant", maintain)}) then
-    ${forbidden("not allowed to read maintenance requests")}
-  end if;
-  return (
-    select coalesce(jsonb_agg(${maintenanceJson("q")} order by q.${m("createdAt")} desc, q.${m("id")}), '[]'::jsonb)
-    from (
-      select * from ${maintenance} x
-      where x.${m("tenant")} = list_maintenance_requests.tenant
-        and (v_all or x.${m("reportedBy")} = auth.uid())
-        and (list_maintenance_requests.unit_id is null or x.${m("unit")} = list_maintenance_requests.unit_id)
-        and (list_maintenance_requests.lease_id is null or x.${m("lease")} = list_maintenance_requests.lease_id)
-        and (list_maintenance_requests.status is null or x.${m("status")} = list_maintenance_requests.status)
-      order by x.${m("createdAt")} desc, x.${m("id")}
-      limit ${pageSize("list_maintenance_requests.page_size", 100, 1000)}
-    ) q
-  );
-end;
-$$;
-${userGrant(`${fn("list_maintenance_requests")}(${idType}, uuid, uuid, text, integer)`)}
 `;
 }

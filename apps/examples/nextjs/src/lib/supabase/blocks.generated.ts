@@ -6,7 +6,31 @@ import {
   event,
   type Events,
   type GeneratedBlocks,
+  renameBlock,
+  type RenamedEvents,
+  type RenamedType,
 } from "better-supabase/blocks";
+import {
+  type ChecklistItem as DefaultChecklistItem,
+  type ChecklistItemInput as DefaultChecklistItemInput,
+  type Iteration as DefaultIteration,
+  type Project as DefaultProject,
+  type WorkItem,
+  type WorkItemChange,
+  type WorkItemChangeResult,
+  type WorkItemChecklistOptimisticAction,
+  type WorkItemField,
+  type WorkItemInput,
+  type WorkItemListOptions,
+  type WorkItemNode,
+  type WorkItemRecurrence,
+  type WorkItemRecurrenceSinkOptions,
+  type WorkItemState,
+  type WorkItemWatcher,
+  type WorkItemWatchLevel,
+  type TasksEvents as DefaultTasksEvents,
+  tasksBlock as defaultTasksBlock,
+} from "better-supabase/blocks/tasks";
 import type { AccessRequestsEvents } from "better-supabase/blocks/access-requests";
 import type { AgentsEvents } from "better-supabase/blocks/agents";
 import type { AiChatEvents } from "better-supabase/blocks/ai-chat";
@@ -61,6 +85,7 @@ import type { MailSyncEvents } from "better-supabase/blocks/mail-sync";
 import type { EnrichmentEvents } from "better-supabase/blocks/enrichment";
 import type { ForecastsEvents } from "better-supabase/blocks/forecasts";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
+import type { NumberingEvents } from "better-supabase/blocks/numbering";
 import type { OrdersEvents } from "better-supabase/blocks/orders";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ContactsEvents } from "better-supabase/blocks/contacts";
@@ -482,6 +507,10 @@ export const blockConfig = {
       topic: "notifications:{userId}",
     },
   },
+  numbering: {
+    schema: "better_supabase",
+    options: {},
+  },
   onboarding: {
     schema: "better_supabase",
     api: "api",
@@ -701,6 +730,39 @@ export const blockConfig = {
     api: "api",
     options: {},
   },
+  maintenance: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+    names: {
+      functions: {
+        archive_work_item: "archive_maintenance_request",
+        create_work_item: "create_maintenance_request",
+        delete_work_item: "delete_maintenance_request",
+        delete_work_item_checklist_item: "delete_maintenance_request_checklist_item",
+        get_work_item: "get_maintenance_request",
+        list_work_item_checklist: "list_maintenance_request_checklist",
+        list_work_items: "list_maintenance_requests",
+        save_iteration: "maintenance_save_iteration",
+        save_project: "maintenance_save_project",
+        save_work_item_checklist_item: "save_maintenance_request_checklist_item",
+        set_work_item_assignees: "set_maintenance_request_assignees",
+        update_work_items: "update_maintenance_requests",
+        work_item_tree: "maintenance_request_tree",
+      },
+      entities: [{
+        from: {
+          singular: "work_item",
+          plural: "work_items",
+        },
+        to: {
+          singular: "maintenance_request",
+          plural: "maintenance_requests",
+        },
+      }],
+    },
+    block: "tasks",
+  },
   "workflow-editor": {
     schema: "better_supabase",
     api: "api",
@@ -716,6 +778,68 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+type MaintenanceRenames = (typeof blockConfig)["maintenance"]["names"]["entities"];
+
+/**
+ * The `tasks` block under the names `blocks.maintenance.entities` gives it.
+ * @public
+ */
+export const maintenanceBlock = renameBlock(defaultTasksBlock, blockConfig["maintenance"].names);
+
+/** @public */
+export type ChecklistItem = RenamedType<DefaultChecklistItem, MaintenanceRenames>;
+
+/** @public */
+export type ChecklistItemInput = RenamedType<DefaultChecklistItemInput, MaintenanceRenames>;
+
+/** @public */
+export type Iteration = RenamedType<DefaultIteration, MaintenanceRenames>;
+
+/** @public */
+export type Project = RenamedType<DefaultProject, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequest<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestChange<F extends object = Record<never, never>> = RenamedType<WorkItemChange<F>, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestChangeResult = RenamedType<WorkItemChangeResult, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestChecklistOptimisticAction = RenamedType<WorkItemChecklistOptimisticAction, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestField = RenamedType<WorkItemField, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestInput<F extends object = Record<never, never>> = RenamedType<WorkItemInput<F>, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestListOptions = RenamedType<WorkItemListOptions, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestNode = RenamedType<WorkItemNode, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestRecurrence = RenamedType<WorkItemRecurrence, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestRecurrenceSinkOptions = RenamedType<WorkItemRecurrenceSinkOptions, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestState = RenamedType<WorkItemState, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestWatcher = RenamedType<WorkItemWatcher, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestWatchLevel = RenamedType<WorkItemWatchLevel, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceEvents = RenamedEvents<DefaultTasksEvents, MaintenanceRenames>;
 
 /**
  * The events `tables.<table>.events` writes to the outbox, for `onBlockEvent` and the sinks.
@@ -1116,10 +1240,6 @@ export const permissions = {
     send: "mail.send",
     manage: "mail.manage",
   },
-  maintenance_request: {
-    read: "leases.read",
-    write: "leases.maintain",
-  },
   memory: {
     read: "ai.read",
     manage: "ai.admin",
@@ -1147,6 +1267,9 @@ export const permissions = {
   notifications: {
     send: "notifications.send",
     read: "notifications.read",
+  },
+  numbering: {
+    assign: "number_sequences.assign",
   },
   onboarding: {
     read: "onboarding.read",
@@ -1358,13 +1481,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "assignment.assign" | "assignment.manage" | "assignment.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "channels.create" | "channels.manage" | "contracts.manage" | "contracts.read" | "contracts.write" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "customers.read" | "customers.write" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "flags.manage" | "forecasts.read" | "forecasts.snapshot" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "history.read" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
+export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "activity.read" | "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "ai_chat.admin" | "ai_chat.create" | "ai_chat.moderate" | "ai_chat.read" | "ai_chat.share" | "announcements.manage" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "assignment.assign" | "assignment.manage" | "assignment.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "bookings.create" | "bookings.manage" | "bookings.read" | "bulk.run" | "calendar.manage" | "calendar.read" | "calendar.write" | "catalog.manage" | "catalog.read" | "channels.create" | "channels.manage" | "contracts.manage" | "contracts.read" | "contracts.write" | "controls.acknowledge" | "controls.collect" | "controls.manage" | "controls.read" | "courses.enroll" | "courses.manage" | "courses.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "customers.read" | "customers.write" | "deals.manage" | "deals.read" | "deals.write" | "dispatch.manage" | "dispatch.read" | "dispatch.work" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "donations.manage" | "donations.read" | "drive.create" | "drive.manage" | "drive.read" | "employees.read" | "employees.view_sensitive" | "employees.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "flags.manage" | "forecasts.read" | "forecasts.snapshot" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "guests.manage" | "guests.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "history.read" | "imports.manage" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "incidents.manage" | "incidents.read" | "incidents.write" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.manage" | "invoices.read" | "invoices.write" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "metrics.manage" | "metrics.read" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "passes.check_in" | "passes.manage" | "passes.read" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "promotions.manage" | "promotions.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "reminders.manage" | "reminders.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "service_principals.manage" | "service_principals.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "shipments.manage" | "shipments.read" | "signatures.manage" | "signatures.read" | "signatures.request" | "sla.manage" | "sla.read" | "sso.manage" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore" | "usage.read" | "usage.record" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore" | "views.read" | "views.share" | "waitlist.manage" | "webhooks.manage" | "webhooks.read" | "work_items.manage" | "work_items.read" | "work_items.write" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & AdmissionPassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FeatureFlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & AdmissionPassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FeatureFlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & TasksEvents & MaintenanceEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -1575,7 +1698,12 @@ export const blockEvents: Events<BlockEvents> = {
     "mail_message.opened",
     "mail_message.received",
     "mail_message.sent",
-    "maintenance_request.filed",
+    "maintenance_request.archived",
+    "maintenance_request.assigned",
+    "maintenance_request.closed",
+    "maintenance_request.created",
+    "maintenance_request.deleted",
+    "maintenance_request.reopened",
     "maintenance_request.updated",
     "message.deleted",
     "message.edited",
@@ -1594,6 +1722,7 @@ export const blockEvents: Events<BlockEvents> = {
     "notification.delivered",
     "notification.failed",
     "notification.opened",
+    "number.assigned",
     "object.uploaded",
     "obligation.saved",
     "obligation.status_changed",
@@ -2006,7 +2135,12 @@ export const blockEventSchemas = {
   "mail_message.opened": true,
   "mail_message.received": true,
   "mail_message.sent": true,
-  "maintenance_request.filed": true,
+  "maintenance_request.archived": true,
+  "maintenance_request.assigned": true,
+  "maintenance_request.closed": true,
+  "maintenance_request.created": true,
+  "maintenance_request.deleted": true,
+  "maintenance_request.reopened": true,
   "maintenance_request.updated": true,
   "message.deleted": true,
   "message.edited": true,
@@ -2025,6 +2159,7 @@ export const blockEventSchemas = {
   "notification.delivered": true,
   "notification.failed": true,
   "notification.opened": true,
+  "number.assigned": true,
   "object.uploaded": true,
   "obligation.saved": true,
   "obligation.status_changed": true,

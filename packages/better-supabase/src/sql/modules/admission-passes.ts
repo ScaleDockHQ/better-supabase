@@ -21,10 +21,10 @@ import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import {
-  CREDIT_TABLES,
   creditsContract,
   creditsOn,
   creditsSql,
+  creditsUpgrade,
 } from "./admission-passes-credits.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -130,9 +130,10 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
     },
-    ...CREDIT_TABLES,
   },
 };
+
+const REQUIRES = ["memberships", "permissions"] as const;
 
 const list = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");
@@ -718,10 +719,23 @@ export const PASSES: BlockSqlDefinition = {
   title: "Passes",
   description:
     "Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.",
-  requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit", "bookings", "signing-keys"],
+  requires: [...REQUIRES],
+  dependencies: (layout) =>
+    layout.modules?.["admission-passes"]?.options?.["credits"] === true
+      ? [...REQUIRES, "ledger"]
+      : [...REQUIRES],
+  integrates: ["outbox", "audit", "bookings", "signing-keys", "ledger"],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Moves class credits from pass_credit_entries onto the ledger block.",
+      sql: creditsUpgrade,
+    },
+  ],
   names: NAMES,
   contract,
   build,

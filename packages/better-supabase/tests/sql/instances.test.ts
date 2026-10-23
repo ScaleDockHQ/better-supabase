@@ -171,4 +171,34 @@ describe("renameIdentifiers", () => {
       ].join("\n"),
     );
   });
+
+  it("notifies through the notifications block from a renamed instance", () => {
+    const withNotifications = resolveConfig(
+      {
+        blocks: {
+          notifications: {},
+          tasks: {},
+          maintenance: {
+            block: "tasks",
+            entities: { work_item: "maintenance_request" },
+            tables: { projects: null },
+          },
+        },
+      },
+      "/app",
+    );
+
+    const rendered = renderBlocks(
+      withNotifications.blockNames,
+      moduleLayout(withNotifications),
+    );
+
+    expect(
+      rendered.some(
+        (file) =>
+          file.instance === "maintenance" &&
+          file.contents.includes("maintenance_request.assigned"),
+      ),
+    ).toBe(true);
+  });
 });

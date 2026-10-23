@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
--- @bsb-block donations@1 managed
+-- @bsb-block donations@2 managed
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -739,9 +739,8 @@ begin
     select * into v_receipt from "better_supabase"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':donation_receipt', 0));
-  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."donation_receipts" x where x."tenant_id" = v_row."tenant_id";
-  v_number := 'R-' || v_seq::text;
+  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -794,9 +793,8 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(issue_yearly_receipt.tenant::text || ':donation_receipt', 0));
-  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."donation_receipts" x where x."tenant_id" = issue_yearly_receipt.tenant;
-  v_number := 'R-' || v_seq::text;
+  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)
@@ -946,13 +944,13 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('donations', 1, 'managed')
+values ('donations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
--- @bsb-block donations@1 managed
+-- @bsb-block donations@2 managed
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1736,9 +1734,8 @@ begin
     select * into v_receipt from "better_supabase"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':donation_receipt', 0));
-  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."donation_receipts" x where x."tenant_id" = v_row."tenant_id";
-  v_number := 'R-' || v_seq::text;
+  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -1801,9 +1798,8 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(issue_yearly_receipt.tenant::text || ':donation_receipt', 0));
-  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."donation_receipts" x where x."tenant_id" = issue_yearly_receipt.tenant;
-  v_number := 'R-' || v_seq::text;
+  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)
@@ -1973,13 +1969,13 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('donations', 1, 'managed')
+values ('donations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
--- @bsb-block donations@1 managed
+-- @bsb-block donations@2 managed
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2720,9 +2716,8 @@ begin
     select * into v_receipt from "app_private"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':donation_receipt', 0));
-  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "app_private"."donation_receipts" x where x."tenant_id" = v_row."tenant_id";
-  v_number := 'R-' || v_seq::text;
+  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
   insert into "app_private"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -2775,9 +2770,8 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(issue_yearly_receipt.tenant::text || ':donation_receipt', 0));
-  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "app_private"."donation_receipts" x where x."tenant_id" = issue_yearly_receipt.tenant;
-  v_number := 'R-' || v_seq::text;
+  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
   insert into "app_private"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)
@@ -2927,13 +2921,13 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('donations', 1, 'managed')
+values ('donations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
--- @bsb-block donations@1 managed
+-- @bsb-block donations@2 managed
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3672,9 +3666,8 @@ begin
     select * into v_receipt from "better_supabase"."donation_receipts" x where x."id" = v_row."receipt_id";
     return jsonb_build_object('id', v_receipt."id", 'organizationId', v_receipt."tenant_id", 'donorType', v_receipt."donor_type", 'donorId', v_receipt."donor_id", 'sequence', v_receipt."sequence"::text, 'number', v_receipt."number", 'kind', v_receipt."kind", 'year', v_receipt."year", 'amount', v_receipt."amount"::text, 'currency', v_receipt."currency", 'issuedAt', v_receipt."issued_at", 'voidedAt', v_receipt."voided_at", 'voidReason', v_receipt."void_reason");
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_row."tenant_id"::text || ':donation_receipt', 0));
-  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."donation_receipts" x where x."tenant_id" = v_row."tenant_id";
-  v_number := 'R-' || v_seq::text;
+  v_seq := "better_supabase"."next_number"(v_row."tenant_id", 'donation_receipt', now());
+  v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (v_row."tenant_id", v_row."donor_type", v_row."donor_id", v_seq, v_number, 'gift', extract(year from v_row."received_on")::integer,
     v_row."amount", v_row."currency")
@@ -3727,9 +3720,8 @@ begin
   if v_amount <= 0 then
     raise exception 'the donor has no posted gifts in this year and currency' using errcode = '22023', hint = 'DONATION_RECEIPT_EMPTY';
   end if;
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(issue_yearly_receipt.tenant::text || ':donation_receipt', 0));
-  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."donation_receipts" x where x."tenant_id" = issue_yearly_receipt.tenant;
-  v_number := 'R-' || v_seq::text;
+  v_seq := "better_supabase"."next_number"(issue_yearly_receipt.tenant, 'donation_receipt', now());
+  v_number := better_supabase.format_assigned_number('R-{n}', v_seq, now());
   insert into "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "sequence", "number", "kind", "year", "amount", "currency")
   values (issue_yearly_receipt.tenant, issue_yearly_receipt.donor_type, issue_yearly_receipt.donor_id, v_seq, v_number, 'yearly',
     issue_yearly_receipt.year, v_amount, issue_yearly_receipt.currency)
@@ -4057,6 +4049,6 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('donations', 1, 'managed')
+values ('donations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

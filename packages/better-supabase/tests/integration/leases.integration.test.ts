@@ -123,16 +123,6 @@ describe.skipIf(!live)("leases", () => {
 
       await s.as(ada);
 
-      const request = await leases
-        .fileMaintenance({
-          unitId: unit.id,
-          leaseId: draft.id,
-          title: "Leaking tap",
-          priority: "high",
-        })
-        .orThrow();
-
-      expect(request).toMatchObject({ status: "open", priority: "high" });
       expect(await leases.get(draft.id).then(hint)).toBe("LEASE_NOT_FOUND");
       expect(await leases.postDueRent().then(hint)).toBe("LEASES_FORBIDDEN");
 
@@ -150,7 +140,7 @@ describe.skipIf(!live)("leases", () => {
       expect(ended.depositHeld).toEqual(money(0n, "EUR"));
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and (type like 'lease.%' or type like 'maintenance_request.%') order by position",
+        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'lease.%' order by position",
         [tenant],
       );
 
@@ -161,7 +151,6 @@ describe.skipIf(!live)("leases", () => {
         "lease.charged",
         "lease.charged",
         "lease.paid",
-        "maintenance_request.filed",
         "lease.terminated",
       ]);
     } finally {

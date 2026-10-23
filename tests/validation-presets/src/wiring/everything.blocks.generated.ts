@@ -1080,10 +1080,6 @@ export const permissions = {
     send: "mail.send",
     manage: "mail.manage",
   },
-  maintenance_request: {
-    read: "leases.read",
-    write: "leases.maintain",
-  },
   memory: {
     read: "ai.read",
     manage: "ai.admin",
@@ -1576,8 +1572,6 @@ export const blockEvents: Events<BlockEvents> = {
     "mail_message.opened",
     "mail_message.received",
     "mail_message.sent",
-    "maintenance_request.filed",
-    "maintenance_request.updated",
     "marketplace_installation.removed",
     "marketplace_installation.upserted",
     "marketplace_invoice.state_changed",
@@ -2045,8 +2039,6 @@ export const blockEventSchemas = {
   "mail_message.opened": true,
   "mail_message.received": true,
   "mail_message.sent": true,
-  "maintenance_request.filed": true,
-  "maintenance_request.updated": true,
   "marketplace_installation.removed": true,
   "marketplace_installation.upserted": true,
   "marketplace_invoice.state_changed": true,

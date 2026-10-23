@@ -495,7 +495,10 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  v_period := '';
+  v_period := case p_entity
+    when 'donation_receipt' then ''
+    else null
+  end;
   if v_period is null then
     raise exception 'unknown number sequence' using errcode = '22023', hint = 'NUMBER_ENTITY_UNKNOWN';
   end if;
@@ -547,7 +550,10 @@ as $$
 declare
   v_format text;
 begin
-  v_format := null;
+  v_format := case p_entity
+    when 'donation_receipt' then 'R-{n}'
+    else null
+  end;
   return v_format;
 end;
 $$;
@@ -589,8 +595,11 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', p_tenant, 'number_sequences.assign'), false)) then
     raise exception 'not allowed to number documents in this tenant' using errcode = '42501', hint = 'NUMBER_FORBIDDEN';
   end if;
-  v_format := '{n}';
-  v_period := '';
+  v_format := "better_supabase"."number_format"(p_tenant, p_entity);
+  v_period := case p_entity
+    when 'donation_receipt' then ''
+    else null
+  end;
   if v_format is null or v_period is null then
     raise exception 'unknown number sequence' using errcode = '22023', hint = 'NUMBER_ENTITY_UNKNOWN';
   end if;

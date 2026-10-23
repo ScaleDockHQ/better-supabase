@@ -1039,9 +1039,9 @@ begin
   loop
     continue when not v_line.tracked;
     select loc."id" into v_location
-    from "better_supabase"."inventory_locations" loc
+    from "better_supabase"."asset_locations" loc
     left join "better_supabase"."stock_levels" s on s."location_id" = loc."id" and s."variant_id" = v_line.variant
-    where loc."tenant_id" = v_cart.tenant and loc."active" and (place_order.location is null or loc."id" = place_order.location)
+    where loc."tenant_id" = v_cart.tenant and (loc."archived_at" is null) and (place_order.location is null or loc."id" = place_order.location)
     order by (coalesce(s."available", 0) >= v_line.quantity) desc, coalesce(s."available", 0) desc, loc."code"
     limit 1;
     if v_location is null then

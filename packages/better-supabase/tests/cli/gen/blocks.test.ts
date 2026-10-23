@@ -187,6 +187,10 @@ describe("blocks.generated.ts", () => {
     expect(contents).toContain(
       "export type Ticket<F extends object = Record<never, never>> = RenamedType<DefaultWorkItem<F>, TicketsRenames>;",
     );
+    expect(contents).toContain(
+      "export type TicketsEvents = RenamedEvents<DefaultTasksEvents, TicketsRenames>;",
+    );
+    expect(contents).toMatch(/BlockEvents = .*TasksEvents & TicketsEvents/);
   });
 
   it("leaves out the block's own entry when only another name installs it", () => {

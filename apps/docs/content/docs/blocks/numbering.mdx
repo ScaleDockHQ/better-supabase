@@ -19,6 +19,13 @@ import { createNumbering } from "better-supabase/blocks/numbering";
 
 Set `options.entities` to install a trigger. `period` is `none`, `year`, `month`, `format` or `fiscalYearStartMonth`. `format` uses `{yyyy}`, `{mm}` and `{n:5}`. `assignOn` is a restricted expression such as `new.status = 'sent'`, so a draft stays unnumbered until it is issued (EN 16931). It takes letters, digits, `_`, `.`, quoted strings and identifiers, `=`, `<`, `>`, `!`, `-` and parentheses. A comma may only separate the string or number literals of an `in` or `not in` list, as in `new.status in ('sent', 'overdue')`, so the expression cannot call a function with several arguments. Once a number is set it cannot change (`NUMBER_IMMUTABLE`). `gen` makes `column` optional on insert, so the typed client and the insert validators accept a row without it.
 
+## Sequences other blocks contribute
+
+A block that numbers its own rows contributes a default entry: donations
+adds `donation_receipt` with the format `R-{n}`. The sequence works without
+any `options.entities` entry, and an entry under the same name replaces the
+contributed one, so you change the format without touching the other block.
+
 ## Period from the row
 
 By default the trigger takes the period and the `{yyyy}`, `{mm}` and `{dd}` tokens from the time of assignment. Set `periodColumn` to a `date`, `timestamp` or `timestamptz` column of the table, such as an invoice's issue date, and the trigger reads them from that column instead, in UTC. An invoice issued on 31 December and sent on 2 January then gets a number of the old year. A row whose column is still null falls back to the time of assignment. `sync_number_sequences` reads the same column (see [existing numbers](#existing-numbers)).

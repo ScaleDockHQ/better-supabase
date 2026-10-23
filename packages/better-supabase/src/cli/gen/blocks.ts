@@ -452,7 +452,13 @@ function renamedBlockLines(
         " * @public",
         " */",
         `export const ${renamed} = renameBlock(${local}, blockConfig[${key}].names);`,
-        ...renamedTypeLines(types, names, localOf, alias, exported),
+        ...renamedTypeLines(types, names, localOf, alias, exported, {
+          block: eventsType,
+          instance:
+            instance === manifest.name
+              ? undefined
+              : `${pascal(camelOf(instance))}Events`,
+        }),
       );
     }
   }
@@ -469,7 +475,8 @@ function renamedBlockLines(
 
 /**
  * An alias for each of `types` under the name an instance's entity renames give
- * it, skipping a name another instance already exports.
+ * it, skipping a name another instance already exports. A renamed instance's
+ * block-named events type takes the instance's name (`MaintenanceEvents`).
  */
 function renamedTypeLines(
   types: readonly { readonly name: string; readonly fields?: boolean }[],
@@ -477,9 +484,17 @@ function renamedTypeLines(
   localOf: (name: string) => string,
   alias: string,
   exported: Set<string>,
+  events: {
+    readonly block: string | undefined;
+    readonly instance: string | undefined;
+  },
 ): string[] {
   return types.flatMap((type) => {
-    const name = names.rename(type.name);
+    const name =
+      type.name === events.block && events.instance !== undefined
+        ? events.instance
+        : names.rename(type.name);
+
     const source = localOf(type.name);
 
     if (exported.has(name)) {

@@ -29,8 +29,8 @@ describe("donations module", () => {
     );
   });
 
-  it("numbers receipts per organization, from numbering when configured", () => {
-    expect(sqlOf(["donations"])).toContain("'R-' || v_seq::text");
+  it("numbers receipts with numbering, R-{n} unless the app configures it", () => {
+    expect(sqlOf(["donations"])).toContain("format_assigned_number('R-{n}'");
 
     const sequenced = sqlOf(["donations", "numbering"], {
       modules: {

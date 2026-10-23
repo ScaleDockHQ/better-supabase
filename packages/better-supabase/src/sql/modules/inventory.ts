@@ -17,6 +17,7 @@ import {
 import {
   columns,
   locationFunctions,
+  locationsOf,
   reservationFunctions,
   stockFunctions,
   strict,
@@ -116,6 +117,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     locations: {
       name: "inventory_locations",
+      optionalTable: true,
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -223,34 +225,14 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-function tables(ctx: BlockSqlContext, names: InventoryNames): string {
-  if (!ctx.manages) {
-    return "";
-  }
-
-  const catalog = ctx.of("catalog");
-  const variants = `${catalog.table("variants")} (${catalog.col("variants", "id")}) on delete cascade`;
+/** Inventory's own locations table, when stock doesn't live at assets'. */
+function ownLocations(
+  ctx: BlockSqlContext,
+  names: InventoryNames,
+  read: (table: string) => string,
+): string {
   const t = (name: string): string => ctx.table(name);
-
-  const read = (
-    table: string,
-  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
-create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
-using (${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
-
   const l = columns(ctx, "locations");
-  const lv = columns(ctx, "levels");
-  const r = columns(ctx, "reservations");
-  const location = `${t("locations")} (${l("id")}) on delete cascade`;
-  const transfers = ctx.hasTable("transfers") && ctx.hasTable("transferLines");
-
-  const orders =
-    ctx.hasTable("purchaseOrders") && ctx.hasTable("purchaseOrderLines");
-
-  const tr = columns(ctx, "transfers");
-  const tl = columns(ctx, "transferLines");
-  const po = columns(ctx, "purchaseOrders");
-  const pl = columns(ctx, "purchaseOrderLines");
 
   return `
 create table if not exists ${t("locations")} (
@@ -266,7 +248,39 @@ create table if not exists ${t("locations")} (
 );${addExtraColumns(t("locations"), names.extras)}
 ${lockTable(t("locations"), { read: true })}
 ${read("locations")}
+`;
+}
 
+function tables(ctx: BlockSqlContext, names: InventoryNames): string {
+  if (!ctx.manages) {
+    return "";
+  }
+
+  const catalog = ctx.of("catalog");
+  const variants = `${catalog.table("variants")} (${catalog.col("variants", "id")}) on delete cascade`;
+  const t = (name: string): string => ctx.table(name);
+
+  const read = (
+    table: string,
+  ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
+create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
+using (${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
+
+  const loc = locationsOf(ctx);
+  const lv = columns(ctx, "levels");
+  const r = columns(ctx, "reservations");
+  const location = `${loc.table} (${loc.col("id")}) on delete cascade`;
+  const transfers = ctx.hasTable("transfers") && ctx.hasTable("transferLines");
+
+  const orders =
+    ctx.hasTable("purchaseOrders") && ctx.hasTable("purchaseOrderLines");
+
+  const tr = columns(ctx, "transfers");
+  const tl = columns(ctx, "transferLines");
+  const po = columns(ctx, "purchaseOrders");
+  const pl = columns(ctx, "purchaseOrderLines");
+
+  return `${loc.shared ? "" : ownLocations(ctx, names, read)}
 create table if not exists ${t("levels")} (
   ${lv("tenant")} ${ctx.idType} not null,
   ${lv("variant")} uuid not null references ${variants},
@@ -530,7 +544,7 @@ function build(ctx: BlockSqlContext): string {
     read: ctx.permission("read", OPERATIONS["inventory.read"]),
     reserve: ctx.permission("reserve", OPERATIONS["inventory.reserve"]),
     purchase: ctx.permission("purchase", OPERATIONS["inventory.purchase"]),
-    extras: ctx.extraColumns("locations"),
+    extras: ctx.hasTable("locations") ? ctx.extraColumns("locations") : [],
   };
 
   return `${schemaPreamble(ctx)}
@@ -621,14 +635,20 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const REQUIRES = ["memberships", "permissions", "catalog", "ledger"] as const;
+
 export const INVENTORY: BlockSqlDefinition = {
   name: "inventory",
   scopes: ["tenant"],
   title: "Inventory",
   description:
     "Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.",
-  requires: ["memberships", "permissions", "catalog", "ledger"],
-  integrates: ["outbox"],
+  requires: [...REQUIRES],
+  dependencies: (layout) =>
+    layout.modules?.["inventory"]?.tables?.["locations"] === null
+      ? [...REQUIRES, "assets"]
+      : [...REQUIRES],
+  integrates: ["outbox", "assets"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 2,

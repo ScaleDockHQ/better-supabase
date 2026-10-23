@@ -6,7 +6,7 @@ import { leasesEvents } from "./events.ts";
 import { createLeases } from "./leases.ts";
 import { leasesSqlOptions } from "./options.ts";
 import { leasesBinding } from "./record-binding.ts";
-import { leaseInputSchema, maintenanceRequestInputSchema } from "./schemas.ts";
+import { leaseInputSchema } from "./schemas.ts";
 
 /** The `leases` block's manifest (ADR 0029). */
 export const leasesBlock: BlockOf<
@@ -21,10 +21,7 @@ export const leasesBlock: BlockOf<
   sql: ["leases"],
   options: { leases: leasesSqlOptions },
   events: leasesEvents,
-  schemas: {
-    lease: { input: leaseInputSchema },
-    maintenance_request: { input: maintenanceRequestInputSchema },
-  },
+  schemas: { lease: { input: leaseInputSchema } },
   create: createLeases,
   record: leasesBinding,
   category: "commerce",

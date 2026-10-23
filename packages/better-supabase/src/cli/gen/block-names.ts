@@ -198,29 +198,51 @@ function blockEventLists(
   entries: Readonly<Record<string, GeneratedBlock>>,
 ): BlockEventList[] {
   return PRESET_CATALOG.manifests.flatMap((manifest) => {
-    const entry = entries[manifest.name];
     const events = manifest.events;
+    const client = manifest.client;
 
-    if (entry === undefined || events === undefined || !manifest.client) {
+    if (events === undefined || !client) {
       return [];
     }
 
-    const renames = entry.names?.entities ?? [];
-    const names = entityNames(renames);
-    const renamed = names.rename(events.type);
+    const lists = Object.entries(entries)
+      .filter(([key, entry]) => (entry.block ?? key) === manifest.name)
+      .map(([key, entry]): BlockEventList => {
+        const renames = entry.names?.entities ?? [];
+        const names = entityNames(renames);
 
-    return [
-      {
-        // With renames, blocks.generated.ts declares the renamed events type.
-        specifier:
+        // With renames, blocks.generated.ts declares the renamed events type,
+        // under the instance's name for a renamed instance.
+        const type =
           renames.length === 0
-            ? `import type { ${events.type} } from ${q(manifest.client.subpath)};`
-            : "",
-        type: renamed,
-        types: events.types.map((type) => names.rename(type)),
-      },
-    ];
+            ? events.type
+            : key === manifest.name
+              ? names.rename(events.type)
+              : `${pascalOf(key)}Events`;
+
+        return {
+          specifier:
+            renames.length === 0
+              ? `import type { ${events.type} } from ${q(client.subpath)};`
+              : "",
+          type,
+          types: events.types.map((each) => names.rename(each)),
+        };
+      });
+
+    return lists.filter(
+      (list, index) =>
+        lists.findIndex((other) => other.type === list.type) === index,
+    );
   });
+}
+
+function pascalOf(instance: string): string {
+  const camel = instance.replaceAll(/-([a-z0-9])/g, (_, c: string) =>
+    c.toUpperCase(),
+  );
+
+  return camel.charAt(0).toUpperCase() + camel.slice(1);
 }
 
 function eventLines(

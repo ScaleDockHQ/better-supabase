@@ -1390,7 +1390,7 @@ export function createModuleContext(
       }
 
       const indent = options.indent ?? "  ";
-      const target = createModuleContext("notifications", namesOf, source);
+      const target = createModuleContext("notifications", namesOf, shared);
 
       return [
         "v_claims := current_setting('request.jwt.claims', true);",
@@ -1406,7 +1406,7 @@ export function createModuleContext(
         return NOTHING;
       }
 
-      const jobs = createModuleContext("queue", namesOf, source);
+      const jobs = createModuleContext("queue", namesOf, shared);
 
       const delay =
         options.delay === undefined ? "" : `, delay => ${options.delay}`;

@@ -173,9 +173,12 @@ booked.creditsLeft; // 9
 
 `bookWithCredit` books a confirmed booking for the holder, through the
 bookings block's slot check and exclusion constraint, and takes one credit in
-the same transaction. Every credit is a row in `pass_credit_entries`: `-1`
-for a booking and `+1` for a refund, and the pass's `uses` is their running
-total, so `credits(passId)` returns the whole history, newest first. The
+the same transaction. Credits post on the `ledger` block, which the
+`credits` option installs: each pass has an account that takes `-1` for a
+booking and `+1` for a refund against the organization's pool, and the pass's
+`uses` is their running total, so `credits(passId)` returns the whole
+history, newest first. Bind `uses: { ledger: "<instance>" }` to keep credits
+on a ledger instance of their own. The
 holder books with their own pass; a member with `passes.manage` can book for
 them.
 

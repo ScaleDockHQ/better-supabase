@@ -35,7 +35,6 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
       readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
-      readonly "credits": "id" | "tenant" | "pass" | "booking" | "delta" | "reason" | "createdBy" | "createdAt";
     };
     readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
     readonly actions: "read" | "manage" | "checkIn";
@@ -942,14 +941,12 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "leases": "id" | "tenant" | "unit" | "partyType" | "partyId" | "title" | "status" | "startsOn" | "endsOn" | "rent" | "currency" | "frequency" | "deposit" | "depositHold" | "renewedAt" | "terminatedOn" | "terminationReason" | "metadata" | "createdBy" | "createdAt" | "updatedAt";
       readonly "charges": "id" | "tenant" | "lease" | "periodStart" | "periodEnd" | "amount" | "currency" | "transaction" | "createdAt";
-      readonly "maintenance": "id" | "tenant" | "unit" | "lease" | "title" | "description" | "priority" | "status" | "reportedBy" | "assignee" | "resolvedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "activate_lease" | "create_lease" | "file_maintenance_request" | "get_lease" | "list_lease_charges" | "list_leases" | "list_maintenance_requests" | "post_due_rent" | "record_rent_payment" | "renew_lease" | "terminate_lease" | "update_maintenance_request";
+    readonly functions: "activate_lease" | "create_lease" | "get_lease" | "list_lease_charges" | "list_leases" | "post_due_rent" | "record_rent_payment" | "renew_lease" | "terminate_lease";
     readonly actions: "read" | "manage" | "maintain";
     readonly hooks: never;
     readonly entities: {
       readonly "lease": "id" | "tenant_id" | "unit_id" | "party_type" | "party_id" | "title" | "status" | "starts_on" | "ends_on" | "rent" | "currency" | "frequency" | "deposit" | "deposit_hold_id" | "renewed_at" | "terminated_on" | "termination_reason" | "metadata" | "created_by" | "created_at" | "updated_at";
-      readonly "maintenance_request": "id" | "tenant_id" | "unit_id" | "lease_id" | "title" | "description" | "priority" | "status" | "reported_by" | "assignee_id" | "resolved_at" | "created_at" | "updated_at";
     };
     readonly primary: "lease";
   };

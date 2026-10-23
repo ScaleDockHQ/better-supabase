@@ -40,16 +40,6 @@ export interface LeasePaidEventData {
   readonly currency: string;
 }
 
-/** A maintenance request as its events carry it. */
-export interface MaintenanceRequestEventData {
-  readonly organizationId: string;
-  readonly id: string;
-  readonly unitId: string;
-  readonly leaseId: string | null;
-  readonly priority: "low" | "normal" | "high" | "urgent";
-  readonly status: "open" | "in_progress" | "resolved" | "cancelled";
-}
-
 /** The events of the `leases` block: type to data. */
 export type LeasesEvents = {
   readonly "lease.created": LeaseEventData;
@@ -58,8 +48,6 @@ export type LeasesEvents = {
   readonly "lease.terminated": LeaseEventData;
   readonly "lease.charged": LeaseChargedEventData;
   readonly "lease.paid": LeasePaidEventData;
-  readonly "maintenance_request.filed": MaintenanceRequestEventData;
-  readonly "maintenance_request.updated": MaintenanceRequestEventData;
 };
 
 /** The `leases` block's event types, for its manifest and `onBlockEvent`. */
@@ -70,6 +58,4 @@ export const leasesEvents: Events<LeasesEvents> = defineEvents({
   "lease.terminated": event<LeaseEventData>(),
   "lease.charged": event<LeaseChargedEventData>(),
   "lease.paid": event<LeasePaidEventData>(),
-  "maintenance_request.filed": event<MaintenanceRequestEventData>(),
-  "maintenance_request.updated": event<MaintenanceRequestEventData>(),
 });

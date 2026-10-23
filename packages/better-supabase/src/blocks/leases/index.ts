@@ -9,12 +9,6 @@ export {
   type LeasesOptions,
   type LeaseStatus,
   type LeaseTermination,
-  type MaintenanceListOptions,
-  type MaintenancePriority,
-  type MaintenanceRequest,
-  type MaintenanceRequestInput,
-  type MaintenanceStatus,
-  type MaintenanceUpdate,
   type PostDueRentOptions,
   type RentFrequency,
   type RentPayment,
@@ -44,7 +38,7 @@ export { leasesBlock } from "./manifest.ts";
 
 export { leasesBinding } from "./record-binding.ts";
 
-export { leaseInputSchema, maintenanceRequestInputSchema } from "./schemas.ts";
+export { leaseInputSchema } from "./schemas.ts";
 
 export { leasesEvents } from "./events.ts";
 
@@ -53,5 +47,4 @@ export type {
   LeaseEventData,
   LeasePaidEventData,
   LeasesEvents,
-  MaintenanceRequestEventData,
 } from "./events.ts";

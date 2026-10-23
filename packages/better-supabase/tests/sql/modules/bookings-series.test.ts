@@ -89,24 +89,29 @@ describe("passes credits option", () => {
 
   it("adds nothing while it is off or without bookings", () => {
     expect(sqlOf("admission-passes", modules)).not.toContain(
-      "pass_credit_entries",
+      "book_with_credit",
     );
     expect(
       sqlOf("admission-passes", ["organizations", "admission-passes"], {
         modules: { "admission-passes": { options: { credits: true } } },
       }),
-    ).not.toContain("pass_credit_entries");
+    ).not.toContain("book_with_credit");
   });
 
-  it("adds the ledger, its indexes, the refund trigger and the functions", () => {
-    const sql = sqlOf("admission-passes", modules, CREDITS);
-    expect(sql).toContain(
-      `create table if not exists "better_supabase"."pass_credit_entries"`,
+  it("installs the ledger along with the credits", () => {
+    const files = renderBlocks(modules, CREDITS).map((file) => file.module);
+    expect(files).toContain("ledger");
+    expect(renderBlocks(modules).map((file) => file.module)).not.toContain(
+      "ledger",
     );
+  });
 
-    for (const index of ["pass_idx", "booking_idx", "once_idx"]) {
-      expect(sql).toContain(`pass_credit_entries_${index}`);
-    }
+  it("posts credits on the ledger, with the refund trigger and the functions", () => {
+    const sql = sqlOf("admission-passes", modules, CREDITS);
+    expect(sql).not.toContain("pass_credit_entries");
+    expect(sql).toContain(`"better_supabase"."ledger_post"(`);
+    expect(sql).toContain("'pass-credit:' || ");
+    expect(sql).toContain(`"passes_credit_refund"`);
 
     expect(sql).toContain(
       `after update of "status" on "better_supabase"."bookings"`,

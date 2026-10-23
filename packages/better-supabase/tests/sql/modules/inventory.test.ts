@@ -13,6 +13,29 @@ const sqlOf = (module: string, layout: BlockSqlLayout = {}): string =>
     .join("\n");
 
 describe("inventory module", () => {
+  it("keeps stock at the assets locations when its own table is off", () => {
+    const layout: BlockSqlLayout = {
+      modules: { inventory: { tables: { locations: null } } },
+    };
+
+    const sql = renderBlocks(NAMES, layout)
+      .filter((file) => file.module === "inventory")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).not.toContain("inventory_locations");
+    expect(sql).toContain(
+      `references "better_supabase"."asset_locations" ("id") on delete cascade`,
+    );
+    expect(sql).toContain(`("archived_at" is null)`);
+    expect(sql).toContain(
+      `"archived_at" = case when coalesce(set_location_active.active, true) then null`,
+    );
+    expect(
+      renderBlocks(NAMES, layout).some((file) => file.module === "assets"),
+    ).toBe(true);
+  });
+
   it("references catalog variants and derives available stock", () => {
     const sql = sqlOf("inventory");
     expect(sql).toContain(
