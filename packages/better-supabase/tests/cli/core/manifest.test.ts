@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
+import { globSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { CommandEffect } from "../../../src/cli/core/manifest.ts";
@@ -12,7 +13,26 @@ import {
 } from "../../../src/cli/core/manifest.ts";
 import { commandArgs } from "../../../src/cli/core/parse.ts";
 
-const DOCS = new URL("../../../../../apps/docs/content/", import.meta.url);
+const DOCS = fileURLToPath(
+  new URL("../../../../../apps/docs/content/docs/", import.meta.url),
+);
+
+/**
+ * A docs URL mapped to its file, with sidebar route groups left out of the
+ * slug.
+ */
+const PAGE_FILES = new Map(
+  globSync("**/*.mdx", { cwd: DOCS }).map((file) => {
+    const slug = file
+      .split("/")
+      .filter((part) => !/^\(.+\)$/u.test(part))
+      .join("/")
+      .replace(/\.mdx$/u, "")
+      .replace(/\/index$/u, "");
+
+    return [`docs/${slug}`, file] as const;
+  }),
+);
 
 const { loaders } = builtinCommands();
 
@@ -63,9 +83,8 @@ describe("command manifest", () => {
       const docs = findSpec(path.split(" "))?.docs ?? "";
       const [page = "", anchor] = docs.replace(/^\//, "").split("#");
 
-      const file = [`${page}.mdx`, `${page}/index.mdx`]
-        .map((name) => new URL(name, DOCS))
-        .find((url) => existsSync(url));
+      const relative = PAGE_FILES.get(page);
+      const file = relative === undefined ? undefined : `${DOCS}${relative}`;
 
       const headings = file ? [...anchors(readFileSync(file, "utf-8"))] : [];
 
