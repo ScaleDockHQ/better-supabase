@@ -74,42 +74,20 @@ function markdownFiles(dir: string, extension: string): string[] {
   );
 }
 
-/**
- * The imports in the README's subpath and blocks tables: every cell that starts
- * with a `better-supabase` import. A cell may group entries: `` `/edge` `` is
- * relative to the cell's first import, and `plugins/*` covers every plugin.
- */
-function readmeImports(readme: string): string[] {
-  return readme.split("\n").flatMap((line) => {
-    if (!line.startsWith("|")) {
-      return [];
-    }
+/** The repo README is the npm README plus the repository sections. */
+function readmeBody(): string[] {
+  const npm = readFileSync(join(library, "README.md"), "utf-8").trim();
+  const repo = readFileSync(join(root, "README.md"), "utf-8");
 
-    return line
-      .split("|")
-      .map((cell) => cell.trim())
-      .filter((cell) => cell.startsWith("`better-supabase"))
-      .flatMap((cell) =>
-        [...cell.matchAll(/`([^`]+)`/gu)].map((match) => match[1] ?? ""),
-      )
-      .map((name) => (name.startsWith("/") ? `better-supabase${name}` : name));
-  });
-}
-
-function inTable(entry: string, imports: readonly string[]): boolean {
-  return imports.some((name) =>
-    name.endsWith("/*") ? entry.startsWith(name.slice(0, -1)) : name === entry,
-  );
+  return repo.startsWith(npm)
+    ? []
+    : ["README.md does not start with packages/better-supabase/README.md"];
 }
 
 function subpaths(): string[] {
   const { exports: exportsMap } = readJson(
     PackageExports,
     join(library, "package.json"),
-  );
-
-  const imports = readmeImports(
-    readFileSync(join(library, "README.md"), "utf-8"),
   );
 
   const pages = markdownFiles(docs, ".mdx").map((file) =>
@@ -125,12 +103,6 @@ function subpaths(): string[] {
   return entries.flatMap((entry) => {
     const quoted = `"${entry}"`;
     const problems: string[] = [];
-
-    if (!inTable(entry, imports)) {
-      problems.push(
-        `${entry} is missing from the README subpath and blocks tables`,
-      );
-    }
 
     if (!pages.some((page) => page.includes(quoted))) {
       problems.push(`no docs page imports from ${quoted}`);
@@ -265,6 +237,35 @@ function naming(): string[] {
       return problems;
     }),
   );
+}
+
+/**
+ * Terms the 0.15 docs retired. Migration guides and the changelog may still
+ * name them, because those pages describe the old API.
+ */
+const REMOVED_TERMS: readonly (readonly [RegExp, string])[] = [
+  [/foundation modules?/giu, '"foundation module" (now a core block)'],
+  [/blockRouter/gu, "`blockRouter` (now `defineApi`)"],
+  [/scaffold screens/giu, '"scaffold screens" (now registry items)'],
+];
+
+const TERM_HISTORY = ["migration/", "changelog.mdx"];
+
+function removedTerms(): string[] {
+  return globSync("apps/docs/content/docs/**/*.mdx", { cwd: root })
+    .filter(
+      (file) => !TERM_HISTORY.some((page) => docsPath(file).includes(page)),
+    )
+    .flatMap((file) =>
+      readFileSync(join(root, file), "utf-8")
+        .split("\n")
+        .flatMap((text, index) =>
+          REMOVED_TERMS.filter(([pattern]) => pattern.test(text)).map(
+            ([, name]) =>
+              `${file}:${String(index + 1)} uses the removed term ${name}`,
+          ),
+        ),
+    );
 }
 
 /** Names and paths the Naming page retired, with what replaced them. */
@@ -473,7 +474,9 @@ const problems = [
   ...metaFiles(docs),
   ...naming(),
   ...retiredNames(),
+  ...removedTerms(),
   ...blockGroups(),
+  ...readmeBody(),
 ];
 
 for (const problem of problems) {
