@@ -472,8 +472,7 @@ export default defineConfig({
     "time-tracking": {},
     invoices: {},
     catalog: { names: { product: { url: "/shop" } } },
-    // Stock lives at the assets block's locations.
-    inventory: { tables: { locations: null } },
+    inventory: {},
     // The kitchen display and order board under /shop/kitchen.
     orders: { options: { kitchen: true } },
     promotions: {},
