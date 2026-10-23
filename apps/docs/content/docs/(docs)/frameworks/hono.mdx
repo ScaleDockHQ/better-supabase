@@ -276,3 +276,21 @@ await app.request("/api/customers", {
   headers: { authorization: `Bearer ${token}` },
 });
 ```
+
+## Session snapshot
+
+`bsb.middleware()` sets `c.var.snapshot` to the verified user, or `null`.
+`bsb.contextFromSession(c.var.snapshot)` builds a context from it with no
+second verification and no header read, for work that runs outside the
+handler's own context:
+
+```ts
+app.get("/notes", async (c) => {
+  const { db } = await bsb.contextFromSession(c.var.snapshot);
+  return c.json(await db.notes.list().orThrow());
+});
+```
+
+A snapshot holds the access token: never return it in a response. A copy of
+it gets the `invalid` context, so pass plain values such as the user id
+onward instead.

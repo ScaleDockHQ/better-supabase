@@ -53,3 +53,21 @@ request middleware open (`allow: ["user", "anon"]`).
 
 The bridge makes the request body readable twice, so an entry that reads it
 and the server function both see it.
+
+## Session snapshot
+
+The helpers from `createTanStackStart(betterSupabase)` return `snapshot` from
+`bsb.require(context)`. `bsb.contextFromSession(snapshot)` builds another
+context from it with no second verification, so two loaders of one request
+verify the token once:
+
+```ts
+const { snapshot } = await bsb.require(context);
+const { db } = await bsb.contextFromSession(snapshot);
+```
+
+A snapshot holds the access token: never return it in a response. A copy
+of it (a spread, `structuredClone`, a serialized loader result) gets the
+`invalid` context, so pass plain values such as the user id onward instead.
+Prefetches never refresh the session, so parallel prefetches never race on
+the refresh token.

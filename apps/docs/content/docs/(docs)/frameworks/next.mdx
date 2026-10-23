@@ -50,8 +50,20 @@ export const proxy = (request: NextRequest) =>
 
 To combine the proxy with next-intl or other middleware, use `before` and
 `after` ([composition](/docs/auth/middleware#nextjs-proxy-composition)).
-`serverTiming: true` adds a `Server-Timing` header with the verify and proxy
-durations.
+`serverTiming: true` adds a `Server-Timing` header: `bsb-proxy` (the whole
+proxy), `bsb-auth` (resolving the session), and `bsb-parse`, `bsb-verify`,
+`bsb-refresh` and `bsb-ended` for the phases that ran. A page load with a
+valid token shows no `bsb-refresh` or `bsb-ended`: it made no Auth call.
+
+A token is refreshed only when it expires within `refreshSkewSeconds`
+(`auth.leeway`, else 60). Outside that window the proxy parses the cookie
+and verifies the token locally, with no fetch. After a refresh it stores the
+new session in the [session memo](/docs/frameworks/next-islands), so the
+render that follows doesn't verify it again. When two requests race to
+rotate one refresh token, Auth answers the loser with
+`refresh_token_already_used`. The proxy treats that as `raced`: it keeps the
+cookies the winner set and keeps the user signed in while the old token is
+still valid, instead of signing them out.
 
 A prefetch never refreshes, so a session whose token expired reaches
 `protect` as `{ kind: "anon", reason: "expired" }`. `expiredPrefetch: "render"`
@@ -203,7 +215,10 @@ token was issued, such as changing a password or deleting an account. The
 [encoding](/docs/auth/sessions#encoding).
 
 With `cacheComponents` enabled, see [Cache Components](/docs/frameworks/next-cache-components)
-for instant navigations and role-aware menus.
+for instant navigations and role-aware menus, and the
+[island pattern](/docs/frameworks/next-islands) for pages with many private
+Suspense islands. Every scope of one request shares a single verification
+through `bsb.getRequestSession()`.
 
 ## Route handlers
 
