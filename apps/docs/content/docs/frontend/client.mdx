@@ -41,14 +41,14 @@ import { blockConfig } from "./blocks.generated";
 export const bsb = createClient(betterSupabase, {
   env,
   blocks: blockConfig,
-  tenant: () => currentOrganizationId(),
+  organization: () => currentOrganizationId(),
 });
 ```
 
-Without `tenant`, the hooks use the session's tenant claim
-(`config.auth.organization.claim`). Pass a function for a tenant the user picks in the
-UI; it runs on every call. While there is no tenant, the hooks wait instead
-of calling the database.
+Without `organization`, `db` and the hooks use the session's organization
+claim (`config.auth.organization.claim`). Pass a function for an organization
+the user picks in the UI; it runs on every call. While there is none, the
+hooks wait instead of calling the database.
 
 ## Storage
 

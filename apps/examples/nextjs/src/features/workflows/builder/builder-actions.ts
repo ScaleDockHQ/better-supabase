@@ -7,7 +7,6 @@ import * as v from "valibot";
 import { resumeHook } from "workflow/api";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import { builderFor } from "./builder-server";
@@ -54,7 +53,7 @@ export const createDefinition = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.edit"),
   },
   async ({ name }, { tenant, supabase }) => {
@@ -95,7 +94,7 @@ export const createDefinition = bsb.action(
 export const saveDraft = bsb.action(
   {
     input: v.object({ definition: Id, graph: Graph }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.edit"),
   },
   async ({ definition, graph }, { supabase }) => {
@@ -113,7 +112,7 @@ export const saveDraft = bsb.action(
 export const publishGraph = bsb.action(
   {
     input: v.object({ definition: Id, graph: Graph }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.publish"),
   },
   async ({ definition, graph }, { supabase }) => {
@@ -142,7 +141,7 @@ export const runDefinition = bsb.action(
       definition: Id,
       text: v.optional(v.pipe(v.string(), v.maxLength(20_000))),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.run"),
   },
   async ({ definition, text }, { auth, supabase }) => {
@@ -168,7 +167,7 @@ export const saveTrigger = bsb.action(
       cron: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(100))),
       event: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(200))),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.admin"),
   },
   async ({ definition, kind, cron, event }, { tenant, supabase }) => {
@@ -204,7 +203,7 @@ export const saveTrigger = bsb.action(
 export const removeTrigger = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.admin"),
   },
   async ({ id }, { supabase }) => {
@@ -224,7 +223,7 @@ export const removeTrigger = bsb.action(
 export const rotateWebhookToken = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.admin"),
   },
   async ({ id }, { supabase }) => builderFor(supabase).triggers.rotateToken(id),
@@ -240,7 +239,7 @@ export const createCredential = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
       secret: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4000)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.admin"),
   },
   async ({ name, secret }, { tenant, supabase }) => {
@@ -268,7 +267,7 @@ export const createCredential = bsb.action(
 export const revokeCredential = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.admin"),
   },
   async ({ id }, { supabase }) => {
@@ -292,15 +291,15 @@ export const revokeCredential = bsb.action(
 export const decideNode = bsb.action(
   {
     input: v.object({ run: Id, node: Id, approved: v.boolean() }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.run"),
   },
-  async ({ run, node, approved }, { tenant, auth, supabase }) => {
+  async ({ run, node, approved }, { tenant, auth, db }) => {
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to decide"));
     }
 
-    const found = await blocks(supabase).workflows.runs.get(run);
+    const found = await db.workflows.runs.get(run);
 
     if (!found.ok) {
       return found;

@@ -19,7 +19,7 @@ const Name = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200));
 export const createTemplate = bsb.action(
   {
     input: v.object({ name: Name, ...CustomerTemplateBody.entries }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "templates.manage"),
   },
   async ({ name, status }, { tenant, supabase, auth }) => {
@@ -57,7 +57,7 @@ export const createTemplate = bsb.action(
 export const applyTemplate = bsb.action(
   {
     input: v.object({ templateId: v.pipe(v.string(), v.uuid()), name: Name }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) =>
       can(session, "templates.apply") && can(session, "customers.write"),
   },

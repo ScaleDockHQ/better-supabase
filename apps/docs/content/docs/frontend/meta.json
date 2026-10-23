@@ -2,6 +2,7 @@
   "title": "Frontend",
   "pages": [
     "client",
+    "data-hooks",
     "react-native",
     "react",
     "block-controllers",

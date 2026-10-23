@@ -218,7 +218,7 @@ export function createSolidStart<
           throw refusalResponse(caller, event.request, options, expose);
         }
 
-        // SAFETY: requireTenant refused a missing tenant.
+        // SAFETY: requireOrganization refused a missing tenant.
         return { ...scope, ...caller } as never;
       },
 
@@ -232,7 +232,7 @@ export function createSolidStart<
             input,
             scope.tenant,
             // SAFETY: parsed is the validated input, or the raw input when the
-            // action has no schema; requireTenant refused a missing tenant.
+            // action has no schema; requireOrganization refused a missing tenant.
             (parsed, caller) =>
               fn(parsed as never, { ...scope, ...caller } as never),
             options.authorizer,

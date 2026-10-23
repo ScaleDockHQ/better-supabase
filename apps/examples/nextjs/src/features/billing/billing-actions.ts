@@ -8,7 +8,6 @@ import * as v from "valibot";
 
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import type { PlanOption } from "./billing-queries";
@@ -18,11 +17,11 @@ import { getPlans } from "./billing-queries";
 /** Completes the "Review your plan" onboarding step. */
 export const markPlanReviewed = bsb.action(
   {
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "onboarding.complete"),
   },
-  async (_input, { tenant: organizationId, supabase }) => {
-    const completed = await blocks(supabase).onboarding.complete(
+  async (_input, { tenant: organizationId, db }) => {
+    const completed = await db.onboarding.complete(
       gettingStarted,
       "plan",
       organizationId,
@@ -40,7 +39,10 @@ export const markPlanReviewed = bsb.action(
 
 /** The plan catalog and the organization's plan, for `usePlanPicker`. */
 export const loadPlanCatalog = bsb.action(
-  { requireTenant: true, authorize: (session) => can(session, "billing.read") },
+  {
+    requireOrganization: true,
+    authorize: (session) => can(session, "billing.read"),
+  },
   async (_input, { tenant: organizationId, db }) => {
     const plans = await getPlans();
 
@@ -63,7 +65,7 @@ export const loadPlanCatalog = bsb.action(
 export const startCheckout = bsb.action(
   {
     input: v.object({ plan: v.string() }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "billing.manage"),
   },
   async ({ plan }): Promise<Result<{ url: string | undefined }>> => {

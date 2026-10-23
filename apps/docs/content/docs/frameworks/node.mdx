@@ -66,11 +66,11 @@ app.use(problemErrorHandler());
 ```
 
 Guards take the same options as every adapter: `allow`, `aal`, `scopes`,
-`roles` and `roleClaim`, `requireTenant`, `permission`, `authorize`, and the
+`roles` and `roleClaim`, `requireOrganization`, `permission`, `authorize`, and the
 `signIn` and `mfa` redirects for browser routes.
 
 A `permission` needs an [authorizer](/docs/extending/authorizers), passed on
-the guard. It is checked after `requireTenant` and `roles` and before
+the guard. It is checked after `requireOrganization` and `roles` and before
 `authorize`, with `{ type: "route" }` as the resource. A guard with a
 `permission` and no `authorizer` refuses every caller:
 

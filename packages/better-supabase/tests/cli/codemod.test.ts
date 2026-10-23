@@ -477,6 +477,17 @@ const ref: RecordRef = { type: "customer", id };
     expect(result.text).not.toContain("generateFeatures");
   });
 
+  it("renames requireTenant to requireOrganization", () => {
+    const source = `import { bsb } from "@/lib/supabase";
+
+export const run = bsb.action(handler, { requireTenant: true });
+`;
+
+    expect(applyCodemod(v015, source).text).toContain(
+      "{ requireOrganization: true }",
+    );
+  });
+
   it("renames the record section exports to record bindings", () => {
     const source = `import { defineSection, loadSections } from "better-supabase/records";
 import { commentsSection } from "better-supabase/blocks/comments";

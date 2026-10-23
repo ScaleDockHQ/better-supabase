@@ -278,7 +278,7 @@ export interface BetterOrpc<
    *
    * ```ts
    * export const list = bsb
-   *   .authed({ requireTenant: true })
+   *   .authed({ requireOrganization: true })
    *   .handler(({ context }) => bsb.unwrap(context.db.customers.list()));
    * ```
    */
@@ -325,15 +325,12 @@ export interface BetterOrpc<
    * method that takes more than one argument takes them as a tuple:
    *
    * ```ts
-   * const invoices = bsb.blockRouter(
-   *   ({ supabase }) => blocks(supabase).invoices,
-   *   {
-   *     name: "invoices",
-   *     methods: ["create", "issue"],
-   *     schemas: invoiceInputSchemas,
-   *     meta: openapi,
-   *   },
-   * );
+   * const invoices = bsb.blockRouter(({ db }) => db.invoices, {
+   *   name: "invoices",
+   *   methods: ["create", "issue"],
+   *   schemas: invoiceInputSchemas,
+   *   meta: openapi,
+   * });
    * export const router = os.router({ invoices: invoices.procedures });
    * ```
    */

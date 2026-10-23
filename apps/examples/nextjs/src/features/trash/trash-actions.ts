@@ -4,7 +4,6 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -14,11 +13,11 @@ const Id = v.pipe(v.string(), v.uuid());
 export const restoreTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "trash.restore"),
   },
-  async ({ id }, { supabase, auth }) => {
-    const restored = await blocks(supabase).trash.restore(id);
+  async ({ id }, { db, auth }) => {
+    const restored = await db.trash.restore(id);
 
     if (!restored.ok) {
       return restored;
@@ -34,11 +33,11 @@ export const restoreTrashItem = bsb.action(
 export const purgeTrashItem = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "trash.manage"),
   },
-  async ({ id }, { supabase, auth }) => {
-    const purged = await blocks(supabase).trash.purge(id);
+  async ({ id }, { db, auth }) => {
+    const purged = await db.trash.purge(id);
 
     if (!purged.ok) {
       return purged;

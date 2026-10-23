@@ -375,8 +375,8 @@ a document, an anchor, mentions or files). Every action returns a `Result`
 and keeps a failure in `error`. The hook calls the schema and function names
 in the `blocks` config you pass to the browser client
 (`createClient(betterSupabase, { blocks: blockConfig })`) and acts in the
-client's tenant: the client's `tenant` option, then the session's tenant
-claim. The thread waits while there is no tenant.
+client's organization: the client's `organization` option, then the
+session's organization claim. The thread waits while there is no tenant.
 
 `createCommentsController` from `better-supabase/blocks/comments` is the same
 logic without React, and `better-supabase/blocks/comments/vue`, `/svelte` and

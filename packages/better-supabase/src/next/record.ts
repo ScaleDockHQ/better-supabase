@@ -62,7 +62,7 @@ export interface RecordServerContext {
 export interface RecordServerHost {
   context(): Promise<RecordServerContext>;
   action<S extends StandardSchemaV1, T>(
-    options: { readonly input: S; readonly requireTenant: true },
+    options: { readonly input: S; readonly requireOrganization: true },
     fn: (
       input: StandardSchemaV1.InferOutput<S>,
       ctx: RecordServerContext & { readonly tenant: string },
@@ -248,7 +248,7 @@ export function recordServer<
     }
 
     return bsb.action(
-      { input: recordWriteInput(found.write.input), requireTenant: true },
+      { input: recordWriteInput(found.write.input), requireOrganization: true },
       async ({ id, input }, ctx): Promise<Result<unknown>> => {
         const subject = recordSubject(feature, id);
 

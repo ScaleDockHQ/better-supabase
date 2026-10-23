@@ -6,7 +6,6 @@ import { moneyToJson } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -44,15 +43,15 @@ export interface RenewalRow {
 
 async function loadRenewals(): Promise<readonly RenewalRow[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const contracts = await blocks(supabase)
-    .contracts.list(tenant, { status: "active", pageSize: 100 })
+  const contracts = await db.contracts
+    .list(tenant, { status: "active", pageSize: 100 })
     .orThrow();
 
   const today = Date.parse(new Date().toISOString().slice(0, 10));
@@ -97,14 +96,14 @@ export interface Posture {
 
 async function loadPosture(): Promise<Posture | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { controls } = blocks(supabase);
+  const { compliance: controls } = db;
 
   const [frameworks, tasks] = await Promise.all([
     controls.posture(tenant).orThrow(),

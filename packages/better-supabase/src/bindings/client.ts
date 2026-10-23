@@ -26,6 +26,7 @@ import type {
   LiveCountSeed,
   LiveSource,
 } from "../realtime/live.ts";
+import type { DataEngine } from "./data-engine.ts";
 
 import { hasAuthModule } from "../core/auth-module.ts";
 import { dbError } from "../core/errors.ts";
@@ -46,6 +47,8 @@ export interface ClientLike {
   readonly blocks?: GeneratedBlocks;
   /** The tenant block hooks act in; default the session's tenant claim. */
   readonly tenant?: BlockTenant;
+  /** Where the data hooks cache their reads; default one in memory. */
+  readonly engine?: DataEngine;
 }
 
 /** A value that changes, read with `current()` and watched with `subscribe()`. */

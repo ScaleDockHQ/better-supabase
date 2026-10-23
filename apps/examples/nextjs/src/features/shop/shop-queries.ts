@@ -13,7 +13,6 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import { SHOP_CURRENCY } from "./shop-currency";
@@ -78,7 +77,7 @@ export interface Product {
  */
 async function loadProducts(): Promise<readonly Product[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -87,10 +86,7 @@ async function loadProducts(): Promise<readonly Product[] | null> {
 
   const rows = v.parse(
     v.array(ProductRow),
-    await blocks(supabase).call("shop_products", {
-      tenant,
-      currency: SHOP_CURRENCY,
-    }),
+    await db.$api("shop_products", { tenant, currency: SHOP_CURRENCY }),
   );
 
   return rows.map(({ amount, ...row }) => ({
@@ -134,17 +130,14 @@ export type StockLevels = v.InferOutput<typeof StockLevels>;
  */
 async function loadStockLevels(): Promise<StockLevels | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  return v.parse(
-    StockLevels,
-    await blocks(supabase).call("shop_stock_levels", { tenant }),
-  );
+  return v.parse(StockLevels, await db.$api("shop_stock_levels", { tenant }));
 }
 
 export function getStockLevels(): Promise<Loaded<StockLevels>> {
@@ -197,17 +190,14 @@ export interface Orders {
 /** The organization's placed orders and the caller's open carts (draft orders). */
 async function loadOrders(): Promise<Orders | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const list = v.parse(
-    OrderList,
-    await blocks(supabase).call("shop_orders", { tenant }),
-  );
+  const list = v.parse(OrderList, await db.$api("shop_orders", { tenant }));
 
   return {
     drafts: list.drafts,

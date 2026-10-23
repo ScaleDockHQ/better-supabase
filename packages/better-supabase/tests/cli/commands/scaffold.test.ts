@@ -278,7 +278,7 @@ describe("scaffold screens", () => {
 
     const list = await read("src/app/tasks/page.tsx");
     expect(list).toContain("from '../../lib/supabase/server';");
-    expect(list).toContain("bsb.require({ requireTenant: true })");
+    expect(list).toContain("bsb.require({ requireOrganization: true })");
     expect(list).toContain(
       "select: ['id', 'title', 'status', 'projectId', 'estimate', 'dueOn']",
     );

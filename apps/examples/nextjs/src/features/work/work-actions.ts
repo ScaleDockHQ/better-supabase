@@ -7,8 +7,9 @@ import { dbError, err, ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import type { AppDb } from "@/lib/supabase";
+
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -33,11 +34,8 @@ const Id = v.pipe(v.string(), v.uuid());
 const OptionalId = v.nullish(Id);
 
 /** Applies one batch of item changes; a rejected change becomes the error. */
-async function applyChanges(
-  supabase: Parameters<typeof blocks>[0],
-  changes: readonly WorkItemChange[],
-) {
-  const result = await blocks(supabase).workItems.update(changes);
+async function applyChanges(db: AppDb, changes: readonly WorkItemChange[]) {
+  const result = await db.$blocks.tasks.update(changes);
 
   if (!result.ok) {
     return result;
@@ -72,13 +70,11 @@ export const createWorkItem = bsb.action(
       ),
       custom: v.optional(v.record(v.string(), v.string()), {}),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "work_items.write"),
   },
-  async ({ title, teamId, priority, custom }, { tenant, supabase, auth }) => {
-    const client = blocks(supabase, tenant);
-
-    const created = await client.workItems.create(
+  async ({ title, teamId, priority, custom }, { tenant, db, auth }) => {
+    const created = await db.$blocks.tasks.create(
       tenant,
       teamId === "" ? { title, priority } : { title, priority, teamId },
     );
@@ -91,7 +87,7 @@ export const createWorkItem = bsb.action(
 
     if (values.length > 0) {
       const definitions =
-        await client.customFields.listDefinitions(WORK_ITEM_SUBJECT);
+        await db.customFields.listDefinitions(WORK_ITEM_SUBJECT);
 
       if (!definitions.ok) {
         return definitions;
@@ -109,7 +105,7 @@ export const createWorkItem = bsb.action(
 
           return id === undefined
             ? []
-            : [client.customFields.setValue(subject, id, value)];
+            : [db.customFields.setValue(subject, id, value)];
         }),
       );
 
@@ -141,15 +137,12 @@ export const moveWorkItem = bsb.action(
       previousId: OptionalId,
       nextId: OptionalId,
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "work_items.write"),
   },
-  async (
-    { id, stageId, stageChanged, previousId, nextId },
-    { supabase, auth },
-  ) => {
+  async ({ id, stageId, stageChanged, previousId, nextId }, { db, auth }) => {
     if (stageChanged) {
-      const moved = await applyChanges(supabase, [
+      const moved = await applyChanges(db, [
         { workItemId: id, field: "stageId", value: stageId },
       ]);
 
@@ -158,7 +151,7 @@ export const moveWorkItem = bsb.action(
       }
     }
 
-    const ranked = await blocks(supabase).rank.move(WORK_ITEM_SUBJECT, id, {
+    const ranked = await db.rank.move(WORK_ITEM_SUBJECT, id, {
       previous: previousId ?? null,
       next: nextId ?? null,
     });
@@ -177,11 +170,11 @@ export const moveWorkItem = bsb.action(
 export const setWorkItemStage = bsb.action(
   {
     input: v.object({ id: Id, stageId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "work_items.write"),
   },
-  async ({ id, stageId }, { supabase, auth }) => {
-    const moved = await applyChanges(supabase, [
+  async ({ id, stageId }, { db, auth }) => {
+    const moved = await applyChanges(db, [
       { workItemId: id, field: "stageId", value: stageId },
     ]);
 
@@ -199,14 +192,11 @@ export const setWorkItemStage = bsb.action(
 export const setWorkItemAssignee = bsb.action(
   {
     input: v.object({ id: Id, userId: OptionalId }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "work_items.write"),
   },
-  async ({ id, userId }, { supabase, auth }) => {
-    const assigned = await blocks(supabase).workItems.assign(
-      id,
-      userId ? [userId] : [],
-    );
+  async ({ id, userId }, { db, auth }) => {
+    const assigned = await db.$blocks.tasks.assign(id, userId ? [userId] : []);
 
     if (!assigned.ok) {
       return assigned;
@@ -224,11 +214,11 @@ export const createTeam = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "teams.manage"),
   },
-  async ({ name }, { tenant, supabase, auth }) => {
-    const created = await blocks(supabase).teams.create(tenant, name);
+  async ({ name }, { tenant, db, auth }) => {
+    const created = await db.teams.create(tenant, name);
 
     if (!created.ok) {
       return created;
@@ -249,10 +239,10 @@ export const saveWorkView = bsb.action(
       state: v.nullable(WorkItemStateSchema),
       sort: WorkItemSortSchema,
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "views.read"),
   },
-  async ({ name, q, state, sort }, { tenant, supabase, auth }) => {
+  async ({ name, q, state, sort }, { tenant, db, auth }) => {
     const query: WorkViewQuery = { sort };
 
     if (q !== "") {
@@ -263,7 +253,7 @@ export const saveWorkView = bsb.action(
       query.facets = { state: [state] };
     }
 
-    const saved = await blocks(supabase).savedViews.upsert({
+    const saved = await db.$blocks.savedViews.upsert({
       organizationId: tenant,
       list: WORK_ITEM_LIST,
       name,
@@ -283,11 +273,11 @@ export const saveWorkView = bsb.action(
 export const deleteWorkView = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "views.read"),
   },
-  async ({ id }, { supabase, auth }) => {
-    const deleted = await blocks(supabase).savedViews.delete(id);
+  async ({ id }, { db, auth }) => {
+    const deleted = await db.$blocks.savedViews.delete(id);
 
     if (!deleted.ok) {
       return deleted;
@@ -316,11 +306,11 @@ export const runWorkBulkAction = bsb.action(
         ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
       }),
     ]),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "bulk.run"),
   },
-  async (input, { tenant, supabase, auth }) => {
-    const { bulk } = blocks(supabase);
+  async (input, { tenant, db, auth }) => {
+    const { bulkActions: bulk } = db;
 
     const result =
       input.action === "state"

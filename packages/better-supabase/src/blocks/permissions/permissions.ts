@@ -8,7 +8,7 @@ import type {
 } from "./permissions-controller.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { blockCall } from "../shared.ts";
 import { can, permissionFlags } from "./permissions-controller.ts";
@@ -71,7 +71,7 @@ export function createPermissions<K extends string = string>(
     keys: readonly string[] | undefined,
     perCall: AccessCallOptions | undefined,
   ): AsyncResult<PermissionSet> =>
-    requireTenant(perCall?.tenant ?? options.tenant).andThen((tenant) =>
+    requireOrganization(perCall?.tenant ?? options.tenant).andThen((tenant) =>
       keys?.length === 0
         ? AsyncResult.ok<PermissionSet>({ tenant, keys: [] })
         : call(

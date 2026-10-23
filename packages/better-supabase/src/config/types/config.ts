@@ -42,6 +42,9 @@ import type {
   SpecsConfig,
 } from "./tooling.ts";
 
+/** The frameworks `gen.hooks` writes data hooks for. */
+export type DataHooksFramework = "react" | "vue" | "svelte" | "solid";
+
 /**
  * The config with every key at the top level, as `flattenConfig` returns it and
  * `resolveConfig` reads it. Apps write the grouped `BetterSupabaseConfig`.
@@ -70,6 +73,13 @@ export interface FlatConfig {
    * installed block binds to (`defineRecordType`). Defaults to `true`.
    */
   readonly recordTypes?: boolean;
+  /**
+   * Write `hooks.ts` next to `output`: `defineDataHooks` from this framework's
+   * entry, once per block instance and table (`useTickets`, `useTicket`).
+   * Defaults to `react` when the adapters include `next`, `react` or `expo`,
+   * and to `false` otherwise.
+   */
+  readonly hooks?: DataHooksFramework | false;
   /** Types for jsonb columns, keyed by `table.column`. */
   readonly json?: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs?: CodecsConfig;
@@ -205,6 +215,7 @@ export interface ResolvedConfig {
   readonly databaseTypesOutput: string;
   readonly postgrestVersion: string;
   readonly recordTypes: boolean;
+  readonly hooks: DataHooksFramework | false;
   readonly json: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs: Required<CodecsConfig>;
   readonly relations: Required<RelationsConfig>;

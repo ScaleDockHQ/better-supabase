@@ -9,7 +9,6 @@ import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
 import { appErrors } from "@/lib/app-error";
-import { blocks } from "@/lib/blocks";
 import { logos } from "@/lib/buckets";
 import { bsb } from "@/lib/supabase/server";
 
@@ -27,11 +26,11 @@ export const createCustomer = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "customers.write"),
   },
-  async ({ name }, { tenant: organizationId, db, supabase }) => {
-    const { usage, onboarding } = blocks(supabase);
+  async ({ name }, { tenant: organizationId, db }) => {
+    const { usage, onboarding } = db;
     const quota = await usage.consume(organizationId, "customers.created");
 
     if (!quota.ok) {
@@ -48,7 +47,7 @@ export const createCustomer = bsb.action(
     }
 
     after(() =>
-      recordAudit(supabase, {
+      recordAudit(db, {
         eventType: "customer.created",
         category: "customers",
         organizationId,
@@ -76,7 +75,7 @@ export const uploadCustomerLogo = bsb.action(
         v.check((file) => file.size > 0, "Pick a file"),
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "customers.write"),
   },
   async ({ customerId, logo }, { tenant: organizationId, db, supabase }) => {

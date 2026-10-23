@@ -51,6 +51,51 @@ The result has one key per block with a client, typed from its creator,
 plus `sinks` and `close()`. A block with only SQL, such as `membershipsBlock`, is
 skipped.
 
+## Block instances on db
+
+Register the set on the definition with `.blocks()` and every `Db` carries
+each instance under its key in camel case: `db.comments`, `db.leadScoring`.
+`gen` writes the `blocks` map in `blocks.generated.ts` with every installed
+instance's manifest, so you list only the blocks that take app definitions:
+
+```ts title="src/lib/supabase/index.ts"
+import { defineSupabase } from "better-supabase";
+import { defineBlocks } from "better-supabase/blocks";
+import { createNotifications } from "better-supabase/blocks/notifications";
+
+import { blockConfig, blocks } from "./blocks.generated.ts";
+import { schema } from "./generated.ts";
+
+const blockSet = defineBlocks(blockConfig, {
+  ...blocks,
+  notifications: blocks.notifications.using((options) =>
+    createNotifications({ ...options, types, render }),
+  ),
+});
+
+export const betterSupabase = defineSupabase(schema).blocks(blockSet);
+```
+
+```ts title="src/features/notes/notes-actions.ts"
+export const addNote = bsb.action(
+  { input: NoteInput, requireOrganization: true },
+  async ({ customerId, text }, { db }) =>
+    db.comments.add({ type: "customer", id: customerId }, text),
+);
+```
+
+Each client runs through the `Db`'s executor, so it acts as the same caller
+(RLS and each function's checks apply), and works in the `Db`'s organization
+(`db.$context.tenant`). It is built the first time you read it on that `Db`,
+so `db.$with({ tenant })` and every request get their own. The browser client
+of `createClient` gets the same properties on `bsb.db`.
+
+When a table already holds the property, such as an app `tasks` table next to
+the `tasks` block, the table keeps `db.tasks` and the instance is on
+`db.$blocks.tasks`. `db.$blocks` holds every instance. `db.$api(fn, args)`
+calls a function in the API schema that has no typed client, such as
+`flag_enabled`, and resolves to its result.
+
 ## The generated config
 
 `gen` writes `blocks.generated.ts` next to `generated.ts` when the config

@@ -13,7 +13,7 @@ import { aiTasks } from "./ai-tasks-server";
 export const scheduleSampleTask = bsb.action(
   {
     input: v.object({}),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "ai.create"),
   },
   async (_input, { tenant, supabase }) => {
@@ -38,7 +38,7 @@ export const scheduleSampleTask = bsb.action(
 export const setAiTaskEnabled = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()), enabled: v.boolean() }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "ai.create"),
   },
   async ({ id, enabled }, { tenant, supabase }) => {

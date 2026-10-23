@@ -186,10 +186,10 @@ when they succeed.
 ```ts title="lib/block-queries.ts"
 import { blockQueries, invalidateOnBlockEvents } from "better-supabase/query";
 
-import { blockSet, blocks } from "@/lib/blocks";
+import { blockSet } from "@/lib/supabase";
+import { bsb } from "@/lib/supabase/client";
 
-const clients = blocks(supabase);
-export const bq = blockQueries(clients);
+export const bq = blockQueries(bsb.db.$blocks);
 
 invalidateOnBlockEvents(queryClient, betterSupabase, blockSet.blocks);
 ```

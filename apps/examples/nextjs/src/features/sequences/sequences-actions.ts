@@ -6,7 +6,6 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -22,11 +21,11 @@ export const createSampleSequence = bsb.action(
       text: v.pipe(v.string(), v.maxLength(4000)),
       task: Text,
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sequences.manage"),
   },
-  async ({ name, subject, text, task }, { supabase, tenant, auth }) => {
-    const saved = await blocks(supabase, tenant).sequences.upsert({
+  async ({ name, subject, text, task }, { db, auth }) => {
+    const saved = await db.sequences.upsert({
       key: `sample-${crypto.randomUUID().slice(0, 8)}`,
       name,
       steps: [
@@ -53,14 +52,11 @@ export const setSequenceStatus = bsb.action(
       sequenceId: Id,
       status: v.picklist(["active", "paused"]),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sequences.manage"),
   },
-  async ({ sequenceId, status }, { supabase, tenant, auth }) => {
-    const saved = await blocks(supabase, tenant).sequences.upsert({
-      id: sequenceId,
-      status,
-    });
+  async ({ sequenceId, status }, { db, auth }) => {
+    const saved = await db.sequences.upsert({ id: sequenceId, status });
 
     if (!saved.ok) {
       return saved;
@@ -115,11 +111,11 @@ function stepOf(input: v.InferOutput<typeof StepInput>): SequenceStep {
 export const addSequenceStep = bsb.action(
   {
     input: v.intersect([v.object({ sequenceId: Id }), StepInput]),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sequences.manage"),
   },
-  async (input, { supabase, tenant, auth }) => {
-    const { sequences } = blocks(supabase, tenant);
+  async (input, { db, auth }) => {
+    const { sequences } = db;
     const current = await sequences.get(input.sequenceId);
 
     if (!current.ok) {

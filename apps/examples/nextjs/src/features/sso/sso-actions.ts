@@ -9,7 +9,6 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -51,11 +50,11 @@ const NO_ADMIN = dbError(
 export const addSsoDomain = bsb.action(
   {
     input: v.object({ domain: DOMAIN }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sso.manage"),
   },
-  async ({ domain }, { tenant, supabase, auth }) => {
-    const added = await blocks(supabase).sso.addDomain(tenant, domain);
+  async ({ domain }, { tenant, db, auth }) => {
+    const added = await db.sso.addDomain(tenant, domain);
 
     if (!added.ok) {
       return added;
@@ -70,11 +69,11 @@ export const addSsoDomain = bsb.action(
 export const removeSsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sso.manage"),
   },
-  async ({ id }, { supabase, auth }) => {
-    const removed = await blocks(supabase).sso.removeDomain(id);
+  async ({ id }, { db, auth }) => {
+    const removed = await db.sso.removeDomain(id);
 
     if (!removed.ok) {
       return removed;
@@ -89,7 +88,7 @@ export const removeSsoDomain = bsb.action(
 export const verifySsoDomain = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sso.manage"),
   },
   async ({ id }, { auth }) => {
@@ -127,10 +126,10 @@ export const updateSsoDomain = bsb.action(
       autoJoinRole: v.optional(v.nullable(v.picklist(["member", "admin"]))),
       enforceSso: v.optional(v.boolean()),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sso.manage"),
   },
-  async ({ id, autoJoinRole, enforceSso }, { supabase, auth }) => {
+  async ({ id, autoJoinRole, enforceSso }, { db, auth }) => {
     const settings: DomainSettingsDraft = {};
 
     if (autoJoinRole !== undefined) {
@@ -141,7 +140,7 @@ export const updateSsoDomain = bsb.action(
       settings.enforceSso = enforceSso;
     }
 
-    const updated = await blocks(supabase).sso.updateDomain(id, settings);
+    const updated = await db.sso.updateDomain(id, settings);
 
     if (!updated.ok) {
       return updated;
@@ -164,7 +163,7 @@ export const addSamlConnection = bsb.action(
       ),
       domains: v.pipe(v.array(DOMAIN), v.minLength(1)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sso.manage"),
   },
   async ({ metadataUrl, domains }, { tenant, auth }) => {
@@ -197,7 +196,7 @@ export const addSamlConnection = bsb.action(
 export const removeSamlConnection = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sso.manage"),
   },
   async ({ id }, { auth }) => {

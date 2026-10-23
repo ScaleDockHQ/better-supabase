@@ -20,9 +20,7 @@ with your shadcn components.
 import { workItemInputSchema } from "better-supabase/blocks/tasks";
 import { recordForm } from "better-supabase/records";
 
-const fields = await blocks(supabase, tenant)
-  .customFields.listDefinitions("work_item")
-  .orThrow();
+const fields = await db.customFields.listDefinitions("work_item").orThrow();
 
 const form = recordForm(workItemInputSchema, {
   fields: ["title", "priority", "dueAt"],
@@ -77,7 +75,7 @@ const result = await form.validate({
 });
 
 if (result.ok) {
-  await blocks(supabase, tenant).workItems.create(tenant, result.input);
+  await db.$blocks.tasks.create(tenant, result.input);
   // result.custom is { region: "eu" }
 } else {
   // result.errors is { title?: string, region?: string, ... }

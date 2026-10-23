@@ -2,7 +2,6 @@ import { dbError, err } from "better-supabase";
 import { hasEntitlement } from "better-supabase/blocks/entitlements";
 
 import { can } from "../../../../features/user/user-permissions";
-import { blocks } from "../../../../lib/blocks";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
@@ -10,7 +9,7 @@ import { bsb } from "../../../../lib/supabase/server";
  * page by page from the audit module.
  */
 export const GET = bsb.route(
-  (_request, { session, tenant: organizationId, supabase }) => {
+  (_request, { session, tenant: organizationId, db }) => {
     if (!hasEntitlement(session, organizationId, "audit")) {
       return err(dbError("forbidden", "The audit log is not in your plan"));
     }
@@ -19,10 +18,7 @@ export const GET = bsb.route(
       return err(dbError("forbidden", "CSV exports are not in your plan"));
     }
 
-    const stream = blocks(supabase).audit.export({
-      organizationId,
-      format: "csv",
-    });
+    const stream = db.audit.export({ organizationId, format: "csv" });
 
     return new Response(stream, {
       headers: {
@@ -32,5 +28,8 @@ export const GET = bsb.route(
       },
     });
   },
-  { requireTenant: true, authorize: (session) => can(session, "audit.read") },
+  {
+    requireOrganization: true,
+    authorize: (session) => can(session, "audit.read"),
+  },
 );

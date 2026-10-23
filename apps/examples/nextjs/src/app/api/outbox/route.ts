@@ -15,7 +15,6 @@ import { conversationToWorkItem, createFlows } from "better-supabase/flows";
 import { connection } from "next/server";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
@@ -108,10 +107,18 @@ export async function GET(request: Request): Promise<Response> {
   // `created_from`. A redelivered event finds the work item and leaves it.
   const flows = createFlows({
     flows: [conversationToWorkItem()],
-    clients: (tenant) => blocks(admin.$client, tenant),
+    clients: (tenant) => {
+      const scoped = admin.$with({ tenant });
+
+      return {
+        inbox: scoped.inbox,
+        relations: scoped.relations,
+        workItems: scoped.$blocks.tasks,
+      };
+    },
   });
 
-  return blocks(admin.$client).outbox.relayRoute({
+  return admin.outbox.relayRoute({
     secret: process.env["CRON_SECRET"],
     consumers: { rules: sink, flows: flows.sink() },
   })(request);

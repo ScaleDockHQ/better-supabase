@@ -108,7 +108,7 @@ Nothing the client sends ends up in the subject.
 A route or action that acts on one row can load that row first, so the
 authorizer decides on its owner or team instead of on what the client sent.
 Pass `resource` next to `permission`. It runs after the session and
-`requireTenant` checks, and gets the validated input and the request's
+`requireOrganization` checks, and gets the validated input and the request's
 context (`db`, `session`, `tenant`). Its return value replaces the default
 resource:
 

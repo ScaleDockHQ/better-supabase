@@ -16,6 +16,24 @@ import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
+import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
+import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
+import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
+import { connectorsBlock as connectorsBlockInstance } from "better-supabase/blocks/connectors";
+import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
+import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
+import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
+import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
+import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
+import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
+import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
+import { webhooksBlock as webhooksBlockInstance } from "better-supabase/blocks/webhooks";
+import { workflowEditorBlock as workflowEditorBlockInstance } from "better-supabase/blocks/workflow-editor";
+import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks/workflows";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -113,6 +131,33 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * Every installed block instance with a client, under its key, for
+ * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give
+ * a block its ports (`notifications: notificationsBlock.using(...)`).
+ * @public
+ */
+export const blocks = {
+  permissions: permissionsBlockInstance,
+  "api-keys": apiKeysBlockInstance,
+  audit: auditBlockInstance,
+  billing: billingBlockInstance,
+  connectors: connectorsBlockInstance,
+  enrollments: enrollmentsBlockInstance,
+  entitlements: entitlementsBlockInstance,
+  queue: queueBlockInstance,
+  notifications: notificationsBlockInstance,
+  onboarding: onboardingBlockInstance,
+  organizations: organizationsBlockInstance,
+  outbox: outboxBlockInstance,
+  profiles: profilesBlockInstance,
+  settings: settingsBlockInstance,
+  teams: teamsBlockInstance,
+  webhooks: webhooksBlockInstance,
+  "workflow-editor": workflowEditorBlockInstance,
+  workflows: workflowsBlockInstance,
+} as const;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,

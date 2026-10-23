@@ -6,7 +6,6 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -29,10 +28,10 @@ export const requestAccess = bsb.action(
       duration: v.picklist(DURATIONS),
       reason: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "access_requests.create"),
   },
-  async ({ role, duration, reason }, { tenant, supabase, auth }) => {
+  async ({ role, duration, reason }, { tenant, db, auth }) => {
     const input: AccessRequestDraft = { organizationId: tenant, role };
 
     if (reason) {
@@ -43,7 +42,7 @@ export const requestAccess = bsb.action(
       input.duration = Temporal.Duration.from(duration);
     }
 
-    const requested = await blocks(supabase).accessRequests.request(input);
+    const requested = await db.accessRequests.request(input);
 
     if (!requested.ok) {
       return requested;
@@ -62,11 +61,11 @@ export const decideAccessRequest = bsb.action(
       approvalId: ID,
       decision: v.picklist(["approve", "reject"]),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "members.update_role"),
   },
-  async ({ approvalId, decision }, { supabase, auth }) => {
-    const { approvals } = blocks(supabase);
+  async ({ approvalId, decision }, { db, auth }) => {
+    const { approvals } = db;
 
     const decided =
       decision === "approve"
@@ -85,9 +84,9 @@ export const decideAccessRequest = bsb.action(
 
 /** Withdraws the caller's own pending request. */
 export const cancelAccessRequest = bsb.action(
-  { input: v.object({ approvalId: ID }), requireTenant: true },
-  async ({ approvalId }, { supabase, auth }) => {
-    const cancelled = await blocks(supabase).approvals.cancel(approvalId);
+  { input: v.object({ approvalId: ID }), requireOrganization: true },
+  async ({ approvalId }, { db, auth }) => {
+    const cancelled = await db.approvals.cancel(approvalId);
 
     if (!cancelled.ok) {
       return cancelled;
@@ -101,9 +100,9 @@ export const cancelAccessRequest = bsb.action(
 
 /** Ends a granted role early: a manager, or the holder giving it up. */
 export const endAccess = bsb.action(
-  { input: v.object({ id: ID }), requireTenant: true },
-  async ({ id }, { supabase, auth }) => {
-    const ended = await blocks(supabase).accessRequests.end(id);
+  { input: v.object({ id: ID }), requireOrganization: true },
+  async ({ id }, { db, auth }) => {
+    const ended = await db.accessRequests.end(id);
 
     if (!ended.ok) {
       return ended;

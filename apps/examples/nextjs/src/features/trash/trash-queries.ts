@@ -2,7 +2,6 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 export interface TrashEntry {
@@ -23,16 +22,14 @@ export type TrashView =
 /** The trash, newest first. A failed read throws, so Retry reads again. */
 async function loadTrash(): Promise<readonly TrashEntry[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const items = await blocks(supabase)
-    .trash.list(tenant, { pageSize: 100 })
-    .orThrow();
+  const items = await db.trash.list(tenant, { pageSize: 100 }).orThrow();
 
   return items.map((item) => ({
     id: item.id,

@@ -4,7 +4,6 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import { RULE_SUBJECT } from "./rule-fields";
@@ -36,15 +35,15 @@ function countRules(node: FilterNode): number {
  */
 async function loadRules(): Promise<readonly RuleRow[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const rules = await blocks(supabase)
-    .rules.list(tenant, { subjectType: RULE_SUBJECT })
+  const rules = await db.automations
+    .list(tenant, { subjectType: RULE_SUBJECT })
     .orThrow();
 
   return rules.map((rule) => ({

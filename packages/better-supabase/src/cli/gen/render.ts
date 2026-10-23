@@ -20,6 +20,7 @@ import {
   schemaExtensions,
 } from "./blocks.ts";
 import { emitMeta, emitModule, metaPaths } from "./emit.ts";
+import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
 import { emitRecords } from "./records.ts";
 
@@ -119,6 +120,12 @@ export async function render(
   }
 
   files.push(...emitRecords(config));
+
+  const hooks = emitHooks(config, Object.keys(model.meta.tables), runtime);
+
+  if (hooks) {
+    files.push(hooks);
+  }
 
   const owners = new Map(
     files.map((file) => [resolve(config.root, file.path), "gen"]),

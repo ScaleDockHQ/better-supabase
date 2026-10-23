@@ -56,6 +56,17 @@ describe("BS418", () => {
     ).toEqual([expect.stringContaining("bsb.record(<type>Record)")]);
   });
 
+  it("points requireTenant at requireOrganization", () => {
+    expect(
+      check([
+        {
+          path: "src/actions.ts",
+          text: "export const run = bsb.action(handler, { requireTenant: true });",
+        },
+      ]),
+    ).toEqual([expect.stringContaining("`requireOrganization`")]);
+  });
+
   it("passes code on the 0.15 names", () => {
     expect(
       check([

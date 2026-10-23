@@ -11,7 +11,6 @@ import { tenantOf } from "better-supabase/next";
 import { notFound, unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
@@ -94,14 +93,14 @@ const TextBody = v.object({ text: v.string() });
 /** A failed read throws, so it is never cached and Retry reads again. */
 async function loadCourses(): Promise<readonly CourseCard[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const courses = await blocks(supabase, tenant).courses.list().orThrow();
+  const courses = await db.courses.list().orThrow();
 
   return courses.map((course) => ({
     id: course.id,
@@ -127,8 +126,8 @@ export async function getCourses(): Promise<Loaded<readonly CourseCard[]>> {
 
 async function loadOutline(id: string): Promise<OutlineView | "not-found"> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
-  const outline = await blocks(supabase).courses.outline(id);
+  const { db } = await bsb.cached();
+  const outline = await db.courses.outline(id);
 
   if (!outline.ok) {
     if (outline.error.kind === "not_found") {
@@ -185,8 +184,8 @@ export async function getOutline(id: string): Promise<Loaded<OutlineView>> {
 
 async function loadLesson(id: string): Promise<LessonView | "not-found"> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
-  const lesson = await blocks(supabase).courses.lesson(id);
+  const { db } = await bsb.cached();
+  const lesson = await db.courses.lesson(id);
 
   if (!lesson.ok) {
     if (lesson.error.kind === "not_found") {

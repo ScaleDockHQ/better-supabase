@@ -1,6 +1,5 @@
 import { tenantOf } from "better-supabase/next";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 export interface SsoDomainRow {
@@ -35,14 +34,14 @@ function roleOf(value: string | undefined): "member" | "admin" | null {
  */
 export async function loadSsoSettings(): Promise<SsoSettingsData | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { sso } = blocks(supabase);
+  const { sso } = db;
 
   const [domains, providers] = await Promise.all([
     sso.domains(tenant).orThrow(),

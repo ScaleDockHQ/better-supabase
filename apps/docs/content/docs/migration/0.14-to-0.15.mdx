@@ -372,6 +372,33 @@ meta is `{ bsTables: [instance] }` instead of `bsBlock`. One matcher,
 methods to narrow to. The 0.15 codemod rewrites `"bs-block"` literals and
 lists `bsBlock` reads for review.
 
+## Block instances live on db
+
+`.blocks(blockSet)` on the definition puts every instance on `db`, so a
+hand-written `blocks(supabase, tenant)` helper is no longer needed.
+`db.comments` runs through the same executor as the tables and acts in the
+active organization; `db.$with({ tenant })` switches it. An instance whose
+name a table already uses stays reachable at `db.$blocks.<instance>`, and
+`db.$api(fn, args)` calls a function in the API schema:
+
+```ts
+// Before
+const comments = blocks(supabase, tenant).comments;
+await blocks(supabase).call("archive_customer", { id });
+// After
+const comments = db.comments;
+await db.$api("archive_customer", { id });
+```
+
+`blocks.generated.ts` now exports `blocks`, the block for each instance
+under its key, so `defineBlocks(blockConfig, blocks)` lists them all. With
+`gen.hooks` set, `gen` also writes `hooks.ts` with a list and a record hook
+per table ([Data hooks](/docs/frontend/data-hooks)).
+
+The `requireTenant` option of `bsb.action`, `bsb.blockAction` and the oRPC
+guard is `requireOrganization`, and so is the helper. The 0.15 codemod
+renames both, and doctor reports BS418 for a `requireTenant` that is left.
+
 ## Record sections become record bindings
 
 A block has one `record` binding instead of a `sections` map, and the binding

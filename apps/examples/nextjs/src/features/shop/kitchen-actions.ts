@@ -23,7 +23,7 @@ const canPrepare = (session: AuthSession<Claims>): boolean =>
 export const sendToKitchen = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: canPrepare,
   },
   async ({ orderId }, { supabase, auth }) => {
@@ -50,7 +50,7 @@ export const bumpTicket = bsb.action(
       state: v.picklist(PREPARATION_STATES),
       stationId: v.nullable(Id),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: canPrepare,
   },
   async ({ orderId, state, stationId }, { supabase, auth }) => {
@@ -74,7 +74,7 @@ export const bumpTicket = bsb.action(
 export const setLineState = bsb.action(
   {
     input: v.object({ lineId: Id, state: v.picklist(PREPARATION_STATES) }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: canPrepare,
   },
   async ({ lineId, state }, { supabase, auth }) => {

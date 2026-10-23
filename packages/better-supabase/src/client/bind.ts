@@ -1,5 +1,6 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 
+import type { DataEngine } from "../bindings/data-engine.ts";
 import type { GeneratedBlocks } from "../blocks/block-config.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { RequestContext } from "../core/plugin.ts";
@@ -13,6 +14,7 @@ import { userContext } from "../auth/impersonation.ts";
 import { claimedTenant } from "../bindings/keys.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
+import { currentTenant } from "../core/tenant-source.ts";
 import { createQueries } from "../query/queries.ts";
 import { identityKey } from "../query/user-change.ts";
 
@@ -52,15 +54,16 @@ export interface BetterClient<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 > {
   /**
    * The definition the client was created from (schema metadata, specs, live
    * queries).
    */
-  readonly betterSupabase: BetterSupabase<M, unknown, F, E, C, P>;
+  readonly betterSupabase: BetterSupabase<M, unknown, F, E, C, P, B>;
   readonly supabase: SupabaseClient;
   /** Repositories with the current session's actor and claims. */
-  readonly db: Db<M, F, E, SupabaseClient>;
+  readonly db: Db<M, F, E, SupabaseClient, B>;
   /** TanStack Query option factories over `db`. */
   readonly queries: BetterQueries<M, E, F>;
   readonly auth: ClientAuth;
@@ -72,10 +75,12 @@ export interface BetterClient<
   /** `blockConfig` from `blocks.generated.ts`, when passed. */
   readonly blocks?: GeneratedBlocks;
   /**
-   * The tenant block hooks act in: the `tenant` option, or the session's tenant
-   * claim.
+   * The organization block hooks act in: the `organization` option, or the
+   * session's organization claim.
    */
   readonly tenant?: BlockTenant;
+  /** The data hooks' engine, when the `engine` option set one. */
+  readonly engine?: DataEngine;
   /**
    * Stops following `supabase`'s session. Call it when the client goes away
    * before the app does: Fast Refresh, tests, a client per account.
@@ -100,10 +105,12 @@ export interface BindClientOptions {
    */
   readonly blocks?: GeneratedBlocks;
   /**
-   * The tenant the block hooks act in. Default the session's tenant claim
-   * (`config.claims.tenant`); pass a function for a tenant picked in the UI.
+   * The organization `db` and the hooks act in. Default the session's
+   * organization claim; pass a function for one picked in the UI.
    */
-  readonly tenant?: BlockTenant;
+  readonly organization?: BlockTenant;
+  /** Where the data hooks cache their reads; default one in memory. */
+  readonly engine?: DataEngine;
 }
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
@@ -174,13 +181,15 @@ export function bindClient<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   supabase: SupabaseClient,
   options: BindClientOptions = {},
-): BetterClient<M, F, E, C, P> {
+): BetterClient<M, F, E, C, P, B> {
   let snapshot: AuthSnapshot = LOADING;
-  let db: Db<M, F, E, SupabaseClient> | undefined;
+  let db: Db<M, F, E, SupabaseClient, B> | undefined;
+  let dbTenant: string | undefined;
   const listeners = new Set<() => void>();
 
   // A client built without the auth module has no session to follow, so the
@@ -215,15 +224,30 @@ export function bindClient<
     ? supabase.auth.onAuthStateChange(onChange)
     : undefined;
 
-  const client: BetterClient<M, F, E, C, P> = {
+  const client: BetterClient<M, F, E, C, P, B> = {
     betterSupabase,
     supabase,
     ports: options.ports ?? {},
     ...(options.blocks === undefined ? {} : { blocks: options.blocks }),
+    ...(options.engine === undefined ? {} : { engine: options.engine }),
     tenant:
-      options.tenant ?? (() => claimedTenant(snapshot, betterSupabase.meta)),
+      options.organization ??
+      (() => claimedTenant(snapshot, betterSupabase.meta)),
     get db() {
-      db ??= betterSupabase.connect(supabase, contextOf(snapshot));
+      // The block instances on `db` act in its context's tenant, so a switch
+      // of the active organization gets a new `db`.
+      const tenant = currentTenant(client.tenant);
+
+      if (db === undefined || tenant !== dbTenant) {
+        const context = contextOf(snapshot);
+        dbTenant = tenant;
+        db = betterSupabase.connect(
+          supabase,
+          tenant === undefined || context.tenant !== undefined
+            ? context
+            : { ...context, tenant },
+        );
+      }
 
       return db;
     },

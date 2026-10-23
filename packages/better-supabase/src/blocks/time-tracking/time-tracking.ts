@@ -17,7 +17,7 @@ import { isCurrency } from "../../commerce/money.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -336,7 +336,7 @@ export function createTimeTracking<
     "time entry fields",
   );
 
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const client: TimeTracking<F> = {
     start: (entry = {}) => {

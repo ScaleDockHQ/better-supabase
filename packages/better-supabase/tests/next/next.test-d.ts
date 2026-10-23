@@ -227,9 +227,9 @@ describe("resource", () => {
   });
 });
 
-describe("authorize and requireTenant", () => {
-  it("narrows ctx.tenant to a string only with requireTenant", () => {
-    bsb.action({ requireTenant: true }, (_input, ctx) => {
+describe("authorize and requireOrganization", () => {
+  it("narrows ctx.tenant to a string only with requireOrganization", () => {
+    bsb.action({ requireOrganization: true }, (_input, ctx) => {
       expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
       expectTypeOf(ctx.session).toEqualTypeOf<AuthSession>();
     });
@@ -252,9 +252,9 @@ describe("authorize and requireTenant", () => {
       (_request, ctx) => {
         expectTypeOf(ctx.tenant).toEqualTypeOf<string>();
       },
-      { requireTenant: true },
+      { requireOrganization: true },
     );
-    expectTypeOf(bsb.require({ requireTenant: true }))
+    expectTypeOf(bsb.require({ requireOrganization: true }))
       .resolves.toHaveProperty("tenant")
       .toEqualTypeOf<string>();
   });

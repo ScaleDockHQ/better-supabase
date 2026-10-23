@@ -6,7 +6,7 @@ import type { BlockPorts } from "../ports.ts";
 import type { BlockOptions, RecordRef } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
 import {
@@ -465,7 +465,7 @@ export function createSequences(options: SequencesOptions): Sequences {
     options.mappers,
   );
 
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const enrollment = (fn: string) => (value: unknown) =>
     enrollmentOf(value, fn);

@@ -5,7 +5,6 @@ import { FORM_FIELD_TYPES } from "better-supabase/blocks/forms";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -31,13 +30,13 @@ export const createForm = bsb.action(
         "",
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "forms.manage"),
   },
-  async ({ title, description }, { tenant, supabase, auth }) => {
+  async ({ title, description }, { tenant, db, auth }) => {
     const base = { organizationId: tenant, key: keyOf(title), title };
 
-    const form = await blocks(supabase).forms.create(
+    const form = await db.forms.create(
       description === "" ? base : { ...base, description },
     );
 
@@ -73,11 +72,11 @@ export const publishForm = bsb.action(
       formId: Id,
       fields: v.pipe(v.array(Field), v.minLength(1), v.maxLength(50)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "forms.manage"),
   },
-  async ({ formId, fields }, { supabase, auth }) => {
-    const version = await blocks(supabase).forms.publish(formId, {
+  async ({ formId, fields }, { db, auth }) => {
+    const version = await db.forms.publish(formId, {
       steps: [
         {
           key: "main",
@@ -109,11 +108,11 @@ const Answer = v.union([
 export const submitForm = bsb.action(
   {
     input: v.object({ formId: Id, answers: v.record(v.string(), Answer) }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "forms.submit"),
   },
-  async ({ formId, answers }, { supabase, auth }) => {
-    const submission = await blocks(supabase).forms.submit(formId, answers);
+  async ({ formId, answers }, { db, auth }) => {
+    const submission = await db.forms.submit(formId, answers);
 
     if (!submission.ok) {
       return submission;

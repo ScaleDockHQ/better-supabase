@@ -233,6 +233,7 @@
   "frameworks/tanstack-start",
   "frontend/block-controllers",
   "frontend/client",
+  "frontend/data-hooks",
   "frontend/live-queries",
   "frontend/query",
   "frontend/react",

@@ -65,12 +65,10 @@ input and output are typed from the method.
 ```ts title="src/router.ts"
 import { openapi } from "@orpc/openapi";
 
-import { blocks } from "./lib/blocks";
-
-const tasks = bsb.blockRouter(({ supabase }) => blocks(supabase).tasks, {
+const tasks = bsb.blockRouter(({ db }) => db.tasks, {
   name: "tasks",
   methods: ["list", "create", "update"],
-  guard: { requireTenant: true },
+  guard: { requireOrganization: true },
   tags: ["Tasks"],
   meta: (route) => openapi({ method: route.method, path: route.path }),
 });
@@ -232,7 +230,7 @@ The headers reach the client only through `bsb.fetchHandler`.
 
 `createOrpc` takes the server's `authorizer` option. `bsb.middleware()` and
 `bsb.authed()` take the guard options `allow`, `aal` and `scopes`, and the
-checks `requireTenant`, `roles`, `permission` and `authorize`. A
+checks `requireOrganization`, `roles`, `permission` and `authorize`. A
 `permission` is decided by that authorizer, with a resource of
 `{ type: "route" }`:
 
@@ -245,7 +243,7 @@ import { betterSupabase } from "./lib/supabase";
 export const bsb = createOrpc(betterSupabase, { authorizer });
 
 export const remove = bsb
-  .authed({ requireTenant: true, permission: "customers.delete" })
+  .authed({ requireOrganization: true, permission: "customers.delete" })
   .input(v.object({ id: v.string() }))
   .handler(({ input, context }) =>
     bsb.unwrap(context.db.customers.delete(input.id)),
@@ -305,7 +303,10 @@ const router = os.router({
     ),
     remove: os.customers.remove
       .use(
-        bsb.middleware({ requireTenant: true, permission: "customers.delete" }),
+        bsb.middleware({
+          requireOrganization: true,
+          permission: "customers.delete",
+        }),
       )
       .handler(async ({ context, input }) => {
         await bsb.unwrap(context.db.customers.delete(input.id));

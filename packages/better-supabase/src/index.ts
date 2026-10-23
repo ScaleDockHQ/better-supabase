@@ -175,6 +175,13 @@ export type {
 
 export type { BucketRegistry, BucketsHelper } from "./core/db-buckets.ts";
 
+export type {
+  BlocksHelper,
+  DbBlockSource,
+  DbExtras,
+  DbOf,
+} from "./core/db-blocks.ts";
+
 export type { Policy, PolicyDecision } from "./core/policy.ts";
 
 export type {

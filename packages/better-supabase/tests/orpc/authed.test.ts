@@ -31,7 +31,7 @@ const admin = bsb
   })
   .handler(() => "ok");
 
-const scoped = bsb.authed({ requireTenant: true }).handler(() => "ok");
+const scoped = bsb.authed({ requireOrganization: true }).handler(() => "ok");
 
 const failureOf = (promise: Promise<unknown>) =>
   promise.catch((cause: unknown) => cause);
@@ -68,7 +68,7 @@ describe("bsb.authed()", () => {
     });
   });
 
-  it("requireTenant refuses callers without a tenant", async () => {
+  it("requireOrganization refuses callers without a tenant", async () => {
     const failure = await failureOf(
       call(scoped, undefined, {
         context: { request: await requestAs({ role: "member" }) },

@@ -3,7 +3,8 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
-import { blocks } from "@/lib/blocks";
+import type { AppDb } from "@/lib/supabase";
+
 import { bsb } from "@/lib/supabase/server";
 
 /** What a loader gives a component: the data, a failed read, or nothing to show. */
@@ -46,13 +47,11 @@ export interface BookingPageRef {
  * whose `ownerId` is `<userId>/<resourceId>/<serviceId>`.
  */
 export async function findBookingPage(
-  supabase: Parameters<typeof blocks>[0],
+  db: AppDb,
   tenant: string,
   userId: string,
 ): Promise<BookingPageRef | null> {
-  const calendars = await blocks(supabase)
-    .calendar.listCalendars(tenant)
-    .orThrow();
+  const calendars = await db.calendar.listCalendars(tenant).orThrow();
 
   for (const calendar of calendars) {
     const [owner, resourceId, serviceId] = (calendar.ownerId ?? "").split("/");
@@ -94,14 +93,14 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
  */
 export async function loadBookingSetup(): Promise<BookingSetup | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant || session.kind !== "user") {
     return null;
   }
 
-  const page = await findBookingPage(supabase, tenant, session.user.id);
+  const page = await findBookingPage(db, tenant, session.user.id);
 
   if (!page) {
     return {
@@ -116,7 +115,7 @@ export async function loadBookingSetup(): Promise<BookingSetup | null> {
   const at = (date: Temporal.PlainDate) =>
     date.toZonedDateTime(page.tz).toInstant();
 
-  const { bookings, shareLinks } = blocks(supabase, tenant);
+  const { bookings, shareLinks } = db;
 
   const [slots, links] = await Promise.all([
     bookings
@@ -211,8 +210,8 @@ export async function loadPublicBooking(
   from: string | undefined,
 ): Promise<PublicBookingPage | null> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
-  const { bookings } = blocks(supabase);
+  const { db } = await bsb.cached();
+  const { bookings } = db;
   const service = await bookings.public.service(token);
 
   if (!service.ok) {

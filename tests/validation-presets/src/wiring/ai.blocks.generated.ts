@@ -14,6 +14,25 @@ import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
+import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { agentsBlock as agentsBlockInstance } from "better-supabase/blocks/agents";
+import { aiChatBlock as aiChatBlockInstance } from "better-supabase/blocks/ai-chat";
+import { aiFilesBlock as aiFilesBlockInstance } from "better-supabase/blocks/ai-files";
+import { aiSchedulesBlock as aiSchedulesBlockInstance } from "better-supabase/blocks/ai-schedules";
+import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
+import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
+import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
+import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { knowledgeBlock as knowledgeBlockInstance } from "better-supabase/blocks/knowledge";
+import { memoryBlock as memoryBlockInstance } from "better-supabase/blocks/memory";
+import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
+import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
+import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
+import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
+import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
+import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -119,6 +138,34 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * Every installed block instance with a client, under its key, for
+ * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give
+ * a block its ports (`notifications: notificationsBlock.using(...)`).
+ * @public
+ */
+export const blocks = {
+  permissions: permissionsBlockInstance,
+  agents: agentsBlockInstance,
+  "ai-chat": aiChatBlockInstance,
+  "ai-files": aiFilesBlockInstance,
+  "ai-schedules": aiSchedulesBlockInstance,
+  "api-keys": apiKeysBlockInstance,
+  audit: auditBlockInstance,
+  billing: billingBlockInstance,
+  enrollments: enrollmentsBlockInstance,
+  entitlements: entitlementsBlockInstance,
+  knowledge: knowledgeBlockInstance,
+  memory: memoryBlockInstance,
+  notifications: notificationsBlockInstance,
+  onboarding: onboardingBlockInstance,
+  organizations: organizationsBlockInstance,
+  outbox: outboxBlockInstance,
+  profiles: profilesBlockInstance,
+  settings: settingsBlockInstance,
+  teams: teamsBlockInstance,
+} as const;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,

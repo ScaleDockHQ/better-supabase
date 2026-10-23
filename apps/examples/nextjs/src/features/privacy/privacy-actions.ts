@@ -10,7 +10,6 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
@@ -33,30 +32,27 @@ async function runExport(exportId: string): Promise<void> {
 }
 
 /** Exports the caller's own data. */
-export const requestMyExport = bsb.action(
-  {},
-  async (_input, { supabase, auth }) => {
-    const requested = await blocks(supabase).dataLifecycle.requestExport();
+export const requestMyExport = bsb.action({}, async (_input, { db, auth }) => {
+  const requested = await db.dataLifecycle.requestExport();
 
-    if (!requested.ok) {
-      return requested;
-    }
+  if (!requested.ok) {
+    return requested;
+  }
 
-    await runExport(requested.data.id);
-    refreshCaller(auth);
+  await runExport(requested.data.id);
+  refreshCaller(auth);
 
-    return ok(requested.data.id);
-  },
-);
+  return ok(requested.data.id);
+});
 
 /** Exports the active organization's data (`organization.export`). */
 export const requestOrganizationExport = bsb.action(
   {
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "organization.export"),
   },
-  async (_input, { tenant, supabase, auth }) => {
-    const requested = await blocks(supabase).dataLifecycle.requestExport({
+  async (_input, { tenant, db, auth }) => {
+    const requested = await db.dataLifecycle.requestExport({
       organizationId: tenant,
     });
 
@@ -91,12 +87,12 @@ export const downloadExport = bsb.action(
  */
 export const requestOrganizationDeletion = bsb.action(
   {
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "organization.delete"),
   },
-  async (_input, { tenant, supabase, auth }) => {
+  async (_input, { tenant, db, auth }) => {
     const requested =
-      await blocks(supabase).dataLifecycle.requestOrganizationDeletion(tenant);
+      await db.dataLifecycle.requestOrganizationDeletion(tenant);
 
     if (!requested.ok) {
       return requested;
@@ -110,10 +106,9 @@ export const requestOrganizationDeletion = bsb.action(
 
 /** Cancels the pending purge and enables the organization again. */
 export const cancelOrganizationDeletion = bsb.action(
-  { requireTenant: true },
-  async (_input, { tenant, supabase, auth }) => {
-    const cancelled =
-      await blocks(supabase).dataLifecycle.cancelOrganizationDeletion(tenant);
+  { requireOrganization: true },
+  async (_input, { tenant, db, auth }) => {
+    const cancelled = await db.dataLifecycle.cancelOrganizationDeletion(tenant);
 
     if (!cancelled.ok) {
       return cancelled;

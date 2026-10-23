@@ -4,7 +4,6 @@ import { ok } from "better-supabase";
 
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -12,13 +11,12 @@ import { bsb } from "@/lib/supabase/server";
  * checks and audits it itself): completes the onboarding step.
  */
 export const apiKeyCreated = bsb.action(
-  { requireTenant: true, authorize: (session) => can(session, "api_keys.own") },
-  async (_input, { tenant: organizationId, supabase }) => {
-    await blocks(supabase).onboarding.complete(
-      gettingStarted,
-      "api-key",
-      organizationId,
-    );
+  {
+    requireOrganization: true,
+    authorize: (session) => can(session, "api_keys.own"),
+  },
+  async (_input, { tenant: organizationId, db }) => {
+    await db.onboarding.complete(gettingStarted, "api-key", organizationId);
 
     return ok(true);
   },

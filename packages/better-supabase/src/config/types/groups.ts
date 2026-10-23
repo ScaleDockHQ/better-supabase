@@ -15,6 +15,7 @@ import type {
   SourceConfig,
   TableConfig,
 } from "./codegen.ts";
+import type { DataHooksFramework } from "./config.ts";
 import type {
   BucketConfig,
   RealtimeConfig,
@@ -190,6 +191,13 @@ export interface GenGroupConfig extends GenConfig {
    * installed block binds to (`defineRecordType`). Defaults to `true`.
    */
   readonly recordTypes?: boolean;
+  /**
+   * Write `hooks.ts` next to `output`: `defineDataHooks` from this framework's
+   * entry, once per block instance and table (`useTickets`, `useTicket`).
+   * Defaults to `react` when the adapters include `next`, `react` or `expo`,
+   * and to `false` otherwise.
+   */
+  readonly hooks?: DataHooksFramework | false;
   /** Overrides per generated table, keyed by `table` or `schema.table`. */
   readonly tables?: Readonly<Record<string, TableConfig>>;
   /** Types for jsonb columns, keyed by `table.column`. */

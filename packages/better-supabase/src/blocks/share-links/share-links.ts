@@ -13,7 +13,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectRefOf } from "../../core/block-subjects.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
   blockCall,
@@ -149,7 +149,7 @@ export function createShareLinks<
     "share link fields",
   );
 
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const client: ShareLinks<F> = {
     create: (subject, link = {}) => {

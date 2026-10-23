@@ -244,7 +244,7 @@ export const bsb = createAstro(betterSupabase, { signIn: "/sign-in" });
 
 In a page, `const refused = await bsb.guard(Astro, { roles: ["admin"] })`
 returns the refusal to send, and `bsb.locals(Astro).db` is the caller's
-`db`. Wrap an Action's handler with `bsb.action({ input, requireTenant }, fn)`.
+`db`. Wrap an Action's handler with `bsb.action({ input, requireOrganization }, fn)`.
 `createImageService({ url })` serves Storage images through Astro's image
 service.
 

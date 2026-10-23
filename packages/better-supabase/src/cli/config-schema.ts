@@ -23,7 +23,7 @@ import {
 import { CONVENTION_FIELDS } from "../preset/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import { movedKeyIssues } from "./config-moved.ts";
-import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
+import { GEN_TASKS, HOOK_FRAMEWORKS, INTEGRATIONS } from "./names.ts";
 
 const strings = v.array(v.string());
 const stringRecord = v.record(v.string(), v.string());
@@ -559,6 +559,7 @@ const FLAT = {
   output: v.optional(v.string()),
   postgrestVersion: v.optional(v.string()),
   recordTypes: v.optional(v.boolean()),
+  hooks: v.optional(v.union([v.picklist(HOOK_FRAMEWORKS), v.literal(false)])),
   json: v.optional(
     v.record(
       v.string(),
@@ -925,6 +926,7 @@ const ENTRIES = {
         "casing",
         "postgrestVersion",
         "recordTypes",
+        "hooks",
         "tables",
         "json",
         "codecs",

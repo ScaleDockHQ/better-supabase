@@ -13,7 +13,7 @@ import {
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
 /**
- * The attachments block as the caller, in `tenant`. `blocks()` builds it
+ * The attachments block as the caller, in `tenant`. `db.attachments` builds it
  * without a Storage client, so this one passes the caller's `supabase.storage`:
  * the `attachments` bucket's policies only accept a file a pending record
  * expects.

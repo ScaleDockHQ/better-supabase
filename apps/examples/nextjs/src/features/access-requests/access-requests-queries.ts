@@ -7,7 +7,6 @@ import type { Role } from "@/lib/claims";
 
 import { getMembers } from "@/features/organization/organization-queries";
 import { can, roleOf } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 export interface AccessRequestRow {
@@ -56,7 +55,7 @@ async function memberNames(
  */
 export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
   "use cache: private";
-  const { session, supabase, auth } = await bsb.cached();
+  const { session, db, auth } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant || auth.kind !== "user") {
@@ -66,9 +65,7 @@ export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
   const readsAll = can(session, "access_requests.read");
 
   const [requests, names] = await Promise.all([
-    blocks(supabase)
-      .accessRequests.list(tenant, { mine: !readsAll, pageSize: 50 })
-      .orThrow(),
+    db.accessRequests.list(tenant, { mine: !readsAll, pageSize: 50 }).orThrow(),
     memberNames(tenant),
   ]);
 

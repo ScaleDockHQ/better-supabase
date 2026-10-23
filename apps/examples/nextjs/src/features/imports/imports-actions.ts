@@ -90,7 +90,7 @@ export interface ImportPreview {
 export const previewCustomerImport = bsb.action(
   {
     input: Input,
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "imports.manage"),
   },
   async ({ csv, mapping }, { db }) => {
@@ -124,11 +124,11 @@ export interface ImportOutcome {
 export const runCustomerImport = bsb.action(
   {
     input: Input,
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) =>
       can(session, "imports.manage") && can(session, "customers.write"),
   },
-  async ({ csv, mapping }, { tenant, db, supabase, auth }) => {
+  async ({ csv, mapping }, { tenant, db, auth }) => {
     const existing = await db.customers.list({
       select: ["name"],
       where: { organizationId: tenant },
@@ -144,7 +144,7 @@ export const runCustomerImport = bsb.action(
     );
 
     const { rows: valid } = await dryRun(definition, csv, mapping);
-    const hooks = importRunHooks(supabase, tenant, "customers", mapping);
+    const hooks = importRunHooks(db, tenant, "customers", mapping);
 
     try {
       const result = await runImport(definition, csv, mapping, {

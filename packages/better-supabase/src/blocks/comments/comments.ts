@@ -16,7 +16,7 @@ import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { bySubjectType, subjectRefOf } from "../../core/block-subjects.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { parseMentions } from "../messaging/mentions.ts";
@@ -236,7 +236,7 @@ export function createComments<
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "comment fields");
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const mentionsOf = (body: string, rich: unknown): readonly string[] =>
     options.mentionsOf

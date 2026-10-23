@@ -8,7 +8,6 @@ import * as v from "valibot";
 import { recordAudit } from "@/features/audit/record-audit";
 import { gettingStarted } from "@/features/onboarding/checklist";
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import { toMembers, toOrganizationSummaries } from "./organization-queries";
@@ -44,8 +43,8 @@ export const loadMyOrganizations = bsb.action({}, async (_input, { db }) =>
 /** Creates an organization owned by the caller, then switches to it. */
 export const createOrganization = bsb.action(
   { input: v.object({ name: Name }) },
-  async ({ name }, { supabase }) => {
-    const { organizations } = blocks(supabase);
+  async ({ name }, { db }) => {
+    const { organizations } = db.$blocks;
     const created = await organizations.create({ name, slug: slugify(name) });
 
     if (!created.ok) {
@@ -53,7 +52,7 @@ export const createOrganization = bsb.action(
     }
 
     after(() =>
-      recordAudit(supabase, {
+      recordAudit(db, {
         eventType: "organization.created",
         category: "organization",
         organizationId: created.data.id,
@@ -70,21 +69,21 @@ export const createOrganization = bsb.action(
 export const updateOrganization = bsb.action(
   {
     input: v.object({ name: Name, slug: Slug }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "organization.update"),
   },
-  async ({ name, slug }, { tenant: organizationId, supabase }) => {
-    const updated = await blocks(supabase).organizations.update(
-      organizationId,
-      { name, slug },
-    );
+  async ({ name, slug }, { tenant: organizationId, db }) => {
+    const updated = await db.$blocks.organizations.update(organizationId, {
+      name,
+      slug,
+    });
 
     if (!updated.ok) {
       return updated;
     }
 
     after(() =>
-      recordAudit(supabase, {
+      recordAudit(db, {
         eventType: "organization.updated",
         category: "organization",
         organizationId,
@@ -106,15 +105,11 @@ export const updateOrganization = bsb.action(
  */
 export const invitationSent = bsb.action(
   {
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "members.invite"),
   },
-  async (_input, { tenant: organizationId, supabase }) => {
-    await blocks(supabase).onboarding.complete(
-      gettingStarted,
-      "invite",
-      organizationId,
-    );
+  async (_input, { tenant: organizationId, db }) => {
+    await db.onboarding.complete(gettingStarted, "invite", organizationId);
     refresh();
 
     return ok(true);
@@ -126,7 +121,7 @@ export const invitationSent = bsb.action(
  * in the members table after a removal.
  */
 export const loadMembers = bsb.action(
-  { requireTenant: true },
+  { requireOrganization: true },
   async (_input, { tenant: organizationId, db, supabase }) =>
     db
       .$rpc("organization_members", { organization: organizationId })
@@ -136,19 +131,19 @@ export const loadMembers = bsb.action(
 export const revokeInvitation = bsb.action(
   {
     input: v.object({ invitationId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "members.invite"),
   },
-  async ({ invitationId }, { tenant: organizationId, supabase }) => {
+  async ({ invitationId }, { tenant: organizationId, db }) => {
     const revoked =
-      await blocks(supabase).organizations.revokeInvitation(invitationId);
+      await db.$blocks.organizations.revokeInvitation(invitationId);
 
     if (!revoked.ok) {
       return revoked;
     }
 
     after(() =>
-      recordAudit(supabase, {
+      recordAudit(db, {
         eventType: "invitation.revoked",
         category: "membership",
         organizationId,
@@ -170,7 +165,7 @@ export const revokeInvitation = bsb.action(
 export const memberChanged = bsb.action(
   {
     input: v.object({ userId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) =>
       can(session, "members.update_role") || can(session, "members.remove"),
   },
@@ -183,22 +178,22 @@ export const memberChanged = bsb.action(
 
 /** Leaves the active organization; the owner has to transfer ownership first. */
 export const leaveOrganization = bsb.action(
-  { requireTenant: true },
-  async (_input, { tenant: organizationId, supabase }) =>
-    blocks(supabase).organizations.leave(organizationId),
+  { requireOrganization: true },
+  async (_input, { tenant: organizationId, db }) =>
+    db.$blocks.organizations.leave(organizationId),
 );
 
 export const declineInvitation = bsb.action(
   { input: v.object({ token: v.pipe(v.string(), v.minLength(8)) }) },
-  async ({ token }, { supabase }) =>
-    blocks(supabase).organizations.declineInvitation(token),
+  async ({ token }, { db }) =>
+    db.$blocks.organizations.declineInvitation(token),
 );
 
 /** Accepts an invitation for the signed-in user and switches to it. */
 export const acceptInvitation = bsb.action(
   { input: v.object({ token: v.pipe(v.string(), v.minLength(8)) }) },
-  async ({ token }, { supabase }) => {
-    const { organizations } = blocks(supabase);
+  async ({ token }, { db }) => {
+    const { organizations } = db.$blocks;
     const preview = await organizations.previewInvitation(token);
     const accepted = await organizations.acceptInvitation(token);
 
@@ -224,7 +219,7 @@ export const acceptInvitation = bsb.action(
 
     after(() =>
       recordAudit(
-        supabase,
+        db,
         v.is(v.string(), name) ? { ...event, targetLabel: name } : event,
       ),
     );

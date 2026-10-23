@@ -25,7 +25,7 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
@@ -510,7 +510,9 @@ export function createAttachments<
   ): AsyncResult<string | null> =>
     subject !== null && subject !== undefined && tenantless.has(subject.type)
       ? AsyncResult.ok(null)
-      : requireTenant(options.tenant).map((tenant): string | null => tenant);
+      : requireOrganization(options.tenant).map(
+          (tenant): string | null => tenant,
+        );
 
   const typed = (value: unknown): AsyncResult<Attachment & F> =>
     AsyncResult.from(() => withFields(fields, value, attachmentOf(value)));

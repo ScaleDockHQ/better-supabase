@@ -7,6 +7,8 @@ export {
 
 export { clearOnUserChange } from "./user-change.ts";
 
+export { queryEngine } from "./engine.ts";
+
 export {
   BLOCK_READ_PREFIXES,
   blockQueries,

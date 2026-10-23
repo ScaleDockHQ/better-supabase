@@ -5,7 +5,6 @@ import * as v from "valibot";
 
 import { getMembers } from "@/features/organization/organization-queries";
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -38,14 +37,14 @@ export interface SharingTarget {
 export const loadDriveSharing = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.read"),
   },
-  async ({ id }, { tenant, supabase }) => {
+  async ({ id }, { tenant, db }) => {
     const [grants, members, teams] = await Promise.all([
-      driveOf(supabase).grants(id),
+      driveOf(db).grants(id),
       getMembers(tenant),
-      blocks(supabase).teams.list(tenant),
+      db.teams.list(tenant),
     ]);
 
     if (!grants.ok) {
@@ -96,11 +95,11 @@ export const shareDriveItem = bsb.action(
       principal: Principal,
       role: v.picklist(DRIVE_ROLES),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.read"),
   },
-  async ({ id, principal, role }, { supabase, auth }) => {
-    const shared = await driveOf(supabase).share(id, principal, role);
+  async ({ id, principal, role }, { db, auth }) => {
+    const shared = await driveOf(db).share(id, principal, role);
 
     if (!shared.ok) {
       return shared;
@@ -116,11 +115,11 @@ export const shareDriveItem = bsb.action(
 export const unshareDriveItem = bsb.action(
   {
     input: v.object({ id: Id, principal: Principal }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.read"),
   },
-  async ({ id, principal }, { supabase, auth }) => {
-    const removed = await driveOf(supabase).unshare(id, principal);
+  async ({ id, principal }, { db, auth }) => {
+    const removed = await driveOf(db).unshare(id, principal);
 
     if (!removed.ok) {
       return removed;

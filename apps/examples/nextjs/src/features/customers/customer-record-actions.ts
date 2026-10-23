@@ -9,7 +9,6 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -51,12 +50,12 @@ export const createShareLink = bsb.action(
       /** 0 creates a link without an expiry. */
       expiresInDays: v.picklist(SHARE_EXPIRY_DAYS),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "share_links.create"),
   },
   async (
     { customerId, expiresInDays },
-    { tenant: organizationId, supabase, auth },
+    { tenant: organizationId, db, auth },
   ) => {
     const options =
       expiresInDays === 0
@@ -68,10 +67,9 @@ export const createShareLink = bsb.action(
             }),
           };
 
-    const created = await blocks(supabase, organizationId).shareLinks.create(
-      { type: SUBJECT, id: customerId },
-      options,
-    );
+    const created = await db
+      .$with({ tenant: organizationId })
+      .shareLinks.create({ type: SUBJECT, id: customerId }, options);
 
     if (!created.ok) {
       return created;
@@ -106,7 +104,7 @@ export const startAttachmentUpload = bsb.action(
         v.maxValue(MAX_ATTACHMENT_BYTES),
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "attachments.upload"),
   },
   async (
@@ -136,7 +134,7 @@ export const startAttachmentUpload = bsb.action(
 export const confirmAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "attachments.upload"),
   },
   async ({ id }, { supabase, auth }) => {
@@ -152,7 +150,7 @@ export const confirmAttachment = bsb.action(
 export const downloadAttachment = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "attachments.read"),
   },
   async ({ id }, { supabase }) =>
@@ -173,15 +171,12 @@ export const downloadAttachment = bsb.action(
 export const restoreCustomerVersion = bsb.action(
   {
     input: v.object({ customerId: Id, versionId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) =>
       can(session, "versions.restore") && can(session, "customers.write"),
   },
-  async (
-    { customerId, versionId },
-    { tenant: organizationId, supabase, auth },
-  ) => {
-    const { versions } = blocks(supabase, organizationId);
+  async ({ customerId, versionId }, { tenant: organizationId, db, auth }) => {
+    const { versions } = db.$with({ tenant: organizationId });
     const version = await versions.get(versionId);
 
     if (!version.ok) {
@@ -220,14 +215,14 @@ export const restoreCustomerVersion = bsb.action(
 export const compareCustomerVersions = bsb.action(
   {
     input: v.object({ fromId: Id, toId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "versions.read"),
   },
   async (
     { fromId, toId },
-    { supabase },
+    { db },
   ): Promise<Result<readonly JsonPatchOperation[]>> =>
-    blocks(supabase).versions.diff(fromId, toId),
+    db.versions.diff(fromId, toId),
 );
 
 // #endregion versions
@@ -249,14 +244,11 @@ const DEFAULT_CUSTOMER_POLICY = {
 export const startCustomerSla = bsb.action(
   {
     input: v.object({ customerId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "sla.read"),
   },
-  async (
-    { customerId },
-    { tenant: organizationId, supabase, session, auth },
-  ) => {
-    const { sla } = blocks(supabase, organizationId);
+  async ({ customerId }, { tenant: organizationId, db, session, auth }) => {
+    const { sla } = db.$with({ tenant: organizationId });
     const subject = { type: SUBJECT, id: customerId };
     const started = await sla.start(subject);
 

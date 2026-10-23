@@ -1,7 +1,6 @@
 import "server-only";
 import { Temporal } from "temporal-polyfill";
 
-import { blocks } from "@/lib/blocks";
 import { workspaceSummary } from "@/lib/read-sets";
 import { bsb } from "@/lib/supabase/server";
 
@@ -40,12 +39,12 @@ export async function getCustomerCounts(
   organizationId: string,
 ): Promise<CustomerCounts> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
+  const { db } = await bsb.cached();
   const until = Temporal.Now.instant();
 
   const range = { from: until.subtract({ milliseconds: 30 * DAY_MS }), until };
 
-  const { metrics } = blocks(supabase);
+  const { metrics } = db;
 
   const [total, lead, active] = await Promise.all([
     metrics

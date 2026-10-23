@@ -18,7 +18,7 @@ export interface BlockTenantOptions {
  * Reads the tenant for one call: `invalid_request` with the hint
  * `TENANT_REQUIRED` when there is none.
  */
-export function requireTenant(
+export function requireOrganization(
   source: BlockTenant | undefined,
 ): AsyncResult<string> {
   const tenant = currentTenant(source);
@@ -27,7 +27,7 @@ export function requireTenant(
     ? AsyncResult.err(
         dbError(
           "invalid_request",
-          "No tenant is active: pass `tenant` to the block, or call it from a request that has one",
+          "No organization is active: pass `tenant` to the block, or call it from a request that has one",
           { hint: "TENANT_REQUIRED" },
         ),
       )

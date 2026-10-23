@@ -11,7 +11,6 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -56,11 +55,11 @@ export const createEmployee = bsb.action(
         "",
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "employees.write"),
   },
-  async (input, { tenant, supabase, session, auth }) => {
-    const { employees } = blocks(supabase);
+  async (input, { tenant, db, session, auth }) => {
+    const { employees } = db;
 
     const employee: Writable<EmployeeInput> = { name: input.name };
 
@@ -126,11 +125,11 @@ export const createEmployee = bsb.action(
 export const getPrivateDetails = bsb.action(
   {
     input: v.object({ employeeId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "employees.view_sensitive"),
   },
-  async ({ employeeId }, { supabase }) => {
-    const details = await blocks(supabase).employees.privateDetails(employeeId);
+  async ({ employeeId }, { db }) => {
+    const details = await db.employees.privateDetails(employeeId);
 
     if (!details.ok) {
       return details;
@@ -165,10 +164,10 @@ export const logTime = bsb.action(
       }),
       v.check((input) => input.start < input.end, "End after the start"),
     ),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "time_tracking.track"),
   },
-  async (input, { tenant, supabase, auth }) => {
+  async (input, { db, auth }) => {
     const day = Temporal.PlainDate.from(input.date);
 
     const at = (time: string) =>
@@ -179,7 +178,7 @@ export const logTime = bsb.action(
         })
         .toInstant();
 
-    const logged = await blocks(supabase, tenant).timeTracking.log({
+    const logged = await db.timeTracking.log({
       startedAt: at(input.start),
       endedAt: at(input.end),
       note: input.project,
@@ -202,13 +201,11 @@ export const startTimer = bsb.action(
     input: v.object({
       project: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "time_tracking.track"),
   },
-  async ({ project }, { tenant, supabase, auth }) => {
-    const started = await blocks(supabase, tenant).timeTracking.start({
-      note: project,
-    });
+  async ({ project }, { db, auth }) => {
+    const started = await db.timeTracking.start({ note: project });
 
     if (!started.ok) {
       return started;
@@ -223,11 +220,11 @@ export const startTimer = bsb.action(
 export const stopTimer = bsb.action(
   {
     input: v.object({}),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "time_tracking.track"),
   },
-  async (_input, { tenant, supabase, auth }) => {
-    const stopped = await blocks(supabase, tenant).timeTracking.stop();
+  async (_input, { db, auth }) => {
+    const stopped = await db.timeTracking.stop();
 
     if (!stopped.ok) {
       return stopped;
@@ -243,11 +240,11 @@ export const stopTimer = bsb.action(
 export const submitTimesheet = bsb.action(
   {
     input: v.object({ week: PlainDate }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "time_tracking.track"),
   },
-  async ({ week }, { tenant, supabase, auth }) => {
-    const submitted = await blocks(supabase, tenant).timeTracking.submit(
+  async ({ week }, { db, auth }) => {
+    const submitted = await db.timeTracking.submit(
       Temporal.PlainDate.from(week),
     );
 
@@ -268,17 +265,17 @@ export const createOpening = bsb.action(
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
       location: Optional(200),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "hiring.manage"),
   },
-  async ({ title, location }, { tenant, supabase, auth }) => {
+  async ({ title, location }, { tenant, db, auth }) => {
     const job: Writable<JobInput> = { title, status: "open" };
 
     if (location !== undefined) {
       job.location = location;
     }
 
-    const saved = await blocks(supabase).hiring.saveJob(tenant, job);
+    const saved = await db.hiring.saveJob(tenant, job);
 
     if (!saved.ok) {
       return saved;
@@ -294,11 +291,11 @@ export const createOpening = bsb.action(
 export const addCandidate = bsb.action(
   {
     input: v.object({ jobId: Id, candidateId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "hiring.write"),
   },
-  async ({ jobId, candidateId }, { supabase, auth }) => {
-    const applied = await blocks(supabase).hiring.apply(
+  async ({ jobId, candidateId }, { db, auth }) => {
+    const applied = await db.hiring.apply(
       jobId,
       { type: "customer", id: candidateId },
       { source: "hiring-board" },
@@ -321,15 +318,13 @@ export const addCandidate = bsb.action(
 export const moveApplication = bsb.action(
   {
     input: v.object({ applicationId: Id, stageId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "hiring.write"),
   },
-  async ({ applicationId, stageId }, { supabase, auth }) => {
-    const moved = await blocks(supabase).rank.move(
-      "application",
-      applicationId,
-      { group: stageId },
-    );
+  async ({ applicationId, stageId }, { db, auth }) => {
+    const moved = await db.rank.move("application", applicationId, {
+      group: stageId,
+    });
 
     if (!moved.ok) {
       return moved;
@@ -348,11 +343,11 @@ export const closeApplication = bsb.action(
       applicationId: Id,
       outcome: v.picklist(["hired", "rejected"]),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "hiring.write"),
   },
-  async ({ applicationId, outcome }, { supabase, auth }) => {
-    const { hiring } = blocks(supabase);
+  async ({ applicationId, outcome }, { db, auth }) => {
+    const { hiring } = db;
 
     const closed = await (outcome === "hired"
       ? hiring.hire(applicationId)

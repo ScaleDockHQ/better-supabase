@@ -44,14 +44,14 @@ export type DriveFolderView =
  */
 async function loadFolder(folderId: string | null) {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const drive = driveOf(supabase);
+  const drive = driveOf(db);
 
   const [children, path] = await Promise.all([
     drive.list(tenant, { parentId: folderId }),

@@ -6,6 +6,10 @@ import {
 } from "better-supabase/blocks";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { PushEvents } from "better-supabase/blocks/push";
+import { linkedIdentitiesBlock as linkedIdentitiesBlockInstance } from "better-supabase/blocks/linked-identities";
+import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
+import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { pushBlock as pushBlockInstance } from "better-supabase/blocks/push";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -44,6 +48,19 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * Every installed block instance with a client, under its key, for
+ * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give
+ * a block its ports (`notifications: notificationsBlock.using(...)`).
+ * @public
+ */
+export const blocks = {
+  "linked-identities": linkedIdentitiesBlockInstance,
+  notifications: notificationsBlockInstance,
+  profiles: profilesBlockInstance,
+  push: pushBlockInstance,
+} as const;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,

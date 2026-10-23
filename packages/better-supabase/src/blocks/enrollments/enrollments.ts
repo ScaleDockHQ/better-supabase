@@ -8,7 +8,7 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
   blockCall,
@@ -256,7 +256,7 @@ function programArg(program: EnrollmentProgramInput): Record<string, unknown> {
 export function createEnrollments(options: EnrollmentsOptions): Enrollments {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const one =
     (fn: string) =>

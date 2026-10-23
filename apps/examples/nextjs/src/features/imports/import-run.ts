@@ -1,10 +1,9 @@
 import "server-only";
-import type { RpcClient } from "better-supabase/blocks";
-
 import { DbException, dbError } from "better-supabase";
 import { rpcTransport } from "better-supabase/blocks";
 
-import { blocks } from "@/lib/blocks";
+import type { AppDb } from "@/lib/supabase";
+
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
@@ -19,7 +18,7 @@ type ImportStatus = "completed" | "failed";
  * `imports.manage`.
  */
 export function importRunHooks(
-  supabase: RpcClient,
+  db: AppDb,
   organizationId: string,
   kind: string,
   mapping: Readonly<Record<string, string>>,
@@ -50,11 +49,7 @@ export function importRunHooks(
   return {
     organizationId,
     start: async () => {
-      const run = await blocks(supabase).imports.start(
-        organizationId,
-        kind,
-        mapping,
-      );
+      const run = await db.imports.start(organizationId, kind, mapping);
 
       if (!run.ok) {
         throw new DbException(run.error);

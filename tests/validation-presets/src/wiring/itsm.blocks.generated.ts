@@ -42,6 +42,27 @@ import type { RelationsEvents } from "better-supabase/blocks/relations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SlaEvents } from "better-supabase/blocks/sla";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
+import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
+import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
+import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
+import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
+import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
+import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { incidentsBlock as incidentsBlockInstance } from "better-supabase/blocks/incidents";
+import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { knowledgeBlock as knowledgeBlockInstance } from "better-supabase/blocks/knowledge";
+import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
+import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
+import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
+import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
+import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
+import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { relationsBlock as relationsBlockInstance } from "better-supabase/blocks/relations";
+import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
+import { slaBlock as slaBlockInstance } from "better-supabase/blocks/sla";
+import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
+import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -235,6 +256,37 @@ export type TicketWatchLevel = RenamedType<WorkItemWatchLevel, TasksRenames>;
 
 /** @public */
 export type TasksEvents = RenamedEvents<DefaultTasksEvents, TasksRenames>;
+
+/**
+ * Every installed block instance with a client, under its key, for
+ * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give
+ * a block its ports (`notifications: notificationsBlock.using(...)`).
+ * @public
+ */
+export const blocks = {
+  permissions: permissionsBlockInstance,
+  "api-keys": apiKeysBlockInstance,
+  approvals: approvalsBlockInstance,
+  audit: auditBlockInstance,
+  billing: billingBlockInstance,
+  assets: assetsBlockInstance,
+  enrollments: enrollmentsBlockInstance,
+  incidents: incidentsBlockInstance,
+  entitlements: entitlementsBlockInstance,
+  knowledge: knowledgeBlockInstance,
+  notifications: notificationsBlockInstance,
+  onboarding: onboardingBlockInstance,
+  organizations: organizationsBlockInstance,
+  outbox: outboxBlockInstance,
+  pipelines: pipelinesBlockInstance,
+  profiles: profilesBlockInstance,
+  relations: relationsBlockInstance,
+  settings: settingsBlockInstance,
+  sla: slaBlockInstance,
+  subjects: subjectsBlockInstance,
+  teams: teamsBlockInstance,
+  tasks: tasksBlock,
+} as const;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,

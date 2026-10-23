@@ -7635,7 +7635,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 import { metrics } from "@/metrics";
 
@@ -7664,7 +7663,7 @@ async function loadPanels(
   organizationId: string,
 ): Promise<readonly MetricPanel[]> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
+  const { db } = await bsb.cached();
   const until = Temporal.Now.instant();
 
   const range = {
@@ -7672,7 +7671,7 @@ async function loadPanels(
     until,
   };
 
-  const client = blocks(supabase).metrics;
+  const client = db.metrics;
 
   return Promise.all(
     metrics.map(async ({ key }) => {
@@ -7859,7 +7858,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 /** The flags `src/flags.ts` defines. */
@@ -7885,19 +7883,17 @@ type FlagValues =
  */
 async function loadFlags(): Promise<readonly FlagValue[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { call } = blocks(supabase);
-
   return Promise.all(
     FLAG_KEYS.map(async (key) => ({
       key,
-      on: (await call("flag_enabled", { key, tenant })) === true,
+      on: (await db.$api("flag_enabled", { key, tenant })) === true,
     })),
   );
 }

@@ -249,6 +249,8 @@ interface RenamedLines {
   readonly specifiers: readonly string[];
   readonly imports: readonly string[];
   readonly lines: readonly string[];
+  /** The constant each renamed instance's block is exported under. */
+  readonly constants: ReadonlyMap<string, string>;
 }
 
 const CATALOG_BLOCKS = new Map(
@@ -364,6 +366,7 @@ function renamedBlockLines(
   const imports: string[] = [];
   const lines: string[] = [];
   const exported = new Set<string>();
+  const constants = new Map<string, string>();
 
   for (const manifest of PRESET_CATALOG.manifests) {
     const instances = Object.entries(entries).filter(
@@ -442,6 +445,7 @@ function renamedBlockLines(
         : wanted;
 
       exported.add(renamed);
+      constants.set(instance, renamed);
 
       lines.push(
         "",
@@ -470,6 +474,64 @@ function renamedBlockLines(
         : ["renameBlock", "type RenamedEvents", "type RenamedType"],
     imports,
     lines,
+    constants,
+  };
+}
+
+/**
+ * `blocks`: every installed instance with a client, under its key, for
+ * `defineBlocks(blockConfig, blocks)`. A renamed instance uses its renamed
+ * constant; the others import their block.
+ */
+function instanceMapLines(
+  entries: Readonly<Record<string, GeneratedBlock>>,
+  renamed: ReadonlyMap<string, string>,
+): { readonly imports: readonly string[]; readonly lines: readonly string[] } {
+  const imported = new Map<string, { local: string; subpath: string }>();
+  const members: string[] = [];
+
+  for (const [instance, entry] of Object.entries(entries)) {
+    const manifest = MANIFESTS.get(entry.block ?? instance);
+    const client = manifest?.client;
+
+    if (manifest === undefined || client === undefined || client === null) {
+      continue;
+    }
+
+    const constant = renamed.get(instance);
+
+    if (constant !== undefined) {
+      members.push(`  ${prop(instance)}: ${constant},`);
+      continue;
+    }
+
+    const local = `${camelOf(manifest.name)}BlockInstance`;
+    imported.set(manifest.name, { local, subpath: client.subpath });
+    members.push(`  ${prop(instance)}: ${local},`);
+  }
+
+  if (members.length === 0) {
+    return { imports: [], lines: [] };
+  }
+
+  return {
+    imports: [...imported].map(([name, { local, subpath }]) => {
+      const block = MANIFESTS.get(name)?.client?.export ?? local;
+
+      return `import { ${block} as ${local} } from ${q(subpath)};`;
+    }),
+    lines: [
+      "",
+      "/**",
+      " * Every installed block instance with a client, under its key, for",
+      " * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give",
+      " * a block its ports (`notifications: notificationsBlock.using(...)`).",
+      " * @public",
+      " */",
+      "export const blocks = {",
+      ...members,
+      "} as const;",
+    ],
   };
 }
 
@@ -562,6 +624,7 @@ export function emitBlockConfig(
   const runtime = options.runtimeImport ?? "better-supabase";
   const renamed = renamedBlockLines(entries);
   const constants = nameConstantLines(config, entries);
+  const instances = instanceMapLines(entries, renamed.constants);
 
   const specifiers = [
     ...(events.length === 0
@@ -587,6 +650,7 @@ export function emitBlockConfig(
       blocksImport,
       ...renamed.imports,
       ...constants.imports,
+      ...instances.imports,
       "",
       "/**",
       " * The installed blocks' settings from the `blocks` config, for",
@@ -595,6 +659,7 @@ export function emitBlockConfig(
       " */",
       `export const blockConfig = ${literal(entries, "")} as const satisfies GeneratedBlocks;`,
       ...renamed.lines,
+      ...instances.lines,
       ...appTableEventLines(events),
       ...constants.lines,
       "",

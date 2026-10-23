@@ -5,7 +5,6 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -22,11 +21,11 @@ export const requestApproval = bsb.action(
       action: v.picklist(APPROVAL_ACTIONS),
       reason: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "approvals.request"),
   },
-  async ({ subjectId, action, reason }, { tenant, supabase, auth }) => {
-    const requested = await blocks(supabase, tenant).approvals.request(
+  async ({ subjectId, action, reason }, { db, auth }) => {
+    const requested = await db.approvals.request(
       { type: APPROVAL_SUBJECT, id: subjectId },
       { action, reason },
     );
@@ -52,11 +51,11 @@ export const decideApproval = bsb.action(
       decision: v.picklist(["approve", "reject"]),
       comment: Comment,
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "approvals.read"),
   },
-  async ({ id, decision, comment }, { supabase, auth }) => {
-    const { approvals } = blocks(supabase);
+  async ({ id, decision, comment }, { db, auth }) => {
+    const { approvals } = db;
     const note = comment === "" ? undefined : comment;
 
     const decided =

@@ -19,7 +19,7 @@ const customers = defineListQuery(betterSupabase, "customers", {
 const admins = bsb.require({
   roles: ["admin"],
   roleClaim: "user_role",
-  requireTenant: true,
+  requireOrganization: true,
 });
 
 /**

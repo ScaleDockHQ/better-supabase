@@ -296,7 +296,7 @@ export interface BetterNext<
    *
    * ```ts
    * export const invite = bsb.action(
-   *   { input: Invite, requireTenant: true, roles: ["admin"] },
+   *   { input: Invite, requireOrganization: true, roles: ["admin"] },
    *   async (input, { db, tenant }) =>
    *     db.invitations.create({ ...input, organizationId: tenant }),
    * );
@@ -315,7 +315,7 @@ export interface BetterNext<
    *
    * ```ts
    * export const issueInvoice = bsb.blockAction(
-   *   ({ supabase }) => blocks(supabase).invoices,
+   *   ({ db }) => db.invoices,
    *   "issue",
    *   {
    *     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
@@ -373,7 +373,7 @@ export interface BetterNext<
    *
    * ```ts
    * const { db, tenant } = await bsb.require({
-   *   requireTenant: true,
+   *   requireOrganization: true,
    *   roles: ["admin"],
    * });
    * ```
