@@ -1,9 +1,9 @@
 ---
-title: SQL modules
-description: Idempotent SQL modules for the database work every app repeats, written into your declarative schema.
+title: Block SQL
+description: The SQL a block installs into your declarative schema. The files are idempotent, and you commit them with the app.
 ---
 
-`better-supabase add` writes SQL modules into `supabase/schemas`, and
+`better-supabase add` writes a block's SQL into `supabase/schemas`, and
 `supabase db schema declarative sync` turns them into a migration. The files are plain SQL that
 you can read and commit, so nothing runs behind your back. Every module can be
 re-run safely, and it keeps everything it creates in the `better_supabase`

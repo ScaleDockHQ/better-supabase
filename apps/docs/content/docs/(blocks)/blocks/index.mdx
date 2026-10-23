@@ -1,14 +1,15 @@
 ---
 title: Overview
-description: Feature modules for SaaS apps, each a set of SQL modules in your schema with an optional TypeScript side under better-supabase/blocks.
+description: Blocks for SaaS apps. Each one installs SQL into your schema and, when it has a TypeScript side, a client on db.
 ---
 
 A block is a feature most SaaS apps build by hand: organizations and
 invitations, background jobs, notifications, outgoing webhooks, plan
-entitlements. Each block installs one or more [SQL modules](/docs/blocks/sql)
-into `supabase/schemas` with `better-supabase add`, and blocks with a
-TypeScript side import it from `better-supabase/blocks/<name>`. Blocks that are
-SQL only have no subpath; you call their functions from policies and RPCs.
+entitlements. `better-supabase add` installs its SQL into `supabase/schemas`
+([what that SQL contains](/docs/blocks/sql)). An app calls an instance on
+`db`, and `gen.hooks` writes the list and record hooks. Blocks with a
+TypeScript side also export a client from `better-supabase/blocks/<name>`
+for code that does not use `bsb.db()`.
 
 ```bash
 pnpm better-supabase add organizations invitations
@@ -30,12 +31,32 @@ SQL, wrap its transport with middleware and add methods. See
 [Extending blocks](/docs/extending/blocks).
 
 List the blocks to keep in sync in `blocks` in `better-supabase.config.ts`,
-keyed by SQL module name, with each module's settings as the value. The
-foundation modules, such as `tenant`, `permissions` and `updated-at`, go there
-too. The primitives that every app
+keyed by instance, with that instance's settings as the value. Core blocks,
+such as `memberships`, `permissions` and `updated-at`, go there too. The
+primitives that every app
 uses, such as [list queries](/docs/platform/list),
 [storage](/docs/platform/storage) and [realtime topics](/docs/platform/realtime),
 are not blocks and keep their top-level subpaths.
+
+## By category
+
+<Cards>
+  <Card
+    title="Organizations and identity"
+    href="/docs/blocks/catalog-organizations"
+  />
+  <Card title="Database" href="/docs/blocks/catalog-database" />
+  <Card title="Collaboration" href="/docs/blocks/catalog-collaboration" />
+  <Card title="Work" href="/docs/blocks/catalog-work" />
+  <Card title="CRM" href="/docs/blocks/catalog-crm" />
+  <Card title="Commerce" href="/docs/blocks/catalog-commerce" />
+  <Card title="Content" href="/docs/blocks/catalog-content" />
+  <Card title="AI" href="/docs/blocks/catalog-ai" />
+  <Card title="Automation" href="/docs/blocks/catalog-automation" />
+  <Card title="Developer" href="/docs/blocks/catalog-developer" />
+  <Card title="Growth" href="/docs/blocks/catalog-growth" />
+  <Card title="People and scheduling" href="/docs/blocks/catalog-people" />
+</Cards>
 
 ## Instances
 
