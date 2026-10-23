@@ -61,6 +61,16 @@ const employees = createEmployees({
 });
 ```
 
+## Time and leave
+
+With [time-tracking](/docs/blocks/time-tracking) or [leave](/docs/blocks/leave)
+installed, time entries and leave requests carry an `employee_id` column.
+A trigger fills it from the employee with the row's account when the row is
+written, and a trigger on employees fills or clears it when an employee
+gets, changes or loses an account. Upgrading an app that has both blocks
+fills the column for the rows it already has. A member who isn't an
+employee keeps `employee_id` null.
+
 ## Org chart
 
 `orgChart(organizationId)` returns the current employees under everyone without a manager, and `orgChart(organizationId, rootId)` the employees under one, each with its `depth` and number of `directReports`, in display order. `reportsOf(managerId)` returns the direct reports, and `{ indirect: true }` everyone under the manager. Offboarded employees are left out.

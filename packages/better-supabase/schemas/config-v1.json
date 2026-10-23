@@ -3633,6 +3633,18 @@
                 "type": "number",
                 "default": 600
               },
+              "meterUsage": {
+                "type": "boolean",
+                "default": true
+              },
+              "inputMeter": {
+                "type": "string",
+                "default": "ai.input_tokens"
+              },
+              "outputMeter": {
+                "type": "string",
+                "default": "ai.output_tokens"
+              },
               "extraColumns": {}
             }
           }
@@ -3831,6 +3843,13 @@
                 "default": "{organization_id}/attachments/{id}"
               },
               "scanBuckets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "publicBuckets": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -4821,6 +4840,10 @@
               "embedQueue": {
                 "type": "string",
                 "default": "knowledge_embed"
+              },
+              "ingestQueue": {
+                "type": "string",
+                "default": "knowledge_ingest"
               }
             }
           }
