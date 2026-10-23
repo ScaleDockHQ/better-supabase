@@ -113,7 +113,7 @@ export function creditsSql(ctx: BlockSqlContext): string {
       jsonb_build_array(
         jsonb_build_object('account', ${passAccount(tenant, pass, holder)}, 'amount', ${amount}),
         jsonb_build_object('account', ${poolAccount(tenant)}, 'amount', ${-amount})),
-      'bookings', ${booking}::text, null, ${creditKey(booking, reason)}, null,
+      'bookings', ${booking}::text, null, ${creditKey(booking, reason)}, clock_timestamp(),
       jsonb_build_object('passId', ${pass}, 'reason', '${reason}'))`;
   };
 
@@ -227,7 +227,7 @@ begin
     ${fail("PASS_NOT_FOUND", "pass not found", "P0002")}
   end if;
   return coalesce((
-    select jsonb_agg(${entryJson} order by r.${lt("createdAt")} desc, r.${lt("id")})
+    select jsonb_agg(${entryJson} order by r.${lt("effectiveAt")} desc, r.${lt("createdAt")} desc, r.${lt("id")})
     from ${ledger.table("accounts")} x
     join ${ledger.table("entries")} y on y.${le("account")} = x.${la("id")}
     join ${transactions} r on r.${lt("id")} = y.${le("transaction")}

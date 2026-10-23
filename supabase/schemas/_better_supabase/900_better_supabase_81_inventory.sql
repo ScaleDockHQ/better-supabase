@@ -43,10 +43,29 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Stock per catalog variant and location: movements posted to the ledger,
 -- reservations with expiry, transfers and purchase orders with receiving.
 
+create table if not exists "better_supabase"."inventory_locations" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null,
+  "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null default 'warehouse' check ("kind" in ('warehouse', 'store', 'virtual')),
+  "active" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+alter table "better_supabase"."inventory_locations" enable row level security;
+revoke all on "better_supabase"."inventory_locations" from anon, authenticated;
+grant select on "better_supabase"."inventory_locations" to authenticated;
+grant all on "better_supabase"."inventory_locations" to service_role;
+drop policy if exists inventory_locations_read on "better_supabase"."inventory_locations";
+create policy inventory_locations_read on "better_supabase"."inventory_locations" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
+
 create table if not exists "better_supabase"."stock_levels" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "location_id" uuid not null references "better_supabase"."asset_locations" ("id") on delete cascade,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "on_hand" integer not null default 0,
   "reserved" integer not null default 0 check ("reserved" >= 0),
   "incoming" integer not null default 0 check ("incoming" >= 0),
@@ -68,7 +87,7 @@ create table if not exists "better_supabase"."stock_reservations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "location_id" uuid not null references "better_supabase"."asset_locations" ("id") on delete cascade,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "quantity" integer not null check ("quantity" > 0),
   "status" text not null default 'active' check ("status" in ('active', 'committed', 'released', 'expired')),
   "reference_type" text,
@@ -91,8 +110,8 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read'))
 create table if not exists "better_supabase"."stock_transfers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "from_location_id" uuid not null references "better_supabase"."asset_locations" ("id") on delete cascade,
-  "to_location_id" uuid not null references "better_supabase"."asset_locations" ("id") on delete cascade,
+  "from_location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
+  "to_location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "status" text not null default 'draft' check ("status" in ('draft', 'in_transit', 'received', 'cancelled')),
   "note" text,
   "created_at" timestamptz not null default now(),
@@ -129,7 +148,7 @@ using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read'))
 create table if not exists "better_supabase"."purchase_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "location_id" uuid not null references "better_supabase"."asset_locations" ("id") on delete cascade,
+  "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "supplier_type" text,
   "supplier_id" text,
   "status" text not null default 'draft' check ("status" in ('draft', 'ordered', 'partially_received', 'received', 'cancelled')),
@@ -251,14 +270,14 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."asset_locations" ("tenant_id", "code", "name", "kind")
+      insert into "better_supabase"."inventory_locations" ("tenant_id", "code", "name", "kind")
       values (save_location.tenant, save_location.code, save_location.name, coalesce(save_location.kind, 'warehouse'))
-      returning "id", ("archived_at" is null) into v_id, v_active;
+      returning "id", "active" into v_id, v_active;
     else
-      update "better_supabase"."asset_locations" x set "code" = save_location.code, "name" = save_location.name,
+      update "better_supabase"."inventory_locations" x set "code" = save_location.code, "name" = save_location.name,
         "kind" = coalesce(save_location.kind, x."kind"), "updated_at" = now()
       where x."id" = save_location.location and x."tenant_id" = save_location.tenant
-      returning (x."archived_at" is null) into v_active;
+      returning x."active" into v_active;
       if not found then
         raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
       end if;
@@ -286,14 +305,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", (x."archived_at" is null) into v_tenant, v_active from "better_supabase"."asset_locations" x where x."id" = set_location_active.location;
+  select x."tenant_id", x."active" into v_tenant, v_active from "better_supabase"."inventory_locations" x where x."id" = set_location_active.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  update "better_supabase"."asset_locations" x set "archived_at" = case when coalesce(set_location_active.active, true) then null else coalesce("archived_at", now()) end, "updated_at" = now()
+  update "better_supabase"."inventory_locations" x set "active" = coalesce(set_location_active.active, true), "updated_at" = now()
   where x."id" = set_location_active.location;
   return true;
 end;
@@ -315,7 +334,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."asset_locations" x where x."id" = delete_location.location;
+  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = delete_location.location;
   if v_tenant is null then
     return false;
   end if;
@@ -328,7 +347,7 @@ begin
     or exists (select 1 from "better_supabase"."stock_reservations" x where x."location_id" = delete_location.location and x."status" = 'active') then
     raise exception 'the location has stock history; deactivate it instead' using errcode = '23503', hint = 'INVENTORY_LOCATION_IN_USE';
   end if;
-  delete from "better_supabase"."asset_locations" x where x."id" = delete_location.location;
+  delete from "better_supabase"."inventory_locations" x where x."id" = delete_location.location;
   return true;
 end;
 $$;
@@ -350,7 +369,7 @@ declare
   v_on_hand integer;
   v_available integer;
 begin
-  select x."tenant_id", (x."archived_at" is null) into v_tenant, v_active from "better_supabase"."asset_locations" x where x."id" = adjust_stock.location;
+  select x."tenant_id", x."active" into v_tenant, v_active from "better_supabase"."inventory_locations" x where x."id" = adjust_stock.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
@@ -409,7 +428,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", (x."archived_at" is null) into v_tenant, v_active from "better_supabase"."asset_locations" x where x."id" = count_stock.location;
+  select x."tenant_id", x."active" into v_tenant, v_active from "better_supabase"."inventory_locations" x where x."id" = count_stock.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
@@ -454,7 +473,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", (x."archived_at" is null) into v_tenant, v_active from "better_supabase"."asset_locations" x where x."id" = set_reorder_point.location;
+  select x."tenant_id", x."active" into v_tenant, v_active from "better_supabase"."inventory_locations" x where x."id" = set_reorder_point.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
@@ -498,7 +517,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", (x."archived_at" is null) into v_tenant, v_active from "better_supabase"."asset_locations" x where x."id" = reserve_stock.location;
+  select x."tenant_id", x."active" into v_tenant, v_active from "better_supabase"."inventory_locations" x where x."id" = reserve_stock.location;
   if v_tenant is null then
     raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
@@ -697,7 +716,7 @@ begin
   if create_transfer.from_location is not distinct from create_transfer.to_location then
     raise exception 'a transfer needs two different locations' using errcode = '22023', hint = 'INVENTORY_TRANSFER_SAME_LOCATION';
   end if;
-  if (select count(*) from "better_supabase"."asset_locations" x where x."id" in (create_transfer.from_location, create_transfer.to_location) and x."tenant_id" = create_transfer.tenant) <> 2 then
+  if (select count(*) from "better_supabase"."inventory_locations" x where x."id" in (create_transfer.from_location, create_transfer.to_location) and x."tenant_id" = create_transfer.tenant) <> 2 then
     raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
   if jsonb_typeof(create_transfer.lines) is distinct from 'array' or jsonb_array_length(create_transfer.lines) = 0
@@ -850,7 +869,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_purchase_order.tenant, 'inventory.purchase'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if not exists (select 1 from "better_supabase"."asset_locations" x where x."id" = save_purchase_order.location and x."tenant_id" = save_purchase_order.tenant) then
+  if not exists (select 1 from "better_supabase"."inventory_locations" x where x."id" = save_purchase_order.location and x."tenant_id" = save_purchase_order.tenant) then
     raise exception 'location not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
   end if;
   if (save_purchase_order.supplier_type is null) <> (save_purchase_order.supplier_id is null) then

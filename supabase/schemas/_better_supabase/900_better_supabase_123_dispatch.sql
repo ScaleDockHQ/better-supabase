@@ -247,7 +247,7 @@ begin
     where conrelid = '"better_supabase"."work_order_parts"'::regclass and conname = 'work_order_parts_location_fkey'
   ) then
     alter table "better_supabase"."work_order_parts" add constraint "work_order_parts_location_fkey"
-      foreign key ("location_id") references "better_supabase"."asset_locations" ("id") on delete set null not valid;
+      foreign key ("location_id") references "better_supabase"."inventory_locations" ("id") on delete set null not valid;
     begin
       alter table "better_supabase"."work_order_parts" validate constraint "work_order_parts_location_fkey";
     exception when foreign_key_violation then
@@ -915,7 +915,7 @@ begin
     raise exception 'the product variant does not exist in this organization' using errcode = 'P0002', hint = 'DISPATCH_VARIANT_NOT_FOUND';
   end if;
   if record_work_order_part.location_id is not null and not exists (
-    select 1 from "better_supabase"."asset_locations" il
+    select 1 from "better_supabase"."inventory_locations" il
     where il."id" = record_work_order_part.location_id and il."tenant_id" = v_order."tenant_id"
   ) then
     raise exception 'the inventory location does not exist in this organization' using errcode = 'P0002', hint = 'DISPATCH_INVENTORY_LOCATION_NOT_FOUND';

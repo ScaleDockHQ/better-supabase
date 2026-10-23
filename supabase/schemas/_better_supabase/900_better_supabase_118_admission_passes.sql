@@ -583,7 +583,7 @@ begin
     'passes', v_pass."id"::text, v_pass."holder_user_id", true, 'passes.read', 'admission-passes', jsonb_build_object('passId', v_pass."id")), 'amount', -1),
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_pass."tenant_id", 'pass_credits_pool', 'pass-credits:pool', 'Pass credits pool', 'credit', 0::smallint,
     null, null, null, true, 'passes.read', 'admission-passes', null), 'amount', 1)),
-      'bookings', (v_booking ->> 'id')::uuid::text, null, 'pass-credit:' || (v_booking ->> 'id')::uuid::text || ':booking', null,
+      'bookings', (v_booking ->> 'id')::uuid::text, null, 'pass-credit:' || (v_booking ->> 'id')::uuid::text || ':booking', clock_timestamp(),
       jsonb_build_object('passId', v_pass."id", 'reason', 'booking'));
   update "better_supabase"."passes" x set "uses" = x."uses" + 1, "updated_at" = now()
   where x."id" = v_pass."id";
@@ -635,7 +635,7 @@ begin
     'passes', v_spent.pass::text, v_spent.holder, true, 'passes.read', 'admission-passes', jsonb_build_object('passId', v_spent.pass)), 'amount', 1),
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_spent.tenant, 'pass_credits_pool', 'pass-credits:pool', 'Pass credits pool', 'credit', 0::smallint,
     null, null, null, true, 'passes.read', 'admission-passes', null), 'amount', -1)),
-      'bookings', new."id"::text, null, 'pass-credit:' || new."id"::text || ':refund', null,
+      'bookings', new."id"::text, null, 'pass-credit:' || new."id"::text || ':refund', clock_timestamp(),
       jsonb_build_object('passId', v_spent.pass, 'reason', 'refund'));
     update "better_supabase"."passes" x set "uses" = greatest(x."uses" - 1, 0), "updated_at" = now()
     where x."id" = v_spent.pass;
@@ -680,7 +680,7 @@ begin
     select jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id"::text, 'passId', (x."metadata" ->> 'passId')::uuid,
       'bookingId', r."reference_id"::uuid, 'delta', y."amount",
       'reason', case when r."kind" = 'pass.credit_used' then 'booking' else 'refund' end,
-      'createdBy', r."actor_id", 'createdAt', r."created_at") order by r."created_at" desc, r."id")
+      'createdBy', r."actor_id", 'createdAt', r."created_at") order by r."effective_at" desc, r."created_at" desc, r."id")
     from "better_supabase"."ledger_accounts" x
     join "better_supabase"."ledger_entries" y on y."account_id" = x."id"
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
