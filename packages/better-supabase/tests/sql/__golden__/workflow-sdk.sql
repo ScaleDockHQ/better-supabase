@@ -438,6 +438,7 @@ grant execute on function "better_supabase"."dispatch_workflow_deliveries"(integ
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -900,6 +901,7 @@ grant execute on function "better_supabase"."dispatch_workflow_deliveries"(integ
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1364,6 +1366,7 @@ grant execute on function "app_private"."dispatch_workflow_deliveries"(integer) 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1839,6 +1842,7 @@ grant execute on function "api"."dispatch_workflow_deliveries"(integer) to servi
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

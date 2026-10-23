@@ -269,6 +269,7 @@ grant execute on function "better_supabase"."rank_field_definition"(uuid, text) 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -601,6 +602,7 @@ grant execute on function "better_supabase"."encrypt_field_definition"(uuid) to 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -896,6 +898,7 @@ grant execute on function "app_private"."rank_field_definition"(uuid, text) to a
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1265,6 +1268,7 @@ grant execute on function "api"."rank_field_definition"(uuid, text) to authentic
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1509,6 +1513,7 @@ grant execute on function "better_supabase"."rank_field_definition"(uuid, text) 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

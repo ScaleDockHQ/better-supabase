@@ -59,9 +59,31 @@ export interface ResolvedInstance {
   readonly block: string;
   /** The record types it attaches to; unset, every record type. */
   readonly on?: InstanceOn;
-  /** Each dependency block to the instance it resolves to. */
+  /**
+   * Each dependency block to the instance it resolves to, when that is not the
+   * instance named after the block: what `uses` sets, and a dependency's only
+   * instance when it has another name.
+   */
   readonly uses: Readonly<Record<string, string>>;
+  /** Its config, without `block`. */
+  readonly config: BlockConfig;
 }
+
+const INSTANCE_NAME = /^[a-z][a-zA-Z0-9-]*$/;
+
+/**
+ * The prefix an instance gives the names its block's renames leave unchanged:
+ * `hiring-pipelines` and `hiringPipelines` both give `hiring_pipelines`.
+ */
+export function instancePrefix(name: string): string {
+  return name
+    .replaceAll(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+    .replaceAll("-", "_");
+}
+
+/** Whether `instance` installs its block under another name. */
+export const isRenamedInstance = (instance: ResolvedInstance): boolean =>
+  instance.name !== instance.block;
 
 /** The blocks `block` may bind with `uses`: what it requires or works with. */
 function dependenciesOf(
@@ -99,6 +121,13 @@ function instanceProblems(
   const problems: string[] = [];
 
   for (const [name, entry] of entries) {
+    if (!INSTANCE_NAME.test(name)) {
+      problems.push(
+        `blocks.${name}: an instance name starts with a lowercase letter and holds letters, digits and -.`,
+      );
+      continue;
+    }
+
     if (entry.block !== undefined && !blocks.has(entry.block)) {
       problems.push(
         `blocks.${name}.block: "${entry.block}" is not a block. See \`better-supabase blocks list\`.`,
@@ -173,41 +202,58 @@ export function resolveInstances(
     throw new TypeError(problems.join("\n"));
   }
 
+  const byBlock = new Map<string, string[]>();
+
+  for (const [name, entry] of entries) {
+    const block = entry.block ?? name;
+    byBlock.set(block, [...(byBlock.get(block) ?? []), name]);
+  }
+
   return Object.fromEntries(
-    entries.map(([name, entry]) => [
-      name,
-      {
+    entries.map(([name, entry]) => {
+      const block = entry.block ?? name;
+      const { known } = dependenciesOf(block, catalog);
+
+      const implied = [...known].flatMap((dependency) => {
+        const installed = byBlock.get(dependency) ?? [];
+
+        return installed.length === 1 && installed[0] !== dependency
+          ? [[dependency, installed[0]!] as const]
+          : [];
+      });
+
+      const uses = Object.fromEntries(
+        [...implied, ...Object.entries(entry.uses ?? {})].filter(
+          ([dependency, instance]) => instance !== dependency,
+        ),
+      );
+
+      return [
         name,
-        block: entry.block ?? name,
-        ...(entry.on === undefined ? {} : { on: entry.on }),
-        uses: entry.uses ?? {},
-      },
-    ]),
+        {
+          name,
+          block,
+          ...(entry.on === undefined ? {} : { on: entry.on }),
+          uses,
+          config: withoutBlockKey(entry),
+        },
+      ];
+    }),
   );
 }
 
 /**
- * `blocks` keyed by block name, for the code that installs each block once: the
- * instance named after its block, else the block's first instance.
+ * `blocks` keyed by block name: the instances named after their block. The
+ * other instances render on their own, from `instances`.
  */
 export function blocksByName(
-  blocks: AnyBlocksConfig,
   instances: Readonly<Record<string, ResolvedInstance>>,
 ): AnyBlocksConfig {
-  const out: Record<string, AnyBlocksConfig[string]> = {};
-
-  for (const instance of Object.values(instances)) {
-    const entry = blocks[instance.name];
-
-    if (
-      entry !== undefined &&
-      (instance.name === instance.block || !(instance.block in out))
-    ) {
-      out[instance.block] = withoutBlockKey(entry);
-    }
-  }
-
-  return out;
+  return Object.fromEntries(
+    Object.values(instances)
+      .filter((instance) => !isRenamedInstance(instance))
+      .map((instance) => [instance.block, instance.config]),
+  );
 }
 
 function withoutBlockKey<T extends BlockConfig>(entry: T): T {

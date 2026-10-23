@@ -1,6 +1,6 @@
 import type { ExpandedConfig } from "../preset/config.ts";
 import type { AuthorizationProvider } from "./authorization.ts";
-import type { AnyBlocksConfig } from "./blocks.ts";
+import type { AnyBlocksConfig, BlockConfig } from "./blocks.ts";
 import type { ConfigReferences } from "./references.ts";
 import type { Generator } from "./types/codegen.ts";
 import type {
@@ -90,18 +90,21 @@ function blocksOf(
   sql: SqlConfig = {},
   provider: boolean,
 ): Pick<ResolvedConfig, "blocks" | "blockNames" | "instances"> {
-  const config = blocks ?? [];
-  const instances = resolveInstances(config);
+  const instances = Object.fromEntries(
+    Object.entries(resolveInstances(blocks ?? [])).map(([name, instance]) => [
+      name,
+      { ...instance, config: withSqlDefaults(instance.config, sql) },
+    ]),
+  );
 
   const blockNames = [
     ...new Set(Object.values(instances).map((instance) => instance.block)),
   ];
 
-  const resolved = withSqlDefaults(
-    isBlockList(config) ? {} : blocksByName(config, instances),
-    blockNames,
-    sql,
-  );
+  const resolved =
+    Array.isArray(blocks) && sql.schema === undefined && sql.api === undefined
+      ? {}
+      : blocksByName(instances);
 
   if (
     !provider ||
@@ -125,39 +128,14 @@ function blocksOf(
  * `sql.schema` and `sql.api` on every block that leaves its own unset. A
  * block's `api: false` keeps it out of the API schema.
  */
-function withSqlDefaults(
-  modules: AnyBlocksConfig,
-  names: readonly string[],
-  sql: SqlConfig,
-): AnyBlocksConfig {
-  if (sql.schema === undefined && sql.api === undefined) {
-    return modules;
-  }
-
+function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
   const { schema, api } = sql;
 
-  return Object.fromEntries(
-    names.map((name) => {
-      const module = modules[name] ?? {};
-
-      return [
-        name,
-        {
-          ...module,
-          ...(schema === undefined || module.schema !== undefined
-            ? {}
-            : { schema }),
-          ...(api === undefined || module.api !== undefined ? {} : { api }),
-        },
-      ];
-    }),
-  );
-}
-
-function isBlockList(
-  config: NonNullable<FlatConfig["blocks"]>,
-): config is readonly string[] {
-  return Array.isArray(config);
+  return {
+    ...block,
+    ...(schema === undefined || block.schema !== undefined ? {} : { schema }),
+    ...(api === undefined || block.api !== undefined ? {} : { api }),
+  };
 }
 
 export const CONFIG_SCHEMA_URL =

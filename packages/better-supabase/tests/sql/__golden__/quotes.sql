@@ -646,6 +646,7 @@ grant execute on function "better_supabase"."expire_quotes"() to service_role;
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1396,6 +1397,7 @@ grant execute on function "better_supabase"."quote_from_deal"(uuid) to authentic
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2068,6 +2070,7 @@ grant execute on function "app_private"."expire_quotes"() to service_role;
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2841,6 +2844,7 @@ grant execute on function "api"."expire_quotes"() to service_role;
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

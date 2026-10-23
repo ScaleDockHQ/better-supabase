@@ -257,6 +257,7 @@ grant execute on function "better_supabase"."bulk_step"(uuid, integer) to servic
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -556,6 +557,7 @@ grant execute on function "better_supabase"."bulk_step"(uuid, integer) to servic
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -839,6 +841,7 @@ grant execute on function "app_private"."bulk_step"(uuid, integer) to service_ro
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1187,6 +1190,7 @@ grant execute on function "api"."bulk_step"(uuid, integer) to service_role;
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1443,6 +1447,7 @@ grant execute on function "better_supabase"."bulk_step"(uuid, integer) to servic
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

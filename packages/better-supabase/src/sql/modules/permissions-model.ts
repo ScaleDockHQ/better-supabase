@@ -789,12 +789,20 @@ export function rolesOf(
   }
 
   const naming = ctx.blockNaming();
+  const instances = ctx.instanceNamings().filter((each) => each.renamed);
 
-  return naming.renamed
+  return naming.renamed || instances.length > 0
     ? Object.fromEntries(
         Object.entries(DEFAULT_ROLES).map(([role, keys]) => [
           role,
-          keys.map((key) => naming.rename(key)),
+          [
+            ...new Set(
+              keys.flatMap((key) => [
+                naming.rename(key),
+                ...instances.map((each) => each.rename(key)),
+              ]),
+            ),
+          ],
         ]),
       )
     : DEFAULT_ROLES;

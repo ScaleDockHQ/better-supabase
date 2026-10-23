@@ -550,6 +550,7 @@ $do$;
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1269,6 +1270,7 @@ $do$;
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1845,6 +1847,7 @@ $do$;
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2531,6 +2534,7 @@ grant execute on function "api"."documents_to_compact"(integer, integer) to serv
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

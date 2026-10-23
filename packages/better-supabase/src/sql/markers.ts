@@ -1,19 +1,38 @@
-/** The `@bsb-block` line: module, version and mode, read by `upgrade`. */
+/**
+ * The `@bsb-block` line: instance, version, mode and, for an instance that
+ * installs a block under another name, the block. `upgrade` reads it.
+ */
 const MODULE_MARKER: RegExp =
-  /^-- @(?:bsb-block|bs-module) ([a-z0-9-]+)@(\d+) (managed|adopt)$/m;
+  /^-- @(?:bsb-block|bs-module) ([a-zA-Z0-9-]+)@(\d+) (managed|adopt)(?: ([a-z0-9-]+))?$/m;
 
-/** The installed version of a module file, from its `@bsb-block` line. */
+/**
+ * The installed version of a module file, from its `@bsb-block` line: `module`
+ * is the instance, and `block` the block an instance with another name
+ * installs.
+ */
 export function moduleFileVersion(
   contents: string,
-): { readonly module: string; readonly version: number } | undefined {
+):
+  | {
+      readonly module: string;
+      readonly block?: string;
+      readonly version: number;
+    }
+  | undefined {
   const match = MODULE_MARKER.exec(contents);
 
-  return match ? { module: match[1]!, version: Number(match[2]) } : undefined;
+  return match
+    ? {
+        module: match[1]!,
+        ...(match[4] === undefined ? {} : { block: match[4] }),
+        version: Number(match[2]),
+      }
+    : undefined;
 }
 
 /** The `@bsb-block-data` line of a data file. */
 const MODULE_DATA_MARKER: RegExp =
-  /^-- @(?:bsb-block-data|bs-module-data) ([a-z0-9-]+)$/m;
+  /^-- @(?:bsb-block-data|bs-module-data) ([a-zA-Z0-9-]+)$/m;
 
 /** Whether `contents` is a data file `renderBlocks` wrote. */
 export const isModuleDataFile = (contents: string): boolean =>
@@ -42,7 +61,8 @@ export function sameBlockFile(
   return strip(current) === strip(expected);
 }
 
-const ENTITIES_MARKER = /^-- @(?:bsb-names|bs-entities) ([a-z0-9-]+) (.+)$/gm;
+const ENTITIES_MARKER =
+  /^-- @(?:bsb-names|bs-entities) ([a-zA-Z0-9-]+) (.+)$/gm;
 
 /**
  * The `@bsb-names` line of a module file whose entities are renamed, such as

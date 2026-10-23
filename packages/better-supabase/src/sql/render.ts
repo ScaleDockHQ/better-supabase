@@ -9,12 +9,19 @@ import type { BlockSqlFile, BlockSqlLayout, BlockSql } from "./module-types.ts";
 
 import { tenantNameOf } from "../config/blocks.ts";
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
+import { instancePrefix } from "../config/instances.ts";
 import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
 import { withColumnTypeFunction } from "./column-type.ts";
 import { entityTableClash, tenantNameClashes } from "./entity-clashes.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
+import {
+  instanceRenames,
+  renameIdentifiers,
+  renamedInstances,
+  rendersOwnInstance,
+} from "./instance-names.ts";
 import { moduleExtensions } from "./introspect.ts";
 import { entitiesMarker } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
@@ -81,6 +88,7 @@ const BLOCKS_TABLE = `
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -93,13 +101,25 @@ grant select on better_supabase.blocks to service_role;
 
 /**
  * Records the module in `better_supabase.blocks`, which `upgrade` and doctor
- * read.
+ * read. An instance that installs it under another name records its block too.
  */
-function moduleRow(module: BlockSql, mode: BlockMode): string {
-  return `insert into better_supabase.blocks (name, version, mode)
-values (${sqlString(module.name)}, ${String(blockSqlVersion(module))}, ${sqlString(mode)})
+function moduleRow(
+  module: BlockSql,
+  mode: BlockMode,
+  instance: string,
+): string {
+  const version = String(blockSqlVersion(module));
+
+  return instance === module.name
+    ? `insert into better_supabase.blocks (name, version, mode)
+values (${sqlString(module.name)}, ${version}, ${sqlString(mode)})
 on conflict (name) do update
-  set version = excluded.version, mode = excluded.mode, updated_at = now();`;
+  set version = excluded.version, mode = excluded.mode, updated_at = now();`
+    : `alter table better_supabase.blocks add column if not exists block text;
+insert into better_supabase.blocks (name, block, version, mode)
+values (${sqlString(instance)}, ${sqlString(module.name)}, ${version}, ${sqlString(mode)})
+on conflict (name) do update
+  set block = excluded.block, version = excluded.version, mode = excluded.mode, updated_at = now();`;
 }
 
 /**
@@ -107,7 +127,8 @@ on conflict (name) do update
  * nothing: the app implements their contract. A schema module's rows, role
  * settings and other statements a schema diff can't capture go to a second file
  * in `better-supabase-data/` (`kind: 'data'`), which `add --adopt` writes into
- * a migration.
+ * a migration. An instance that installs a module under another name renders
+ * its own files after the module's.
  */
 export function renderBlocks(
   names: readonly string[],
@@ -119,126 +140,171 @@ export function renderBlocks(
   const installed = modules.map((module) => module.name);
   checkEntityTables(modules, layout, installed);
 
-  const files = modules.flatMap((module): BlockSqlFile[] => {
-    const ctx = moduleContext(module.name, layout, installed);
+  const files = modules.flatMap((module): BlockSqlFile[] => [
+    ...(rendersOwnInstance(module.name, layout)
+      ? moduleFiles(module, layout, installed)
+      : []),
+    ...renamedInstances(module.name, layout).flatMap((instance) =>
+      moduleFiles(module, layout, installed, instance.name),
+    ),
+  ]);
 
-    if (ctx.mode === "custom") {
-      return [];
-    }
+  return [...files, ...appTablesFiles(layout, installed)];
+}
 
-    const title = `-- better-supabase module: ${module.name}`;
+function moduleFiles(
+  module: BlockSql,
+  layout: BlockSqlLayout,
+  installed: readonly string[],
+  instance?: string,
+): BlockSqlFile[] {
+  const ctx = moduleContext(module.name, layout, installed, instance);
 
-    const managed = [
-      "-- Managed by `better-supabase add`; re-running it overwrites this file.",
-      "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
-    ];
+  if (ctx.mode === "custom") {
+    return [];
+  }
 
-    const entities = entitiesMarker(
-      module.name,
-      Object.values(ctx.resolved.entities)
-        .filter(
-          (entity) =>
-            !entity.global &&
-            (entity.to.singular !== entity.from.singular ||
-              entity.to.plural !== entity.from.plural),
-        )
-        .map((entity) => ({ key: entity.key, ...entity.to })),
-    );
+  const own = ctx.instance === module.name;
 
-    const header = [
-      title,
-      `-- @bsb-block ${module.name}@${String(blockSqlVersion(module))} ${ctx.mode}`,
-      ...(entities === undefined ? [] : [entities]),
-      `-- ${module.description}`,
-      ...managed,
-    ].join("\n");
+  // The names this instance's SQL shares with the module's own instance,
+  // which its context leaves alone: the indexes, constraints and types a
+  // module writes by hand. The helpers the render adds around a module are
+  // shared by every module, so only what the module builds counts.
+  const renames = own
+    ? new Map<string, string>()
+    : instanceRenames(
+        [
+          module.build(ctx, layout),
+          module.extras?.(ctx, layout) ?? "",
+          module.data?.(ctx, layout) ?? "",
+        ].join("\n"),
+        module.build(moduleContext(module.name, layout, installed), layout),
+        instancePrefix(ctx.instance),
+      );
 
-    const extra = renameQualifiers(module.extras?.(ctx, layout) ?? "", ctx);
-    const wrappers = deprecationWrappers(module, ctx);
-    const body = renameQualifiers(moduleSql(module, ctx, layout).trim(), ctx);
-    module.contract?.(ctx);
+  const scoped = (sql: string): string =>
+    renameIdentifiers(renameQualifiers(sql, ctx), renames);
 
-    const api = ctx.config.api
-      ? apiWrappers(
-          body,
-          ctx.schemaName,
-          ctx.config.api,
-          module.name,
-          module.internal,
-        )
-      : "";
+  const title = `-- better-supabase module: ${ctx.instance}`;
 
-    if (module.target === "test") {
-      checkFunctionRenames(ctx);
+  const managed = [
+    "-- Managed by `better-supabase add`; re-running it overwrites this file.",
+    "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
+  ];
 
-      return [
-        {
-          module: module.name,
-          kind: "test",
-          path: modulePath(module, layout),
-          contents: `${header}\n\n${body}\n${extra}${wrappers}`,
-        },
-      ];
-    }
+  const entities = entitiesMarker(
+    ctx.instance,
+    Object.values(ctx.resolved.entities)
+      .filter(
+        (entity) =>
+          !entity.global &&
+          (entity.to.singular !== entity.from.singular ||
+            entity.to.plural !== entity.from.plural),
+      )
+      .map((entity) => ({ key: entity.key, ...entity.to })),
+  );
 
-    const data = [
-      moduleExtensions(body),
-      eventTriggersOf(body)
-        .map((trigger) => trigger.statement)
-        .join("\n"),
-      renameQualifiers(module.data?.(ctx, layout).trim() ?? "", ctx),
-      moduleRow(module, ctx.mode),
-    ]
-      .filter((part) => part !== "")
-      .join("\n\n");
+  const header = [
+    title,
+    `-- @bsb-block ${ctx.instance}@${String(blockSqlVersion(module))} ${ctx.mode}${own ? "" : ` ${module.name}`}`,
+    ...(entities === undefined ? [] : [entities]),
+    `-- ${module.description}`,
+    ...managed,
+  ].join("\n");
 
-    const dataHeader = [
-      title,
-      `-- @bsb-block-data ${module.name}`,
-      "-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`",
-      "-- after the schema migration to put them in a migration.",
-      ...managed,
-    ].join("\n");
+  const extra = scoped(module.extras?.(ctx, layout) ?? "");
+  const wrappers = renameIdentifiers(deprecationWrappers(module, ctx), renames);
+  const body = scoped(moduleSql(module, ctx, layout).trim());
+  module.contract?.(ctx);
 
-    const testsDir = (layout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
-      /\/$/,
-      "",
-    );
+  const api = ctx.config.api
+    ? apiWrappers(
+        body,
+        ctx.schemaName,
+        ctx.config.api,
+        module.name,
+        module.internal,
+      )
+    : "";
 
-    const slug = module.name.replaceAll("-", "_");
+  const file = (
+    kind: BlockSqlFile["kind"],
+    path: string,
+    contents: string,
+  ): BlockSqlFile => ({
+    module: module.name,
+    ...(own ? {} : { instance: ctx.instance }),
+    kind,
+    path,
+    contents,
+  });
 
-    const testHeader = [
-      title,
-      `-- @bsb-block-test ${module.name}`,
-      ...managed,
-    ].join("\n");
-
-    const tests = module.tests?.(ctx, layout) ?? [];
+  if (module.target === "test") {
     checkFunctionRenames(ctx);
 
     return [
-      {
-        module: module.name,
-        kind: "schema",
-        path: modulePath(module, layout),
-        contents: `${header}\n\n${body}\n${extra}${wrappers}${api}${BLOCKS_TABLE}`,
-      },
-      {
-        module: module.name,
-        kind: "data",
-        path: moduleDataPath(module, layout),
-        contents: `${dataHeader}\n\n${data}\n`,
-      },
-      ...tests.map((test): BlockSqlFile => ({
-        module: module.name,
-        kind: "test",
-        path: `${testsDir}/900_better_supabase_${slug}_${test.name}.test.sql`,
-        contents: `${testHeader}\n\n${renameQualifiers(test.sql.trim(), ctx)}\n`,
-      })),
+      file(
+        "test",
+        modulePath(module, layout, ctx.instance),
+        `${header}\n\n${body}\n${extra}${wrappers}`,
+      ),
     ];
-  });
+  }
 
-  return [...files, ...appTablesFiles(layout, installed)];
+  const data = [
+    moduleExtensions(body),
+    eventTriggersOf(body)
+      .map((trigger) => trigger.statement)
+      .join("\n"),
+    scoped(module.data?.(ctx, layout).trim() ?? ""),
+    moduleRow(module, ctx.mode, ctx.instance),
+  ]
+    .filter((part) => part !== "")
+    .join("\n\n");
+
+  const dataHeader = [
+    title,
+    `-- @bsb-block-data ${ctx.instance}`,
+    "-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`",
+    "-- after the schema migration to put them in a migration.",
+    ...managed,
+  ].join("\n");
+
+  const testsDir = (layout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
+    /\/$/,
+    "",
+  );
+
+  const slug = instancePrefix(ctx.instance);
+
+  const testHeader = [
+    title,
+    `-- @bsb-block-test ${ctx.instance}`,
+    ...managed,
+  ].join("\n");
+
+  const tests = module.tests?.(ctx, layout) ?? [];
+  checkFunctionRenames(ctx);
+
+  return [
+    file(
+      "schema",
+      modulePath(module, layout, ctx.instance),
+      `${header}\n\n${body}\n${extra}${wrappers}${api}${BLOCKS_TABLE}`,
+    ),
+    file(
+      "data",
+      moduleDataPath(module, layout, ctx.instance),
+      `${dataHeader}\n\n${data}\n`,
+    ),
+    ...tests.map((test) =>
+      file(
+        "test",
+        `${testsDir}/900_better_supabase_${slug}_${test.name}.test.sql`,
+        `${testHeader}\n\n${scoped(test.sql.trim())}\n`,
+      ),
+    ),
+  ];
 }
 
 /**
@@ -277,31 +343,47 @@ function checkEntityTables(
   layout: BlockSqlLayout,
   installed: readonly string[],
 ): void {
-  if (!modules.some((module) => layout.modules?.[module.name]?.entities)) {
+  if (
+    !modules.some(
+      (module) =>
+        layout.modules?.[module.name]?.entities !== undefined ||
+        renamedInstances(module.name, layout).length > 0,
+    )
+  ) {
     return;
   }
 
-  const tables = modules.flatMap((module): EntityTable[] => {
-    const ctx = moduleContext(module.name, layout, installed);
+  const tables = modules.flatMap((module): EntityTable[] =>
+    [
+      ...(rendersOwnInstance(module.name, layout) ? [module.name] : []),
+      ...renamedInstances(module.name, layout).map(({ name }) => name),
+    ].flatMap((instance) => {
+      const ctx = moduleContext(
+        module.name,
+        layout,
+        installed,
+        instance === module.name ? undefined : instance,
+      );
 
-    if (!ctx.manages) {
-      return [];
-    }
+      if (!ctx.manages) {
+        return [];
+      }
 
-    return Object.entries(module.names?.tables ?? {})
-      .filter(([logical]) => ctx.config.tables[logical] === undefined)
-      .map(([logical, spec]) => {
-        const { schema, name } = ctx.tableName(logical);
+      return Object.entries(module.names?.tables ?? {})
+        .filter(([logical]) => ctx.config.tables[logical] === undefined)
+        .map(([logical, spec]) => {
+          const { schema, name } = ctx.tableName(logical);
 
-        return {
-          module: module.name,
-          logical,
-          schema,
-          name,
-          renamed: ctx.resolved.entityNaming.rename(spec.name) !== spec.name,
-        };
-      });
-  });
+          return {
+            module: instance,
+            logical,
+            schema,
+            name,
+            renamed: ctx.resolved.entityNaming.rename(spec.name) !== spec.name,
+          };
+        });
+    }),
+  );
 
   const clash = entityTableClash(tables);
 

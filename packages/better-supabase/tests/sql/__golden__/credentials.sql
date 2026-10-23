@@ -104,6 +104,7 @@ grant execute on function "better_supabase"."credential_delete"(text, text) to s
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -246,6 +247,7 @@ grant execute on function "better_supabase"."credential_delete"(text, text) to s
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -376,6 +378,7 @@ grant execute on function "app_private"."credential_delete"(text, text) to servi
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -535,6 +538,7 @@ grant execute on function "api"."credential_delete"(text, text) to service_role;
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -748,6 +752,7 @@ create trigger "bsb_credential_vault" after delete or update of "vault_id" on "b
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

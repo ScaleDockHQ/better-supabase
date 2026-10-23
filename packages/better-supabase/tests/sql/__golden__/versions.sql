@@ -410,6 +410,7 @@ revoke execute on function "better_supabase"."versions_capture"() from public, a
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -896,6 +897,7 @@ revoke execute on function "better_supabase"."versions_capture"() from public, a
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1332,6 +1334,7 @@ revoke execute on function "app_private"."versions_capture"() from public, anon,
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1854,6 +1857,7 @@ grant execute on function "api"."delete_version"(uuid) to authenticated, service
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2263,6 +2267,7 @@ revoke execute on function "better_supabase"."versions_capture"() from public, a
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

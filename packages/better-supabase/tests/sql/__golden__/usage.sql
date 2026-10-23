@@ -643,6 +643,7 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1371,6 +1372,7 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2040,6 +2042,7 @@ grant execute on function "app_private"."mark_usage_reported"(uuid, text, date, 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2891,6 +2894,7 @@ grant execute on function "api"."mark_usage_reported"(uuid, text, date, numeric)
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

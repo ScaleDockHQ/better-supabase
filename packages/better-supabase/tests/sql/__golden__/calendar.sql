@@ -1129,6 +1129,7 @@ execute function "better_supabase"."calendar_block_auto_decline"();
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2352,6 +2353,7 @@ grant execute on function "better_supabase"."calendar_feed"(text) to anon, authe
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -3507,6 +3509,7 @@ execute function "app_private"."calendar_block_auto_decline"();
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -4835,6 +4838,7 @@ grant execute on function "api"."calendar_free_busy"(uuid, uuid[], timestamptz, 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -5841,6 +5845,7 @@ execute function "better_supabase"."calendar_block_auto_decline"();
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

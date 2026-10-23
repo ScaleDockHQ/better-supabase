@@ -338,6 +338,7 @@ grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -700,6 +701,7 @@ grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1064,6 +1066,7 @@ grant execute on function "app_private"."subject_tags"(uuid, text, text) to auth
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1523,6 +1526,7 @@ grant execute on function "api"."subject_tags"(uuid, text, text) to authenticate
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1871,6 +1875,7 @@ grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),

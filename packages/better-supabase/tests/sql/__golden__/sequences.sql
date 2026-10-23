@@ -866,6 +866,7 @@ grant execute on function "better_supabase"."sequence_step_failed"(uuid, text, t
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -1889,6 +1890,7 @@ create trigger "bsb_replied"
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -2781,6 +2783,7 @@ grant execute on function "app_private"."sequence_step_failed"(uuid, text, text)
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
@@ -3783,6 +3786,7 @@ grant execute on function "api"."sequence_step_failed"(uuid, text, text) to serv
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
+  block text,
   version integer not null,
   mode text not null,
   installed_at timestamptz not null default now(),
