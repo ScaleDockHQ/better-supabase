@@ -7,8 +7,15 @@ import type {
 
 import { describe, expect, it, vi } from "vitest";
 
-import { bindClient, createClient } from "../../src/client/index.ts";
+import type { Executor } from "../../src/core/executor.ts";
+
+import {
+  bindClient,
+  createClient,
+  memoryEngine,
+} from "../../src/client/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
+import { ok } from "../../src/core/result.ts";
 import { currentTenant } from "../../src/core/tenant-source.ts";
 import { EnvValidationError } from "../../src/env/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
@@ -94,6 +101,29 @@ describe("bindClient without the auth module", () => {
     expect(() => {
       bound.dispose();
     }).not.toThrow();
+  });
+
+  it("runs db on the executor a local engine connects, once", async () => {
+    const supabase = {} as unknown as SupabaseClient;
+    const servers: string[] = [];
+
+    const engine = {
+      ...memoryEngine(),
+      connect: (server: Executor): Executor => {
+        servers.push(server.name);
+
+        return {
+          name: "local",
+          execute: () => Promise.resolve(ok({ rows: [], count: 3 })),
+        };
+      },
+    };
+
+    const bound = bindClient(betterSupabase, supabase, { engine });
+    expect(await bound.db.customers.count().orThrow()).toBe(3);
+    expect(bound.db).toBe(bound.db);
+    expect(servers).toEqual(["postgrest"]);
+    bound.dispose();
   });
 });
 

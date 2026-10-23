@@ -132,7 +132,7 @@ const PURE_BARRELS = [
   "next",
   "powersync",
   "tanstack-db",
-  "expo-sqlite",
+  "sqlite",
   "query",
   "react",
   "realtime",

@@ -1,20 +1,21 @@
 ---
 title: Offline-first
-description: Read and write on the device with PowerSync, and upload the changes through the repositories.
+description: Read and write on the device with the PowerSync engine, and upload the changes through the repositories.
 ---
 
-An offline-first app keeps two sets of repositories over the same
-definition:
+An offline-first app keeps two clients over the same definition:
 
-- `local`: [`powersyncExecutor`](/docs/repository/powersync) over the PowerSync
-  database. Screens read and write here, online or not.
-- `bsb.db`: the [React Native client](/docs/frontend/react-native) over
-  PostgREST, as the signed-in user. Only the upload path uses it.
+- `bsb`: the [React Native client](/docs/frontend/react-native) with
+  [`powersyncEngine`](/docs/repository/powersync). Screens read and write
+  through `bsb.db` and the data hooks, which run on the PowerSync database,
+  online or not.
+- `server`: `bindClient(betterSupabase, supabase)` over PostgREST, as the
+  signed-in user. Only the upload path uses it.
 
 PowerSync syncs rows down and queues local writes. Its connector's
 `uploadData` sends the queue to your backend; replaying each change through
-`bsb.db` means RLS, plugins and validation run on it, exactly as for an online
-write.
+`server.db` means RLS, block hooks and validation run on it, exactly as for
+an online write.
 
 ## Upload through the repositories
 
@@ -23,13 +24,17 @@ changed columns) or `DELETE`. `createUploadConnector` maps each one to the
 table's repository and authenticates sync with the Supabase session:
 
 ```ts title="src/lib/powersync/connector.ts"
+import { bindClient } from "better-supabase/client";
 import { createUploadConnector } from "better-supabase/powersync";
-import { bsb, supabase } from "../supabase/client.native";
+import { betterSupabase } from "../supabase";
+import { supabase } from "../supabase/supabase.native";
+
+const server = bindClient(betterSupabase, supabase);
 
 export const connector = createUploadConnector({
   endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
   supabase,
-  tables: { customers: bsb.db.customers },
+  tables: { customers: server.db.customers },
 });
 ```
 
@@ -41,8 +46,8 @@ custom replay:
 
 ```ts
 tables: {
-  customers: bsb.db.customers,
-  notes: (entry) => bsb.db.notes.upsert({ ...renameColumns(entry.opData), id: entry.id }),
+  customers: server.db.customers,
+  notes: (entry) => server.db.notes.upsert({ ...renameColumns(entry.opData), id: entry.id }),
 },
 ```
 
@@ -63,8 +68,8 @@ discarded; a `DELETE` still deletes.
 import { uploadRoute } from "better-supabase/powersync";
 
 tables: {
-  customers: bsb.db.customers,
-  attachments: uploadRoute(bsb.db.attachments, { put: "create" }),
+  customers: server.db.customers,
+  attachments: uploadRoute(server.db.attachments, { put: "create" }),
 },
 ```
 
@@ -117,7 +122,7 @@ an error:
 createUploadConnector({
   endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
   supabase,
-  tables: { customers: bsb.db.customers },
+  tables: { customers: server.db.customers },
   onError: (error, { phase }) => log.warn(`powersync ${phase}`, error),
 });
 ```
@@ -126,10 +131,11 @@ createUploadConnector({
 
 The server's row wins once the change is gone from the queue. The connector
 keeps every conflict and discarded change in `connector.rejected` (and calls
-`onConflict` or `onDiscard`), with the queued `entry` and the error.
-`useConflicts(connector)` from `better-supabase/powersync/react` reads them in
-a component: show each on its row, let the user apply it again as a new
-write, then `dismiss` it. A `conflict` error carries the `constraint` and
+`onConflict` or `onDiscard`), with the queued `entry` and the error. Pass
+the connector to the engine, `powersyncEngine(powersync, { connector })`, and
+`useConflicts()` from `better-supabase/react` reads them in a component: show
+each on its row, let the user apply it again as a new write, then `dismiss`
+it. A `conflict` error carries the `constraint` and
 `columns` that rejected it, which is enough to point at the field.
 
 For edits that must not overwrite a newer server row, record the
@@ -138,4 +144,5 @@ For edits that must not overwrite a newer server row, record the
 `stale` error when someone else changed the row first, and the user decides.
 
 The [Expo example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/expo-powersync)
-uses this connector with `syncWithAuth` and `useConflicts`.
+uses this connector with `powersyncEngine`, `syncWithAuth` and
+`useConflicts`.

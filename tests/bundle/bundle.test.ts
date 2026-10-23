@@ -235,9 +235,8 @@ const NODE_LOADED = [
   "./tanstack-start",
   "./elysia",
   "./powersync",
-  "./expo-sqlite",
+  "./sqlite",
   "./tanstack-db",
-  "./tanstack-db/supabase",
   "./blocks/push",
   "./stripe",
 ];

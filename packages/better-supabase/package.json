@@ -129,11 +129,6 @@
       "types": "./dist/powersync/index.d.ts",
       "default": "./dist/powersync/index.js"
     },
-    "./powersync/react": {
-      "@better-supabase/source": "./src/powersync/react/index.ts",
-      "types": "./dist/powersync/react/index.d.ts",
-      "default": "./dist/powersync/react/index.js"
-    },
     "./postgres": {
       "@better-supabase/source": "./src/postgres/index.ts",
       "types": "./dist/postgres/index.d.ts",
@@ -983,20 +978,15 @@
     },
     "./schemas/*.json": "./schemas/*.json",
     "./testing/act-cases.json": "./testing/act-cases.json",
-    "./expo-sqlite": {
-      "@better-supabase/source": "./src/expo-sqlite/index.ts",
-      "types": "./dist/expo-sqlite/index.d.ts",
-      "default": "./dist/expo-sqlite/index.js"
+    "./sqlite": {
+      "@better-supabase/source": "./src/sqlite/index.ts",
+      "types": "./dist/sqlite/index.d.ts",
+      "default": "./dist/sqlite/index.js"
     },
     "./tanstack-db": {
       "@better-supabase/source": "./src/tanstack-db/index.ts",
       "types": "./dist/tanstack-db/index.d.ts",
       "default": "./dist/tanstack-db/index.js"
-    },
-    "./tanstack-db/supabase": {
-      "@better-supabase/source": "./src/tanstack-db/supabase/index.ts",
-      "types": "./dist/tanstack-db/supabase/index.d.ts",
-      "default": "./dist/tanstack-db/supabase/index.js"
     },
     "./blocks/push": {
       "@better-supabase/source": "./src/blocks/push/index.ts",
@@ -1150,10 +1140,6 @@
       "./powersync": {
         "types": "./dist/powersync/index.d.ts",
         "default": "./dist/powersync/index.js"
-      },
-      "./powersync/react": {
-        "types": "./dist/powersync/react/index.d.ts",
-        "default": "./dist/powersync/react/index.js"
       },
       "./postgres": {
         "types": "./dist/postgres/index.d.ts",
@@ -1835,17 +1821,13 @@
       },
       "./schemas/*.json": "./schemas/*.json",
       "./testing/act-cases.json": "./testing/act-cases.json",
-      "./expo-sqlite": {
-        "types": "./dist/expo-sqlite/index.d.ts",
-        "default": "./dist/expo-sqlite/index.js"
+      "./sqlite": {
+        "types": "./dist/sqlite/index.d.ts",
+        "default": "./dist/sqlite/index.js"
       },
       "./tanstack-db": {
         "types": "./dist/tanstack-db/index.d.ts",
         "default": "./dist/tanstack-db/index.js"
-      },
-      "./tanstack-db/supabase": {
-        "types": "./dist/tanstack-db/supabase/index.d.ts",
-        "default": "./dist/tanstack-db/supabase/index.js"
       },
       "./blocks/push": {
         "types": "./dist/blocks/push/index.d.ts",
@@ -1958,7 +1940,6 @@
     "@powersync/common": "catalog:",
     "@solidjs/start": "catalog:",
     "@supabase-labs/middleware-openfeature": "catalog:",
-    "@supabase-labs/tanstack-db": "catalog:",
     "@supabase/config": "catalog:",
     "@supabase/lite": "catalog:",
     "@supabase/mcp-server-supabase": "catalog:",
@@ -1966,7 +1947,6 @@
     "@supabase/supabase-js": "catalog:",
     "@sveltejs/kit": "catalog:",
     "@t3-oss/env-core": "catalog:",
-    "@tanstack/db": "catalog:",
     "@tanstack/query-core": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-start": "catalog:",
@@ -2050,7 +2030,6 @@
     "@powersync/common": "catalog:peers",
     "@solidjs/start": "catalog:peers",
     "@supabase-labs/middleware-openfeature": "catalog:peers",
-    "@supabase-labs/tanstack-db": "catalog:peers",
     "@supabase/config": "catalog:peers",
     "@supabase/lite": "catalog:peers",
     "@supabase/mcp-server-supabase": "catalog:peers",
@@ -2131,9 +2110,6 @@
       "optional": true
     },
     "@supabase-labs/middleware-openfeature": {
-      "optional": true
-    },
-    "@supabase-labs/tanstack-db": {
       "optional": true
     },
     "@supabase/config": {

@@ -707,6 +707,8 @@
       "createClient",
       "defineController",
       "functions",
+      "liveEngine",
+      "memoryEngine",
       "memoryStorage",
       "storageUpload",
       "webDeepLinks",
@@ -729,6 +731,12 @@
       "Controller",
       "ControllerParts",
       "ControllerState",
+      "DataChanges",
+      "DataEngine",
+      "DataEngineOptions",
+      "DataEntry",
+      "DataSync",
+      "DataSyncState",
       "DeepLinkPort",
       "FilePickerPort",
       "FunctionContract",
@@ -736,6 +744,8 @@
       "FunctionsHost",
       "InvokeOptions",
       "KeyboardPort",
+      "LiveEngineOptions",
+      "LocalTablesOption",
       "PickedFile",
       "PickFilesOptions",
       "PushRegistrationLike",
@@ -847,6 +857,7 @@
       "useBlockQuery",
       "useBlockTenant",
       "useBroadcast",
+      "useConflicts",
       "useController",
       "useDebouncedSearch",
       "useImage",
@@ -862,6 +873,7 @@
       "useSignOut",
       "useSupabase",
       "useSupportSession",
+      "useSyncStatus",
       "useUpload"
     ],
     "types": [
@@ -883,11 +895,13 @@
       "BroadcastOptions",
       "ClaimsOf",
       "ClientLike",
+      "Conflicts",
       "DataEngine",
       "DataEntry",
       "DataHooks",
       "DataSource",
       "DataState",
+      "DataSyncState",
       "DataView",
       "DataWrites",
       "DebouncedSearch",
@@ -916,6 +930,7 @@
       "RecordProviderProps",
       "RecordState",
       "RecordWriteHandlers",
+      "RejectedChange",
       "SessionProviderProps",
       "SignedUrl",
       "SignedUrlSource",
@@ -1356,15 +1371,14 @@
       "fromSqliteError",
       "likeToGlob",
       "postgrestTimestamp",
+      "powersyncEngine",
       "powersyncExecutor",
       "quoteSqliteIdent",
       "sqliteCompiler",
-      "sqliteTables",
       "sqliteValue",
       "syncWithAuth",
       "uploadOutcome",
-      "uploadRoute",
-      "watch"
+      "uploadRoute"
     ],
     "types": [
       "AuthSourceLike",
@@ -1373,6 +1387,7 @@
       "CrudEntryLike",
       "CrudQueueLike",
       "PowerSyncDatabaseLike",
+      "PowerSyncEngineOptions",
       "PowerSyncExecutorOptions",
       "RejectedChange",
       "RejectedStore",
@@ -1390,6 +1405,7 @@
       "SqliteSelectPlan",
       "SqliteValue",
       "SyncedDatabaseLike",
+      "SyncStatusLike",
       "SyncWithAuthOptions",
       "UploadConnector",
       "UploadConnectorOptions",
@@ -1398,25 +1414,7 @@
       "UploadOutcome",
       "UploadRepository",
       "UploadRoute",
-      "UploadRouteOptions",
-      "WatchOptions"
-    ]
-  },
-  "./powersync/react": {
-    "values": [
-      "useConflicts",
-      "useSyncStatus",
-      "useWatch"
-    ],
-    "types": [
-      "Conflicts",
-      "RejectedChange",
-      "RejectedStore",
-      "SyncState",
-      "SyncStatusLike",
-      "SyncStatusSource",
-      "UseWatchOptions",
-      "WatchState"
+      "UploadRouteOptions"
     ]
   },
   "./postgres": {
@@ -2773,6 +2771,7 @@
       "liveCount",
       "liveQuery",
       "liveTopic",
+      "realtimeChanges",
       "rowChange",
       "rowKeys",
       "SUBJECT_PRESENCE_TEMPLATE",
@@ -2800,6 +2799,7 @@
       "PresenceOutput",
       "PresenceSchema",
       "PresenceSubscription",
+      "RealtimeChangesOptions",
       "RealtimeClient",
       "RealtimeStatus",
       "RowChange",
@@ -7656,43 +7656,43 @@
       "TestWebhookTransportOptions"
     ]
   },
-  "./expo-sqlite": {
+  "./sqlite": {
     "values": [
       "checkSqlite",
       "expoSqliteDatabase",
-      "expoSqliteExecutor",
-      "sqliteTables",
-      "watch"
+      "fromSqliteError",
+      "liteDatabase",
+      "sqliteEngine"
     ],
     "types": [
       "AddDatabaseChangeListener",
+      "ChangingSqliteDatabase",
+      "CheckSqliteOptions",
       "DatabaseChangeEventLike",
       "ExpoSqliteContextLike",
       "ExpoSqliteDatabaseLike",
       "ExpoSqliteOptions",
-      "WatchOptions"
+      "LiteConnectionLike",
+      "SqliteContextLike",
+      "SqliteDatabaseLike",
+      "SqliteEngineOptions",
+      "SqliteExecutorOptions"
     ]
   },
   "./tanstack-db": {
     "values": [
-      "collectionOptions"
+      "collectionOptions",
+      "tanstackDbEngine"
     ],
     "types": [
       "CollectionConfig",
+      "CollectionLike",
       "CollectionMutationHandler",
       "CollectionOptions",
       "CollectionQuery",
       "MutationParamsLike",
-      "PendingMutationLike"
-    ]
-  },
-  "./tanstack-db/supabase": {
-    "values": [
-      "supabaseCollection"
-    ],
-    "types": [
-      "SupabaseCollectionConfig",
-      "SupabaseCollectionOptions"
+      "PendingMutationLike",
+      "TanstackDbEngineOptions"
     ]
   },
   "./blocks/push": {

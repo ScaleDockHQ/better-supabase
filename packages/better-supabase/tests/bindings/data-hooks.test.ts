@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import type { DataEngine } from "../../src/bindings/data-engine.ts";
 import type { Result } from "../../src/core/result.ts";
+import type { PowerSyncDatabaseLike } from "../../src/powersync/index.ts";
 
-import { memoryEngine } from "../../src/bindings/data-engine.ts";
+import { liveEngine, memoryEngine } from "../../src/bindings/data-engine.ts";
 import {
   createDataList,
   createDataOne,
@@ -13,7 +14,10 @@ import {
 import { DbException } from "../../src/core/db-exception.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
+import { powersyncEngine } from "../../src/powersync/index.ts";
 import { queryEngine } from "../../src/query/engine.ts";
+import { sqliteEngine } from "../../src/sqlite/index.ts";
+import { tanstackDbEngine } from "../../src/tanstack-db/index.ts";
 
 interface Ticket {
   readonly id: string;
@@ -70,16 +74,131 @@ const settle = () =>
     setTimeout(resolve, 10);
   });
 
-const engines: [string, () => DataEngine][] = [
-  ["memory", memoryEngine],
-  ["TanStack Query", () => queryEngine(new QueryClient())],
+/** A change feed the test drives: `emit("tickets")` reports a change. */
+function changeFeed() {
+  const listeners = new Set<(tables: readonly string[]) => void>();
+
+  return {
+    listeners,
+    subscribe: (onChange: (tables: readonly string[]) => void) => {
+      listeners.add(onChange);
+
+      return () => {
+        listeners.delete(onChange);
+      };
+    },
+    emit: (table: string) => {
+      for (const listener of listeners) {
+        listener([table]);
+      }
+    },
+  };
+}
+
+/** A local database that only reports changes; the sources stay in memory. */
+function changingDatabase(feed: ReturnType<typeof changeFeed>) {
+  const database: PowerSyncDatabaseLike = {
+    getAll: () => Promise.resolve([]),
+    execute: () => Promise.resolve(undefined),
+    writeTransaction: (callback) => callback(database),
+    onChange: (handler) =>
+      feed.subscribe((tables) => {
+        void handler.onChange({ changedTables: [...tables] });
+      }),
+  };
+
+  return database;
+}
+
+interface EngineSetup {
+  readonly engine: DataEngine;
+  readonly emit: (table: string) => void;
+  readonly following: () => number;
+}
+
+const engines: [string, () => EngineSetup][] = [
+  [
+    "memory",
+    () => {
+      const feed = changeFeed();
+
+      return {
+        engine: memoryEngine({ live: feed }),
+        emit: feed.emit,
+        following: () => feed.listeners.size,
+      };
+    },
+  ],
+  [
+    "TanStack Query",
+    () => {
+      const feed = changeFeed();
+
+      return {
+        engine: queryEngine(new QueryClient(), { live: feed }),
+        emit: feed.emit,
+        following: () => feed.listeners.size,
+      };
+    },
+  ],
+  [
+    "PowerSync",
+    () => {
+      const feed = changeFeed();
+
+      return {
+        engine: powersyncEngine(changingDatabase(feed)),
+        emit: feed.emit,
+        following: () => feed.listeners.size,
+      };
+    },
+  ],
+  [
+    "SQLite",
+    () => {
+      const feed = changeFeed();
+
+      return {
+        engine: sqliteEngine(changingDatabase(feed), {
+          cache: queryEngine(new QueryClient()),
+        }),
+        emit: feed.emit,
+        following: () => feed.listeners.size,
+      };
+    },
+  ],
+  [
+    "TanStack DB",
+    () => {
+      const feed = changeFeed();
+
+      const collection = {
+        subscribeChanges: (
+          callback: (changes: readonly unknown[]) => void,
+        ) => ({
+          unsubscribe: feed.subscribe((tables) => {
+            if (tables.includes("tickets")) {
+              callback([{ type: "update" }]);
+            }
+          }),
+        }),
+      };
+
+      return {
+        engine: tanstackDbEngine({ collections: { tickets: collection } }),
+        emit: feed.emit,
+        following: () => feed.listeners.size,
+      };
+    },
+  ],
 ];
 
-describe.each(engines)("the data hooks on the %s engine", (_, engine) => {
+describe.each(engines)("the data hooks on the %s engine", (_, make) => {
   const setup = (rows: Ticket[]) => {
     const table = tickets(rows);
+    const { engine, emit, following } = make();
 
-    const client = { db: { tickets: table.source }, engine: engine() };
+    const client = { db: { tickets: table.source }, engine };
 
     const target = dataTarget(
       client,
@@ -87,8 +206,28 @@ describe.each(engines)("the data hooks on the %s engine", (_, engine) => {
       (db: typeof client.db) => db.tickets,
     );
 
-    return { ...table, target };
+    return { ...table, target, emit, following };
   };
+
+  it("reads a followed source again when its table changes elsewhere", async () => {
+    const { state, target, emit, following } = setup([]);
+    const list = createDataList(target, undefined);
+    expect(following()).toBe(0);
+    const stop = list.subscribe(() => undefined);
+    await settle();
+    expect(following()).toBe(1);
+
+    state.rows = [{ id: "t9", title: "Synced" }];
+    emit("customers");
+    await settle();
+    expect(list.getSnapshot().data).toEqual([]);
+
+    emit("tickets");
+    await settle();
+    expect(list.getSnapshot().data).toEqual([{ id: "t9", title: "Synced" }]);
+    stop();
+    expect(following()).toBe(0);
+  });
 
   it("lists rows and shows pending until the first answer", async () => {
     const { target } = setup([{ id: "t1", title: "Printer" }]);
@@ -201,5 +340,64 @@ describe.each(engines)("the data hooks on the %s engine", (_, engine) => {
 
     expect(scope("org-1")).toEqual(["bsb", "tickets", "org-1"]);
     expect(scope("org-2")).not.toEqual(scope("org-1"));
+  });
+});
+
+describe("liveEngine", () => {
+  it("returns the engine without changes and maps sources to other tables", async () => {
+    const engine = memoryEngine();
+    expect(liveEngine(engine, undefined)).toBe(engine);
+
+    const feed = changeFeed();
+    const table = tickets([]);
+
+    const live = liveEngine(memoryEngine(), feed, {
+      tables: { tickets: ["tasks"] },
+    });
+
+    const target = dataTarget(
+      { db: { tickets: table.source }, engine: live },
+      "tickets",
+      (db: { tickets: typeof table.source }) => db.tickets,
+    );
+
+    const list = createDataList(target, undefined);
+    const stop = list.subscribe(() => undefined);
+    const again = list.subscribe(() => undefined);
+    await settle();
+    table.state.rows = [{ id: "t1", title: "Moved" }];
+    feed.emit("tickets");
+    await settle();
+    expect(list.getSnapshot().data).toEqual([]);
+    feed.emit("tasks");
+    await settle();
+    expect(list.getSnapshot().data).toEqual([{ id: "t1", title: "Moved" }]);
+    stop();
+    expect(feed.listeners.size).toBe(1);
+    again();
+    expect(feed.listeners.size).toBe(0);
+  });
+
+  it("maps sources to tables through memoryEngine's own options", async () => {
+    const feed = changeFeed();
+    const table = tickets([]);
+
+    const target = dataTarget(
+      {
+        db: { tickets: table.source },
+        engine: memoryEngine({ live: feed, tables: { tickets: ["tasks"] } }),
+      },
+      "tickets",
+      (db: { tickets: typeof table.source }) => db.tickets,
+    );
+
+    const list = createDataList(target, undefined);
+    const stop = list.subscribe(() => undefined);
+    await settle();
+    table.state.rows = [{ id: "t1", title: "Moved" }];
+    feed.emit("tasks");
+    await settle();
+    expect(list.getSnapshot().data).toEqual([{ id: "t1", title: "Moved" }]);
+    stop();
   });
 });

@@ -13,6 +13,6 @@
     "guards",
     "lint",
     "powersync",
-    "expo-sqlite"
+    "sqlite"
   ]
 }

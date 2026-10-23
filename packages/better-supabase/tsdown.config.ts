@@ -21,7 +21,6 @@ const entries = [
   "records/index",
   "flows/index",
   "server/index",
-  "powersync/react/index",
   "postgres/index",
   "ssr/index",
   "next/index",
@@ -208,9 +207,8 @@ const entries = [
   "powersync/index",
   "lint/index",
   "sql/index",
-  "expo-sqlite/index",
+  "sqlite/index",
   "tanstack-db/index",
-  "tanstack-db/supabase/index",
   "blocks/push/index",
   "testing/index",
 ];

@@ -49,7 +49,6 @@ catalog:
   "@react-native/metro-config": 0.86.3
   "@solidjs/start": 2.0.6
   "@supabase-labs/middleware-openfeature": 0.2.0
-  "@supabase-labs/tanstack-db": 0.1.0
   "@supabase/config": 0.11.1
   "@supabase/lite": 0.11.0
   "@supabase/mcp-server-supabase": 0.14.0
@@ -62,7 +61,6 @@ catalog:
   "@t3-oss/env-core": 0.13.11
   "@t3-oss/env-nextjs": 0.13.11
   "@tailwindcss/postcss": 4.3.3
-  "@tanstack/db": 0.15.0
   "@tanstack/query-core": 5.104.4
   "@tanstack/react-query": 5.104.4
   "@tanstack/react-start": 1.169.3
@@ -259,8 +257,6 @@ catalogs:
     # 2.118.0 reads the ComputedFields key and the no-argument function
     # overloads that postgrest-typegen 0.6 writes into database.types.ts.
     "@supabase/supabase-js": "^2.118.0"
-    # 0.1.0 is the first release with Realtime and the on-demand query sync supabaseCollection() spreads.
-    "@supabase-labs/tanstack-db": ">=0.1.0 <0.2"
     # 5.62.0 added the error parameter of DataTag (dataTagErrorSymbol) the query keys use.
     "@tanstack/query-core": "^5.62.0"
     # 7.0 is the UI message stream protocol and the approval parts the AI SDK adapters convert.

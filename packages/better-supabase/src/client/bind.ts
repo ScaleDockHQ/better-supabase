@@ -14,6 +14,7 @@ import { userContext } from "../auth/impersonation.ts";
 import { claimedTenant } from "../bindings/keys.ts";
 import { hasAuthModule } from "../core/auth-module.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
+import { postgrestExecutor } from "../core/postgrest-executor.ts";
 import { currentTenant } from "../core/tenant-source.ts";
 import { createQueries } from "../query/queries.ts";
 import { identityKey } from "../query/user-change.ts";
@@ -109,7 +110,11 @@ export interface BindClientOptions {
    * organization claim; pass a function for one picked in the UI.
    */
   readonly organization?: BlockTenant;
-  /** Where the data hooks cache their reads; default one in memory. */
+  /**
+   * Where the data hooks keep their reads; default one in memory. An engine
+   * over a local database (`powersyncEngine`, `sqliteEngine`) also runs `db`
+   * there.
+   */
   readonly engine?: DataEngine;
 }
 
@@ -224,6 +229,11 @@ export function bindClient<
     ? supabase.auth.onAuthStateChange(onChange)
     : undefined;
 
+  // A local engine keeps one executor: its database outlives every `db`.
+  const local = options.engine?.connect?.(
+    postgrestExecutor(supabase, betterSupabase.executorOptions()),
+  );
+
   const client: BetterClient<M, F, E, C, P, B> = {
     betterSupabase,
     supabase,
@@ -246,6 +256,7 @@ export function bindClient<
           tenant === undefined || context.tenant !== undefined
             ? context
             : { ...context, tenant },
+          local === undefined ? {} : { executor: local },
         );
       }
 

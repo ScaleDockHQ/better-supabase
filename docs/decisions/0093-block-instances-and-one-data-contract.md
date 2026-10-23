@@ -89,6 +89,13 @@ passes the organization only to override it. `bsb.db()` on the server and
 per instance and table (`useTickets`, `useCustomers`), running on TanStack
 Query when the app installs it and on the library's controllers otherwise.
 PowerSync, TanStack DB and SQLite become engines behind the same hooks.
+An engine can also swap the executor `bsb.db` runs on (`connect`) and report
+sync state (`sync`); `local` names the tables the device database holds and
+sends the rest to PostgREST. `tanstackDbEngine` treats collections as a
+change signal rather than the source of rows, so the hooks keep one cache.
+The separate `powersync/react`, `expo-sqlite` and `tanstack-db/supabase`
+entries go; filter trees are a `where`, and realtime is the engines' `live`
+option.
 
 **Removed layers.** Built-in plugins become block extensions (the
 `plugins` key goes; `definePlugin` stays as the versioned third-party

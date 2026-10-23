@@ -62,7 +62,7 @@ export { subjectReaders } from "../core/subject-readers.ts";
 
 export type { SubjectReadersOptions } from "../core/subject-readers.ts";
 
-export { liveCount, liveQuery, liveTopic } from "./live.ts";
+export { liveCount, liveQuery, liveTopic, realtimeChanges } from "./live.ts";
 
 export type {
   CountRunner,
@@ -71,4 +71,5 @@ export type {
   LiveQueryOptions,
   LiveSource,
   LiveSubscription,
+  RealtimeChangesOptions,
 } from "./live.ts";

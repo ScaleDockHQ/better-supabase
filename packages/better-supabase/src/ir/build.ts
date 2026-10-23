@@ -1,3 +1,4 @@
+import type { FilterQuery } from "../list/filter-query.ts";
 import type { ColumnMeta, SchemaMeta, TableMeta } from "../schema/types.ts";
 import type {
   AggregateFn,
@@ -11,9 +12,11 @@ import type {
 
 import { isPlainObject } from "../core/clone.ts";
 import { DbException, dbError } from "../core/errors.ts";
+import { isFilterQuery } from "../list/filter-query.ts";
 import { relationMeta } from "../schema/define.ts";
 import { lookupOf } from "../schema/lookup.ts";
 import { escapeLike } from "./escape-like.ts";
+import { filterTreeWhere } from "./filter-tree.ts";
 import { and, not, or } from "./types.ts";
 import { encodeValue } from "./wire.ts";
 
@@ -200,6 +203,10 @@ export class IrBuilder {
       return undefined;
     }
 
+    if (isFilterQuery(input)) {
+      return this.filterTree(table, input);
+    }
+
     if (!isPlainObject(input)) {
       invalidRequest(`"where" on "${table.key}" must be an object`, table.key);
     }
@@ -245,6 +252,23 @@ export class IrBuilder {
     }
 
     return and(...items);
+  }
+
+  /** A filter tree from ReUI's Filters, checked against the table's columns. */
+  private filterTree(
+    table: TableMeta,
+    input: FilterQuery,
+  ): Condition | undefined {
+    const tree = filterTreeWhere(table, input);
+
+    if ("issue" in tree) {
+      invalidRequest(
+        `"where" filter on "${table.key}": ${tree.issue}`,
+        table.key,
+      );
+    }
+
+    return this.where(table, tree.where);
   }
 
   private relationFilter(

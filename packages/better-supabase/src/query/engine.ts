@@ -4,18 +4,20 @@ import { QueryObserver } from "@tanstack/query-core";
 
 import type {
   DataEngine,
+  DataEngineOptions,
   DataEntry,
   DataKey,
 } from "../bindings/data-engine.ts";
 
-import { loadError } from "../bindings/data-engine.ts";
+import { liveEngine, loadError } from "../bindings/data-engine.ts";
 
 const IDLE: DataEntry = { status: "idle", data: undefined, error: undefined };
 
 /**
  * The data hooks' engine on TanStack Query: their reads live in `queryClient`
  * under `["bsb", <instance or table>, ...]`, so devtools, `staleTime` and
- * `invalidateQueries` see them.
+ * `invalidateQueries` see them. `live` reads followed sources again when their
+ * tables change elsewhere.
  *
  * ```ts
  * export const bsb = createClient(betterSupabase, {
@@ -23,7 +25,10 @@ const IDLE: DataEntry = { status: "idle", data: undefined, error: undefined };
  * });
  * ```
  */
-export function queryEngine(queryClient: QueryClient): DataEngine {
+export function queryEngine(
+  queryClient: QueryClient,
+  options: DataEngineOptions = {},
+): DataEngine {
   const entries = new Map<string, DataEntry>();
 
   queryClient.getQueryCache().subscribe((event) => {
@@ -70,7 +75,7 @@ export function queryEngine(queryClient: QueryClient): DataEngine {
     return next;
   };
 
-  return {
+  const engine: DataEngine = {
     apiVersion: 1,
     watch: (key, load, listener) => {
       const observer = new QueryObserver(queryClient, {
@@ -106,4 +111,6 @@ export function queryEngine(queryClient: QueryClient): DataEngine {
       void queryClient.invalidateQueries({ queryKey: prefix });
     },
   };
+
+  return liveEngine(engine, options.live, options);
 }

@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import { DbException } from "../../src/core/errors.ts";
 import { createQueries } from "../../src/query/index.ts";
-import { collectionOptions } from "../../src/tanstack-db/index.ts";
+import {
+  collectionOptions,
+  tanstackDbEngine,
+} from "../../src/tanstack-db/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -147,5 +150,70 @@ describe("collectionOptions", () => {
         queryClient: new QueryClient(),
       }),
     ).toThrow(/skipToken/);
+  });
+});
+
+describe("tanstackDbEngine", () => {
+  it("refetches the source's query collection after an invalidation", () => {
+    const refetches: string[] = [];
+
+    const collection = (name: string) => ({
+      subscribeChanges: () => ({ unsubscribe: () => undefined }),
+      utils: {
+        refetch: () => {
+          refetches.push(name);
+        },
+      },
+    });
+
+    const engine = tanstackDbEngine({
+      collections: {
+        customers: collection("customers"),
+        tags: collection("tags"),
+      },
+    });
+
+    engine.invalidate(["bsb", "customers", null]);
+    expect(refetches).toEqual(["customers"]);
+    engine.invalidate(["bsb"]);
+    expect(refetches).toEqual(["customers", "customers", "tags"]);
+    engine.invalidate(["bsb", "unknown"]);
+    expect(refetches).toHaveLength(3);
+  });
+
+  it("reads collections from a function and ignores an empty batch", async () => {
+    let emit: (changes: readonly unknown[]) => void = () => undefined;
+    let loads = 0;
+
+    const engine = tanstackDbEngine({
+      collections: () => ({
+        tags: {
+          subscribeChanges: (callback) => {
+            emit = callback;
+
+            return { unsubscribe: () => undefined };
+          },
+        },
+      }),
+    });
+
+    const stop = engine.watch(
+      ["bsb", "tags", null, "list", null],
+      () => {
+        loads += 1;
+
+        return Promise.resolve([]);
+      },
+      () => undefined,
+    );
+
+    await Promise.resolve();
+    emit([]);
+    await Promise.resolve();
+    expect(loads).toBe(1);
+    emit([{ type: "insert" }]);
+    await Promise.resolve();
+    expect(loads).toBe(2);
+    stop();
   });
 });

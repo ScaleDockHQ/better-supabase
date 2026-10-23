@@ -1,32 +1,52 @@
 ---
 title: PowerSync
-description: The same repositories over a PowerSync SQLite database on the device.
+description: The data hooks and the repositories on a PowerSync SQLite database on the device.
 ---
 
-```ts title="src/lib/powersync/database.ts"
+```ts title="src/lib/supabase/client.native.ts"
 import { PowerSyncDatabase } from "@powersync/react-native";
-import { powersyncExecutor } from "better-supabase/powersync";
-import { betterSupabase } from "../supabase";
-import { schema } from "./schema";
+import { createNativeClient } from "better-supabase/client/native";
+import { powersyncEngine } from "better-supabase/powersync";
+import { connector } from "../powersync/connector";
+import { betterSupabase } from "./index";
+import { schema } from "../powersync/schema";
 
 export const powersync = new PowerSyncDatabase({
   schema,
   database: { dbFilename: "app.db" },
 });
 
-export const local = betterSupabase.connect(powersyncExecutor(powersync));
-
-const customers = await local.customers
-  .list({ where: { status: "active" }, orderBy: { name: "asc" } })
-  .orThrow();
+export const bsb = createNativeClient(betterSupabase, supabase, {
+  engine: powersyncEngine(powersync, { connector, local: ["customers"] }),
+});
 ```
 
-`powersyncExecutor(db)` compiles each repository call to SQLite and runs it on
-the PowerSync database. Rows come back the way PostgREST returns them: in the
-definition's casing, with booleans, JSON and Temporal values decoded the same
-way. `@powersync/common` is not a dependency; the executor only needs
-`getAll`, `execute` and `writeTransaction`, and `onChange` for `watch`, so
-`@powersync/react-native`, `@powersync/web` and a test double all work.
+`powersyncEngine(db)` runs `bsb.db` and the generated
+[data hooks](/docs/frontend/data-hooks) on the PowerSync database: each
+repository call compiles to SQLite and runs on the device, online or not.
+Rows come back the way PostgREST returns them: in the definition's casing,
+with booleans, JSON and Temporal values decoded the same way. `local` lists
+the tables PowerSync syncs; `bsb.db` reads and writes every other table
+through PostgREST. Leave it out when every table syncs.
+
+```tsx title="src/components/customer-list.native.tsx"
+import { useCustomers } from "@/lib/supabase/hooks";
+
+export function CustomerList() {
+  const customers = useCustomers({
+    where: { status: "active" },
+    orderBy: { name: "asc" },
+  });
+  // ...
+}
+```
+
+`@powersync/common` is not a dependency; the engine only needs `getAll`,
+`execute` and `writeTransaction`, `onChange` for live reads and
+`registerListener` with `currentStatus` for the sync state, so
+`@powersync/react-native`, `@powersync/web` and a test double all work. To
+run the repositories without the client, use
+`betterSupabase.connect(powersyncExecutor(powersync))`.
 
 ## What runs on SQLite
 
@@ -76,44 +96,18 @@ on SQLite.
 
 ## Server fallback
 
-Pass `fallback` to send what SQLite can't run to the server instead of
-failing:
+What SQLite can't run goes to the server: a read that compiles to
+`unsupported` (full-text search, a function source) runs on the client's
+PostgREST executor, and so does `db.$rpc`. Everything else stays on SQLite.
+Writes never fall back, so PowerSync's upload queue stays the only write path
+for a synced table, and an unsupported write still returns `unsupported`.
+When the device is offline, the read returns the server's error, usually kind
+`network`. Pass `fallback: false` to keep every call on the device, or
+another executor as `fallback`.
 
-```ts title="src/lib/powersync/database.ts"
-import { postgrestExecutor } from "better-supabase";
-
-export const local = betterSupabase.connect(
-  powersyncExecutor(powersync, {
-    fallback: postgrestExecutor(supabase, betterSupabase.executorOptions()),
-  }),
-);
-```
-
-A read that compiles to `unsupported` (full-text search, a function
-source) runs on the fallback, and so does `db.$rpc`. Everything
-else stays on SQLite. Writes never fall back, so PowerSync's upload queue
-stays the only write path, and an unsupported write still returns
-`unsupported`. When the device is offline, the read returns the fallback's
-error, usually kind `network`.
-
-A fallback read inside `watch` or `useWatch` reruns when one of the watched
-local tables changes, but a change on the server that hasn't synced to those
-tables doesn't trigger it. Pass `refresh` to rerun it without a local
-change:
-
-```ts
-const stop = watch(powersync, () => noteCounts.run(local, query), {
-  tables: sqliteTables(betterSupabase, ["notes"]),
-  onResult: (result) => render(result),
-  refresh: { everyMs: 30_000, onReconnect: true },
-});
-```
-
-`everyMs` reruns the query on an interval and skips the runs while
-PowerSync reports it is offline. `onReconnect` reruns it when PowerSync
-connects again, and needs a database with `registerListener` (every
-PowerSync database has one). A refresh that returns the same result calls no
-`onResult`. `useWatch` takes the same `refresh` option.
+A hook that reads from the server is read again when one of its local tables
+changes, and every hook is read again when PowerSync connects after it was
+offline, so a fallback read catches up once the device is back.
 
 ## Porting a list from PostgREST
 
@@ -124,12 +118,11 @@ usually full-text search and database functions that aggregate. For each, pick o
 
 - Sync what the screen needs. A summary table or view that a sync rule
   publishes (note counts per customer, a denormalized name) turns an RPC
-  aggregate into a local table you read and `watch`.
+  aggregate into a local table the hooks read.
 - Search a synced text column with `search: ["name", "kvk"]` (`ilike`)
   instead of `{ fts: ... }`.
-- Keep it on the server with `fallback`, and accept that it needs a
-  connection. Give its `watch` a `refresh` so it doesn't wait for a local
-  change.
+- Keep it on the server through the fallback, and accept that it needs a
+  connection. It reads again when PowerSync connects.
 
 To find the server-only reads, list them in a test:
 
@@ -142,64 +135,39 @@ it("runs every list on the device", async () => {
 });
 ```
 
-With a fallback, the errors that test reports are the reads that go to the
-server; each has the feature in `details`.
+The errors that test reports are the reads that go to the server; each has
+the feature in `details`.
 
 ## Live results
 
-`watch(db, query, options)` reruns a repository call whenever PowerSync
-reports a change to one of `tables`, for local writes and synced rows alike:
+The hooks read once and then follow their table: PowerSync reports every
+local write and every synced row, at most once every 30 ms (`throttleMs`),
+and each hook that reads a changed table reads again. A hook named after
+something other than a table, such as a list definition wrapped in
+`defineDataHooks("customer-pages", ...)`, names its tables in
+`tables: { "customer-pages": ["customers"] }`. Writes through a hook apply
+to the cached lists first, run on the device and roll back on an error.
 
-```ts
-import { sqliteTables, watch } from "better-supabase/powersync";
+### Sync state
 
-const stop = watch(powersync, () => customerList.run(local, query), {
-  tables: sqliteTables(betterSupabase, ["customers"]),
-  onResult: (result) => render(result),
-});
-```
-
-`sqliteTables` maps table keys to the names PowerSync uses (`customerTags`
-to `customer_tags`). The function `watch` returns stops it, and so does
-`signal`; a signal that is already aborted never starts it.
-
-Rows that didn't change keep their object identity between runs (matched by
-`id`, else by position), so `memo` list items skip re-rendering, and a run
-that returns the same result calls no `onResult`. `structuralSharing: false`
-turns that off.
-
-### In React
-
-`better-supabase/powersync/react` wraps `watch` in a hook and adds the sync
-state:
+`useSyncStatus()` and `useConflicts()` from `better-supabase/react` read the
+provider's engine:
 
 ```tsx
-import {
-  useConflicts,
-  useSyncStatus,
-  useWatch,
-} from "better-supabase/powersync/react";
+import { useConflicts, useSyncStatus } from "better-supabase/react";
 
-function Customers({ search }: { search: string }) {
-  const { data, error, loading } = useWatch({
-    db: powersync,
-    query: () =>
-      customerList.run(local, { ...customerList.defaults, q: search }),
-    tables,
-    deps: [search],
-  });
-  const { hasSynced, uploading } = useSyncStatus(powersync);
-  const { changes } = useConflicts(connector);
+function SyncBanner() {
+  const sync = useSyncStatus();
+  const { changes, dismiss } = useConflicts();
   // ...
 }
 ```
 
-`useWatch` restarts when `deps` or `tables` change and reports `loading`
-until the first result for them; `enabled: false` pauses it.
 `useSyncStatus` returns `connected`, `connecting`, `hasSynced`, `uploading`,
-`downloading` and the last sync `error`, and re-renders only when one of them
-changes. `useConflicts` is described in
-[Offline-first](/docs/guides/offline-first#conflicts).
+`downloading` and the last sync `error`, re-renders only when one of them
+changes, and returns `undefined` when the engine syncs nothing.
+`useConflicts` reads the changes the engine's `connector` could not upload;
+see [Offline-first](/docs/guides/offline-first#conflicts).
 
 A read with a count (`page` with `count: "exact"`, a list query's total)
 runs the rows and the count in one `readTransaction`, so the two agree while
@@ -208,14 +176,15 @@ PowerSync syncs.
 ## Table names and keys
 
 PowerSync names each view after the table without its schema, and that is
-the default. Pass `tableName` to `powersyncExecutor` when your PowerSync
-schema renames a table. PowerSync tables key on a text `id` that the client
-creates: an insert without one gets `crypto.randomUUID()` (or `newId` when you
-pass it).
+the default. Pass `tableName` to `powersyncEngine` (or `powersyncExecutor`)
+when your PowerSync schema renames a table. PowerSync tables key on a text
+`id` that the client creates: an insert without one gets
+`crypto.randomUUID()` (or `newId` when you pass it).
 
 Writes go to the local database and PowerSync uploads them.
-`createUploadConnector` replays them through the repositories, and
-`uploadRoute(bsb.db.attachments, { put: "create" })` inserts the rows of a
+`createUploadConnector` replays them through repositories on PostgREST (a
+client without the engine), and
+`uploadRoute(server.db.attachments, { put: "create" })` inserts the rows of a
 write-once table, counting a conflict as already applied. `onError` reports a
 failed session read and retried uploads. See
 [Offline-first](/docs/guides/offline-first) for the routes, outcomes and

@@ -1,12 +1,5 @@
-import type { Executor } from "../core/executor.ts";
-import type {
-  PowerSyncDatabaseLike,
-  PowerSyncExecutorOptions,
-  SqliteContextLike,
-} from "../powersync/executor.ts";
-import type { TableMeta } from "../schema/types.ts";
-
-import { powersyncExecutor } from "../powersync/executor.ts";
+import type { ChangingSqliteDatabase } from "./engine.ts";
+import type { SqliteContextLike } from "./executor.ts";
 
 /** What an expo-sqlite database or exclusive transaction can run. */
 export interface ExpoSqliteContextLike {
@@ -42,19 +35,15 @@ export type AddDatabaseChangeListener = (
   listener: (event: DatabaseChangeEventLike) => void,
 ) => { remove(): void };
 
-export interface ExpoSqliteOptions extends PowerSyncExecutorOptions {
-  /** Enables `watch()` and `useWatch()` on the database. */
+export interface ExpoSqliteOptions {
+  /**
+   * Reports the database's changes, so the engine reads followed sources again
+   * after writes from elsewhere (a sync job, another screen's `db`).
+   */
   readonly addDatabaseChangeListener?: AddDatabaseChangeListener;
 }
 
 const DEFAULT_THROTTLE_MS = 30;
-
-/**
- * A UUID v4 from SQLite's `randomblob`, for runtimes without
- * `crypto.randomUUID`.
- */
-const UUID_SQL =
-  "select lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) as id";
 
 function contextOf(db: ExpoSqliteContextLike): SqliteContextLike {
   return {
@@ -66,7 +55,7 @@ function contextOf(db: ExpoSqliteContextLike): SqliteContextLike {
 function changesOf(
   db: ExpoSqliteDatabaseLike,
   addListener: AddDatabaseChangeListener,
-): NonNullable<PowerSyncDatabaseLike["onChange"]> {
+): NonNullable<ChangingSqliteDatabase["onChange"]> {
   return (handler, options = {}) => {
     const tables = options.tables ? new Set(options.tables) : undefined;
     const throttleMs = options.throttleMs ?? DEFAULT_THROTTLE_MS;
@@ -118,17 +107,25 @@ function changesOf(
 }
 
 /**
- * An expo-sqlite database in the shape the SQLite executor, `watch()` and
- * `useWatch()` read. Writes run in `withExclusiveTransactionAsync` on native
- * and `withTransactionAsync` on web.
+ * An expo-sqlite database in the shape `sqliteEngine` reads. Writes run in
+ * `withExclusiveTransactionAsync` on native and `withTransactionAsync` on web.
+ *
+ * ```ts
+ * const sqlite = await openDatabaseAsync("app.db", {
+ *   enableChangeListener: true,
+ * });
+ * const engine = sqliteEngine(
+ *   expoSqliteDatabase(sqlite, { addDatabaseChangeListener }),
+ * );
+ * ```
  */
 export function expoSqliteDatabase(
   db: ExpoSqliteDatabaseLike,
-  options: Pick<ExpoSqliteOptions, "addDatabaseChangeListener"> = {},
-): PowerSyncDatabaseLike {
+  options: ExpoSqliteOptions = {},
+): ChangingSqliteDatabase {
   const context = contextOf(db);
 
-  const database: PowerSyncDatabaseLike = {
+  const database: ChangingSqliteDatabase = {
     ...context,
     async writeTransaction<T>(
       callback: (tx: SqliteContextLike) => Promise<T>,
@@ -158,60 +155,4 @@ export function expoSqliteDatabase(
   return addListener
     ? { ...database, onChange: changesOf(db, addListener) }
     : database;
-}
-
-/** Hermes has no `crypto` unless the app installs a polyfill. */
-function randomId(): string | undefined {
-  // SAFETY: lib.dom types `crypto` as always present; Hermes may lack it.
-  const { crypto } = globalThis as {
-    readonly crypto?: { readonly randomUUID?: () => string };
-  };
-
-  return crypto?.randomUUID?.();
-}
-
-/**
- * Runs repository operations on an expo-sqlite database, without PowerSync: the
- * same repositories and list definitions work on a local database the app owns.
- * Reads return rows in the PostgREST shape; what SQLite can't express returns a
- * `DbError` of kind `unsupported`. An insert that leaves out a text or uuid key
- * gets `crypto.randomUUID()`, else a UUID from SQLite.
- *
- * ```ts
- * const sqlite = await openDatabaseAsync("app.db", {
- *   enableChangeListener: true,
- * });
- * const db = betterSupabase.connect(
- *   expoSqliteExecutor(sqlite, { addDatabaseChangeListener }),
- * );
- * ```
- */
-export function expoSqliteExecutor(
-  db: ExpoSqliteDatabaseLike,
-  options: ExpoSqliteOptions = {},
-): Executor {
-  const database = expoSqliteDatabase(db, options);
-
-  const newId =
-    options.newId ??
-    (async (_table: TableMeta): Promise<string> => {
-      const random = randomId();
-
-      if (random !== undefined) {
-        return random;
-      }
-
-      const [row] = await database.getAll<{ id: string }>(UUID_SQL);
-
-      if (!row) {
-        throw new TypeError("SQLite returned no id");
-      }
-
-      return row.id;
-    });
-
-  return {
-    ...powersyncExecutor(database, { ...options, newId }),
-    name: "expo-sqlite",
-  };
 }

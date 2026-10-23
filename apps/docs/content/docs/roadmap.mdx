@@ -18,7 +18,8 @@ has the details.
   ([token audience](/docs/auth/server#token-audience)).
 - The `standardSchema()` generator in `better-supabase/config`.
 - TanStack DB collections with Realtime sync in
-  `better-supabase/tanstack-db/supabase`.
+  `better-supabase/tanstack-db/supabase` (replaced by `tanstackDbEngine` in
+  0.15).
 - Typed Edge Function calls with `defineFunction()` and `functions()`.
 - Supabase MCP server interop with `supabaseMcp()` and `supabaseMcpHandler()`.
 - Supabase Lite in `better-supabase/server`, `better-supabase/testing` and the
@@ -195,9 +196,8 @@ records the decision.
 
 - **A machine-readable capability file** for better-supabase itself, in the
   shape of the `supabase/sdk` capability matrix. Upstream: `supabase/sdk`.
-- **ElectricSQL and Zero collections**: executors and TanStack DB
-  collections over their sync engines, after `better-supabase/expo-sqlite`
-  and `better-supabase/tanstack-db` settle the executor interface.
+- **ElectricSQL and Zero engines**: data engines over their sync engines, in
+  the shape of `powersyncEngine` and `sqliteEngine`.
   Upstream: `electric-sql/electric`, `rocicorp/mono`.
 
 The [blocks overview](/docs/blocks) lists the blocks that ship today.

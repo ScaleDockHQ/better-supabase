@@ -69,7 +69,17 @@ export type {
   DataWrites,
 } from "../bindings/data-hooks.ts";
 
-export type { DataEngine, DataEntry } from "../bindings/data-engine.ts";
+export type {
+  DataEngine,
+  DataEntry,
+  DataSyncState,
+} from "../bindings/data-engine.ts";
+
+export { useConflicts, useSyncStatus } from "./sync.ts";
+
+export type { Conflicts } from "./sync.ts";
+
+export type { RejectedChange } from "../powersync/connector.ts";
 
 export type {
   BlockEventSource,

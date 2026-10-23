@@ -115,7 +115,7 @@ export const integrations: readonly Integration[] = [
     ["Workflow SDK", "/docs/blocks/workflow-sdk", siVercel],
     ["Flags SDK", "/docs/flags-sdk", siVercel],
     ["PowerSync", "/docs/repository/powersync", powersyncGlyph],
-    ["Expo SQLite", "/docs/repository/expo-sqlite", siSqlite],
+    ["Expo SQLite", "/docs/repository/sqlite", siSqlite],
     ["Yjs", "/docs/blocks/documents", yjsGlyph],
     ["Redis streams", "/docs/blocks/streams", siRedis],
     ["Stripe", "/docs/blocks/billing", siStripe],

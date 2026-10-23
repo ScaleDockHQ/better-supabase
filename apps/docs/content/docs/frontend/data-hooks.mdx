@@ -1,6 +1,6 @@
 ---
 title: Data hooks
-description: Generated list and record hooks per table for React, Vue, Svelte and Solid, with optimistic writes, on a memory cache or TanStack Query.
+description: Generated list and record hooks per table for React, Vue, Svelte and Solid, with optimistic writes, on a memory cache, TanStack Query, TanStack DB or a database on the device.
 ---
 
 With `gen.hooks` set, `better-supabase gen` writes `hooks.ts` next to the
@@ -62,6 +62,37 @@ export function CustomerList() {
 Two components that read the same table with the same arguments share one
 read. A change of user, organization or arguments reads again.
 
+`where` also takes a filter tree, the shape
+[list queries](/docs/platform/list) and saved views produce. The
+hook checks it against the table's filterable columns and returns kind
+`invalid_request` for an unknown column or operator:
+
+```tsx
+const customers = useCustomers({
+  where: {
+    id: "root",
+    type: "group",
+    combinator: "or",
+    rules: [
+      {
+        id: "a",
+        type: "rule",
+        path: ["status"],
+        operator: "eq",
+        value: "active",
+      },
+      {
+        id: "b",
+        type: "rule",
+        path: ["name"],
+        operator: "ilike",
+        value: "%acme%",
+      },
+    ],
+  },
+});
+```
+
 ## Writing
 
 `create(input)`, `update(id, patch)` and `delete(id)` call the repository
@@ -97,6 +128,48 @@ queryClient.invalidateQueries({ queryKey: ["bsb", "customers"] });
 
 `@tanstack/query-core` is an optional peer: install it only when you use the
 engine.
+
+## Engines
+
+The engine decides where the hooks keep their reads and where `bsb.db` runs.
+Every engine runs the same generated hooks, so moving a screen offline is a
+change to `createClient`, not to the components.
+
+| Engine                        | Entry                         | Reads kept in                                        | `bsb.db` runs on       |
+| ----------------------------- | ----------------------------- | ---------------------------------------------------- | ---------------------- |
+| `memoryEngine()`, the default | `better-supabase/client`      | memory                                               | PostgREST              |
+| `queryEngine(queryClient)`    | `better-supabase/query`       | TanStack Query                                       | PostgREST              |
+| `tanstackDbEngine(options)`   | `better-supabase/tanstack-db` | TanStack Query, refreshed by TanStack DB collections | PostgREST              |
+| `powersyncEngine(db)`         | `better-supabase/powersync`   | TanStack Query or memory                             | the PowerSync database |
+| `sqliteEngine(database)`      | `better-supabase/sqlite`      | TanStack Query or memory                             | Expo SQLite or Lite    |
+
+The device engines take `local`, the tables the device database holds, and
+send the rest to PostgREST. See [PowerSync](/docs/repository/powersync),
+[SQLite](/docs/repository/sqlite) and [TanStack DB](/docs/frontend/tanstack-db).
+
+### Live reads
+
+Pass `live` to `memoryEngine` or `queryEngine` to read a hook again when its
+table changes in the database. `realtimeChanges(betterSupabase, supabase)`
+from `better-supabase/realtime` follows Supabase Realtime for the tables in
+`realtime.tables`, or the ones you pass as `tables`:
+
+```ts
+import { queryEngine } from "better-supabase/query";
+import { realtimeChanges } from "better-supabase/realtime";
+
+export const bsb = createClient(betterSupabase, {
+  engine: queryEngine(queryClient, {
+    live: realtimeChanges(betterSupabase, supabase, {
+      tables: ["customers", "notes"],
+    }),
+  }),
+});
+```
+
+A hook named after something other than a table names its tables in the
+engine's `tables`, such as `tables: { "customer-pages": ["customers"] }`. The
+device engines follow their own database's changes and need no `live`.
 
 ## Your own hooks
 

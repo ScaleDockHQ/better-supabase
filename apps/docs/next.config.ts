@@ -89,6 +89,11 @@ const config = createNextConfig({
         destination: "/docs/extending/plugins",
         permanent: true,
       },
+      {
+        source: "/docs/repository/expo-sqlite",
+        destination: "/docs/repository/sqlite",
+        permanent: true,
+      },
       ...Object.entries(MOVED_PLUGIN_PAGES).map(([from, to]) => ({
         source: `/docs/plugins/${from}`,
         destination: `/docs/${to}`,

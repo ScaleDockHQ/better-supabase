@@ -6,7 +6,12 @@ import type { SchemaMeta } from "../../src/schema/types.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
-import { liveCount, liveQuery, liveTopic } from "../../src/realtime/live.ts";
+import {
+  liveCount,
+  liveQuery,
+  liveTopic,
+  realtimeChanges,
+} from "../../src/realtime/live.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -641,5 +646,55 @@ describe("liveCount", () => {
     expect(run).toHaveBeenCalledOnce();
     expect(onCount).not.toHaveBeenCalled();
     await live.unsubscribe();
+  });
+});
+
+describe("realtimeChanges", () => {
+  it("follows every realtime table, scoped to the current tenant", async () => {
+    const { client, raw, emit } = fakeClient();
+    let tenant = "o1";
+
+    const changes = realtimeChanges(betterSupabase, client, {
+      tenant: () => tenant,
+      debounceMs: 0,
+    });
+
+    const onChange = vi.fn();
+    const stop = changes.subscribe(onChange);
+    expect(raw.channel.mock.calls.map(([topic]) => topic)).toEqual([
+      "bsb:t:public.customers:o1",
+      "bsb:t:public.notes",
+    ]);
+    await wait(1);
+    onChange.mockClear();
+    emit("bsb:t:public.customers:o1");
+    await wait(5);
+    expect(onChange).toHaveBeenCalledWith(["customers"]);
+    stop();
+    await wait(5);
+    expect(raw.removeChannel).toHaveBeenCalledTimes(2);
+
+    tenant = "o2";
+    const again = changes.subscribe(vi.fn());
+    expect(raw.channel).toHaveBeenLastCalledWith(
+      "bsb:t:public.notes",
+      expect.anything(),
+    );
+    expect(raw.channel.mock.calls.map(([topic]) => topic)).toContain(
+      "bsb:t:public.customers:o2",
+    );
+    again();
+  });
+
+  it("follows only the listed tables", () => {
+    const { client, raw } = fakeClient();
+
+    const stop = realtimeChanges(betterSupabase, client, {
+      tables: ["notes"],
+      user: "u1",
+    }).subscribe(vi.fn());
+
+    expect(raw.channel).toHaveBeenCalledOnce();
+    stop();
   });
 });

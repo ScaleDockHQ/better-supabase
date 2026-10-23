@@ -2,6 +2,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 
+import type { DataChanges } from "../bindings/data-engine.ts";
 import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";
 import type { QuerySpec } from "../core/spec.ts";
@@ -560,5 +561,64 @@ export function liveCount(
     unsubscribe,
     [Symbol.dispose]: () => void unsubscribe(),
     [Symbol.asyncDispose]: unsubscribe,
+  };
+}
+
+export interface RealtimeChangesOptions {
+  /** App keys of the tables to follow. Default every table in `realtime.tables`. */
+  readonly tables?: readonly string[];
+  /** Tenant value for tables scoped by a tenant column, read at each subscribe. */
+  readonly tenant?: string | (() => string | undefined);
+  /** The signed-in user's id for per-user tables, read at each subscribe. */
+  readonly user?: string | (() => string | undefined);
+  /** Waits this long after the last change. Defaults to 100 ms. */
+  readonly debounceMs?: number;
+}
+
+const valueOf = (
+  value: string | (() => string | undefined) | undefined,
+): string | undefined => (typeof value === "function" ? value() : value);
+
+/**
+ * Supabase Realtime changes for an engine's `live` option: the data hooks read
+ * a source again when another client changes its table. It joins while a hook
+ * follows a read and leaves after the last one.
+ *
+ * ```ts
+ * export const bsb = createClient(betterSupabase, {
+ *   engine: memoryEngine({
+ *     live: realtimeChanges(betterSupabase, supabase),
+ *   }),
+ * });
+ * ```
+ */
+export function realtimeChanges(
+  betterSupabase: LiveSource,
+  client: RealtimeClient,
+  options: RealtimeChangesOptions = {},
+): DataChanges {
+  return {
+    subscribe: (onChange) => {
+      const tenant = valueOf(options.tenant);
+      const user = valueOf(options.user);
+
+      const subscription = liveQuery(
+        betterSupabase,
+        client,
+        options.tables ?? Object.keys(betterSupabase.meta.realtime ?? {}),
+        {
+          onChange,
+          ...(tenant === undefined ? {} : { tenant }),
+          ...(user === undefined ? {} : { user }),
+          ...(options.debounceMs === undefined
+            ? {}
+            : { debounceMs: options.debounceMs }),
+        },
+      );
+
+      return () => {
+        void subscription.unsubscribe();
+      };
+    },
   };
 }

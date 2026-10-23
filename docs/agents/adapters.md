@@ -2,7 +2,7 @@
 
 Framework adapters (`hono`, `edge`, `node`, `astro`, `nuxt` and the rest),
 the clients (`client`, `client/native`) and the local-first entries
-(`powersync`, `expo-sqlite`, `tanstack-db`).
+(`powersync`, `sqlite`, `tanstack-db`), which are data engines.
 
 ## Shared guards
 
@@ -31,17 +31,21 @@ the clients (`client`, `client/native`) and the local-first entries
 
 ## Native and local-first
 
-- `client/native`, `react/native` and `powersync/react` import React Native
-  or Expo modules and never load in Node; test them with the fakes in
+- `client/native` and `react/native` import React Native or Expo modules and never load in Node; test them with the fakes in
   `tests/fixtures` and keep their logic in modules that don't import those
   packages.
 - Expo packages follow the SDK's version line (57.x). The trust policy
   (`trustPolicy: no-downgrade`) rejects some fresh releases; pin a release
   older than 30 days instead of an exception. Query versions with
   `curl https://registry.npmjs.org/<pkg>` when `pnpm view` fails.
-- Queries over a local executor (PowerSync, expo-sqlite) get their own
+- Queries over a local executor (PowerSync, SQLite) get their own
   `scope` in `createQueries`, so local and PostgREST results never share a
   TanStack Query cache entry.
+- The local-first engines run on `localEngine` (`src/bindings/data-engine.ts`):
+  `connect` swaps the executor `bsb.db` runs on, `local` routes the other
+  tables to PostgREST, and `changes` drives `liveEngine`. The data contract
+  suite in `tests/bindings/data-hooks.test.ts` runs on every engine; a new
+  engine joins its list.
 
 ## Fixture modules for a block
 

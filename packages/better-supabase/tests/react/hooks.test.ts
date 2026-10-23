@@ -7,7 +7,7 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type { AuthSnapshot } from "../../src/client/index.ts";
 import type { PowerSyncDatabaseLike } from "../../src/powersync/executor.ts";
-import type { SyncStatusLike } from "../../src/powersync/react/index.ts";
+import type { SyncStatusLike } from "../../src/powersync/index.ts";
 import type { ActionResultOf } from "../../src/react/actions.ts";
 import type { ClientLike } from "../../src/react/hooks.ts";
 import type {
@@ -28,11 +28,7 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { createUploadConnector } from "../../src/powersync/connector.ts";
-import {
-  useConflicts,
-  useSyncStatus,
-  useWatch,
-} from "../../src/powersync/react/index.ts";
+import { powersyncEngine } from "../../src/powersync/index.ts";
 import { useAction, useActionForm } from "../../src/react/actions.ts";
 import {
   BetterSupabaseProvider,
@@ -55,6 +51,7 @@ import { useDebouncedSearch } from "../../src/react/search.ts";
 import { useSession } from "../../src/react/session.ts";
 import { useSignIn, useSignOut } from "../../src/react/sign-in.ts";
 import { useImage, useSignedUrl, useUpload } from "../../src/react/storage.ts";
+import { useConflicts, useSyncStatus } from "../../src/react/sync.ts";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -1968,133 +1965,9 @@ describe("react/native", () => {
   });
 });
 
-describe("powersync/react", () => {
-  function fakePowerSync() {
-    const handlers = new Set<() => void>();
-
-    const db = {
-      execute: vi.fn(),
-      getAll: vi.fn(),
-      getOptional: vi.fn(),
-      writeTransaction: vi.fn(),
-      onChange: vi.fn(
-        (
-          handler: { onChange: () => void },
-          options?: { signal?: AbortSignal },
-        ) => {
-          handlers.add(handler.onChange);
-          const remove = () => void handlers.delete(handler.onChange);
-          options?.signal?.addEventListener("abort", remove);
-
-          return remove;
-        },
-      ),
-    } as unknown as PowerSyncDatabaseLike;
-
-    return {
-      db,
-      change: () => {
-        for (const handler of handlers) {
-          handler();
-        }
-      },
-      handlers,
-    };
-  }
-
-  it("useWatch reruns on changes, shares rows and restarts on deps", async () => {
-    const { db, change, handlers } = fakePowerSync();
-    let rows = [{ id: "a", name: "A" }];
-
-    const query = vi.fn(async (search: string) =>
-      ok(
-        rows
-          .filter((row) => row.name.includes(search))
-          .map((row) => ({ ...row })),
-      ),
-    );
-
-    const initial = { search: "" };
-
-    const view = renderHook(
-      (props) =>
-        useWatch({
-          db,
-          query: () => query(props.search),
-          tables: ["customers"],
-          deps: [props.search],
-        }),
-      initial,
-      null,
-    );
-
-    expect(view.result.loading).toBe(true);
-    await flush();
-    expect(view.result.data).toEqual([{ id: "a", name: "A" }]);
-    const first = view.result.data?.[0];
-    rows = [...rows, { id: "b", name: "B" }];
-    change();
-    await flush();
-    expect(view.result.data).toHaveLength(2);
-    expect(view.result.data?.[0]).toBe(first);
-    view.rerender({ search: "B" });
-    expect(view.result.loading).toBe(true);
-    await flush();
-    expect(view.result.data).toEqual([{ id: "b", name: "B" }]);
-    expect(handlers.size).toBe(1);
-    view.unmount();
-    expect(handlers.size).toBe(0);
-  });
-
-  it("useWatch refreshes on an interval without restarting on rerender", async () => {
-    vi.useFakeTimers();
-
-    try {
-      const { db } = fakePowerSync();
-      let runs = 0;
-      const query = vi.fn(async () => ok((runs += 1)));
-      const onChange = vi.spyOn(db, "onChange");
-
-      const view = renderHook(
-        () =>
-          useWatch({ db, query, tables: ["t"], refresh: { everyMs: 1000 } }),
-        {},
-        null,
-      );
-
-      await vi.advanceTimersByTimeAsync(0);
-      expect(view.result.data).toBe(1);
-      view.rerender({});
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(view.result.data).toBe(2);
-      expect(onChange).toHaveBeenCalledOnce();
-      view.unmount();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("useWatch reports errors and pauses when disabled", async () => {
-    const { db } = fakePowerSync();
-    const query = vi.fn(async () => err(dbError("unexpected", "disk full")));
-    const initial = { enabled: false };
-
-    const view = renderHook(
-      (props) => useWatch({ db, query, tables: ["t"], enabled: props.enabled }),
-      initial,
-      null,
-    );
-
-    await flush();
-    expect(query).not.toHaveBeenCalled();
-    view.rerender({ enabled: true });
-    await flush();
-    expect(view.result.error?.message).toBe("disk full");
-    expect(view.result.data).toBeUndefined();
-  });
-
-  it("useSyncStatus re-renders only when a field changes", () => {
-    const listeners = new Set<() => void>();
+describe("useSyncStatus and useConflicts", () => {
+  function syncedDatabase() {
+    const listeners = new Set<(status: SyncStatusLike) => void>();
 
     let status: SyncStatusLike = {
       connected: false,
@@ -2102,18 +1975,39 @@ describe("powersync/react", () => {
     };
 
     const db = {
+      execute: vi.fn(),
+      getAll: vi.fn(),
+      writeTransaction: vi.fn(),
       get currentStatus() {
         return status;
       },
-      registerListener: (listener: { statusChanged?: () => void }) => {
-        const notify = () => listener.statusChanged?.();
+      registerListener: (listener: {
+        statusChanged?: (status: SyncStatusLike) => void;
+      }) => {
+        const notify = (next: SyncStatusLike) => listener.statusChanged?.(next);
         listeners.add(notify);
 
         return () => void listeners.delete(notify);
       },
+    } satisfies PowerSyncDatabaseLike;
+
+    const set = (next: SyncStatusLike) => {
+      status = next;
+
+      for (const listener of listeners) {
+        listener(next);
+      }
     };
 
-    const view = renderHook(() => useSyncStatus(db), undefined, null);
+    return { db, set };
+  }
+
+  it("follows the engine's sync status and re-renders only when a field changes", () => {
+    const { browser } = fakeBrowser(signedIn(USER));
+    const { db, set } = syncedDatabase();
+    const client = { ...browser, engine: powersyncEngine(db) };
+    const view = renderHook(() => useSyncStatus(), undefined, { client });
+
     expect(view.result).toEqual({
       connected: false,
       connecting: false,
@@ -2123,15 +2017,14 @@ describe("powersync/react", () => {
       error: undefined,
     });
     const before = view.result;
-    status = { ...status };
-
-    for (const listener of listeners) {
-      listener();
-    }
-
+    set({
+      connected: false,
+      dataFlowStatus: { uploading: false, downloading: false },
+    });
     expect(view.result).toBe(before);
+
     const failure = new Error("upload failed");
-    status = {
+    set({
       connected: true,
       hasSynced: true,
       dataFlowStatus: {
@@ -2139,12 +2032,7 @@ describe("powersync/react", () => {
         downloading: false,
         uploadError: failure,
       },
-    };
-
-    for (const listener of listeners) {
-      listener();
-    }
-
+    });
     expect(view.result).toMatchObject({
       connected: true,
       hasSynced: true,
@@ -2153,7 +2041,20 @@ describe("powersync/react", () => {
     });
   });
 
-  it("useConflicts follows the connector's refused changes", async () => {
+  it("is undefined when the engine syncs nothing", () => {
+    const { browser } = fakeBrowser(signedIn(USER));
+
+    const view = renderHook(() => useSyncStatus(), undefined, {
+      client: browser,
+    });
+
+    expect(view.result).toBeUndefined();
+    const conflicts = renderHook(() => useConflicts(), undefined, null);
+    expect(conflicts.result.changes).toEqual([]);
+    conflicts.result.dismiss();
+  });
+
+  it("follows the connector's refused changes", async () => {
     const connector = createUploadConnector({
       endpoint: "e",
       supabase: {
@@ -2162,7 +2063,10 @@ describe("powersync/react", () => {
       tables: { notes: async () => err(dbError("conflict", "newer")) },
     });
 
-    const view = renderHook(() => useConflicts(connector), undefined, null);
+    const { browser } = fakeBrowser(signedIn(USER));
+    const { db } = syncedDatabase();
+    const client = { ...browser, engine: powersyncEngine(db, { connector }) };
+    const view = renderHook(() => useConflicts(), undefined, { client });
     expect(view.result.changes).toEqual([]);
     await connector.uploadData({
       getCrudBatch: async () => ({

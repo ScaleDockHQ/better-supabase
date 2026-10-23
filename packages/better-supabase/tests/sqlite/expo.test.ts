@@ -2,19 +2,16 @@ import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 
 import { describe, expect, it, vi } from "vitest";
 
+import type { Executor } from "../../src/core/executor.ts";
 import type {
   DatabaseChangeEventLike,
   ExpoSqliteContextLike,
   ExpoSqliteDatabaseLike,
-} from "../../src/expo-sqlite/index.ts";
+} from "../../src/sqlite/index.ts";
 
+import { createDataList, dataTarget } from "../../src/bindings/data-hooks.ts";
 import { defineSupabase } from "../../src/core/define.ts";
-import {
-  expoSqliteDatabase,
-  expoSqliteExecutor,
-  sqliteTables,
-  watch,
-} from "../../src/expo-sqlite/index.ts";
+import { expoSqliteDatabase, sqliteEngine } from "../../src/sqlite/index.ts";
 import { testExecutor } from "../../src/testing/kits/executor.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { createSqlite } from "../fixtures/sqlite.ts";
@@ -101,26 +98,39 @@ function fakeExpo(
   return { db, addDatabaseChangeListener, listeners };
 }
 
+const server: Executor = {
+  name: "server",
+  execute: () => {
+    throw new Error("the server is not used here");
+  },
+};
+
 function setup(options: { exclusive?: boolean } = {}) {
   const { sqlite } = createSqlite(betterSupabase.meta);
   const expo = fakeExpo(sqlite, options);
 
-  const executor = expoSqliteExecutor(expo.db, {
-    addDatabaseChangeListener: expo.addDatabaseChangeListener,
-  });
+  const engine = sqliteEngine(
+    expoSqliteDatabase(expo.db, {
+      addDatabaseChangeListener: expo.addDatabaseChangeListener,
+    }),
+    { fallback: false },
+  );
+
+  const executor = engine.connect!(server);
 
   return {
     ...expo,
     sqlite,
+    engine,
     executor,
     client: betterSupabase.connect(executor),
   };
 }
 
-describe("expoSqliteExecutor", () => {
+describe("sqliteEngine on expo-sqlite", () => {
   it("conforms to the executor contract", () => {
     const { executor } = setup();
-    expect(executor.name).toBe("expo-sqlite");
+    expect(executor.name).toBe("sqlite");
 
     return testExecutor(executor, {
       betterSupabase,
@@ -178,36 +188,39 @@ describe("expoSqliteExecutor", () => {
 });
 
 describe("expoSqliteDatabase", () => {
-  it("reruns a watched query after a change to its tables, batched", async () => {
+  it("reads a followed source again after a change to its table, batched", async () => {
     vi.useFakeTimers();
 
     try {
-      const { client, addDatabaseChangeListener, db, listeners } = setup();
-      const database = expoSqliteDatabase(db, { addDatabaseChangeListener });
-      const results: number[] = [];
+      const { client, engine, listeners } = setup();
 
-      const stop = watch(
-        database,
-        () => client.tags.count({ where: { organizationId: ORG } }),
-        {
-          tables: sqliteTables(betterSupabase, ["tags"]),
-          onResult: (result) => {
-            if (result.ok) {
-              results.push(result.data);
-            }
-          },
-        },
+      const target = dataTarget(
+        { db: client, engine },
+        "tags",
+        (db: typeof client) => db.tags,
       );
 
+      const list = createDataList(target, { where: { organizationId: ORG } });
+      const lengths: number[] = [];
+
+      const stop = list.subscribe(() => {
+        const { data } = list.getSnapshot();
+
+        if (data !== undefined) {
+          lengths.push(data.length);
+        }
+      });
+
       await vi.advanceTimersByTimeAsync(0);
-      expect(results).toEqual([0]);
+      expect(list.getSnapshot().data).toEqual([]);
       await client.tags.create({ organizationId: ORG, name: "a" }).orThrow();
       await client.tags.create({ organizationId: ORG, name: "b" }).orThrow();
       await client.customers
         .create({ organizationId: ORG, name: "ignored" })
         .orThrow();
       await vi.advanceTimersByTimeAsync(30);
-      expect(results).toEqual([0, 2]);
+      expect(list.getSnapshot().data).toHaveLength(2);
+      expect(lengths.at(-1)).toBe(2);
       stop();
       expect(listeners.size).toBe(0);
     } finally {

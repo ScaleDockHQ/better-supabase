@@ -275,6 +275,45 @@ describe("IrBuilder.where", () => {
   });
 });
 
+describe("IrBuilder.where filter trees", () => {
+  const tree = (rules: unknown[], combinator = "and") => ({
+    id: "root",
+    type: "group",
+    combinator,
+    rules,
+  });
+
+  it("builds the same condition as the equivalent where object", () => {
+    const query = tree([
+      { id: "r1", type: "rule", path: ["name"], operator: "is", value: "A" },
+      {
+        id: "r2",
+        type: "rule",
+        path: ["status"],
+        operator: "is_any_of",
+        value: ["lead", "active"],
+      },
+    ]);
+
+    expect(ir.where(customers, query)).toEqual(
+      ir.where(customers, {
+        AND: [{ name: { eq: "A" } }, { status: { in: ["lead", "active"] } }],
+      }),
+    );
+  });
+
+  it("rejects a rule on a column the table can't filter", () => {
+    const query = tree([
+      { id: "r1", type: "rule", path: ["nope"], operator: "is", value: "A" },
+    ]);
+
+    expect(rejection(() => ir.where(customers, query))).toMatchObject({
+      kind: "invalid_request",
+      message: expect.stringContaining('"where" filter on "customers"'),
+    });
+  });
+});
+
 describe("IrBuilder.where field operators", () => {
   it.each<[string, unknown, Condition]>([
     ["eq", { eq: "A" }, col("name", "eq", "A")],
