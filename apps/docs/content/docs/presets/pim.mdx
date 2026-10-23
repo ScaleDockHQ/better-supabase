@@ -1,0 +1,64 @@
+---
+title: Product information
+description: The pim preset installs a catalog with sales channels, translations and public product media, plus custom fields, imports, bulk edits, tags, saved views and search.
+---
+
+The `pim` preset is for product information management in the style of
+Akeneo or Salsify. A team keeps one catalog, translates it, decides what
+each sales channel lists, and publishes images that any storefront can load.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  preset: "pim",
+  blocks: { catalog: { options: { locales: ["en", "de", "fr"] } } },
+});
+```
+
+`blocks.catalog.options.locales` lists the languages the catalog keeps; the
+first is the default. `npx better-supabase init --preset pim` starts a new
+project from it, and `npx better-supabase add --preset pim` adds it to one
+you have ([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                       | Role in the app                                        |
+| ------------------------------------------- | ------------------------------------------------------ |
+| [catalog](/docs/blocks/catalog)             | Products, variants, channels, translations and media   |
+| [attachments](/docs/blocks/attachments)     | The product images, served by public URL               |
+| [custom-fields](/docs/blocks/custom-fields) | Product attributes that the team defines               |
+| [imports](/docs/blocks/imports)             | Supplier spreadsheets, mapped and checked in a dry run |
+| [bulk-actions](/docs/blocks/bulk-actions)   | One change to many products at once                    |
+| [tags](/docs/blocks/tags)                   | Labels such as season or campaign                      |
+| [saved-views](/docs/blocks/saved-views)     | Saved filters, such as products missing a translation  |
+| [search](/docs/blocks/search)               | Search across the catalog                              |
+
+## How the blocks connect
+
+A sales channel lists the products it sells and can take its prices from a
+price list ([channels](/docs/blocks/catalog#channels)). Each product and
+variant keeps a title and description per locale
+([locales and translations](/docs/blocks/catalog#locales-and-translations)).
+With attachments installed, a product keeps an ordered gallery with alt
+text per locale ([product media](/docs/blocks/catalog#product-media)).
+
+The preset makes the attachments bucket public
+(`blocks.attachments.options.publicBuckets` with `requireScan: false`), so a
+storefront loads each image from `attachments.publicUrl()`. Every file in
+that bucket is readable by anyone who has its path. Keep supplier contracts
+and other private files out of it, or set `publicBuckets: []` and serve
+images from a bucket of their own.
+
+## With ReUI
+
+- Data Grid for the product list, with Filters on channel, tag and a
+  missing translation.
+- A sortable gallery for the product media, saved with
+  `catalog.reorderProductMedia`.
+- A Badge on each product for the channels that list it.

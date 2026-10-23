@@ -31,7 +31,8 @@ a migration ([SQL modules](/docs/blocks/sql)).
 A preset can also write `blocks` entries, under `instances`: the nouns of a
 block it selects, and blocks it installs a second time under another key.
 `helpdesk` and `itsm` name the tasks block's work items `ticket` and its
-projects `issue`, and `property` adds a `maintenance` instance of tasks for
+projects `issue`, `cms` and `pim` make the attachments bucket public for
+media, and `property` adds a `maintenance` instance of tasks for
 maintenance requests:
 
 ```ts title="better-supabase.config.ts"
@@ -64,50 +65,53 @@ how your config differs from its preset ([CLI](/docs/cli/presets)).
 
 ## Named presets
 
-| Preset             | Group      | Blocks                                                                                                                           |
-| ------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `minimal`          | Starters   | profiles                                                                                                                         |
-| `saas`             | Starters   | organizations, invitations, teams, profiles, billing, entitlements, notifications, audit, api-keys, settings, onboarding, outbox |
-| `consumer`         | Starters   | profiles, identities, mfa, sessions, notifications, push, with `scope: "user"`                                                   |
-| `crm`              | Products   | `saas` plus parties, pipelines, deals, quotes, targets, engagements, tags, comments, custom-fields, saved-views, search          |
-| `projects`         | Products   | `saas` plus tags, comments, attachments, state-machine, rank, reminders, time-tracking                                           |
-| `helpdesk`         | Products   | `saas` plus inbox, tasks as tickets, sla, comments, attachments, tags, saved-views, knowledge, search                            |
-| `chat`             | Products   | `saas` plus messaging, channels, reactions, attachments                                                                          |
-| `commerce`         | Products   | `saas` plus catalog, inventory, orders, promotions                                                                               |
-| `marketplace`      | Products   | `saas` plus parties, catalog, orders, invoices, reactions, share-links                                                           |
-| `scheduling`       | Products   | `saas` plus calendar, bookings, reminders                                                                                        |
-| `people`           | Products   | `saas` plus employees, hiring, time-tracking, approvals, calendar, documents                                                     |
-| `drive`            | Products   | `saas` plus drive, attachments, share-links, versions, trash, search                                                             |
-| `docs`             | Products   | `saas` plus documents, versions, comments, reactions, templates, search, share-links                                             |
-| `invoicing`        | Products   | `saas` plus parties, quotes, invoices, numbering                                                                                 |
-| `forms`            | Products   | `saas` plus forms, templates, imports                                                                                            |
-| `property`         | Verticals  | `saas` plus assets, leases, ledger, parties, guests, comments, attachments, reminders, a maintenance tasks instance              |
-| `field-service`    | Verticals  | `saas` plus parties, dispatch, assets, inventory, quotes, invoices, forms, signatures, attachments                               |
-| `clinic`           | Verticals  | `saas` plus calendar, bookings, forms, templates, signatures, custom-fields, field-encryption, guests, reminders                 |
-| `lms`              | Verticals  | `saas` plus courses, enrollments, forms, comments, attachments                                                                   |
-| `events`           | Verticals  | `saas` plus catalog, orders, bookings, passes, signing-keys, waitlist, reminders                                                 |
-| `legal`            | Verticals  | `saas` plus parties, time-tracking, billable-time, invoices, ledger, documents, versions, signatures                             |
-| `spend`            | Verticals  | `saas` plus expenses, approvals, attachments, ai-files                                                                           |
-| `contracts`        | Verticals  | `saas` plus contracts, parties, signatures, versions, reminders                                                                  |
-| `customer-success` | Verticals  | `saas` plus parties, engagements, scores, metrics, rules, forms, enrollments, reminders                                          |
-| `logistics`        | Verticals  | `saas` plus parties, orders, shipments, assets                                                                                   |
-| `pos`              | Verticals  | `saas` plus catalog, orders, inventory, bookings, promotions, ledger                                                             |
-| `fitness`          | Verticals  | `saas` plus calendar, bookings, passes, signing-keys, reminders                                                                  |
-| `nonprofit`        | Verticals  | `saas` plus parties, donations, ledger, numbering, targets, saved-views                                                          |
-| `itsm`             | Verticals  | `saas` plus tasks as tickets, sla, approvals, assets, relations, incidents, knowledge                                            |
-| `compliance`       | Verticals  | `saas` plus controls, attachments                                                                                                |
-| `construction`     | Verticals  | `saas` plus tasks, assets, forms, attachments, versions, comments, approvals                                                     |
-| `claims`           | Verticals  | `saas` plus parties, state-machine, approvals, attachments, sla, comments                                                        |
-| `community`        | Verticals  | `saas` plus posts, messaging, channels, comments, reactions, moderation, scores, tags, search                                    |
-| `feedback`         | Verticals  | `saas` plus posts, comments, reactions, moderation, tasks, relations, tags, search                                               |
-| `ai`               | AI         | `saas` plus ai-chat, ai-files, knowledge, memory, agents, ai-schedules                                                           |
-| `ai-chat`          | AI         | `saas` plus ai-chat, ai-files, knowledge, memory, ai-keys, usage                                                                 |
-| `ai-agents`        | AI         | `saas` plus agents, ai-schedules, approvals, connectors, credentials, workflows, metrics                                         |
-| `developer-api`    | Platforms  | `saas` plus webhooks-out, usage, service-accounts, signing-keys                                                                  |
-| `automation`       | Platforms  | `saas` plus workflow-editor, workflows, jobs, webhooks-out, connectors, credentials                                              |
-| `enterprise`       | Platforms  | `saas` plus sso, mfa, sessions, access-requests, impersonation, data-lifecycle, grants                                           |
-| `admin`            | Platforms  | `saas` plus flags, metrics, approvals, saved-views, bulk                                                                         |
-| `everything`       | Everything | every block, for demos and tests                                                                                                 |
+| Preset             | Group      | Blocks                                                                                                                                                                                                   |
+| ------------------ | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `minimal`          | Starters   | profiles                                                                                                                                                                                                 |
+| `saas`             | Starters   | organizations, invitations, teams, profiles, billing, entitlements, notifications, audit, api-keys, settings, onboarding, outbox                                                                         |
+| `consumer`         | Starters   | profiles, identities, mfa, sessions, notifications, push, with `scope: "user"`                                                                                                                           |
+| `crm`              | Products   | `saas` plus parties, pipelines, deals, quotes, targets, engagements, mail-sync, sequences, segments, assignment, enrichment, forecasts, lead-scoring, tags, comments, custom-fields, saved-views, search |
+| `projects`         | Products   | `saas` plus tags, comments, attachments, state-machine, rank, reminders, time-tracking                                                                                                                   |
+| `helpdesk`         | Products   | `saas` plus inbox, tasks as tickets, sla, comments, attachments, tags, saved-views, knowledge, search                                                                                                    |
+| `chat`             | Products   | `saas` plus messaging, channels, reactions, attachments                                                                                                                                                  |
+| `commerce`         | Products   | `saas` plus catalog, inventory, orders, promotions                                                                                                                                                       |
+| `cms`              | Products   | `saas` plus content, versions, approvals, public attachments, tags, comments, search                                                                                                                     |
+| `erp`              | Products   | `saas` plus parties, catalog, inventory, assets, quotes, orders, invoices, numbering, employees, time-tracking, leave, expenses, saved-views                                                             |
+| `pim`              | Products   | `saas` plus catalog, public attachments, custom-fields, imports, bulk, tags, saved-views, search                                                                                                         |
+| `marketplace`      | Products   | `saas` plus parties, catalog, orders, invoices, reactions, share-links                                                                                                                                   |
+| `scheduling`       | Products   | `saas` plus calendar, bookings, reminders                                                                                                                                                                |
+| `people`           | Products   | `saas` plus employees, hiring, time-tracking, approvals, calendar, documents                                                                                                                             |
+| `drive`            | Products   | `saas` plus drive, attachments, share-links, versions, trash, search                                                                                                                                     |
+| `docs`             | Products   | `saas` plus documents, versions, comments, reactions, templates, search, share-links                                                                                                                     |
+| `invoicing`        | Products   | `saas` plus parties, quotes, invoices, numbering                                                                                                                                                         |
+| `forms`            | Products   | `saas` plus forms, templates, imports                                                                                                                                                                    |
+| `property`         | Verticals  | `saas` plus assets, leases, ledger, parties, guests, comments, attachments, reminders, a maintenance tasks instance                                                                                      |
+| `field-service`    | Verticals  | `saas` plus parties, dispatch, assets, inventory, quotes, invoices, forms, signatures, attachments                                                                                                       |
+| `clinic`           | Verticals  | `saas` plus calendar, bookings, forms, templates, signatures, custom-fields, field-encryption, guests, reminders                                                                                         |
+| `lms`              | Verticals  | `saas` plus courses, enrollments, forms, comments, attachments                                                                                                                                           |
+| `events`           | Verticals  | `saas` plus catalog, orders, bookings, passes, signing-keys, waitlist, reminders                                                                                                                         |
+| `legal`            | Verticals  | `saas` plus parties, time-tracking, billable-time, invoices, ledger, documents, versions, signatures                                                                                                     |
+| `spend`            | Verticals  | `saas` plus expenses, approvals, attachments, ai-files                                                                                                                                                   |
+| `contracts`        | Verticals  | `saas` plus contracts, parties, signatures, versions, reminders                                                                                                                                          |
+| `customer-success` | Verticals  | `saas` plus parties, engagements, scores, metrics, rules, forms, enrollments, reminders                                                                                                                  |
+| `logistics`        | Verticals  | `saas` plus parties, orders, shipments, assets                                                                                                                                                           |
+| `pos`              | Verticals  | `saas` plus catalog, orders, inventory, bookings, promotions, ledger                                                                                                                                     |
+| `fitness`          | Verticals  | `saas` plus calendar, bookings, passes, signing-keys, reminders                                                                                                                                          |
+| `nonprofit`        | Verticals  | `saas` plus parties, donations, ledger, numbering, targets, saved-views                                                                                                                                  |
+| `itsm`             | Verticals  | `saas` plus tasks as tickets, sla, approvals, assets, relations, incidents, knowledge                                                                                                                    |
+| `compliance`       | Verticals  | `saas` plus controls, attachments                                                                                                                                                                        |
+| `construction`     | Verticals  | `saas` plus tasks, assets, forms, attachments, versions, comments, approvals                                                                                                                             |
+| `claims`           | Verticals  | `saas` plus parties, state-machine, approvals, attachments, sla, comments                                                                                                                                |
+| `community`        | Verticals  | `saas` plus posts, messaging, channels, comments, reactions, moderation, scores, tags, search                                                                                                            |
+| `feedback`         | Verticals  | `saas` plus posts, comments, reactions, moderation, tasks, relations, tags, search                                                                                                                       |
+| `ai`               | AI         | `saas` plus ai-chat, ai-files, knowledge, memory, agents, ai-schedules                                                                                                                                   |
+| `ai-chat`          | AI         | `saas` plus ai-chat, ai-files, knowledge, memory, ai-keys, usage                                                                                                                                         |
+| `ai-agents`        | AI         | `saas` plus agents, ai-schedules, approvals, connectors, credentials, workflows, metrics                                                                                                                 |
+| `developer-api`    | Platforms  | `saas` plus webhooks-out, usage, service-accounts, signing-keys                                                                                                                                          |
+| `automation`       | Platforms  | `saas` plus workflow-editor, workflows, jobs, webhooks-out, connectors, credentials                                                                                                                      |
+| `enterprise`       | Platforms  | `saas` plus sso, mfa, sessions, access-requests, impersonation, data-lifecycle, grants                                                                                                                   |
+| `admin`            | Platforms  | `saas` plus flags, metrics, approvals, saved-views, bulk                                                                                                                                                 |
+| `everything`       | Everything | every block, for demos and tests                                                                                                                                                                         |
 
 Each one also installs what its blocks require (`tenant`, `access`,
 `updated-at`, ...). The named presets use the default conventions, except
@@ -157,6 +161,11 @@ config on the local stack and drives the flows end to end.
 | [Drive](/docs/presets/drive)           | `saas`       | `document` | comments, tags, attachments, share-links, rank              |
 | [Scheduling](/docs/presets/scheduling) | `scheduling` | `booking`  | custom-fields, share-links, state-machine                   |
 | [Commerce](/docs/presets/commerce)     | `commerce`   | `order`    | imports, numbering, search, saved-views, metrics, approvals |
+
+The [CMS](/docs/presets/cms), [ERP](/docs/presets/erp) and
+[product information](/docs/presets/pim) pages describe the `cms`, `erp` and
+`pim` presets and how their blocks connect. `tests/validation-presets`
+installs each one and checks those links on the local stack.
 
 ## Designs and Create
 

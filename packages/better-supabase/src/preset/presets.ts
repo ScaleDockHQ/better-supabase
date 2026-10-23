@@ -41,6 +41,13 @@ const TICKETS: NonNullable<Preset["instances"]> = {
   tasks: { names: { work_item: "ticket", project: "issue" } },
 };
 
+/** Attachments served by public URL, for media such as images on a site. */
+const PUBLIC_MEDIA: NonNullable<Preset["instances"]> = {
+  attachments: {
+    options: { publicBuckets: ["attachments"], requireScan: false },
+  },
+};
+
 const SAAS: readonly string[] = [
   "organizations",
   "invitations",
@@ -66,6 +73,9 @@ export type PresetName =
   | "helpdesk"
   | "chat"
   | "commerce"
+  | "cms"
+  | "erp"
+  | "pim"
   | "marketplace"
   | "scheduling"
   | "people"
@@ -138,7 +148,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     name: "crm",
     title: "CRM",
     description:
-      "SaaS plus parties, pipelines, deals, quotes, sales targets and engagements, with tags, comments, an activity feed, custom fields, saved views and search.",
+      "SaaS plus parties, pipelines, deals, quotes, sales targets and engagements, with synced mailboxes, email sequences, segments, assignment queues, enrichment, forecasts and lead scoring, tags, comments, an activity feed, custom fields, saved views and search.",
     group: "products",
     blocks: [
       ...SAAS,
@@ -154,6 +164,13 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "custom-fields",
       "saved-views",
       "search",
+      "mail-sync",
+      "sequences",
+      "segments",
+      "assignment",
+      "enrichment",
+      "forecasts",
+      "lead-scoring",
     ],
   },
   projects: {
@@ -210,6 +227,69 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "SaaS plus a product catalog, inventory, orders and promotions.",
     group: "products",
     blocks: [...SAAS, "catalog", "inventory", "orders", "promotions"],
+  },
+  cms: {
+    name: "cms",
+    title: "CMS",
+    description:
+      "SaaS plus pages and posts with locales and scheduled publishing, versions, publish approvals, public media, tags, comments and search.",
+    group: "products",
+    blocks: [
+      ...SAAS,
+      "content",
+      "versions",
+      "approvals",
+      "attachments",
+      "tags",
+      "comments",
+      "search",
+    ],
+    instances: {
+      ...PUBLIC_MEDIA,
+      content: { options: { requireApproval: true } },
+    },
+  },
+  erp: {
+    name: "erp",
+    title: "ERP",
+    description:
+      "SaaS plus parties, a product catalog, stock by location, quotes priced from the catalog, orders that invoice when paid, employees with time and leave, expenses and saved views.",
+    group: "products",
+    blocks: [
+      ...SAAS,
+      "contacts",
+      "catalog",
+      "inventory",
+      "assets",
+      "quotes",
+      "orders",
+      "invoices",
+      "numbering",
+      "employees",
+      "time-tracking",
+      "leave",
+      "expenses",
+      "saved-views",
+    ],
+  },
+  pim: {
+    name: "pim",
+    title: "Product information",
+    description:
+      "SaaS plus a product catalog with sales channels, translations and public product media, custom fields, imports, bulk edits, tags, saved views and search.",
+    group: "products",
+    blocks: [
+      ...SAAS,
+      "catalog",
+      "attachments",
+      "custom-fields",
+      "imports",
+      "bulk-actions",
+      "tags",
+      "saved-views",
+      "search",
+    ],
+    instances: PUBLIC_MEDIA,
   },
   marketplace: {
     name: "marketplace",
@@ -736,6 +816,9 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "helpdesk",
   "chat",
   "commerce",
+  "cms",
+  "erp",
+  "pim",
   "marketplace",
   "scheduling",
   "people",

@@ -1,0 +1,69 @@
+---
+title: CMS
+description: The cms preset installs pages and posts with locales and scheduled publishing, versions, publish approvals, public media, tags, comments and search.
+---
+
+The `cms` preset is for a headless CMS in the style of Contentful or
+Sanity. Editors write pages and posts per locale, an editor with
+`content.publish` approves what goes live, and a marketing site reads the
+published entries and their images with the publishable key.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "cms" });
+```
+
+`npx better-supabase init --preset cms` starts a new project from it, and
+`npx better-supabase add --preset cms` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                   | Role in the app                                              |
+| --------------------------------------- | ------------------------------------------------------------ |
+| [content](/docs/blocks/content)         | Pages and posts with slugs, locales and scheduled publishing |
+| [versions](/docs/blocks/versions)       | Saved versions of an entry to compare and restore            |
+| [approvals](/docs/blocks/approvals)     | The review an entry waits on before it goes live             |
+| [attachments](/docs/blocks/attachments) | Cover images and media, served by public URL                 |
+| [tags](/docs/blocks/tags)               | Topics and sections                                          |
+| [comments](/docs/blocks/comments)       | Editorial notes on a draft                                   |
+| [search](/docs/blocks/search)           | Search across entries for the editors                        |
+
+## How the blocks connect
+
+The preset sets two block options for you. `blocks.content.options.requireApproval`
+is `true`, so a member's `publish` or `schedule` opens an approvals request
+and the entry goes live once it is approved
+([with approval](/docs/blocks/content#with-approval)). The attachments
+bucket is public (`blocks.attachments.options.publicBuckets` with
+`requireScan: false`), so an entry's cover and the images in its body load
+from `attachments.publicUrl()` without a signed URL. Every file in that
+bucket is readable by anyone who has its path. If your app also keeps
+private files, set `publicBuckets: []` and serve media from a bucket of
+its own.
+
+Published entries reach the site through `content.published` and
+`content.listPublished`, which the `anon` role may call and which return only
+public fields ([public reads](/docs/blocks/content#public-reads)). A
+scheduled entry goes live on the pg_cron job that `publishSchedule` sets.
+
+To publish without review, turn the approval off:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  preset: "cms",
+  blocks: { content: { options: { requireApproval: false } } },
+});
+```
+
+## With ReUI
+
+- Data Grid for the entry list, with Filters on type, locale and status.
+- A Badge for each entry's status (draft, scheduled, published).
+- A Dialog to compare two versions before a restore.

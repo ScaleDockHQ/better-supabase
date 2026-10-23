@@ -639,6 +639,50 @@ two blocks are installed together:
   private again unless you list it in `publicBuckets`, which needs
   `requireScan: false`.
 
+## The crm preset adds sales engagement
+
+`preset: "crm"` now also installs mail-sync, sequences, segments,
+assignment, enrichment, forecasts and lead-scoring, with what they require
+(automations, enrollments, scores and subjects). The next `bsb upgrade`
+writes their module files, and the migration adds tables and functions only. To keep the
+0.14 selection, write it out as a preset object:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  preset: {
+    blocks: [
+      "organizations",
+      "invitations",
+      "teams",
+      "profiles",
+      "billing",
+      "entitlements",
+      "notifications",
+      "audit",
+      "api-keys",
+      "settings",
+      "onboarding",
+      "outbox",
+      "contacts",
+      "pipelines",
+      "deals",
+      "quotes",
+      "goals",
+      "activities",
+      "tags",
+      "comments",
+      "timeline",
+      "custom-fields",
+      "saved-views",
+      "search",
+    ],
+  },
+});
+```
+
+The new `cms`, `erp` and `pim` presets start a content site, a small ERP
+and a product catalog ([Presets](/docs/presets#named-presets)).
+
 ## Doctor finds what is left
 
 `better-supabase doctor` reports BS418 for app code that still imports a
