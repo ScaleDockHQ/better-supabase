@@ -24,6 +24,7 @@ export function employeeKeySql(
   keyed: EmployeeKeyed,
 ): string {
   const { owner, table } = keyed;
+
   if (!owner.manages) {
     return "";
   }
@@ -97,6 +98,7 @@ export function employeeKeyBackfillSql(
   keyed: EmployeeKeyed & { readonly quiet?: readonly string[] },
 ): string {
   const { owner, table } = keyed;
+
   if (!owner.manages) {
     return "";
   }
@@ -106,6 +108,7 @@ export function employeeKeyBackfillSql(
   const e = (column: string): string => employees.col("employees", column);
   const emp = employees.table("employees");
   const quiet = keyed.quiet ?? [];
+
   const toggle = (state: "disable" | "enable"): string =>
     quiet
       .map((trigger) => `alter table ${target} ${state} trigger ${trigger};\n`)

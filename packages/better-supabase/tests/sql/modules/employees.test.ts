@@ -166,6 +166,7 @@ describe("employees module", () => {
       { module: "time-tracking", version: 99 },
       { module: "employees", version: 1 },
     ]).filter((entry) => entry.module === "employees");
+
     const upgrade = plan?.steps[0]?.sql ?? "";
     expect(upgrade).toContain(
       'alter table "better_supabase"."time_entries" disable trigger bsb_time_entry_guard;',

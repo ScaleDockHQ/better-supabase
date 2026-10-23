@@ -322,10 +322,12 @@ describe("attachments module", () => {
     expect(sqlOf(["attachments"])).toContain(
       "on conflict (id) do update set public = excluded.public",
     );
+
     const sql = sqlOf(["attachments"], {
       publicBuckets: ["attachments"],
       requireScan: false,
     });
+
     expect(sql).toContain("'attachments', 'attachments', true");
     expect(() =>
       sqlOf(["attachments"], { publicBuckets: ["attachments"] }),

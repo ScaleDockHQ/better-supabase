@@ -302,6 +302,7 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
       .filter((file) => file.module === "ai-chat")
       .map((file) => file.contents)
       .join("\n");
+
     expect(off).not.toContain("record_usage");
   });
 });

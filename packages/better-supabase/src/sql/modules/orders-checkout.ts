@@ -37,11 +37,14 @@ function orderInvoice(
   }
 
   const invoices = ctx.of("invoices");
+
   const ic = (column: string): string =>
     sqlString(invoices.colName("invoices", column));
+
   const o = columns(ctx, "orders");
   const ol = columns(ctx, "orderLines");
   const net = `(l.${ol("total")} - l.${ol("tax")})`;
+
   const variantType = sqlString(
     ctx.of("catalog").naming.rename("product_variant"),
   );

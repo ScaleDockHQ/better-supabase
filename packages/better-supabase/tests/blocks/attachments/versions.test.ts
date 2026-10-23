@@ -293,6 +293,7 @@ describe("attachment previews", () => {
       { get_attachment: row() },
       { publicBuckets: ["attachments"] },
     );
+
     const attachment = await attachments.get("a1").orThrow();
 
     expect(attachments.publicUrl(attachment)).toMatchObject({

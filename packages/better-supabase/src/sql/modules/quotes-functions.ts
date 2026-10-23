@@ -68,6 +68,7 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
   const catalogPrice = ctx.installed("catalog")
     ? catalogLineFallback(ctx)
     : undefined;
+
   const { fn, t, c } = n;
   const q = (column: string): string => c("quotes", column);
   const l = (column: string): string => c("lines", column);
