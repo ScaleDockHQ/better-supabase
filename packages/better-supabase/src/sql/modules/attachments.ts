@@ -26,7 +26,12 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { BUCKET, bucketOptions } from "./attachments-bucket.ts";
+import {
+  BUCKET,
+  bucketInsert,
+  bucketOptions,
+  publicBucketsOf,
+} from "./attachments-bucket.ts";
 import {
   ATTACHMENTS_CONTRIBUTES,
   attachmentsContract,
@@ -284,34 +289,6 @@ const mimeMatch = (column: string, types: readonly string[]): string =>
         : `${column} = ${sqlString(type)}`,
     )
     .join(" or ");
-
-/**
- * `options.publicBuckets`: the module's buckets Storage serves without a signed
- * URL. Their files are readable once uploaded, so they need `requireScan:
- * false`.
- */
-function publicBucketsOf(
-  ctx: BlockSqlContext,
-  buckets: readonly string[],
-): ReadonlySet<string> {
-  const listed = ctx.list("publicBuckets", []);
-
-  for (const id of listed) {
-    if (!buckets.includes(id)) {
-      throw new TypeError(
-        `blocks.attachments.options.publicBuckets: "${id}" is not one of the attachment buckets (${buckets.join(", ")})`,
-      );
-    }
-  }
-
-  if (listed.length > 0 && ctx.flag("requireScan", true)) {
-    throw new TypeError(
-      "blocks.attachments.options.publicBuckets needs requireScan: false: a public bucket serves a file before any scan",
-    );
-  }
-
-  return new Set(listed);
-}
 
 /** `options.scanBuckets`: buckets whose new objects get a pending scan row. */
 function scanBucketsOf(ctx: BlockSqlContext): readonly string[] {
@@ -1070,22 +1047,7 @@ function data(ctx: BlockSqlContext): string {
     }
   }
 
-  const open = publicBucketsOf(ctx, [...rows.keys()]);
-
-  const values = [...rows].map(([id, types]) => {
-    const mimeArray =
-      types.length === 0
-        ? "null"
-        : `array[${types.map(sqlString).join(", ")}]::text[]`;
-
-    return `(${sqlString(id)}, ${sqlString(id)}, ${String(open.has(id))}, ${String(maxSize)}, ${mimeArray})`;
-  });
-
-  // options.publicBuckets decides public on every run; the rest stays as the
-  // app set it.
-  return `insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ${values.join(",\n  ")}
-on conflict (id) do update set public = excluded.public;`;
+  return bucketInsert(ctx, rows, maxSize);
 }
 
 export const ATTACHMENTS: BlockSqlDefinition = {

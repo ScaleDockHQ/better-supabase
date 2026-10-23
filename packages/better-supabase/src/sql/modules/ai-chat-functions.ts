@@ -7,6 +7,7 @@ import { sqlString } from "../../core/template.ts";
 import {
   extraFieldsJson,
   raise,
+  replaceColumnCheck,
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
@@ -905,4 +906,27 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("set_ai_run_cost")}(text, bigint, jsonb)`)}`;
+}
+
+// Version 1 ended runs done, error or stopped; version 2 uses the words
+// ai-schedules and workflow runs use.
+export function upgradeRunStates(ctx: BlockSqlContext): string {
+  const runs = ctx.table("runs");
+  const status = ctx.col("runs", "status");
+
+  return `${replaceColumnCheck({
+    table: runs,
+    column: status,
+    name: "ai_runs_status_check",
+    expression: `${status} in (${AI_RUN_STATES}, 'done', 'error', 'stopped')`,
+  })}
+update ${runs} set ${status} = case ${status}
+  when 'done' then 'completed' when 'error' then 'failed' else 'cancelled' end
+where ${status} in ('done', 'error', 'stopped');
+${replaceColumnCheck({
+  table: runs,
+  column: status,
+  name: "ai_runs_status_check",
+  expression: `${status} in (${AI_RUN_STATES})`,
+})}`;
 }

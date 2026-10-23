@@ -10,14 +10,13 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { sqlString } from "../../core/template.ts";
-import {
-  addExtraColumns,
-  replaceColumnCheck,
-  schemaPreamble,
-  lockTable,
-} from "../shared.ts";
+import { addExtraColumns, schemaPreamble, lockTable } from "../shared.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
-import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
+import {
+  AI_RUN_STATES,
+  aiChatFunctions,
+  upgradeRunStates,
+} from "./ai-chat-functions.ts";
 import {
   sandboxFunctions,
   sandboxTable,
@@ -1015,29 +1014,6 @@ function contract(): readonly BlockSqlContractFunction[] {
     fn("finish_ai_sandbox_stop", ["uuid", "boolean", "text"], "boolean"),
     fn("list_ai_sandboxes", ["{id}", "uuid"]),
   ];
-}
-
-// Version 1 ended runs done, error or stopped; version 2 uses the words
-// ai-schedules and workflow runs use.
-function upgradeRunStates(ctx: BlockSqlContext): string {
-  const runs = ctx.table("runs");
-  const status = ctx.col("runs", "status");
-
-  return `${replaceColumnCheck({
-    table: runs,
-    column: status,
-    name: "ai_runs_status_check",
-    expression: `${status} in (${AI_RUN_STATES}, 'done', 'error', 'stopped')`,
-  })}
-update ${runs} set ${status} = case ${status}
-  when 'done' then 'completed' when 'error' then 'failed' else 'cancelled' end
-where ${status} in ('done', 'error', 'stopped');
-${replaceColumnCheck({
-  table: runs,
-  column: status,
-  name: "ai_runs_status_check",
-  expression: `${status} in (${AI_RUN_STATES})`,
-})}`;
 }
 
 export const AI_CHAT: BlockSqlDefinition = {

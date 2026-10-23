@@ -161,11 +161,11 @@ describe("employees module", () => {
     );
     expect(sql).not.toMatch(/^update /m);
 
-    const [plan] = upgradePlan([
+    const plan = upgradePlan([
       { module: "approvals", version: 99 },
       { module: "time-tracking", version: 99 },
       { module: "employees", version: 1 },
-    ]).filter((entry) => entry.module === "employees");
+    ]).find((entry) => entry.module === "employees");
 
     const upgrade = plan?.steps[0]?.sql ?? "";
     expect(upgrade).toContain(

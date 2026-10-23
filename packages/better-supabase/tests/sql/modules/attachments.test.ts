@@ -334,6 +334,6 @@ describe("attachments module", () => {
     ).toThrow("needs requireScan: false");
     expect(() =>
       sqlOf(["attachments"], { publicBuckets: ["other"], requireScan: false }),
-    ).toThrow();
+    ).toThrow("is not one of the attachment buckets");
   });
 });
