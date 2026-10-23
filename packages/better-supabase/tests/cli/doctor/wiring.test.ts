@@ -46,6 +46,14 @@ describe("BS504", () => {
     ]);
   });
 
+  it("names every block that reads a missing key", async () => {
+    const findings = await rule("BS504").check(
+      context({ outbox: "outbox", queue: "queue" }),
+    );
+
+    expect(findings[0]?.message).toMatch(/^outbox, queue read CRON_SECRET /);
+  });
+
   it("accepts a key the shell sets and skips optional keys", async () => {
     const findings = await rule("BS504").check(
       context(

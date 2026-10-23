@@ -121,4 +121,124 @@ describe("providers.ts", () => {
       "enrichment in src/lib/supabase/providers.ts",
     );
   });
+
+  it("edits the existing files, and notes a providers.ts it can't edit", async () => {
+    const full = wiringFor([
+      { name: "outbox", block: "outbox" },
+      { name: "enrichment", block: "enrichment" },
+    ]);
+
+    const existing = await wiringFiles(CONTEXT, full, (path) =>
+      Promise.resolve(
+        path === ".env.example" ? "APP_URL=\n" : providersSource(CONTEXT, []),
+      ),
+    );
+
+    expect(existing.files.map((file) => [file.path, file.policy])).toEqual([
+      [".env.example", "edit"],
+      ["src/lib/supabase/providers.ts", "edit"],
+    ]);
+
+    const broken = await wiringFiles(CONTEXT, full, (path) =>
+      Promise.resolve(
+        path === ".env.example"
+          ? envExampleText(undefined, full.env)
+          : "export const providers = {};",
+      ),
+    );
+
+    expect(broken.files).toEqual([]);
+    expect(broken.notes[0]).toContain(
+      "Add the provider stubs to src/lib/supabase/providers.ts by hand",
+    );
+  });
+});
+
+describe("wiringFor edge cases", () => {
+  it("finds a block through one of its SQL modules, and skips unknown ones", () => {
+    const catalog = {
+      manifests: [
+        {
+          name: "parent",
+          sql: ["parent-sql"],
+          env: [{ key: "OPTIONAL", description: "Optional.", required: false }],
+          workers: [{ name: "sweeper", description: "Sweeps." }],
+        },
+        {
+          name: "other",
+          sql: [],
+          env: [{ key: "OPTIONAL", description: "Now required." }],
+          workers: [{ name: "sweeper", description: "Sweeps again." }],
+        },
+      ],
+    };
+
+    const plan = wiringFor(
+      [
+        { name: "a", block: "parent-sql" },
+        { name: "b", block: "parent" },
+        { name: "c", block: "other" },
+        { name: "d", block: "missing" },
+      ],
+      // SAFETY: wiringFor reads only `manifests` and these fields.
+      catalog as unknown as Parameters<typeof wiringFor>[1],
+    );
+
+    expect(plan.env).toEqual([
+      {
+        key: "OPTIONAL",
+        description: "Now required.",
+        blocks: ["parent", "other"],
+      },
+    ]);
+    expect(plan.workers).toEqual([
+      { name: "sweeper", description: "Sweeps.", block: "parent" },
+    ]);
+    expect(wiringChecklist(CONTEXT, plan, undefined)).toEqual([
+      "  1. Set OPTIONAL in .env.local and in every deployed environment (.env.example lists them).",
+      "  2. Run the sweeper worker (parent): Sweeps.",
+    ]);
+  });
+
+  it("marks an optional key, and starts a file that has none", () => {
+    const env = [
+      {
+        key: "AI_GATEWAY_API_KEY",
+        description: "The gateway key.",
+        required: false,
+        blocks: ["ai-chat"],
+      },
+    ];
+
+    expect(envExampleText(undefined, env)).toBe(
+      "# better-supabase blocks\n# The gateway key. Optional. (ai-chat)\nAI_GATEWAY_API_KEY=\n",
+    );
+    expect(envExampleText("A=1", env)).toMatch(/^A=1\n\n# better-supabase/);
+    expect(
+      wiringChecklist(CONTEXT, { env, providers: [], workers: [] }, undefined),
+    ).toEqual([]);
+  });
+
+  it("schedules a worker from a cron when it has no schedule", () => {
+    const steps = wiringChecklist(
+      CONTEXT,
+      {
+        env: [],
+        providers: [],
+        workers: [
+          {
+            name: "drain",
+            description: "Drains.",
+            path: "/api/drain",
+            block: "queue",
+          },
+        ],
+      },
+      undefined,
+    );
+
+    expect(steps).toEqual([
+      "  1. Call /api/drain from a cron with `Authorization: Bearer $CRON_SECRET` (queue: Drains.)",
+    ]);
+  });
 });

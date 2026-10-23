@@ -52,7 +52,7 @@ export function configInstances(
 }
 
 /** The manifest that installs `block`, a block or one of its SQL modules. */
-export function manifestOf(
+function manifestOf(
   block: string,
   catalog: PresetCatalog = PRESET_CATALOG,
 ): PresetCatalogManifest | undefined {
@@ -149,7 +149,7 @@ export function envExampleText(
 }
 
 /** `providers.ts`, next to `blocks.generated.ts`. */
-export function providersPath(context: TemplateContext): string {
+function providersPath(context: TemplateContext): string {
   return join(dirname(context.generated), "providers.ts");
 }
 
@@ -167,7 +167,7 @@ const accessor = (name: string): string =>
  * The commented stub for one provider. It stays a comment so the app picks the
  * implementation; doctor's BS505 fails while a required one is unwired.
  */
-export function providerStub(entry: WiringProvider): string[] {
+function providerStub(entry: WiringProvider): string[] {
   const { provider } = entry;
 
   return [
