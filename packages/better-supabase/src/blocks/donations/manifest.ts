@@ -33,4 +33,15 @@ export const donationsBlock: BlockOf<
   create: createDonations,
   record: givingBinding,
   category: "commerce",
+  providers: [
+    {
+      option: "payments",
+      type: "PaymentProvider",
+      from: "better-supabase/commerce",
+      required: false,
+      description:
+        "Takes payments; without one, payments are recorded by hand.",
+      example: "stripePayments({ stripe })",
+    },
+  ],
 });

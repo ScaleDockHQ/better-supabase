@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 
 import { defineBlock } from "../define-block.ts";
+import { CRON_SECRET_ENV, DATABASE_URL_ENV } from "../wiring.ts";
 import { createIdempotency } from "./idempotency.ts";
 import {
   queueSqlOptions,
@@ -18,6 +19,17 @@ export const queueBlock: BlockOf<"queue", typeof createQueue> = defineBlock({
   options: { queue: queueSqlOptions },
   create: createQueue,
   category: "automation",
+  env: [CRON_SECRET_ENV, { ...DATABASE_URL_ENV, required: false }],
+  routes: ["jobs-drain"],
+  workers: [
+    {
+      name: "queue-drain",
+      description:
+        "Enqueues due schedules and block timers, then runs the queued jobs.",
+      path: "/api/jobs/drain",
+      schedule: "* * * * *",
+    },
+  ],
   recipes: ["job-runs-table"],
 });
 

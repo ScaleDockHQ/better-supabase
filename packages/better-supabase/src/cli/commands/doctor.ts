@@ -36,6 +36,7 @@ import {
 import { RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
 import { loadLocalStackCheck } from "../doctor/stacks.ts";
+import { PROCESS_ENV } from "../env.ts";
 import {
   METADATA_REJECTED,
   readMetadataSnapshot,
@@ -303,6 +304,7 @@ export async function runDoctor(
     readSets,
     peers,
     ...(stackEnv ? { stackEnv } : {}),
+    shellEnv: env[PROCESS_ENV] ?? {},
     ...(localStacks ? { localStacks } : {}),
     ...(live.advisors ? { advisors: live.advisors } : {}),
     ...(live.database ? { database: live.database } : {}),

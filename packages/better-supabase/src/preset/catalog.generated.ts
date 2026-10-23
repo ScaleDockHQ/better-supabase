@@ -6927,7 +6927,17 @@ export const PRESET_CATALOG: PresetCatalog = {
           "ai_chat.shared",
           "ai_chat.share_revoked"
         ]
-      }
+      },
+      "env": [
+        {
+          "key": "AI_GATEWAY_API_KEY",
+          "description": "Server-only: the Vercel AI Gateway key the chat route calls models with (on Vercel the OIDC token works instead).",
+          "required": false
+        }
+      ],
+      "routes": [
+        "ai-chat"
+      ]
     },
     {
       "name": "ai-files",
@@ -7458,7 +7468,36 @@ export const PRESET_CATALOG: PresetCatalog = {
           "billing.subscription_deleted",
           "billing.seats_synced"
         ]
-      }
+      },
+      "env": [
+        {
+          "key": "STRIPE_SECRET_KEY",
+          "description": "Server-only: the Stripe secret key billing calls Stripe with."
+        },
+        {
+          "key": "STRIPE_WEBHOOK_SECRET",
+          "description": "Server-only: the signing secret of the Stripe webhook endpoint."
+        },
+        {
+          "key": "CRON_SECRET",
+          "description": "Server-only: the bearer token the cron routes require (Vercel Cron sends it)."
+        },
+        {
+          "key": "DATABASE_URL",
+          "description": "Server-only: the Postgres connection the registry's queue drain and Stripe processing routes use."
+        }
+      ],
+      "routes": [
+        "stripe-webhook"
+      ],
+      "workers": [
+        {
+          "name": "stripe-process",
+          "description": "Applies the Stripe events the webhook stored to subscriptions and invoices.",
+          "path": "/api/stripe/process",
+          "schedule": "* * * * *"
+        }
+      ]
     },
     {
       "name": "bookings",
@@ -10636,7 +10675,17 @@ export const PRESET_CATALOG: PresetCatalog = {
           "donation_receipt.issued",
           "donation_receipt.voided"
         ]
-      }
+      },
+      "providers": [
+        {
+          "option": "payments",
+          "type": "PaymentProvider",
+          "from": "better-supabase/commerce",
+          "required": false,
+          "description": "Takes payments; without one, payments are recorded by hand.",
+          "example": "stripePayments({ stripe })"
+        }
+      ]
     },
     {
       "name": "dispatch",
@@ -11186,7 +11235,17 @@ export const PRESET_CATALOG: PresetCatalog = {
           "shipment.status_changed",
           "shipment.cancelled"
         ]
-      }
+      },
+      "providers": [
+        {
+          "option": "carriers",
+          "type": "ShippingProvider",
+          "from": "better-supabase/blocks/shipments",
+          "required": false,
+          "description": "Quotes, labels and tracks shipments; without one, shipments are recorded by hand.",
+          "example": "[yourCarrier]"
+        }
+      ]
     },
     {
       "name": "contracts",
@@ -14546,7 +14605,29 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/queue"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "env": [
+        {
+          "key": "CRON_SECRET",
+          "description": "Server-only: the bearer token the cron routes require (Vercel Cron sends it)."
+        },
+        {
+          "key": "DATABASE_URL",
+          "description": "Server-only: the Postgres connection the registry's queue drain and Stripe processing routes use.",
+          "required": false
+        }
+      ],
+      "routes": [
+        "jobs-drain"
+      ],
+      "workers": [
+        {
+          "name": "queue-drain",
+          "description": "Enqueues due schedules and block timers, then runs the queued jobs.",
+          "path": "/api/jobs/drain",
+          "schedule": "* * * * *"
+        }
+      ]
     },
     {
       "name": "rate-limit",
@@ -15312,7 +15393,17 @@ export const PRESET_CATALOG: PresetCatalog = {
           "mail_message.opened",
           "mail_message.clicked"
         ]
-      }
+      },
+      "providers": [
+        {
+          "option": "providers",
+          "type": "MailProvider",
+          "from": "better-supabase/blocks/mail-sync",
+          "required": true,
+          "description": "Reads and sends each member's mailbox.",
+          "example": "[gmailMail(), outlookMail()]"
+        }
+      ]
     },
     {
       "name": "segments",
@@ -15565,7 +15656,17 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "party.enriched"
         ]
-      }
+      },
+      "providers": [
+        {
+          "option": "provider",
+          "type": "EnrichmentProvider",
+          "from": "better-supabase/blocks/enrichment",
+          "required": true,
+          "description": "Looks companies and people up.",
+          "example": "peopleDataLabsEnrichment({ apiKey: process.env[\"PDL_API_KEY\"] ?? \"\" })"
+        }
+      ]
     },
     {
       "name": "field-history",
@@ -15800,7 +15901,25 @@ export const PRESET_CATALOG: PresetCatalog = {
           "order.prepared",
           "order.served"
         ]
-      }
+      },
+      "providers": [
+        {
+          "option": "payments",
+          "type": "PaymentProvider",
+          "from": "better-supabase/commerce",
+          "required": false,
+          "description": "Takes payments; without one, payments are recorded by hand.",
+          "example": "stripePayments({ stripe })"
+        },
+        {
+          "option": "tax",
+          "type": "TaxProvider",
+          "from": "better-supabase/commerce",
+          "required": false,
+          "description": "Computes tax on order lines.",
+          "example": "fixedRates({ rates })"
+        }
+      ]
     },
     {
       "name": "organizations",
@@ -15849,7 +15968,29 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/outbox"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "env": [
+        {
+          "key": "CRON_SECRET",
+          "description": "Server-only: the bearer token the cron routes require (Vercel Cron sends it)."
+        },
+        {
+          "key": "APP_URL",
+          "description": "The app's public URL, the CloudEvents source of the events the outbox sends.",
+          "required": false
+        }
+      ],
+      "routes": [
+        "outbox-relay"
+      ],
+      "workers": [
+        {
+          "name": "outbox-relay",
+          "description": "Delivers outbox events to their consumers and runs the automations they trigger.",
+          "path": "/api/outbox",
+          "schedule": "* * * * *"
+        }
+      ]
     },
     {
       "name": "contacts",
@@ -18151,6 +18292,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "targets": [
         "@lib/postgres.ts"
+      ],
+      "envVars": [
+        "DATABASE_URL"
       ]
     },
     {
@@ -18207,6 +18351,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "targets": [
         "@lib/outbox.ts"
+      ],
+      "envVars": [
+        "APP_URL"
       ]
     },
     {
@@ -18223,6 +18370,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "targets": [
         "~/app/api/outbox/route.ts"
+      ],
+      "envVars": [
+        "CRON_SECRET"
       ]
     },
     {
@@ -18239,6 +18389,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "targets": [
         "~/src/routes/outbox.ts"
+      ],
+      "envVars": [
+        "CRON_SECRET"
       ]
     },
     {
@@ -18258,6 +18411,11 @@ export const PRESET_CATALOG: PresetCatalog = {
         "@lib/stripe.ts",
         "~/app/api/stripe/route.ts",
         "~/app/api/stripe/process/route.ts"
+      ],
+      "envVars": [
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "CRON_SECRET"
       ]
     },
     {
@@ -18275,6 +18433,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "targets": [
         "@lib/jobs.ts",
         "~/app/api/jobs/drain/route.ts"
+      ],
+      "envVars": [
+        "CRON_SECRET"
       ]
     },
     {
@@ -18294,6 +18455,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "~/app/api/chat/route.ts",
         "~/app/api/chat/[id]/stream/route.ts",
         "~/app/api/chat/[id]/stop/route.ts"
+      ],
+      "envVars": [
+        "AI_GATEWAY_API_KEY"
       ]
     },
     {
@@ -18983,6 +19147,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "targets": [
         "@hooks/use-push-registration.ts"
+      ],
+      "envVars": [
+        "EXPO_PUBLIC_EAS_PROJECT_ID"
       ]
     },
     {
@@ -18999,6 +19166,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "targets": [
         "~/app.config.ts"
+      ],
+      "envVars": [
+        "EXPO_PUBLIC_SUPABASE_URL"
       ]
     },
     {

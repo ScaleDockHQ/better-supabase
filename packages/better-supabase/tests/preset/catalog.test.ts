@@ -22,6 +22,28 @@ describe("the preset catalog", () => {
       expect(manifests).toContain(block.manifest);
     }
   });
+
+  it("names registry items for every route, with env the manifest lists", () => {
+    for (const manifest of PRESET_CATALOG.manifests) {
+      const env = new Set((manifest.env ?? []).map((entry) => entry.key));
+
+      for (const route of manifest.routes ?? []) {
+        const items = PRESET_CATALOG.glue.filter((item) =>
+          item.name.startsWith(`${route}-`),
+        );
+
+        expect(items, `${manifest.name}: ${route}`).not.toEqual([]);
+
+        for (const item of items) {
+          expect(item.blocks).toContain(manifest.name);
+
+          for (const key of item.envVars ?? []) {
+            expect(env, `${item.name} reads ${key}`).toContain(key);
+          }
+        }
+      }
+    }
+  });
 });
 
 describe("CONVENTION_FIELDS", () => {

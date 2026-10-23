@@ -70,7 +70,22 @@ export async function addModules(
 
   const sqlLayout = await layoutFor(config, args, listed);
   const added = resolveBlocks(names, sqlLayout).map((module) => module.name);
-  const lines = await write(config, args, listed, sqlLayout, deps.now, added);
+  const affected = integratingModules(config.blockNames, added);
+
+  const lines = await write(config, args, listed, sqlLayout, deps.now, [
+    ...added,
+    ...affected.map((entry) => entry.name),
+  ]);
+
+  if (affected.length > 0) {
+    lines.push(
+      "",
+      ...affected.map(
+        (entry) =>
+          `Re-rendered ${entry.name}: it integrates with ${entry.with.join(", ")}.`,
+      ),
+    );
+  }
 
   const pulledIn = resolveBlocks(names, sqlLayout)
     .map((module) => module.name)
@@ -105,6 +120,32 @@ export async function addModules(
     data: { added, pulledIn, untracked },
     next: [await nextStep(config)],
   };
+}
+
+/**
+ * The installed modules whose SQL changes now that `added` is installed: the
+ * ones that integrate with one of them, so their files render the joins again
+ * (entitlements reads plan quotas once billing is installed).
+ */
+export function integratingModules(
+  installed: readonly string[],
+  added: readonly string[],
+): { name: string; with: string[] }[] {
+  const fresh = new Set(added.filter((name) => !installed.includes(name)));
+
+  return installed.flatMap((name) => {
+    const definition = SQL_MODULES[name];
+
+    if (definition === undefined || fresh.has(name)) {
+      return [];
+    }
+
+    const touched = (definition.integrates ?? []).filter((each) =>
+      fresh.has(each),
+    );
+
+    return touched.length === 0 ? [] : [{ name, with: [...new Set(touched)] }];
+  });
 }
 
 /**

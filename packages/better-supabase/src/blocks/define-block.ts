@@ -9,6 +9,12 @@ import type { BlockSchemas } from "./entity-schema.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 import type { AnyRecordBinding } from "./record-bindings.ts";
+import type {
+  BlockEnvKey,
+  BlockProvider,
+  BlockWiring,
+  BlockWorker,
+} from "./wiring.ts";
 
 /** Where a block sits in the catalog and in presets, in catalog order. */
 export const BLOCK_CATEGORIES = [
@@ -81,7 +87,7 @@ export interface BlockDefinition<
   C extends BlockConsumes,
   P extends PortName,
   R extends AnyRecordBinding | undefined = undefined,
-> {
+> extends BlockWiring {
   readonly name: Name;
   /** The SQL modules (`BlockSql` keys) this block installs. */
   readonly sql?: readonly string[];
@@ -186,6 +192,14 @@ export interface Block<
   readonly automations: readonly DefaultAutomation[];
   /** The timers the block runs on the queue. */
   readonly schedules: readonly BlockSchedule[];
+  /** The env keys it reads, for `.env.example` and doctor's BS504. */
+  readonly env: readonly BlockEnvKey[];
+  /** The interfaces the app implements for it, for `providers.ts` and BS505. */
+  readonly providers: readonly BlockProvider[];
+  /** The registry items that hold its routes, without the framework suffix. */
+  readonly routes: readonly string[];
+  /** The crons or processes it needs. */
+  readonly workers: readonly BlockWorker[];
   /**
    * The options `with` set, passed to `create` and the providers over the
    * shared ones.
@@ -229,6 +243,10 @@ export interface AnyBlock {
   readonly actions?: readonly ActionDescriptor[];
   readonly automations?: readonly DefaultAutomation[];
   readonly schedules?: readonly BlockSchedule[];
+  readonly env?: readonly BlockEnvKey[];
+  readonly providers?: readonly BlockProvider[];
+  readonly routes?: readonly string[];
+  readonly workers?: readonly BlockWorker[];
   readonly settings: object;
   with(settings: never): AnyBlock;
   using(create: never): AnyBlock;
@@ -334,6 +352,10 @@ function blockOf<
     actions: parts.actions ?? [],
     automations: parts.automations ?? [],
     schedules: parts.schedules ?? [],
+    env: parts.env ?? [],
+    providers: parts.providers ?? [],
+    routes: parts.routes ?? [],
+    workers: parts.workers ?? [],
     settings,
     with: (more) => blockOf(parts, create, { ...settings, ...more }),
     using: (next) => blockOf(parts, next, settings),

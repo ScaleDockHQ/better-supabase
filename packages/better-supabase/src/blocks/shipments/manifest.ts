@@ -29,4 +29,15 @@ export const shipmentsBlock: BlockOf<
   record: shipmentsBinding,
   category: "commerce",
   recipes: ["shipment-tracking"],
+  providers: [
+    {
+      option: "carriers",
+      type: "ShippingProvider",
+      from: "better-supabase/blocks/shipments",
+      required: false,
+      description:
+        "Quotes, labels and tracks shipments; without one, shipments are recorded by hand.",
+      example: "[yourCarrier]",
+    },
+  ],
 });

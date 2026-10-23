@@ -52,6 +52,7 @@ import {
   PLAN_ARGS,
   planResult,
 } from "../core/files.ts";
+import { readIfExists } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { AUTHZ_NOTE, createUrlParam } from "../create-url.ts";
 import { latestMigrationVersion } from "../doctor/migration-safety.ts";
@@ -80,6 +81,12 @@ import {
   suggestedIntegrations,
   TEMPLATES,
 } from "../templates.ts";
+import {
+  configInstances,
+  wiringChecklist,
+  wiringFiles,
+  wiringFor,
+} from "../wiring.ts";
 import { blockConfigImport, blocksWiringPath } from "./add.ts";
 
 export type InitArgs = CliArgs<
@@ -535,12 +542,28 @@ export async function runInit(
 
     lines.push("", synced.output ?? synced.error ?? "");
     const glue = presetGlue(chosen.resolved);
+    const glueLine = glue.length > 0 ? glueCommand(glue) : undefined;
+    const wiring = wiringFor(configInstances(presetConfig));
 
-    if (glue.length > 0) {
-      lines.push(
-        "",
-        `Glue for ${chosen.resolved.preset.framework}: ${glueCommand(glue)}`,
+    const written = await wiringFiles(templateContext, wiring, (path) =>
+      readIfExists(resolve(root, path)),
+    );
+
+    if (written.files.length > 0) {
+      const wrote = await applyPlan(
+        { root, regenerate: "better-supabase init", files: written.files },
+        { ...args, force: true },
       );
+
+      lines.push("", ...changeLines(wrote));
+    }
+
+    lines.push(...(written.notes.length > 0 ? ["", ...written.notes] : []));
+
+    const checklist = wiringChecklist(templateContext, wiring, glueLine);
+
+    if (checklist.length > 0) {
+      lines.push("", "To finish the wiring:", ...checklist);
     }
   }
 

@@ -107,6 +107,13 @@ export type {
 
 export type { BlockPorts, Notifier, NotifierInput, PortName } from "./ports.ts";
 
+export type {
+  BlockEnvKey,
+  BlockProvider,
+  BlockWiring,
+  BlockWorker,
+} from "./wiring.ts";
+
 export {
   defineEvents,
   event,

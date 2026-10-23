@@ -356,6 +356,43 @@ export const invoicingBlock = defineBlock({
 | `recipes`  | The [UI recipes](/docs/registry/ui-recipes) that use it                                                    |
 | `record`   | The part of a record page it owns, from `defineRecordBinding` ([Record bindings](/docs/blocks/records))    |
 
+Four more fields declare what the app has to provide, so `add` and `init` can
+write it and print the rest ([the wiring](/docs/cli/init#the-wiring-and-the-checklist)):
+
+| Field       | What it is                                                                                                |
+| ----------- | --------------------------------------------------------------------------------------------------------- |
+| `env`       | The env keys it reads, each `{ key, description, required? }`; `add` appends them to `.env.example`       |
+| `providers` | The implementations it takes, each with its `option`, `type`, `from`, `required` and a stub `example`     |
+| `routes`    | The registry items with its routes, without the framework suffix (`outbox-relay` for `outbox-relay-next`) |
+| `workers`   | The crons or processes it needs, with the `path` and `schedule` a cron calls                              |
+
+```ts
+export const invoicingBlock = defineBlock({
+  name: "invoicing",
+  create: createInvoicing,
+  env: [
+    {
+      key: "INVOICING_API_KEY",
+      description: "Server-only: the invoicing service key.",
+    },
+  ],
+  providers: [
+    {
+      option: "tax",
+      type: "TaxProvider",
+      from: "better-supabase/commerce",
+      required: false,
+      description: "Computes tax on invoice lines.",
+      example: "fixedRates({ rates })",
+    },
+  ],
+});
+```
+
+Doctor reads the same fields for the installed blocks: BS504 fails on a
+required env key no env file lists, and BS505 on a required provider no source
+passes.
+
 The ports are `notifier`, `files`, `attachments`, `workflows`, `mailer` and `sink`
 ([the table](/docs/blocks/create-blocks#ports) says who provides each).
 A block reaches another block only through a port it consumes, and never

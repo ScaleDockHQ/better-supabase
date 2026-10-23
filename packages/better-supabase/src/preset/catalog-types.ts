@@ -1,5 +1,10 @@
 import type { BlockCategory } from "../blocks/define-block.ts";
 import type { PortName } from "../blocks/ports.ts";
+import type {
+  BlockEnvKey,
+  BlockProvider,
+  BlockWorker,
+} from "../blocks/wiring.ts";
 import type { FieldSpec } from "../core/table-json-schema.ts";
 import type { BlockSqlEntitySpec, BlockSqlTableSpec } from "../sql/context.ts";
 import type { PresetAccess, PresetScope, PresetTenantName } from "./fields.ts";
@@ -83,6 +88,14 @@ export interface PresetCatalogManifest {
    * block binds to records; `gen` puts the block on each served record type.
    */
   readonly record?: readonly string[];
+  /** The env keys it reads, for `.env.example` and doctor's BS504. */
+  readonly env?: readonly BlockEnvKey[];
+  /** The interfaces the app implements for it, for `providers.ts` and BS505. */
+  readonly providers?: readonly BlockProvider[];
+  /** The registry items that hold its routes, without the framework suffix. */
+  readonly routes?: readonly string[];
+  /** The crons or processes it needs. */
+  readonly workers?: readonly BlockWorker[];
 }
 
 /** One entity's input schemas, in the block's default names. */
@@ -120,6 +133,8 @@ export interface PresetGlueItem {
   readonly platforms: readonly ("web" | "native")[];
   /** Where its files go, as shadcn targets (`@lib/blocks.ts`, `~/app/...`). */
   readonly targets: readonly string[];
+  /** The env keys its files read. */
+  readonly envVars?: readonly string[];
   /** The named preset a bundle item (`registry:item`) installs the glue of. */
   readonly preset?: string;
 }

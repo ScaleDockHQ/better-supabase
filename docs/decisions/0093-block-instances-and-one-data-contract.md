@@ -134,6 +134,16 @@ buys is the same row. The config groups into `database`,
 `tooling`, with one organization resolver at `auth.organization`. The CLI
 keeps one command per job and gains `remove`.
 
+**Wired by default.** A block manifest declares what the app provides for
+it: `env` keys, `providers` (required or optional, each with a stub),
+`routes` as registry item names and `workers`. `add` and `init` append the
+missing keys to `.env.example`, write commented stubs into a `providers.ts`
+next to `blocks.generated.ts` and print a numbered checklist; route files
+stay registry items the checklist names, because their code belongs to the
+app. `add` renders installed blocks again when a new one changes their SQL.
+Doctor fails on a required key no env file lists (BS504) and on a required
+provider no source passes (BS505).
+
 Temporal stays in the public API (ADR 0005).
 
 This amends ADRs 0012, 0029, 0030, 0031, 0040, 0046, 0058, 0060 and 0061,

@@ -636,7 +636,13 @@ describe("add <block>", () => {
       "Wired permissions, comments, messaging, outbox, subjects in lib/blocks.ts.",
     );
     expect(result.stdout).toContain(
-      "Glue for next: npx shadcn@latest add @better-supabase/outbox @better-supabase/outbox-relay-next",
+      "  2. Install the routes: npx shadcn@latest add @better-supabase/outbox @better-supabase/outbox-relay-next",
+    );
+    expect(result.stdout).toContain(
+      "Call /api/outbox on the cron `* * * * *` with `Authorization: Bearer $CRON_SECRET`",
+    );
+    expect(await readFile(join(dir, ".env.example"), "utf-8")).toMatch(
+      /^CRON_SECRET=$/m,
     );
     const wiring = await readFile(join(dir, "lib/blocks.ts"), "utf-8");
     expect(wiring).toContain(

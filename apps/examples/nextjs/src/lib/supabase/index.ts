@@ -18,6 +18,7 @@ import { avatars, logos } from "../buckets.ts";
 import { Claims, Profile } from "../claims.ts";
 import { blockConfig, blocks } from "./blocks.generated.ts";
 import { schema } from "./generated.ts";
+import { providers } from "./providers.ts";
 
 export type { Functions, Models } from "./generated.ts";
 
@@ -28,6 +29,7 @@ export type { Functions, Models } from "./generated.ts";
  */
 const blockSet = defineBlocks(blockConfig, {
   ...blocks,
+  ...providers,
   notifications: blocks.notifications.using((options) =>
     createNotifications({
       ...options,
