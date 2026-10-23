@@ -82,15 +82,19 @@ const entityName = v.pipe(
   ),
 );
 
-const blockEntries = {
+const instanceKeys = {
   block: v.optional(v.string()),
   on: v.optional(
     v.union([strings, v.record(v.string(), v.record(v.string(), v.unknown()))]),
   ),
   uses: v.optional(stringRecord),
+  tables: v.optional(v.record(v.string(), v.nullable(v.string()))),
+};
+
+const blockEntries = {
+  ...instanceKeys,
   ownership: v.optional(v.picklist(["managed", "adopt", "custom"])),
   schema: v.optional(v.string()),
-  tables: v.optional(v.record(v.string(), v.nullable(v.string()))),
   columns: v.optional(
     v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
   ),
@@ -361,6 +365,12 @@ const checkedAuthorization = v.pipe(
 );
 
 const jsonSchema = v.record(v.string(), v.unknown());
+
+const presetInstance = v.strictObject({
+  ...instanceKeys,
+  names: v.optional(stringRecord),
+  options: v.optional(jsonSchema),
+});
 
 const onDelete = v.optional(v.picklist(APP_ON_DELETE_ACTIONS));
 
@@ -959,6 +969,7 @@ const PresetSchema = v.union([
       ]),
     ),
     blocks: v.optional(v.array(v.string())),
+    instances: v.optional(v.record(v.string(), presetInstance)),
   }),
 ]);
 

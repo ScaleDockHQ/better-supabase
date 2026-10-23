@@ -86,6 +86,14 @@ export function configSource(
     lines.push(`    ${key(block.name)}: ${literal(entry)},${note}`);
   }
 
+  const listed = new Set(resolved.blocks.map((block) => block.name));
+
+  for (const [name, entry] of entries) {
+    if (!listed.has(name)) {
+      lines.push(`    ${key(name)}: ${literal(entry)},`);
+    }
+  }
+
   lines.push("  },");
 
   if (typeof tables === "object" && tables !== null) {
@@ -113,12 +121,38 @@ export function configSource(
 export function presetBlocksSource(
   resolved: ResolvedPreset,
   blockConfigImport = "./supabase/blocks.generated",
+  catalog: PresetCatalog = PRESET_CATALOG,
 ): string {
-  const clients = resolved.manifests.flatMap((manifest) =>
+  const blocks = resolved.manifests.flatMap((manifest) =>
     manifest.client === null
       ? []
       : [{ name: manifest.name, ...manifest.client }],
   );
+
+  const instances = Object.entries(resolved.preset.instances ?? {}).flatMap(
+    ([name, instance]) => {
+      const block = catalog.blocks.find(
+        (each) => each.name === (instance.block ?? name),
+      );
+
+      const client = catalog.manifests.find(
+        (manifest) => manifest.name === block?.manifest,
+      )?.client;
+
+      return block === undefined ||
+        block.name === name ||
+        client === null ||
+        client === undefined
+        ? []
+        : [{ name, ...client }];
+    },
+  );
+
+  const clients = [...blocks, ...instances];
+
+  const imports = [
+    ...new Map(clients.map((client) => [client.export, client])).values(),
+  ];
 
   return [
     "import {",
@@ -126,7 +160,7 @@ export function presetBlocksSource(
     "  defineBlocks,",
     "  rpcTransport,",
     '} from "better-supabase/blocks";',
-    ...clients.map(
+    ...imports.map(
       (client) => `import { ${client.export} } from "${client.subpath}";`,
     ),
     "",

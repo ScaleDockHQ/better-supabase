@@ -3,7 +3,31 @@
 import {
   type Events,
   type GeneratedBlocks,
+  renameBlock,
+  type RenamedEvents,
+  type RenamedType,
 } from "better-supabase/blocks";
+import {
+  type ChecklistItem as DefaultChecklistItem,
+  type ChecklistItemInput as DefaultChecklistItemInput,
+  type Iteration as DefaultIteration,
+  type Project as DefaultProject,
+  type WorkItem,
+  type WorkItemChange,
+  type WorkItemChangeResult,
+  type WorkItemChecklistOptimisticAction,
+  type WorkItemField,
+  type WorkItemInput,
+  type WorkItemListOptions,
+  type WorkItemNode,
+  type WorkItemRecurrence,
+  type WorkItemRecurrenceSinkOptions,
+  type WorkItemState,
+  type WorkItemWatcher,
+  type WorkItemWatchLevel,
+  type TasksEvents as DefaultTasksEvents,
+  tasksBlock as defaultTasksBlock,
+} from "better-supabase/blocks/tasks";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
@@ -17,6 +41,7 @@ import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ContactsEvents } from "better-supabase/blocks/contacts";
+import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { RemindersEvents } from "better-supabase/blocks/reminders";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
@@ -109,6 +134,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  pipelines: {
+    schema: "better_supabase",
+    options: {},
+  },
   profiles: {
     schema: "better_supabase",
     options: {},
@@ -137,7 +166,101 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  maintenance: {
+    schema: "better_supabase",
+    options: {},
+    names: {
+      functions: {
+        archive_work_item: "archive_maintenance_request",
+        create_work_item: "create_maintenance_request",
+        delete_work_item: "delete_maintenance_request",
+        delete_work_item_checklist_item: "delete_maintenance_request_checklist_item",
+        get_work_item: "get_maintenance_request",
+        list_work_item_checklist: "list_maintenance_request_checklist",
+        list_work_items: "list_maintenance_requests",
+        save_iteration: "maintenance_save_iteration",
+        save_project: "maintenance_save_project",
+        save_work_item_checklist_item: "save_maintenance_request_checklist_item",
+        set_work_item_assignees: "set_maintenance_request_assignees",
+        update_work_items: "update_maintenance_requests",
+        work_item_tree: "maintenance_request_tree",
+      },
+      entities: [{
+        from: {
+          singular: "work_item",
+          plural: "work_items",
+        },
+        to: {
+          singular: "maintenance_request",
+          plural: "maintenance_requests",
+        },
+      }],
+    },
+    block: "tasks",
+  },
 } as const satisfies GeneratedBlocks;
+
+type MaintenanceRenames = (typeof blockConfig)["maintenance"]["names"]["entities"];
+
+/**
+ * The `tasks` block under the names `blocks.maintenance.entities` gives it.
+ * @public
+ */
+export const maintenanceBlock = renameBlock(defaultTasksBlock, blockConfig["maintenance"].names);
+
+/** @public */
+export type ChecklistItem = RenamedType<DefaultChecklistItem, MaintenanceRenames>;
+
+/** @public */
+export type ChecklistItemInput = RenamedType<DefaultChecklistItemInput, MaintenanceRenames>;
+
+/** @public */
+export type Iteration = RenamedType<DefaultIteration, MaintenanceRenames>;
+
+/** @public */
+export type Project = RenamedType<DefaultProject, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequest<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestChange<F extends object = Record<never, never>> = RenamedType<WorkItemChange<F>, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestChangeResult = RenamedType<WorkItemChangeResult, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestChecklistOptimisticAction = RenamedType<WorkItemChecklistOptimisticAction, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestField = RenamedType<WorkItemField, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestInput<F extends object = Record<never, never>> = RenamedType<WorkItemInput<F>, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestListOptions = RenamedType<WorkItemListOptions, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestNode = RenamedType<WorkItemNode, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestRecurrence = RenamedType<WorkItemRecurrence, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestRecurrenceSinkOptions = RenamedType<WorkItemRecurrenceSinkOptions, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestState = RenamedType<WorkItemState, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestWatcher = RenamedType<WorkItemWatcher, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestWatchLevel = RenamedType<WorkItemWatchLevel, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceEvents = RenamedEvents<DefaultTasksEvents, MaintenanceRenames>;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,
@@ -258,6 +381,10 @@ export const permissions = {
     read: "parties.read",
     write: "parties.write",
   },
+  pipelines: {
+    read: "pipelines.read",
+    manage: "pipelines.manage",
+  },
   reminders: {
     manage: "reminders.manage",
     read: "reminders.read",
@@ -267,9 +394,18 @@ export const permissions = {
     update: "settings.update",
     platform: "settings.manage",
   },
+  tasks: {
+    read: "work_items.read",
+    write: "work_items.write",
+    manage: "work_items.manage",
+  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
+  },
+  work_item: {
+    read: "work_items.read",
+    write: "work_items.write",
   },
 } as const;
 
@@ -278,13 +414,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "guests.manage" | "guests.read" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "guests.manage" | "guests.read" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "work_items.manage" | "work_items.read" | "work_items.write";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & GuestsEvents & LeasesEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & RemindersEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & GuestsEvents & LeasesEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RemindersEvents & SettingsEvents & TeamsEvents & MaintenanceEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -355,6 +491,13 @@ export const blockEvents: Events<BlockEvents> = {
     "ledger_hold.released",
     "ledger_transaction.posted",
     "ledger_transaction.reversed",
+    "maintenance_request.archived",
+    "maintenance_request.assigned",
+    "maintenance_request.closed",
+    "maintenance_request.created",
+    "maintenance_request.deleted",
+    "maintenance_request.reopened",
+    "maintenance_request.updated",
     "message.deleted",
     "message.edited",
     "message.pinned",
@@ -386,6 +529,12 @@ export const blockEvents: Events<BlockEvents> = {
     "person.created",
     "person.merged",
     "person.updated",
+    "pipeline.archived",
+    "pipeline.created",
+    "pipeline.stage_changed",
+    "pipeline.updated",
+    "pipeline_stage.archived",
+    "pipeline_stage.saved",
     "platform_setting.reset",
     "platform_setting.updated",
     "reminder.sent",
@@ -465,6 +614,13 @@ export const blockEventSchemas = {
   "ledger_hold.released": true,
   "ledger_transaction.posted": true,
   "ledger_transaction.reversed": true,
+  "maintenance_request.archived": true,
+  "maintenance_request.assigned": true,
+  "maintenance_request.closed": true,
+  "maintenance_request.created": true,
+  "maintenance_request.deleted": true,
+  "maintenance_request.reopened": true,
+  "maintenance_request.updated": true,
   "message.deleted": true,
   "message.edited": true,
   "message.pinned": true,
@@ -496,6 +652,12 @@ export const blockEventSchemas = {
   "person.created": true,
   "person.merged": true,
   "person.updated": true,
+  "pipeline.archived": true,
+  "pipeline.created": true,
+  "pipeline.stage_changed": true,
+  "pipeline.updated": true,
+  "pipeline_stage.archived": true,
+  "pipeline_stage.saved": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
   "reminder.sent": true,

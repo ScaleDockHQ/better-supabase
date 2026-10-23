@@ -60,9 +60,10 @@ const DESIGN_VERSION = "0";
  * Format 3 adds table `rollups` and `lookups` (ADR 0044). Format 4 adds table
  * `events` (ADR 0048) and subject `versions`. Format 5 adds column `access`
  * (ADR 0051). Format 6 adds column `encrypted` and table `auditReads` (ADR
- * 0087). Format 7 adds `preset`, which replaces the 0.14 preset codes.
+ * 0087). Format 7 adds `preset`, which replaces the 0.14 preset codes. Format 8
+ * adds the preset's `instances`.
  */
-export const DESIGN_FORMAT = 7;
+export const DESIGN_FORMAT = 8;
 
 const FORMAT_1_TABLE_KEYS = ["id", "unique", "indexes", "comment"] as const;
 
@@ -77,6 +78,13 @@ const FORMAT_1_COLUMN_KEYS = [
 
 /** The lowest design format that reads `design`. */
 export function designFormat(design: CreateDesign): number {
+  if (
+    typeof design.preset === "object" &&
+    design.preset.instances !== undefined
+  ) {
+    return 8;
+  }
+
   if (design.preset !== undefined) {
     return 7;
   }

@@ -171,7 +171,17 @@ export function resolvePreset(
 ): ResolvedPreset {
   const byName = new Map(catalog.blocks.map((block) => [block.name, block]));
   const conflicts: PresetConflict[] = fieldConflicts(preset);
-  const selected = [...new Set(preset.blocks)];
+  const instances = Object.entries(preset.instances ?? {});
+
+  const selected = [
+    ...new Set([
+      ...preset.blocks,
+      ...instances.flatMap(([key, instance]) =>
+        (instance.block ?? key) === key ? [key] : [],
+      ),
+    ]),
+  ];
+
   const installed = new Set<string>();
   const requiredBy = new Map<string, string[]>();
 
@@ -184,6 +194,25 @@ export function resolvePreset(
     }
 
     for (const each of closureOf(name, preset, byName)) {
+      installed.add(each);
+    }
+  }
+
+  for (const [key, instance] of instances) {
+    const block = instance.block ?? key;
+
+    if (selected.includes(block)) {
+      continue;
+    }
+
+    const problem = presetBlockConflict(preset, block, catalog);
+
+    if (problem !== undefined) {
+      conflicts.push({ block: key, reason: problem });
+      continue;
+    }
+
+    for (const each of closureOf(block, preset, byName).slice(1)) {
       installed.add(each);
     }
   }

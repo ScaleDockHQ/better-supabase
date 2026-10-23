@@ -1,4 +1,4 @@
-import type { Preset, PresetConventions } from "./fields.ts";
+import type { Preset, PresetConventions, PresetInstance } from "./fields.ts";
 import type { PresetName } from "./presets.ts";
 
 import { DEFAULT_CONVENTIONS, CONVENTION_FIELDS } from "./fields.ts";
@@ -11,6 +11,7 @@ import { isPresetName, namedPreset, PRESET_NAMES } from "./presets.ts";
  */
 export type PresetSpec = Partial<PresetConventions> & {
   readonly blocks?: readonly string[];
+  readonly instances?: Readonly<Record<string, PresetInstance>>;
 };
 
 const same = (
@@ -27,7 +28,20 @@ function samePreset(left: Preset, right: Preset): boolean {
   return (
     CONVENTION_FIELDS.every((field) =>
       same(left[field.key], right[field.key]),
-    ) && same(left.blocks, right.blocks)
+    ) &&
+    same(left.blocks, right.blocks) &&
+    canonical(left.instances ?? {}) === canonical(right.instances ?? {})
+  );
+}
+
+/** `value` as JSON with object keys sorted, so key order doesn't matter. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, each: unknown) =>
+    isRecord(each)
+      ? Object.fromEntries(
+          Object.entries(each).toSorted(([a], [b]) => (a < b ? -1 : 1)),
+        )
+      : each,
   );
 }
 
@@ -53,9 +67,14 @@ export function presetSpec(preset: Preset): PresetName | PresetSpec {
     ),
   );
 
-  return preset.blocks.length === 0
-    ? conventions
-    : { ...conventions, blocks: [...preset.blocks] };
+  return {
+    ...conventions,
+    ...(preset.blocks.length === 0 ? {} : { blocks: [...preset.blocks] }),
+    ...(preset.instances === undefined ||
+    Object.keys(preset.instances).length === 0
+      ? {}
+      : { instances: preset.instances }),
+  };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -87,11 +106,16 @@ export function presetFromSpec(value: unknown): Preset {
       continue;
     }
 
+    if (key === "instances") {
+      instanceProblem(given);
+      continue;
+    }
+
     const field = CONVENTION_FIELDS.find((each) => each.key === key);
 
     if (field === undefined) {
       throw new TypeError(
-        `preset.${key}: not a preset key. A preset object takes blocks, ${CONVENTION_FIELDS.map((each) => each.key).join(", ")}.`,
+        `preset.${key}: not a preset key. A preset object takes blocks, instances, ${CONVENTION_FIELDS.map((each) => each.key).join(", ")}.`,
       );
     }
 
@@ -111,6 +135,7 @@ export function presetFromSpec(value: unknown): Preset {
   }
 
   const blocks = value["blocks"];
+  const instances = value["instances"];
 
   return {
     ...DEFAULT_CONVENTIONS,
@@ -118,7 +143,73 @@ export function presetFromSpec(value: unknown): Preset {
     // values above.
     ...(conventions as Partial<PresetConventions>),
     blocks: isStringList(blocks) ? blocks : [],
+    // SAFETY: `instanceProblem` checked each entry's keys and values.
+    ...(isRecord(instances)
+      ? { instances: instances as Readonly<Record<string, PresetInstance>> }
+      : {}),
   };
+}
+
+const INSTANCE_KEYS = ["block", "names", "options", "tables", "on", "uses"];
+
+const isStringRecord = (value: unknown): boolean =>
+  isRecord(value) &&
+  Object.values(value).every((each) => typeof each === "string");
+
+function validInstanceValue(key: string, given: unknown): boolean {
+  if (key === "block") {
+    return typeof given === "string";
+  }
+
+  if (key === "names" || key === "uses") {
+    return isStringRecord(given);
+  }
+
+  if (key === "on") {
+    return isStringList(given) || isRecord(given);
+  }
+
+  if (key === "tables") {
+    return (
+      isRecord(given) &&
+      Object.values(given).every(
+        (each) => each === null || typeof each === "string",
+      )
+    );
+  }
+
+  return isRecord(given);
+}
+
+/** Throws a TypeError naming the first `instances` entry that isn't one. */
+function instanceProblem(value: unknown): void {
+  if (!isRecord(value)) {
+    throw new TypeError(
+      "preset.instances: expected an object of blocks entries.",
+    );
+  }
+
+  for (const [name, entry] of Object.entries(value)) {
+    if (!isRecord(entry)) {
+      throw new TypeError(`preset.instances.${name}: expected an object.`);
+    }
+
+    for (const [key, given] of Object.entries(entry)) {
+      if (!INSTANCE_KEYS.includes(key)) {
+        throw new TypeError(
+          `preset.instances.${name}.${key}: not an instance key. An instance takes ${INSTANCE_KEYS.join(", ")}.`,
+        );
+      }
+
+      const valid = validInstanceValue(key, given);
+
+      if (!valid) {
+        throw new TypeError(
+          `preset.instances.${name}.${key}: expected ${key === "block" ? "a block name" : "an object"}.`,
+        );
+      }
+    }
+  }
 }
 
 /** A preset name or object as a `Preset`. */

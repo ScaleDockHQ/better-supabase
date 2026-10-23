@@ -236,9 +236,17 @@ describe("named presets", () => {
     expect(resolved.conflicts).toEqual([]);
     const names = resolved.blocks.map((block) => block.name);
     // The resolver agrees with the SQL registry on the full set.
+    const { blocks, instances = {} } = PRESETS[name];
+    const own = new Set(resolveBlocks(blocks).map((module) => module.name));
+
+    const extra = Object.entries(instances).map(
+      ([key, instance]) => instance.block ?? key,
+    );
+
     expect(names.toSorted()).toEqual(
-      resolveBlocks(PRESETS[name].blocks)
+      resolveBlocks([...blocks, ...extra])
         .map((module) => module.name)
+        .filter((each) => own.has(each) || !extra.includes(each))
         .toSorted(),
     );
     expect(renderBlocks(names).length).toBeGreaterThan(0);

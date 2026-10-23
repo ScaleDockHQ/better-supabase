@@ -6,7 +6,11 @@ import { defineConfig, resolveConfig } from "../../src/config/index.ts";
 import { expandPreset, presetOf } from "../../src/preset/config.ts";
 import { DEFAULT_CONVENTIONS } from "../../src/preset/fields.ts";
 import { namedPreset, PRESET_NAMES } from "../../src/preset/presets.ts";
-import { presetOfSpec } from "../../src/preset/spec.ts";
+import {
+  presetFromSpec,
+  presetOfSpec,
+  presetSpec,
+} from "../../src/preset/spec.ts";
 
 describe("presetOf", () => {
   it("reads a name, a /create URL and an object", () => {
@@ -159,5 +163,40 @@ describe("defineConfig and resolveConfig", () => {
     const resolved = resolveConfig({ preset: "minimal" }, "/app");
     expect(resolved.blockNames).toEqual(["profiles"]);
     expect(resolveConfig(config, "/app").blockNames).toEqual(["profiles"]);
+  });
+});
+
+describe("preset instances", () => {
+  it("write a selected block's names and another instance of a block", () => {
+    const resolved = resolveConfig({ preset: "property" }, "/app");
+    const maintenance = resolved.instances["maintenance"];
+    expect(maintenance?.block).toBe("tasks");
+    expect(maintenance?.config.entities).toEqual({
+      work_item: "maintenance_request",
+    });
+    expect(resolved.instances["tasks"]).toBeUndefined();
+
+    const helpdesk = resolveConfig({ preset: "helpdesk" }, "/app");
+    expect(helpdesk.instances["tasks"]?.config.entities).toEqual({
+      work_item: "ticket",
+      project: "issue",
+    });
+  });
+
+  it("round-trip through a preset object", () => {
+    const preset = {
+      ...namedPreset("saas"),
+      instances: { labels: { block: "tags" } },
+    };
+
+    const spec = presetSpec(preset);
+    expect(spec).toMatchObject({ instances: { labels: { block: "tags" } } });
+    expect(presetFromSpec(spec)).toEqual(preset);
+  });
+
+  it("reject a key an instance doesn't take", () => {
+    expect(() =>
+      presetFromSpec({ instances: { labels: { kind: "tags" } } }),
+    ).toThrow("preset.instances.labels.kind: not an instance key");
   });
 });

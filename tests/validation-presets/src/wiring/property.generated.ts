@@ -22,11 +22,13 @@ import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { contactsBlock } from "better-supabase/blocks/contacts";
+import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { remindersBlock } from "better-supabase/blocks/reminders";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { teamsBlock } from "better-supabase/blocks/teams";
+import { tasksBlock } from "better-supabase/blocks/tasks";
 
 import { blockConfig } from "./property.blocks.generated.ts";
 
@@ -51,11 +53,13 @@ export const blockSet = defineBlocks(blockConfig, {
   organizations: organizationsBlock,
   outbox: outboxBlock,
   contacts: contactsBlock,
+  pipelines: pipelinesBlock,
   profiles: profilesBlock,
   reminders: remindersBlock,
   settings: settingsBlock,
   subjects: subjectsBlock,
   teams: teamsBlock,
+  maintenance: tasksBlock,
 });
 
 /**
