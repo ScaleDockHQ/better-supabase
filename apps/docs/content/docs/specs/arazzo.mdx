@@ -3,7 +3,8 @@ title: Arazzo
 description: Render Arazzo 1.0 or 1.1 workflows over your OpenAPI and AsyncAPI documents with defineWorkflow and the built-in workflows, checked against the operations the API has.
 ---
 
-`better-supabase/arazzo` renders the `workflows` of the model
+`arazzoFormat` from `better-supabase/spec` renders the `workflows` of the
+model
 [`defineApi`](/docs/specs) builds as an Arazzo document: sequences of calls
 such as create a row and read it back, walk a paginated list, or sign in and
 call an operation. The document goes through the same pipeline as OpenAPI
@@ -16,11 +17,11 @@ import {
   arazzoFormat,
   authWorkflow,
   createThenGetWorkflows,
+  defineApi,
   defineWorkflow,
   paginationWorkflows,
   type ResourceOperationIds,
-} from "better-supabase/arazzo";
-import { defineApi } from "better-supabase/spec";
+} from "better-supabase/spec";
 import { betterSupabase } from "../lib/supabase";
 
 const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({
@@ -73,7 +74,7 @@ the document. It throws a `TypeError` that lists every diagnostic with
 severity `error`; the warnings and info findings go to `onDiagnostic`.
 
 ```ts title="scripts/arazzo.ts"
-import { createArazzo, createThenGetWorkflows } from "better-supabase/arazzo";
+import { createArazzo, createThenGetWorkflows } from "better-supabase/spec";
 import { betterSupabase } from "../src/lib/supabase";
 
 const document = createArazzo(betterSupabase, {
@@ -121,7 +122,7 @@ use your `name` and `url`;
 `createArazzo` takes the same two options.
 
 ```ts
-import { createArazzoFormat } from "better-supabase/arazzo";
+import { createArazzoFormat } from "better-supabase/spec";
 
 const published = createArazzoFormat({
   openapi: { url: "https://crm.example.com/openapi.json" },

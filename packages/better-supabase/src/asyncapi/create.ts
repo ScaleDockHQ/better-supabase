@@ -11,32 +11,6 @@ import type {
 import { defineApi } from "../spec/api.ts";
 import { asyncapiFormat } from "./format.ts";
 
-export { asyncapiFormat } from "./format.ts";
-
-export { CLOUD_EVENT_TRAIT, topicsFrom } from "../spec/events.ts";
-
-export type {
-  BlockEventSchema,
-  BlockEventSchemas,
-  CloudEventsInput,
-  EventsOptions,
-  TopicInput,
-} from "../spec/events.ts";
-
-export type {
-  AnyAsyncApiDocument,
-  AsyncApi30Document,
-  AsyncApi31Document,
-  AsyncApiComponents,
-  AsyncApiDocument,
-  AsyncApiDocuments,
-  AsyncApiInfo,
-  AsyncApiVersion,
-  RenderedAsyncApi,
-} from "./types.ts";
-
-export { ASYNCAPI_FILE_NAME } from "./types.ts";
-
 export interface AsyncApiOptions<
   V extends AsyncApiVersion = "3.0",
   Ref = string,

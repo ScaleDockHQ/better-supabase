@@ -5,7 +5,8 @@ description: Arazzo 1.0 and 1.1 workflows over your OpenAPI and AsyncAPI documen
 
 An [Arazzo](https://spec.openapis.org/arazzo/latest.html) document describes
 sequences of API calls: create a row and read it back, walk a paginated list,
-sign in and call an operation. `better-supabase/arazzo` renders the workflows
+sign in and call an operation. `createArazzo` from `better-supabase/spec` renders
+the workflows
 of the same API model as the [OpenAPI document](/docs/standards/openapi), so a
 step that names a missing operation is a finding, not a broken document.
 
@@ -16,7 +17,7 @@ import {
   defineWorkflow,
   paginationWorkflows,
   type ResourceOperationIds,
-} from "better-supabase/arazzo";
+} from "better-supabase/spec";
 import { betterSupabase } from "./supabase";
 
 const onboarding = defineWorkflow<ResourceOperationIds<"customers">>({

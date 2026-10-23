@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { defineListQuery } from "../../src/list/index.ts";
-import { createOpenApi } from "../../src/openapi/index.ts";
+import { createOpenApi } from "../../src/spec/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { metaSchema2020, problems, validatorFor } from "./validator.ts";
 

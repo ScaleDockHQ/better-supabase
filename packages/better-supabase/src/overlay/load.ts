@@ -20,7 +20,7 @@ async function load(importer: () => Promise<unknown>): Promise<JsonPathEngine> {
 
   if (!isEngine(module)) {
     throw new TypeError(
-      "better-supabase/overlay needs an RFC 9535 JSONPath engine: pnpm add jsonpath-rfc9535, or pass your own { paths(document, expression) }",
+      "Overlays need an RFC 9535 JSONPath engine: pnpm add jsonpath-rfc9535, or pass your own { paths(document, expression) }",
     );
   }
 

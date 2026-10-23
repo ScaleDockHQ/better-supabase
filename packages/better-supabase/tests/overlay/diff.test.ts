@@ -6,13 +6,13 @@ import type {
   Overlay11,
   Overlay12,
   OverlayVersion,
-} from "../../src/overlay/index.ts";
+} from "../../src/spec/index.ts";
 
 import {
   applyOverlay,
   loadJsonPath,
   overlayFromDiff,
-} from "../../src/overlay/index.ts";
+} from "../../src/spec/index.ts";
 
 let jsonpath: JsonPathEngine;
 

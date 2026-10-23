@@ -956,30 +956,10 @@
       "types": "./dist/blocks/promotions/index.d.ts",
       "default": "./dist/blocks/promotions/index.js"
     },
-    "./openapi": {
-      "@better-supabase/source": "./src/openapi/index.ts",
-      "types": "./dist/openapi/index.d.ts",
-      "default": "./dist/openapi/index.js"
-    },
     "./spec": {
       "@better-supabase/source": "./src/spec/index.ts",
       "types": "./dist/spec/index.d.ts",
       "default": "./dist/spec/index.js"
-    },
-    "./overlay": {
-      "@better-supabase/source": "./src/overlay/index.ts",
-      "types": "./dist/overlay/index.d.ts",
-      "default": "./dist/overlay/index.js"
-    },
-    "./asyncapi": {
-      "@better-supabase/source": "./src/asyncapi/index.ts",
-      "types": "./dist/asyncapi/index.d.ts",
-      "default": "./dist/asyncapi/index.js"
-    },
-    "./arazzo": {
-      "@better-supabase/source": "./src/arazzo/index.ts",
-      "types": "./dist/arazzo/index.d.ts",
-      "default": "./dist/arazzo/index.js"
     },
     "./otel": {
       "@better-supabase/source": "./src/otel/index.ts",
@@ -1833,25 +1813,9 @@
         "types": "./dist/blocks/promotions/index.d.ts",
         "default": "./dist/blocks/promotions/index.js"
       },
-      "./openapi": {
-        "types": "./dist/openapi/index.d.ts",
-        "default": "./dist/openapi/index.js"
-      },
       "./spec": {
         "types": "./dist/spec/index.d.ts",
         "default": "./dist/spec/index.js"
-      },
-      "./overlay": {
-        "types": "./dist/overlay/index.d.ts",
-        "default": "./dist/overlay/index.js"
-      },
-      "./asyncapi": {
-        "types": "./dist/asyncapi/index.d.ts",
-        "default": "./dist/asyncapi/index.js"
-      },
-      "./arazzo": {
-        "types": "./dist/arazzo/index.d.ts",
-        "default": "./dist/arazzo/index.js"
       },
       "./otel": {
         "types": "./dist/otel/index.d.ts",

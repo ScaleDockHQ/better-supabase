@@ -509,7 +509,7 @@ function lowerOpenApi(
 
   if (!isOpenApiDocument(document)) {
     throw new TypeError(
-      "better-supabase/openapi: a fragment removed a required document field",
+      "better-supabase/spec: a fragment removed a required document field",
     );
   }
 

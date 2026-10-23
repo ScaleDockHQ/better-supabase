@@ -329,29 +329,28 @@ The package has one entry per feature, so an app only loads what it imports. Eve
 
 ### Core
 
-| Import                                                     | What it gives you                                                                      |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `better-supabase`                                          | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`                       |
-| `better-supabase/config`                                   | `defineConfig` and generators for `better-supabase.config.ts`                          |
-| `better-supabase/preset`                                   | Named presets, preset codes and the resolver behind `/create`                          |
-| `better-supabase/create`                                   | Designs, schema parsing, previews and deploy plans behind `/create`                    |
-| `better-supabase/create/lite`                              | Validates a design in PGlite and reports what Postgres rejects                         |
-| `better-supabase/create/oauth`                             | PKCE, sealed cookies and a session shape for any OAuth provider                        |
-| `better-supabase/create/supabase`                          | Supabase OAuth with PKCE, sealed sessions and the Management API client                |
-| `better-supabase/server`                                   | Repositories bound to the caller, admin and acting-as identities                       |
-| `better-supabase/postgres`                                 | The same repositories over direct Postgres                                             |
-| `better-supabase/env`                                      | Validated Supabase settings                                                            |
-| `better-supabase/stripe`                                   | `stripeFromKey`: a Stripe client for billing, usage and commerce that bundlers resolve |
-| `better-supabase/list`                                     | Search, facets, sorting and pagination from one definition                             |
-| `better-supabase/better-result`                            | `withBetterResult`: a `db` whose methods return better-result values                   |
-| `better-supabase/storage`, `/realtime`                     | Typed buckets (paths, versions, vector, analytics) and broadcast topics                |
-| `better-supabase/sql`                                      | The SQL modules and read-set compiler behind `better-supabase sql`                     |
-| `better-supabase/lint`                                     | Editor rules and runtime guards for unbounded reads and unscoped deletes               |
-| `better-supabase/cli`                                      | `run`, `createCli` and codegen for scripts that drive the CLI                          |
-| `better-supabase/testing`                                  | `asUser`, `localAuth`, typed seeds and conformance kits                                |
-| `better-supabase/events`, `/otel`                          | CloudEvents and OpenTelemetry                                                          |
-| `better-supabase/spec`, `/openapi`, `/asyncapi`, `/arazzo` | One API model rendered as OpenAPI 3.0 to 3.2, AsyncAPI 3 and Arazzo 1 documents        |
-| `better-supabase/overlay`                                  | Apply, define and diff OpenAPI Overlay 1.0 to 1.2 documents                            |
+| Import                                 | What it gives you                                                                      |
+| -------------------------------------- | -------------------------------------------------------------------------------------- |
+| `better-supabase`                      | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`                       |
+| `better-supabase/config`               | `defineConfig` and generators for `better-supabase.config.ts`                          |
+| `better-supabase/preset`               | Named presets, preset codes and the resolver behind `/create`                          |
+| `better-supabase/create`               | Designs, schema parsing, previews and deploy plans behind `/create`                    |
+| `better-supabase/create/lite`          | Validates a design in PGlite and reports what Postgres rejects                         |
+| `better-supabase/create/oauth`         | PKCE, sealed cookies and a session shape for any OAuth provider                        |
+| `better-supabase/create/supabase`      | Supabase OAuth with PKCE, sealed sessions and the Management API client                |
+| `better-supabase/server`               | Repositories bound to the caller, admin and acting-as identities                       |
+| `better-supabase/postgres`             | The same repositories over direct Postgres                                             |
+| `better-supabase/env`                  | Validated Supabase settings                                                            |
+| `better-supabase/stripe`               | `stripeFromKey`: a Stripe client for billing, usage and commerce that bundlers resolve |
+| `better-supabase/list`                 | Search, facets, sorting and pagination from one definition                             |
+| `better-supabase/better-result`        | `withBetterResult`: a `db` whose methods return better-result values                   |
+| `better-supabase/storage`, `/realtime` | Typed buckets (paths, versions, vector, analytics) and broadcast topics                |
+| `better-supabase/sql`                  | The SQL modules and read-set compiler behind `better-supabase sql`                     |
+| `better-supabase/lint`                 | Editor rules and runtime guards for unbounded reads and unscoped deletes               |
+| `better-supabase/cli`                  | `run`, `createCli` and codegen for scripts that drive the CLI                          |
+| `better-supabase/testing`              | `asUser`, `localAuth`, typed seeds and conformance kits                                |
+| `better-supabase/events`, `/otel`      | CloudEvents and OpenTelemetry                                                          |
+| `better-supabase/spec`                 | One API model rendered as OpenAPI, AsyncAPI and Arazzo documents, with Overlays        |
 
 ### Frontend and local data
 

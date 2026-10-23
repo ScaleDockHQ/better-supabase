@@ -195,6 +195,24 @@ export const PLUGIN_SUBPATH_RENAMES: Readonly<Record<string, string>> = {
   "plugins/validation": "",
 };
 
+/**
+ * The renderer subpaths `better-supabase/spec` now exports, with the same
+ * names.
+ */
+export const SPEC_SUBPATH_RENAMES: Readonly<Record<string, string>> = {
+  openapi: "spec",
+  asyncapi: "spec",
+  arazzo: "spec",
+  overlay: "spec",
+};
+
+/** Every subpath the 0.15 codemod rewrites. */
+export const SUBPATH_RENAMES_0_15: Readonly<Record<string, string>> = {
+  ...BLOCK_SUBPATH_RENAMES,
+  ...PLUGIN_SUBPATH_RENAMES,
+  ...SPEC_SUBPATH_RENAMES,
+};
+
 /** The 0.15 codemod's review hints: names and calls it can't rewrite safely. */
 export const REVIEW_0_15: readonly {
   readonly pattern: RegExp;

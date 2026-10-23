@@ -12,7 +12,6 @@ import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { OperationTable } from "../core/operations.ts";
-import type { ResourceOperation } from "../openapi/index.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
   ResourceHandler,
@@ -24,6 +23,7 @@ import type {
   ServerContext,
   ServerOptions,
 } from "../server/server-types.ts";
+import type { ResourceOperation } from "../spec/model.ts";
 import type { ToolSchemaTarget } from "./dialect.ts";
 import type { Json, JsonRpcRequest } from "./json-rpc.ts";
 import type { RequiredRoles } from "./permissions.ts";

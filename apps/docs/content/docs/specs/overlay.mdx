@@ -1,6 +1,6 @@
 ---
 title: Overlays
-description: Apply OpenAPI Overlay 1.0, 1.1 and 1.2 documents to a rendered spec with better-supabase/overlay, write overlays in TypeScript, and export your changes as one.
+description: Apply OpenAPI Overlay 1.0, 1.1 and 1.2 documents to a rendered spec with better-supabase/spec, write overlays in TypeScript, and export your changes as one.
 ---
 
 An [Overlay](https://spec.openapis.org/overlay/latest.html) is a list of
@@ -9,7 +9,8 @@ a `copy`. Use one for changes another team or tool owns, such as a public
 variant of an internal API. Changes that belong to every version of your own
 API fit better in [`extend` or `enrich`](/docs/specs/customize).
 
-`better-supabase/overlay` reads Overlay 1.0, 1.1 and 1.2. Targets are RFC
+The overlay functions in `better-supabase/spec` read Overlay 1.0, 1.1 and
+1.2. Targets are RFC
 9535 JSONPath queries, run by the optional peer `jsonpath-rfc9535`:
 
 ```bash
@@ -19,7 +20,7 @@ pnpm add jsonpath-rfc9535
 ## Apply an overlay
 
 ```ts
-import { applyOverlay, loadJsonPath } from "better-supabase/overlay";
+import { applyOverlay, loadJsonPath } from "better-supabase/spec";
 
 const jsonpath = await loadJsonPath();
 const { document, diagnostics } = applyOverlay(openapi, overlay, { jsonpath });
@@ -54,8 +55,7 @@ needs the engine as `applyOverlays`, on the `defineApi` options or on the
 call; without one, passing `overlays` throws.
 
 ```ts title="src/api/spec.ts"
-import { applyOverlays, loadJsonPath } from "better-supabase/overlay";
-import { defineApi } from "better-supabase/spec";
+import { applyOverlays, defineApi, loadJsonPath } from "better-supabase/spec";
 
 const jsonpath = await loadJsonPath();
 
@@ -75,7 +75,7 @@ const { document } = api.openapi({ overlays: [publicOverlay] });
 action:
 
 ```ts title="src/api/public.overlay.ts"
-import { defineOverlay } from "better-supabase/overlay";
+import { defineOverlay } from "better-supabase/spec";
 
 export const publicOverlay = defineOverlay({
   info: { title: "Public API", version: "1.0.0" },
@@ -141,7 +141,7 @@ documents as an Overlay, so a tool that doesn't run your code can reproduce
 what your hooks changed:
 
 ```ts
-import { overlayFromDiff } from "better-supabase/overlay";
+import { overlayFromDiff } from "better-supabase/spec";
 
 const plain = createOpenApi(betterSupabase, { info, resources });
 const enriched = createOpenApi(betterSupabase, { info, resources, enrich });

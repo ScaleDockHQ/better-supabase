@@ -11,11 +11,10 @@ import { BLOCK_EVENT_RENAMES } from "../events/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import {
   BLOCK_EXPORT_RENAMES,
-  BLOCK_SUBPATH_RENAMES,
   PLUGIN_IMPORT_RENAMES,
-  PLUGIN_SUBPATH_RENAMES,
   REVIEW_0_15,
   renameSubpaths,
+  SUBPATH_RENAMES_0_15,
 } from "./codemod-block-renames.ts";
 import {
   CLI_CALL_FILE,
@@ -501,7 +500,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     },
     imports: BLOCK_EXPORT_RENAMES,
     subpathImports: PLUGIN_IMPORT_RENAMES,
-    subpaths: { ...BLOCK_SUBPATH_RENAMES, ...PLUGIN_SUBPATH_RENAMES },
+    subpaths: SUBPATH_RENAMES_0_15,
     members: [{ from: "bs", to: "bsb" }],
     options: DATA_CONTRACT_OPTIONS,
     strings: { ...DATA_CONTRACT_STRINGS, "bs-block": "bsb" },

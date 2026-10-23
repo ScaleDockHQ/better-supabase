@@ -10,31 +10,6 @@ import type {
 
 import { defineApi } from "../spec/api.ts";
 
-export type { ResourceOperation } from "../spec/model.ts";
-
-export { PROBLEM_SCHEMA } from "../spec/presets.ts";
-
-export { openapiFormat } from "./format.ts";
-
-export { toOpenApi30Schema } from "./schema30.ts";
-
-export type {
-  AnyOpenApiDocument,
-  OpenApi30Document,
-  OpenApi31Document,
-  OpenApi32Document,
-  OpenApi33PreviewDocument,
-  OpenApiComponents,
-  OpenApiDocument,
-  OpenApiDocuments,
-  OpenApiInfo,
-  OpenApiSecurityRequirement,
-  OpenApiVersion,
-  RenderedOpenApi,
-} from "./types.ts";
-
-export { OPENAPI_33_PREVIEW_VERSION } from "./types.ts";
-
 /** How one table is published; see `defineApi`'s `resources`. */
 export type ResourceOptions<Ref = string> = ResourceDescription<Ref>;
 
