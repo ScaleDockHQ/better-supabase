@@ -87,10 +87,11 @@ export interface RefreshEvent {
   readonly durationMs: number;
   /**
    * Why a failed refresh failed: `network` (Auth unreachable, timed out, or
-   * answering 5xx or 429; the session is kept) or `rejected` (the refresh token
-   * is dead; the user is signed out).
+   * answering 5xx or 429; the session is kept), `raced` (another request
+   * rotated the token first; the cookies are kept) or `rejected` (the refresh
+   * token is dead; the user is signed out).
    */
-  readonly reason?: "network" | "rejected";
+  readonly reason?: "network" | "raced" | "rejected";
   /** The Auth server's HTTP status, when it answered. */
   readonly status?: number;
   /** The Auth server's `error_code`, such as `refresh_token_not_found`. */

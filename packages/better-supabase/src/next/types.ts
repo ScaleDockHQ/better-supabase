@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { NextRequest } from "next/server.js";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type {
   BlockArgsOf,
@@ -108,10 +109,21 @@ export interface ProxyOptions<C = unknown, P = unknown> {
     auth: AuthState<C, P>,
   ) => Response | undefined | void | Promise<Response | undefined | void>;
   /**
-   * Adds `Server-Timing: bsb-proxy;dur=..., bsb-verify;dur=...` (ms): the whole
-   * proxy, and resolving the session (a local verify, or a refresh).
+   * Adds `Server-Timing` entries in ms: `bsb-proxy` (the whole proxy),
+   * `bsb-auth` (resolving the session), and `bsb-parse`, `bsb-verify`,
+   * `bsb-refresh` and `bsb-ended` for the phases that ran.
    */
   readonly serverTiming?: boolean;
+  /**
+   * Refresh a session whose token expires within this many seconds. A token
+   * outside the window is verified locally and never refreshed. Defaults to
+   * `auth.leeway`, else 60.
+   */
+  readonly refreshSkewSeconds?: number;
+  /**
+   * Ask Auth whether the session still exists (one network call), on top-level
+   * document loads only. `true` checks every document load.
+   */
   readonly endedSession?: true | EndedSessionOptions;
   /**
    * Called when a refresh failed because the Auth server was unreachable, timed
@@ -123,6 +135,11 @@ export interface ProxyOptions<C = unknown, P = unknown> {
 }
 
 export interface EndedSessionOptions {
+  /**
+   * The paths whose document loads check the session, such as `/settings`.
+   * Defaults to every document load. Client navigations, prefetches and
+   * mutations never check.
+   */
   readonly paths?: readonly string[];
   readonly redirect?: string;
   /**
@@ -230,6 +247,23 @@ export interface BetterNext<
    * Components and pass the promise to `<SessionProvider>`.
    */
   session(): Promise<AuthSession<C, P>>;
+  /**
+   * The verified session of the incoming request, shared by every cache scope
+   * of the render: the first scope verifies the token and the others await that
+   * verification, so ten `'use cache: private'` islands verify once. It awaits
+   * `cookies()` before reading the clock, so it is safe in a private cache and
+   * outside one. `null` for anyone but a signed-in user. Pass the snapshot to
+   * `contextFromSession()` inside an island.
+   *
+   * ```tsx
+   * async function Island() {
+   *   "use cache: private";
+   *   const session = await bsb.getRequestSession();
+   *   const { db } = await bsb.contextFromSession(session);
+   * }
+   * ```
+   */
+  getRequestSession(): Promise<SessionSnapshot<C> | null>;
   /**
    * The context for a session and its token, without reading the request. The
    * token is verified again (memoized, no network call); a token for another

@@ -74,6 +74,14 @@ export function sessionTag(userId: string): string {
 }
 
 /**
+ * The tag `bsb.cached()` puts on the entries of one Auth session
+ * (`SessionSnapshot.sessionId`): invalidate it to drop one device's entries.
+ */
+export function sessionIdTag(sessionId: string): string {
+  return `bsb:session-id:${sessionId}`;
+}
+
+/**
  * The table tags of a read: the tenant's and every tenant's, or the table's. A
  * read across tenants (`"*"`) also carries the table's, which every mutation
  * invalidates, including one scoped to a single tenant.

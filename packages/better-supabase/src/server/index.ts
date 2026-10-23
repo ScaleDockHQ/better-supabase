@@ -259,7 +259,11 @@ export type {
   Settled,
 } from "./respond.ts";
 
-export { defineAuthorizer } from "../core/authorizer.ts";
+export {
+  bindAuthorizer,
+  defineAuthorizer,
+  requestMemo,
+} from "../core/authorizer.ts";
 
 export type {
   AnyAuthorizer,
@@ -268,8 +272,27 @@ export type {
   AuthorizationResource,
   AuthorizationSubject,
   Authorizer,
+  AuthorizerRuntime,
+  AuthzVersionCache,
   PermissionRef,
+  RequestMemo,
 } from "../core/authorizer.ts";
+
+export {
+  authzVersionOf,
+  isSessionSnapshot,
+  issuedAtOf,
+  sessionCacheKey,
+  sessionMemo,
+  snapshotOf,
+} from "../auth/snapshot.ts";
+
+export type {
+  SessionMemo,
+  SessionMemoOptions,
+  SessionMemoStats,
+  SessionSnapshot,
+} from "../auth/snapshot.ts";
 
 export { defineResource } from "./resource.ts";
 

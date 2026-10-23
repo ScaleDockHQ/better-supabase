@@ -3,7 +3,8 @@ import { cookies, headers } from "next/headers.js";
 import { NextResponse, after } from "next/server.js";
 import { cache } from "react";
 
-import type { AuthResolution } from "../auth/resolve.ts";
+import type { AuthResolution, ResolvePhase } from "../auth/resolve.ts";
+import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
@@ -51,6 +52,7 @@ import {
   invalidateAll,
   nextCache,
   nextCacheAttached,
+  sessionIdTag,
   sessionStale,
   sessionTag,
   supportTag,
@@ -173,6 +175,27 @@ export function createNext<
     });
 
   /**
+   * The incoming request, once its dynamic APIs are awaited. Auth reads cookies
+   * and then the clock: `io()` marks that as I/O for Cache Components without
+   * blocking a prefetch the way `connection()` does, and awaiting `cookies()`
+   * first keeps the clock read out of the static shell.
+   */
+  const requestScope = async (): Promise<Request> => {
+    await io();
+    await cookies();
+
+    return incomingRequest();
+  };
+
+  const forget = (userId: string): void => {
+    base.forgetSession(userId).catch((cause: unknown) => {
+      betterSupabase.events.logger.warn("Could not evict the user's session", {
+        cause,
+      });
+    });
+  };
+
+  /**
    * One token verification per render scope backs `context()`, `session()` and
    * `cached()`.
    */
@@ -181,16 +204,21 @@ export function createNext<
       readonly request: Request;
       readonly resolution: AuthResolution<C, P>;
     }> => {
-      // Auth reads cookies and the clock. `io()` marks that as I/O for
-      // Cache Components without blocking a prefetch the way `connection()` does.
-      await io();
-      const request = await incomingRequest();
+      const request = await requestScope();
+      // Scopes that resolve the same token share one verification; resolve
+      // then answers from the verified-token memo.
+      await base.snapshot(request);
 
       return {
         request,
         resolution: await base.resolve(request, { refresh: false }),
       };
     },
+  );
+
+  const getRequestSession = cache(
+    async (): Promise<SessionSnapshot<C> | null> =>
+      base.snapshot(await requestScope()),
   );
 
   const tenantClaim = claimsOf(betterSupabase.meta).tenant;
@@ -217,7 +245,7 @@ export function createNext<
       checks,
       input,
       tenantFor(ctx, toSession(ctx.auth)),
-      options.authorizer,
+      base.authorizer,
       ctx,
     );
 
@@ -314,18 +342,21 @@ export function createNext<
     deleteAccount: ((userId, deleteOptions) =>
       base.deleteAccount(userId, deleteOptions).map((result) => {
         invalidateAll([sessionTag(userId)]);
+        forget(userId);
 
         return result;
       })) satisfies BetterServer<M, F, E, C, P, B>["deleteAccount"],
     endSessions: ((userId) =>
       base.endSessions(userId).map((result) => {
         invalidateAll([sessionTag(userId)]);
+        forget(userId);
 
         return result;
       })) satisfies BetterServer<M, F, E, C, P, B>["endSessions"],
     suspendAccount: ((userId, suspendOptions) =>
       base.suspendAccount(userId, suspendOptions).map((result) => {
         invalidateAll([sessionTag(userId)]);
+        forget(userId);
 
         return result;
       })) satisfies BetterServer<M, F, E, C, P, B>["suspendAccount"],
@@ -335,6 +366,7 @@ export function createNext<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B>
   >(withAccounts, {
     session,
+    getRequestSession,
     contextForSession,
 
     async cached(cachedOptions = {}) {
@@ -356,8 +388,14 @@ export function createNext<
       const tenant = tables.length > 0 ? tenantFor(ctx, view) : undefined;
       const first = tables[0];
 
+      const claimed =
+        ctx.auth.kind === "user" ? ctx.auth.claims["session_id"] : undefined;
+
+      const sessionId = typeof claimed === "string" ? claimed : undefined;
+
       const tags = [
         ...(view.kind === "user" ? [sessionTag(view.user.id)] : []),
+        ...(sessionId === undefined ? [] : [sessionIdTag(sessionId)]),
         ...(ctx.support ? [supportTag(ctx.support.session.id)] : []),
         ...(cachedOptions.tags ?? []),
         ...tables.flatMap((table) =>
@@ -377,6 +415,7 @@ export function createNext<
 
     invalidateSession(userId, invalidateOptions = {}) {
       invalidateAll([sessionTag(userId), ...(invalidateOptions.tags ?? [])]);
+      forget(userId);
     },
 
     async liveCount(spec, db) {
@@ -394,7 +433,8 @@ export function createNext<
     async proxy(request, proxyOptions = {}) {
       const started = performance.now();
       const id = collector ? crypto.randomUUID() : undefined;
-      let verifyMs = 0;
+      let authMs = 0;
+      const phases: Partial<Record<ResolvePhase, number>> = {};
 
       // `before` (i18n rewrites, redirects) and auth run on the original request.
       const sessionCheck =
@@ -409,13 +449,29 @@ export function createNext<
           .resolve(request, {
             refresh: shouldRefresh(request),
             ...(checkSession ? { checkSession } : {}),
+            ...(proxyOptions.refreshSkewSeconds === undefined
+              ? {}
+              : { leeway: proxyOptions.refreshSkewSeconds }),
+            ...(proxyOptions.serverTiming
+              ? {
+                  onTiming: (phase: ResolvePhase, ms: number) => {
+                    phases[phase] = (phases[phase] ?? 0) + ms;
+                  },
+                }
+              : {}),
           })
           .then((resolved) => {
-            verifyMs = performance.now() - started;
+            authMs = performance.now() - started;
 
             return resolved;
           }),
       ]);
+
+      // A refreshed token is already verified: the render reads it from the
+      // memo instead of verifying it again.
+      if (resolution.cookies.length > 0) {
+        await base.sessions.seed(resolution.auth);
+      }
 
       const rendersSignedOut =
         proxyOptions.expiredPrefetch === "render" &&
@@ -511,7 +567,10 @@ export function createNext<
           "server-timing",
           serverTimingValue({
             "bsb-proxy": performance.now() - started,
-            "bsb-verify": verifyMs,
+            "bsb-auth": authMs,
+            ...Object.fromEntries(
+              Object.entries(phases).map(([phase, ms]) => [`bsb-${phase}`, ms]),
+            ),
           }),
         );
       }
@@ -587,9 +646,9 @@ export function createNext<
 
       const router = resourceRouter(betterSupabase, map, {
         ...(basePath === undefined ? {} : { basePath }),
-        ...(options.authorizer === undefined
+        ...(base.authorizer === undefined
           ? {}
-          : { authorizer: options.authorizer }),
+          : { authorizer: base.authorizer }),
       });
 
       return resourceRoutes(async (request) => {
@@ -734,7 +793,7 @@ export function createNext<
         ctx.auth,
         requireOptions,
         tenantFor(ctx, toSession(ctx.auth)),
-        options.authorizer,
+        base.authorizer,
         ctx,
       );
 

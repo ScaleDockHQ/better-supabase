@@ -160,7 +160,7 @@ export function createTanStackStart<
           scope.bsb.auth,
           requireOptions,
           scope.tenant,
-          options.authorizer,
+          server.authorizer,
           scope,
         );
 
@@ -189,7 +189,7 @@ export function createTanStackStart<
             // action has no schema; requireOrganization refused a missing tenant.
             (parsed, caller) =>
               fn(parsed as never, { ...scope, ...caller } as never),
-            options.authorizer,
+            server.authorizer,
             scope,
           );
 

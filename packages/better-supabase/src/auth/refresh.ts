@@ -28,10 +28,12 @@ export type RefreshOutcome =
   | {
       readonly ok: false;
       /**
-       * `rejected`: the refresh token is dead, sign the user out. `network`:
-       * keep the session and retry later.
+       * `rejected`: the refresh token is dead, sign the user out. `raced`:
+       * another request already rotated it (`refresh_token_already_used`) and
+       * its response carries the new cookies, so keep them. `network`: keep the
+       * session and retry later.
        */
-      readonly reason: "rejected" | "network";
+      readonly reason: "rejected" | "raced" | "network";
       /** For `network`: the fetch failed, timed out, or Auth answered 5xx or 429. */
       readonly cause?: "fetch" | "timeout" | "status";
       readonly status?: number;
@@ -145,9 +147,12 @@ async function request(
 
     const outage = response.status >= 500 || response.status === 429;
 
+    const code =
+      typeof body?.["error_code"] === "string" ? body["error_code"] : undefined;
+
     return {
       ok: false,
-      reason: outage ? "network" : "rejected",
+      reason: outage ? "network" : code === RACED_CODE ? "raced" : "rejected",
       ...(outage ? { cause: "status" as const } : {}),
       status: response.status,
       ...(typeof body?.["error_code"] === "string"
@@ -171,6 +176,9 @@ async function request(
 
   return { ok: true, session };
 }
+
+/** The Auth error when a request tries a refresh token another request used. */
+const RACED_CODE = "refresh_token_already_used";
 
 /**
  * Exchanges a refresh token for a new session. Concurrent calls with the same

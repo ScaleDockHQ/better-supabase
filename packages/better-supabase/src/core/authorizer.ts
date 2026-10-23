@@ -76,6 +76,7 @@ export interface Authorizer<Ref = string> {
   forOperation?(table: string, operation: string): Ref | undefined;
   evaluate(
     request: AuthorizationRequest<Ref>,
+    runtime?: AuthorizerRuntime,
   ): AuthorizationOutcome | Promise<AuthorizationOutcome>;
   /**
    * The batch form (AuthZEN Access Evaluations); results keep the request
@@ -83,7 +84,112 @@ export interface Authorizer<Ref = string> {
    */
   evaluations?(
     requests: readonly AuthorizationRequest<Ref>[],
+    runtime?: AuthorizerRuntime,
   ): Promise<readonly AuthorizationOutcome[]>;
+}
+
+/**
+ * A process-wide cache of authorization versions per user, owned by the
+ * authorization library and typed structurally here. Create it once at module
+ * scope and pass it to `createServer({ versions })`; never per request or per
+ * cache scope.
+ */
+export interface AuthzVersionCache {
+  /** Forgets a user's version, so the next decision reads it again. */
+  evict(userId: string): void | PromiseLike<void>;
+}
+
+/**
+ * Work shared within one request scope: the caller creates it and passes it in,
+ * so nothing request-specific lives in module state. Each `use cache` scope
+ * gets its own; sharing across scopes goes through `AuthzVersionCache`.
+ */
+export interface RequestMemo {
+  /** `load()`'s promise, run once per key for this memo. */
+  once<T>(key: string, load: () => Promise<T>): Promise<T>;
+}
+
+/** Whether `value` is a `RequestMemo`. */
+export function isRequestMemo(value: unknown): value is RequestMemo {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "once" in value &&
+    typeof value.once === "function"
+  );
+}
+
+/** A new memo for one request scope. */
+export function requestMemo(): RequestMemo {
+  const entries = new Map<string, Promise<unknown>>();
+
+  return {
+    once<T>(key: string, load: () => Promise<T>): Promise<T> {
+      const known = entries.get(key);
+
+      if (known) {
+        // SAFETY: a key is only ever stored with the promise its load returned.
+        return known as Promise<T>;
+      }
+
+      const promise = load();
+      entries.set(key, promise);
+      promise.catch(() => {
+        entries.delete(key);
+      });
+
+      return promise;
+    },
+  };
+}
+
+/**
+ * What better-supabase hands an authorizer next to each request. Optional, so
+ * authorizers written for API v1 keep working.
+ */
+export interface AuthorizerRuntime {
+  /** `ServerOptions.versions`, when the server has one. */
+  readonly versions?: AuthzVersionCache;
+  /** The scope's memo, for reads several checks in one scope share. */
+  readonly memo?: RequestMemo;
+}
+
+/**
+ * `authorizer` with `runtime` merged under the runtime of every call, so a
+ * server's `versions` reaches each decision.
+ */
+export function bindAuthorizer<A extends AnyAuthorizer | undefined>(
+  authorizer: A,
+  runtime: AuthorizerRuntime,
+): A {
+  if (!authorizer || runtime.versions === undefined) {
+    return authorizer;
+  }
+
+  const inner: AnyAuthorizer = authorizer;
+
+  const merged = (call?: AuthorizerRuntime): AuthorizerRuntime => ({
+    ...runtime,
+    ...call,
+  });
+
+  const evaluations = inner.evaluations?.bind(inner);
+  const forOperation = inner.forOperation?.bind(inner);
+
+  // Methods are bound, not spread, so class-based authorizers keep them.
+  const bound: AnyAuthorizer = {
+    apiVersion: inner.apiVersion,
+    name: inner.name,
+    key: (ref) => inner.key(ref),
+    ...(forOperation ? { forOperation } : {}),
+    evaluate: (request, call) => inner.evaluate(request, merged(call)),
+    ...(evaluations
+      ? { evaluations: (requests, call) => evaluations(requests, merged(call)) }
+      : {}),
+  };
+
+  // SAFETY: bound has every member of `authorizer`, with the same signatures.
+  return bound as A;
 }
 
 // oxlint-disable-next-line typescript/no-explicit-any -- Ref is invariant (key() takes it), so `unknown` would reject typed authorizers
@@ -217,6 +323,7 @@ export interface CheckOptions<Ref> {
   readonly permission: Ref;
   readonly resource: AuthorizationResource;
   readonly context: RequestContext | undefined;
+  readonly runtime?: AuthorizerRuntime;
 }
 
 /**
@@ -251,12 +358,10 @@ export async function checkPermission<Ref>(
   const { subject, context } = requestOf(options.context);
 
   try {
-    const outcome = await authorizer.evaluate({
-      subject,
-      action: permission,
-      resource: options.resource,
-      context,
-    });
+    const outcome = await authorizer.evaluate(
+      { subject, action: permission, resource: options.resource, context },
+      options.runtime,
+    );
 
     const error = outcomeError(outcome, key);
 
@@ -280,6 +385,7 @@ export async function checkEach<Ref>(
   permission: Ref,
   resources: readonly AuthorizationResource[],
   context: RequestContext | undefined,
+  runtime?: AuthorizerRuntime,
 ): Promise<readonly boolean[]> {
   if (!authorizer || resources.length === 0) {
     return resources.map(() => false);
@@ -296,10 +402,10 @@ export async function checkEach<Ref>(
 
   try {
     const outcomes = authorizer.evaluations
-      ? await authorizer.evaluations(requests)
+      ? await authorizer.evaluations(requests, runtime)
       : await Promise.all(
           requests.map((request) =>
-            Promise.resolve(authorizer.evaluate(request)),
+            Promise.resolve(authorizer.evaluate(request, runtime)),
           ),
         );
 

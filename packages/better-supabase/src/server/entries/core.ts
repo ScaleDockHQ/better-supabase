@@ -1,4 +1,8 @@
-import type { AuthResolution, AuthState } from "../../auth/resolve.ts";
+import type {
+  AuthResolution,
+  AuthState,
+  ResolvePhase,
+} from "../../auth/resolve.ts";
 import type { SessionEncoding } from "../../auth/session.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
@@ -28,6 +32,8 @@ export interface ServerCore<
       readonly cookies?: boolean;
       readonly encode?: SessionEncoding;
       readonly checkSession?: boolean;
+      readonly leeway?: number;
+      readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
     },
   ): Promise<AuthResolution<C, P>>;
   /** The session cookie's name (`auth.cookie.name`, else `sb-<ref>-auth-token`). */

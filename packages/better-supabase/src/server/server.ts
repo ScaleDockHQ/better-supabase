@@ -4,7 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getEnv, pipeline, seedContext } from "@supabase/middleware";
 import { createClient } from "@supabase/supabase-js";
 
-import type { AuthResolution, AuthState } from "../auth/resolve.ts";
+import type {
+  AuthResolution,
+  AuthState,
+  ResolvePhase,
+} from "../auth/resolve.ts";
 import type { SessionEncoding } from "../auth/session.ts";
 import type {
   DelegationPermissions,
@@ -42,6 +46,7 @@ import {
 import { actClaim, userContext } from "../auth/impersonation.ts";
 import { prefetchJwks, resolveAuth } from "../auth/resolve.ts";
 import { sessionCookieName } from "../auth/session.ts";
+import { bindAuthorizer, requestMemo } from "../core/authorizer.ts";
 import { hooksApiProblem } from "../core/contracts/authorization-hooks.ts";
 import { dbError } from "../core/errors.ts";
 import { postgrestExecutor } from "../core/postgrest-executor.ts";
@@ -70,6 +75,7 @@ import {
 import { requestIdPolicy, sessionWith } from "./request-ids.ts";
 import { defaultPrefetchJwks } from "./respond.ts";
 import { TENANT_HEADER } from "./server-types.ts";
+import { serverSessions } from "./sessions.ts";
 import { supportOff } from "./support-off.ts";
 import { supportStorage } from "./support-storage.ts";
 import { endSessions, suspendAccount } from "./suspend-account.ts";
@@ -400,6 +406,7 @@ export function createServer<
     return {
       ...credentials,
       ...ids,
+      memo: requestMemo(),
       auth,
       resolution,
       support: active,
@@ -464,6 +471,7 @@ export function createServer<
     return {
       ...credentials,
       ...ids,
+      memo: requestMemo(),
       auth: resolution.auth,
       resolution,
       get supabase(): SupabaseClient {
@@ -558,6 +566,7 @@ export function createServer<
     return {
       ...credentials,
       ...ids,
+      memo: requestMemo(),
       auth,
       resolution,
       get supabase() {
@@ -652,6 +661,8 @@ export function createServer<
       readonly cookies?: boolean;
       readonly encode?: SessionEncoding;
       readonly checkSession?: boolean;
+      readonly leeway?: number;
+      readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
     } = {},
   ): Promise<AuthResolution<C, P>> => {
     const claims = options.auth?.claims ?? betterSupabase.claimsSchema;
@@ -670,6 +681,10 @@ export function createServer<
         ? {}
         : { cookies: resolveOptions.cookies }),
       ...(resolveOptions.checkSession ? { checkSession: true } : {}),
+      ...(resolveOptions.leeway === undefined
+        ? {}
+        : { leeway: resolveOptions.leeway }),
+      ...(resolveOptions.onTiming ? { onTiming: resolveOptions.onTiming } : {}),
       ...(resolveOptions.encode === undefined
         ? {}
         : {
@@ -720,13 +735,55 @@ export function createServer<
     Map<string, Promise<ServerContext<M, F, E, C, P, B>>>
   >();
 
+  const authorizer = bindAuthorizer(
+    options.authorizer,
+    options.versions ? { versions: options.versions } : {},
+  );
+
+  // A custom resolver or the lite backend may read credentials requestToken
+  // doesn't know, so those requests skip the memo.
+  const custom =
+    lite !== undefined || (options.auth?.resolvers?.length ?? 0) > 0;
+
+  const { snapshot, contextFromSession, sessions, forgetSession } =
+    serverSessions<C, P, ServerContext<M, F, E, C, P, B>, ContextOptions>({
+      resolve,
+      cookieName: () =>
+        options.auth?.cookie?.name ?? sessionCookieName(env().url),
+      cookies: options.auth?.cookies !== false,
+      custom,
+      memo: options.sessions,
+      versions: options.versions,
+      contextFor: (auth, contextOptions: ContextOptions) =>
+        contextFor(
+          {
+            auth,
+            cookies: [],
+            headers: {},
+            requestCookies: [],
+            apply: (response) => response,
+          },
+          {},
+          contextOptions.stats,
+          contextOptions.pinnedUntil,
+          contextOptions.tenant,
+          contextOptions.support,
+          idPolicy.forRequest(undefined, contextOptions),
+        ),
+    });
+
   const server: BetterServer<M, F, E, C, P, B> = {
     get env() {
       return env();
     },
     events: betterSupabase.events,
-    authorizer: options.authorizer,
+    authorizer,
     authorization: options.authorization,
+    versions: options.versions,
+    snapshot,
+    contextFromSession,
+    sessions,
+    forgetSession,
     resolve,
     supabaseFor,
     dbFor: (auth, context, dbOptions) =>

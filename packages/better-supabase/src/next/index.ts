@@ -1,6 +1,21 @@
 export { createNext } from "./create.ts";
 
-export { nextCache, sessionStale, sessionTag, supportTag } from "./cache.ts";
+export {
+  nextCache,
+  sessionIdTag,
+  sessionStale,
+  sessionTag,
+  supportTag,
+} from "./cache.ts";
+
+export {
+  authzVersionOf,
+  isSessionSnapshot,
+  issuedAtOf,
+  sessionCacheKey,
+} from "../auth/snapshot.ts";
+
+export type { SessionSnapshot } from "../auth/snapshot.ts";
 
 export {
   recordListServer,

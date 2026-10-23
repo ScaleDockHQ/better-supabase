@@ -209,6 +209,12 @@ export interface ResolveAuthOptions {
   /** Called after every refresh attempt (metrics, logging). */
   readonly onRefresh?: (event: RefreshEvent) => void;
   /**
+   * Called with the milliseconds each phase took: reading the session cookie
+   * (`parse`), verifying a token (`verify`), refreshing (`refresh`) and asking
+   * Auth whether the session ended (`ended`). For `Server-Timing`.
+   */
+  readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
+  /**
    * With `refresh`, expire session chunks the readable session doesn't use (a
    * leftover `.2` after a shorter rewrite) on every request, not only when the
    * session is rewritten. Defaults to true.
@@ -218,6 +224,8 @@ export interface ResolveAuthOptions {
   /** Epoch milliseconds, the unit JWT `exp` and `iat` math needs. */
   readonly now?: () => number;
 }
+
+export type ResolvePhase = "parse" | "verify" | "refresh" | "ended";
 
 export interface AuthResolution<C = unknown, P = unknown> {
   readonly auth: AuthState<C, P>;
@@ -829,6 +837,51 @@ export function clientIp(request: Request): string | undefined {
  * cached JWKS. An expiring cookie session is refreshed only when `refresh` is
  * set, through a single-flight request, and only then are cookies written.
  */
+/**
+ * The access token `resolveAuth` would verify for `request`, without verifying
+ * it: the bearer token, else the session cookie's. `null` when there is none.
+ */
+export function requestToken(
+  request: Request,
+  cookieName: string,
+  cookies = true,
+): string | null {
+  const credentials = extractCredentials(request);
+
+  if (credentials.token) {
+    return credentials.token;
+  }
+
+  if (!cookies) {
+    return null;
+  }
+
+  const session = readSession(
+    parseCookies(request.headers.get("cookie")),
+    cookieName,
+  );
+
+  return session?.access_token ?? null;
+}
+
+async function timed<T>(
+  options: ResolveAuthOptions,
+  phase: ResolvePhase,
+  work: () => Promise<T>,
+): Promise<T> {
+  if (!options.onTiming) {
+    return work();
+  }
+
+  const started = performance.now();
+
+  try {
+    return await work();
+  } finally {
+    options.onTiming(phase, performance.now() - started);
+  }
+}
+
 export async function resolveAuth(
   request: Request,
   options: ResolveAuthOptions,
@@ -837,6 +890,21 @@ export async function resolveAuth(
 
   const cookies = (): readonly CookieRecord[] =>
     (parsed ??= parseCookies(request.headers.get("cookie")));
+
+  const verifyTimed = (
+    ...args: Parameters<typeof verify>
+  ): ReturnType<typeof verify> =>
+    timed(options, "verify", () => verify(...args));
+
+  const statusTimed = (
+    ...args: Parameters<typeof sessionStatus>
+  ): ReturnType<typeof sessionStatus> =>
+    timed(options, "ended", () => sessionStatus(...args));
+
+  const refreshTimed = (
+    ...args: Parameters<typeof refreshSession>
+  ): ReturnType<typeof refreshSession> =>
+    timed(options, "refresh", () => refreshSession(...args));
 
   for (const resolver of options.resolvers ?? []) {
     const state = await resolver.resolve(request);
@@ -861,7 +929,7 @@ export async function resolveAuth(
 
   if (credentials.token) {
     return resolution(
-      await verify(
+      await verifyTimed(
         { token: credentials.token, apikey: null },
         ["user"],
         options,
@@ -873,7 +941,7 @@ export async function resolveAuth(
 
   if (options.secret && credentials.apikey?.startsWith("sb_secret_")) {
     return resolution(
-      await verify(
+      await verifyTimed(
         { token: null, apikey: credentials.apikey },
         options.secret === true
           ? ["secret"]
@@ -896,7 +964,9 @@ export async function resolveAuth(
       ? {}
       : { encode: options.cookie.encode };
 
+  const parseStarted = options.onTiming ? performance.now() : 0;
   const session = readSession(cookies(), name);
+  options.onTiming?.("parse", performance.now() - parseStarted);
 
   if (!session) {
     const stale = cookies().some(
@@ -930,7 +1000,7 @@ export async function resolveAuth(
   const fresh = expiry !== undefined && expiry - leeway > now;
 
   if (fresh) {
-    const state = await verify(
+    const state = await verifyTimed(
       { token: session.access_token, apikey: null },
       ["user"],
       options,
@@ -939,7 +1009,7 @@ export async function resolveAuth(
 
     const status =
       state.kind === "user" && options.checkSession
-        ? await sessionStatus(state.token, {
+        ? await statusTimed(state.token, {
             url: options.env.url,
             publishableKey: options.env.publishableKey,
             ...(options.fetch ? { fetch: options.fetch } : {}),
@@ -992,7 +1062,7 @@ export async function resolveAuth(
 
   const started = performance.now();
 
-  const outcome = await refreshSession(session.refresh_token, {
+  const outcome = await refreshTimed(session.refresh_token, {
     url: options.env.url,
     publishableKey: options.env.publishableKey,
     ...(secretKey && ip ? { forwardedFor: { ip, secretKey } } : {}),
@@ -1033,7 +1103,7 @@ export async function resolveAuth(
 
       // A token refreshed early, in its leeway, is still good until it expires.
       if (!fresh && expiry !== undefined && expiry > now) {
-        const state = await verify(
+        const state = await verifyTimed(
           { token: session.access_token, apikey: null },
           ["user"],
           options,
@@ -1054,6 +1124,25 @@ export async function resolveAuth(
       );
     }
 
+    if (outcome.reason === "raced") {
+      // The request that won the rotation sets the new cookies; clearing them
+      // here would sign the user out. A token refreshed early still works.
+      if (!fresh && expiry !== undefined && expiry > now) {
+        const state = await verifyTimed(
+          { token: session.access_token, apikey: null },
+          ["user"],
+          options,
+          "cookie",
+        );
+
+        if (state.kind !== "invalid") {
+          return resolution(state, cookies, pruned);
+        }
+      }
+
+      return resolution({ kind: "anon", reason: "expired" }, cookies, pruned);
+    }
+
     return resolution(
       { kind: "anon", reason: "signed_out" },
       cookies,
@@ -1070,7 +1159,7 @@ export async function resolveAuth(
     encoding,
   );
 
-  const state = await verify(
+  const state = await verifyTimed(
     { token: outcome.session.access_token, apikey: null },
     ["user"],
     options,

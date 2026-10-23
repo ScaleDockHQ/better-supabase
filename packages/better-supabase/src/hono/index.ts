@@ -344,7 +344,7 @@ export function createHono<
           ctx.auth,
           requireOptions,
           c.get("tenant"),
-          options.authorizer,
+          server.authorizer,
           ctx,
         );
 
@@ -402,7 +402,7 @@ export function createHono<
         betterSupabase,
         table,
         resourceOptions,
-        options.authorizer,
+        server.authorizer,
       );
 
       const { keyParam } = resource;

@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/headers.js", () => ({
+  cookies: () => Promise.resolve({ getAll: () => [] }),
   headers: () => Promise.resolve(mocks.headers),
 }));
 

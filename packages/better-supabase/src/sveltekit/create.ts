@@ -242,7 +242,7 @@ export function createSvelteKit<
           locals.bsb.auth,
           requireOptions,
           locals.tenant,
-          options.authorizer,
+          server.authorizer,
           locals,
         );
 
@@ -268,7 +268,7 @@ export function createSvelteKit<
             // action has no schema; requireOrganization refused a missing tenant.
             (parsed, caller) =>
               fn(parsed as never, { ...locals, ...caller } as never, event),
-            options.authorizer,
+            server.authorizer,
             locals,
           );
 
