@@ -349,19 +349,102 @@ describe("createBlocks", () => {
     });
   });
 
-  it("refuses two providers of one port and a missing required port", () => {
+  it("refuses two unbound providers of a consumed port and a missing required port", () => {
     expect(() =>
       createBlocks(
         { transport },
         { a: notifier(vi.fn()), b: notifier(vi.fn()) },
       ),
-    ).toThrow(/"a" and "b" both provide the notifier port/);
+    ).not.toThrow();
+    expect(() =>
+      createBlocks(
+        { transport },
+        {
+          a: notifier(vi.fn()),
+          b: notifier(vi.fn()),
+          needs: recorder([], { notifier: "required" }),
+        },
+      ),
+    ).toThrow(
+      /"a" and "b" all provide the notifier port "needs" consumes; set blocks.needs.uses or pass ports.notifier/,
+    );
+    expect(() =>
+      createBlocks(
+        { transport, ports: { notifier: "missing" } },
+        { a: notifier(vi.fn()) },
+      ),
+    ).toThrow(/ports.notifier names "missing"/);
     expect(() =>
       createBlocks(
         { transport },
         { needs: recorder([], { notifier: "required" }) },
       ),
     ).toThrow(/"needs" needs a block that provides the notifier port/);
+  });
+
+  it("binds a port through the consumer's uses, then ports", () => {
+    const first = vi.fn(() => AsyncResult.ok(true));
+    const second = vi.fn(() => AsyncResult.ok(true));
+    const seen: Record<string, unknown>[] = [];
+
+    createBlocks(
+      {
+        transport,
+        config: {
+          needs: {
+            block: "recorder",
+            schema: "public",
+            options: {},
+            uses: { notifications: "b" },
+          },
+        },
+      },
+      {
+        a: notifier(first),
+        b: notifier(second),
+        needs: recorder(seen, { notifier: "required" }),
+      },
+    );
+    expect(seen[0]?.["notifier"]).toEqual({ send: second });
+
+    createBlocks(
+      { transport, ports: { notifier: "a" } },
+      {
+        a: notifier(first),
+        b: notifier(second),
+        needs: recorder(seen, { notifier: "required" }),
+      },
+    );
+    expect(seen[1]?.["notifier"]).toEqual({ send: first });
+  });
+
+  it("reads the config entry under the instance key before the block's name", () => {
+    const seen: Record<string, unknown>[] = [];
+
+    createBlocks(
+      {
+        transport,
+        config: {
+          recorder: { schema: "public", options: { limit: 1 } },
+          second: { block: "recorder", schema: "work", options: { limit: 2 } },
+        },
+      },
+      { recorder: recorder(seen), second: recorder(seen) },
+    );
+    expect(seen).toMatchObject([
+      { schema: "public", limit: 1 },
+      { schema: "work", limit: 2 },
+    ]);
+
+    expect(() =>
+      createBlocks(
+        {
+          transport,
+          config: { other: { block: "tags", schema: "public", options: {} } },
+        },
+        { other: recorder([]) },
+      ),
+    ).toThrow(/blocks.other installs the "tags" block, not "recorder"/);
   });
 
   it("forwards block events to audit until close", async () => {

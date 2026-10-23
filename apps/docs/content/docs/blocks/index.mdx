@@ -69,6 +69,25 @@ tables can't share a schema. The instance writes its own row in
 `better_supabase.blocks`, whose `block` column names the block it installs,
 and `doctor` and `upgrade` follow each instance's version on its own.
 
+On the TypeScript side, `blocks.generated.ts` has an entry for each instance
+and a renamed client for a second one (`ticketsBlock` for `tickets: { block:
+"tasks", entities: { work_item: "ticket" } }`), which calls the instance's
+functions. Pass it under the instance key:
+
+```ts title="lib/blocks.ts"
+import { blockConfig, tasksBlock, ticketsBlock } from "./blocks.generated";
+
+export const blockSet = defineBlocks(blockConfig, {
+  tasks: tasksBlock,
+  tickets: ticketsBlock,
+});
+```
+
+When two blocks in a set provide one port, such as two `notifications`
+instances providing `notifier`, a consumer takes the one its `uses` names.
+`createBlocks({ ports: { notifier: "inbox" } })` picks one for every consumer
+whose `uses` names none.
+
 ### Contributions
 
 Five generic blocks take work from the blocks around them: `approvals`

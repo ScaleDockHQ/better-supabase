@@ -2296,6 +2296,7 @@
       "RenamesOf",
       "RpcClient",
       "RunState",
+      "UniquePort",
       "UsingOptions",
       "WithBlockHooksOptions",
       "WithExtraFields"
@@ -9021,6 +9022,7 @@
       "expiredFlagsQuery",
       "extensionSchema",
       "formerBlockName",
+      "instanceFunctions",
       "isBlockSqlIdType",
       "migrationOptionUses",
       "MODULE_ID_TYPES",

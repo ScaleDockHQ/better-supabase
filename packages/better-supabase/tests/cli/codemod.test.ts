@@ -466,6 +466,18 @@ const ref: RecordRef = { type: "customer", id };
 `);
   });
 
+  it("moves block query keys into the bsb key space", () => {
+    const source = `queryClient.invalidateQueries({ queryKey: ["bs-block", "tasks"] });
+const owner = query.meta?.bsBlock;
+`;
+
+    const result = applyCodemod(v015, source);
+    expect(result.text).toContain(`queryKey: ["bsb", "tasks"]`);
+    expect(result.review.some((line) => line.message.includes("bsBlock"))).toBe(
+      true,
+    );
+  });
+
   it("renames the bs instance where a file creates or imports it", () => {
     const created = `import { createNext } from "better-supabase/next";
 import { betterSupabase } from "@/lib/supabase";

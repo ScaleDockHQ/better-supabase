@@ -16,6 +16,7 @@ export type {
   BlockSinks,
   BlocksHooks,
   CreateBlocksOptions,
+  UniquePort,
 } from "./create-blocks.ts";
 
 export { BLOCK_CATEGORIES, defineBlock } from "./define-block.ts";

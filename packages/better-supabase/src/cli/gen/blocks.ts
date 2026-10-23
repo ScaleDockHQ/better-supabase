@@ -17,6 +17,7 @@ import { PRESET_CATALOG } from "../../preset/index.ts";
 import {
   appTableEventTypes,
   BLOCK_OPTION_SCHEMAS,
+  instanceFunctions,
   resolveBlock,
   resolveBlocks,
 } from "../../sql/index.ts";
@@ -46,14 +47,16 @@ function hasSchema(
 function namingOf(
   config: Pick<ResolvedConfig, "blocks" | "sql">,
   modules: readonly string[],
+  instanceFunctionNames: Readonly<Record<string, string>> = {},
 ): BlockNaming | undefined {
-  const functions = Object.fromEntries(
-    modules.flatMap((module) =>
+  const functions = Object.fromEntries([
+    ...modules.flatMap((module) =>
       module === "permissions"
         ? []
         : Object.entries(resolveBlock(config.blocks[module]).functions),
     ),
-  );
+    ...Object.entries(instanceFunctionNames),
+  ]);
 
   const entities = modules.flatMap((module) =>
     blockEntityRenames(module, config.blocks),
@@ -80,63 +83,105 @@ function namingOf(
  * builds them with these options.
  */
 export function blockConfigEntries(
-  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "sql">,
+  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "instances" | "sql">,
 ): Readonly<Record<string, GeneratedBlock>> {
-  const installed = new Set(
-    resolveBlocks(config.blockNames, {
-      modules: config.blocks,
-      ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
-    }).map((module) => module.name),
-  );
+  const installed = resolveBlocks(config.blockNames, {
+    modules: config.blocks,
+    ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
+  }).map((module) => module.name);
 
   const entries: [string, GeneratedBlock][] = [];
 
   for (const manifest of PRESET_CATALOG.manifests) {
-    const modules = manifest.sql.filter((module) => installed.has(module));
+    const modules = manifest.sql.filter((module) => installed.includes(module));
     const [main] = modules;
 
-    if (main === undefined) {
-      continue;
+    const others = Object.values(config.instances).filter(
+      (instance) => instance.block === main,
+    );
+
+    if (
+      main !== undefined &&
+      (others.length === 0 || others.some((each) => each.name === main))
+    ) {
+      entries.push([manifest.name, generatedEntry(config, modules)]);
     }
 
-    const resolved = resolveBlock(config.blocks[main]);
-    const options: Record<string, unknown> = {};
-
-    for (const module of modules) {
-      if (!hasSchema(module)) {
+    for (const instance of others) {
+      if (main === undefined || instance.name === main) {
         continue;
       }
 
-      const configured = resolveBlock(config.blocks[module]).options;
+      const layout = {
+        modules: config.blocks,
+        instances: config.instances,
+        ...(config.sql.scope === undefined ? {} : { scope: config.sql.scope }),
+      };
 
-      for (const [key, spec] of Object.entries(
-        BLOCK_OPTION_SCHEMAS[module].specs,
-      )) {
-        if (!spec.client) {
-          continue;
-        }
+      const entry = generatedEntry(
+        { ...config, blocks: { ...config.blocks, [main]: instance.config } },
+        modules,
+        instanceFunctions(layout, installed, instance.name),
+      );
 
-        const value = configured[key] ?? spec.default;
-
-        if (value !== undefined) {
-          options[key] = value;
-        }
-      }
+      entries.push([
+        instance.name,
+        {
+          ...entry,
+          block: manifest.name,
+          ...(Object.keys(instance.uses).length === 0
+            ? {}
+            : { uses: instance.uses }),
+        },
+      ]);
     }
-
-    const names = namingOf(config, modules);
-    entries.push([
-      manifest.name,
-      {
-        schema: resolved.schema,
-        ...(resolved.api === undefined ? {} : { api: resolved.api.schema }),
-        options,
-        ...(names === undefined ? {} : { names }),
-      },
-    ]);
   }
 
   return Object.fromEntries(entries);
+}
+
+/**
+ * One instance's generated config: the schema of its main module, the client
+ * options of `modules` and its naming.
+ */
+function generatedEntry(
+  config: Pick<ResolvedConfig, "blocks" | "sql">,
+  modules: readonly string[],
+  instanceFunctionNames?: Readonly<Record<string, string>>,
+): GeneratedBlock {
+  const resolved = resolveBlock(config.blocks[modules[0] ?? ""]);
+  const options: Record<string, unknown> = {};
+
+  for (const module of modules) {
+    if (!hasSchema(module)) {
+      continue;
+    }
+
+    const configured = resolveBlock(config.blocks[module]).options;
+
+    for (const [key, spec] of Object.entries(
+      BLOCK_OPTION_SCHEMAS[module].specs,
+    )) {
+      if (!spec.client) {
+        continue;
+      }
+
+      const value = configured[key] ?? spec.default;
+
+      if (value !== undefined) {
+        options[key] = value;
+      }
+    }
+  }
+
+  const names = namingOf(config, modules, instanceFunctionNames);
+
+  return {
+    schema: resolved.schema,
+    ...(resolved.api === undefined ? {} : { api: resolved.api.schema }),
+    options,
+    ...(names === undefined ? {} : { names }),
+  };
 }
 
 function literal(value: unknown, indent: string): string {
@@ -276,9 +321,13 @@ export function schemaExtensions(
 
 /** The installed blocks with their final names, for `GeneratorModel.blocks`. */
 export function generatorBlocks(
-  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "sql">,
+  config: Pick<ResolvedConfig, "blocks" | "blockNames" | "instances" | "sql">,
 ): GeneratorBlock[] {
-  return Object.entries(blockConfigEntries(config)).map(([name, entry]) => {
+  const own = Object.entries(blockConfigEntries(config)).filter(
+    ([, entry]) => entry.block === undefined,
+  );
+
+  return own.map(([name, entry]) => {
     const manifest = MANIFESTS.get(CATALOG_BLOCKS.get(name)?.manifest ?? "");
     const owned = manifest?.name === name ? manifest : undefined;
     const client = owned?.client ?? undefined;
@@ -314,18 +363,23 @@ function renamedBlockLines(
 ): RenamedLines {
   const imports: string[] = [];
   const lines: string[] = [];
+  const exported = new Set<string>();
 
   for (const manifest of PRESET_CATALOG.manifests) {
-    const renames = entries[manifest.name]?.names?.entities ?? [];
+    const instances = Object.entries(entries).filter(
+      ([key, entry]) =>
+        (entry.block ?? key) === manifest.name &&
+        (entry.names?.entities ?? []).length > 0,
+    );
 
-    if (manifest.client === null || renames.length === 0) {
+    if (manifest.client === null || instances.length === 0) {
       continue;
     }
 
-    const names = entityNames(renames);
+    // A block renamed by more than one instance is imported once, under
+    // `default*` names, so no instance's renamed name clashes with an import.
+    const aliasAll = instances.length > 1;
     const block = manifest.client.export;
-    const renamed = names.rename(block);
-    const local = renamed === block ? `default${pascal(block)}` : block;
 
     const entityTypes = (manifest.entityTypes ?? []).filter(
       (type) =>
@@ -347,11 +401,16 @@ function renamedBlockLines(
         ? entityTypes
         : [...entityTypes, { name: eventsType }];
 
-    const alias = `${pascal(camelOf(manifest.name))}Renames`;
-    const key = q(manifest.name);
+    const [first] = instances;
+    const firstNames = entityNames(first?.[1].names?.entities ?? []);
 
     const localOf = (name: string): string =>
-      names.rename(name) === name ? `Default${name}` : name;
+      aliasAll || firstNames.rename(name) === name ? `Default${name}` : name;
+
+    const local =
+      aliasAll || firstNames.rename(block) === block
+        ? `default${pascal(block)}`
+        : block;
 
     const specifiers = [
       ...types.map((type) =>
@@ -368,40 +427,34 @@ function renamedBlockLines(
       ),
     );
 
-    lines.push(
-      "",
-      `type ${alias} = (typeof blockConfig)[${key}]["names"]["entities"];`,
-      "",
-      "/**",
-      ` * The \`${manifest.name}\` block under the names \`blocks.${manifest.name}.entities\` gives it.`,
-      " * @public",
-      " */",
-      `export const ${renamed} = renameBlock(${local}, blockConfig[${key}].names);`,
-      ...types.flatMap((type) => {
-        const name = names.rename(type.name);
-        const source = localOf(type.name);
+    for (const [instance, entry] of instances) {
+      const names = entityNames(entry.names?.entities ?? []);
+      const alias = `${pascal(camelOf(instance))}Renames`;
+      const key = q(instance);
 
-        if (type.name.endsWith("Events")) {
-          return [
-            "",
-            "/** @public */",
-            `export type ${name} = RenamedEvents<${source}, ${alias}>;`,
-          ];
-        }
+      const wanted =
+        instance === manifest.name
+          ? names.rename(block)
+          : `${camelOf(instance)}Block`;
 
-        return type.fields === true
-          ? [
-              "",
-              "/** @public */",
-              `export type ${name}<F extends object = Record<never, never>> = RenamedType<${source}<F>, ${alias}>;`,
-            ]
-          : [
-              "",
-              "/** @public */",
-              `export type ${name} = RenamedType<${source}, ${alias}>;`,
-            ];
-      }),
-    );
+      const renamed = exported.has(wanted)
+        ? `${camelOf(instance)}Block`
+        : wanted;
+
+      exported.add(renamed);
+
+      lines.push(
+        "",
+        `type ${alias} = (typeof blockConfig)[${key}]["names"]["entities"];`,
+        "",
+        "/**",
+        ` * The \`${manifest.name}\` block under the names \`blocks.${instance}.entities\` gives it.`,
+        " * @public",
+        " */",
+        `export const ${renamed} = renameBlock(${local}, blockConfig[${key}].names);`,
+        ...renamedTypeLines(types, names, localOf, alias, exported),
+      );
+    }
   }
 
   return {
@@ -412,6 +465,49 @@ function renamedBlockLines(
     imports,
     lines,
   };
+}
+
+/**
+ * An alias for each of `types` under the name an instance's entity renames give
+ * it, skipping a name another instance already exports.
+ */
+function renamedTypeLines(
+  types: readonly { readonly name: string; readonly fields?: boolean }[],
+  names: ReturnType<typeof entityNames>,
+  localOf: (name: string) => string,
+  alias: string,
+  exported: Set<string>,
+): string[] {
+  return types.flatMap((type) => {
+    const name = names.rename(type.name);
+    const source = localOf(type.name);
+
+    if (exported.has(name)) {
+      return [];
+    }
+
+    exported.add(name);
+
+    if (type.name.endsWith("Events")) {
+      return [
+        "",
+        "/** @public */",
+        `export type ${name} = RenamedEvents<${source}, ${alias}>;`,
+      ];
+    }
+
+    return type.fields === true
+      ? [
+          "",
+          "/** @public */",
+          `export type ${name}<F extends object = Record<never, never>> = RenamedType<${source}<F>, ${alias}>;`,
+        ]
+      : [
+          "",
+          "/** @public */",
+          `export type ${name} = RenamedType<${source}, ${alias}>;`,
+        ];
+  });
 }
 
 function camelOf(name: string): string {
@@ -435,6 +531,7 @@ export function emitBlockConfig(
     | "blockNames"
     | "buckets"
     | "casing"
+    | "instances"
     | "output"
     | "sql"
     | "subjects"

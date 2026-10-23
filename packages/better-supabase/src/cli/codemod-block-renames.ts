@@ -211,6 +211,11 @@ export const REVIEW_0_15: readonly {
       "The debug header is `x-bsb-db-calls`, the stats route `/api/bsb-stats`, and the Server-Timing names `bsb-proxy` and `bsb-verify`",
   },
   {
+    pattern: /\bbsBlock\b|\bboth provide the\b/,
+    message:
+      "Block queries share the table key space `['bsb', instance, method, ...args]` and carry `meta.bsTables: [instance]` instead of `bsBlock`; two blocks may provide one port, and a consumer picks one with `blocks.<instance>.uses` or `createBlocks({ ports })`",
+  },
+  {
     pattern: /["'`]bs:t:/,
     message: "Realtime change topics are `bsb:t:<schema>.<table>`",
   },

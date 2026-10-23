@@ -502,7 +502,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
     subpaths: { ...BLOCK_SUBPATH_RENAMES, ...PLUGIN_SUBPATH_RENAMES },
     members: [{ from: "bs", to: "bsb" }],
     options: DATA_CONTRACT_OPTIONS,
-    strings: DATA_CONTRACT_STRINGS,
+    strings: { ...DATA_CONTRACT_STRINGS, "bs-block": "bsb" },
     configFile: (source, json) =>
       thenConvertPresetCode(
         withSubjectsOn(

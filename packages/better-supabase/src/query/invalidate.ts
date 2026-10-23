@@ -127,14 +127,17 @@ function indexOf(cache: QueryCache): TableIndex {
 }
 
 /**
- * Invalidates every query that read one of `tables`: better-supabase queries by
- * their `meta.bsTables`, and other `['bsb', table, ...]` keys by prefix. An
- * index from table to queries finds them, so a write to a table nothing read
+ * Invalidates every query that read one of `tables` or block instances: tables
+ * and instances share the key space `['bsb', name, method, ...args]`, so
+ * better-supabase queries match by their `meta.bsTables` and other `['bsb',
+ * name, ...]` keys by prefix. `methods` narrows it to the queries of those
+ * methods. An index from name to queries finds them, so a write nothing read
  * skips the cache scan.
  */
 export function invalidateTables(
   client: QueryClient,
   tables: readonly string[],
+  methods?: ReadonlySet<string>,
 ): Promise<void> {
   if (tables.length === 0) {
     return Promise.resolve();
@@ -154,6 +157,8 @@ export function invalidateTables(
   }
 
   return client.invalidateQueries({
-    predicate: (query) => matched.has(query.queryHash),
+    predicate: (query) =>
+      matched.has(query.queryHash) &&
+      (methods === undefined || methods.has(String(query.queryKey[2]))),
   });
 }
