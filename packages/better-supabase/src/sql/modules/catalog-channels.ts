@@ -134,7 +134,8 @@ create table if not exists ${t("channels")} (
   ${c("channels", "createdAt")} timestamptz not null default now(),
   ${c("channels", "updatedAt")} timestamptz not null default now(),
   unique (${c("channels", "tenant")}, ${c("channels", "key")})
-);
+);${lists ? `
+create index if not exists ${ctx.naming.rename("catalog_channels_price_list_idx")} on ${t("channels")} (${c("channels", "priceList")});` : ""}
 ${lockTable(t("channels"), { read: true })}
 ${readPolicy(ctx, names, "channels")}`);
   }

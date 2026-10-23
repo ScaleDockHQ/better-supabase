@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
--- @bsb-block knowledge@1 managed
--- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed.
+-- @bsb-block knowledge@2 managed
+-- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -440,6 +440,41 @@ $$;
 revoke execute on function "better_supabase"."pending_knowledge_documents"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."pending_knowledge_documents"(integer) to service_role;
 
+-- Creates a pending document for a ready ai-files file and enqueues its
+-- ingestion on options.ingestQueue: the job reads the file, extracts its
+-- text and writes the chunks, which enqueues their embedding.
+create or replace function "better_supabase"."queue_knowledge_file"(
+  tenant uuid,
+  file_id uuid,
+  title text default null,
+  scope text default 'user',
+  scope_id uuid default null,
+  source text default null,
+  metadata jsonb default '{}',
+  owner uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text;
+  v_document jsonb;
+begin
+  select x."filename" into v_name from "better_supabase"."ai_files" x
+  where x."id" = queue_knowledge_file.file_id and x."organization_id" = queue_knowledge_file.tenant;
+  if not found then
+    raise exception 'file % not found', queue_knowledge_file.file_id using errcode = 'P0002', hint = 'AI_FILE_NOT_FOUND';
+  end if;
+  v_document := "better_supabase"."create_knowledge_document"(queue_knowledge_file.tenant, coalesce(queue_knowledge_file.title, v_name), queue_knowledge_file.scope, queue_knowledge_file.scope_id, queue_knowledge_file.file_id, coalesce(queue_knowledge_file.source, v_name), queue_knowledge_file.metadata, queue_knowledge_file.owner);
+  perform "better_supabase"."enqueue_job"(queue => 'knowledge_ingest', payload => jsonb_build_object('document_id', v_document ->> 'id'), dedupe_key => 'knowledge-ingest:' || (v_document ->> 'id'), dedupe_running => false);
+  return v_document;
+end;
+$$;
+revoke execute on function "better_supabase"."queue_knowledge_file"(uuid, uuid, text, text, uuid, text, jsonb, uuid) from public, anon;
+grant execute on function "better_supabase"."queue_knowledge_file"(uuid, uuid, text, text, uuid, text, jsonb, uuid) to authenticated, service_role;
+
 -- Clears the embeddings of a tenant's documents (all tenants when null)
 -- that another model embedded, so the worker embeds them again.
 create or replace function "better_supabase"."reembed_knowledge"(tenant uuid default null, model text default null)
@@ -580,6 +615,15 @@ set search_path = ''
 as $$ select "better_supabase"."pending_knowledge_documents"($1) $$;
 revoke execute on function "api"."pending_knowledge_documents"(integer) from public, anon, authenticated;
 grant execute on function "api"."pending_knowledge_documents"(integer) to service_role;
+
+create or replace function "api"."queue_knowledge_file"(tenant uuid, file_id uuid, title text default null, scope text default 'user', scope_id uuid default null, source text default null, metadata jsonb default '{}', owner uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."queue_knowledge_file"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."queue_knowledge_file"(uuid, uuid, text, text, uuid, text, jsonb, uuid) from public, anon;
+grant execute on function "api"."queue_knowledge_file"(uuid, uuid, text, text, uuid, text, jsonb, uuid) to authenticated, service_role;
 
 create or replace function "api"."reembed_knowledge"(tenant uuid default null, model text default null)
 returns integer

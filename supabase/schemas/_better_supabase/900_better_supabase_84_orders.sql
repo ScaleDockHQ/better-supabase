@@ -1,6 +1,6 @@
 -- better-supabase module: orders
--- @bsb-block orders@1 managed
--- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display.
+-- @bsb-block orders@2 managed
+-- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1099,6 +1099,7 @@ declare
   v_newly boolean := false;
   v_seq bigint;
   v_number text;
+  v_invoice jsonb;
   v_claims text;
 begin
   if auth.role() is distinct from 'service_role' then
@@ -1164,9 +1165,22 @@ begin
         end;
       end;
     end loop;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_order.tenant::text || ':commerce:invoice', 0));
-  select coalesce(max(x."invoice_sequence"), 0) + 1 into v_seq from "better_supabase"."orders" x where x."tenant_id" = v_order.tenant;
-  v_number := v_seq::text;
+    v_invoice := "better_supabase"."create_invoice"(v_order.tenant,
+      jsonb_build_object('title', 'Order ' || v_order.number, 'currency', v_order.currency, 'termsDays', 0,
+        'origin', jsonb_build_object('type', 'order', 'id', v_order.id::text)),
+      (select coalesce(jsonb_agg(jsonb_build_object(
+      'description', case when l."quantity" = 1 then l."title" else l."title" || ' x ' || l."quantity"::text end,
+      'quantity', 1, 'unitAmount', (l."total" - l."tax")::text, 'currency', v_order.currency,
+      'taxRateBps', case when (l."total" - l."tax") > 0 then round(l."tax" * 10000.0 / (l."total" - l."tax"))::integer else 0 end,
+      'product', case when l."variant_id" is null then null else jsonb_build_object('type', 'product_variant', 'id', l."variant_id"::text) end)
+      order by l."position"), '[]'::jsonb)
+    from "better_supabase"."order_lines" l where l."order_id" = v_order.id)
+    || (select case when x."shipping_total" > 0 then jsonb_build_array(jsonb_build_object('description', 'Shipping', 'quantity', 1, 'unitAmount', x."shipping_total"::text, 'currency', v_order.currency)) else '[]'::jsonb end
+    from "better_supabase"."orders" x where x."id" = v_order.id));
+    v_invoice := "better_supabase"."issue_invoice"((v_invoice ->> 'id')::uuid, current_date);
+    v_invoice := "better_supabase"."record_invoice_payment"((v_invoice ->> 'id')::uuid, (v_invoice ->> 'total')::bigint,
+      v_order.currency, now(), 'order', 'order:' || v_order.id::text);
+    v_number := v_invoice ->> 'identifier';
     update "better_supabase"."orders" x set "invoice_number" = v_number, "invoice_sequence" = v_seq, "invoiced_at" = now()
     where x."id" = v_order.id;
     perform "better_supabase".emit_event('order.paid', jsonb_build_object('organizationId', v_order.tenant, 'subjectType', 'order', 'subjectId', v_order.id::text, 'id', v_order.id, 'number', v_order.number, 'customerId', v_order.customer, 'currency', v_order.currency, 'total', v_order.total::text, 'units', (select coalesce(sum(l."quantity"), 0)::text from "better_supabase"."order_lines" l where l."order_id" = v_order.id), 'invoiceNumber', v_number), 'orders/' || v_order.id::text, (v_order.tenant)::text, 'order.paid:' || v_order.id::text, 'better-supabase/orders');
@@ -1174,7 +1188,7 @@ begin
   end if;
   return jsonb_build_object('orderId', v_order.id, 'status', (select x."status" from "better_supabase"."orders" x where x."id" = v_order.id),
     'paidTotal', v_paid::text, 'newlyPaid', v_newly,
-    'invoiceNumber', coalesce(v_number, v_order.invoice_number));
+    'invoiceNumber', coalesce(v_number, v_order.invoice_number), 'invoiceId', v_invoice ->> 'id');
 end;
 $$;
 revoke execute on function "better_supabase"."record_payment"(uuid, text, text, text, text, bigint, bigint, bigint) from public, anon, authenticated;

@@ -283,6 +283,7 @@ create table if not exists "better_supabase"."catalog_channels" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
+create index if not exists catalog_channels_price_list_idx on "better_supabase"."catalog_channels" ("price_list_id");
 alter table "better_supabase"."catalog_channels" enable row level security;
 revoke all on "better_supabase"."catalog_channels" from anon, authenticated;
 grant select on "better_supabase"."catalog_channels" to authenticated;

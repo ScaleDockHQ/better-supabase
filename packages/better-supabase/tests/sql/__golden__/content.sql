@@ -74,6 +74,7 @@ create index if not exists "content_entries_published_idx" on "better_supabase".
 create index if not exists "content_entries_due_idx" on "better_supabase"."content_entries" ("publish_at") where "status" = 'scheduled';
 create index if not exists "content_entries_updated_idx" on "better_supabase"."content_entries" ("tenant_id", "updated_at" desc);
 create index if not exists "content_entries_author_idx" on "better_supabase"."content_entries" ("author_id");
+create index if not exists "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
 
 alter table "better_supabase"."content_entries" enable row level security;
 revoke all on "better_supabase"."content_entries" from anon, authenticated;
@@ -739,6 +740,7 @@ create index if not exists "content_entries_published_idx" on "better_supabase".
 create index if not exists "content_entries_due_idx" on "better_supabase"."content_entries" ("publish_at") where "status" = 'scheduled';
 create index if not exists "content_entries_updated_idx" on "better_supabase"."content_entries" ("tenant_id", "updated_at" desc);
 create index if not exists "content_entries_author_idx" on "better_supabase"."content_entries" ("author_id");
+create index if not exists "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
 
 alter table "better_supabase"."content_entries" enable row level security;
 revoke all on "better_supabase"."content_entries" from anon, authenticated;
@@ -1470,6 +1472,7 @@ create index if not exists "content_entries_published_idx" on "app_private"."con
 create index if not exists "content_entries_due_idx" on "app_private"."content_entries" ("publish_at") where "status" = 'scheduled';
 create index if not exists "content_entries_updated_idx" on "app_private"."content_entries" ("tenant_id", "updated_at" desc);
 create index if not exists "content_entries_author_idx" on "app_private"."content_entries" ("author_id");
+create index if not exists "content_entries_cover_idx" on "app_private"."content_entries" ("cover_attachment_id");
 
 alter table "app_private"."content_entries" enable row level security;
 revoke all on "app_private"."content_entries" from anon, authenticated;
@@ -2135,6 +2138,7 @@ create index if not exists "content_entries_published_idx" on "better_supabase".
 create index if not exists "content_entries_due_idx" on "better_supabase"."content_entries" ("publish_at") where "status" = 'scheduled';
 create index if not exists "content_entries_updated_idx" on "better_supabase"."content_entries" ("tenant_id", "updated_at" desc);
 create index if not exists "content_entries_author_idx" on "better_supabase"."content_entries" ("author_id");
+create index if not exists "content_entries_cover_idx" on "better_supabase"."content_entries" ("cover_attachment_id");
 
 alter table "better_supabase"."content_entries" enable row level security;
 revoke all on "better_supabase"."content_entries" from anon, authenticated;

@@ -136,6 +136,7 @@ create index if not exists ${name("published_idx")} on ${entries} (${e("tenant")
 create index if not exists ${name("due_idx")} on ${entries} (${e("publishAt")}) where ${e("status")} = 'scheduled';
 create index if not exists ${name("updated_idx")} on ${entries} (${e("tenant")}, ${e("updatedAt")} desc);
 create index if not exists ${name("author_idx")} on ${entries} (${e("author")});
+create index if not exists ${name("cover_idx")} on ${entries} (${e("cover")});
 
 ${lockTable(entries, { read: true })}
 drop policy if exists ${name("read")} on ${entries};

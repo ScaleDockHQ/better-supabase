@@ -7,7 +7,7 @@
 -- existing tags, keep their own API keys,
 -- read the settings, answer inbox conversations and use the assistant.
 -- Members also read every recipe block and do the everyday writes (react,
--- upload, track time, request approval, report content, file maintenance
+-- upload, track time, write content drafts, request approval, report content, file maintenance
 -- requests, submit expense reports, work the dispatch jobs scheduled for
 -- them, enroll records in sequences, post and vote on boards); managing a block
 -- is for admins.
@@ -41,6 +41,7 @@ as $$
       'ai.read', 'ai.create', 'ai.share', 'ai.admin',
       'attachments.read', 'attachments.upload', 'attachments.manage', 'sso.manage',
       'waitlist.manage', 'teams.read', 'teams.manage', 'catalog.read', 'catalog.manage',
+      'content.read', 'content.write', 'content.publish',
       'inventory.read', 'inventory.manage', 'inventory.reserve', 'inventory.purchase',
       'orders.read', 'orders.manage', 'orders.prepare', 'promotions.read', 'promotions.manage', 'custom_fields.read',
       'custom_fields.manage', 'custom_fields.sensitive.read', 'share_links.read',
@@ -93,6 +94,7 @@ as $$
       'ai_chat.read', 'ai_chat.create', 'ai_chat.share',
       'ai.read', 'ai.create', 'ai.share',
       'attachments.read', 'attachments.upload', 'teams.read', 'catalog.read', 'inventory.read',
+      'content.read', 'content.write',
       'orders.read', 'orders.prepare', 'promotions.read', 'custom_fields.read', 'share_links.read',
       'share_links.create', 'reminders.read', 'reminders.manage', 'views.read',
       'views.share', 'relations.read', 'relations.manage', 'calendar.read', 'calendar.write',

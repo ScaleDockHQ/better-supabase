@@ -67,6 +67,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {
       requireScan: true,
+      publicBuckets: [],
     },
   },
   audit: {
