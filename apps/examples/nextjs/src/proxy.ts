@@ -117,7 +117,10 @@ export const proxy = (request: NextRequest) =>
         response.headers.append("vary", "cookie");
       }
     },
-    serverTiming: process.env.NODE_ENV !== "production",
+    // The e2e build reads the phases to prove a page load made no Auth call.
+    serverTiming:
+      process.env.NODE_ENV !== "production" ||
+      process.env["EXPOSE_TESTING_API"] === "1",
   });
 
 export const config = {

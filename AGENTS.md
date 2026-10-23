@@ -209,6 +209,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0092: posts keep boards and posts; votes, replies and moderation stay in their blocks.
 - 0093: blocks install as named instances behind one data contract; plugins, sections and preset codes go (supersedes 0064).
 - 0094: supported adapters (Next.js, Hono, Expo, SvelteKit, TanStack Start, React Router) get the full test matrix; the rest are community adapters with a smoke test.
+- 0095: one token verification per request across cache scopes, through a session memo keyed by the token hash.
+- 0096: authorization libraries pass a version cache to `createServer`; `subscribeAuthzVersions` evicts users on a Realtime broadcast.
 
 ## Pre-release pins
 

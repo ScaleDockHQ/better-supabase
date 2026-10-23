@@ -51,3 +51,22 @@ A guard refusal returns the 401 or 403 Problem Details instead of calling
 `next()`. Put `allow: ["user"]` on a middleware in the routes that need a
 signed-in user. The bridge makes the request body readable twice, so an entry
 and an action both see it.
+
+## Session snapshot
+
+The helpers from `createReactRouter(betterSupabase)` hand every loader
+`locals.snapshot`, the verified user, so a loader can build a context with
+`bsb.contextFromSession(locals.snapshot)` and no second verification:
+
+```ts title="app/routes/notes.tsx"
+export const loader = bsb.loader({}, async (_args, locals) => {
+  const { db } = await bsb.contextFromSession(locals.snapshot);
+  return db.notes.list().orThrow();
+});
+```
+
+A snapshot holds the access token: never return it in a response. A copy
+of it (a spread, `structuredClone`, a serialized loader result) gets the
+`invalid` context, so pass plain values such as the user id onward instead.
+Prefetches never refresh the session, so parallel prefetches never race on
+the refresh token.

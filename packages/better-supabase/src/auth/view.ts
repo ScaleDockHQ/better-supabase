@@ -9,6 +9,7 @@ import type { AuthState, InvalidReason } from "./resolve.ts";
 import { actorOf, delegationOf, invalidActorError } from "./actor.ts";
 import { impersonatorOf } from "./impersonation.ts";
 import { aalOf, amrOf } from "./mfa.ts";
+import { authzVersionOf, issuedAtOf } from "./snapshot.ts";
 
 export { tenantOf } from "./tenant.ts";
 
@@ -33,6 +34,13 @@ export type AuthSession<C = unknown, P = unknown> =
       readonly claims: JWTClaims & C;
       /** Seconds since epoch, from the token's `exp`. */
       readonly expiresAt: number | null;
+      /** Seconds since epoch, from the token's `iat`. */
+      readonly issuedAt: number | null;
+      /**
+       * The `authz_ver` claim an access token hook can set, so caches key on
+       * the user's authorization version. `null` without the claim.
+       */
+      readonly authzVersion: number | null;
       /**
        * `user_metadata` parsed by `betterSupabase.userMetadata(schema)`, for
        * display. Absent without a schema or when the metadata fails it. Users
@@ -131,6 +139,8 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
         user: auth.user,
         claims: auth.claims,
         expiresAt: auth.expiresAt,
+        issuedAt: issuedAtOf(auth.claims),
+        authzVersion: authzVersionOf(auth.claims),
         ...(auth.profile === undefined ? {} : { profile: auth.profile }),
         aal: aalOf(auth.claims),
         anonymous: isAnonymousUser(auth.claims),

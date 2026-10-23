@@ -1,0 +1,139 @@
+---
+title: Island pattern
+description: Many private Suspense islands on one page that share one token verification per request.
+---
+
+A page under [Cache Components](/docs/frameworks/next-cache-components) is a
+static shell plus islands: each island is a `<Suspense>` boundary around an
+async Server Component with its own `'use cache: private'` reader. Every
+private cache scope runs on its own, so React `cache()` can't share the
+session between them. better-supabase shares it through a session memo on
+the server instance instead:
+
+- the first scope of a request verifies the token against the JWKS, and every
+  other scope reuses that result, even while the first is still in flight;
+- no scope calls the Auth server, reads the clock before `cookies()`, or
+  refreshes the session (only the [proxy](/docs/frameworks/next#proxy) does);
+- a verified token stays in the memo until it expires, keyed by a SHA-256 hash
+  of the token, never by a user id or a header, so one process can serve many
+  users safely.
+
+The [Next.js example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/nextjs)
+has a page with ten islands (`/islands`), and its e2e test checks that the
+ten verify the token at most once.
+
+## 1. Keep the page synchronous
+
+The page renders the static chrome and one `<Suspense>` per island. It reads
+nothing from the request, so it prerenders into the shell:
+
+```tsx title="src/app/[locale]/(app)/islands/page.tsx"
+export const instant = true;
+
+export default function IslandsPage() {
+  return (
+    <>
+      <PageHeader title="Islands" />
+      <Suspense fallback={<CountIslandSkeleton />}>
+        <CountIsland table="customers" />
+      </Suspense>
+      <Suspense fallback={<CountIslandSkeleton />}>
+        <CountIsland table="notes" />
+      </Suspense>
+    </>
+  );
+}
+```
+
+## 2. Read the session inside each island
+
+Each island checks the caller itself. A layout never gates an island: a
+layout that reads the session takes the whole subtree out of the shell, and
+the island would still have to check again for a direct request.
+
+```ts title="src/features/islands/islands-queries.ts"
+import "server-only";
+import { tenantOf } from "better-supabase/next";
+import { bsb } from "@/lib/supabase/server";
+
+export async function getIslandSession() {
+  "use cache: private";
+  const { session } = await bsb.cached();
+
+  if (session.kind !== "user") return null;
+
+  return {
+    organizationId: tenantOf(session) ?? null,
+    authzVersion: session.authzVersion,
+  };
+}
+```
+
+`bsb.cached()` reads the snapshot from the memo, sets `cacheLife` so the
+entry never outlives the token, and tags it with `sessionTag(userId)` and
+`sessionIdTag(sessionId)`.
+
+## 3. Pass plain values into cached readers
+
+A cached function keys its entry on its arguments, and arguments cross a
+serialization boundary. Pass the ids the reader needs, never the session:
+
+```ts title="src/features/islands/islands-queries.ts"
+export async function getTableCount(
+  table: "customers" | "notes",
+  organizationId: string,
+): Promise<number> {
+  "use cache: private";
+  const { db } = await bsb.cached({ tables: [table] });
+
+  return db[table].count({ where: { organizationId } }).orThrow();
+}
+```
+
+When you work with the snapshot directly, read it in the same scope that
+uses it. `bsb.getRequestSession()` returns the verified `SessionSnapshot`
+(`userId`, `sessionId`, `claims`, `expiresAt`, `issuedAt` and
+`authzVersion`), and `bsb.contextFromSession(snapshot)` builds the database
+and storage clients from it without reading a cookie or calling the network:
+
+```ts
+async function Island() {
+  "use cache: private";
+  const snapshot = await bsb.getRequestSession();
+  const { db } = await bsb.contextFromSession(snapshot);
+  // ...
+}
+```
+
+`contextFromSession` only accepts a snapshot that `getRequestSession` made
+in this process. A copy (from `structuredClone`, a spread, or a cached
+function's arguments) gets the `invalid` context, so a forged object can't
+stand in for a verified token. An expired snapshot gets `anon` with reason
+`expired`.
+
+To key your own cache on the session, use `sessionCacheKey(snapshot)`:
+`userId:sessionId:authzVersion`. It never contains the token, and it stays
+the same when the token rotates within one session.
+
+## 4. Use `io()` only for request-time dates
+
+The memo reads the clock only after `cookies()` resolved, so a private
+island never trips the "sync IO before a dynamic API" check. If an island
+itself needs the current time, await `io()` from `next/server` first, or
+format times that come from the data (such as `expiresAt`) instead.
+
+## 5. Drop a user's entries
+
+`bsb.invalidateSession(userId)` expires every `bsb.cached()` entry of the
+user, evicts the user from the session memo and calls
+`versions.evict(userId)` when the server has an
+[authorization-version cache](/docs/extending/authorization-providers#version-cache).
+Call it after a role change, so the next render verifies again.
+
+## Sizing the memo
+
+`createNext(betterSupabase, { sessions: { max, ttlMs } })` sets the memo's
+size (1000 tokens by default) and the longest time an entry lives; an entry
+never outlives the token's `exp`. `sessions: false` verifies in every
+scope. `bsb.sessions.stats()` returns `hits`, `misses` and `size`, which is
+what the example's e2e test reads.

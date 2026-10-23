@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ReactRouterArgs } from "../../src/react-router/index.ts";
 
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createReactRouter } from "../../src/react-router/index.ts";
+import {
+  countResolutions,
+  expiredRequest,
+} from "../fixtures/instant-sessions.ts";
 import {
   betterSupabase,
   env,
@@ -123,5 +127,50 @@ describe("createReactRouter", () => {
         context: contextProvider(),
       }),
     ).toThrow(/middleware/);
+  });
+
+  it("verifies once for two loaders in one request", async () => {
+    const resolutions = countResolutions(betterSupabase);
+
+    const loader = bsb.loader({}, async (_args, locals) => {
+      const ctx = await bsb.contextFromSession(locals.snapshot);
+
+      return ctx.auth.kind === "user" ? ctx.auth.user.id : null;
+    });
+
+    const users = await serve(await requestAs({ role: "member" }), (args) =>
+      Promise.all([loader(args), loader(args)]),
+    );
+
+    expect(users).toEqual([USER, USER]);
+    expect(resolutions.count()).toBe(1);
+    resolutions.stop();
+  });
+
+  it("never refreshes an expired cookie on a prefetch", async () => {
+    const refresh = vi.fn<typeof fetch>(
+      async () => new Response(null, { status: 500 }),
+    );
+
+    const prefetching = createReactRouter(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks, fetch: refresh },
+      prefetchJwks: false,
+      createContext: () => ({}),
+    });
+
+    const load = async (prefetch: boolean) =>
+      prefetching.middleware(
+        {
+          request: await expiredRequest("https://app.test/notes", prefetch),
+          context: contextProvider(),
+        },
+        async () => new Response(null),
+      );
+
+    await load(true);
+    expect(refresh).not.toHaveBeenCalled();
+    await load(false);
+    expect(refresh).toHaveBeenCalledOnce();
   });
 });

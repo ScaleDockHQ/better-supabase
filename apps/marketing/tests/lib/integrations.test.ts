@@ -15,8 +15,9 @@ const DOCS = join(import.meta.dirname, "../../../docs/content/docs");
 const UNLISTED = new Set([
   "index",
   "other",
-  // A Next.js guide, reached from the Next.js page.
+  // Next.js guides, reached from the Next.js page.
   "next-cache-components",
+  "next-islands",
   // A guide for running Hono and Next.js on one server, reached from both pages.
   "hono-and-next",
 ]);

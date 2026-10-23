@@ -190,7 +190,7 @@ export function createReactRouter<
             scope.bsb.auth,
             loaderOptions,
             scope.tenant,
-            options.authorizer,
+            server.authorizer,
             scope,
           );
 
@@ -229,7 +229,7 @@ export function createReactRouter<
             // action has no schema; requireOrganization refused a missing tenant.
             (parsed, caller) =>
               fn(parsed as never, { ...scope, ...caller } as never, args),
-            options.authorizer,
+            server.authorizer,
             scope,
           );
 

@@ -5,13 +5,14 @@ import type { AuthSession } from "../auth/view.ts";
 import type {
   AnyAuthorizer,
   AuthorizationResource,
+  RequestMemo,
 } from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
 import type { GuardOptions } from "./respond.ts";
 
 import { authContext } from "../auth/context.ts";
 import { toSession } from "../auth/view.ts";
-import { checkPermission } from "../core/authorizer.ts";
+import { checkPermission, isRequestMemo } from "../core/authorizer.ts";
 import { claimAt } from "../core/claims.ts";
 import { dbError } from "../core/errors.ts";
 import { validate } from "../core/standard.ts";
@@ -217,6 +218,13 @@ async function loadResource(
   return data as AuthorizationResource;
 }
 
+/** The scope's `RequestMemo`, when the scope is a server context. */
+function memoOf(scope: object | undefined): RequestMemo | undefined {
+  return scope && "memo" in scope && isRequestMemo(scope.memo)
+    ? scope.memo
+    : undefined;
+}
+
 /**
  * `requireOrganization`, `roles`, `permission` and `authorize`, in that order:
  * the session and tenant, or why the caller is refused.
@@ -259,6 +267,8 @@ export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
       return resource;
     }
 
+    const memo = memoOf(scope);
+
     const permitted = await checkPermission({
       authorizer,
       permission: checks.permission,
@@ -267,6 +277,7 @@ export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
         ...authContext(auth),
         ...(tenant === undefined ? {} : { tenant }),
       },
+      ...(memo ? { runtime: { memo } } : {}),
     });
 
     if (!permitted.ok) {

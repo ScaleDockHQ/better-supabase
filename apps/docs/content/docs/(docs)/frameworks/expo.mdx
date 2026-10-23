@@ -213,3 +213,22 @@ use the [React Native client](/docs/frontend/react-native) and, for offline
 reads, a [PowerSync database](/docs/frontend/powersync). The
 [Expo example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/expo-powersync)
 runs one list definition on both.
+
+## Session snapshot
+
+In an API route, `bsb.snapshot(request)` returns the verified user, shared by
+every call with the same token, and `bsb.contextFromSession(snapshot)` builds
+a context from it with no second verification:
+
+```ts title="app/api/notes+api.ts"
+export async function GET(request: Request) {
+  const { db } = await bsb.contextFromSession(await bsb.snapshot(request));
+  return Response.json(await db.notes.list().orThrow());
+}
+```
+
+A snapshot holds the access token: never return it in a response. A copy
+of it (a spread, `structuredClone`, a serialized loader result) gets the
+`invalid` context, so pass plain values such as the user id onward instead.
+Prefetches never refresh the session, so parallel prefetches never race on
+the refresh token.

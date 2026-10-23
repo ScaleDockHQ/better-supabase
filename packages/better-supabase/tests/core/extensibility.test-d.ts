@@ -43,6 +43,8 @@ import type {
   AuthorizationOutcome,
   AuthorizationRequest,
   Authorizer,
+  AuthorizerRuntime,
+  AuthzVersionCache,
   PermissionRef,
 } from "../../src/core/authorizer.ts";
 import type {
@@ -117,6 +119,7 @@ import {
   stripeTax,
 } from "../../src/commerce/index.ts";
 import { jsonSchema } from "../../src/config/index.ts";
+import { bindAuthorizer } from "../../src/core/authorizer.ts";
 import {
   extendBlock,
   withBlockHooks,
@@ -257,9 +260,31 @@ describe("Authorizer", () => {
     expectTypeOf<Authorizer<"read">["evaluations"]>().toEqualTypeOf<
       | ((
           requests: readonly AuthorizationRequest<"read">[],
+          runtime?: AuthorizerRuntime,
         ) => Promise<readonly AuthorizationOutcome[]>)
       | undefined
     >();
+  });
+
+  it("takes an optional runtime, so v1 authorizers without one still fit", () => {
+    const versions: AuthzVersionCache = { evict: () => undefined };
+    const seen: (AuthorizerRuntime | undefined)[] = [];
+
+    const withRuntime: Authorizer<"read"> = {
+      apiVersion: 1,
+      name: "versioned",
+      key: (ref) => ref,
+      evaluate: (_request, runtime) => {
+        seen.push(runtime);
+
+        return { outcome: "granted" };
+      },
+    };
+
+    expectTypeOf(bindAuthorizer(withRuntime, { versions })).toEqualTypeOf<
+      Authorizer<"read">
+    >();
+    expectTypeOf(seen).toEqualTypeOf<(AuthorizerRuntime | undefined)[]>();
   });
 
   it("carries its permission type to adapters", () => {

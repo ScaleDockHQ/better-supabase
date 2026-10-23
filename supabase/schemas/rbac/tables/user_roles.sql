@@ -11,6 +11,10 @@ create table rbac.user_roles (
   role rbac.app_role not null
 );
 
+create trigger user_roles_bump_authz_version
+  after insert or update or delete on rbac.user_roles
+  for each row execute function rbac.bump_authz_version();
+
 alter table rbac.user_roles enable row level security;
 
 create policy "Auth admin reads user roles" on rbac.user_roles

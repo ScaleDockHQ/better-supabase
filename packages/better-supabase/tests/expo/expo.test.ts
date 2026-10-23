@@ -9,6 +9,7 @@ import { err, ok } from "../../src/core/result.ts";
 import { createExpo } from "../../src/expo/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { countResolutions } from "../fixtures/instant-sessions.ts";
 
 const written = vi.hoisted(() => ({ headers: new Headers() }));
 
@@ -266,5 +267,44 @@ describe("createExpo", () => {
     const failed = await throwing(request);
     expect(failed.status).toBe(500);
     expect(await failed.text()).not.toContain("boom");
+  });
+
+  it("verifies once for two loaders in one request", async () => {
+    const resolutions = countResolutions(betterSupabase);
+
+    const request = new Request("https://app.test/two", {
+      headers: { cookie: await sessionCookie(3600, "r-two") },
+    });
+
+    const loader = async () => {
+      const ctx = await bsb.contextFromSession(await bsb.snapshot(request));
+
+      return ctx.auth.kind === "user" ? ctx.auth.user.id : null;
+    };
+
+    expect(await Promise.all([loader(), loader()])).toEqual([USER, USER]);
+    expect(resolutions.count()).toBe(1);
+    resolutions.stop();
+  });
+
+  it("never refreshes an expired cookie on a prefetch", async () => {
+    const cookie = await sessionCookie(-60, "r-prefetch");
+
+    const headers = {
+      cookie,
+      "sec-fetch-dest": "document",
+      "sec-fetch-mode": "navigate",
+    };
+
+    await bsb.middleware()(
+      immutable("https://app.test/prefetch", {
+        ...headers,
+        "sec-purpose": "prefetch",
+      }),
+    );
+    expect(refreshed).not.toHaveBeenCalled();
+
+    await bsb.middleware()(immutable("https://app.test/prefetch", headers));
+    expect(refreshed).toHaveBeenCalledOnce();
   });
 });

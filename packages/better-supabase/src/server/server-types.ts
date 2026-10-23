@@ -5,9 +5,19 @@ import type {
   AuthResolution,
   AuthState,
   ResolveAuthOptions,
+  ResolvePhase,
 } from "../auth/resolve.ts";
 import type { CookieWrite } from "../auth/session.ts";
-import type { AnyAuthorizer } from "../core/authorizer.ts";
+import type {
+  SessionMemoOptions,
+  SessionMemoStats,
+  SessionSnapshot,
+} from "../auth/snapshot.ts";
+import type {
+  AnyAuthorizer,
+  AuthzVersionCache,
+  RequestMemo,
+} from "../core/authorizer.ts";
 import type {
   AuthorizationHooks,
   TicketSubject,
@@ -172,6 +182,30 @@ export interface ServerOptions {
    * `forContext` reads `tickets.subject`, when their own options are unset.
    */
   readonly authorization?: AuthorizationHooks;
+  /**
+   * The authorization library's version cache, created once at module scope. It
+   * reaches every authorizer decision (`AuthorizerRuntime.versions`), and
+   * `invalidateSession` evicts the user from it.
+   */
+  readonly versions?: AuthzVersionCache;
+  /**
+   * The verified-session memo `snapshot()` and adapters share across cache
+   * scopes: size and lifetime, or `false` to verify in every scope.
+   */
+  readonly sessions?: SessionMemoOptions | false;
+}
+
+/** The verified-session memo of a server (`server.sessions`). */
+export interface ServerSessions<C = unknown, P = unknown> {
+  stats(): SessionMemoStats;
+  /**
+   * Stores a user verified elsewhere (the proxy after a refresh, a sign-in), so
+   * the render's first scope doesn't verify again.
+   */
+  seed(auth: AuthState<C, P>): Promise<void>;
+  /** Forgets a user's sessions (sign-out, role change). */
+  evict(userId: string): void;
+  clear(): void;
 }
 
 export interface ForContextOptions {
@@ -252,6 +286,8 @@ export interface ServerContext<
   readonly credentials?: CredentialProvider;
   readonly requestId?: string;
   readonly correlationId?: string;
+  /** Work this context's permission checks share (`AuthorizerRuntime.memo`). */
+  readonly memo?: RequestMemo;
 }
 
 export interface ContextOptions {
@@ -323,6 +359,13 @@ export interface BetterServer<
       readonly refresh?: boolean;
       readonly cookies?: boolean;
       readonly checkSession?: boolean;
+      /**
+       * With `refresh`, refresh a token expiring within this many seconds.
+       * Defaults to `auth.leeway`, else 60.
+       */
+      readonly leeway?: number;
+      /** Milliseconds per phase, for `Server-Timing`. */
+      readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
     },
   ): Promise<AuthResolution<C, P>>;
   /**
@@ -427,10 +470,37 @@ export interface BetterServer<
   ): AsyncResult<Db<M, F, E, undefined, B>>;
   /** Support sessions; every method fails without `ServerOptions.support`. */
   readonly support: SupportApi;
-  /** `options.authorizer`, when the server has one. */
+  /** `options.authorizer`, when the server has one, bound to `options.versions`. */
   readonly authorizer: AnyAuthorizer | undefined;
   /** `options.authorization`, when the server has one. */
   readonly authorization: AuthorizationHooks | undefined;
+  /** `options.versions`, when the server has one. */
+  readonly versions: AuthzVersionCache | undefined;
+  /**
+   * The verified session of a request, shared by every scope that resolves the
+   * same token: the first verifies it, the rest await that verification. `null`
+   * for anyone but a signed-in user with a valid token. Never refreshes.
+   */
+  snapshot(request: Request): Promise<SessionSnapshot<C> | null>;
+  /**
+   * The context of a session snapshot: stateless clients and the claims, with
+   * no cookie access and no network call. A snapshot this process didn't build
+   * (one that crossed serialization) is verified again through the memo; one
+   * whose token doesn't verify, or names another user, gets an `invalid`
+   * context. `null` (no session) gets an anonymous one.
+   */
+  contextFromSession(
+    snapshot: SessionSnapshot<C> | null,
+    options?: ContextOptions,
+  ): Promise<ServerContext<M, F, E, C, P, B>>;
+  /** The verified-session memo behind `snapshot()`. */
+  readonly sessions: ServerSessions<C, P>;
+
+  /**
+   * Evicts the user from the session memo and `versions`. Adapters with a cache
+   * layer also invalidate its tags.
+   */
+  forgetSession(userId: string): Promise<void>;
 }
 
 export type ServerKeys = keyof BetterServer<AnyModels, AnyFunctions, unknown>;

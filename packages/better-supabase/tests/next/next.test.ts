@@ -115,8 +115,10 @@ describe("shouldRefresh", () => {
 });
 
 describe("shouldCheckSession", () => {
-  it("checks document loads and the listed paths", () => {
+  it("checks document loads, only to the listed paths when there are any", () => {
     expect(shouldCheckSession(page())).toBe(true);
+    expect(shouldCheckSession(page(), { paths: ["/dashboard"] })).toBe(true);
+    expect(shouldCheckSession(page(), { paths: ["/settings"] })).toBe(false);
 
     const navigation = page({
       headers: { "sec-fetch-dest": "empty", rsc: "1" },
@@ -124,8 +126,13 @@ describe("shouldCheckSession", () => {
 
     expect(shouldCheckSession(navigation)).toBe(false);
     expect(shouldCheckSession(navigation, { paths: ["/dashboard"] })).toBe(
-      true,
+      false,
     );
+    expect(
+      shouldCheckSession(
+        page({ headers: { "next-router-segment-prefetch": "/_tree" } }),
+      ),
+    ).toBe(false);
     expect(
       shouldCheckSession(page({ headers: { "next-router-prefetch": "1" } })),
     ).toBe(false);
@@ -421,10 +428,15 @@ describe("createNext", () => {
         headers: { "sec-fetch-dest": "empty", rsc: "1" },
       });
 
-      await bsb.proxy(navigation, { endedSession: { redirect: "/login" } });
+      await bsb.proxy(navigation, {
+        endedSession: { redirect: "/login", paths: ["/dashboard"] },
+      });
+      await bsb.proxy(page({ cookie }), {
+        endedSession: { redirect: "/login", paths: ["/settings"] },
+      });
       expect(fresh).not.toHaveBeenCalled();
 
-      const listed = await bsb.proxy(navigation, {
+      const listed = await bsb.proxy(page({ cookie }), {
         endedSession: { redirect: "/login", paths: ["/dashboard"] },
       });
 
@@ -551,7 +563,7 @@ describe("createNext", () => {
       expect(edited.headers.get("x-user")).toBe(USER);
       expect(edited.headers.get("x-middleware-next")).toBe("1");
       expect(edited.headers.get("server-timing")).toMatch(
-        /^bsb-proxy;dur=\d+\.\d, bsb-verify;dur=\d+\.\d$/,
+        /^bsb-proxy;dur=\d+\.\d, bsb-auth;dur=\d+\.\d, bsb-parse;dur=\d+\.\d, bsb-verify;dur=\d+\.\d$/,
       );
 
       const replaced = await bsb.proxy(page(), {

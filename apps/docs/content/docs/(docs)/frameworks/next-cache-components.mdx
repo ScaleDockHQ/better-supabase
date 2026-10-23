@@ -402,7 +402,9 @@ better-supabase bench`, Apple M5 Max, ES256):
 | After  | 1                | 4             | 0.10 ms         |
 
 The database calls themselves are what's left; count them with the
-[budget](#budget).
+[budget](#budget). The [island pattern](/docs/frameworks/next-islands)
+covers the session memo that shares the verification across scopes, even
+while the first one is still in flight.
 
 Data that is the same for every user belongs in a plain `'use cache'` with
 `bsb.cacheTag()` and `bsb.admin()` (see [cache tags](/docs/frameworks/next#cache-tags)).
@@ -415,7 +417,45 @@ client router cache, so the user sees their own write. Mutations elsewhere
 
 ## 7. Signing in and out
 
-The browser client writes the session cookie, and the router cache still
+The fastest password sign-in runs on the server. `bsb.signIn(credentials)`
+makes one Auth call, writes the session cookies on the action's response,
+stores the verified session for the next render and returns `redirectTo`.
+That is `credentials.next` when it is a same-origin path (so `?next=` can't
+become an open redirect), else `fallback` (`/`):
+
+```ts title="src/features/auth/auth-actions.ts"
+"use server";
+import type { ActionResult, SignedIn } from "better-supabase/next";
+import { bsb } from "@/lib/supabase/server";
+
+export async function signIn(input: {
+  email: string;
+  password: string;
+  next: string | null;
+}): Promise<ActionResult<SignedIn>> {
+  return bsb.signIn(input, { fallback: "/" });
+}
+```
+
+The form then navigates once, with no redirect hop and no
+`router.refresh()`: the action's response already carried the new cookies.
+`mfa` is true when the user has a verified second factor, so send them to
+the challenge first:
+
+```ts
+const result = await signIn({ email, password, next });
+if (result.ok) {
+  const { redirectTo, mfa } = result.data;
+  router.replace(
+    mfa ? `/mfa?next=${encodeURIComponent(redirectTo)}` : redirectTo,
+  );
+}
+```
+
+`safeRedirectPath(next, fallback)` from `better-supabase/server` is the same
+check for your own flows.
+
+For other sign-in methods, the browser client writes the session cookie, and the router cache still
 holds the old private session. Call a Server Action that runs `refresh()`
 after signing in or out:
 

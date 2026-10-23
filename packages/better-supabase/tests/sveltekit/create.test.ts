@@ -6,6 +6,10 @@ import { DbException, dbError } from "../../src/core/errors.ts";
 import { ok } from "../../src/core/result.ts";
 import { createSvelteKit } from "../../src/sveltekit/index.ts";
 import {
+  countResolutions,
+  expiredRequest,
+} from "../fixtures/instant-sessions.ts";
+import {
   betterSupabase,
   env,
   requestAs,
@@ -134,5 +138,52 @@ describe("createSvelteKit", () => {
     const depends = vi.fn();
     bsb.depends({ depends }, "notes", "projects");
     expect(depends.mock.calls).toEqual([["bsb:notes"], ["bsb:projects"]]);
+  });
+
+  it("verifies once for two loaders in one request", async () => {
+    const resolutions = countResolutions(betterSupabase);
+    const request = await requestAs({ role: "member" });
+
+    const users = await withEvent(request, async (event) => {
+      const loaders = [event, event].map(async (scope) => {
+        const { snapshot } = await bsb.require(scope);
+        const ctx = await bsb.contextFromSession(snapshot);
+
+        return ctx.auth.kind === "user" ? ctx.auth.user.id : null;
+      });
+
+      return Promise.all(loaders);
+    });
+
+    expect(users).toEqual([USER, USER]);
+    expect(resolutions.count()).toBe(1);
+    resolutions.stop();
+  });
+
+  it("never refreshes an expired cookie on a prefetch", async () => {
+    const refresh = vi.fn<typeof fetch>(
+      async () => new Response(null, { status: 500 }),
+    );
+
+    const prefetching = createSvelteKit(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks, fetch: refresh },
+      prefetchJwks: false,
+      kit,
+    });
+
+    const load = async (prefetch: boolean) => {
+      const request = await expiredRequest("https://app.test/notes", prefetch);
+      const event = { request, locals: {}, url: new URL(request.url) };
+      await prefetching.handle({
+        event,
+        resolve: async () => new Response(null),
+      });
+    };
+
+    await load(true);
+    expect(refresh).not.toHaveBeenCalled();
+    await load(false);
+    expect(refresh).toHaveBeenCalledOnce();
   });
 });

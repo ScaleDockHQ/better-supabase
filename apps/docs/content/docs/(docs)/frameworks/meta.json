@@ -5,6 +5,7 @@
     "---Supported adapters---",
     "next",
     "next-cache-components",
+    "next-islands",
     "hono",
     "hono-and-next",
     "expo",

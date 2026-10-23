@@ -32,15 +32,28 @@ export function shouldCheckSession(
     return false;
   }
 
-  if (isPrefetch(request)) {
+  if (isPrefetch(request) || !isDocument(request)) {
     return false;
   }
 
-  if (request.headers.get("sec-fetch-dest") === "document") {
-    return true;
+  return options.paths?.includes(request.nextUrl.pathname) ?? true;
+}
+
+/** A top-level page load, not an RSC request, a fetch or an iframe. */
+function isDocument(request: Request): boolean {
+  const h = request.headers;
+
+  if (h.get("rsc") === "1") {
+    return false;
   }
 
-  return options.paths?.includes(request.nextUrl.pathname) ?? false;
+  const dest = h.get("sec-fetch-dest");
+
+  if (dest) {
+    return dest === "document";
+  }
+
+  return h.get("accept")?.includes("text/html") ?? false;
 }
 
 /**

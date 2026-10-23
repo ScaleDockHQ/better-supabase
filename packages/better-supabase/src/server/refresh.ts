@@ -1,10 +1,18 @@
-/** A router or browser prefetch, by its request headers. */
+/**
+ * A router or browser prefetch, by its request headers: Next.js route and
+ * segment prefetches (`next-router-prefetch`, `next-router-segment-prefetch`),
+ * Next's middleware prefetch (`x-middleware-prefetch`), and browser and
+ * speculation-rules prefetches (`purpose`, `sec-purpose`, `x-moz`).
+ */
 export function isPrefetch(request: Request): boolean {
   const h = request.headers;
 
   return (
     h.has("next-router-prefetch") ||
+    h.has("next-router-segment-prefetch") ||
+    h.get("x-middleware-prefetch") === "1" ||
     h.get("purpose") === "prefetch" ||
+    h.get("x-moz") === "prefetch" ||
     (h.get("sec-purpose")?.includes("prefetch") ?? false)
   );
 }

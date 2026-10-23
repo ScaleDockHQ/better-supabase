@@ -469,6 +469,70 @@ import { it } from "vitest";
 it("fails closed", () => testAuthorizationHooks(authorizationHooks()));
 ```
 
+## Version cache
+
+A provider that caches decisions per user can key them on an authorization
+version: a number the database bumps whenever a user's roles or grants
+change. An access token hook copies it into the token as `authz_ver`, and
+`session.authzVersion` (on `AuthSession` and `SessionSnapshot`) reads it, or
+`null` without the claim. `issuedAt` reads `iat` the same way.
+
+The provider's library owns the cache. better-supabase types it
+structurally as `AuthzVersionCache`, which only needs `evict(userId)`.
+Create it once at module scope, never per request or per cache scope, and
+hand it to the server:
+
+```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+import { betterSupabase } from "./index";
+import { versions } from "./authz";
+
+export const bsb = createNext(betterSupabase, { versions });
+```
+
+Every authorizer call then gets `{ versions, memo }` as its runtime
+(`AuthorizerRuntime`): `versions` is the shared cache, and `memo` is a
+`RequestMemo` for reads that several checks in one scope share. Create a
+memo with `requestMemo()` from `better-supabase/server`; nothing request-specific lives in module state.
+`bsb.invalidateSession(userId)` calls `versions.evict(userId)` next to
+expiring the user's cache entries.
+
+To evict on other instances too, have the database broadcast each change on
+a private Realtime channel, and subscribe from the module that creates the
+cache:
+
+```sql
+perform realtime.send(
+  jsonb_build_object('user_id', new.user_id, 'version', new.version),
+  'changed',
+  'authz-versions',
+  true
+);
+```
+
+```ts title="src/lib/supabase/authz.ts"
+import { subscribeAuthzVersions } from "better-supabase/server";
+
+export const versions = createVersionCache();
+
+subscribeAuthzVersions({
+  client: serviceClient,
+  topic: "authz-versions",
+  event: "changed",
+  userIdKey: "user_id",
+  versions,
+  onError: (error) => console.warn(error),
+});
+```
+
+The subscriber joins with the service-role client, so the channel needs no
+`realtime.messages` policy and no user can listen. Each message evicts one
+user; a malformed message goes to `onError`. A second call with the same
+`versions` returns the first subscription; its `ready` promise settles once
+the channel joined, and `close()` leaves it. Start it from that module, not from `instrumentation.ts`, so the
+cache and its subscription live and die together.
+
 ## Test a provider
 
 `testAuthorizationProvider` from `better-supabase/testing` checks API v1,

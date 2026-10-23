@@ -47,3 +47,24 @@ On Cloudflare, `event.platform.env` seeds the pipeline, so `getEnv` inside the
 entries reads the bindings. Compose the hook with others through SvelteKit's
 `sequence`. The bridge makes the request body readable twice, so an entry and
 a form action both see it.
+
+## Session snapshot
+
+The helpers from `createSvelteKit(betterSupabase)` share one verified session
+per token across loads. `bsb.require(event)` returns `snapshot` next to the
+context, and `bsb.contextFromSession(snapshot)` builds another context from
+it with no second verification and no cookie read:
+
+```ts title="src/routes/notes/+page.server.ts"
+export const load = async (event) => {
+  const { snapshot } = await bsb.require(event);
+  const { db } = await bsb.contextFromSession(snapshot);
+  return { notes: await db.notes.list().orThrow() };
+};
+```
+
+A snapshot holds the access token: never return it in a response. A copy
+of it (a spread, `structuredClone`, a serialized loader result) gets the
+`invalid` context, so pass plain values such as the user id onward instead.
+Prefetches never refresh the session, so parallel prefetches never race on
+the refresh token.

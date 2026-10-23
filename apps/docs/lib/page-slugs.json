@@ -230,6 +230,7 @@
   "frameworks/nestjs",
   "frameworks/next",
   "frameworks/next-cache-components",
+  "frameworks/next-islands",
   "frameworks/node",
   "frameworks/nuxt",
   "frameworks/orpc",
