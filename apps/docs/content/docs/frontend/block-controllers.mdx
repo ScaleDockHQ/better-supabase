@@ -144,6 +144,14 @@ and binds it to the framework. `auth` and `ports` come from the app's
 better-supabase plugin, context or provider unless `options` has them. The
 work starts on mount and stops when the component goes away.
 
+Pass `false` as a third argument for a controller that takes neither `auth`
+nor `ports`, so it runs without a provider: `createAiModelsController`,
+`createAiShareController`, `createAttachmentUploadController`,
+`createAvailableSlotsController`, `createCalendarController`,
+`createQuestionnaireController`, `createSavedViewsController` and
+`createCommandSearchController`. Without it, the call reads the provider and
+fails when there is none.
+
 | Entry                    | Returns                                                                  |
 | ------------------------ | ------------------------------------------------------------------------ |
 | `better-supabase/vue`    | `{ state, actions }`, with `state` a shallow ref of the snapshot         |

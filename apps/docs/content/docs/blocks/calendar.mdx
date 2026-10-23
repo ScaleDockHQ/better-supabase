@@ -264,11 +264,15 @@ import { rpcTransport } from "better-supabase/blocks";
 
 const { calendarId } = defineProps<{ calendarId: string }>();
 const supabase = useSupabase();
-const { state } = useBlockController(createCalendarController, {
-  client: createCalendar({ transport: rpcTransport(supabase) }),
-  calendarIds: [calendarId],
-  range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
-});
+const { state } = useBlockController(
+  createCalendarController,
+  {
+    client: createCalendar({ transport: rpcTransport(supabase) }),
+    calendarIds: [calendarId],
+    range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+  },
+  false,
+);
 </script>
 
 <template>
@@ -307,7 +311,7 @@ mount, and the controller is disposed with the component.
     client: createCalendar({ transport: rpcTransport(supabase) }),
     calendarIds: [calendarId],
     range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
-  });
+  }, false);
 </script>
 
 <ul>
@@ -335,11 +339,15 @@ import { rpcTransport } from "better-supabase/blocks";
 
 export function Component(props: { calendarId: string }) {
   const supabase = useSupabase();
-  const { state } = useBlockController(createCalendarController, {
-    client: createCalendar({ transport: rpcTransport(supabase) }),
-    calendarIds: [props.calendarId],
-    range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
-  });
+  const { state } = useBlockController(
+    createCalendarController,
+    {
+      client: createCalendar({ transport: rpcTransport(supabase) }),
+      calendarIds: [props.calendarId],
+      range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+    },
+    false,
+  );
   return (
     <ul>
       <For each={state().occurrences ?? []}>

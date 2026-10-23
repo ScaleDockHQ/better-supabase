@@ -340,11 +340,15 @@ import { rpcTransport } from "better-supabase/blocks";
 
 const { serviceId } = defineProps<{ serviceId: string }>();
 const supabase = useSupabase();
-const { state } = useBlockController(createAvailableSlotsController, {
-  client: createBookings({ transport: rpcTransport(supabase) }),
-  serviceId,
-  range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
-});
+const { state } = useBlockController(
+  createAvailableSlotsController,
+  {
+    client: createBookings({ transport: rpcTransport(supabase) }),
+    serviceId,
+    range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+  },
+  false,
+);
 </script>
 
 <template>
@@ -384,7 +388,7 @@ controller is disposed with the component.
     client: createBookings({ transport: rpcTransport(supabase) }),
     serviceId,
     range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
-  });
+  }, false);
 </script>
 
 <ul>
@@ -413,11 +417,15 @@ import { rpcTransport } from "better-supabase/blocks";
 
 export function Component(props: { serviceId: string }) {
   const supabase = useSupabase();
-  const { state } = useBlockController(createAvailableSlotsController, {
-    client: createBookings({ transport: rpcTransport(supabase) }),
-    serviceId: props.serviceId,
-    range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
-  });
+  const { state } = useBlockController(
+    createAvailableSlotsController,
+    {
+      client: createBookings({ transport: rpcTransport(supabase) }),
+      serviceId: props.serviceId,
+      range: { start: new Date(), end: new Date(Date.now() + 7 * 86_400_000) },
+    },
+    false,
+  );
   return (
     <ul>
       <For each={state().slots ?? []}>

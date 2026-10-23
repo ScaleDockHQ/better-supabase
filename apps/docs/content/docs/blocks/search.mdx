@@ -189,10 +189,14 @@ import {
 
 const { organizationId } = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
-const { state } = useBlockController(createCommandSearchController, {
-  client: createSearch({ transport: rpcTransport(supabase) }),
-  organizationId,
-});
+const { state } = useBlockController(
+  createCommandSearchController,
+  {
+    client: createSearch({ transport: rpcTransport(supabase) }),
+    organizationId,
+  },
+  false,
+);
 </script>
 
 <template>
@@ -229,7 +233,7 @@ is disposed with the component.
   const search = useBlockController(createCommandSearchController, {
     client: createSearch({ transport: rpcTransport(supabase) }),
     organizationId,
-  });
+  }, false);
 </script>
 
 <ul>
@@ -258,10 +262,14 @@ import {
 
 export function Component(props: { organizationId: string }) {
   const supabase = useSupabase();
-  const { state } = useBlockController(createCommandSearchController, {
-    client: createSearch({ transport: rpcTransport(supabase) }),
-    organizationId: props.organizationId,
-  });
+  const { state } = useBlockController(
+    createCommandSearchController,
+    {
+      client: createSearch({ transport: rpcTransport(supabase) }),
+      organizationId: props.organizationId,
+    },
+    false,
+  );
   return (
     <ul>
       <For each={state().results ?? []}>{(hit) => <li>{hit.title}</li>}</For>

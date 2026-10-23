@@ -237,10 +237,11 @@ import {
 } from "better-supabase/blocks/forms";
 
 const { version } = defineProps<{ version: QuestionnaireForm }>();
-const { state, actions } = useBlockController(createQuestionnaireController, {
-  form: version,
-  onSubmit: (answers) => submitForm(formId, answers),
-});
+const { state, actions } = useBlockController(
+  createQuestionnaireController,
+  { form: version, onSubmit: (answers) => submitForm(formId, answers) },
+  false,
+);
 </script>
 
 <template>
@@ -271,7 +272,7 @@ mount, and the controller is disposed with the component.
   const questionnaire = useBlockController(createQuestionnaireController, {
     form: version,
     onSubmit: (answers) => submitForm(formId, answers),
-  });
+  }, false);
 </script>
 
 <p>{$questionnaire.step?.title}</p>
@@ -293,10 +294,11 @@ import {
 } from "better-supabase/blocks/forms";
 
 export function Component(props: { version: QuestionnaireForm }) {
-  const { state, actions } = useBlockController(createQuestionnaireController, {
-    form: props.version,
-    onSubmit: (answers) => submitForm(formId, answers),
-  });
+  const { state, actions } = useBlockController(
+    createQuestionnaireController,
+    { form: props.version, onSubmit: (answers) => submitForm(formId, answers) },
+    false,
+  );
   return (
     <>
       <p>{state().step?.title}</p>
