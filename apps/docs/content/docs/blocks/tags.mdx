@@ -40,10 +40,10 @@ const onCustomer = await tags.list({ on: customer }).orThrow();
 
 ## In the browser
 
-`useTagInput` from `better-supabase/blocks/tags/react` loads a record's tags and every tag of a kind for suggestions through the provider's client. `add(tagId)` and `remove(tagId)` show the change at once and take it back when the module refuses it. `create(name)` adds the tag of that kind with the same name (ignoring case), or creates it first, which needs `tags.manage`. The same hook runs in React DOM and React Native.
+`useTagInput` is a registry item: `npx shadcn add @better-supabase/use-tags` writes `hooks/use-tags.ts` into the app. The hook loads a record's tags and every tag of a kind for suggestions through the provider's client. `add(tagId)` and `remove(tagId)` show the change at once and take it back when the module refuses it. `create(name)` adds the tag of that kind with the same name (ignoring case), or creates it first, which needs `tags.manage`. The same hook runs in React DOM and React Native.
 
 ```tsx title="components/tag-input.tsx"
-import { useTagInput } from "better-supabase/blocks/tags/react";
+import { useTagInput } from "@/hooks/use-tags";
 
 const { tags, available, add, remove, create } = useTagInput({
   subject: { type: "customer", id: customer.id },
@@ -53,18 +53,20 @@ const { tags, available, add, remove, create } = useTagInput({
 
 The hook calls the schema and function names in the `blocks` config passed to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`), so it takes no `schema`, and acts in the client's tenant: the client's `organization` option, then the session's organization claim. It waits while there is no tenant or `subject` is `null`.
 
-`createTagInputController` from `better-supabase/blocks/tags` is the same logic without React, and `better-supabase/blocks/tags/vue`, `/svelte` and `/solid` export `useTagInput` over it, taking the controller's options: a client built with its `organization`, and `subject`. The [tag input recipe](/docs/registry/ui-recipes/tag-input) shows it in the Next.js and Expo examples.
+`createTagInputController` from `better-supabase/blocks/tags` is the same logic without React. Vue, Svelte and Solid run it with `useBlockController` from `better-supabase/vue`, `/svelte` and `/solid` (see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)), passing the controller's options: a client built with its `organization`, and `subject`. The [tag input recipe](/docs/registry/ui-recipes/tag-input) shows it in the Next.js and Expo examples.
 
 ```vue title="CustomerTags.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useTagInput } from "better-supabase/blocks/tags/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
 import { rpcTransport } from "better-supabase/blocks";
-import { createTags } from "better-supabase/blocks/tags";
+import {
+  createTagInputController,
+  createTags,
+} from "better-supabase/blocks/tags";
 
 const props = defineProps<{ organizationId: string; customerId: string }>();
 const supabase = useSupabase();
-const { state, actions } = useTagInput({
+const { state, actions } = useBlockController(createTagInputController, {
   client: createTags({
     transport: rpcTransport(supabase),
     schema: "api",
@@ -88,14 +90,13 @@ const { state, actions } = useTagInput({
 
 ```svelte title="CustomerTags.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useTagInput } from "better-supabase/blocks/tags/svelte";
+  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
   import { rpcTransport } from "better-supabase/blocks";
-  import { createTags } from "better-supabase/blocks/tags";
+  import { createTagInputController, createTags } from "better-supabase/blocks/tags";
 
   let { organizationId, customerId }: { organizationId: string; customerId: string } = $props();
   const { supabase } = getBetterSupabase();
-  const tags = useTagInput({
+  const tags = useBlockController(createTagInputController, {
     client: createTags({
       transport: rpcTransport(supabase),
       schema: "api",
@@ -110,17 +111,19 @@ const { state, actions } = useTagInput({
 ```
 
 ```tsx title="CustomerTags.tsx"
-import { useSupabase } from "better-supabase/solid";
-import { useTagInput } from "better-supabase/blocks/tags/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
 import { rpcTransport } from "better-supabase/blocks";
-import { createTags } from "better-supabase/blocks/tags";
+import {
+  createTagInputController,
+  createTags,
+} from "better-supabase/blocks/tags";
 
 export function CustomerTags(props: {
   organizationId: string;
   customerId: string;
 }) {
   const supabase = useSupabase();
-  const { state } = useTagInput({
+  const { state } = useBlockController(createTagInputController, {
     client: createTags({
       transport: rpcTransport(supabase),
       schema: "api",

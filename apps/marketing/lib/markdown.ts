@@ -77,7 +77,7 @@ export function blockMarkdown(
 
   if (block.react) {
     sections.push(
-      `The React hooks are in \`${block.react.subpath}\`. They return data and actions and render no UI. Source: ${site.github}/blob/main/${block.react.source}`,
+      `The React hooks are the registry item \`${block.react.item}\` (\`npx shadcn add ${block.react.item}\`). They return data and actions and render no UI. Source: ${site.github}/blob/main/${block.react.source}`,
     );
   } else if (block.subpath) {
     sections.push(

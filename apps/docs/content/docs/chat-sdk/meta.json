@@ -1,11 +1,4 @@
 {
   "title": "Chat SDK",
-  "pages": [
-    "index",
-    "state",
-    "inbox-adapter",
-    "channels",
-    "identities",
-    "react"
-  ]
+  "pages": ["index", "state", "inbox-adapter", "channels", "identities"]
 }

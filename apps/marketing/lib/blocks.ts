@@ -21,7 +21,7 @@ const catalogSchema = v.object({
       modes: names,
       events: names,
       subpath: v.nullable(v.string()),
-      react: v.nullable(v.object({ subpath: v.string(), source: v.string() })),
+      react: v.nullable(v.object({ item: v.string(), source: v.string() })),
       docs: v.string(),
     }),
   ),

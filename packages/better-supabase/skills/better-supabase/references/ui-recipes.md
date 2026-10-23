@@ -8,7 +8,7 @@ Build the UI this way: add the shadcn components the recipe lists, install the g
 
 ## Notification bell
 
-A header button with the unread count, which updates when a notification arrives or is read. Both sides call `useNotifications` from `better-supabase/blocks/notifications/react`; the [notifications block](https://bettersupabase.com/blocks/notifications) must be installed (`npx better-supabase add notifications`). Page: https://bettersupabase.com/recipes/notification-bell.
+A header button with the unread count, which updates when a notification arrives or is read. Both sides call `useNotifications` from `@/hooks/use-notifications`; the [notifications block](https://bettersupabase.com/blocks/notifications) must be installed (`npx better-supabase add notifications`). Page: https://bettersupabase.com/recipes/notification-bell.
 
 Web, with shadcn components:
 
@@ -17,7 +17,7 @@ npx shadcn add badge button
 ```
 
 ```bash
-npx shadcn add @better-supabase/notifications-actions-next
+npx shadcn add @better-supabase/use-notifications @better-supabase/notifications-actions-next
 ```
 
 ```tsx title="apps/examples/nextjs/src/features/notifications/components/unread-badge.tsx"
@@ -25,12 +25,12 @@ npx shadcn add @better-supabase/notifications-actions-next
 
 import type { NotificationCounts } from "better-supabase/blocks/notifications";
 
-import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { BellIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { useNotifications } from "@/hooks/use-notifications";
 import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
 
@@ -96,16 +96,16 @@ export function UnreadBadge() {
 React Native, with `Pressable`, `Text`, `View` from `react-native`:
 
 ```bash
-npx shadcn add @better-supabase/blocks
+npx shadcn add @better-supabase/use-notifications @better-supabase/blocks
 ```
 
 ```tsx title="apps/examples/expo-powersync/src/components/notification-bell.tsx"
 import type { NotificationCounts } from "better-supabase/blocks/notifications";
 
-import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { tenantOf, useAuth, useSupabase } from "better-supabase/react";
 import { Pressable, Text, View } from "react-native";
 
+import { useNotifications } from "../hooks/use-notifications";
 import { blocks } from "../lib/blocks";
 
 const unreadOf = (counts: readonly NotificationCounts[]): number =>
@@ -166,7 +166,7 @@ export function NotificationBell({
 
 ## Notification list
 
-The caller's latest notifications with an unread marker, loaded again on every change. Both sides call `useNotifications` from `better-supabase/blocks/notifications/react`; the [notifications block](https://bettersupabase.com/blocks/notifications) must be installed (`npx better-supabase add notifications`). Page: https://bettersupabase.com/recipes/notification-list.
+The caller's latest notifications with an unread marker, loaded again on every change. Both sides call `useNotifications` from `@/hooks/use-notifications`; the [notifications block](https://bettersupabase.com/blocks/notifications) must be installed (`npx better-supabase add notifications`). Page: https://bettersupabase.com/recipes/notification-list.
 
 Web, with shadcn components:
 
@@ -175,13 +175,12 @@ npx shadcn add badge empty skeleton
 ```
 
 ```bash
-npx shadcn add @better-supabase/notifications-actions-next
+npx shadcn add @better-supabase/use-notifications @better-supabase/notifications-actions-next
 ```
 
 ```tsx title="apps/examples/nextjs/src/features/notifications/components/notification-list.tsx"
 "use client";
 
-import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { BellIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -194,6 +193,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useNotifications } from "@/hooks/use-notifications";
 import { useAuth } from "@/lib/hooks";
 
 import type { NotificationRow } from "../notification-types";
@@ -276,14 +276,14 @@ function NotificationListSkeleton() {
 React Native, with `ActivityIndicator`, `FlatList`, `Text`, `View` from `react-native`:
 
 ```bash
-npx shadcn add @better-supabase/blocks
+npx shadcn add @better-supabase/use-notifications @better-supabase/blocks
 ```
 
 ```tsx title="apps/examples/expo-powersync/src/components/notification-list.tsx"
-import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { tenantOf, useAuth, useSupabase } from "better-supabase/react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
 
+import { useNotifications } from "../hooks/use-notifications";
 import { blocks } from "../lib/blocks";
 
 /**
@@ -340,7 +340,7 @@ export function NotificationList() {
 
 ## Command search
 
-A search dialog over the search index, with favorites and recents before the user types. Both sides call `useCommandSearch` from `better-supabase/blocks/search/react`; the [search block](https://bettersupabase.com/blocks/search) must be installed (`npx better-supabase add search`). Page: https://bettersupabase.com/recipes/command-search.
+A search dialog over the search index, with favorites and recents before the user types. Both sides call `useCommandSearch` from `@/hooks/use-search`; the [search block](https://bettersupabase.com/blocks/search) must be installed (`npx better-supabase add search`). Page: https://bettersupabase.com/recipes/command-search.
 
 Web, with shadcn components:
 
@@ -348,10 +348,13 @@ Web, with shadcn components:
 npx shadcn add button dialog input
 ```
 
+```bash
+npx shadcn add @better-supabase/use-search
+```
+
 ```tsx title="apps/examples/nextjs/src/features/search/components/command-search.tsx"
 "use client";
 
-import { useCommandSearch } from "better-supabase/blocks/search/react";
 import { SearchIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -364,6 +367,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useCommandSearch } from "@/hooks/use-search";
 import { Link } from "@/i18n/navigation";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
@@ -466,8 +470,11 @@ export function CommandSearch() {
 
 React Native, with `Modal`, `Pressable`, `SectionList`, `Text`, `TextInput`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-search
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/command-search.tsx"
-import { useCommandSearch } from "better-supabase/blocks/search/react";
 import {
   Modal,
   Pressable,
@@ -477,6 +484,7 @@ import {
   View,
 } from "react-native";
 
+import { useCommandSearch } from "../hooks/use-search";
 import { API_SCHEMA } from "../lib/blocks";
 
 function heading(key: string): string {
@@ -577,7 +585,7 @@ export function CommandSearch() {
 
 ## Onboarding checklist
 
-The organization's getting-started steps with progress, hidden once every step is done. Both sides call `useOnboarding` from `better-supabase/blocks/onboarding/react`; the [onboarding block](https://bettersupabase.com/blocks/onboarding) must be installed (`npx better-supabase add onboarding`). Page: https://bettersupabase.com/recipes/onboarding-checklist.
+The organization's getting-started steps with progress, hidden once every step is done. Both sides call `useOnboarding` from `@/hooks/use-onboarding`; the [onboarding block](https://bettersupabase.com/blocks/onboarding) must be installed (`npx better-supabase add onboarding`). Page: https://bettersupabase.com/recipes/onboarding-checklist.
 
 Web, with shadcn components:
 
@@ -586,13 +594,12 @@ npx shadcn add button card progress skeleton
 ```
 
 ```bash
-npx shadcn add @better-supabase/onboarding-checklist
+npx shadcn add @better-supabase/use-onboarding @better-supabase/onboarding-checklist
 ```
 
 ```tsx title="apps/examples/nextjs/src/features/dashboard/components/onboarding-card.tsx"
 "use client";
 
-import { useOnboarding } from "better-supabase/blocks/onboarding/react";
 import { tenantOf } from "better-supabase/react";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
@@ -608,6 +615,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { gettingStarted } from "@/features/onboarding/checklist";
+import { useOnboarding } from "@/hooks/use-onboarding";
 import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -698,14 +706,14 @@ export function OnboardingCardSkeleton() {
 React Native, with `ActivityIndicator`, `Text`, `View` from `react-native`:
 
 ```bash
-npx shadcn add @better-supabase/onboarding-checklist
+npx shadcn add @better-supabase/use-onboarding @better-supabase/onboarding-checklist
 ```
 
 ```tsx title="apps/examples/expo-powersync/src/components/onboarding-checklist.tsx"
-import { useOnboarding } from "better-supabase/blocks/onboarding/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { ActivityIndicator, Text, View } from "react-native";
 
+import { useOnboarding } from "../hooks/use-onboarding";
 import { API_SCHEMA } from "../lib/blocks";
 import { gettingStarted } from "../lib/onboarding";
 
@@ -765,7 +773,7 @@ export function OnboardingChecklist() {
 
 ## Comment thread
 
-A record's comments with their authors and a form to add one, kept current after each write. Both sides call `useComments` from `better-supabase/blocks/comments/react`; the [comments block](https://bettersupabase.com/blocks/comments) must be installed (`npx better-supabase add comments`). Page: https://bettersupabase.com/recipes/comment-thread.
+A record's comments with their authors and a form to add one, kept current after each write. Both sides call `useComments` from `@/hooks/use-comments`; the [comments block](https://bettersupabase.com/blocks/comments) must be installed (`npx better-supabase add comments`). Page: https://bettersupabase.com/recipes/comment-thread.
 
 Web, with shadcn components:
 
@@ -773,12 +781,15 @@ Web, with shadcn components:
 npx shadcn add button field skeleton textarea
 ```
 
+```bash
+npx shadcn add @better-supabase/use-comments
+```
+
 ```tsx title="apps/examples/nextjs/src/features/customers/components/comment-thread.tsx"
 "use client";
 
 import type { SubmitEvent } from "react";
 
-import { useComments } from "better-supabase/blocks/comments/react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState } from "react";
 
@@ -786,6 +797,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useComments } from "@/hooks/use-comments";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -888,8 +900,11 @@ export function CommentThread({
 
 React Native, with `ActivityIndicator`, `Button`, `FlatList`, `Text`, `TextInput`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-comments
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/comment-thread.tsx"
-import { useComments } from "better-supabase/blocks/comments/react";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -899,6 +914,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+import { useComments } from "../hooks/use-comments";
 
 /** A customer's comments, oldest first, with a box to add one. */
 export function CommentThread({ customerId }: { readonly customerId: string }) {
@@ -965,7 +982,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
 ## Organization switcher
 
-A menu of the user's organizations that switches the active one and refreshes the session for its tenant claim. Both sides call `useOrganizations` from `better-supabase/blocks/organizations/react`; the [organizations block](https://bettersupabase.com/blocks/organizations) must be installed (`npx better-supabase add organizations`). Page: https://bettersupabase.com/recipes/org-switcher.
+A menu of the user's organizations that switches the active one and refreshes the session for its tenant claim. Both sides call `useOrganizations` from `@/hooks/use-organizations`; the [organizations block](https://bettersupabase.com/blocks/organizations) must be installed (`npx better-supabase add organizations`). Page: https://bettersupabase.com/recipes/org-switcher.
 
 Web, with shadcn components:
 
@@ -973,11 +990,14 @@ Web, with shadcn components:
 npx shadcn add dropdown-menu sidebar
 ```
 
+```bash
+npx shadcn add @better-supabase/use-organizations
+```
+
 ```tsx title="apps/examples/nextjs/src/features/organization/components/organization-switcher-menu.tsx"
 "use client";
 
 import { DbException } from "better-supabase";
-import { useOrganizations } from "better-supabase/blocks/organizations/react";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
@@ -993,6 +1013,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
+import { useOrganizations } from "@/hooks/use-organizations";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
@@ -1132,10 +1153,14 @@ export function OrganizationSwitcherMenu({
 
 React Native, with `ActivityIndicator`, `Pressable`, `Text`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-organizations
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/organization-switcher.tsx"
-import { useOrganizations } from "better-supabase/blocks/organizations/react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
+import { useOrganizations } from "../hooks/use-organizations";
 import { API_SCHEMA } from "../lib/blocks";
 
 /**
@@ -1180,7 +1205,7 @@ export function OrganizationSwitcher() {
 
 ## Plan picker
 
-The plans with their prices and a checkout button each. Checkout starts in a server action or API route that holds the Stripe key, and the client opens the URL it returns. Both sides call `usePlanPicker` from `better-supabase/blocks/billing/react`; the [billing block](https://bettersupabase.com/blocks/billing) must be installed (`npx better-supabase add billing`). Page: https://bettersupabase.com/recipes/plan-picker.
+The plans with their prices and a checkout button each. Checkout starts in a server action or API route that holds the Stripe key, and the client opens the URL it returns. Both sides call `usePlanPicker` from `@/hooks/use-billing`; the [billing block](https://bettersupabase.com/blocks/billing) must be installed (`npx better-supabase add billing`). Page: https://bettersupabase.com/recipes/plan-picker.
 
 Web, with shadcn components:
 
@@ -1188,17 +1213,21 @@ Web, with shadcn components:
 npx shadcn add button card
 ```
 
+```bash
+npx shadcn add @better-supabase/use-billing
+```
+
 ```tsx title="apps/examples/nextjs/src/features/billing/components/plan-picker.tsx"
 "use client";
 
-import type { PlanCatalog } from "better-supabase/blocks/billing/react";
 import type { Money } from "better-supabase/commerce";
 
 import { DbException } from "better-supabase";
-import { usePlanPicker } from "better-supabase/blocks/billing/react";
 import { formatMoney } from "better-supabase/commerce";
 import { useExtracted, useLocale } from "next-intl";
 import { toast } from "sonner";
+
+import type { PlanCatalog } from "@/hooks/use-billing";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -1209,6 +1238,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { usePlanPicker } from "@/hooks/use-billing";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { PlanOption } from "../billing-queries";
@@ -1328,12 +1358,16 @@ export function PlanPicker({
 
 React Native, with `ActivityIndicator`, `Pressable`, `Text`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-billing
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/plan-picker.tsx"
-import { usePlanPicker } from "better-supabase/blocks/billing/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import * as WebBrowser from "expo-web-browser";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
+import { usePlanPicker } from "../hooks/use-billing";
 import { loadPlanCatalog, startCheckout } from "../lib/billing";
 
 const price = (cents: number) =>
@@ -1403,7 +1437,7 @@ export function PlanPicker() {
 
 ## Usage meter
 
-This period's usage per meter against the plan's quota, with the reset date. Both sides call `useUsageMeter` from `better-supabase/blocks/usage/react`; the [usage block](https://bettersupabase.com/blocks/usage) must be installed (`npx better-supabase add usage`). Page: https://bettersupabase.com/recipes/usage-meter.
+This period's usage per meter against the plan's quota, with the reset date. Both sides call `useUsageMeter` from `@/hooks/use-usage`; the [usage block](https://bettersupabase.com/blocks/usage) must be installed (`npx better-supabase add usage`). Page: https://bettersupabase.com/recipes/usage-meter.
 
 Web, with shadcn components:
 
@@ -1411,10 +1445,13 @@ Web, with shadcn components:
 npx shadcn add card progress skeleton
 ```
 
+```bash
+npx shadcn add @better-supabase/use-usage
+```
+
 ```tsx title="apps/examples/nextjs/src/features/dashboard/components/usage-card.tsx"
 "use client";
 
-import { useUsageMeter } from "better-supabase/blocks/usage/react";
 import { tenantOf } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -1427,6 +1464,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUsageMeter } from "@/hooks/use-usage";
 import { useAuth } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
@@ -1513,11 +1551,15 @@ export function UsageCardSkeleton() {
 
 React Native, with `ActivityIndicator`, `Text`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-usage
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/usage-meter.tsx"
-import { useUsageMeter } from "better-supabase/blocks/usage/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { ActivityIndicator, Text, View } from "react-native";
 
+import { useUsageMeter } from "../hooks/use-usage";
 import { API_SCHEMA } from "../lib/blocks";
 
 const labels = new Map([
@@ -1583,7 +1625,7 @@ export function UsageMeter() {
 
 ## Feature gate
 
-Content shown only when the active organization's plan includes a feature, read from the session's features claim and updated when the session refreshes. Both sides call `useFeatureGate` from `better-supabase/blocks/entitlements/react`; the [entitlements block](https://bettersupabase.com/blocks/entitlements) must be installed (`npx better-supabase add entitlements`). Page: https://bettersupabase.com/recipes/feature-gate.
+Content shown only when the active organization's plan includes a feature, read from the session's features claim and updated when the session refreshes. Both sides call `useFeatureGate` from `@/hooks/use-entitlements`; the [entitlements block](https://bettersupabase.com/blocks/entitlements) must be installed (`npx better-supabase add entitlements`). Page: https://bettersupabase.com/recipes/feature-gate.
 
 Web, with shadcn components:
 
@@ -1591,12 +1633,15 @@ Web, with shadcn components:
 npx shadcn add button skeleton
 ```
 
+```bash
+npx shadcn add @better-supabase/use-entitlements
+```
+
 ```tsx title="apps/examples/nextjs/src/features/billing/components/feature-gate.tsx"
 "use client";
 
 import type { ReactNode } from "react";
 
-import { useFeatureGate } from "better-supabase/blocks/entitlements/react";
 import { LockIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -1604,6 +1649,7 @@ import type { Entitlement } from "@/lib/claims";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFeatureGate } from "@/hooks/use-entitlements";
 import { Link } from "@/i18n/navigation";
 
 /**
@@ -1644,11 +1690,16 @@ export function FeatureGate({
 
 React Native, with `ActivityIndicator`, `Text`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-entitlements
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/feature-gate.tsx"
 import type { ReactNode } from "react";
 
-import { useFeatureGate } from "better-supabase/blocks/entitlements/react";
 import { ActivityIndicator, Text, View } from "react-native";
+
+import { useFeatureGate } from "../hooks/use-entitlements";
 
 /**
  * Renders `children` only when the active organization's plan includes
@@ -1685,7 +1736,7 @@ export function FeatureGate({
 
 ## Settings layout
 
-Settings pages generated from the settings definition: a section per scope and a control per key, picked by the kind its schema declares. Both sides call `useSettings` from `better-supabase/blocks/settings/react`; the [settings block](https://bettersupabase.com/blocks/settings) must be installed (`npx better-supabase add settings`). Page: https://bettersupabase.com/recipes/settings-layout.
+Settings pages generated from the settings definition: a section per scope and a control per key, picked by the kind its schema declares. Both sides call `useSettings` from `@/hooks/use-settings`; the [settings block](https://bettersupabase.com/blocks/settings) must be installed (`npx better-supabase add settings`). Page: https://bettersupabase.com/recipes/settings-layout.
 
 Web, with shadcn components:
 
@@ -1693,20 +1744,21 @@ Web, with shadcn components:
 npx shadcn add card field input select skeleton switch
 ```
 
+```bash
+npx shadcn add @better-supabase/use-settings
+```
+
 ```tsx title="apps/examples/nextjs/src/features/settings/components/settings-layout.tsx"
 "use client";
 
 import type { SettingEntries } from "better-supabase/blocks/settings";
-import type {
-  SettingField,
-  SettingsState,
-} from "better-supabase/blocks/settings/react";
 
-import { useSettings } from "better-supabase/blocks/settings/react";
 import { tenantOf } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 import { toast } from "sonner";
+
+import type { SettingField, SettingsState } from "@/hooks/use-settings";
 
 import {
   Card,
@@ -1732,6 +1784,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
@@ -1941,14 +1994,13 @@ export function SettingsLayout({
 
 React Native, with `ActivityIndicator`, `Pressable`, `ScrollView`, `Switch`, `Text`, `TextInput`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-settings
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/settings-layout.tsx"
 import type { SettingEntries } from "better-supabase/blocks/settings";
-import type {
-  SettingField,
-  SettingsState,
-} from "better-supabase/blocks/settings/react";
 
-import { useSettings } from "better-supabase/blocks/settings/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import {
   ActivityIndicator,
@@ -1960,6 +2012,9 @@ import {
   View,
 } from "react-native";
 
+import type { SettingField, SettingsState } from "../hooks/use-settings";
+
+import { useSettings } from "../hooks/use-settings";
 import { API_SCHEMA } from "../lib/blocks";
 import { settings } from "../lib/settings";
 
@@ -2103,7 +2158,7 @@ export function SettingsLayout() {
 
 ## Members table
 
-An organization's members with their roles, where a role change shows at once and a member can be removed. Both sides call `useMembers` from `better-supabase/blocks/organizations/react`; the [organizations block](https://bettersupabase.com/blocks/organizations) must be installed (`npx better-supabase add organizations`). Page: https://bettersupabase.com/recipes/members-table.
+An organization's members with their roles, where a role change shows at once and a member can be removed. Both sides call `useMembers` from `@/hooks/use-organizations`; the [organizations block](https://bettersupabase.com/blocks/organizations) must be installed (`npx better-supabase add organizations`). Page: https://bettersupabase.com/recipes/members-table.
 
 Web, with shadcn components:
 
@@ -2111,11 +2166,14 @@ Web, with shadcn components:
 npx shadcn add avatar button select table
 ```
 
+```bash
+npx shadcn add @better-supabase/use-organizations
+```
+
 ```tsx title="apps/examples/nextjs/src/features/organization/components/member-table.tsx"
 "use client";
 
 import { DbException } from "better-supabase";
-import { useMembers } from "better-supabase/blocks/organizations/react";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { toast } from "sonner";
@@ -2140,6 +2198,7 @@ import {
 } from "@/components/ui/table";
 import { RoleBadge } from "@/features/user/components/role-badge";
 import { assignableRoles } from "@/features/user/user-permissions";
+import { useMembers } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
@@ -2337,11 +2396,15 @@ export function MemberTable({
 
 React Native, with `ActivityIndicator`, `Pressable`, `Text`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-organizations
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/members-table.tsx"
-import { useMembers } from "better-supabase/blocks/organizations/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
+import { useMembers } from "../hooks/use-organizations";
 import { API_SCHEMA } from "../lib/blocks";
 
 /**
@@ -2417,7 +2480,7 @@ export function MembersTable() {
 
 ## Invite dialog
 
-A form that invites a teammate by email with a role, then shows the token for the accept link. Both sides call `useInvitations` from `better-supabase/blocks/organizations/react`; the [invitations block](https://bettersupabase.com/blocks/invitations) must be installed (`npx better-supabase add invitations`). Page: https://bettersupabase.com/recipes/invite-dialog.
+A form that invites a teammate by email with a role, then shows the token for the accept link. Both sides call `useInvitations` from `@/hooks/use-organizations`; the [invitations block](https://bettersupabase.com/blocks/invitations) must be installed (`npx better-supabase add invitations`). Page: https://bettersupabase.com/recipes/invite-dialog.
 
 Web, with shadcn components:
 
@@ -2425,12 +2488,15 @@ Web, with shadcn components:
 npx shadcn add button dialog field input select
 ```
 
+```bash
+npx shadcn add @better-supabase/use-organizations
+```
+
 ```tsx title="apps/examples/nextjs/src/features/organization/components/invite-member-dialog.tsx"
 "use client";
 
 import type { SubmitEvent } from "react";
 
-import { useInvitations } from "better-supabase/blocks/organizations/react";
 import { CopyIcon, UserPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -2463,6 +2529,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { assignableRoles } from "@/features/user/user-permissions";
+import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
@@ -2642,12 +2709,16 @@ export function InviteMemberDialog({
 
 React Native, with `Button`, `Modal`, `Pressable`, `Text`, `TextInput`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-organizations
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/invite-dialog.tsx"
-import { useInvitations } from "better-supabase/blocks/organizations/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { useState } from "react";
 import { Button, Modal, Pressable, Text, TextInput, View } from "react-native";
 
+import { useInvitations } from "../hooks/use-organizations";
 import { API_SCHEMA } from "../lib/blocks";
 
 const ROLES = ["member", "admin"] as const;
@@ -2757,7 +2828,7 @@ export function InviteDialog() {
 
 ## API keys table
 
-The organization's API keys, with a form that creates one and shows its token once, and a revoke button per key. Both sides call `useApiKeys` from `better-supabase/blocks/api-keys/react`; the [api-keys block](https://bettersupabase.com/blocks/api-keys) must be installed (`npx better-supabase add api-keys`). Page: https://bettersupabase.com/recipes/api-keys-table.
+The organization's API keys, with a form that creates one and shows its token once, and a revoke button per key. Both sides call `useApiKeys` from `@/hooks/use-api-keys`; the [api-keys block](https://bettersupabase.com/blocks/api-keys) must be installed (`npx better-supabase add api-keys`). Page: https://bettersupabase.com/recipes/api-keys-table.
 
 Web, with shadcn components:
 
@@ -2765,10 +2836,13 @@ Web, with shadcn components:
 npx shadcn add alert badge button dialog empty field input skeleton table
 ```
 
+```bash
+npx shadcn add @better-supabase/use-api-keys
+```
+
 ```tsx title="apps/examples/nextjs/src/features/api-keys/components/api-key-table.tsx"
 "use client";
 
-import { useApiKeys } from "better-supabase/blocks/api-keys/react";
 import { KeyRoundIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { toast } from "sonner";
@@ -2791,6 +2865,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useApiKeys } from "@/hooks/use-api-keys";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
@@ -2942,8 +3017,11 @@ export function ApiKeyTable({
 
 React Native, with `ActivityIndicator`, `Button`, `Pressable`, `Text`, `TextInput`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-api-keys
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/api-keys-table.tsx"
-import { useApiKeys } from "better-supabase/blocks/api-keys/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { useState } from "react";
 import {
@@ -2955,6 +3033,7 @@ import {
   View,
 } from "react-native";
 
+import { useApiKeys } from "../hooks/use-api-keys";
 import { API_SCHEMA } from "../lib/blocks";
 
 /**
@@ -3038,7 +3117,7 @@ export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
 
 ## Audit log table
 
-The audit trail, newest first, with filters by actor and action and older pages on demand. Both sides call `useAuditLog` from `better-supabase/blocks/audit/react`; the [audit block](https://bettersupabase.com/blocks/audit) must be installed (`npx better-supabase add audit`). Page: https://bettersupabase.com/recipes/audit-log-table.
+The audit trail, newest first, with filters by actor and action and older pages on demand. Both sides call `useAuditLog` from `@/hooks/use-audit`; the [audit block](https://bettersupabase.com/blocks/audit) must be installed (`npx better-supabase add audit`). Page: https://bettersupabase.com/recipes/audit-log-table.
 
 Web, with shadcn components:
 
@@ -3046,10 +3125,13 @@ Web, with shadcn components:
 npx shadcn add button select skeleton table
 ```
 
+```bash
+npx shadcn add @better-supabase/use-audit
+```
+
 ```tsx title="apps/examples/nextjs/src/features/audit/components/audit-log-table.tsx"
 "use client";
 
-import { useAuditLog } from "better-supabase/blocks/audit/react";
 import { useExtracted, useFormatter } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -3069,6 +3151,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useAuditLog } from "@/hooks/use-audit";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 
@@ -3231,11 +3314,15 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
 
 React Native, with `ActivityIndicator`, `Button`, `Pressable`, `Text`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-audit
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/audit-log-table.tsx"
-import { useAuditLog } from "better-supabase/blocks/audit/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { ActivityIndicator, Button, Pressable, Text, View } from "react-native";
 
+import { useAuditLog } from "../hooks/use-audit";
 import { API_SCHEMA } from "../lib/blocks";
 
 /** A row of chips that filters by one value, or by none. */
@@ -3338,7 +3425,7 @@ export function AuditLogTable() {
 
 ## Tag input
 
-A record's tags with suggestions, where typing a name adds a tag or creates it. Both sides call `useTagInput` from `better-supabase/blocks/tags/react`; the [tags block](https://bettersupabase.com/blocks/tags) must be installed (`npx better-supabase add tags`). Page: https://bettersupabase.com/recipes/tag-input.
+A record's tags with suggestions, where typing a name adds a tag or creates it. Both sides call `useTagInput` from `@/hooks/use-tags`; the [tags block](https://bettersupabase.com/blocks/tags) must be installed (`npx better-supabase add tags`). Page: https://bettersupabase.com/recipes/tag-input.
 
 Web, with shadcn components:
 
@@ -3346,12 +3433,15 @@ Web, with shadcn components:
 npx shadcn add badge button input skeleton
 ```
 
+```bash
+npx shadcn add @better-supabase/use-tags
+```
+
 ```tsx title="apps/examples/nextjs/src/features/customers/components/tag-input.tsx"
 "use client";
 
 import type { SubmitEvent } from "react";
 
-import { useTagInput } from "better-supabase/blocks/tags/react";
 import { XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -3360,6 +3450,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTagInput } from "@/hooks/use-tags";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -3459,8 +3550,11 @@ export function TagInput({
 
 React Native, with `ActivityIndicator`, `Button`, `Pressable`, `Text`, `TextInput`, `View` from `react-native`:
 
+```bash
+npx shadcn add @better-supabase/use-tags
+```
+
 ```tsx title="apps/examples/expo-powersync/src/components/tag-input.tsx"
-import { useTagInput } from "better-supabase/blocks/tags/react";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -3470,6 +3564,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+import { useTagInput } from "../hooks/use-tags";
 
 /**
  * A customer's tags as chips that remove themselves when pressed, the
@@ -3552,7 +3648,7 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
 
 ## Announcement banner
 
-The newest live announcement for the user and organization, with a dismiss button. It calls `useAnnouncements` from `better-supabase/blocks/announcements/react`; the [announcements block](https://bettersupabase.com/blocks/announcements) must be installed (`npx better-supabase add announcements`). Page: https://bettersupabase.com/recipes/announcement-banner.
+The newest live announcement for the user and organization, with a dismiss button. It calls `useAnnouncements` from `@/hooks/use-announcements`; the [announcements block](https://bettersupabase.com/blocks/announcements) must be installed (`npx better-supabase add announcements`). Page: https://bettersupabase.com/recipes/announcement-banner.
 
 Web, with shadcn components:
 
@@ -3560,10 +3656,13 @@ Web, with shadcn components:
 npx shadcn add alert button
 ```
 
+```bash
+npx shadcn add @better-supabase/use-announcements
+```
+
 ```tsx title="apps/examples/nextjs/src/features/announcements/components/announcement-banner.tsx"
 "use client";
 
-import { useAnnouncements } from "better-supabase/blocks/announcements/react";
 import { MegaphoneIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -3574,6 +3673,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useAnnouncements } from "@/hooks/use-announcements";
 
 /**
  * The newest live announcement for this user and organization. Loads in the
@@ -3963,7 +4063,7 @@ export function TwoFactorCard({
 
 ## Inbox with threads
 
-A shared inbox of conversations with status tabs, an assignee filter and the open thread beside the list. It calls `useInbox` from `better-supabase/blocks/inbox/react`; the [inbox block](https://bettersupabase.com/blocks/inbox) must be installed (`npx better-supabase add inbox`). Page: https://bettersupabase.com/recipes/inbox-threads.
+A shared inbox of conversations with status tabs, an assignee filter and the open thread beside the list. It calls `useInbox` from `@/hooks/use-inbox`; the [inbox block](https://bettersupabase.com/blocks/inbox) must be installed (`npx better-supabase add inbox`). Page: https://bettersupabase.com/recipes/inbox-threads.
 
 Web, with shadcn components:
 
@@ -3971,10 +4071,13 @@ Web, with shadcn components:
 npx shadcn add badge empty select tabs
 ```
 
+```bash
+npx shadcn add @better-supabase/use-inbox
+```
+
 ```tsx title="apps/examples/nextjs/src/features/inbox/components/inbox-view.tsx"
 "use client";
 
-import { useInbox } from "better-supabase/blocks/inbox/react";
 import { InboxIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
@@ -3996,6 +4099,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useInbox } from "@/hooks/use-inbox";
 import { cn } from "@/lib/utils";
 
 import type { ConversationRow } from "../inbox-types";
@@ -4200,7 +4304,7 @@ function ConversationList({
 
 ## Channel sidebar
 
-The caller's channels with unread and mention counts, kept live, with dialogs to browse, join and create channels. It calls `useConversations` from `better-supabase/blocks/messaging/react`; the [channels](https://bettersupabase.com/blocks/channels), [messaging](https://bettersupabase.com/blocks/messaging) blocks must be installed (`npx better-supabase add channels messaging`). Page: https://bettersupabase.com/recipes/channel-sidebar.
+The caller's channels with unread and mention counts, kept live, with dialogs to browse, join and create channels. It calls `useConversations` from `@/hooks/use-messaging`; the [channels](https://bettersupabase.com/blocks/channels), [messaging](https://bettersupabase.com/blocks/messaging) blocks must be installed (`npx better-supabase add channels messaging`). Page: https://bettersupabase.com/recipes/channel-sidebar.
 
 Web, with shadcn components:
 
@@ -4208,12 +4312,15 @@ Web, with shadcn components:
 npx shadcn add alert badge button card dialog empty field input label scroll-area skeleton switch
 ```
 
+```bash
+npx shadcn add @better-supabase/use-messaging
+```
+
 ```tsx title="apps/examples/nextjs/src/features/chat/components/channel-sidebar.tsx"
 "use client";
 
 import type { SubmitEvent } from "react";
 
-import { useConversations } from "better-supabase/blocks/messaging/react";
 import { useAction } from "better-supabase/react";
 import {
   HashIcon,
@@ -4265,6 +4372,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useConversations } from "@/hooks/use-messaging";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 
@@ -4647,7 +4755,7 @@ function CreateChannelDialog({
 
 ## Message list
 
-A conversation's messages over Realtime, with older pages on demand, who is typing, reply counts and the composer. It calls `useMessages` from `better-supabase/blocks/messaging/react`; the [messaging](https://bettersupabase.com/blocks/messaging), [channels](https://bettersupabase.com/blocks/channels) blocks must be installed (`npx better-supabase add messaging channels`). Page: https://bettersupabase.com/recipes/message-list.
+A conversation's messages over Realtime, with older pages on demand, who is typing, reply counts and the composer. It calls `useMessages` from `@/hooks/use-messaging`; the [messaging](https://bettersupabase.com/blocks/messaging), [channels](https://bettersupabase.com/blocks/channels) blocks must be installed (`npx better-supabase add messaging channels`). Page: https://bettersupabase.com/recipes/message-list.
 
 Web, with shadcn components:
 
@@ -4655,12 +4763,15 @@ Web, with shadcn components:
 npx shadcn add alert button card empty scroll-area skeleton
 ```
 
+```bash
+npx shadcn add @better-supabase/use-messaging
+```
+
 ```tsx title="apps/examples/nextjs/src/features/chat/components/message-list.tsx"
 "use client";
 
 import type { Message } from "better-supabase/blocks/messaging";
 
-import { useMessages } from "better-supabase/blocks/messaging/react";
 import { MessagesSquareIcon, RotateCwIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useRef } from "react";
@@ -4686,6 +4797,7 @@ import {
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMessages } from "@/hooks/use-messaging";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { MessageComposer } from "./message-composer";
@@ -4845,7 +4957,6 @@ npx shadcn add badge button label spinner textarea
 "use client";
 
 import type { Result } from "better-supabase";
-import type { MessageDraft } from "better-supabase/blocks/messaging/react";
 import type { DragEvent, Ref } from "react";
 
 import { useAction } from "better-supabase/react";
@@ -4853,6 +4964,8 @@ import { PaperclipIcon, SendIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import type { MessageDraft } from "@/hooks/use-messaging";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -5086,7 +5199,7 @@ export function MessageComposer({
 
 ## Thread panel
 
-A thread beside the channel: the root message, its replies live over Realtime, and a composer that replies into it. It calls `useMessages` from `better-supabase/blocks/messaging/react`; the [messaging](https://bettersupabase.com/blocks/messaging), [channels](https://bettersupabase.com/blocks/channels) blocks must be installed (`npx better-supabase add messaging channels`). Page: https://bettersupabase.com/recipes/thread-panel.
+A thread beside the channel: the root message, its replies live over Realtime, and a composer that replies into it. It calls `useMessages` from `@/hooks/use-messaging`; the [messaging](https://bettersupabase.com/blocks/messaging), [channels](https://bettersupabase.com/blocks/channels) blocks must be installed (`npx better-supabase add messaging channels`). Page: https://bettersupabase.com/recipes/thread-panel.
 
 Web, with shadcn components:
 
@@ -5094,12 +5207,15 @@ Web, with shadcn components:
 npx shadcn add alert button card empty scroll-area separator skeleton
 ```
 
+```bash
+npx shadcn add @better-supabase/use-messaging
+```
+
 ```tsx title="apps/examples/nextjs/src/features/chat/components/thread-panel.tsx"
 "use client";
 
 import type { Message } from "better-supabase/blocks/messaging";
 
-import { useMessages } from "better-supabase/blocks/messaging/react";
 import { MessageSquareIcon, RotateCwIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useRef } from "react";
@@ -5125,6 +5241,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMessages } from "@/hooks/use-messaging";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { MessageComposer } from "./message-composer";
@@ -5804,12 +5921,16 @@ export function AgentActivitySkeleton() {
 
 ## Workflow canvas
 
-A node editor for a workflow definition that saves drafts, publishes versions and runs the workflow. It calls `useWorkflowCanvasRun` from `better-supabase/blocks/workflow-editor/react`; the [workflow-editor](https://bettersupabase.com/blocks/workflow-editor), [workflows](https://bettersupabase.com/blocks/workflows) blocks must be installed (`npx better-supabase add workflow-editor workflows`). Page: https://bettersupabase.com/recipes/workflow-canvas.
+A node editor for a workflow definition that saves drafts, publishes versions and runs the workflow. It calls `useWorkflowCanvasRun` from `@/hooks/use-workflow-editor`; the [workflow-editor](https://bettersupabase.com/blocks/workflow-editor), [workflows](https://bettersupabase.com/blocks/workflows) blocks must be installed (`npx better-supabase add workflow-editor workflows`). Page: https://bettersupabase.com/recipes/workflow-canvas.
 
 Web, with shadcn components:
 
 ```bash
 npx shadcn add badge button input select
+```
+
+```bash
+npx shadcn add @better-supabase/use-workflow-editor
 ```
 
 ```tsx title="apps/examples/nextjs/src/features/workflows/builder/components/workflow-canvas.tsx"
@@ -5827,8 +5948,6 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useWorkflowCanvasRun } from "better-supabase/blocks/workflow-editor/react";
-import { useWorkflowRuns } from "better-supabase/blocks/workflows/react";
 import { useAction } from "better-supabase/react";
 import { PlayIcon, PlusIcon, SaveIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
@@ -5845,6 +5964,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useWorkflowCanvasRun } from "@/hooks/use-workflow-editor";
+import { useWorkflowRuns } from "@/hooks/use-workflows";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BuilderDetail } from "../builder-queries";
@@ -6167,7 +6288,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
 
 ## Workflow runs
 
-The latest workflow runs with their status, which update while a run is in progress. It calls `useWorkflowRuns` from `better-supabase/blocks/workflows/react`; the [workflows block](https://bettersupabase.com/blocks/workflows) must be installed (`npx better-supabase add workflows`). Page: https://bettersupabase.com/recipes/workflow-runs.
+The latest workflow runs with their status, which update while a run is in progress. It calls `useWorkflowRuns` from `@/hooks/use-workflows`; the [workflows block](https://bettersupabase.com/blocks/workflows) must be installed (`npx better-supabase add workflows`). Page: https://bettersupabase.com/recipes/workflow-runs.
 
 Web, with shadcn components:
 
@@ -6175,10 +6296,13 @@ Web, with shadcn components:
 npx shadcn add badge empty skeleton table
 ```
 
+```bash
+npx shadcn add @better-supabase/use-workflows
+```
+
 ```tsx title="apps/examples/nextjs/src/features/workflows/components/workflow-runs.tsx"
 "use client";
 
-import { useWorkflowRuns } from "better-supabase/blocks/workflows/react";
 import { WorkflowIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -6199,6 +6323,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useWorkflowRuns } from "@/hooks/use-workflows";
 import { Link } from "@/i18n/navigation";
 
 import { statusVariant, workflowName } from "../workflow-labels";
@@ -7991,7 +8116,7 @@ export function FeatureFlagListSkeleton() {
 
 ## Rule builder
 
-A condition tree with field, operator and value rows, nested And and Or groups, drag to reorder and a fixed first condition, saved as a versioned rule. It calls `useRuleBuilder` from `better-supabase/blocks/automations/react`; the [automations block](https://bettersupabase.com/blocks/automations) must be installed (`npx better-supabase add automations`). Page: https://bettersupabase.com/recipes/rule-builder.
+A condition tree with field, operator and value rows, nested And and Or groups, drag to reorder and a fixed first condition, saved as a versioned rule. It calls `useRuleBuilder` from `@/hooks/use-automations`; the [automations block](https://bettersupabase.com/blocks/automations) must be installed (`npx better-supabase add automations`). Page: https://bettersupabase.com/recipes/rule-builder.
 
 Web, with shadcn components:
 
@@ -7999,12 +8124,15 @@ Web, with shadcn components:
 npx shadcn add alert button card empty field input label select skeleton switch
 ```
 
+```bash
+npx shadcn add @better-supabase/use-automations
+```
+
 ```tsx title="apps/examples/nextjs/src/features/rules/components/rule-builder.tsx"
 "use client";
 
 import type { DragEndEvent } from "@dnd-kit/core";
 import type { RuleField } from "better-supabase/blocks/automations";
-import type { RuleBuilderState } from "better-supabase/blocks/automations/react";
 import type {
   FilterCombinator,
   FilterGroupNode,
@@ -8030,7 +8158,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { contains, ruleOperators } from "better-supabase/blocks/automations";
-import { useRuleBuilder } from "better-supabase/blocks/automations/react";
 import { FILTER_OPERATOR_LABELS } from "better-supabase/list";
 import {
   GripVerticalIcon,
@@ -8043,6 +8170,8 @@ import {
 import { useExtracted } from "next-intl";
 import { createContext, use, useId, useMemo, useState } from "react";
 import * as v from "valibot";
+
+import type { RuleBuilderState } from "@/hooks/use-automations";
 
 import {
   Alert,
@@ -8080,6 +8209,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useStatusLabel } from "@/features/customers/use-status-label";
+import { useRuleBuilder } from "@/hooks/use-automations";
 import { useRouter } from "@/i18n/navigation";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
@@ -8986,8 +9116,7 @@ Web, with no shadcn components.
 ```tsx title="apps/examples/nextjs/src/features/projects/components/task-import-action.tsx"
 "use client";
 
-import { Can } from "better-supabase/blocks/permissions/react";
-
+import { Can } from "@/hooks/use-permissions";
 import { permissions } from "@/lib/supabase/blocks.generated";
 
 import { TaskImportDialog } from "./task-import-dialog";
@@ -9008,7 +9137,7 @@ export function TaskImportAction({ projectId }: { projectId: string }) {
 
 ## Subject link
 
-A link to any subject type, titled and routed by subject_titles, with plain text for a record the caller can't read. It calls `useSubject` from `better-supabase/blocks/subjects/react`; the [subjects block](https://bettersupabase.com/blocks/subjects) must be installed (`npx better-supabase add subjects`). Page: https://bettersupabase.com/recipes/subject-link.
+A link to any subject type, titled and routed by subject_titles, with plain text for a record the caller can't read. It calls `useSubject` from `@/hooks/use-subjects`; the [subjects block](https://bettersupabase.com/blocks/subjects) must be installed (`npx better-supabase add subjects`). Page: https://bettersupabase.com/recipes/subject-link.
 
 Web, with shadcn components:
 
@@ -9016,17 +9145,21 @@ Web, with shadcn components:
 npx shadcn add button skeleton
 ```
 
+```bash
+npx shadcn add @better-supabase/use-subjects
+```
+
 ```tsx title="apps/examples/nextjs/src/features/subjects/components/subject-link.tsx"
 "use client";
 
 import type { RecordRef } from "better-supabase/blocks/subjects";
 
-import { useSubject } from "better-supabase/blocks/subjects/react";
 import { RotateCwIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSubject } from "@/hooks/use-subjects";
 import { Link } from "@/i18n/navigation";
 
 /**
@@ -9085,7 +9218,7 @@ export function SubjectLink({ subject }: { subject: RecordRef }) {
 
 ## Subject chip
 
-A compact badge with a subject's type and title that links to its page. It calls `useSubject` from `better-supabase/blocks/subjects/react`; the [subjects block](https://bettersupabase.com/blocks/subjects) must be installed (`npx better-supabase add subjects`). Page: https://bettersupabase.com/recipes/subject-chip.
+A compact badge with a subject's type and title that links to its page. It calls `useSubject` from `@/hooks/use-subjects`; the [subjects block](https://bettersupabase.com/blocks/subjects) must be installed (`npx better-supabase add subjects`). Page: https://bettersupabase.com/recipes/subject-chip.
 
 Web, with shadcn components:
 
@@ -9093,16 +9226,20 @@ Web, with shadcn components:
 npx shadcn add skeleton
 ```
 
+```bash
+npx shadcn add @better-supabase/use-subjects
+```
+
 ```tsx title="apps/examples/nextjs/src/features/subjects/components/subject-chip.tsx"
 "use client";
 
 import type { RecordRef } from "better-supabase/blocks/subjects";
 
-import { useSubject } from "better-supabase/blocks/subjects/react";
 import { useExtracted } from "next-intl";
 
 import { Badge } from "@/components/reui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSubject } from "@/hooks/use-subjects";
 import { Link } from "@/i18n/navigation";
 
 /**

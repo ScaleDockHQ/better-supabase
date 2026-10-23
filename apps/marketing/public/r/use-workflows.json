@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-workflows",
+  "title": "useWorkflowRuns, useWorkflowRun",
+  "description": "useWorkflowRuns and useWorkflowRun: the workflows block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-workflows.ts",
+      "content": "\"use client\";\n\nimport type {\n  WorkflowRunActions,\n  WorkflowRunsActions,\n  WorkflowRunSnapshot,\n  WorkflowRunsSnapshot,\n  WorkflowRunStatus,\n} from \"better-supabase/blocks/workflows\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createWorkflowRunController,\n  createWorkflowRunsController,\n  createWorkflows,\n} from \"better-supabase/blocks/workflows\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\n\nexport interface UseWorkflowRunsOptions {\n  /**\n   * The tenant whose runs to list; it also joins the tenant's\n   * `workflow-runs:<tenant>` topic. Without one, the signed-in user's own runs\n   * load once.\n   */\n  readonly tenant?: string | null;\n  readonly definition?: string;\n  readonly status?: WorkflowRunStatus;\n  readonly limit?: number;\n  /**\n   * The schema the calls go to: the module schema (default `better_supabase`),\n   * or the API schema from `blocks.workflows.api`.\n   */\n  readonly schema?: string;\n}\n\nexport interface WorkflowRunsState\n  extends WorkflowRunsSnapshot, WorkflowRunsActions {}\n\n/**\n * The runs the signed-in user may read, newest first, loaded again when a run\n * in the tenant changes status.\n *\n * ```tsx\n * const { runs } = useWorkflowRuns({ tenant: organizationId });\n * ```\n */\nexport function useWorkflowRuns(\n  options: UseWorkflowRunsOptions = {},\n): WorkflowRunsState {\n  const { supabase, auth, ports } = useBlockEnv();\n  const { schema, tenant, definition, status, limit } = options;\n\n  return useController(\n    () =>\n      createWorkflowRunsController({\n        client: createWorkflows({\n          transport: rpcTransport(supabase),\n          ...(schema === undefined ? {} : { schema }),\n        }),\n        auth,\n        ports,\n        tenant: tenant ?? null,\n        ...(definition === undefined ? {} : { definition }),\n        ...(status === undefined ? {} : { status }),\n        ...(limit === undefined ? {} : { limit }),\n      }),\n    [supabase, auth, ports, schema, tenant, definition, status, limit],\n  ).view;\n}\n\nexport interface UseWorkflowRunOptions {\n  readonly schema?: string;\n}\n\nexport interface WorkflowRunState\n  extends WorkflowRunSnapshot, WorkflowRunActions {}\n\n/**\n * One run by its id or its engine's id, loaded again on each status change\n * broadcast on `workflow-run:<id>`.\n */\nexport function useWorkflowRun(\n  run: string | null,\n  options: UseWorkflowRunOptions = {},\n): WorkflowRunState {\n  const { supabase, auth, ports } = useBlockEnv();\n  const { schema } = options;\n\n  return useController(\n    () =>\n      createWorkflowRunController({\n        client: createWorkflows({\n          transport: rpcTransport(supabase),\n          ...(schema === undefined ? {} : { schema }),\n        }),\n        auth,\n        ports,\n        run,\n      }),\n    [supabase, auth, ports, schema, run],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-workflows.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "workflows",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the workflows block (`npx better-supabase add workflows`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/workflows.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

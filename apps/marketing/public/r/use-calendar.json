@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-calendar",
+  "title": "useCalendar",
+  "description": "useCalendar: the calendar block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-calendar.ts",
+      "content": "\"use client\";\n\nimport type { VisibleRange } from \"better-supabase/blocks\";\nimport type {\n  Calendar,\n  CalendarActions,\n  CalendarSnapshot,\n  EventCalendarOptions,\n} from \"better-supabase/blocks/calendar\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createCalendar,\n  createCalendarController,\n} from \"better-supabase/blocks/calendar\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\nimport { useEffect, useMemo } from \"react\";\n\nexport interface UseCalendarOptions extends EventCalendarOptions {\n  readonly calendarIds: readonly string[];\n  /** The visible range, as an event calendar's `onRangeChange` reports it. */\n  readonly range: VisibleRange;\n  /** The schema the calls go to. Default `better_supabase`. */\n  readonly schema?: string;\n}\n\nexport interface CalendarState\n  extends CalendarSnapshot, Omit<CalendarActions, \"setRange\"> {\n  readonly client: Calendar;\n}\n\n/**\n * The occurrences of some calendars in the visible range, typed for a headless\n * event calendar such as ReUI's Event Calendar.\n *\n * ```tsx\n * const [range, setRange] = useState({ start, end });\n * const calendar = useCalendar({ calendarIds: [id], range });\n * <EventCalendar events={calendar.events} onRangeChange={setRange} />;\n * ```\n */\nexport function useCalendar(options: UseCalendarOptions): CalendarState {\n  const { supabase } = useBlockEnv();\n  const { schema, range } = options;\n\n  const client = useMemo(\n    () =>\n      createCalendar({\n        transport: rpcTransport(supabase),\n        ...(schema === undefined ? {} : { schema }),\n      }),\n    [supabase, schema],\n  );\n\n  const ids = options.calendarIds.join(\",\");\n  const { resourceOf, readOnly } = options;\n\n  const { controller, view } = useController(\n    () =>\n      createCalendarController({\n        client,\n        calendarIds: ids === \"\" ? [] : ids.split(\",\"),\n        range,\n        ...(resourceOf === undefined ? {} : { resourceOf }),\n        ...(readOnly === undefined ? {} : { readOnly }),\n      }),\n    [client, ids, resourceOf, readOnly],\n  );\n\n  const from = range.start.getTime();\n  const until = range.end.getTime();\n  useEffect(() => {\n    controller.actions.setRange({\n      start: new Date(from),\n      end: new Date(until),\n    });\n  }, [controller, from, until]);\n\n  return useMemo(() => ({ ...view, client }), [view, client]);\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-calendar.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "calendar",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the calendar block (`npx better-supabase add calendar`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/calendar.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

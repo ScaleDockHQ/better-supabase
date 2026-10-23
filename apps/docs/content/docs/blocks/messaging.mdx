@@ -227,9 +227,10 @@ Each conversation has a private Realtime topic, `<topic>:<conversation id>`
 `typing`. Only callers who read the conversation can join its topic.
 `conversationTopic(id)` builds the topic name.
 
-`useMessages` and `useConversations` from
-`better-supabase/blocks/messaging/react` follow these topics for a chat
-screen; see [Channels](/docs/blocks/channels#a-chat-screen).
+The React hooks `useMessages` and `useConversations` follow these topics for
+a chat screen; see [Channels](/docs/blocks/channels#a-chat-screen). They are a
+registry item: install them with `npx shadcn add @better-supabase/use-messaging`,
+which writes `hooks/use-messaging.ts` into the app.
 
 ## Options
 

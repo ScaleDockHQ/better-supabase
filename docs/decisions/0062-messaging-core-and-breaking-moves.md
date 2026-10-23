@@ -115,4 +115,5 @@ express without nullable columns that only one kind uses.
 - **Hooks live in messaging.** `useMessages` and `useConversations` come from
   `better-supabase/blocks/messaging/react`, since channels, comments and the
   inbox share them. They are not named `useConversation`, which the inbox
-  hooks own until phase 4.
+  hooks own until phase 4. (ADR 0093 moved them to the
+  `@better-supabase/use-messaging` registry item.)

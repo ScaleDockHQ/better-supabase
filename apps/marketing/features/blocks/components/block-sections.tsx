@@ -119,12 +119,13 @@ export function ClientPanel({ block }: { block: CatalogBlock }) {
       <Frame spacing="sm">
         <FramePanel className="flex flex-col gap-3">
           <p className="text-sm leading-6 text-muted-foreground">
-            The React hooks are in{" "}
+            The React hooks are the registry item{" "}
             <code className="font-mono text-code text-foreground">
-              {block.react.subpath}
+              {block.react.item}
             </code>
-            . They return data and actions and render no UI, so you build the
-            interface from your own components.
+            , which shadcn copies into your app. They return data and actions
+            and render no UI, so you build the interface from your own
+            components.
           </p>
           <div className="flex flex-wrap gap-2">
             <LinkButton
@@ -132,7 +133,7 @@ export function ClientPanel({ block }: { block: CatalogBlock }) {
               size="sm"
               href={`${site.github}/blob/main/${block.react.source}`}
             >
-              View the React entry
+              View the hooks
             </LinkButton>
             <LinkButton variant="ghost" size="sm" href={block.docs}>
               Read the docs

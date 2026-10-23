@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-usage",
+  "title": "useUsageMeter",
+  "description": "useUsageMeter: the usage block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-usage.ts",
+      "content": "\"use client\";\n\nimport type {\n  UsageMeterActions,\n  UsageMeterSnapshot,\n} from \"better-supabase/blocks/usage\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createUsage,\n  createUsageMeterController,\n} from \"better-supabase/blocks/usage\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\n\nexport type { MeterReading } from \"better-supabase/blocks/usage\";\n\nexport interface UseUsageMeterOptions {\n  /** The organization whose usage to read; the meter waits without one. */\n  readonly organizationId: string | null | undefined;\n  /**\n   * Only these meters, in this order. Default every meter with usage or a\n   * quota.\n   */\n  readonly meters?: readonly string[];\n  /**\n   * The schema the calls go to: the module schema (default `better_supabase`),\n   * or the API schema from `blocks.<module>.api`.\n   */\n  readonly schema?: string;\n}\n\nexport interface UsageMeterState\n  extends UsageMeterSnapshot, UsageMeterActions {}\n\n/**\n * This period's usage of an organization against its plan's quotas, through the\n * browser client (`usage.read`). The same hook runs in React DOM and React\n * Native.\n *\n * ```tsx\n * const { meters } = useUsageMeter({ organizationId });\n * ```\n */\nexport function useUsageMeter(options: UseUsageMeterOptions): UsageMeterState {\n  const { supabase, auth } = useBlockEnv();\n  const { organizationId, meters, schema } = options;\n  const key = meters?.join(\"\\n\");\n\n  return useController(\n    () =>\n      createUsageMeterController({\n        client: createUsage({\n          transport: rpcTransport(supabase),\n          ...(schema === undefined ? {} : { schema }),\n        }),\n        auth,\n        organizationId: organizationId ?? null,\n        ...(key === undefined ? {} : { meters: key.split(\"\\n\") }),\n      }),\n    [supabase, auth, organizationId, key, schema],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-usage.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "usage",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the usage block (`npx better-supabase add usage`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/usage.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

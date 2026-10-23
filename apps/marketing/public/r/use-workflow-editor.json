@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-workflow-editor",
+  "title": "useWorkflowEditor, useWorkflowCanvasRun",
+  "description": "useWorkflowEditor and useWorkflowCanvasRun: the workflow-editor block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-workflow-editor.ts",
+      "content": "\"use client\";\n\nimport type {\n  WorkflowCanvasRunActions,\n  WorkflowCanvasRunSnapshot,\n  WorkflowEditor,\n  WorkflowEditorActions,\n  WorkflowEditorSnapshot,\n} from \"better-supabase/blocks/workflow-editor\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createWorkflowCanvasRunController,\n  createWorkflowEditor,\n  createWorkflowEditorController,\n} from \"better-supabase/blocks/workflow-editor\";\nimport { createWorkflows } from \"better-supabase/blocks/workflows\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\nimport { useMemo } from \"react\";\n\nexport interface UseWorkflowEditorOptions {\n  /** The tenant whose definitions to list. */\n  readonly tenant?: string | null;\n  /** The schema the calls go to (default `better_supabase`). */\n  readonly schema?: string;\n}\n\nexport interface WorkflowEditorState\n  extends WorkflowEditorSnapshot, WorkflowEditorActions {\n  /** The builder for the signed-in user, for saves, publishes and runs. */\n  readonly builder: WorkflowEditor;\n}\n\n/**\n * The definitions the signed-in user may read and the step library, with a\n * builder bound to the user's session.\n *\n * ```tsx\n * const { definitions, steps, builder } = useWorkflowEditor({ tenant });\n * ```\n */\nexport function useWorkflowEditor(\n  options: UseWorkflowEditorOptions = {},\n): WorkflowEditorState {\n  const { supabase, auth } = useBlockEnv();\n  const { tenant, schema } = options;\n\n  const builder = useMemo(\n    () =>\n      createWorkflowEditor({\n        transport: rpcTransport(supabase),\n        ...(schema === undefined ? {} : { schema }),\n      }),\n    [supabase, schema],\n  );\n\n  const { view } = useController(\n    () =>\n      createWorkflowEditorController({\n        client: builder,\n        auth,\n        tenant: tenant ?? null,\n      }),\n    [builder, auth, tenant],\n  );\n\n  return useMemo(() => ({ ...view, builder }), [view, builder]);\n}\n\nexport interface UseWorkflowCanvasRunOptions {\n  readonly schema?: string;\n}\n\nexport interface WorkflowCanvasRunState\n  extends WorkflowCanvasRunSnapshot, WorkflowCanvasRunActions {}\n\n/**\n * A run and the status of each of its nodes, loaded again on each message on\n * `workflow-run:<id>` (run status changes and node records).\n */\nexport function useWorkflowCanvasRun(\n  run: string | null,\n  options: UseWorkflowCanvasRunOptions = {},\n): WorkflowCanvasRunState {\n  const { supabase, auth, ports } = useBlockEnv();\n  const { schema } = options;\n\n  return useController(() => {\n    const transport = rpcTransport(supabase);\n    const scoped = schema === undefined ? {} : { schema };\n    const workflows = createWorkflows({ transport, ...scoped });\n    const builder = createWorkflowEditor({ transport, ...scoped });\n\n    return createWorkflowCanvasRunController({\n      client: { runs: workflows.runs, nodeRuns: builder.nodeRuns },\n      auth,\n      ports,\n      run,\n    });\n  }, [supabase, auth, ports, schema, run]).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-workflow-editor.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "workflow-editor",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the workflow-editor block (`npx better-supabase add workflow-editor`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/workflow-editor.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

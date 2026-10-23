@@ -115,12 +115,14 @@ The enrollments take no app columns: the steps live in `defineChecklist`.
 ## In React
 
 `useOnboarding` loads a checklist through the browser client and loads it
-again after `complete` or `reset`:
+again after `complete` or `reset`. The hook is a registry item: install it
+with `npx shadcn add @better-supabase/use-onboarding`, which writes
+`hooks/use-onboarding.ts` into the app.
 
 ```tsx title="components/getting-started.tsx"
 "use client";
 
-import { useOnboarding } from "better-supabase/blocks/onboarding/react";
+import { useOnboarding } from "@/hooks/use-onboarding";
 import { gettingStarted } from "@/onboarding";
 
 export function GettingStarted({ organizationId }: { organizationId: string }) {
@@ -145,30 +147,32 @@ export function GettingStarted({ organizationId }: { organizationId: string }) {
 }
 ```
 
-In Server Components, call `onboarding.progress(checklist)` instead; the
-`react-server` build of the hook throws.
+In Server Components, call `onboarding.progress(checklist)` instead; the hook
+file starts with `"use client"`.
 
 ## Vue
 
-`better-supabase/blocks/onboarding/vue` exports `useOnboarding`. It takes
-the options of `createOnboardingController`; `auth` and `ports` come from
+`useBlockController` from `better-supabase/vue` runs
+`createOnboardingController` with its options, as
+[Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)
+explains; `auth` and `ports` come from
 `app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref
 of the snapshot and `actions` are the controller's actions. The work starts
 on mount, and the controller is disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useOnboarding } from "better-supabase/blocks/onboarding/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
 import {
   createOnboarding,
+  createOnboardingController,
   rpcTransport,
 } from "better-supabase/blocks/onboarding";
 import { gettingStarted } from "@/onboarding";
 
 const { organizationId } = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
-const { state } = useOnboarding({
+const { state } = useBlockController(createOnboardingController, {
   client: createOnboarding({ transport: rpcTransport(supabase) }),
   checklist: gettingStarted,
   organizationId,
@@ -186,25 +190,28 @@ const { state } = useOnboarding({
 
 ## Svelte
 
-`better-supabase/blocks/onboarding/svelte` exports `useOnboarding`. It takes
-the options of `createOnboardingController`; `auth` and `ports` come from
-`setBetterSupabase(bsb)` unless you pass them. The hook returns a readable
+`useBlockController` from `better-supabase/svelte` runs
+`createOnboardingController` with its options; `auth` and `ports` come from
+`setBetterSupabase(bsb)` unless you pass them. It returns a readable
 store of the snapshot, read with `$`, with the actions on `.actions`. The
 work starts on mount, and the controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useOnboarding } from "better-supabase/blocks/onboarding/svelte";
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
   import {
     createOnboarding,
+    createOnboardingController,
     rpcTransport,
   } from "better-supabase/blocks/onboarding";
   import { gettingStarted } from "@/onboarding";
 
   let { organizationId }: { organizationId: string } = $props();
   const { supabase } = getBetterSupabase();
-  const onboarding = useOnboarding({
+  const onboarding = useBlockController(createOnboardingController, {
     client: createOnboarding({ transport: rpcTransport(supabase) }),
     checklist: gettingStarted,
     organizationId,
@@ -220,25 +227,25 @@ work starts on mount, and the controller is disposed with the component.
 
 ## Solid
 
-`better-supabase/blocks/onboarding/solid` exports `useOnboarding`. It takes
-the options of `createOnboardingController`; `auth` and `ports` come from
+`useBlockController` from `better-supabase/solid` runs
+`createOnboardingController` with its options; `auth` and `ports` come from
 `<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads
 the snapshot through `from`, and `actions` are the controller's actions. The
 work starts on mount, and the controller is disposed with the owner.
 
 ```tsx title="Component.tsx"
 import { For } from "solid-js";
-import { useSupabase } from "better-supabase/solid";
-import { useOnboarding } from "better-supabase/blocks/onboarding/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
 import {
   createOnboarding,
+  createOnboardingController,
   rpcTransport,
 } from "better-supabase/blocks/onboarding";
 import { gettingStarted } from "@/onboarding";
 
 export function Component(props: { organizationId: string }) {
   const supabase = useSupabase();
-  const { state } = useOnboarding({
+  const { state } = useBlockController(createOnboardingController, {
     client: createOnboarding({ transport: rpcTransport(supabase) }),
     checklist: gettingStarted,
     organizationId: props.organizationId,

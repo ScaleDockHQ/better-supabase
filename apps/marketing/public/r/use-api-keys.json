@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-api-keys",
+  "title": "useApiKeys",
+  "description": "useApiKeys: the api-keys block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-api-keys.ts",
+      "content": "\"use client\";\n\nimport type {\n  ApiKeyChange,\n  ApiKeysActions,\n  ApiKeysSnapshot,\n} from \"better-supabase/blocks/api-keys\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createApiKeys,\n  createApiKeysController,\n} from \"better-supabase/blocks/api-keys\";\nimport { useBlockEnv, useController, useLatest } from \"better-supabase/react\";\n\nexport type {\n  ApiKeyChange,\n  ApiKeyDraft,\n} from \"better-supabase/blocks/api-keys\";\n\nexport interface UseApiKeysOptions {\n  /**\n   * The organization whose keys to list and create; without one the hook lists\n   * the caller's personal keys.\n   */\n  readonly organizationId: string | null | undefined;\n  /**\n   * The schema the calls go to: the module schema (default `better_supabase`),\n   * or the API schema from `blocks.<module>.api`.\n   */\n  readonly schema?: string;\n  /** The token's first segment, `blocks.api-keys.options.prefix` (default `bs`). */\n  readonly prefix?: string;\n  /** Runs after a key was created or revoked. */\n  readonly onChanged?: (change: ApiKeyChange) => void | Promise<void>;\n}\n\nexport interface ApiKeysState extends ApiKeysSnapshot, ApiKeysActions {}\n\n/**\n * An organization's API keys through the browser client, for an API keys table:\n * `create` keeps the new token in `created`, which is the only time it is\n * shown, and `revoke` revokes a key. The same hook runs in React DOM and React\n * Native.\n *\n * ```tsx\n * const { keys, created, create, revoke } = useApiKeys({ organizationId });\n * ```\n */\nexport function useApiKeys(options: UseApiKeysOptions): ApiKeysState {\n  const { supabase, auth } = useBlockEnv();\n  const latest = useLatest(options);\n  const { organizationId, schema, prefix } = options;\n\n  return useController(\n    () =>\n      createApiKeysController({\n        client: createApiKeys({\n          transport: rpcTransport(supabase),\n          ...(schema === undefined ? {} : { schema }),\n          ...(prefix === undefined ? {} : { prefix }),\n        }),\n        auth,\n        organizationId: organizationId ?? null,\n        onChanged: async (change) => {\n          await latest.current.onChanged?.(change);\n        },\n      }),\n    [supabase, auth, organizationId, schema, prefix, latest],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-api-keys.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "api-keys",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the api-keys block (`npx better-supabase add api-keys`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/api-keys.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

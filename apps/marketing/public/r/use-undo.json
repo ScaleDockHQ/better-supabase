@@ -1,0 +1,40 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-undo",
+  "title": "useUndoStack",
+  "description": "useUndoStack: the undo block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-undo.ts",
+      "content": "\"use client\";\n\nimport type {\n  UndoActions,\n  UndoSnapshot,\n  UndoStackOptions,\n} from \"better-supabase/blocks/undo\";\n\nimport { createUndoController } from \"better-supabase/blocks/undo\";\nimport { useController, useLatest } from \"better-supabase/react\";\n\nexport type { UndoEntry } from \"better-supabase/blocks/undo\";\n\nexport type UseUndoStackOptions = UndoStackOptions;\n\nexport interface UndoStack extends UndoSnapshot, UndoActions {}\n\n/**\n * A stack of undo tokens on the client, for a toast's Undo button or a Cmd+Z\n * handler:\n *\n * ```tsx\n * const stack = useUndoStack({ apply: undoAction });\n * const moved = await moveTasks(ids);\n * stack.push(moved.undo, `Moved ${ids.length} tasks`);\n * ```\n */\nexport function useUndoStack(options: UseUndoStackOptions): UndoStack {\n  const latest = useLatest(options);\n  const { limit } = options;\n\n  return useController(\n    () =>\n      createUndoController({\n        apply: (token) => latest.current.apply(token),\n        limit,\n      }),\n    [latest, limit],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-undo.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": [
+      "relations",
+      "audit"
+    ],
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs a block that returns undo tokens (`relations` or `audit`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/undo.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

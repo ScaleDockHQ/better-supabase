@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-messaging",
+  "title": "useMessages, useConversations",
+  "description": "useMessages and useConversations: the messaging block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-messaging.ts",
+      "content": "\"use client\";\n\nimport type { BlockEnv } from \"better-supabase/blocks\";\nimport type {\n  ConversationKind,\n  ConversationsActions,\n  ConversationsSnapshot,\n  MessagesActions,\n  MessagesSnapshot,\n} from \"better-supabase/blocks/messaging\";\n\nimport { envBlockOptions, envBlockSettings } from \"better-supabase/blocks\";\nimport {\n  createConversationsController,\n  createMessagesController,\n  createMessaging,\n} from \"better-supabase/blocks/messaging\";\nimport {\n  useBlockEnv,\n  useBlockTenant,\n  useController,\n} from \"better-supabase/react\";\n\nexport type { MessageDraft } from \"better-supabase/blocks/messaging\";\n\n/** `blocks.messaging.options.topic` from the client's config. */\nfunction topicOf(env: BlockEnv): string {\n  const topic = envBlockSettings(env, \"messaging\")[\"topic\"];\n\n  return typeof topic === \"string\" ? topic : \"messages\";\n}\n\nexport interface UseMessagesOptions {\n  /** The conversation or channel to show; the view waits without one. */\n  readonly conversationId: string | null | undefined;\n  /** A thread's root message, to show its replies instead. */\n  readonly threadId?: string | null;\n  /** Messages per page, default 50. */\n  readonly limit?: number;\n  /** Moves the read marker as messages arrive; default true. */\n  readonly markRead?: boolean;\n}\n\nexport interface MessagesState extends MessagesSnapshot, MessagesActions {}\n\n/**\n * One conversation or thread through the browser client: the latest page, kept\n * current from Realtime, who is typing, and the read marker. It acts in the\n * client's tenant with the schema and topic in the client's `blocks` config.\n * The same hook runs in React DOM and React Native.\n *\n * ```tsx\n * const { messages, send, setTyping } = useMessages({ conversationId });\n * ```\n */\nexport function useMessages(options: UseMessagesOptions): MessagesState {\n  const env = useBlockEnv();\n  const tenant = useBlockTenant(env);\n  const { conversationId, threadId, limit, markRead } = options;\n\n  return useController(\n    () =>\n      createMessagesController({\n        client: createMessaging({\n          ...envBlockOptions(env, \"messaging\"),\n          ...(tenant === undefined ? {} : { tenant }),\n        }),\n        auth: env.auth,\n        ports: env.ports,\n        conversationId:\n          tenant === undefined || conversationId === undefined\n            ? null\n            : conversationId,\n        topic: topicOf(env),\n        ...(threadId === undefined ? {} : { threadId }),\n        ...(limit === undefined ? {} : { limit }),\n        ...(markRead === undefined ? {} : { markRead }),\n      }),\n    [env, tenant, conversationId, threadId, limit, markRead],\n  ).view;\n}\n\nexport interface UseConversationsOptions {\n  /** Only these kinds, such as `[\"channel\"]`. */\n  readonly kinds?: readonly ConversationKind[];\n  readonly limit?: number;\n}\n\nexport interface ConversationsState\n  extends ConversationsSnapshot, ConversationsActions {}\n\n/**\n * The caller's conversations with unread and mention counts, loaded again when\n * a message arrives in one of them: a channel sidebar or a direct message\n * list.\n */\nexport function useConversations(\n  options: UseConversationsOptions = {},\n): ConversationsState {\n  const env = useBlockEnv();\n  const tenant = useBlockTenant(env);\n  const { limit } = options;\n  const kinds = options.kinds?.join(\",\");\n\n  return useController(() => {\n    // SAFETY: `kinds` is the caller's ConversationKind list, joined for the deps.\n    const kindList = kinds?.split(\",\") as ConversationKind[] | undefined;\n\n    return createConversationsController({\n      client: createMessaging({\n        ...envBlockOptions(env, \"messaging\"),\n        ...(tenant === undefined ? {} : { tenant }),\n      }),\n      auth: env.auth,\n      ports: env.ports,\n      enabled: tenant !== undefined,\n      topic: topicOf(env),\n      ...(kindList === undefined ? {} : { kinds: kindList }),\n      ...(limit === undefined ? {} : { limit }),\n    });\n  }, [env, tenant, kinds, limit]).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-messaging.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "messaging",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the messaging block (`npx better-supabase add messaging`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/messaging.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

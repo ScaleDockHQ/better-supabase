@@ -121,6 +121,12 @@ the `better-supabase-auth` skill.
   record's timeline, actions and tags.
 - A preset can write instances too (`preset: { blocks, instances }`); your
   own `blocks` entry for the same key wins.
+- A block's React hooks are registry items: `npx shadcn add
+  @better-supabase/use-<block>` writes `hooks/use-<block>.ts`, and the app
+  imports from `@/hooks/use-<block>`. Vue, Svelte and Solid call
+  `useBlockController(create<Name>Controller, options)` from
+  `better-supabase/vue`, `/svelte` or `/solid`. There is no
+  `better-supabase/blocks/<block>/react` entry.
 
 ## Forms and actions (Next.js)
 

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-audit",
+  "title": "useAuditLog",
+  "description": "useAuditLog: the audit block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-audit.ts",
+      "content": "\"use client\";\n\nimport type {\n  AuditFilters,\n  AuditLogActions,\n  AuditLogSnapshot,\n} from \"better-supabase/blocks/audit\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createAudit,\n  createAuditLogController,\n} from \"better-supabase/blocks/audit\";\nimport { useBlockEnv, useController, useLatest } from \"better-supabase/react\";\n\nexport type { AuditFilters } from \"better-supabase/blocks/audit\";\n\nexport interface UseAuditLogOptions {\n  /** The organization; the table waits without one. */\n  readonly organizationId: string | null | undefined;\n  /** The filters of the first page; change them with `setFilters`. */\n  readonly filters?: AuditFilters;\n  /** Entries per page, default 50, at most 1000. */\n  readonly limit?: number;\n  /**\n   * The schema the calls go to: the module schema (default `better_supabase`),\n   * or the API schema from `blocks.<module>.api`.\n   */\n  readonly schema?: string;\n}\n\nexport interface AuditLogState extends AuditLogSnapshot, AuditLogActions {}\n\n/**\n * One organization's audit trail through the browser client, newest first, with\n * filters by actor, action or text and older pages on `loadMore`. The audit\n * module's read policy decides what the caller sees. The same hook runs in\n * React DOM and React Native.\n *\n * ```tsx\n * const { entries, filters, setFilters, loadMore } = useAuditLog({\n *   organizationId,\n * });\n * ```\n */\nexport function useAuditLog(options: UseAuditLogOptions): AuditLogState {\n  const { supabase, auth } = useBlockEnv();\n  const latest = useLatest(options);\n  const { organizationId, limit, schema } = options;\n\n  return useController(() => {\n    const { filters } = latest.current;\n\n    return createAuditLogController({\n      client: createAudit({\n        transport: rpcTransport(supabase),\n        ...(schema === undefined ? {} : { schema }),\n      }),\n      auth,\n      organizationId: organizationId ?? null,\n      ...(filters === undefined ? {} : { filters }),\n      ...(limit === undefined ? {} : { limit }),\n    });\n  }, [supabase, auth, organizationId, limit, schema, latest]).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-audit.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "audit",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the audit block (`npx better-supabase add audit`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/audit.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

@@ -104,16 +104,17 @@ kind and a route can turn away a key of the wrong kind.
 
 ### In the browser
 
-`useApiKeys` from `better-supabase/blocks/api-keys/react` lists an
-organization's keys newest first through the provider's client, with the
+`useApiKeys` lists an organization's keys newest first through the provider's client, with the
 same rules as `list`. `create({ name, personal })` keeps the new key and
 its token in `created` until `dismiss()`, the only time the token is shown,
 and `revoke(id)` revokes a key; both load the list again and return a
 `Result`. Without an organization the hook lists and creates the caller's
-personal keys. The same hook runs in React DOM and React Native.
+personal keys. The same hook runs in React DOM and React Native. It is a
+registry item: install it with `npx shadcn add @better-supabase/use-api-keys`,
+which writes `hooks/use-api-keys.ts` into the app.
 
 ```tsx title="components/api-keys-table.tsx"
-import { useApiKeys } from "better-supabase/blocks/api-keys/react";
+import { useApiKeys } from "@/hooks/use-api-keys";
 
 const { keys, created, create, revoke, dismiss } = useApiKeys({
   organizationId,
@@ -123,20 +124,24 @@ const { keys, created, create, revoke, dismiss } = useApiKeys({
 
 `onChanged` runs after a key was created or revoked, such as a server
 action that completes an onboarding step. `createApiKeysController` from
-`better-supabase/blocks/api-keys` is the same logic without React, and
-`better-supabase/blocks/api-keys/vue`, `/svelte` and `/solid` export
-`useApiKeys` over it. The [API keys table recipe](/docs/registry/ui-recipes/api-keys-table)
+`better-supabase/blocks/api-keys` is the same logic without React. Vue,
+Svelte and Solid run it with `useBlockController` from `better-supabase/vue`,
+`/svelte` and `/solid` (see
+[Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)). The [API keys table recipe](/docs/registry/ui-recipes/api-keys-table)
 shows it in the Next.js and Expo examples.
 
 ```vue title="ApiKeys.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useApiKeys } from "better-supabase/blocks/api-keys/vue";
-import { createApiKeys, rpcTransport } from "better-supabase/blocks/api-keys";
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createApiKeys,
+  createApiKeysController,
+  rpcTransport,
+} from "better-supabase/blocks/api-keys";
 
 const props = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
-const { state, actions } = useApiKeys({
+const { state, actions } = useBlockController(createApiKeysController, {
   client: createApiKeys({ transport: rpcTransport(supabase), schema: "api" }),
   organizationId: props.organizationId,
 });
@@ -152,13 +157,19 @@ const { state, actions } = useApiKeys({
 
 ```svelte title="ApiKeys.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useApiKeys } from "better-supabase/blocks/api-keys/svelte";
-  import { createApiKeys, rpcTransport } from "better-supabase/blocks/api-keys";
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
+  import {
+    createApiKeys,
+    createApiKeysController,
+    rpcTransport,
+  } from "better-supabase/blocks/api-keys";
 
   let { organizationId }: { organizationId: string } = $props();
   const { supabase } = getBetterSupabase();
-  const keys = useApiKeys({
+  const keys = useBlockController(createApiKeysController, {
     client: createApiKeys({ transport: rpcTransport(supabase), schema: "api" }),
     organizationId,
   });
@@ -168,13 +179,16 @@ const { state, actions } = useApiKeys({
 ```
 
 ```tsx title="ApiKeys.tsx"
-import { useSupabase } from "better-supabase/solid";
-import { useApiKeys } from "better-supabase/blocks/api-keys/solid";
-import { createApiKeys, rpcTransport } from "better-supabase/blocks/api-keys";
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import {
+  createApiKeys,
+  createApiKeysController,
+  rpcTransport,
+} from "better-supabase/blocks/api-keys";
 
 export function ApiKeys(props: { organizationId: string }) {
   const supabase = useSupabase();
-  const { state } = useApiKeys({
+  const { state } = useBlockController(createApiKeysController, {
     client: createApiKeys({ transport: rpcTransport(supabase), schema: "api" }),
     organizationId: props.organizationId,
   });

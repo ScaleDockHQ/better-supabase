@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-settings",
+  "title": "useSettings",
+  "description": "useSettings: the settings block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-settings.ts",
+      "content": "\"use client\";\n\nimport type {\n  SettingEntries,\n  SettingsActions,\n  SettingsDefinition,\n  SettingsSnapshot,\n} from \"better-supabase/blocks/settings\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createSettings,\n  createSettingsController,\n} from \"better-supabase/blocks/settings\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\n\nexport type {\n  SettingField,\n  SettingKind,\n} from \"better-supabase/blocks/settings\";\n\nexport interface UseSettingsOptions<S extends \"user\" | \"organization\"> {\n  /** Which part of the definition the page edits. */\n  readonly scope: S;\n  /** The organization, for `scope: \"organization\"`; the page waits without one. */\n  readonly organizationId?: string | null;\n  /**\n   * The schema the calls go to: the module schema (default `better_supabase`),\n   * or the API schema from `blocks.<module>.api`.\n   */\n  readonly schema?: string;\n}\n\nexport interface SettingsState<E extends SettingEntries>\n  extends SettingsSnapshot<E>, SettingsActions<E> {}\n\n/**\n * One scope of a `defineSettings()` definition for a settings page, through the\n * browser client: `fields` to render, generated from the definition, the stored\n * `values`, and `set` and `reset` per key. The same hook runs in React DOM and\n * React Native.\n *\n * ```tsx\n * const { fields, values, set } = useSettings(settings, {\n *   scope: \"organization\",\n *   organizationId,\n * });\n * ```\n */\nexport function useSettings<\n  U extends SettingEntries,\n  O extends SettingEntries,\n  P extends SettingEntries,\n>(\n  settings: SettingsDefinition<U, O, P>,\n  options: UseSettingsOptions<\"user\">,\n): SettingsState<U>;\nexport function useSettings<\n  U extends SettingEntries,\n  O extends SettingEntries,\n  P extends SettingEntries,\n>(\n  settings: SettingsDefinition<U, O, P>,\n  options: UseSettingsOptions<\"organization\">,\n): SettingsState<O>;\nexport function useSettings(\n  settings: SettingsDefinition<SettingEntries, SettingEntries, SettingEntries>,\n  options: UseSettingsOptions<\"user\" | \"organization\">,\n): SettingsState<SettingEntries> {\n  const { supabase, auth } = useBlockEnv();\n  const { scope, organizationId, schema } = options;\n\n  return useController(() => {\n    const client = createSettings({\n      settings,\n      transport: rpcTransport(supabase),\n      ...(schema === undefined ? {} : { schema }),\n    });\n\n    return scope === \"user\"\n      ? createSettingsController({\n          entries: settings.schemas.user,\n          auth,\n          user: client,\n        })\n      : createSettingsController({\n          entries: settings.schemas.organization,\n          auth,\n          organization: client,\n          organizationId: organizationId ?? null,\n        });\n  }, [settings, supabase, auth, scope, organizationId, schema]).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-settings.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "settings",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the settings block (`npx better-supabase add settings`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/settings.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

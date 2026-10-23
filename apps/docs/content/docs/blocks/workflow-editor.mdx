@@ -543,7 +543,7 @@ with its error, in `workflow_node_runs`. Each record pings
 import {
   useWorkflowEditor,
   useWorkflowCanvasRun,
-} from "better-supabase/blocks/workflow-editor/react";
+} from "@/hooks/use-workflow-editor";
 
 export function CanvasStatus({ runId }: { runId: string }) {
   const { run, nodes } = useWorkflowCanvasRun(runId);
@@ -562,30 +562,32 @@ and a `builder` bound to the user's session. `useWorkflowCanvasRun(id)`
 returns the run and each node's status by node id, and loads them again on
 every message on `workflow-run:<id>`. Both are Client Component hooks; in
 Server Components, call `builder.definitions.list()` and
-`builder.nodeRuns.list(run)` instead.
+`builder.nodeRuns.list(run)` instead. Both hooks are a registry item:
+`npx shadcn add @better-supabase/use-workflow-editor` writes
+`hooks/use-workflow-editor.ts` into the app.
 
 ## Vue
 
-`better-supabase/blocks/workflow-editor/vue` exports `useWorkflowEditor`
-and `useWorkflowCanvasRun`. Each takes the options of the controller it
-wraps (`useWorkflowEditor` those of `createWorkflowEditorController`);
-`auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass
+`useBlockController` from `better-supabase/vue` runs
+`createWorkflowEditorController` for the definitions and
+`createWorkflowCanvasRunController` for a run's status, each with its
+options; `auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass
 them. `state` is a shallow ref of the snapshot and `actions` are the
 controller's actions. The work starts on mount, and the controller is
 disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useWorkflowEditor } from "better-supabase/blocks/workflow-editor/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
 import {
   createWorkflowEditor,
+  createWorkflowEditorController,
   rpcTransport,
 } from "better-supabase/blocks/workflow-editor";
 
 const { organizationId } = defineProps<{ organizationId: string }>();
 const supabase = useSupabase();
-const { state } = useWorkflowEditor({
+const { state } = useBlockController(createWorkflowEditorController, {
   client: createWorkflowEditor({ transport: rpcTransport(supabase) }),
   tenant: organizationId,
 });
@@ -602,23 +604,25 @@ const { state } = useWorkflowEditor({
 
 ## Svelte
 
-`better-supabase/blocks/workflow-editor/svelte` exports
-`useWorkflowEditor` and `useWorkflowCanvasRun`. Each takes the options of
-the controller it wraps (`useWorkflowEditor` those of
-`createWorkflowEditorController`); `auth` and `ports` come from
-`setBetterSupabase(bsb)` unless you pass them. The hook returns a readable
+`useBlockController` from `better-supabase/svelte` runs
+`createWorkflowEditorController` or `createWorkflowCanvasRunController` with
+its options; `auth` and `ports` come from `setBetterSupabase(bsb)` unless you
+pass them. It returns a readable
 store of the snapshot, read with `$`, with the actions on `.actions`. The
 work starts on mount, and the controller is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useWorkflowEditor } from "better-supabase/blocks/workflow-editor/svelte";
-  import { createWorkflowEditor, rpcTransport } from "better-supabase/blocks/workflow-editor";
+  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import {
+    createWorkflowEditor,
+    createWorkflowEditorController,
+    rpcTransport,
+  } from "better-supabase/blocks/workflow-editor";
 
   let { organizationId }: { organizationId: string } = $props();
   const { supabase } = getBetterSupabase();
-  const builder = useWorkflowEditor({
+  const builder = useBlockController(createWorkflowEditorController, {
     client: createWorkflowEditor({ transport: rpcTransport(supabase) }),
     tenant: organizationId,
   });
@@ -633,26 +637,25 @@ work starts on mount, and the controller is disposed with the component.
 
 ## Solid
 
-`better-supabase/blocks/workflow-editor/solid` exports `useWorkflowEditor`
-and `useWorkflowCanvasRun`. Each takes the options of the controller it
-wraps (`useWorkflowEditor` those of `createWorkflowEditorController`);
-`auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless
+`useBlockController` from `better-supabase/solid` runs
+`createWorkflowEditorController` or `createWorkflowCanvasRunController` with
+its options; `auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless
 you pass them. `state()` reads the snapshot through `from`, and `actions`
 are the controller's actions. The work starts on mount, and the controller
 is disposed with the owner.
 
 ```tsx title="Component.tsx"
 import { For } from "solid-js";
-import { useSupabase } from "better-supabase/solid";
-import { useWorkflowEditor } from "better-supabase/blocks/workflow-editor/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
 import {
   createWorkflowEditor,
+  createWorkflowEditorController,
   rpcTransport,
 } from "better-supabase/blocks/workflow-editor";
 
 export function Component(props: { organizationId: string }) {
   const supabase = useSupabase();
-  const { state } = useWorkflowEditor({
+  const { state } = useBlockController(createWorkflowEditorController, {
     client: createWorkflowEditor({ transport: rpcTransport(supabase) }),
     tenant: props.organizationId,
   });

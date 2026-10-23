@@ -16,7 +16,7 @@ better-supabase add saved-views
 
 ```ts
 import { createSavedViews } from "better-supabase/blocks/saved-views";
-import { useSavedViews } from "better-supabase/blocks/saved-views/react";
+import { useSavedViews } from "@/hooks/use-saved-views";
 ```
 
 ## Scopes and permissions
@@ -141,7 +141,9 @@ list exists in the organization and is shared or the caller's own.
 
 ## Sync with the URL
 
-`useSavedViews` reads and writes the list's nuqs state. It loads the views,
+`useSavedViews` is a registry item: `npx shadcn add
+@better-supabase/use-saved-views` writes `hooks/use-saved-views.ts` into the
+app. The hook reads and writes the list's nuqs state. It loads the views,
 opens the default view when the URL holds no query, reports which view the
 URL matches, and saves the URL's query as a view.
 
@@ -157,7 +159,7 @@ only the query counts.
 
 import { useState } from "react";
 import { useQueryStates, createParser } from "nuqs";
-import { useSavedViews } from "better-supabase/blocks/saved-views/react";
+import { useSavedViews } from "@/hooks/use-saved-views";
 import type {
   SavedViewColumns,
   SavedViewDensity,
@@ -208,17 +210,18 @@ state, and `sameDisplayState` compares the rest.
 
 ## Vue
 
-`better-supabase/blocks/saved-views/vue` exports `useSavedViews`. It takes
-the options of `createSavedViewsController`; the controller needs no
+`useBlockController` from `better-supabase/vue` runs
+`createSavedViewsController` with its options; the controller needs no
 provider. `state` is a shallow ref of the snapshot and `actions` are the
 controller's actions. The work starts on mount, and the controller is
 disposed with the component.
 
 ```vue title="Component.vue"
 <script setup lang="ts">
-import { useSavedViews } from "better-supabase/blocks/saved-views/vue";
+import { useBlockController } from "better-supabase/vue";
+import { createSavedViewsController } from "better-supabase/blocks/saved-views";
 
-const { state } = useSavedViews({
+const { state } = useBlockController(createSavedViewsController, {
   load: () => loadViews(),
   urlState: () => readUrlState(),
   setUrlState: (next) => writeUrlState(next),
@@ -238,17 +241,18 @@ and your router's query state. The controller's `apply`, `saveCurrent` and
 
 ## Svelte
 
-`better-supabase/blocks/saved-views/svelte` exports `useSavedViews`. It
-takes the options of `createSavedViewsController`; the controller needs no
-provider. The hook returns a readable store of the snapshot, read with `$`,
+`useBlockController` from `better-supabase/svelte` runs
+`createSavedViewsController` with its options; the controller needs no
+provider. It returns a readable store of the snapshot, read with `$`,
 with the actions on `.actions`. The work starts on mount, and the controller
 is disposed with the component.
 
 ```svelte title="Component.svelte"
 <script lang="ts">
-  import { useSavedViews } from "better-supabase/blocks/saved-views/svelte";
+  import { useBlockController } from "better-supabase/svelte";
+  import { createSavedViewsController } from "better-supabase/blocks/saved-views";
 
-  const views = useSavedViews({
+  const views = useBlockController(createSavedViewsController, {
     load: () => loadViews(),
     urlState: () => readUrlState(),
     setUrlState: (next) => writeUrlState(next),
@@ -264,18 +268,19 @@ is disposed with the component.
 
 ## Solid
 
-`better-supabase/blocks/saved-views/solid` exports `useSavedViews`. It takes
-the options of `createSavedViewsController`; the controller needs no
+`useBlockController` from `better-supabase/solid` runs
+`createSavedViewsController` with its options; the controller needs no
 provider. `state()` reads the snapshot through `from`, and `actions` are the
 controller's actions. The work starts on mount, and the controller is
 disposed with the owner.
 
 ```tsx title="Component.tsx"
 import { For } from "solid-js";
-import { useSavedViews } from "better-supabase/blocks/saved-views/solid";
+import { useBlockController } from "better-supabase/solid";
+import { createSavedViewsController } from "better-supabase/blocks/saved-views";
 
 export function Component() {
-  const { state } = useSavedViews({
+  const { state } = useBlockController(createSavedViewsController, {
     load: () => loadViews(),
     urlState: () => readUrlState(),
     setUrlState: (next) => writeUrlState(next),

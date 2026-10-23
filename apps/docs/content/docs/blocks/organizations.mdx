@@ -281,38 +281,41 @@ somewhere else, use the `profileColumn` or `resolver` source instead.
 
 ### In the browser
 
-`useOrganizations` from `better-supabase/blocks/organizations/react` lists
-the caller's organizations and the active one, read from the tenant claim
-(`auth.organization.claim`) of the provider's session. `switchTo(id)` calls
-`switch_organization`, refreshes the session when the result asks for it,
-and loads the list again; it returns a `Result` and keeps a failure in
-`error`. The same hook runs in React DOM and React Native.
+`useOrganizations` lists the caller's organizations and the active one, read
+from the tenant claim (`auth.organization.claim`) of the provider's session.
+`switchTo(id)` calls `switch_organization`, refreshes the session when the
+result asks for it, and loads the list again; it returns a `Result` and keeps a
+failure in `error`. The same hook runs in React DOM and React Native. It is a
+registry item: install it with `npx shadcn add
+@better-supabase/use-organizations`, which writes `hooks/use-organizations.ts`
+into the app; the file also exports `useMembers` and `useInvitations`.
 
 ```tsx title="components/organization-switcher.tsx"
-import { useOrganizations } from "better-supabase/blocks/organizations/react";
+import { useOrganizations } from "@/hooks/use-organizations";
 
 const { organizations, active, switching, switchTo } = useOrganizations({
   schema: "api",
 });
 ```
 
-`load` replaces `organizations.mine()`, such as with a server action that
-adds the plan to each row, and `initial` and `activeId` take what a server
-already rendered so the first load is skipped. `onSwitched` replaces the
-session refresh, such as with a router refresh after it in a Next.js app.
-`createOrganizationsController` from `better-supabase/blocks/organizations`
-is the same logic without React, and `better-supabase/blocks/organizations/vue`,
-`/svelte` and `/solid` export `useOrganizations` over it, taking the
-controller's options with `auth` from the provider. The
-[organization switcher recipe](/docs/registry/ui-recipes/org-switcher) shows it in the
-Next.js and Expo examples.
+`load` replaces `organizations.mine()`, such as with a server action that adds
+the plan to each row, and `initial` and `activeId` take what a server already
+rendered so the first load is skipped. `onSwitched` replaces the session
+refresh, such as with a router refresh after it in a Next.js app.
+`createOrganizationsController` from `better-supabase/blocks/organizations` is
+the same logic without React. Vue, Svelte and Solid run it with
+`useBlockController` from `better-supabase/vue`, `/svelte` and `/solid`, taking
+the controller's options with `auth` from the provider
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)). The
+[organization switcher recipe](/docs/registry/ui-recipes/org-switcher) shows it
+in the Next.js and Expo examples.
 
 ```vue title="ActiveOrganization.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useOrganizations } from "better-supabase/blocks/organizations/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
 import {
   createOrganizations,
+  createOrganizationsController,
   rpcTransport,
 } from "better-supabase/blocks/organizations";
 
@@ -320,7 +323,7 @@ const supabase = useSupabase();
 const organizations = createOrganizations({
   transport: rpcTransport(supabase),
 });
-const { state, actions } = useOrganizations({
+const { state, actions } = useBlockController(createOrganizationsController, {
   client: organizations,
   load: () => organizations.mine().orThrow(),
   onSwitched: async () => {
@@ -342,13 +345,19 @@ const { state, actions } = useOrganizations({
 
 ```svelte title="ActiveOrganization.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { useOrganizations } from "better-supabase/blocks/organizations/svelte";
-  import { createOrganizations, rpcTransport } from "better-supabase/blocks/organizations";
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
+  import {
+    createOrganizations,
+    createOrganizationsController,
+    rpcTransport,
+  } from "better-supabase/blocks/organizations";
 
   const { supabase } = getBetterSupabase();
   const client = createOrganizations({ transport: rpcTransport(supabase) });
-  const organizations = useOrganizations({
+  const organizations = useBlockController(createOrganizationsController, {
     client,
     load: () => client.mine().orThrow(),
     onSwitched: async () => {
@@ -361,17 +370,17 @@ const { state, actions } = useOrganizations({
 ```
 
 ```tsx title="ActiveOrganization.tsx"
-import { useSupabase } from "better-supabase/solid";
-import { useOrganizations } from "better-supabase/blocks/organizations/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
 import {
   createOrganizations,
+  createOrganizationsController,
   rpcTransport,
 } from "better-supabase/blocks/organizations";
 
 export function ActiveOrganization() {
   const supabase = useSupabase();
   const client = createOrganizations({ transport: rpcTransport(supabase) });
-  const { state } = useOrganizations({
+  const { state } = useBlockController(createOrganizationsController, {
     client,
     load: () => client.mine().orThrow(),
     onSwitched: async () => {
@@ -384,8 +393,8 @@ export function ActiveOrganization() {
 
 ## Members and invitations in the browser
 
-`useMembers` and `useInvitations` from
-`better-supabase/blocks/organizations/react` call the same functions as
+`useMembers` and `useInvitations` from `@/hooks/use-organizations` call the
+same functions as
 `members`, `updateMemberRole`, `removeMember`, `invitations`, `invite` and
 `revokeInvitation`, through the provider's client. Each takes the
 organization and waits without one, and each write returns a `Result` and
@@ -393,10 +402,7 @@ keeps a failure in `error`. The same hooks run in React DOM and React
 Native.
 
 ```tsx title="components/members-table.tsx"
-import {
-  useInvitations,
-  useMembers,
-} from "better-supabase/blocks/organizations/react";
+import { useInvitations, useMembers } from "@/hooks/use-organizations";
 
 const { members, pending, setRole, remove } = useMembers({
   organizationId,

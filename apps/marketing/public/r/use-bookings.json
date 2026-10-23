@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-bookings",
+  "title": "useAvailableSlots",
+  "description": "useAvailableSlots: the bookings block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-bookings.ts",
+      "content": "\"use client\";\n\nimport type { VisibleRange } from \"better-supabase/blocks\";\nimport type {\n  AvailableSlotsActions,\n  AvailableSlotsSnapshot,\n  Bookings,\n} from \"better-supabase/blocks/bookings\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createAvailableSlotsController,\n  createBookings,\n} from \"better-supabase/blocks/bookings\";\nimport { useBlockEnv, useController } from \"better-supabase/react\";\nimport { useEffect, useMemo } from \"react\";\n\nexport interface UseAvailableSlotsOptions {\n  readonly serviceId: string;\n  /** The visible range, as a date picker or schedule reports it. */\n  readonly range: VisibleRange;\n  /** The zone slot times are shown in. Default each resource's. */\n  readonly tz?: string;\n  readonly resourceId?: string;\n  /** A share-link token: loads and holds slots as a guest. */\n  readonly token?: string;\n  /** The schema the calls go to. Default `better_supabase`. */\n  readonly schema?: string;\n}\n\nexport interface AvailableSlotsState\n  extends AvailableSlotsSnapshot, Omit<AvailableSlotsActions, \"setRange\"> {\n  readonly client: Bookings;\n}\n\n/**\n * The open slots of a service in the visible range, for a headless date and\n * time picker or a schedule such as ReUI's.\n *\n * ```tsx\n * const slots = useAvailableSlots({ serviceId, range });\n * slots.days\n *   .get(\"2030-03-04\")\n *   ?.map((slot) => (\n *     <button onClick={() => slots.hold(slot)}>\n *       {slot.localStart.toPlainTime().toString()}\n *     </button>\n *   ));\n * ```\n */\nexport function useAvailableSlots(\n  options: UseAvailableSlotsOptions,\n): AvailableSlotsState {\n  const { supabase } = useBlockEnv();\n  const { schema, serviceId, tz, resourceId, token, range } = options;\n\n  const client = useMemo(\n    () =>\n      createBookings({\n        transport: rpcTransport(supabase),\n        ...(schema === undefined ? {} : { schema }),\n      }),\n    [supabase, schema],\n  );\n\n  const { controller, view } = useController(\n    () =>\n      createAvailableSlotsController({\n        client,\n        serviceId,\n        range,\n        ...(tz === undefined ? {} : { tz }),\n        ...(resourceId === undefined ? {} : { resourceId }),\n        ...(token === undefined ? {} : { token }),\n      }),\n    [client, serviceId, tz, resourceId, token],\n  );\n\n  const from = range.start.getTime();\n  const until = range.end.getTime();\n  useEffect(() => {\n    controller.actions.setRange({\n      start: new Date(from),\n      end: new Date(until),\n    });\n  }, [controller, from, until]);\n\n  return useMemo(() => ({ ...view, client }), [view, client]);\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-bookings.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "bookings",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the bookings block (`npx better-supabase add bookings`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/bookings.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

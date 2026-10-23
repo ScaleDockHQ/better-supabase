@@ -475,6 +475,42 @@ A design with a preset object that has `instances` is format 8
 ([Designs](/docs/presets/designs)). See
 [Instances in a preset](/docs/presets#instances-in-a-preset).
 
+## Block hooks are registry items
+
+The `better-supabase/blocks/<block>/react`, `/vue`, `/svelte` and `/solid`
+subpaths and `better-supabase/chat-sdk/react` are gone. Install a block's
+React hooks into the app, then import them from there:
+
+```sh
+npx shadcn add @better-supabase/use-notifications
+```
+
+```ts
+// before
+import { useNotifications } from "better-supabase/blocks/notifications/react";
+// after
+import { useNotifications } from "@/hooks/use-notifications";
+```
+
+The hooks keep their names, options and return values, and the file is
+yours to change. Vue, Svelte and Solid call `useBlockController` with the
+block's controller and the options the old hook took:
+
+```ts
+// before
+import { useOnboarding } from "better-supabase/blocks/onboarding/vue";
+const { state } = useOnboarding({ client, checklist });
+// after
+import { createOnboardingController } from "better-supabase/blocks/onboarding";
+import { useBlockController } from "better-supabase/vue";
+const { state } = useBlockController(createOnboardingController, {
+  client,
+  checklist,
+});
+```
+
+See [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid).
+
 ## Doctor finds what is left
 
 `better-supabase doctor` reports BS418 for app code that still imports a

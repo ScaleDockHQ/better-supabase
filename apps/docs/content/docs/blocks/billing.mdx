@@ -212,9 +212,10 @@ await billing.checkout(organizationId, {
 
 ### A plan picker
 
-`usePlanPicker` from `better-supabase/blocks/billing/react` lists your plans
-with the tenant's current one and starts Checkout with `choose(plan)`. The
-hook never calls Stripe: `checkout` is your server action or API route,
+`usePlanPicker` lists your plans with the tenant's current one and starts
+Checkout with `choose(plan)`. The hook is a registry item: install it with
+`npx shadcn add @better-supabase/use-billing`, which writes
+`hooks/use-billing.ts` into the app. It never calls Stripe: `checkout` is your server action or API route,
 which calls `billing.checkout()` with the secret key and returns the
 Checkout URL, and `open` sends the user there. The same hook runs in React
 DOM and React Native.
@@ -234,7 +235,7 @@ export const startCheckout = bsb.action(
 ```
 
 ```tsx title="components/plan-picker.tsx"
-import { usePlanPicker } from "better-supabase/blocks/billing/react";
+import { usePlanPicker } from "@/hooks/use-billing";
 
 const { plans, current, pending, choose } = usePlanPicker({
   load: loadPlanCatalog, // { plans, current }, such as a server action
@@ -249,17 +250,18 @@ const { plans, current, pending, choose } = usePlanPicker({
 is skipped. A failed checkout comes back as a `Result` and stays in
 `error`; a checkout that returns no URL, such as a plan change the server
 finished itself, loads the catalog again. `createPlanPickerController`
-from `better-supabase/blocks/billing` is the same logic without React, and
-`better-supabase/blocks/billing/vue`, `/svelte` and `/solid` export
-`usePlanPicker` over it, taking the same options with `auth` from the
-provider. The [plan picker recipe](/docs/registry/ui-recipes/plan-picker) shows it in
+from `better-supabase/blocks/billing` is the same logic without React. Vue,
+Svelte and Solid run it with `useBlockController` from `better-supabase/vue`,
+`/svelte` and `/solid`, with the same options and `auth` from the provider
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)). The [plan picker recipe](/docs/registry/ui-recipes/plan-picker) shows it in
 the Next.js and Expo examples.
 
 ```vue title="PlanPicker.vue"
 <script setup lang="ts">
-import { usePlanPicker } from "better-supabase/blocks/billing/vue";
+import { useBlockController } from "better-supabase/vue";
+import { createPlanPickerController } from "better-supabase/blocks/billing";
 
-const { state, actions } = usePlanPicker({
+const { state, actions } = useBlockController(createPlanPickerController, {
   load: loadPlanCatalog,
   checkout: startCheckout,
   open: (url) => window.location.assign(url),
@@ -280,9 +282,10 @@ const { state, actions } = usePlanPicker({
 
 ```svelte title="PlanPicker.svelte"
 <script lang="ts">
-  import { usePlanPicker } from "better-supabase/blocks/billing/svelte";
+  import { useBlockController } from "better-supabase/svelte";
+  import { createPlanPickerController } from "better-supabase/blocks/billing";
 
-  const picker = usePlanPicker({
+  const picker = useBlockController(createPlanPickerController, {
     load: loadPlanCatalog,
     checkout: startCheckout,
     open: (url) => window.location.assign(url),
@@ -295,10 +298,11 @@ const { state, actions } = usePlanPicker({
 ```
 
 ```tsx title="PlanPicker.tsx"
-import { usePlanPicker } from "better-supabase/blocks/billing/solid";
+import { useBlockController } from "better-supabase/solid";
+import { createPlanPickerController } from "better-supabase/blocks/billing";
 
 export function PlanPicker() {
-  const { state, actions } = usePlanPicker({
+  const { state, actions } = useBlockController(createPlanPickerController, {
     load: loadPlanCatalog,
     checkout: startCheckout,
     open: (url) => window.location.assign(url),

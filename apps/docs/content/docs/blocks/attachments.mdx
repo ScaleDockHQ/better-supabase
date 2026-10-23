@@ -253,17 +253,19 @@ too, for jobs that act for no user.
 
 ### Upload from the browser
 
-`useAttachmentUpload` from `better-supabase/blocks/attachments/react` runs
-the three steps for each file, side by side, and reports progress. It
-watches each file until the scan answers, so an upload ends as `done` or
-`blocked`. The same hook is in `/vue`, `/svelte` and `/solid`, and
-`createAttachmentUploadController` is the framework-free controller under
-them.
+`useAttachmentUpload` runs the three steps for each file, side by side, and
+reports progress. It watches each file until the scan answers, so an upload
+ends as `done` or `blocked`. The hook is a registry item: install it with
+`npx shadcn add @better-supabase/use-attachments`, which writes
+`hooks/use-attachments.ts` into the app. `createAttachmentUploadController`
+is the framework-free controller under it, and Vue, Svelte and Solid run it
+with `useBlockController` from `better-supabase/vue`, `/svelte` and `/solid`
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)).
 
 ```tsx title="app/projects/[id]/files.tsx"
 "use client";
 
-import { useAttachmentUpload } from "better-supabase/blocks/attachments/react";
+import { useAttachmentUpload } from "@/hooks/use-attachments";
 
 export function ProjectFiles({ projectId }: { projectId: string }) {
   const { uploads, add, retry, dismiss } = useAttachmentUpload({
@@ -296,17 +298,17 @@ uploads that ended, and `busy` says whether any is still running. Pass
 `onUploaded` to refresh the list, and `send` to replace the default
 `XMLHttpRequest` upload (in React Native, for example).
 
-In Vue, Svelte and Solid, `useAttachmentUpload` takes the controller's
-options, so pass `start` and `confirm` yourself, and `refresh` to wait for
+In Vue, Svelte and Solid, `useBlockController` passes the controller's
+options as they are, so pass `start` and `confirm` yourself, and `refresh` to wait for
 the scan. Vue returns `state` as a shallow ref with the actions on
 `actions`:
 
 ```vue title="ProjectFiles.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { useAttachmentUpload } from "better-supabase/blocks/attachments/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
 import {
   createAttachments,
+  createAttachmentUploadController,
   rpcTransport,
 } from "better-supabase/blocks/attachments";
 
@@ -319,30 +321,39 @@ const attachments = createAttachments({
 const status = (id: string) =>
   attachments.get(id).map((file) => ({ status: file.status }));
 
-const { state, actions } = useAttachmentUpload({
-  start: (file) =>
-    attachments
-      .upload({ type: "project", id: projectId }, file)
-      .map((upload) => ({
-        id: upload.attachment.id,
-        signedUrl: upload.signedUrl,
-      })),
-  confirm: (id) =>
-    attachments.confirm(id).map((file) => ({ status: file.status })),
-  refresh: status,
-});
+const { state, actions } = useBlockController(
+  createAttachmentUploadController,
+  {
+    start: (file) =>
+      attachments
+        .upload({ type: "project", id: projectId }, file)
+        .map((upload) => ({
+          id: upload.attachment.id,
+          signedUrl: upload.signedUrl,
+        })),
+    confirm: (id) =>
+      attachments.confirm(id).map((file) => ({ status: file.status })),
+    refresh: status,
+  },
+);
 </script>
 ```
 
-Svelte imports the same hook from
-`better-supabase/blocks/attachments/svelte` and returns a readable store
-(`$uploads.uploads`, with the actions on `.actions`), and Solid imports it
-from `better-supabase/blocks/attachments/solid` and reads the snapshot with
-`state()`:
+Svelte runs the same controller with `useBlockController` from
+`better-supabase/svelte`, which returns a readable store (`$uploads.uploads`,
+with the actions on `.actions`), and Solid runs it with `useBlockController`
+from `better-supabase/solid` and reads the snapshot with `state()`:
 
 ```ts
-import { useAttachmentUpload } from "better-supabase/blocks/attachments/svelte";
-import { useAttachmentUpload as useSolidUpload } from "better-supabase/blocks/attachments/solid";
+import { createAttachmentUploadController } from "better-supabase/blocks/attachments";
+import { useBlockController } from "better-supabase/svelte";
+import { useBlockController as useSolidController } from "better-supabase/solid";
+
+const uploads = useBlockController(createAttachmentUploadController, options);
+const { state, actions } = useSolidController(
+  createAttachmentUploadController,
+  options,
+);
 ```
 
 ## Versions

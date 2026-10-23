@@ -168,7 +168,6 @@
   "chat-sdk/channels",
   "chat-sdk/identities",
   "chat-sdk/inbox-adapter",
-  "chat-sdk/react",
   "chat-sdk/state",
   "cli",
   "cli/agent-mode",

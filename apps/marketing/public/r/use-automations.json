@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-automations",
+  "title": "useRuleBuilder",
+  "description": "useRuleBuilder: the automations block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-automations.ts",
+      "content": "\"use client\";\n\nimport type {\n  Automations,\n  RuleBuilderActions,\n  RuleBuilderSnapshot,\n} from \"better-supabase/blocks/automations\";\nimport type { FilterLimits, FilterQuery } from \"better-supabase/list\";\n\nimport { rpcTransport } from \"better-supabase/blocks\";\nimport {\n  createAutomations,\n  createRuleBuilderController,\n} from \"better-supabase/blocks/automations\";\nimport { useBlockEnv, useController, useLatest } from \"better-supabase/react\";\nimport { useMemo } from \"react\";\n\nexport interface UseRuleBuilderOptions {\n  readonly organizationId: string;\n  /** The rule to edit; `null` edits a new one. */\n  readonly rule: string | null;\n  /** The record type whose fields the rules test. */\n  readonly subjectType: string;\n  /** A new rule's trigger, such as `expense.submitted`. */\n  readonly trigger?: string;\n  /** The tree a new rule starts with. Read once, when the editor starts. */\n  readonly initial?: FilterQuery;\n  /** Node ids the editor may not change. Read once, when the editor starts. */\n  readonly locked?: readonly string[];\n  readonly limits?: FilterLimits;\n  /** The schema the calls go to (default `better_supabase`). */\n  readonly schema?: string;\n}\n\nexport interface RuleBuilderState\n  extends RuleBuilderSnapshot, RuleBuilderActions {\n  /** The rules client for the signed-in user, for lists and toggles. */\n  readonly rules: Automations;\n}\n\n/**\n * The editor state of one rule: its fields, its condition tree with the edits\n * to it, validation, dirty state and save.\n *\n * ```tsx\n * const builder = useRuleBuilder({\n *   organizationId,\n *   rule: null,\n *   subjectType: \"expense\",\n * });\n * builder.addRule(undefined, \"amount\");\n * ```\n */\nexport function useRuleBuilder(\n  options: UseRuleBuilderOptions,\n): RuleBuilderState {\n  const { supabase, auth } = useBlockEnv();\n  const latest = useLatest(options);\n\n  const { organizationId, rule, subjectType, trigger, limits, schema } =\n    options;\n\n  const rules = useMemo(\n    () =>\n      createAutomations({\n        transport: rpcTransport(supabase),\n        ...(schema === undefined ? {} : { schema }),\n      }),\n    [supabase, schema],\n  );\n\n  const { view } = useController(() => {\n    const { initial, locked } = latest.current;\n\n    return createRuleBuilderController({\n      client: rules,\n      auth,\n      organizationId,\n      rule,\n      subjectType,\n      ...(trigger === undefined ? {} : { trigger }),\n      ...(initial === undefined ? {} : { initial }),\n      ...(locked === undefined ? {} : { locked }),\n      ...(limits === undefined ? {} : { limits }),\n    });\n  }, [rules, auth, latest, organizationId, rule, subjectType, trigger, limits]);\n\n  return useMemo(() => ({ ...view, rules }), [view, rules]);\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-automations.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "automations",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the automations block (`npx better-supabase add automations`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/automations.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

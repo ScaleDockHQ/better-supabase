@@ -44,8 +44,12 @@ A Vue binding is a `shallowRef` that `subscribe` updates; a Svelte one is a
 ## Controllers by block
 
 Each block exports its controllers from its main entry,
-`better-supabase/blocks/<name>`. The hooks in `better-supabase/blocks/<name>/react`
-build them from the provider's client.
+`better-supabase/blocks/<name>`. The React hooks are registry items that you
+copy into the app, so you can change them: `npx shadcn add
+@better-supabase/use-<name>` writes `hooks/use-<name>.ts`, which builds the
+controllers from the provider's client. Vue, Svelte and Solid run a
+controller with `useBlockController` (see
+[Vue, Svelte and Solid](#vue-svelte-and-solid)).
 
 | Block             | Controllers                                                                                                    | Hooks                                                      |
 | ----------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -86,6 +90,89 @@ the record as `subject` (`subjects` for reactions), a `RecordRef` such as
 The hooks build that client from the provider's client, with the schema from
 its `blocks` option and the tenant from its `tenant` option or the session's
 tenant claim (see [Block hooks](/docs/frontend/client#block-hooks)).
+
+## Writing a React hook
+
+The registry hooks use four exports of `better-supabase/react`, and you can
+use them for a hook of your own. `useBlockEnv()` returns the provider's
+client, session and ports, `useBlockTenant(env)` the tenant it acts in (and
+renders again when it changes), and `useController(create, deps)` makes the
+controller, makes it again when `deps` change and returns its state and
+actions as `view`. `envBlockOptions(env, block)` from `better-supabase/blocks`
+gives a block client the transport and schema `gen` wrote for that block.
+
+```ts title="hooks/use-comments.ts"
+"use client";
+
+import { envBlockOptions, type RecordRef } from "better-supabase/blocks";
+import {
+  createComments,
+  createCommentsController,
+} from "better-supabase/blocks/comments";
+import {
+  useBlockEnv,
+  useBlockTenant,
+  useController,
+} from "better-supabase/react";
+
+export function useComments(subject: RecordRef) {
+  const env = useBlockEnv();
+  const tenant = useBlockTenant(env);
+
+  return useController(
+    () =>
+      createCommentsController({
+        client: createComments({
+          ...envBlockOptions(env, "comments"),
+          ...(tenant === undefined ? {} : { tenant }),
+        }),
+        auth: env.auth,
+        ports: env.ports,
+        subject: tenant === undefined ? null : subject,
+        topic: "messages",
+      }),
+    [env, tenant, subject.type, subject.id],
+  ).view;
+}
+```
+
+## Vue, Svelte and Solid
+
+`useBlockController(create, options)` from `better-supabase/vue`,
+`better-supabase/svelte` and `better-supabase/solid` makes a controller once
+and binds it to the framework. `auth` and `ports` come from the app's
+better-supabase plugin, context or provider unless `options` has them. The
+work starts on mount and stops when the component goes away.
+
+| Entry                    | Returns                                                                  |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `better-supabase/vue`    | `{ state, actions }`, with `state` a shallow ref of the snapshot         |
+| `better-supabase/svelte` | a readable store of the snapshot (read with `$`), with `.actions`        |
+| `better-supabase/solid`  | `{ state, actions }`, with `state()` reading the snapshot through `from` |
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import {
+  createAnnouncements,
+  createAnnouncementsController,
+  rpcTransport,
+} from "better-supabase/blocks/announcements";
+import { useBlockController, useSupabase } from "better-supabase/vue";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state } = useBlockController(createAnnouncementsController, {
+  client: createAnnouncements({ transport: rpcTransport(supabase) }),
+  organizationId,
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="item in state.items ?? []" :key="item.id">{{ item.title }}</li>
+  </ul>
+</template>
+```
 
 ## Any block method
 

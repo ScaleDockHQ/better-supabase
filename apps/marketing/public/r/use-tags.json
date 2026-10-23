@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-tags",
+  "title": "useTagInput",
+  "description": "useTagInput: the tags block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-tags.ts",
+      "content": "\"use client\";\n\nimport type { RecordRef } from \"better-supabase/blocks\";\nimport type {\n  TagChange,\n  TagInputActions,\n  TagInputSnapshot,\n} from \"better-supabase/blocks/tags\";\n\nimport { envBlockOptions } from \"better-supabase/blocks\";\nimport {\n  createTagInputController,\n  createTags,\n} from \"better-supabase/blocks/tags\";\nimport {\n  useBlockEnv,\n  useBlockTenant,\n  useController,\n  useLatest,\n} from \"better-supabase/react\";\n\nexport type { TagChange } from \"better-supabase/blocks/tags\";\n\nexport interface UseTagInputOptions {\n  /** The subject whose tags to show; the input waits without one. */\n  readonly subject: RecordRef | null | undefined;\n  /** The kind of tags the input offers and creates, such as `customer`. */\n  readonly kind: string;\n  /** Runs after a tag was added or removed. */\n  readonly onChanged?: (change: TagChange) => void | Promise<void>;\n}\n\nexport interface TagInputState extends TagInputSnapshot, TagInputActions {}\n\n/**\n * One subject's tags through the browser client, for a tag input: the tags on\n * it, every tag of the kind for suggestions, and `add`, `remove` and `create`,\n * which show the change at once. It acts in the client's tenant and calls the\n * schema and function names in the client's `blocks` config, and waits while\n * there is no tenant. The same hook runs in React DOM and React Native.\n *\n * ```tsx\n * const { tags, available, add, remove, create } = useTagInput({\n *   subject: { type: \"customer\", id: customerId },\n *   kind: \"customer\",\n * });\n * ```\n */\nexport function useTagInput(options: UseTagInputOptions): TagInputState {\n  const env = useBlockEnv();\n  const tenant = useBlockTenant(env);\n  const latest = useLatest(options);\n  const { kind } = options;\n  const type = options.subject?.type;\n  const id = options.subject?.id;\n\n  return useController(\n    () =>\n      createTagInputController({\n        client: createTags({\n          ...envBlockOptions(env, \"tags\"),\n          ...(tenant === undefined ? {} : { tenant }),\n        }),\n        auth: env.auth,\n        subject:\n          tenant === undefined || type === undefined || id === undefined\n            ? null\n            : { type, id },\n        kind,\n        onChanged: async (change) => {\n          await latest.current.onChanged?.(change);\n        },\n      }),\n    [env, tenant, type, id, kind, latest],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-tags.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "tags",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the tags block (`npx better-supabase add tags`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/tags.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

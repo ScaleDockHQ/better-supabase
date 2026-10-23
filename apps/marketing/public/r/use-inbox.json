@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-inbox",
+  "title": "useInbox, useConversation, useInboxWidget",
+  "description": "useInbox, useConversation and useInboxWidget: the inbox block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-inbox.ts",
+      "content": "\"use client\";\n\nimport type {\n  ConversationActions,\n  ConversationSnapshot,\n  Identified,\n  InboxListActions,\n  InboxListSnapshot,\n  InboxSource,\n  InboxWidgetActions,\n  InboxWidgetSnapshot,\n} from \"better-supabase/blocks/inbox\";\n\nimport {\n  createConversationController,\n  createInboxController,\n  createInboxWidgetController,\n} from \"better-supabase/blocks/inbox\";\nimport { useBlockEnv, useController, useLatest } from \"better-supabase/react\";\n\nexport type { InboxSource } from \"better-supabase/blocks/inbox\";\n\nexport interface UseInboxOptions<T> {\n  /** The organization; the hook joins `inbox:org:<id>`. `null` waits. */\n  readonly organizationId: string | null;\n  readonly load: InboxSource<T>;\n  /**\n   * `blockConfig.inbox.options.topic` from `blocks.generated.ts`. Defaults to\n   * `inbox`.\n   */\n  readonly topic?: string;\n  /** Runs for each broadcast, e.g. to show a toast for `message`. */\n  readonly onMessage?: (event: string, payload: unknown) => void;\n}\n\nexport interface InboxListState<T>\n  extends InboxListSnapshot<T>, InboxListActions {}\n\n/**\n * The staff view of an organization's conversations, kept current: loads, then\n * loads again after each ping on `inbox:org:<id>` and on rejoin.\n */\nexport function useInbox<T>(options: UseInboxOptions<T>): InboxListState<T> {\n  const { auth, ports } = useBlockEnv();\n  const latest = useLatest(options);\n  const { organizationId, topic } = options;\n\n  return useController(\n    () =>\n      createInboxController<T>({\n        auth,\n        ports,\n        organizationId,\n        load: () => latest.current.load(),\n        onMessage: (event, payload) => {\n          latest.current.onMessage?.(event, payload);\n        },\n        ...(topic === undefined ? {} : { topic }),\n      }),\n    [auth, ports, organizationId, topic, latest],\n  ).view;\n}\n\nexport interface UseConversationOptions<T extends Identified> {\n  /** `null` waits, e.g. before the widget opens a conversation. */\n  readonly conversationId: string | null;\n  /** The messages, oldest first: on mount and after a rejoin. */\n  readonly load: InboxSource<T>;\n  /** One message after a ping; `null` when the caller cannot read it. */\n  readonly get: (messageId: string) => Promise<T | null>;\n  /** The messaging topic prefix. Defaults to `messages`. */\n  readonly topic?: string;\n  /** Runs for the other pings, such as `conversation` and `read`. */\n  readonly onEvent?: (event: string, payload: unknown) => void;\n  /** How long a typing ping counts. Defaults to 5000 ms. */\n  readonly typingMs?: number;\n}\n\nexport interface ConversationState<T extends Identified>\n  extends ConversationSnapshot<T>, ConversationActions {}\n\n/**\n * One conversation's messages, kept current over `messages:<id>`: each ping\n * fetches the one message it names. Typing pings go between staff and the\n * contact.\n */\nexport function useConversation<T extends Identified>(\n  options: UseConversationOptions<T>,\n): ConversationState<T> {\n  const { auth, ports } = useBlockEnv();\n  const latest = useLatest(options);\n  const { conversationId, topic, typingMs } = options;\n\n  return useController(\n    () =>\n      createConversationController<T>({\n        auth,\n        ports,\n        conversationId,\n        load: () => latest.current.load(),\n        get: (messageId) => latest.current.get(messageId),\n        onEvent: (event, payload) => {\n          latest.current.onEvent?.(event, payload);\n        },\n        ...(topic === undefined ? {} : { topic }),\n        ...(typingMs === undefined ? {} : { typingMs }),\n      }),\n    [auth, ports, conversationId, topic, typingMs, latest],\n  ).view;\n}\n\nexport interface UseInboxWidgetOptions<T extends Identified> {\n  /**\n   * Opens the visitor's conversation, e.g. a server action that calls\n   * `inbox.conversations.open(inboxId, { message })` with the visitor's\n   * transport. Returns its id.\n   */\n  readonly open: (message: string) => Promise<string>;\n  /** Sends into the open conversation. */\n  readonly send: (conversationId: string, message: string) => Promise<void>;\n  readonly load: (conversationId: string) => Promise<readonly T[]>;\n  /** One message after a ping; `null` when the visitor cannot read it. */\n  readonly get: (messageId: string) => Promise<T | null>;\n  /**\n   * Remembers the conversation across reloads in the client's storage port\n   * (`localStorage` on the web). Defaults to `better-supabase:inbox-widget`.\n   */\n  readonly storageKey?: string | null;\n  readonly topic?: string;\n}\n\nexport interface InboxWidgetState<T extends Identified>\n  extends InboxWidgetSnapshot<T>, InboxWidgetActions {}\n\n/**\n * The visitor side of an in-app inbox: the first message opens the\n * conversation, later ones go into it, and the messages and typing pings stay\n * current. Visitors without an account sign in anonymously first.\n */\nexport function useInboxWidget<T extends Identified>(\n  options: UseInboxWidgetOptions<T>,\n): InboxWidgetState<T> {\n  const { auth, ports } = useBlockEnv();\n  const latest = useLatest(options);\n  const { storageKey, topic } = options;\n\n  return useController(\n    () =>\n      createInboxWidgetController<T>({\n        auth,\n        ports,\n        open: (message) => latest.current.open(message),\n        send: (conversationId, message) =>\n          latest.current.send(conversationId, message),\n        load: (conversationId) => latest.current.load(conversationId),\n        get: (messageId) => latest.current.get(messageId),\n        ...(storageKey === undefined ? {} : { storageKey }),\n        ...(topic === undefined ? {} : { topic }),\n      }),\n    [auth, ports, storageKey, topic, latest],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-inbox.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "inbox",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the inbox block (`npx better-supabase add inbox`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/inbox.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

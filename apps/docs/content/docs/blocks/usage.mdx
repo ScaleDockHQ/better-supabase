@@ -208,15 +208,16 @@ const meters = await usage.overview(organizationId).orThrow();
 
 ### A usage meter in the browser
 
-`useUsageMeter` from `better-supabase/blocks/usage/react` reads the
-overview through the provider's client and adds `fraction` (used over the
+`useUsageMeter` is a registry item: `npx shadcn add
+@better-supabase/use-usage` writes `hooks/use-usage.ts` into the app. The hook
+reads the overview through the provider's client and adds `fraction` (used over the
 limit, from 0 to 1, `undefined` without a limit) and `exceeded` to each
 meter. `meters` keeps only the meters you name, in that order, and
 `refresh()` reads them again after the app records usage. The same hook
 runs in React DOM and React Native.
 
 ```tsx title="components/usage-meter.tsx"
-import { useUsageMeter } from "better-supabase/blocks/usage/react";
+import { useUsageMeter } from "@/hooks/use-usage";
 
 const { meters } = useUsageMeter({
   organizationId,
@@ -227,19 +228,23 @@ const { meters } = useUsageMeter({
 ```
 
 `createUsageMeterController` from `better-supabase/blocks/usage` is the
-same logic without React, and `better-supabase/blocks/usage/vue`, `/svelte`
-and `/solid` export `useUsageMeter` over it, taking `createUsage(...)` as
-`client`. The [usage meter recipe](/docs/registry/ui-recipes/usage-meter) shows it in
+same logic without React. Vue, Svelte and Solid run it with
+`useBlockController` from `better-supabase/vue`, `/svelte` and `/solid` (see
+[Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)),
+passing `createUsage(...)` as `client`. The [usage meter recipe](/docs/registry/ui-recipes/usage-meter) shows it in
 the Next.js and Expo examples.
 
 ```vue title="UsageMeter.vue"
 <script setup lang="ts">
-import { useSupabase } from "better-supabase/vue";
-import { createUsage, rpcTransport } from "better-supabase/blocks/usage";
-import { useUsageMeter } from "better-supabase/blocks/usage/vue";
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createUsage,
+  createUsageMeterController,
+  rpcTransport,
+} from "better-supabase/blocks/usage";
 
 const supabase = useSupabase();
-const { state } = useUsageMeter({
+const { state } = useBlockController(createUsageMeterController, {
   client: createUsage({ transport: rpcTransport(supabase) }),
   organizationId: "org-id",
 });
@@ -254,12 +259,15 @@ const { state } = useUsageMeter({
 
 ```svelte title="UsageMeter.svelte"
 <script lang="ts">
-  import { getBetterSupabase } from "better-supabase/svelte";
-  import { createUsage, rpcTransport } from "better-supabase/blocks/usage";
-  import { useUsageMeter } from "better-supabase/blocks/usage/svelte";
+  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import {
+    createUsage,
+    createUsageMeterController,
+    rpcTransport,
+  } from "better-supabase/blocks/usage";
 
   const { supabase } = getBetterSupabase();
-  const usage = useUsageMeter({
+  const usage = useBlockController(createUsageMeterController, {
     client: createUsage({ transport: rpcTransport(supabase) }),
     organizationId: "org-id",
   });
@@ -269,13 +277,16 @@ const { state } = useUsageMeter({
 ```
 
 ```tsx title="UsageMeter.tsx"
-import { useSupabase } from "better-supabase/solid";
-import { createUsage, rpcTransport } from "better-supabase/blocks/usage";
-import { useUsageMeter } from "better-supabase/blocks/usage/solid";
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import {
+  createUsage,
+  createUsageMeterController,
+  rpcTransport,
+} from "better-supabase/blocks/usage";
 
 export function UsageMeter() {
   const supabase = useSupabase();
-  const { state } = useUsageMeter({
+  const { state } = useBlockController(createUsageMeterController, {
     client: createUsage({ transport: rpcTransport(supabase) }),
     organizationId: "org-id",
   });
