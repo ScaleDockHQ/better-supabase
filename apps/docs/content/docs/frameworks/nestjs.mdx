@@ -3,6 +3,12 @@ title: NestJS
 description: Run withBetterSupabase as NestJS middleware, read the caller with @Ctx(), and guard routes by role.
 ---
 
+<Callout title="Community adapter">
+  This is a community adapter. It ships with every release and has a smoke test,
+  but the full test matrix and new guides target the supported adapters. See
+  [adapter tiers](/docs/frameworks#adapter-tiers).
+</Callout>
+
 `better-supabase/nestjs` works on both of Nest's HTTP platforms (Express and
 Fastify). Install `@nestjs/common` (version 11 or 12) in the app; the package
 loads it the first time `@Ctx()` or a guard needs it.

@@ -97,3 +97,4 @@ add one, and link it from the code or config it explains.
 | [0091](0091-sequences-on-enrollments-and-mail-sync.md)    | Sequences run on enrollments and send email steps through a `mailer` port that mail-sync provides                                         |
 | [0092](0092-posts-on-shared-primitives.md)                | Posts keep only boards and posts; votes, replies and moderation stay in reactions, comments and moderation                                |
 | [0093](0093-block-instances-and-one-data-contract.md)     | Blocks install as named instances behind one data contract; plugins, sections, preset codes and duplicate layers go (supersedes 0064)     |
+| [0094](0094-supported-and-community-adapters.md)          | Supported adapters get the full test matrix; community adapters keep shipping with a smoke test and a docs note                           |
