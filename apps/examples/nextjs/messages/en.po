@@ -13258,3 +13258,113 @@ msgstr "Task title"
 msgctxt "sequences.ifgK-P"
 msgid "Call the contact"
 msgstr "Call the contact"
+
+#: src/app/[locale]/(app)/islands/page.tsx
+msgctxt "islands.a8EoBn"
+msgid "Islands"
+msgstr "Islands"
+
+#: src/app/[locale]/(app)/islands/page.tsx
+msgctxt "islands.D9tzWm"
+msgid "Ten private islands that share one verified session per request."
+msgstr "Ten private islands that share one verified session per request."
+
+#: src/app/[locale]/(app)/islands/page.tsx
+msgctxt "islands.4lbK5K"
+msgid "Rows"
+msgstr "Rows"
+
+#: src/app/[locale]/(app)/islands/page.tsx
+msgctxt "islands.d3wbXx"
+msgid "Session"
+msgstr "Session"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.TkYZBT"
+msgid "Customers"
+msgstr "Customers"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.7-Domh"
+msgid "Notes"
+msgstr "Notes"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.4S241U"
+msgid "Contacts"
+msgstr "Contacts"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.1EYCdR"
+msgid "Tags"
+msgstr "Tags"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.yhU1et"
+msgid "Tasks"
+msgstr "Tasks"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.7HVokz"
+msgid "Rows in this organization"
+msgstr "Rows in this organization"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.KjR3ZD"
+msgid "Nothing here yet"
+msgstr "Nothing here yet"
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.5Apo0m"
+msgid "Add the first row to see it counted."
+msgstr "Add the first row to see it counted."
+
+#: src/features/islands/components/count-island.tsx
+msgctxt "islands.z7yzMC"
+msgid "Add one"
+msgstr "Add one"
+
+#: src/features/islands/components/island-error.tsx
+msgctxt "islands.EZenTi"
+msgid "This island could not load."
+msgstr "This island could not load."
+
+#: src/features/islands/components/island-error.tsx
+msgctxt "islands.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.eKkv-H"
+msgid "Signed in as"
+msgstr "Signed in as"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.K56Dim"
+msgid "Organization"
+msgstr "Organization"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.A6OIRq"
+msgid "Token expires"
+msgstr "Token expires"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.qdU0Gz"
+msgid "Token issued"
+msgstr "Token issued"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.jpvG8q"
+msgid "Authorization version"
+msgstr "Authorization version"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.t7fk0C"
+msgid "From the verified token"
+msgstr "From the verified token"
+
+#: src/features/islands/components/session-island.tsx
+msgctxt "islands.dJi4TF"
+msgid "Not in the token"
+msgstr "Not in the token"
