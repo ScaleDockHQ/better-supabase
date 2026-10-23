@@ -926,6 +926,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ai-keys",
         "approvals",
         "data-lifecycle",
+        "usage",
         "share-links"
       ],
       "manifest": "ai-chat",
@@ -2323,7 +2324,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "state-machine",
-        "inventory"
+        "inventory",
+        "attachments"
       ],
       "manifest": "catalog",
       "scopes": [
@@ -2581,7 +2583,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "inventory",
         "promotions",
         "numbering",
-        "state-machine"
+        "state-machine",
+        "invoices"
       ],
       "manifest": "orders",
       "scopes": [
@@ -3512,7 +3515,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "numbering",
         "deals",
-        "relations"
+        "relations",
+        "catalog"
       ],
       "manifest": "quotes",
       "scopes": [
@@ -3889,7 +3893,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "relations",
-        "hiring"
+        "hiring",
+        "time-tracking"
       ],
       "manifest": "employees",
       "scopes": [
@@ -4184,6 +4189,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
+        "employees",
         "approvals"
       ],
       "manifest": "leave",

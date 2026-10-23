@@ -4060,7 +4060,14 @@
                 "type": "string",
                 "default": "private"
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "locales": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["en"]
+              }
             }
           }
         }

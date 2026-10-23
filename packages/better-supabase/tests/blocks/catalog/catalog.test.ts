@@ -332,4 +332,170 @@ describe("catalog block", () => {
     );
     expect(calls).toEqual([]);
   });
+
+  it("saves channels and lists products on them", async () => {
+    const { calls, transport } = recorder(
+      { id: "ch1", key: "web", active: true },
+      2,
+      1,
+    );
+
+    const catalog = createCatalog({ transport });
+
+    expect(
+      await catalog
+        .saveChannel("org", { key: "web", name: "Web", currency: "EUR" })
+        .orThrow(),
+    ).toEqual({ id: "ch1", key: "web", active: true });
+    expect(await catalog.listOnChannel("ch1", ["p1", "p2"]).orThrow()).toBe(2);
+    expect(await catalog.unlistFromChannel("ch1", ["p1"]).orThrow()).toBe(1);
+    expect(calls).toEqual([
+      {
+        fn: "save_catalog_channel",
+        args: {
+          tenant: "org",
+          channel: null,
+          key: "web",
+          name: "Web",
+          currency: "EUR",
+          price_list: null,
+          active: null,
+        },
+      },
+      {
+        fn: "set_channel_listing",
+        args: { channel: "ch1", products: ["p1", "p2"], listed: true },
+      },
+      {
+        fn: "set_channel_listing",
+        args: { channel: "ch1", products: ["p1"], listed: false },
+      },
+    ]);
+  });
+
+  it("reads a channel's products in a locale", async () => {
+    const { calls, transport } = recorder([
+      {
+        id: "p1",
+        slug: "linen-shirt",
+        status: "active",
+        kind: "physical",
+        locale: "de",
+        title: "Leinenhemd",
+        description: null,
+        listedAt: "2026-03-01T10:00:00Z",
+      },
+    ]);
+
+    const products = await createCatalog({ transport })
+      .channelProducts("ch1", { locale: "de-AT", limit: 20 })
+      .orThrow();
+
+    expect(products).toEqual([
+      {
+        id: "p1",
+        slug: "linen-shirt",
+        status: "active",
+        kind: "physical",
+        locale: "de",
+        title: "Leinenhemd",
+        listedAt: Temporal.Instant.from("2026-03-01T10:00:00Z"),
+      },
+    ]);
+    expect(calls[0]).toEqual({
+      fn: "channel_products",
+      args: { channel: "ch1", locale: "de-AT", page_size: 20, after: null },
+    });
+  });
+
+  it("sets translations and reads the text in a locale", async () => {
+    const { calls, transport } = recorder(true, true, {
+      id: "p1",
+      slug: "linen-shirt",
+      locale: "de",
+      title: "Leinenhemd",
+      description: "Aus Leinen",
+      variants: [
+        { id: "x1", sku: "TEE-S", title: "Klein" },
+        { id: "x2", sku: "TEE-M", title: null },
+      ],
+    });
+
+    const catalog = createCatalog({ transport });
+
+    await catalog
+      .setProductTranslation("p1", "de", { title: "Leinenhemd" })
+      .orThrow();
+    await catalog.setVariantTranslation("x1", "de", "Klein").orThrow();
+    expect(await catalog.productText("p1", { locale: "de" }).orThrow()).toEqual(
+      {
+        id: "p1",
+        slug: "linen-shirt",
+        locale: "de",
+        title: "Leinenhemd",
+        description: "Aus Leinen",
+        variants: [
+          { id: "x1", sku: "TEE-S", title: "Klein" },
+          { id: "x2", sku: "TEE-M" },
+        ],
+      },
+    );
+    expect(calls.map((call) => call.args)).toEqual([
+      { product: "p1", locale: "de", title: "Leinenhemd", description: null },
+      { variant: "x1", locale: "de", title: "Klein" },
+      { product: "p1", locale: "de" },
+    ]);
+  });
+
+  it("resolves a missing product's text to null", async () => {
+    const { transport } = recorder(null);
+
+    expect(
+      await createCatalog({ transport }).productText("p1").orThrow(),
+    ).toBeNull();
+  });
+
+  it("adds, orders and reads product media", async () => {
+    const { calls, transport } = recorder({ id: "m1", position: 0 }, true, [
+      {
+        id: "m1",
+        attachmentId: "a1",
+        variantId: null,
+        position: 0,
+        alt: "Linen shirt",
+        altByLocale: { en: "Linen shirt", de: "Leinenhemd" },
+      },
+    ]);
+
+    const catalog = createCatalog({ transport });
+
+    expect(
+      await catalog
+        .addProductMedia("p1", "a1", { alt: { en: "Linen shirt" } })
+        .orThrow(),
+    ).toEqual({ id: "m1", position: 0 });
+    await catalog.reorderProductMedia("p1", ["m1"]).orThrow();
+    expect(await catalog.productMedia("p1").orThrow()).toEqual([
+      {
+        id: "m1",
+        attachmentId: "a1",
+        position: 0,
+        alt: "Linen shirt",
+        altByLocale: { en: "Linen shirt", de: "Leinenhemd" },
+      },
+    ]);
+    expect(calls).toEqual([
+      {
+        fn: "add_product_media",
+        args: {
+          product: "p1",
+          attachment: "a1",
+          variant: null,
+          alt: { en: "Linen shirt" },
+        },
+      },
+      { fn: "reorder_product_media", args: { product: "p1", media: ["m1"] } },
+      { fn: "product_media", args: { product: "p1", locale: null } },
+    ]);
+  });
 });
