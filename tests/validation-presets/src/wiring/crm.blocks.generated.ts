@@ -9,14 +9,20 @@ import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
 import type { DealsEvents } from "better-supabase/blocks/deals";
+import type { ScoresEvents } from "better-supabase/blocks/scores";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
+import type { SequencesEvents } from "better-supabase/blocks/sequences";
 import type { ActivitiesEvents } from "better-supabase/blocks/activities";
 import type { MessagingEvents } from "better-supabase/blocks/messaging";
+import type { MailSyncEvents } from "better-supabase/blocks/mail-sync";
+import type { EnrichmentEvents } from "better-supabase/blocks/enrichment";
+import type { ForecastsEvents } from "better-supabase/blocks/forecasts";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { QuotesEvents } from "better-supabase/blocks/quotes";
+import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TagsEvents } from "better-supabase/blocks/tags";
@@ -28,11 +34,19 @@ import { billingBlock as billingBlockInstance } from "better-supabase/blocks/bil
 import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/comments";
 import { customFieldsBlock as customFieldsBlockInstance } from "better-supabase/blocks/custom-fields";
 import { dealsBlock as dealsBlockInstance } from "better-supabase/blocks/deals";
+import { scoresBlock as scoresBlockInstance } from "better-supabase/blocks/scores";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { sequencesBlock as sequencesBlockInstance } from "better-supabase/blocks/sequences";
+import { leadScoringBlock as leadScoringBlockInstance } from "better-supabase/blocks/lead-scoring";
 import { activitiesBlock as activitiesBlockInstance } from "better-supabase/blocks/activities";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
 import { timelineBlock as timelineBlockInstance } from "better-supabase/blocks/timeline";
+import { mailSyncBlock as mailSyncBlockInstance } from "better-supabase/blocks/mail-sync";
+import { segmentsBlock as segmentsBlockInstance } from "better-supabase/blocks/segments";
+import { assignmentBlock as assignmentBlockInstance } from "better-supabase/blocks/assignment";
+import { enrichmentBlock as enrichmentBlockInstance } from "better-supabase/blocks/enrichment";
+import { forecastsBlock as forecastsBlockInstance } from "better-supabase/blocks/forecasts";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
@@ -41,6 +55,7 @@ import { contactsBlock as contactsBlockInstance } from "better-supabase/blocks/c
 import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { quotesBlock as quotesBlockInstance } from "better-supabase/blocks/quotes";
+import { automationsBlock as automationsBlockInstance } from "better-supabase/blocks/automations";
 import { savedViewsBlock as savedViewsBlockInstance } from "better-supabase/blocks/saved-views";
 import { searchBlock as searchBlockInstance } from "better-supabase/blocks/search";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
@@ -83,7 +98,19 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  scores: {
+    schema: "better_supabase",
+    options: {},
+  },
   enrollments: {
+    schema: "better_supabase",
+    options: {},
+  },
+  sequences: {
+    schema: "better_supabase",
+    options: {},
+  },
+  "lead-scoring": {
     schema: "better_supabase",
     options: {},
   },
@@ -102,6 +129,26 @@ export const blockConfig = {
     },
   },
   timeline: {
+    schema: "better_supabase",
+    options: {},
+  },
+  "mail-sync": {
+    schema: "better_supabase",
+    options: {},
+  },
+  segments: {
+    schema: "better_supabase",
+    options: {},
+  },
+  assignment: {
+    schema: "better_supabase",
+    options: {},
+  },
+  enrichment: {
+    schema: "better_supabase",
+    options: {},
+  },
+  forecasts: {
     schema: "better_supabase",
     options: {},
   },
@@ -136,6 +183,10 @@ export const blockConfig = {
     options: {},
   },
   quotes: {
+    schema: "better_supabase",
+    options: {},
+  },
+  automations: {
     schema: "better_supabase",
     options: {},
   },
@@ -191,11 +242,19 @@ export const blocks = {
   comments: commentsBlockInstance,
   "custom-fields": customFieldsBlockInstance,
   deals: dealsBlockInstance,
+  scores: scoresBlockInstance,
   enrollments: enrollmentsBlockInstance,
+  sequences: sequencesBlockInstance,
+  "lead-scoring": leadScoringBlockInstance,
   activities: activitiesBlockInstance,
   entitlements: entitlementsBlockInstance,
   messaging: messagingBlockInstance,
   timeline: timelineBlockInstance,
+  "mail-sync": mailSyncBlockInstance,
+  segments: segmentsBlockInstance,
+  assignment: assignmentBlockInstance,
+  enrichment: enrichmentBlockInstance,
+  forecasts: forecastsBlockInstance,
   notifications: notificationsBlockInstance,
   onboarding: onboardingBlockInstance,
   organizations: organizationsBlockInstance,
@@ -204,6 +263,7 @@ export const blocks = {
   pipelines: pipelinesBlockInstance,
   profiles: profilesBlockInstance,
   quotes: quotesBlockInstance,
+  automations: automationsBlockInstance,
   "saved-views": savedViewsBlockInstance,
   search: searchBlockInstance,
   settings: settingsBlockInstance,
@@ -228,10 +288,21 @@ export const permissions = {
     manage: "api_keys.manage",
     own: "api_keys.own",
   },
+  assignment: {
+    read: "assignment.read",
+    manage: "assignment.manage",
+    assign: "assignment.assign",
+  },
   audit: {
     view: "audit.read",
     viewAll: "audit.read",
     revert: "audit.revert",
+  },
+  automations: {
+    read: "rules.read",
+    edit: "rules.edit",
+    publish: "rules.publish",
+    admin: "rules.admin",
   },
   billing: {
     read: "billing.read",
@@ -275,10 +346,18 @@ export const permissions = {
     read: "engagements.read",
     write: "engagements.write",
   },
+  enrichment: {
+    read: "enrichment.read",
+    run: "enrichment.run",
+  },
   enrollments: {
     read: "enrollments.read",
     enroll: "enrollments.enroll",
     manage: "enrollments.manage",
+  },
+  forecasts: {
+    read: "forecasts.read",
+    snapshot: "forecasts.snapshot",
   },
   goals: {
     read: "targets.read",
@@ -288,6 +367,12 @@ export const permissions = {
     invite: "members.invite",
     revoke: "members.invite",
     view: "members.invite",
+  },
+  "mail-sync": {
+    read: "mail.read",
+    connect: "mail.connect",
+    send: "mail.send",
+    manage: "mail.manage",
   },
   message: {
     read: "messages.read",
@@ -336,8 +421,22 @@ export const permissions = {
     read: "views.read",
     share: "views.share",
   },
+  scores: {
+    read: "scores.read",
+    manage: "scores.manage",
+    compute: "scores.compute",
+  },
   search: {
     read: "search.read",
+  },
+  segments: {
+    read: "segments.read",
+    edit: "segments.edit",
+  },
+  sequences: {
+    read: "sequences.read",
+    enroll: "sequences.enroll",
+    manage: "sequences.manage",
   },
   settings: {
     read: "settings.read",
@@ -363,13 +462,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
+export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "assignment.assign" | "assignment.manage" | "assignment.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forecasts.read" | "forecasts.snapshot" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CustomFieldsEvents & DealsEvents & EnrollmentsEvents & ActivitiesEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & QuotesEvents & SavedViewsEvents & SettingsEvents & TagsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CustomFieldsEvents & DealsEvents & ScoresEvents & EnrollmentsEvents & SequencesEvents & ActivitiesEvents & MessagingEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & QuotesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & TagsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -422,12 +521,19 @@ export const blockEvents: Events<BlockEvents> = {
     "enrollment_program.saved",
     "field_value.set",
     "field_value.viewed",
+    "forecast.snapshotted",
     "invitation.accepted",
     "invitation.created",
     "invitation.declined",
     "invitation.resent",
     "invitation.revoked",
     "invitation.updated",
+    "mail_account.connected",
+    "mail_account.disconnected",
+    "mail_message.clicked",
+    "mail_message.opened",
+    "mail_message.received",
+    "mail_message.sent",
     "message.deleted",
     "message.edited",
     "message.pinned",
@@ -454,6 +560,7 @@ export const blockEvents: Events<BlockEvents> = {
     "organization.updated",
     "organization_setting.reset",
     "organization_setting.updated",
+    "party.enriched",
     "person.archived",
     "person.created",
     "person.merged",
@@ -475,8 +582,24 @@ export const blockEvents: Events<BlockEvents> = {
     "quote.sent",
     "quote.updated",
     "quote.viewed",
+    "rule.disabled",
+    "rule.enabled",
+    "rule.matched",
+    "rule.removed",
+    "rule.saved",
     "saved_view.deleted",
     "saved_view.saved",
+    "score.changed",
+    "score_model.deleted",
+    "score_model.saved",
+    "sequence.deleted",
+    "sequence.saved",
+    "sequence_enrollment.completed",
+    "sequence_enrollment.created",
+    "sequence_enrollment.exited",
+    "sequence_enrollment.paused",
+    "sequence_enrollment.resumed",
+    "sequence_enrollment.step_completed",
     "subject.tagged",
     "subject.untagged",
     "tag.created",
@@ -540,12 +663,19 @@ export const blockEventSchemas = {
   "enrollment_program.saved": true,
   "field_value.set": true,
   "field_value.viewed": true,
+  "forecast.snapshotted": true,
   "invitation.accepted": true,
   "invitation.created": true,
   "invitation.declined": true,
   "invitation.resent": true,
   "invitation.revoked": true,
   "invitation.updated": true,
+  "mail_account.connected": true,
+  "mail_account.disconnected": true,
+  "mail_message.clicked": true,
+  "mail_message.opened": true,
+  "mail_message.received": true,
+  "mail_message.sent": true,
   "message.deleted": true,
   "message.edited": true,
   "message.pinned": true,
@@ -572,6 +702,7 @@ export const blockEventSchemas = {
   "organization.updated": true,
   "organization_setting.reset": true,
   "organization_setting.updated": true,
+  "party.enriched": true,
   "person.archived": true,
   "person.created": true,
   "person.merged": true,
@@ -593,8 +724,24 @@ export const blockEventSchemas = {
   "quote.sent": true,
   "quote.updated": true,
   "quote.viewed": true,
+  "rule.disabled": true,
+  "rule.enabled": true,
+  "rule.matched": true,
+  "rule.removed": true,
+  "rule.saved": true,
   "saved_view.deleted": true,
   "saved_view.saved": true,
+  "score.changed": true,
+  "score_model.deleted": true,
+  "score_model.saved": true,
+  "sequence.deleted": true,
+  "sequence.saved": true,
+  "sequence_enrollment.completed": true,
+  "sequence_enrollment.created": true,
+  "sequence_enrollment.exited": true,
+  "sequence_enrollment.paused": true,
+  "sequence_enrollment.resumed": true,
+  "sequence_enrollment.step_completed": true,
   "subject.tagged": true,
   "subject.untagged": true,
   "tag.created": true,
