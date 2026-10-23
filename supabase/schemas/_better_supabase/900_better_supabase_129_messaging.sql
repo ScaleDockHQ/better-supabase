@@ -1853,6 +1853,11 @@ $$;
 revoke execute on function "better_supabase"."messaging_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."messaging_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
+drop trigger if exists "bsb_search_message_index" on "better_supabase"."messages";
+create trigger "bsb_search_message_index"
+  after insert or delete or update of "id", "tenant_id", "body", "deleted_at" on "better_supabase"."messages"
+  for each row execute function "better_supabase"."search_index_row"('message', 'id');
+
 -- blocks.messaging.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

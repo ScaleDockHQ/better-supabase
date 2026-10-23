@@ -778,6 +778,16 @@ $$;
 revoke execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) to authenticated, service_role;
 
+drop trigger if exists "bsb_search_company_index" on "better_supabase"."companies";
+create trigger "bsb_search_company_index"
+  after insert or delete or update of "id", "tenant_id", "name", "domain" on "better_supabase"."companies"
+  for each row execute function "better_supabase"."search_index_row"('company', 'id');
+
+drop trigger if exists "bsb_search_person_index" on "better_supabase"."people";
+create trigger "bsb_search_person_index"
+  after insert or delete or update of "id", "tenant_id", "name", "email", "title" on "better_supabase"."people"
+  for each row execute function "better_supabase"."search_index_row"('person', 'id');
+
 -- blocks.contacts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

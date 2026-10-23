@@ -919,6 +919,11 @@ $$;
 revoke execute on function "better_supabase"."save_iteration"(uuid, uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_iteration"(uuid, uuid, jsonb) to authenticated, service_role;
 
+drop trigger if exists "bsb_search_work_item_index" on "better_supabase"."work_items";
+create trigger "bsb_search_work_item_index"
+  after insert or delete or update of "id", "tenant_id", "title", "identifier", "body", "archived_at" on "better_supabase"."work_items"
+  for each row execute function "better_supabase"."search_index_row"('work_item', 'id');
+
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

@@ -432,6 +432,11 @@ $$;
 revoke execute on function "better_supabase"."channels_for_record"(text, text) from public, anon;
 grant execute on function "better_supabase"."channels_for_record"(text, text) to authenticated, service_role;
 
+drop trigger if exists "bsb_search_channel_index" on "better_supabase"."channels";
+create trigger "bsb_search_channel_index"
+  after insert or delete or update of "id", "tenant_id", "name", "topic", "purpose" on "better_supabase"."channels"
+  for each row execute function "better_supabase"."search_index_row"('channel', 'id');
+
 -- blocks.channels.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

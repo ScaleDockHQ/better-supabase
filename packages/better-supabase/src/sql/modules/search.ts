@@ -8,6 +8,8 @@ import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { MAX_BATCH } from "../../core/batch-limit.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { renamedInstances, rendersOwnInstance } from "../instance-names.ts";
+import { moduleContext } from "../module-context.ts";
 import {
   fail,
   lockTable,
@@ -164,14 +166,77 @@ function reindexCondition(
     : type;
 }
 
+/** The quoted tables of a block instance's context. */
+function tablesOf(ctx: BlockSqlContext): ReadonlySet<string> {
+  return new Set(
+    Object.keys(ctx.names.tables)
+      .filter((key) => ctx.hasTable(key))
+      .map((key) => ctx.table(key)),
+  );
+}
+
+/**
+ * The tables of the blocks that render after search. Their tables don't exist
+ * when search's file runs, so their own files add the index triggers.
+ */
+function laterTables(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): ReadonlySet<string> {
+  const installed = ctx.installedModules;
+  const later = installed.slice(installed.indexOf("search") + 1);
+
+  return new Set(
+    later
+      .flatMap((block) => [
+        ...(rendersOwnInstance(block, layout)
+          ? [moduleContext(block, layout, installed)]
+          : []),
+        ...renamedInstances(block, layout).map((instance) =>
+          moduleContext(block, layout, installed, instance.name),
+        ),
+      ])
+      .filter((owner) => owner.mode !== "custom")
+      .flatMap((owner) => [...tablesOf(owner)]),
+  );
+}
+
 function triggers(
   ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
   subjects: readonly RegisteredSubject[],
 ): string {
   const fn = ctx.fn("search_index_row");
+  const later = laterTables(ctx, layout);
 
   return subjects
     .filter((subject) => !isAppTable(ctx, subject))
+    .filter((subject) => !later.has(subject.qualified))
+    .map((subject) => triggerSql(fn, subject))
+    .join("\n\n");
+}
+
+/**
+ * The index triggers on the tables of `owner`, a block instance that renders
+ * after search, which `owner`'s file adds. `search` is the search module's
+ * context.
+ */
+export function ownerSearchTriggers(
+  search: BlockSqlContext,
+  owner: BlockSqlContext,
+): string {
+  if (search.mode === "custom" || owner.mode === "custom") {
+    return "";
+  }
+
+  const fn = search.fn("search_index_row");
+  const tables = tablesOf(owner);
+
+  return searchedSubjects(search)
+    .filter(
+      (subject) =>
+        !isAppTable(search, subject) && tables.has(subject.qualified),
+    )
     .map((subject) => triggerSql(fn, subject))
     .join("\n\n");
 }
@@ -738,7 +803,7 @@ end;
 $$;
 revoke execute on function ${fn("search_index_row")}() from public, anon, authenticated;
 
-${triggers(ctx, subjects)}
+${triggers(ctx, layout, subjects)}
 ${searchFunction(ctx, names)}
 ${userStateFunctions(ctx, state)}
 ${vector ? embeddingFunctions(ctx, names, vector) : ""}
