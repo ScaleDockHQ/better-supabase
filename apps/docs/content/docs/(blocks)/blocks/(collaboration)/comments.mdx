@@ -1,0 +1,501 @@
+---
+title: Comments
+description: Comments on any record as its conversation on the messaging core, with replies, mentions, resolved threads, pins, edit history, anchors, files and comments turned into tasks.
+---
+
+The `comments` block lets members comment on any record in a tenant (a
+project, a ticket, an invoice). Each record's comments are its conversation
+on the [messaging](/docs/blocks/messaging) core (conversation kind
+`subject`), and each comment is a message. Replies, mentions, resolved
+threads, pins, edit history, anchors, files and read markers come from
+messaging; the block adds the record lookup, comment counts, copying a thread,
+following the record and turning a comment into a work item.
+
+```bash
+better-supabase add comments   # adds tenant, access, subjects and messaging as well
+```
+
+Comments need tenants: the module runs in the `memberships`
+[scope](/docs/blocks/sql#scope-and-naming) only, and `user` or `none` scope
+refuses it. The records come from the
+[subject registry](/docs/blocks/sql#subject-registry) (`config.records`).
+Whoever can read a record (`can_subject(type, id, 'read')`) and holds
+`messages.read` in the tenant reads its comments. A comment goes in the record's own
+tenant only: `create_comment` refuses a record whose tenant column names
+another tenant, even for a member of both.
+
+| Table                       | Holds                                                                                                    |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `conversations` (messaging) | One `subject` conversation per record, with `subject_type` and `subject_id`, opened by the first comment |
+| `messages` (messaging)      | The comments: `body`, `document`, `anchor`, `mentions`, `parent_id`, pins, resolution, edits, deletes    |
+| `message_edits` (messaging) | The earlier versions of an edited comment                                                                |
+| `comment_tasks`             | The work item a comment was turned into (`message_id`, `task_id`), with the tasks block                  |
+
+The block has no entity of its own: a comment is a `message`, so reactions,
+search and share links accept it under the message entity
+(`blocks.messaging.names` renames it). `commentInputSchema` and
+`commentChangeSchema` validate what `create` and `edit` take.
+
+## Permissions
+
+The comments operations check the messaging keys:
+
+| Operation           | Key                 | Lets a member                                            | Default roles          |
+| ------------------- | ------------------- | -------------------------------------------------------- | ---------------------- |
+| `comments.read`     | `messages.read`     | read the comments on the records they can read           | `member`, `admin`      |
+| `comments.create`   | `messages.send`     | comment, reply, edit their own comments, pin and resolve | `member`, `admin`      |
+| `comments.moderate` | `messages.moderate` | delete other members' comments                           | `admin` (`messages.*`) |
+
+`blocks.comments.permissions` renames a key per action, as for any block
+(see [access](/docs/repository/permissions)). Only the author edits a comment, within
+`blocks.messaging.options.editWindow` when it is set. Deleting is a soft
+delete: the comment stays as a placeholder so replies keep their parent, and
+its body and files are cleared.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  records: { project: { table: "projects", permission: "projects.read" } },
+  blocks: {
+    messaging: { options: { maxBodyLength: 10_000 } },
+    comments: { options: { follow: true } },
+  },
+});
+```
+
+`blocks.comments.options` takes three keys:
+
+| Option          | Default | What it does                                                                                                |
+| --------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `follow`        | `true`  | The author and the mentioned members follow the record, so they hear of later comments (with notifications) |
+| `mentionGroups` | none    | Expands a mention of a group, such as a team, into its members                                              |
+| `notify`        | `true`  | Sends `comment.posted` to the record's followers (with notifications); `false` sends none                   |
+
+The body limit, the extra columns and the Realtime topic are messaging
+options (`blocks.messaging.options.maxBodyLength`, `extraColumns` and
+`topic`); see [Messaging](/docs/blocks/messaging#options).
+
+## Comments
+
+Every method that names a record takes it as a `RecordRef`, `{ type, id }`,
+and acts in the block's tenant. On the server, `createBlockClient` builds the
+client for the request: it calls through `ctx.db` and reads the tenant from
+`db.$context.tenant`, so you pass no organization id (see
+[createBlocks](/docs/blocks/create-blocks#one-block-per-request)).
+
+```ts title="app/projects/[id]/actions.ts"
+import { createBlockClient } from "better-supabase/blocks";
+import { commentsBlock } from "better-supabase/blocks/comments";
+
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+import { bsb } from "@/lib/supabase/server";
+
+const ctx = await bsb.context();
+const comments = createBlockClient(ctx.db, commentsBlock, {
+  config: blockConfig,
+});
+const project = { type: "project", id: projectId };
+
+const comment = await comments
+  .create(project, { body: "Ready for review @[Ada](8c5a3d3e-...)" })
+  .orThrow();
+await comments.create(project, { body: "On it", parentId: comment.id });
+
+const thread = await comments.list(project).orThrow();
+```
+
+`createComments({ transport, tenant })` builds the same client by hand.
+`tenant` is an organization id or a function that returns the current one;
+a call without a tenant fails with `invalid_request` and the hint
+`TENANT_REQUIRED`.
+
+A `Comment` is a messaging `Message` with two more fields: `subject`, the
+record it is on, and `taskId`, the work item it became. So a comment carries
+`authorId` and `author` (name and avatar, with the
+[profiles](/docs/blocks/profiles) module), `body`, `document`, `anchor`,
+`mentionIds`, `parentId` and `threadId`, `sentAt`, `editedAt`, `deletedAt`,
+`pinnedAt`, `resolvedAt`, `attachments`, `reactions` and `fields`.
+
+| Method                             | What it does                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| `create(subject, comment)`         | Posts a comment, opening the record's conversation the first time                       |
+| `get(id)`                          | One comment, or `not_found` when the caller can't read it                               |
+| `edit(id, { body, document? })`    | The author edits; the earlier version is kept                                           |
+| `remove(id)`                       | Soft-deletes (the author, or a member with `messages.moderate`)                         |
+| `resolve(id, resolved?)`           | Resolves a thread by its root comment, or opens it again with `false` (`messages.send`) |
+| `pin(id, pinned?)`                 | Pins a comment to the top of its record, or unpins it with `false` (`messages.send`)    |
+| `edits(id)`                        | The earlier versions of an edited comment, newest first (`list_message_edits`)          |
+| `assign(id, assignment?)`          | Turns a comment into a work item and returns its id                                     |
+| `list(subject, options?)`          | A record's comments and replies, oldest first, deleted ones as placeholders             |
+| `counts(subjects)`                 | How many comments each record has that the caller can read, keyed `type:id`             |
+| `copy(from, to)`                   | Copies a record's thread to another record, with a service-role transport               |
+| `conversation(subject, { open? })` | The record's conversation id, for Realtime and uploads; `open: true` creates it         |
+| `markRead(subject, { readAt? })`   | Moves the caller's read marker on the record's comments forward                         |
+
+Threads are one level deep: a reply to a reply joins the root's thread.
+`list` pages with `cursor` (an instant) and `cursorId` (the last comment's
+id, so comments sent in the same instant aren't skipped), or with `offset` and
+`limit` (default 100, at most 500). `counts` leaves out deleted comments and
+returns 0 for a record without any; `subjectKey(subject)` from
+`better-supabase/blocks` builds its keys.
+
+```ts
+const counts = await comments
+  .counts(rows.map((row) => ({ type: "project", id: row.id })))
+  .orThrow();
+counts[`project:${projectId}`]; // 3
+
+await comments.resolve(comment.id).orThrow();
+const history = await comments.edits(comment.id).orThrow();
+```
+
+### Mentions
+
+`create` and `edit` read the mentions from the body when you pass no
+`mentionIds`: `mentionsIn(body)` returns the user ids written as
+`@[Name](<user id>)`, the markup most mention inputs produce. For an editor
+that stores mentions as nodes, `createComments({ mentionsOf })` reads them
+from the comment's `document`:
+
+Server code calls the `comments` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useComments } = defineDataHooks(
+  "comments",
+  (db: AppDb) => db.comments,
+);
+```
+
+```ts
+await db.comments.create(subject, { body, document });
+await db.comments.edit(id, { body, document: null }); // null removes the document
+```
+
+```tsx title="src/features/comments/list.tsx"
+"use client";
+
+import { useComments } from "@/lib/supabase/hooks";
+
+const rows = useComments({ limit: 50 });
+```
+
+A comment can also mention another record as `@[Name](subject:<type>/<id>)`.
+Comments are messages, so the record lists the comment among its backlinks
+through `messaging.recordMentions`; see
+[record mentions](/docs/blocks/messaging#record-mentions).
+
+`options.mentionGroups` expands a mention of a group into its members. It
+names a table with one row per member of a group, the group and member
+columns, and optionally a tenant column that must match the comment's
+tenant. The app writes the group id like a user id, for example as
+`@[Support](<team id>)`:
+
+```ts title="better-supabase.config.ts"
+comments: {
+  options: {
+    mentionGroups: {
+      table: "public.team_members",
+      group: "team_id",
+      member: "user_id",
+      tenant: "organization_id",
+    },
+  },
+},
+```
+
+### Anchors
+
+`anchor` says where on the record a top-level comment points, such as a text
+range in a document or a field on a form. It takes any JSON and comes back
+on the comment as `anchor`:
+
+```ts
+await comments.create(
+  { type: "document", id: documentId },
+  { body: "Is this figure right?", anchor: { from: 120, to: 164 } },
+);
+```
+
+A file anchor points at a page, a region or a moment of one of the record's
+files (see [file anchors](/docs/blocks/messaging#file-anchors)), and
+`anchoredTo` lists a file's comments with their records, for a PDF or video
+viewer that shows them in place:
+
+```ts
+import { fileAnchor } from "better-supabase/blocks/comments";
+
+await comments.create(
+  { type: "contract", id: contractId },
+  {
+    body: "Check this clause",
+    anchor: fileAnchor(pdfId, {
+      page: 3,
+      region: { x: 0.1, y: 0.2, width: 0.5, height: 0.1 },
+    }),
+  },
+);
+
+const onPdf = await comments.anchoredTo(pdfId).orThrow();
+```
+
+### Attachments
+
+With the [attachments](/docs/blocks/attachments) block, upload files to the
+record's conversation (subject type `conversation`) and pass their ids as
+`attachmentIds`; `create` moves them onto the comment, and the comment
+returns them in `attachments`. `conversation(subject, { open: true })` gives
+the conversation id before the first comment:
+
+```ts
+const conversationId = await comments
+  .conversation(project, { open: true })
+  .orThrow();
+const file = await attachments
+  .put(
+    { type: "conversation", id: conversationId },
+    { name: "spec.pdf", mimeType: "application/pdf", size: blob.size },
+    blob,
+  )
+  .orThrow();
+
+await comments.create(project, {
+  body: "The updated spec",
+  attachmentIds: [file.id],
+});
+```
+
+### Assign to a task
+
+With the [tasks](/docs/blocks/tasks) block, `assign` turns a comment
+into a work item through `assign_comment(message, assignee, attrs)`. The
+title defaults to the comment's first 120 characters and the body to the
+comment's body; `attrs` passes other `create_work_item` attributes, such as
+`projectId` or `priority`. The link lives in `comment_tasks`, so assigning the
+same comment again returns the same work item, and the comment carries its id
+as `taskId`. Creating the work item needs `work_items.write`.
+
+```ts
+const taskId = await comments
+  .assign(comment.id, { assigneeId: adaId, attrs: { priority: 2 } })
+  .orThrow();
+```
+
+### Copying a thread
+
+When the app duplicates a record (a quote into an invoice, say),
+`comments.copy({ type, id }, { type, id })` copies the thread to the new
+record with its authors, times and replies, and returns the number of
+comments copied. `copy_comments` is for the service role only: call it from
+the code that duplicates the record, after that code checked the caller may
+read both.
+
+### Your own columns
+
+The extra columns are messaging's: add them with
+`blocks.messaging.options.extraColumns`, then pass a Standard Schema for them
+as `fields`. `create` and `edit` validate the `fields` you pass, and `get` and
+`list` return them parsed under `fields`. The block also takes `hooks` around
+its methods; see [extending blocks](/docs/extending/blocks).
+
+```ts title="lib/comments.ts"
+import { createComments, rpcTransport } from "better-supabase/blocks/comments";
+import { z } from "zod";
+
+const comments = createComments({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+  fields: z.object({ visibility: z.enum(["internal", "customer"]) }),
+});
+```
+
+## Notifications
+
+With the [notifications](/docs/blocks/notifications) block, a new comment
+notifies two groups:
+
+| Type                | Who                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `message.mentioned` | the mentioned members who can read the record, sent by messaging                    |
+| `comment.posted`    | the record's followers, less the author and the members the mention already reached |
+
+`comment.posted` names the record as its subject, with the record's
+`subject_title` from `config.records` as its `subject_label`, the first 140
+characters of the body as its `summary` and the commenter as the actor, and
+its data holds `messageId` and `conversationId`. It is sent only when the
+record has a follower besides the author and the mentioned members, or when a
+`notification_audience` hook can add recipients, so a comment nobody follows
+writes no notification. `notify: false` turns `comment.posted` off; mentions
+still notify through messaging unless `blocks.messaging.options.notify` is
+`false` too. With `follow` on (the default), the author
+and every mentioned member, after group expansion, follow the record: each
+gets a `participating` row in `notification_subscriptions`. A user who
+already has a row for the record keeps it, so someone who chose `ignore`
+stays unsubscribed. An app that brings its own subscriptions table (adopt
+mode) must accept every record type it comments on.
+
+## Events
+
+The comments block writes no events of its own. A comment is a message, so
+the outbox gets the messaging events: `message.sent`, `message.edited`,
+`message.deleted`, `message.pinned` and `message.resolved`. On a comment
+their data carries `conversationKind: "subject"` and the record as
+`recordType` and `recordId`, next to `messageId`, `conversationId` and
+`authorId`; see [Events](/docs/extending/events). To keep a record's history,
+send them to the [activity](/docs/blocks/timeline) feed.
+
+## Realtime
+
+Each record conversation has a private Realtime topic,
+`conversationTopic(conversationId, topic)`, which is `<topic>:<conversation id>`
+with `blocks.messaging.options.topic` (default `messages`). Only callers who
+read the record can join it. The messaging triggers broadcast a ping for each
+new, edited or deleted comment with its `messageId` and `threadId`. The
+comments hooks fetch that comment and its thread's root, for the reply count,
+so a busy thread never loads whole again; they load it whole only after the
+topic rejoins.
+
+## In the browser
+
+`useComments` loads one record's thread through the provider's client and keeps
+it current after `add`, `edit`, `remove`, `resolve` and `pin`. It joins the
+record conversation's topic once the record has a conversation, so other
+people's comments arrive too. The same hook runs in React DOM and React Native.
+It is a registry item: install it with `npx shadcn add
+@better-supabase/use-comments`, which writes `hooks/use-comments.ts` into the
+app.
+
+```tsx title="components/comment-thread.tsx"
+import { useComments } from "@/hooks/use-comments";
+
+const { comments, error, add, resolve } = useComments({
+  subject: { type: "project", id: projectId },
+});
+
+await add("Ready for review");
+await add("Agreed", { parentId: commentId });
+```
+
+| Option    | Default                                         | What it does                                    |
+| --------- | ----------------------------------------------- | ----------------------------------------------- |
+| `subject` | none                                            | The record; the thread waits while it is `null` |
+| `topic`   | `blocks.messaging.options.topic` (`"messages"`) | The topic prefix; `null` turns Realtime off     |
+| `limit`   | `100`                                           | The most comments to load, at most 500          |
+
+`add(body, draft?)` takes the rest of a `NewComment` as its draft (a reply,
+a document, an anchor, mentions or files). Every action returns a `Result`
+and keeps a failure in `error`. The hook calls the schema and function names
+in the `blocks` config you pass to the browser client
+(`createClient(betterSupabase, { blocks: blockConfig })`) and acts in the
+client's organization: the client's `organization` option, then the
+session's organization claim. The thread waits while there is no tenant.
+
+`createCommentsController` from `better-supabase/blocks/comments` is the same
+logic without React. Vue, Svelte and Solid run it with `useBlockController` from
+`better-supabase/vue`, `/svelte` and `/solid`, taking the controller's options
+(a client built with its `tenant`, `subject` and `topic`) with `auth` and
+`ports` from the provider
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)). The
+[comment thread recipe](/docs/registry/ui-recipes/comment-thread) shows it in
+the Next.js and Expo examples.
+
+```vue title="CommentCount.vue"
+<script setup lang="ts">
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createComments,
+  createCommentsController,
+  rpcTransport,
+} from "better-supabase/blocks/comments";
+
+const { organizationId, projectId } = defineProps<{
+  organizationId: string;
+  projectId: string;
+}>();
+const supabase = useSupabase();
+const { state, actions } = useBlockController(createCommentsController, {
+  client: createComments({
+    transport: rpcTransport(supabase),
+    tenant: organizationId,
+  }),
+  subject: { type: "project", id: projectId },
+});
+</script>
+
+<template>
+  <p>{{ state.comments?.length ?? 0 }} comments</p>
+  <button @click="actions.add('Looks good')">Approve</button>
+</template>
+```
+
+```svelte title="CommentCount.svelte"
+<script lang="ts">
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
+  import {
+    createComments,
+    createCommentsController,
+    rpcTransport,
+  } from "better-supabase/blocks/comments";
+
+  let { organizationId, projectId }: { organizationId: string; projectId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const thread = useBlockController(createCommentsController, {
+    client: createComments({
+      transport: rpcTransport(supabase),
+      tenant: organizationId,
+    }),
+    subject: { type: "project", id: projectId },
+  });
+</script>
+
+<p>{$thread.comments?.length ?? 0} comments</p>
+```
+
+```tsx title="CommentCount.tsx"
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import {
+  createComments,
+  createCommentsController,
+  rpcTransport,
+} from "better-supabase/blocks/comments";
+
+export function CommentCount(props: {
+  organizationId: string;
+  projectId: string;
+}) {
+  const supabase = useSupabase();
+  const { state } = useBlockController(createCommentsController, {
+    client: createComments({
+      transport: rpcTransport(supabase),
+      tenant: props.organizationId,
+    }),
+    subject: { type: "project", id: props.projectId },
+  });
+  return <p>{state().comments?.length ?? 0} comments</p>;
+}
+```
+
+## Reactions
+
+With the [reactions](/docs/blocks/reactions) module installed, react to a
+comment as a message: `reactions.react({ type: "message", id: comment.id },
+emoji)`. Each comment also carries its reaction summary in `reactions`.
+
+## Without the client
+
+`db.comments` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const comments = createComments({
+  transport,
+  tenant: organizationId,
+  mentionsOf: ({ document }) =>
+    mentionNodes(document).map((node) => node.userId),
+});
+
+await comments.create(subject, { body, document });
+await comments.edit(id, { body, document: null }); // null removes the document
+```

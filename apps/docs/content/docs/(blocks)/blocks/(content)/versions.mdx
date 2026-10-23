@@ -1,0 +1,151 @@
+---
+title: Versions
+description: Numbered snapshots of a subject's content, with JSON Patch diffs, restore, debounced auto snapshots, frozen versions and retention.
+---
+
+`versions` keeps numbered snapshots of any subject: a document, a quote, a board. Each version holds JSON content (or a Storage path), a SHA-256 content hash, an optional label and where it came from (`manual`, `auto` or `restore`). Reading versions needs `versions.read`, taking and labeling one needs `versions.create`, restoring needs `versions.restore` and deleting needs `versions.manage`. Every call also checks the subject's own read permission, and a restore checks its `write` permission from [`config.records`](/docs/blocks/sql#subject-registry).
+
+```bash
+better-supabase add versions
+```
+
+Server code calls the `versions` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useVersions } = defineDataHooks(
+  "versions",
+  (db: AppDb) => db.versions,
+);
+```
+
+```ts
+import { createVersions } from "better-supabase/blocks/versions";
+
+const v = await db.versions
+  .snapshot({ type: "quote", id: quoteId }, { label: "Sent to customer" })
+  .orThrow();
+const patch = await db.versions.diff(previousId, v.id).orThrow();
+await db.versions.restore(previousId).orThrow();
+```
+
+```tsx title="src/features/versions/list.tsx"
+"use client";
+
+import { useVersions } from "@/lib/supabase/hooks";
+
+const rows = useVersions({ limit: 50 });
+```
+
+A snapshot whose content matches the latest version is not written again: `snapshot` returns the latest version with `unchanged: true`. Versions are numbered per subject from 1.
+
+## Configure subjects
+
+Each subject type lists the `columns` a snapshot copies and a restore writes back. A type with an `apply` function restores through it instead: the function takes `(subject_id text, content jsonb)`.
+
+```ts title="better-supabase.config.ts"
+subjects: {
+  quote: { table: "public.quotes", idType: "uuid", permissions: { read: "quotes.read", write: "quotes.update" } },
+  page: { table: "public.pages", idType: "uuid" },
+},
+blocks: {
+  versions: {
+    on: {
+      quote: {
+        columns: ["title", "lines", "total"],
+        freeze: { column: "status", values: ["sent", "accepted"] },
+      },
+      page: { columns: ["body"], auto: true, apply: "public.apply_page_version" },
+    },
+    options: {
+      keep: 50,
+      debounce: 300,
+    },
+  },
+},
+```
+
+| Option                    | Default | What it does                                                                                          |
+| ------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
+| `subjects.<type>.columns` | none    | The columns a snapshot without `content` copies, and a restore writes back                            |
+| `subjects.<type>.apply`   | none    | A function `(subject_id text, content jsonb)` that restores a version in place of `columns`           |
+| `subjects.<type>.auto`    | `false` | Snapshot on every insert or change to `columns`                                                       |
+| `subjects.<type>.freeze`  | none    | `{ column, values }`: when `column` changes to one of `values`, keep a frozen version labeled with it |
+| `keep`                    | `50`    | How many versions without a label or freeze each subject keeps                                        |
+| `debounce`                | `300`   | Seconds an auto snapshot replaces the previous auto snapshot's content instead of adding a version    |
+
+A frozen version can't be relabeled or deleted, so a quote keeps what was sent. A label keeps a version out of retention; `label(id, null)` removes it.
+
+## Diff
+
+`diff(fromId, toId)` returns the [RFC 6902](https://www.rfc-editor.org/rfc/rfc6902) JSON Patch that turns one version's content into the other's. `createPatch(from, to)` and `applyPatch(document, patch)` work on any JSON value, and `applyPatch` throws a `JsonPatchError` with the failing operation's `index` for an operation the RFC calls an error. Object members are compared by name and array elements by position.
+
+## Restore
+
+`restore(id)` writes the version back to the subject through its `apply` function or `columns`, then records the result as a new version with source `restore`. The auto and freeze triggers skip the write a restore makes. A version kept in Storage (`storagePath` without content) is restored by the app.
+
+`restoreFields(id, fields)` writes back only the named fields and keeps the subject's current values for the others, so a history can undo one field without reverting the rest:
+
+```ts
+await versions.restoreFields(versionId, ["budget_minor"]).orThrow();
+```
+
+It needs a type with `columns`; a type with only `apply` fails with `VERSION_RESTORE_UNSUPPORTED`. An empty list fails with `VERSION_FIELDS_EMPTY`, and a field outside `columns` with `VERSION_FIELD_UNKNOWN`. An app table whose subject sets `versions` is registered here without an entry in `subjects` (see [app tables](/docs/repository/tables#history)).
+
+## Share a version
+
+Install [share links](/docs/blocks/share-links) next to versions to send one version of a subject, such as the quote a customer approved. Pass `versionId` when you create the link; the version must belong to the link's subject, and the caller must be able to read it. `getShared(token)` reads that version and its content without a session, through `get_shared_version`, which is granted to `anon`. It returns `null` for an unknown, revoked or expired token and for a link without a version, and it leaves out `createdBy`.
+
+```ts
+const link = await shareLinks
+  .create({ type: "quote", id: quoteId }, { versionId: sent.id })
+  .orThrow();
+
+// On the public page, with the anon key:
+const version = await versions.getShared(token).orThrow();
+```
+
+## Events and hooks
+
+The module records `version.created`, `version.restored` and `version.deleted`, each with `organizationId`, `subjectType` and `subjectId`, so the [activity and watcher sinks](/docs/extending/events) handle them. It calls `before_version_snapshot`, `after_version_snapshot`, `before_version_restore` and `after_version_restore` around its writes.
+
+## With ReUI
+
+The client has no UI dependency. A history panel lists `list()`, shows `diff()` between two rows, and calls `restore()` from a ReUI timeline or table:
+
+```tsx
+const rows = await versions.list({ type: "quote", id: quoteId }).orThrow();
+// <Timeline> from ReUI: one item per row, labeled with row.label ?? `Version ${row.number}`
+```
+
+## Your own columns
+
+Add columns to the version table with `blocks.versions.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`snapshot` validates and writes them, and `list` and `get` (`getShared` leaves them out) return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createVersions } from "better-supabase/blocks/versions";
+import { z } from "zod";
+
+const client = createVersions({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```
+
+## Without the client
+
+`db.versions` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createVersions } from "better-supabase/blocks/versions";
+
+const versions = createVersions({ transport, tenant: organizationId });
+const v = await versions
+  .snapshot({ type: "quote", id: quoteId }, { label: "Sent to customer" })
+  .orThrow();
+const patch = await versions.diff(previousId, v.id).orThrow();
+await versions.restore(previousId).orThrow();
+```

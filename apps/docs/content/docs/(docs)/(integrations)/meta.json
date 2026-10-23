@@ -1,0 +1,11 @@
+{
+  "title": "Integrations",
+  "pages": [
+    "integrations",
+    "ai-sdk",
+    "chat-sdk",
+    "eve",
+    "flags-sdk",
+    "[Workflow SDK](/docs/blocks/workflow-sdk)"
+  ]
+}

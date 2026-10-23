@@ -29,7 +29,7 @@
       "expo"
     ]
   },
-  "docs": "Needs the subjects block (`npx better-supabase add subjects`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/blocks/subjects.",
+  "docs": "Needs the subjects block (`npx better-supabase add subjects`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/repository/record-types.",
   "categories": [
     "hook"
   ],

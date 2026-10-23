@@ -1,0 +1,273 @@
+---
+title: Configuration
+description: better-supabase.config.ts options and defaults.
+---
+
+The CLI looks for `better-supabase.config.{ts,mts,js,mjs,json}` in the
+working directory, then in each parent directory up to the one that holds
+`.git`, and loads the first it finds. Paths in the file (`output`, `database.sql.dir`
+and the rest) are relative to the directory that holds it, so a config at the
+repository root works when the CLI runs from a package. `--config` overrides
+the search. TypeScript configs load natively on Node 24.
+
+```ts title="better-supabase.config.ts"
+import { defineConfig, zod } from "better-supabase/config";
+import { CustomerMetadata } from "./src/types.ts";
+
+export default defineConfig({
+  database: {
+    source: { projectRef: "abcdefghijklmnopqrst" },
+    schemas: ["public"],
+    realtime: { tables: ["customers", "notes"] },
+  },
+  gen: {
+    casing: "camel",
+    output: "src/lib/supabase/generated.ts",
+    codecs: { int8: "bigint", numeric: "string", timestamptz: "instant" },
+    json: {
+      "customers.metadata": {
+        import: "./src/types.ts#CustomerMetadata",
+        schema: CustomerMetadata,
+      },
+      "notes.attachments": {
+        type: "{ files: { name: string; size: number }[] }",
+      },
+    },
+    sensitive: ["contacts.email", "contacts.phone"],
+    tables: {
+      customers: { relations: { primaryContact: "contact" } },
+      internal_jobs: { exclude: true },
+    },
+    generators: [zod()],
+  },
+  blocks: {
+    "updated-at": {},
+    "created-by": {},
+    trash: { options: { deletedAt: "archived_at" } },
+  },
+  auth: { organization: { column: "organization_id" } },
+});
+```
+
+## Options
+
+| Option                  | Default                                                                                 | Notes                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `database.source`       | local stack                                                                             | `dbUrl`, `projectRef` (+ `accessToken`, default `$SUPABASE_ACCESS_TOKEN`), `snapshot` or `lite`. See [gen](/docs/cli/gen#where-the-schema-comes-from)                                                                                                                                                                                                                                                                             |
+| `database.schemas`      | `['public']`                                                                            | Tables in other schemas get prefixed keys                                                                                                                                                                                                                                                                                                                                                                                         |
+| `gen.casing`            | `'snake'`                                                                               | `'camel'` maps columns in queries; see [casing](/docs/concepts/casing)                                                                                                                                                                                                                                                                                                                                                            |
+| `gen.tables`            | `{}`                                                                                    | Per-table `casing`, `exclude`, `serviceRole`, relation renames and `insertOptional`, keyed by table name or `schema.table`. `serviceRole` keeps the models but tells [doctor](/docs/cli/doctor#bs106) the table is for `service_role` only; `insertOptional` lists not-null columns the database fills on insert                                                                                                                  |
+| `gen.output`            | `src/lib/supabase/generated.ts`                                                         | `database.types.ts` and `generated.meta.js` are written next to it                                                                                                                                                                                                                                                                                                                                                                |
+| `gen.postgrestVersion`  | `'13'`                                                                                  | Written to `__InternalSupabase` in `database.types.ts`                                                                                                                                                                                                                                                                                                                                                                            |
+| `gen.codecs`            | JSON types                                                                              | `int8: 'bigint' \| 'string'`, `numeric: 'string'`, `timestamptz: 'instant'` read values exactly; `timestamptz: 'utc'` keeps strings, always in UTC with a `Z`. See [Temporal](/docs/concepts/temporal)                                                                                                                                                                                                                            |
+| `gen.relations`         | `{ nullableUnderRls: false }`                                                           | `nullableUnderRls: true` types to-one includes of tables with RLS as `\| null`; see [includes](/docs/repository/includes#row-level-security)                                                                                                                                                                                                                                                                                      |
+| `gen.json`              | `{}`                                                                                    | jsonb types, keyed by `table.column` or `schema.table.column` (database names). `schema` adds a [database check](/docs/blocks/sql#enforcing-jsonb-shapes)                                                                                                                                                                                                                                                                         |
+| `gen.sensitive`         | `[]`                                                                                    | Columns the [`noSensitiveSelect` guard](/docs/repository/guards) checks (`table.column`)                                                                                                                                                                                                                                                                                                                                          |
+| `gen.generators`        | `[]`                                                                                    | `zod()`, `valibot()`, `jsonSchema()`, `standardSchema()` or your own                                                                                                                                                                                                                                                                                                                                                              |
+| `auth.organization`     | `{ claim: 'tenant_id', column: 'organization_id' }`                                     | `claim` is the active-organization claim the memberships extension, `current_tenant_id()` and the storage and realtime policies read; `column` is the column the memberships extension filters on                                                                                                                                                                                                                                 |
+| `auth.claims`           | `{ scope: 'tenant', features: 'features', memberships: 'memberships' }`                 | JWT claim names. `scope` is the `scope` of the module's `memberships` entries; `features` is the plan-features claim. See [Claims](#claims)                                                                                                                                                                                                                                                                                       |
+| `database.buckets`      | `{}`                                                                                    | Typed storage buckets; doctor compares them with the database and `config.toml`                                                                                                                                                                                                                                                                                                                                                   |
+| `gen.storagePaths`      | `{}`                                                                                    | Text columns that hold object paths, keyed by `table.column`, with a `buckets` key or bucket id as the value. They're typed as [`StoragePath<'bucket-id'>`](/docs/platform/storage#path-columns)                                                                                                                                                                                                                                  |
+| `gen.functions`         | `{}`                                                                                    | Function results that are never null, keyed by function name or `schema.name`: `{ notNull: true }` or the `returns table` columns. An entry wins over an `@notNull` tag in the function's comment. See [gen](/docs/cli/gen)                                                                                                                                                                                                       |
+| `database.topics`       | `{}`                                                                                    | Realtime topic templates                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `database.realtime`     | `{ tables: [], global: [], users: {}, triggers: [] }`                                   | Tables for [live queries](/docs/frontend/live-queries); `global` lists the ones without a tenant column, `users` maps per-user tables to their user column. `policies` and `triggers` make `upgrade` write [topic policies and broadcast triggers](/docs/platform/realtime#from-the-config)                                                                                                                                       |
+| `auth.entitlements`     | `{ key: 'id' }`; `customer` defaults to the organizations module's `stripe_customer_id` | Where the [`entitlements` SQL module](/docs/blocks/entitlements) finds each tenant's Stripe customer, or `source` (`{ plans }` or `"custom"`) for entitlements without the Stripe Sync Engine. `memberships` (`"tenant"` or `"provider"`) picks where it reads memberships from                                                                                                                                                   |
+| `auth.authorization`    | none                                                                                    | An [authorization provider](/docs/extending/authorization-providers) the `provider` access model, the entitlements module, bucket and topic policies and doctor delegate to                                                                                                                                                                                                                                                       |
+| `database.vectorSearch` | `{}`                                                                                    | Embedding columns (`{ chunks: 'embedding' }`) the [`vector-search` SQL module](/docs/blocks/vector-search) writes `search_<table>` for                                                                                                                                                                                                                                                                                            |
+| `records`               | `{}`                                                                                    | The app's [subject registry](/docs/blocks/sql#subject-registry): each subject type's table, id, tenant, title, URL template, permission keys, scope, rank and search columns. Modules that take subjects fall back to it, and `gen` emits a `SubjectType` union                                                                                                                                                                   |
+| `tables`                | `{}`                                                                                    | The app's own [tables](/docs/repository/tables): columns, `owner`, keys, rollups and lookups, which `upgrade` writes with RLS and grants                                                                                                                                                                                                                                                                                          |
+| `gen.readSets`          | `[]`                                                                                    | Modules exporting [read sets](/docs/repository/read-sets); `gen` compiles them into the `read-sets` SQL module                                                                                                                                                                                                                                                                                                                    |
+| `gen.recordTypes`       | `true`                                                                                  | Writes a [record type](/docs/repository/record-bindings#generated-record-types) to `records/<type>.ts` next to `output` for each type in `config.records` that a block binds to; `false` writes none                                                                                                                                                                                                                              |
+| `gen.hooks`             | `"react"` with the `next`, `react` or `expo` adapter, otherwise `false`                 | Writes `hooks.ts` next to `output` with a list and a record [data hook](/docs/frontend/data-hooks) per table for `"react"`, `"vue"`, `"svelte"` or `"solid"`; `false` writes none                                                                                                                                                                                                                                                 |
+| `preset`                | unset                                                                                   | A [named preset](/docs/presets), a code from Create or its URL. `defineConfig` expands it into `blocks`, with the blocks they require, and its conventions (`casing`, `database.sql.api`, `integrations`); the keys you set win                                                                                                                                                                                                   |
+| `blocks`                | `[]`                                                                                    | The [blocks](/docs/blocks/sql) to install and keep in sync, foundation blocks such as `memberships` and `access` included: a list of names, or an object keyed by block name whose values set its mode, schema, table and column names, id type, permission keys and options ([existing tables](/docs/blocks/sql#existing-tables-managed-adopt-and-custom)). `access` also picks the [access model](/docs/repository/permissions) |
+| `database.sql`          | `supabase/schemas`, `900_better_supabase`, `supabase/tests`                             | Where generated SQL and pgTAP files go, the `schema` and `api` every block inherits, the [`scope`](/docs/blocks/sql#scope-and-naming) of blocks that set none. `workflow` (`'pg-delta'`, `'migra'` or `'migrations'`, detected from `config.toml` when unset) picks how blocks reach a migration ([Workflows](/docs/blocks/sql#workflows))                                                                                        |
+| `database.seed`         | `supabase/seed.ts`, `supabase/seeds/000_better_supabase.sql`                            | Entry module and output of [`seed`](/docs/cli/db#seed)                                                                                                                                                                                                                                                                                                                                                                            |
+| `api.specs`             | `src/lib/openapi.ts`, one OpenAPI 3.1 output at `openapi.json`, `failOn: 'error'`       | Entry module, outputs (`format`, `version`, `output`, `overlays`, `serialize`, `ui`) failure level and `manifest` file of [`spec`](/docs/cli/spec#configure-the-outputs)                                                                                                                                                                                                                                                          |
+| `api.openapi`           | `src/lib/openapi.ts`, `openapi.json`                                                    | Deprecated alias of `specs`. Entry module and output of the OpenAPI document; `spec` reads them when `specs` is unset                                                                                                                                                                                                                                                                                                             |
+| `tooling.doctor`        | `format: 'text'`                                                                        | `ignore` finding codes, `strict` mode, `claimsLimit`, `policyHelperLimit`, `migrationSafety.since` (the last migration [BS229 to BS235](/docs/cli/doctor#bs229) skip offline), and the defaults of `--only`, `--format` and `--out` (`only`, `format`, `output`)                                                                                                                                                                  |
+| `gen`                   | every configured task, `watchInterval: 2000`                                            | `tasks` [`gen`](/docs/cli/gen#tasks) runs (`types`, `sql`, `spec`, `seed`, `env`) and the `--watch` interval, which `spec --watch` reads too                                                                                                                                                                                                                                                                                      |
+| `tooling.env`           | `output: '.env.local'`, prefix from the framework                                       | Defaults of [`env`](/docs/cli/dev#env) `--out` and `--prefix` (`output`, `prefix`; `''` for no prefix)                                                                                                                                                                                                                                                                                                                            |
+| `adapters`              | `[]`                                                                                    | The integrations `init` set up. [`add`](/docs/cli/init#add) with no argument sets up the ones that have no files yet                                                                                                                                                                                                                                                                                                              |
+| `tooling.skills`        | detected agent folders                                                                  | `agents`: the folders [`skills install`](/docs/for-ai-agents) writes to (`cursor`, `claude`, `agents`)                                                                                                                                                                                                                                                                                                                            |
+| `tooling.keys`          | `supabase/signing_keys.json`                                                            | `output`: where [`keys`](/docs/cli/dev#keys) writes the signing key                                                                                                                                                                                                                                                                                                                                                               |
+| `$env`, `$ci`, ...      | none                                                                                    | Overrides per [environment](#environments)                                                                                                                                                                                                                                                                                                                                                                                        |
+
+## Flags and the config
+
+Every option a command takes on each run has a config key, so the command
+line stays short and a fresh checkout behaves the same as yours. A value is
+picked in this order:
+
+1. the flag, for one run;
+2. the active [environment](#environments) block;
+3. the config;
+4. the default.
+
+| Command          | Config key                                  |
+| ---------------- | ------------------------------------------- |
+| `gen`            | `gen.tasks`, `gen.watchInterval`            |
+| `dev env`        | `tooling.env.output`, `tooling.env.prefix`  |
+| `doctor`         | `tooling.doctor.only`, `.format`, `.output` |
+| `spec`           | `api.specs.manifest`, `gen.watchInterval`   |
+| `add`            | `adapters`                                  |
+| `skills install` | `tooling.skills.agents`                     |
+| `dev keys`       | `tooling.keys.output`                       |
+
+`tooling.doctor.output` applies when the report uses `tooling.doctor.format`, so
+`doctor --json` prints to stdout even when the config writes SARIF to a
+file. `add` prints the config entry for the flags you passed, so you can
+paste it once instead of repeating them.
+
+## Environments
+
+An environment block overrides part of the config for one environment. Name
+blocks under `$env`, or use the `$development`, `$production`, `$test` and
+`$ci` shorthands:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  gen: { casing: "camel" },
+  tooling: { doctor: { ignore: ["BS204"] } },
+  $ci: {
+    gen: { tasks: ["types", "sql", "spec"] },
+    tooling: {
+      doctor: { format: "sarif", output: "doctor.sarif", strict: true },
+    },
+  },
+  $env: {
+    staging: { database: { source: { projectRef: "abcdefghijklmnopqrst" } } },
+  },
+});
+```
+
+The CLI applies the block named by `--env`, then by `$BETTER_SUPABASE_ENV`,
+and in CI (`$CI` is set) the `ci` block. When both `$env.<name>` and a
+shorthand exist for the same name, the shorthand applies last. Objects merge
+key by key, while lists and other values replace the base value: above, `ci`
+keeps `tooling.doctor.ignore` and replaces `gen.tasks`. An environment without a
+block uses the config as it is. A block can't hold another block.
+
+## Claims
+
+The `claims` block names the claims every part of better-supabase reads, so a
+rename happens in one place. The defaults are:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  auth: {
+    organization: { claim: "tenant_id" },
+    claims: {
+      scope: "tenant", // memberships[].scope written by the tenant SQL module
+      features: "features", // plan features per tenant, from the entitlements module
+      memberships: "memberships", // the caller's memberships, from the tenant module or a provider's hook
+    },
+  },
+});
+```
+
+`gen` writes the names that differ from the defaults into the generated
+schema, and `add` and `upgrade` render them into the SQL modules. Run
+both after changing the block.
+
+An adapter that reads these claims itself takes the paths from `claimPaths`
+in `better-supabase/config` instead of hardcoding them. `DEFAULT_CLAIMS` holds
+the defaults:
+
+```ts
+import { claimPaths } from "better-supabase/config";
+
+const paths = claimPaths(config.claims);
+// { tenant: ["tenant_id", "app_metadata.tenant_id"], features: "features",
+//   memberships: "memberships", scope: "tenant" }
+```
+
+## supabase/config.toml
+
+The CLI reads `supabase/config.toml` for the local database port, the auth
+settings [doctor](/docs/cli/doctor) checks, bucket drift, and the diff
+engine when `database.sql.workflow` is unset (`[experimental.pgdelta]` and
+`[db.migrations] schema_paths`). When
+[`@supabase/config`](https://www.npmjs.com/package/@supabase/config) is
+installed, it parses the file, with `env()` values filled in the same way the
+Supabase CLI does. It's an optional peer (it needs `effect` and
+`@effect/platform-node`). Without it, a built-in parser reads the subset of
+TOML that `supabase init` writes.
+
+## JSON configs
+
+```json title="better-supabase.config.json"
+{
+  "$schema": "https://unpkg.com/better-supabase/schemas/config-v1.json",
+  "casing": "camel",
+  "plugins": { "timestamps": true }
+}
+```
+
+The JSON Schema gives editor completion and validation. It types each
+block's `options` from the block's manifest, the same source that types
+`blocks.<name>.options` in a TypeScript config, so an unknown block, an
+unknown option or a value of the wrong kind is an error in both. Generators and
+Standard Schema values in `json[...].schema` need a TypeScript or JavaScript
+config; a JSON config can use plain JSON Schema objects.
+
+## Print the resolved config
+
+```bash
+pnpm better-supabase config
+```
+
+`config` prints the file it loaded and the active environment, then the
+config with every default filled in and that environment's block merged in,
+as JSON (`--json` wraps them in one document, with `environment` set to the
+name or `null`). `better-supabase config --env ci` shows what CI will see. Generators show as
+their name and `apiVersion`, and the password in `database.source.dbUrl` is redacted.
+Use it to check which file the CLI found and what an option resolved to.
+`config --preset` prints the preset the config names instead, what it
+resolves to, and how the config differs from it
+([Reading a preset](/docs/cli/presets#reading-a-preset)).
+
+`gen` warns about `tables` and `json` keys that match nothing in the
+configured schemas, such as a misspelled table name, instead of ignoring them.
+
+Side effects: None.
+
+## Custom generators
+
+```ts
+import type { Generator } from "better-supabase/config";
+
+export const tableList: Generator = {
+  apiVersion: 1,
+  name: "table-list",
+  generate: ({ model }) => [
+    {
+      path: "src/lib/tables.json",
+      contents: JSON.stringify(
+        model.tables.map((table) => ({
+          key: table.key,
+          columns: table.columns.map((column) => [column.app, column.tsType]),
+        })),
+      ),
+    },
+  ],
+};
+```
+
+A generator receives the schema metadata (`meta`), the typegen introspection,
+the resolved config, an `importPath` helper and `model`: the tables and enums
+`gen` emitted, with the TypeScript type it wrote for each column after `json`
+overrides, codecs and enum unions. `model` is frozen. The generator returns
+files, and `gen --check` covers them too.
+
+`apiVersion: 1` names the generator contract it targets. `gen` refuses a
+generator that declares a version it doesn't know, so a generator written for
+a later contract fails with a message instead of misreading its input.
+Leaving it out means version 1.
+
+`gen` records the files it wrote in
+`node_modules/.cache/better-supabase/gen-manifest.json`. When a later run no
+longer writes one of them (you removed a generator or changed `output`), it
+deletes the file and lists it as removed, and `gen --check` reports it as no
+longer generated. Files that no earlier run wrote are never touched. Prove a
+generator with [`testGenerator`](/docs/extending/conformance).

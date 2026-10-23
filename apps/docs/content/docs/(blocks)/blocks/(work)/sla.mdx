@@ -1,0 +1,164 @@
+---
+title: Service levels
+description: First response, next response and resolution clocks on any record, from a policy per record type and priority, in business hours, paused while the record waits, with warnings and breaches a job records.
+---
+
+`sla` puts service-level clocks on any record in [`config.records`](/docs/blocks/sql#subject-registry): inbox conversations, tickets, incidents, [work items](/docs/blocks/tasks). A policy per record type and priority says how many minutes a first response, a next response and the resolution may take, and whether only business hours count. A record's clocks start when it is created, pause while it waits on the customer, close when it is answered or resolved, and a job records the ones that warn or breach.
+
+Reading policies and clocks needs `sla.read`, and changing policies needs `sla.manage`. Admins get both, and members get `sla.read`.
+
+```bash
+better-supabase add sla
+```
+
+The module needs `tenant`, `permissions` and `subjects`.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  sla: {
+    on: {
+      ticket: { status: "status", priority: "priority", pause: ["waiting"], resolve: ["solved", "closed"] },
+    },
+    options: {
+      businessHours: { timeZone: "Europe/Amsterdam", start: "09:00", end: "17:00", days: [1, 2, 3, 4, 5] },
+    },
+  },
+},
+```
+
+## Policies
+
+Server code calls the `sla` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSla } = defineDataHooks(
+  "sla",
+  (db: AppDb) => db.sla,
+);
+```
+
+```ts
+import { createSla } from "better-supabase/blocks/sla";
+
+await db.sla
+  .savePolicy({
+    subjectType: "ticket",
+    name: "Normal",
+    firstResponseMinutes: 240,
+    nextResponseMinutes: 120,
+    resolutionMinutes: 2880,
+    businessHours: true,
+  })
+  .orThrow();
+await db.sla
+  .savePolicy({
+    subjectType: "ticket",
+    name: "Urgent",
+    priority: "urgent",
+    firstResponseMinutes: 30,
+    resolutionMinutes: 240,
+    warnAtPercent: 50,
+  })
+  .orThrow();
+```
+
+```tsx title="src/features/sla/list.tsx"
+"use client";
+
+import { useSla } from "@/lib/supabase/hooks";
+
+const rows = useSla({ limit: 50 });
+```
+
+`savePolicy` acts in the block's `tenant`, an organization id or a function that returns the current one (`createBlocks` and `createBlockClient` pass the request's tenant); a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A record uses the policy for its type and priority, or the policy without a priority. One active policy covers each type and priority (`SLA_POLICY_TAKEN`). `warnAtPercent` (default 80) is when a clock warns. With `businessHours`, only the hours of `options.businessHours` count, in its time zone (UTC, 09:00 to 17:00, Monday to Friday by default); `dueAt(start, minutes, businessHours)` shows the result.
+
+## Clocks
+
+Bind a record type in `on` and the module drives its clocks from the record's own columns:
+
+| Change                               | Clocks                                                         |
+| ------------------------------------ | -------------------------------------------------------------- |
+| a record is created                  | first response and resolution start                            |
+| its priority changes                 | the open clocks take the new policy's minutes from their start |
+| its status enters a `pause` status   | every open clock pauses                                        |
+| its status leaves a `pause` status   | they resume, and the due times move by the pause               |
+| its status enters a `resolve` status | every open clock is met                                        |
+| its status leaves a `resolve` status | a new resolution clock starts                                  |
+
+A reply is an event only the app knows about: call `record(subject, "responded")` when an agent answers. It meets the first response, and with a next-response time and the record still open, it starts a next-response clock. Without a binding, call `start(subject, priority)` and `record(subject, event)` with `resolved`, `reopened`, `paused` and `resumed` yourself. The subject is a `RecordRef`, such as `{ type: "ticket", id: ticketId }`; these calls take no tenant, since it comes from the record. Each clock carries its record as `subject`.
+
+`clocks(subject)` returns a record's clocks with their state (`running`, `paused`, `met`, `breached`) and the seconds left, for a ticket's timer.
+
+## Warnings and breaches
+
+Run `check()` every minute from a [job](/docs/blocks/queue) with the service role. It records `sla.warned` once a running clock passes its warning share and `sla.breached` once it passes its due time, and, with the [notifications](/docs/blocks/notifications) module installed, notifies the record's watchers at high priority. Escalate from those events with a [workflow](/docs/blocks/workflows), such as reassigning a breached ticket. A clock met after its due time records `sla.completed` with `late: true`.
+
+## Events
+
+| Event                                         | Data                                                                               |
+| --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `sla.warned`, `sla.breached`, `sla.completed` | `organizationId`, `clockId`, `subjectType`, `subjectId`, `metric`, `dueAt`, `late` |
+
+## Wire it to ReUI
+
+The ReUI Support Escalations board shows each ticket's SLA timer and turns it to "Paused" while it waits on the customer: read `clocks(ticket)` and show the open clock's `secondsLeft`, or "Paused" when its state is `paused`.
+
+## Errors
+
+| Hint                   | Cause                                                     |
+| ---------------------- | --------------------------------------------------------- |
+| `SLA_FORBIDDEN`        | the caller lacks `sla.manage`, or can't read the record   |
+| `SLA_POLICY_TAKEN`     | another active policy covers the type and priority        |
+| `SLA_POLICY_INVALID`   | a policy needs a name, a record type and positive minutes |
+| `SLA_POLICY_NOT_FOUND` | no such policy                                            |
+| `SLA_SUBJECT_INVALID`  | the record isn't in `config.records`                      |
+| `SLA_EVENT_INVALID`    | not one of the events                                     |
+| `SLA_HOURS_INVALID`    | the business hours never open                             |
+
+## Your own columns
+
+Add columns to the policy table with `blocks.sla.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`savePolicy` validates and writes them, and `savePolicy` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createSla } from "better-supabase/blocks/sla";
+import { z } from "zod";
+
+const client = createSla({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```
+
+## Without the client
+
+`db.sla` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createSla } from "better-supabase/blocks/sla";
+
+const sla = createSla({ transport, tenant: organizationId });
+await sla
+  .savePolicy({
+    subjectType: "ticket",
+    name: "Normal",
+    firstResponseMinutes: 240,
+    nextResponseMinutes: 120,
+    resolutionMinutes: 2880,
+    businessHours: true,
+  })
+  .orThrow();
+await sla
+  .savePolicy({
+    subjectType: "ticket",
+    name: "Urgent",
+    priority: "urgent",
+    firstResponseMinutes: 30,
+    resolutionMinutes: 240,
+    warnAtPercent: 50,
+  })
+  .orThrow();
+```

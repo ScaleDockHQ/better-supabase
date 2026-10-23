@@ -1,0 +1,228 @@
+---
+title: Vercel Marketplace
+description: Provider state for an integration listed on the Vercel Marketplace, installations, resources, plans, invoices and meter reports, with the Partner API, verified webhooks, the SSO exchange and usage reporting.
+---
+
+`vercel-marketplace` is for apps that sell a product through the [Vercel Marketplace](https://vercel.com/docs/integrations/create-integration/marketplace-product). It keeps what Vercel tells you, which team installed the integration, the resources they provisioned, the plans, Vercel's invoices and the quantities you reported. It serves the Partner API Vercel calls to install and provision, and gives you the server calls a provider needs: verify a webhook, exchange an SSO code and send usage.
+
+```bash
+better-supabase add vercel-marketplace
+```
+
+The module needs nothing else, and only the service role calls it. Every function is granted to `service_role`, so build the client on a service-role transport.
+
+Server code calls the `vercel-marketplace` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useVercelMarketplace } = defineDataHooks(
+  "vercelMarketplace",
+  (db: AppDb) => db.vercelMarketplace,
+);
+```
+
+```ts
+const rows = await db.vercelMarketplace.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/vercel-marketplace/list.tsx"
+"use client";
+
+import { useVercelMarketplace } from "@/lib/supabase/hooks";
+
+const rows = useVercelMarketplace({ limit: 50 });
+```
+
+Vercel hands out an access token for each installation when it installs the integration. The Partner API seals it in Vault, and invoices and usage reports read it from there. Pass `accessToken: (configurationId) => ...` to keep the tokens yourself instead.
+
+## Partner API
+
+`partnerApi` returns one `Request` to `Response` handler for the routes Vercel calls on your integration: installations, resources, secret rotation and plans. Mount it under any prefix; it routes from the `/v1/` segment on. Each request carries an OIDC token Vercel signs. The handler verifies it against `https://marketplace.vercel.com/.well-known/jwks`, checks that the issuer is `https://marketplace.vercel.com`, that the audience is your client id and that the token has not expired, and that its `installation_id` claim is the installation in the path. A missing or unverifiable token gets a 401 and any other mismatch a 403, both as [Problem Details](/docs/auth/problems).
+
+```ts title="app/api/vercel/[...path]/route.ts"
+const partnerApi = marketplace.partnerApi({
+  plans: [
+    {
+      id: "free",
+      name: "Free",
+      type: "subscription",
+      scope: "resource",
+      paymentMethodRequired: false,
+      billing: { items: [] },
+    },
+  ],
+  resources: {
+    async provision({ installation, resource, environments }) {
+      const tenant = await createOrganization(resource.name);
+      const keys = await issueKeys(tenant, environments);
+
+      return {
+        tenant,
+        tenantCreated: true,
+        secrets: [
+          {
+            name: "APP_API_KEY",
+            value: keys.production.secret,
+            ref: keys.production.id,
+            environmentOverrides: { preview: keys.preview.secret },
+          },
+        ],
+      };
+    },
+    rotate: ({ resource }) => rotateKeys(resource.tenant),
+    revoke: ({ previous }) => revokeKeys(previous),
+  },
+  organizations,
+});
+
+export { partnerApi as GET, partnerApi as POST, partnerApi as PUT };
+export { partnerApi as PATCH, partnerApi as DELETE };
+```
+
+| Route                                                    | What the handler does                                                                                                                                                        |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /v1/installations/{id}`                             | Stores the installation with its account, scopes and accepted policies, seals `credentials.access_token` in Vault, then runs `install`, which may return a tenant to link.   |
+| `GET`, `PATCH /v1/installations/{id}`                    | Returns or stores the installation's billing plan.                                                                                                                           |
+| `DELETE /v1/installations/{id}`                          | Runs `deprovision` and removes the tenant for each resource, marks the installation removed, drops its sealed token and removes its tenant. Answers `{ "finalized": true }`. |
+| `POST /v1/installations/{id}/resources`, `PUT .../{rid}` | Runs `provision`, stores the resource with its tenant and the secret refs, and answers 201 with the secrets.                                                                 |
+| `GET`, `PATCH`, `DELETE .../resources/{rid}`             | Returns the resource, applies a change through `update`, or tears it down like an installation removal does.                                                                 |
+| `POST .../resources/{rid}/secrets/rotate`                | Runs `rotate`, stores the new refs, then runs `revoke` with the previous ones. Without a `rotate` hook it answers 501.                                                       |
+| `GET /v1/products/{pid}/plans`, `GET .../{id}/plans`     | Lists `plans`, or what the `plans` function returns for the product or installation.                                                                                         |
+
+Secrets go to Vercel and never into the database. A secret's `ref`, the app's id for the key it handed out, stays in the block so the next rotation can pass it to `revoke`. `revoke` runs only after `rotate` resolved and the new refs are stored, so a failed rotation leaves the old keys working. `environmentOverrides` gives a secret a different value in `preview` or `development`, for an app that keeps one tenant environment per Vercel environment.
+
+When a resource or installation goes away, `removeTenant` runs with the tenant and whether the integration created it. The default deletes it through `organizations` (the [organizations block](/docs/blocks/organizations) client) only when it was created by the integration and has no members, and does nothing without `organizations`. Pass your own `removeTenant` for other rules.
+
+Errors answer as Problem Details. Internal messages stay hidden unless you pass `expose: true`, and `problem` rewrites the body like it does for the other block routes.
+
+## Hono
+
+On [Hono](/docs/frameworks/hono), pass the raw request to the handler. Register the route before `bsb.middleware()` on the same prefix: Vercel sends its OIDC token as the bearer, which `partnerApi` verifies and Supabase Auth would refuse.
+
+```ts title="src/server.ts"
+const app = bsb
+  .app()
+  .all("/api/vercel/*", (c) => partnerApi(c.req.raw))
+  .use("/api/*", bsb.middleware());
+```
+
+`bsb.app()` installs `bsb.onError`, so a `.orThrow()` that fails inside one of your hooks answers as Problem Details too. The [Hono example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/hono-api) provisions an organization per resource, hands out a tenant API key from the [API keys block](/docs/blocks/api-keys) as the secret, and revokes the previous key after a rotation.
+
+## One tenant shared by Hono and Next
+
+The Partner API and your dashboard can run as two apps on one database. Hono serves the routes Vercel calls; Next.js serves the dashboard users open from Vercel through [single sign-on](#single-sign-on). Both read the same organizations, so a resource the Partner API provisions is the tenant the dashboard shows, with no copy to keep in sync. Give both apps the same `VERCEL_MARKETPLACE_CLIENT_ID` and `VERCEL_MARKETPLACE_CLIENT_SECRET`. [Hono and Next.js](/docs/frameworks/hono-and-next) covers serving both from one deployment.
+
+## Installations and resources
+
+`upsertInstallation` records an installation by its configuration id, and a reinstall after a removal makes it active again. `linkTenant` links the installation to your own organization row. `upsertResource` provisions or updates a resource (the id Vercel uses is `externalId`), and `upsertPlan` keeps the plans your product offers. The Partner API calls these for you; call them yourself for an installation you create outside it.
+
+```ts
+await marketplace
+  .linkTenant({ configurationId, tenant: organizationId, created: false })
+  .orThrow();
+
+await marketplace.upsertResource({
+  configurationId,
+  externalId: resourceId,
+  name: "Production database",
+  planId: "pro",
+});
+```
+
+`resource` and `resources` read a resource or the installation's live ones, `deleteResource` marks one deleted and `removeInstallation` marks the installation removed. The rows stay for invoices and audit.
+
+## Webhooks
+
+`handleWebhook` takes the `Request` Vercel sent. It checks the `x-vercel-signature` header, the HMAC-SHA1 of the raw body under your client secret, in constant time, and returns an error without touching the database when it does not match.
+
+```ts title="app/api/vercel/webhook/route.ts"
+export async function POST(request: Request) {
+  const result = await marketplace.handleWebhook(request);
+
+  return result.ok
+    ? Response.json(result.data)
+    : Response.json({ error: result.error.message }, { status: 400 });
+}
+```
+
+| Event                                                           | What the block does                                                                             |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `integration-configuration.removed`                             | Marks the installation removed and its resources deleted. The rows stay for invoices and audit. |
+| `marketplace.invoice.created`, `.paid`, `.notpaid`, `.refunded` | Stores the invoice with its state.                                                              |
+| anything else                                                   | Returns `handled: false`.                                                                       |
+
+An invoice event carries its creation time, and the database keeps the state of the newest event. Vercel can redeliver events out of order, and an older one never overwrites a newer state.
+
+## Single sign-on
+
+When a user opens your product from the Vercel dashboard, Vercel redirects to your SSO route with a `code`. `exchangeSso` trades it for an `id_token`, verifies it with the same checks as the Partner API (signature, issuer, audience and expiry), and keeps the installation current.
+
+```ts title="app/api/vercel/sso/route.ts"
+const claims = await marketplace.exchangeSso({ code, state }).orThrow();
+// claims.configurationId, claims.userEmail, claims.resourceId, claims.path
+```
+
+Pass `jwks` to verify against another key set, such as one inline in tests.
+
+## Invoices and usage
+
+`submitInvoice` sends an invoice for a period, and `reportUsage` sends meter totals. Pass each meter's total for the billing period so far. `reportUsage` stores it (one row per installation, resource, meter and period), then sends what Vercel has not accepted yet with one request per billing period: `periodValue` is the total and `dayValue` the part not reported before. The reported amount moves only after Vercel answers 2xx, so a failed call sends the whole difference next time.
+
+```ts
+await marketplace.reportUsage({
+  configurationId,
+  periodStart: Temporal.Instant.from("2026-10-01T00:00:00Z"),
+  periodEnd: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+  meters: [{ meterId: "requests", quantity: 12_000 }],
+});
+```
+
+`usageRoute` runs that from a cron caller. It checks the bearer secret, reports what `usage` returns and answers 200 with the configuration ids it reported, or 502 when one failed. To feed a meter from the [usage block](/docs/blocks/usage), read the period's total there.
+
+```ts title="app/api/cron/marketplace-usage/route.ts"
+export const GET = marketplace.usageRoute({
+  secret: process.env.CRON_SECRET,
+  usage: async () => {
+    const period = currentBillingPeriod();
+    const installations = await activeInstallations();
+
+    return Promise.all(
+      installations.map(async (configurationId) => ({
+        configurationId,
+        ...period,
+        meters: [
+          {
+            meterId: "requests",
+            quantity: await usage.total("requests", period, configurationId),
+          },
+        ],
+      })),
+    );
+  },
+});
+```
+
+```json title="vercel.json"
+{
+  "crons": [{ "path": "/api/cron/marketplace-usage", "schedule": "0 1 * * *" }]
+}
+```
+
+## Options and events
+
+`blocks.vercel-marketplace.options.currency` (default `usd`) is the currency an invoice takes when the webhook names none.
+
+The block writes `marketplace_installation.upserted`, `marketplace_installation.removed` and `marketplace_invoice.state_changed` to the [outbox](/docs/blocks/outbox) and the [audit log](/docs/blocks/audit) when they are installed.
+
+## Without the client
+
+`db.vercelMarketplace` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createVercelMarketplace } from "better-supabase/blocks/vercel-marketplace";
+
+const marketplace = createVercelMarketplace({
+  transport: serviceTransport,
+  clientId: process.env.VERCEL_MARKETPLACE_CLIENT_ID,
+  clientSecret: process.env.VERCEL_MARKETPLACE_CLIENT_SECRET,
+});
+```

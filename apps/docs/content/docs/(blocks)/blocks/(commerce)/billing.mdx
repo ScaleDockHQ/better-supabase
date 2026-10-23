@@ -1,0 +1,679 @@
+---
+title: Billing
+description: Stripe customers per tenant, Checkout and the customer portal, seat sync from membership events, and Stripe webhook handling that links customers and refreshes sessions.
+---
+
+The `billing` block connects each tenant to a Stripe customer. It opens
+Checkout and the customer portal, keeps a per-seat subscription's quantity in
+step with the tenant's members, and handles the Stripe events that change a
+plan. Subscriptions are read from the
+[Stripe Sync Engine](/docs/blocks/entitlements) tables that `entitlements`
+uses, so the block never calls Stripe to find out what a tenant pays for.
+
+```bash
+better-supabase add billing entitlements   # adds tenant and access as well
+pnpm add stripe                                # optional: or pass your own client
+```
+
+`billing_customers` maps `organization_id` to `stripe_customer_id`, with a
+foreign key to the tenant table (`billing_customers_tenant_fkey`, `on delete
+cascade`), so a deleted tenant takes its row along. The key references the
+[organizations](/docs/blocks/organizations) module's table when it is
+installed; set `options.tenantKey` to `"schema.table.column"` for your own
+tenant table, or to `false` for none. Existing rows without a tenant leave
+the key unvalidated, with a warning. With
+`billing` installed, the `entitlements` module reads it as its customer
+source, so you don't set `auth.entitlements.customer`. Members with `billing.read`
+can read their tenant's row and `billing_status`; the default `admin` role
+has `billing.*`. The other functions are granted to `service_role` only.
+
+## Setup
+
+Server code calls the `billing` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useBilling } = defineDataHooks(
+  "billing",
+  (db: AppDb) => db.billing,
+);
+```
+
+```ts
+const rows = await db.billing.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/billing/list.tsx"
+"use client";
+
+import { useBilling } from "@/lib/supabase/hooks";
+
+const rows = useBilling({ limit: 50 });
+```
+
+`stripeFromKey()` from `better-supabase/stripe` creates the client from the
+optional `stripe` package on the first Stripe call, once, with its fetch HTTP
+client so it runs on every runtime. It imports `stripe` by name, so Next.js,
+Vite and other bundlers resolve the package and include it in the server
+build. `stripe` also takes `{ secretKey }`, the plain Node shortcut: it loads
+the package at runtime with a native import that bundlers leave alone, so it
+works in Node, Bun and Deno and in apps that keep `stripe` external, but not
+in a bundle that leaves the package out. There it throws an error that names
+`stripeFromKey()`.
+
+`stripe` also takes a Stripe client you created, or a function that returns a
+client. The function runs on every Stripe call, so it can create the client
+lazily, read a rotated key, or pick a per-request client (a Stripe Connect
+account); cache inside it when the client is the same each time:
+
+```ts
+let client: Stripe | undefined;
+const billing = createBilling({
+  stripe: () => (client ??= new Stripe(env.STRIPE_SECRET_KEY)),
+  transport: sqlTransport(postgres.admin),
+});
+```
+
+The [usage](/docs/blocks/usage) block takes the same `stripe` option. Check the caller's permission (`billing.manage`) in your route before
+you call `checkout`, `portal` or `syncSeats`: they act as the service role.
+
+## Checkout and the portal
+
+```ts title="app/billing/actions.ts"
+const { url } = await billing
+  .checkout(organizationId, {
+    price: env.STRIPE_SEAT_PRICE,
+    quantity: "seats", // the tenant's seat count
+    successUrl: `${origin}/billing?done=1`,
+    cancelUrl: `${origin}/billing`,
+    email: user.email,
+  })
+  .orThrow();
+redirect(url!);
+
+const portal = await billing.portal(organizationId, {
+  returnUrl: `${origin}/billing`,
+});
+```
+
+`checkout` creates the Stripe customer the first time, with the tenant id in
+`metadata.organization_id`, and links it. When two checkouts race, the first
+link wins and both use that customer. The session carries the tenant in
+`client_reference_id` and in the subscription's metadata, so the webhook can
+link it even if the customer was created elsewhere. `params` merges more
+Checkout Session parameters deeply: nested objects such as `metadata` and
+`subscription_data` merge with the block's, and arrays such as `line_items`
+replace them. The customer, `client_reference_id` and
+`metadata.organization_id` (on the session and the subscription) are set
+again afterwards, so your own metadata never drops the tenant link. `portal` returns `not_found`
+(`BILLING_NO_CUSTOMER`) before the tenant has a customer.
+
+### Billing tenants as Stripe accounts
+
+Stripe's Accounts v2 API models a business as one `v2.core.account` with
+configurations. The `customer` configuration lets the platform bill that
+account (Billing subscriptions, Checkout, the customer portal and invoices)
+by passing `customer_account: "acct_..."` instead of a v1 `customer`, and the
+`merchant` configuration lets the same account accept payments through
+Connect. Set `customerAccounts` to bill tenants this way:
+
+```ts title="src/lib/billing.ts"
+export const billing = createBilling({
+  stripe: stripeFromKey({ secretKey: env.STRIPE_SECRET_KEY }),
+  transport: sqlTransport(postgres.admin),
+  customerAccounts: {
+    // Optional: the account the tenant already sells through.
+    resolve: (tenant) => connectedAccountOf(tenant),
+    // Optional: more v2.core.accounts.create parameters, merged deeply.
+    params: { identity: { country: "de" } },
+  },
+});
+```
+
+`checkout` then creates the tenant's account the first time, with
+`contact_email`, `display_name`, the `customer` configuration and the tenant
+in `metadata.organization_id`, links it (`link_billing_account`, which
+records `billing.account_linked`), and opens Checkout with
+`customer_account`. `resolve` returns an existing account to reuse instead,
+which needs the `customer` configuration before Stripe bills it. `portal`
+passes `customer_account` too. `account(organizationId)` reads the linked
+account and `ensureAccount(organizationId, details)` creates or reuses it
+without a checkout. Creating an account needs `v2.core.accounts` on the
+Stripe client, which the `stripe` package has; `customerAccounts: true` uses
+the defaults.
+
+Stripe creates a v1 customer linked to the account when the first
+subscription or invoice is made, and customers can't be listed or searched by
+`customer_account`, so the block records that `cus_` id from the first
+Checkout session, subscription or invoice event that carries both ids (see
+[Stripe webhooks](#stripe-webhooks)). Until then `customer(organizationId)`
+returns `undefined`, the Sync Engine reads return nothing, and
+`ensureCustomer`, `addTaxId` and `updateCustomer` fail with `not_found`
+(`BILLING_CUSTOMER_PENDING`). After that, the readers, tax ids, seat sync and
+plan changes work on the linked customer as they do for a v1 customer. A
+tenant that already has a v1 customer keeps it: `checkout` and `portal` go on
+passing `customer` for it.
+
+`billing_customers` keeps the account in `stripe_customer_account_id`
+(`^acct_`), next to `stripe_customer_id`, which is `null` until the customer
+is recorded; a row needs one of the two. Stripe rejects some values for the
+account's profile (for example a `*.localhost` URL as
+`defaults.profile.business_url`), so pass production-like values in
+`params` when you test against a sandbox.
+
+`cancelSubscription(organizationId)` cancels the tenant's active subscription
+in Stripe right away and returns its id, or `undefined` when there is none.
+The [data lifecycle](/docs/blocks/data-lifecycle) purge calls it before it
+deletes an organization.
+
+### Plans from your catalog
+
+Most apps keep a plan catalog (plan keys, their prices per interval,
+features). Point `options.plans` at it and checkout takes a plan key instead
+of a price id:
+
+```ts title="better-supabase.config.ts"
+billing: {
+  options: {
+    plans: {
+      table: "public.plan_prices", // or "plan_prices" in public
+      key: "plan_key", // default key
+      price: "stripe_price_id", // default stripe_price_id
+      interval: "interval", // optional: month, year
+      active: "is_active", // optional
+      variant: "pack", // optional: several prices per plan key
+    },
+  },
+},
+```
+
+```ts
+await billing.checkout(organizationId, {
+  plan: "pro",
+  interval: "year",
+  successUrl,
+});
+```
+
+`billing_plan_price(plan, billing_interval, variant)` returns the price (the
+monthly one when no interval is given), and an unknown plan fails with
+`BILLING_PLAN_UNKNOWN`.
+
+A plan key can have several prices besides the interval, such as credit
+packs or seat tiers. Name the column that tells them apart in `variant`:
+the row without a variant is the plan's default, and `variant` picks
+another. `items` adds more line items to the same Checkout Session, each a
+price or a plan key with its own `interval`, `variant` and `quantity`, for
+add-on packages next to the plan:
+
+```ts
+await billing.checkout(organizationId, {
+  plan: "pro",
+  items: [{ plan: "credits", variant: "5000", quantity: 2 }],
+  successUrl,
+});
+```
+
+`changePlan` takes `variant` too.
+
+### A plan picker
+
+`usePlanPicker` lists your plans with the tenant's current one and starts
+Checkout with `choose(plan)`. The hook is a registry item: install it with
+`npx shadcn add @better-supabase/use-billing`, which writes
+`hooks/use-billing.ts` into the app. It never calls Stripe: `checkout` is your server action or API route,
+which calls `billing.checkout()` with the secret key and returns the
+Checkout URL, and `open` sends the user there. The same hook runs in React
+DOM and React Native.
+
+```ts title="app/settings/billing/actions.ts"
+"use server";
+
+export const startCheckout = bsb.action(
+  {
+    input: v.object({ plan: v.string() }),
+    requireOrganization: true,
+    authorize: (session) => can(session, "billing.manage"),
+  },
+  async ({ plan }, { tenant }) =>
+    billing.checkout(tenant, { plan, successUrl, cancelUrl }),
+);
+```
+
+```tsx title="components/plan-picker.tsx"
+import { usePlanPicker } from "@/hooks/use-billing";
+
+const { plans, current, pending, choose } = usePlanPicker({
+  load: loadPlanCatalog, // { plans, current }, such as a server action
+  checkout: (plan) => startCheckout({ plan }),
+  open: (url) => {
+    window.location.assign(url); // WebBrowser.openBrowserAsync(url) in Expo
+  },
+});
+```
+
+`initial` takes the catalog a server already rendered, so the first load
+is skipped. A failed checkout comes back as a `Result` and stays in
+`error`; a checkout that returns no URL, such as a plan change the server
+finished itself, loads the catalog again. `createPlanPickerController`
+from `better-supabase/blocks/billing` is the same logic without React. Vue,
+Svelte and Solid run it with `useBlockController` from `better-supabase/vue`,
+`/svelte` and `/solid`, with the same options and `auth` from the provider
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)). The [plan picker recipe](/docs/registry/ui-recipes/plan-picker) shows it in
+the Next.js and Expo examples.
+
+```vue title="PlanPicker.vue"
+<script setup lang="ts">
+import { useBlockController } from "better-supabase/vue";
+import { createPlanPickerController } from "better-supabase/blocks/billing";
+
+const { state, actions } = useBlockController(createPlanPickerController, {
+  load: loadPlanCatalog,
+  checkout: startCheckout,
+  open: (url) => window.location.assign(url),
+});
+</script>
+
+<template>
+  <button
+    v-for="plan in state.plans"
+    :key="plan.key"
+    :disabled="plan.key === state.current"
+    @click="actions.choose(plan.key)"
+  >
+    {{ plan.name }}
+  </button>
+</template>
+```
+
+```svelte title="PlanPicker.svelte"
+<script lang="ts">
+  import { useBlockController } from "better-supabase/svelte";
+  import { createPlanPickerController } from "better-supabase/blocks/billing";
+
+  const picker = useBlockController(createPlanPickerController, {
+    load: loadPlanCatalog,
+    checkout: startCheckout,
+    open: (url) => window.location.assign(url),
+  });
+</script>
+
+{#each $picker.plans ?? [] as plan}
+  <button onclick={() => picker.actions.choose(plan.key)}>{plan.name}</button>
+{/each}
+```
+
+```tsx title="PlanPicker.tsx"
+import { useBlockController } from "better-supabase/solid";
+import { createPlanPickerController } from "better-supabase/blocks/billing";
+
+export function PlanPicker() {
+  const { state, actions } = useBlockController(createPlanPickerController, {
+    load: loadPlanCatalog,
+    checkout: startCheckout,
+    open: (url) => window.location.assign(url),
+  });
+  return (
+    <For each={state().plans}>
+      {(plan) => (
+        <button onClick={() => actions.choose(plan.key)}>{plan.name}</button>
+      )}
+    </For>
+  );
+}
+```
+
+## Managing a subscription
+
+These calls are for an admin console or the customer's own billing page. The
+Stripe calls run with the block's Stripe client, so guard the route or action
+with your own permission check (such as `billing.manage`).
+
+```ts
+await billing.changePlan(organizationId, { plan: "business" }); // or { price }
+await billing.cancelAtPeriodEnd(organizationId, true); // false resumes it
+const invoices = await billing
+  .invoices(organizationId, { limit: 20 })
+  .orThrow();
+const methods = await billing.paymentMethods(organizationId).orThrow();
+await billing.voidInvoice(organizationId, invoiceId);
+await billing.markInvoiceUncollectible(organizationId, invoiceId);
+```
+
+`changePlan` moves the subscription item to the new price with prorations
+(`prorationBehavior`) and clears a scheduled cancellation unless
+`resume: false`. `invoices` and `paymentMethods` read the Stripe Sync
+Engine's `stripe.invoices` and `stripe.payment_methods` rows as stored
+(`billing_invoices`, `billing_payment_methods`), newest first, for callers
+with `billing.read`; they return `[]` until the Sync Engine has the tables.
+`voidInvoice` and `markInvoiceUncollectible` act only on the tenant's own
+invoices (`BILLING_INVOICE_NOT_FOUND` otherwise).
+
+### Subscriptions in full, and every tenant's billing
+
+`subscription(organizationId)` returns the tenant's newest subscription as
+the Sync Engine stores it, every column with its `items`, preferring an
+active one (`billing_subscription`). Platform staff and back-office jobs read
+every tenant's newest subscription with `allSubscriptions`, newest first:
+
+```ts
+const current = await billing.subscription(organizationId).orThrow();
+
+const page = await billing
+  .allSubscriptions({ status: "past_due", limit: 50 })
+  .orThrow();
+// [{ organizationId, customerId, row }]
+const next = await billing
+  .allSubscriptions({
+    status: "past_due",
+    limit: 50,
+    cursor: page.at(-1)?.row.created as number,
+  })
+  .orThrow();
+```
+
+`allInvoices({ status, limit, before })` does the same for invoices, across
+tenants, as `{ organizationId, customerId, row }`, and platform staff also
+read one tenant's `invoices` and `paymentMethods`.
+
+These are open to platform staff with `billing.read` in the platform scope
+(the module's `viewAll` permission, checked with `is_platform()`), and
+`allSubscriptions` to the service role. `subscription` also answers members
+with `billing.read` in the tenant.
+
+An admin list that searches by tenant name, sorts by plan, period end or
+amount, or counts rows needs typed columns it can join in SQL rather than
+raw JSON pages. `billing_platform_subscriptions()` returns one row per
+tenant (its newest subscription, preferring an active one) with `tenant`,
+`customer`, `customer_email` and `customer_name` (from `stripe.customers`),
+`subscription`, `status`, `price`, `price_metadata` (the price's Stripe
+metadata), `plan` (the key from `options.plans`, when set), `quantity`,
+`amount` (the price's unit amount times the quantity), `currency`,
+`recurring_interval` (the price's `month`, `year` and so on),
+`current_period_start`, `current_period_end`, `cancel_at_period_end` and
+`created`. `billing_platform_invoices()` returns every invoice with
+`tenant`, `customer`, `invoice`, `subscription`, `number`, `status`,
+`amount_due`, `amount_paid`, `amount_remaining`, `total`, `currency`,
+`due_date`, `finalized_at` and `paid_at` (from the invoice's status
+transitions), `hosted_invoice_url`, `invoice_pdf`, `customer_email` and
+`customer_name` (the invoice's, else the customer's), `created` and
+`updated_at` (when the Sync Engine last wrote the row). Both read the Sync
+Engine's tables when they exist, and are open to the service role and
+platform staff with `viewAll`.
+
+`plan` is `null` for a price that `options.plans` doesn't list. When your
+plans keep their key in the price's metadata instead, fall back to it:
+
+```sql
+select s.tenant, coalesce(s.plan, s.price_metadata ->> 'plan') as plan
+from better_supabase.billing_platform_subscriptions() s;
+```
+
+A list of subscriptions for platform staff:
+
+```sql
+select o.name, s.plan, s.status, s.current_period_end, s.amount
+from better_supabase.billing_platform_subscriptions() s
+join public.organizations o on o.id = s.tenant
+where o.name ilike '%acme%'
+order by s.current_period_end
+limit 50;
+```
+
+`allSubscriptions` and `allInvoices` stay the paged JSON form of the same
+reads.
+
+A customer list includes tenants that have a customer but no subscription
+or invoice yet. `billing_platform_customers()` returns one row per linked
+customer with `tenant`, `customer`, `email`, `name` and `created` (from
+`stripe.customers`, null before the Sync Engine has the row), for the
+service role and platform staff with `viewAll`. In TypeScript,
+`allCustomers()` reads it through `billing_all_customers()`:
+
+```ts
+const customers = await billing.allCustomers().orThrow();
+// [{ organizationId, customerId, email, name, created }]
+```
+
+### The billing contact
+
+Stripe is the record for the billing contact: email, name, address, phone and
+tax ids live on the Stripe customer, the Sync Engine mirrors them into
+`stripe.customers`, and invoices use them. `customerDetails(organizationId)`
+reads that row (`billing_customer_details`), and
+`updateCustomer(organizationId, { email, name, address, params })` writes the
+customer, creating it first when the tenant has none. There is no second copy
+in the module's tables to keep in sync.
+
+Tax ids (VAT, GST and the other Stripe tax id types) live on the Stripe
+customer too. `taxIds(organizationId)` lists them, `addTaxId(organizationId,
+{ type, value })` adds one (creating the customer when the tenant has none),
+and `removeTaxId(organizationId, taxId)` removes one. Stripe validates the
+value and reports `verification.status` for the types it checks:
+
+```ts
+await billing.addTaxId(organizationId, {
+  type: "eu_vat",
+  value: "DE123456789",
+});
+const taxIds = await billing.taxIds(organizationId).orThrow();
+// [{ id, type, value, country, verification, created }]
+```
+
+They need `customers.listTaxIds`, `createTaxId` and `deleteTaxId` on the
+Stripe client, which the `stripe` package has. Guard them with your own
+`billing.manage` check, as the other Stripe calls.
+
+`taxIds(organizationId, { from: "sync" })` reads the Sync Engine's
+`stripe.tax_ids` instead, without a Stripe call, through
+`billing_tax_ids(tenant)`. That function checks `billing.read` (or platform
+staff) itself and returns the same shape, newest first, with `created` in
+epoch seconds as Stripe reports it (`null` when the row has none), so SQL
+can use it too, for example in an admin list:
+
+```sql
+select t ->> 'type' as type, t ->> 'value' as value,
+  t ->> 'country' as country, t -> 'verification' ->> 'status' as verification
+from jsonb_array_elements(better_supabase.billing_tax_ids(tenant)) t;
+```
+
+It returns `[]` before the tenant has a customer or the Sync Engine has the
+`tax_ids` table.
+
+### Reading a subscription in your own functions
+
+Every reader above checks the caller, so a function that resolves the plan
+for an ordinary member (say, to apply a limit) can't use them.
+`better_supabase.billing_tenant_subscription(tenant)` returns what
+`billing_subscription` returns without that check. No role may execute it,
+not even `service_role`, and `api` writes no entry point for it: only
+functions owned by the module's owner, such as your `security definer`
+functions created by `postgres`, call it.
+
+```sql
+create function public.plan_price(tenant uuid)
+returns text language sql stable security definer set search_path = '' as $$
+  select better_supabase.billing_tenant_subscription(tenant) -> 'items' -> 0 ->> 'price'
+$$;
+```
+
+Check what the caller may see in that function before you return anything
+beyond what a member may know.
+
+### Audit retention by plan
+
+The [audit](/docs/blocks/audit) module calls an `audit_retention(tenant)`
+function when you write one, so retention can follow the plan the Sync
+Engine reports:
+
+```sql
+create function public.audit_retention(tenant uuid)
+returns interval language sql stable security definer set search_path = '' as $$
+  select case p.price_id
+    when 'price_enterprise' then interval '365 days'
+    when 'price_business' then interval '90 days'
+    else interval '7 days'
+  end
+  from (
+    select (better_supabase.billing_subscription_item(tenant) ->> 'price') as price_id
+  ) p
+$$;
+```
+
+## Seats
+
+`billing_seat_count(tenant)` counts the tenant's memberships, or only those
+with a role in `options.seatRoles`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { billing: { options: { seatRoles: ["owner", "admin", "member"] } } },
+});
+```
+
+`syncSeats(organizationId)` sets the active subscription item's quantity
+(the `seatPrice` item, or the first one) to that count. Relay the membership
+events from the [outbox](/docs/blocks/outbox) to `seatSink()` to keep it in
+step:
+
+```ts title="app/api/cron/outbox/route.ts"
+await outbox.register("billing-seats", {
+  types: [
+    "organization.member_added",
+    "organization.member_removed",
+    "organization.member_left",
+    "organization.role_changed",
+  ],
+});
+export const GET = outbox.relayRoute({
+  secret: env.CRON_SECRET,
+  consumers: { "billing-seats": billing.seatSink() },
+});
+```
+
+The sink syncs each tenant once per batch. The Stripe idempotency key holds
+the item, the old and new quantity and the outbox event id, so a relay that
+retries the batch doesn't change the subscription twice. A failed update
+throws, which leaves the batch for the next run.
+
+## Subscriptions without the Sync Engine
+
+By default the block reads subscriptions from the Stripe Sync Engine tables.
+An app that only receives webhooks sets `subscriptions: "webhook"` in
+`blocks.billing.options` and in `createBilling`. The migration then creates
+`billing_subscriptions`, and `handleStripeEvent` stores every
+`customer.subscription.*` event in it with the event's `created` time. An older
+event never overwrites a newer one, so retries and out-of-order delivery are
+safe. `billing_tenant_subscription` and `billing_subscription_item` read the
+table, and `billing_plan_of_price(price)` maps a Stripe price to a key of
+`options.plans`.
+
+In this mode `checkout` fails with a `conflict` error whose hint is
+`BILLING_ALREADY_SUBSCRIBED` when the tenant has an active, trialing or past
+due subscription. To refuse tenants that another provider bills (a
+marketplace or an invoice contract), pass an `external` function to
+`createBilling` that returns the provider's name, or `undefined`. `checkout` then fails with the hint
+`BILLING_EXTERNAL`. The SQL hook `public.billing_external_provider(tenant)`
+does the same in SQL, and `external` works in both modes.
+
+## Stripe webhooks
+
+Store Stripe events in the webhook inbox, then hand them to
+`handleStripeEvent`:
+
+```ts title="app/api/stripe/route.ts"
+import { stripeInboxVerify } from "better-supabase/blocks/billing";
+import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/queue";
+
+export const inbox = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
+  source: "stripe",
+  verify: stripeInboxVerify(env.STRIPE_WEBHOOK_SECRET),
+});
+export const POST = (request: Request) => inbox.receive(request);
+
+// In the inbox cron route:
+await inbox.process((message) =>
+  billing.handleStripeEvent(message.payload).orThrow(),
+);
+```
+
+| Stripe event                    | What the block does                                                                                            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `checkout.session.completed`    | Links the customer to the tenant; emits `billing.checkout_completed`                                           |
+| `customer.subscription.created` | Links from `metadata.organization_id` if needed; emits `billing.subscription_created` and invalidates sessions |
+| `customer.subscription.updated` | Emits `billing.subscription_updated` and invalidates sessions                                                  |
+| `customer.subscription.deleted` | Emits `billing.subscription_deleted` and invalidates sessions                                                  |
+| Any other event                 | Records the customer of a tenant's account when the object carries `customer` and `customer_account`           |
+
+Other events are ignored. An event whose object has a `customer_account`
+resolves the tenant by its customer or its account, links the account from
+`metadata.organization_id` or `client_reference_id` when needed, and reports
+it as `accountId` on the outcome and the block event.
+
+Connect events, the ones Stripe sends for a connected account, carry
+`event.account`. They are handled like platform events by default, for apps
+that bill through a per-tenant Connect client. An app that bills on the
+platform and receives connected account events on the same endpoint or event
+destination sets `connectEvents: "ignore"`, so a connected account's own
+customers are never linked to a tenant. `stripeInboxVerify` verifies both
+kinds, and also the thin event notifications that event destinations send
+(see [Stripe webhooks](/docs/standards/webhooks#stripe-webhooks)). Session invalidation uses
+[`entitlementMembers`](/docs/blocks/entitlements), so members read the new
+plan's entitlements on their next request. `verifyStripeWebhook` checks the
+`Stripe-Signature` header with WebCrypto, without the `stripe` package.
+
+## Block events
+
+`billing.customer_linked`, `billing.account_linked`,
+`billing.checkout_completed`,
+`billing.subscription_created`, `billing.subscription_updated`,
+`billing.subscription_deleted` and `billing.seats_synced` carry
+`organizationId` and, where they apply, `customerId`, `accountId`,
+`subscriptionId`,
+`status`, `quantity`, `previousQuantity` and `stripeEventId`. Listen with
+`onBlockEvent(bsb, billingEvents, "billing.*", handler)`, with
+`billingEvents` from `better-supabase/blocks/billing`.
+
+## Functions
+
+| Function                                                          | Granted to                      | Returns                                                                                     |
+| ----------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `billing_customer(tenant)`                                        | `authenticated`, `service_role` | the customer id, for callers with `billing.read`                                            |
+| `billing_account(tenant)`                                         | `authenticated`, `service_role` | the Accounts v2 account id, for callers with `billing.read`                                 |
+| `billing_status(tenant)`                                          | `authenticated`, `service_role` | `{ customer, account, seats, subscription }`                                                |
+| `billing_subscription(tenant)`                                    | `authenticated`, `service_role` | the newest `stripe.subscriptions` row with `items`, for `billing.read` or platform staff    |
+| `billing_tenant_subscription(tenant)`                             | none (the owner)                | the same row without checking the caller, for your own `security definer` functions         |
+| `billing_all_subscriptions(for_status, max_rows, before_created)` | `authenticated`, `service_role` | `[{ tenant, customer, subscription }]`, for platform staff                                  |
+| `billing_all_invoices(for_status, max_rows, before_created)`      | `authenticated`, `service_role` | `[{ tenant, customer, invoice }]`, for platform staff                                       |
+| `billing_platform_customers()`                                    | `authenticated`, `service_role` | every linked customer: `tenant`, `customer`, `email`, `name`, `created`, for platform staff |
+| `billing_all_customers()`                                         | `authenticated`, `service_role` | the same rows as `jsonb`, for `allCustomers()`                                              |
+| `link_billing_customer(tenant, customer)`                         | `service_role`                  | the linked customer; records it on a row that has only an account                           |
+| `link_billing_account(tenant, account)`                           | `service_role`                  | the linked account                                                                          |
+| `billing_customer_tenant(customer)`                               | `service_role`                  | the tenant id of a customer or an account id                                                |
+| `billing_seat_count(tenant)`                                      | `service_role`                  | the seat count                                                                              |
+| `billing_subscription_item(tenant, price)`                        | `service_role`                  | `{ subscription, item, price, quantity, status }` or null                                   |
+| `billing_plan_price(plan, billing_interval, variant)`             | `authenticated`, `service_role` | the plan's Stripe price from `options.plans`, or null                                       |
+| `billing_invoices(tenant, max_rows)`                              | `authenticated`, `service_role` | the customer's `stripe.invoices` rows, for `billing.read`                                   |
+| `billing_payment_methods(tenant)`                                 | `authenticated`, `service_role` | the customer's `stripe.payment_methods` rows                                                |
+| `billing_customer_details(tenant)`                                | `authenticated`, `service_role` | the customer's `stripe.customers` row                                                       |
+| `billing_tax_ids(tenant)`                                         | `authenticated`, `service_role` | the customer's `stripe.tax_ids` as `[{ id, type, value, country, verification, created }]`  |
+
+## Without the client
+
+`db.billing` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="src/lib/billing.ts"
+import { createBilling, sqlTransport } from "better-supabase/blocks/billing";
+import { stripeFromKey } from "better-supabase/stripe";
+
+export const billing = createBilling({
+  stripe: stripeFromKey({ secretKey: env.STRIPE_SECRET_KEY }),
+  transport: sqlTransport(postgres.admin),
+  events: bsb.events, // billing.* block events
+  seatPrice: env.STRIPE_SEAT_PRICE,
+  sessions: {
+    sql: postgres.admin,
+    invalidate: (id) => bsb.invalidateSession(id),
+  },
+});
+```

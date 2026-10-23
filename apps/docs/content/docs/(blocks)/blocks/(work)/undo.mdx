@@ -1,0 +1,197 @@
+---
+title: Undo
+description: Apply the undo tokens that block methods return, on the server with createUndo and in the browser with a useUndoStack for a toast's Undo button.
+---
+
+Block methods whose change has an inverse return an `undo` token next to
+their result: `relations.link`, `relations.unlink` and `audit.revert`. A token
+is plain JSON (`{ v: 1, calls: [{ fn, args }] }`), so a server action can
+return it to the browser and take it back when the user clicks Undo. Applying
+it runs the inverse calls as the caller, so the same policies and permission
+checks apply as for any other write.
+
+```ts
+import { createUndo, sqlTransport } from "better-supabase/blocks/undo";
+import { useUndoStack } from "@/hooks/use-undo";
+```
+
+The undo block adds no SQL module; it calls the functions of the blocks that
+returned the token.
+
+## Apply a token
+
+`createUndo` checks that a value is a token whose calls are all inverses the
+blocks return (`link`, `unlink`, `revert_audit_entries`), then runs them in
+order and stops at the first error. Check the token on the server, since it
+comes back from the browser.
+
+Server code calls the `undo` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useUndo } = defineDataHooks(
+  "undo",
+  (db: AppDb) => db.undo,
+);
+```
+
+```ts
+const rows = await db.undo.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/undo/list.tsx"
+"use client";
+
+import { useUndo } from "@/lib/supabase/hooks";
+
+const rows = useUndo({ limit: 50 });
+```
+
+`apply` resolves to the number of calls it ran. A value that is not an
+accepted token is a `validation` error. An app that returns its own inverses
+names their functions in `allow`, and builds tokens with `undoToken`.
+
+```ts
+const undo = createUndo({
+  transport: sqlTransport(ctx.postgres),
+  allow: ["restore_task"],
+});
+```
+
+Each call runs as its own statement. A token from `relations.link` that
+replaced a parent holds two calls (unlink the new parent, link the old one),
+and when the second fails the first stays applied.
+
+An undo can fail when the rows changed after the change it reverses: an audit
+revert refuses with `ROW_CHANGED_SINCE`, and a link that someone else removed
+is already gone.
+
+## Keep a stack in the browser
+
+`useUndoStack` is a registry item: `npx shadcn add @better-supabase/use-undo`
+writes `hooks/use-undo.ts` into the app. The hook keeps the newest tokens (20
+by default) for a toast's Undo button or a Cmd+Z handler. `push` ignores a `null` token, so you can push
+every result without checking which methods have an inverse.
+
+```tsx title="app/tasks/task-list.tsx"
+"use client";
+
+import { useUndoStack } from "@/hooks/use-undo";
+
+const stack = useUndoStack({ apply: undoAction });
+
+async function moveUnder(epicId: string) {
+  const moved = await moveTask(taskId, epicId);
+  stack.push(moved.undo, "Moved the task");
+}
+
+// <Button disabled={!stack.canUndo} onClick={() => stack.undo()}>Undo</Button>
+```
+
+`undo` applies the newest entry and removes it. When the apply throws, the
+entry is removed too, since its rows changed, and `error` holds what it
+threw. Bulk actions return no token, because a row's inverse depends on the
+action; revert their [audit entries](/docs/blocks/audit#reverting-changes)
+instead.
+
+## Vue
+
+`useBlockController` from `better-supabase/vue` runs `createUndoController`
+with its options; the controller needs no provider. `state` is a shallow ref of the snapshot and `actions` are the controller's actions.
+The work starts on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useBlockController } from "better-supabase/vue";
+import { createUndoController } from "better-supabase/blocks/undo";
+
+const { state, actions } = useBlockController(createUndoController, {
+  apply: undoAction,
+});
+</script>
+
+<template>
+  <p>{{ state.entries.length }}</p>
+  <button @click="actions.undo()">Undo</button>
+</template>
+```
+
+`undoAction` stands for your server call that applies a token.
+
+## Svelte
+
+`useBlockController` from `better-supabase/svelte` runs
+`createUndoController` with its options; the controller needs no provider.
+It returns a readable store of the snapshot, read with `$`, with the
+actions on `.actions`. The work starts on mount, and the controller is
+disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { useBlockController } from "better-supabase/svelte";
+  import { createUndoController } from "better-supabase/blocks/undo";
+
+  const stack = useBlockController(createUndoController, {
+    apply: undoAction,
+  });
+</script>
+
+<p>{$stack.entries.length}</p>
+<button onclick={() => stack.actions.undo()}>Undo</button>
+```
+
+## Solid
+
+`useBlockController` from `better-supabase/solid` runs
+`createUndoController` with its options; the controller needs no provider.
+`state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { useBlockController } from "better-supabase/solid";
+import { createUndoController } from "better-supabase/blocks/undo";
+
+export function Component() {
+  const { state, actions } = useBlockController(createUndoController, {
+    apply: undoAction,
+  });
+  return (
+    <>
+      <p>{state().entries.length}</p>
+      <button onClick={() => actions.undo()}>Undo</button>
+    </>
+  );
+}
+```
+
+## With ReUI
+
+- Toast (Sonner): show the entry's `label` with an Undo action that calls
+  `stack.undo()`.
+- Command menu: an "Undo" item, disabled while `canUndo` is false.
+
+The free `c-sonner-*` examples show a toast with an action; the Pro
+application blocks show list toolbars with undo. Pro blocks are licensed per
+user, so copy them from [reui.io](https://reui.io).
+
+## Hooks
+
+`createUndo` takes `hooks` around its methods, such as a rule before
+`apply` that returns a `DbError` to refuse the call; see
+[extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.undo` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/tasks/actions.ts"
+"use server";
+
+import { createUndo, sqlTransport } from "better-supabase/blocks/undo";
+
+export async function undoAction(token: unknown) {
+  const ctx = await server.context();
+  const undo = createUndo({ transport: sqlTransport(ctx.postgres) });
+  return (await undo.apply(token)).orThrow();
+}
+```

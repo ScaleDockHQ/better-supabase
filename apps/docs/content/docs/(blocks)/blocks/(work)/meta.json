@@ -1,0 +1,21 @@
+{
+  "title": "Work",
+  "pages": [
+    "catalog-work",
+    "tags",
+    "state-machine",
+    "custom-fields",
+    "saved-views",
+    "relations",
+    "bulk",
+    "undo",
+    "search",
+    "approvals",
+    "assets",
+    "pipelines",
+    "collections",
+    "tasks",
+    "sla",
+    "dispatch"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "title": "Docs",
+  "description": "Install better-supabase, read the concepts and build with it.",
+  "root": true,
+  "pages": [
+    "index",
+    "(get-started)",
+    "concepts",
+    "(data)",
+    "auth",
+    "frameworks",
+    "frontend",
+    "specs",
+    "(integrations)",
+    "(production)",
+    "migration"
+  ]
+}

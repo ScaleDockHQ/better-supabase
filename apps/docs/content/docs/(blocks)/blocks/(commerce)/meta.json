@@ -1,0 +1,21 @@
+{
+  "title": "Commerce",
+  "pages": [
+    "catalog-commerce",
+    "usage",
+    "billing",
+    "entitlements",
+    "catalog",
+    "inventory",
+    "ledger",
+    "orders",
+    "promotions",
+    "invoices",
+    "reviews",
+    "billable-time",
+    "shipments",
+    "leases",
+    "expenses",
+    "donations"
+  ]
+}

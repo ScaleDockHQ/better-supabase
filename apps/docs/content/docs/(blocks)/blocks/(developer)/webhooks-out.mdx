@@ -1,0 +1,583 @@
+---
+title: Outgoing webhooks
+description: Signed webhooks to your customers' endpoints, with event subscriptions, retries, a queryable delivery log, secret rotation, URL checks and auto-disable.
+---
+
+The `webhooks-out` [SQL module](/docs/blocks/sql) stores the endpoints
+your customers register, their signing secrets and one delivery row per
+event and endpoint. `createWebhooks` from
+`better-supabase/blocks/webhooks` queues events, signs and sends the deliveries,
+retries failures and keeps the log.
+
+```bash
+pnpm better-supabase add webhooks-out
+```
+
+Secrets live in [Supabase Vault](https://supabase.com/docs/guides/database/vault)
+by default and clients can never read them. With the
+[access contract](/docs/repository/permissions) installed, members with
+`webhooks.read` read the endpoints and the delivery log of their
+organization through RLS, and `webhooks.manage` adds, changes, rotates and
+redelivers. Without it, only the service role has access.
+
+## Endpoints
+
+An endpoint is a row with a `url` (HTTPS unless `options.allowHttp`),
+`event_types` and `enabled`. Event types match exactly, with `*` for every
+event, or by prefix with `invoice.*`. Create the first secret with
+`rotateSecret` and show it to the user once:
+
+Server code calls the `webhooks-out` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useWebhooksOut } = defineDataHooks(
+  "webhooksOut",
+  (db: AppDb) => db.webhooksOut,
+);
+```
+
+```ts
+const rows = await db.webhooksOut.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/webhooks-out/list.tsx"
+"use client";
+
+import { useWebhooksOut } from "@/lib/supabase/hooks";
+
+const rows = useWebhooksOut({ limit: 50 });
+```
+
+`rotateSecret(id, { overlap })` creates a new secret and keeps the older ones
+signing for `overlap` (`'24 hours'` by default), so receivers can switch
+without missing a delivery. Pass `secret` to import one, for example when you
+migrate from another system.
+
+### Ed25519 signatures
+
+An endpoint with `signing` set to `'v1a'` is signed with an Ed25519 key
+instead of its secrets (Standard Webhooks `v1a`), so the receiver holds only
+a public key and can't forge a delivery. Keep the key in the
+[signing keys](/docs/blocks/signing-keys) block and pass a signer as
+`asymmetricSigner`:
+
+```ts title="lib/webhooks.ts"
+import {
+  createWebhooks,
+  standardWebhooksAsymmetric,
+  sqlTransport,
+} from "better-supabase/blocks/webhooks";
+
+export const webhooks = createWebhooks({
+  transport: sqlTransport(postgres.admin),
+  asymmetricSigner: standardWebhooksAsymmetric({
+    signer: signingKeys.signer({ type: "webhooks", id: "default" }),
+  }),
+});
+```
+
+Show receivers `webhookPublicKey(jwk)`, the `whpk_` form that
+`verifyWebhook` takes in place of a secret. A `v1a` endpoint needs no
+secret. Without an `asymmetricSigner`, its deliveries are dead-lettered
+instead of sent unsigned. `hmac: true` also adds the `v1` signatures from
+the endpoint's secrets while receivers move over.
+
+### Connectors
+
+An endpoint's `format` picks the encoder that writes its requests, so the
+same events can go to a log pipeline or a SIEM as well as to webhook
+receivers. `cloudevents` is the default for new endpoints; set
+`blocks.webhooks-out.options.defaultFormat` to change the column default and
+the format of a row that has none. Four more are built in:
+
+| `format`      | Writes                                                                         | Point the URL at            |
+| ------------- | ------------------------------------------------------------------------------ | --------------------------- |
+| `cloudevents` | CloudEvents over HTTP, one event or a batch, signed per Standard Webhooks      | The receiver                |
+| `standard`    | The 0.8 body, `{ type, timestamp, data }` or an array of them, signed the same | A receiver written for 0.8  |
+| `otlp-logs`   | OTLP/HTTP logs in JSON, a log record per event with the CloudEvents attributes | A collector's `/v1/logs`    |
+| `splunk-hec`  | Splunk HTTP Event Collector events, the CloudEvent as `event`                  | `/services/collector/event` |
+| `set`         | A Security Event Token pushed per RFC 8935, from `data.set`                    | A Shared Signals receiver   |
+
+Endpoints are rows, so an app picks a format per endpoint by writing the
+column, for example while receivers move from the 0.8 body to CloudEvents:
+
+```sql
+update better_supabase.webhook_endpoints set format = 'cloudevents' where id = $1;
+```
+
+Both `cloudevents` and `standard` put `transform`'s return value in `data`.
+
+The [security-events](/docs/blocks/security-events) block creates the `set`
+endpoints; the SET carries its own signature, and a 400 with `invalid_key`
+retries while other RFC 8935 errors dead-letter.
+
+`otlp-logs`, `splunk-hec` and `set` aren't signed. They authenticate with the
+token in the endpoint's `credential_ref`, which the `credentials` option
+resolves (`Authorization: Splunk <token>` for HEC, the token's own headers
+otherwise). A ref outside the endpoint's organization, or a ref without a
+`credentials` provider, dead-letters the delivery. A partial success from an
+OTLP collector counts as delivered and keeps the rejection in the log, and an
+HEC error code inside a 200 retries or dead-letters by its code.
+
+```ts title="lib/webhooks.ts"
+import {
+  createWebhooks,
+  otlpLogs,
+  sqlTransport,
+} from "better-supabase/blocks/webhooks";
+import { vaultCredentials } from "better-supabase/credentials";
+
+export const webhooks = createWebhooks({
+  transport: sqlTransport(postgres.admin),
+  credentials: vaultCredentials({ transport: sqlTransport(postgres.admin) }),
+  encoders: [otlpLogs({ serviceName: "billing" })],
+});
+```
+
+`encoders` replaces a built-in by name, with options as above, or adds a
+`WebhookEncoder` for another format: `encode(events, endpoint)` returns the
+body and its headers, `signed` says whether the Standard Webhooks headers go
+on, `authorize(token)` turns the token into headers and `classify(response)`
+reads a response the status alone doesn't explain.
+
+## Publishing events
+
+`publish` queues the event for every enabled endpoint in the organization
+that subscribes to its type, and returns how many deliveries it queued.
+Publish from a service connection:
+
+```ts title="lib/webhooks.ts"
+import "server-only";
+
+import { createWebhooks, sqlTransport } from "better-supabase/blocks/webhooks";
+
+export const webhooks = createWebhooks({
+  transport: sqlTransport(postgres.admin),
+  events: betterSupabase.events,
+});
+```
+
+```ts
+await webhooks
+  .publish({
+    type: "invoice.paid",
+    data: { id: invoice.id, amount: invoice.amount },
+    tenant: organizationId,
+    id: `invoice-paid-${invoice.id}`,
+  })
+  .orThrow();
+```
+
+With an `id`, publishing the same event again queues nothing, so a retried
+request never sends twice. `dispatch({ endpointId, type, data, runId?,
+eventId? })` sends to one endpoint outside its subscriptions, for example
+from a workflow step, and returns the delivery id. A member with
+`webhooks.manage` may call it too.
+
+### Who receives an event
+
+`publish` queues an event only for endpoints whose owner may read it. Pass
+`subject` (the row the event is about, such as `invoices/42`) and
+`readPermission`, the permission a reader of that row needs:
+
+```ts
+await webhooks
+  .publish({
+    type: "invoice.paid",
+    data: { id: invoice.id },
+    tenant: organizationId,
+    subject: `invoices/${invoice.id}`,
+    readPermission: "invoices.read",
+  })
+  .orThrow();
+```
+
+| Endpoint owner                                    | Gets the event when                                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------- |
+| A user (`created_by` is set)                      | The user holds `readPermission` (else `webhooks.read`) in the tenant      |
+| A service principal (`created_by` is null)        | `readPermission` is unset, or `permissions` holds it, `*` or a `prefix.*` |
+| A user who was deleted (`created_by` set to null) | As a service principal                                                    |
+
+A service endpoint declares what it holds in its `permissions` column, for
+example `{invoices.*}`. With the
+[service-accounts](/docs/blocks/service-accounts) module installed, a
+service endpoint gets an event only when the tenant's default principal
+holds `readPermission` (else `webhooks.read`), and the declared
+`permissions` apply only while the tenant has no default principal. The user check asks the
+[authorization provider](/docs/extending/authorization-providers) when one is
+configured, otherwise the [access contract](/docs/repository/permissions); without
+either, user endpoints receive nothing.
+
+The SQL check runs once, when the event is queued. For a check at send time,
+such as row-level rules the provider doesn't know, pass `subscribers`, a
+`SubscriberPolicy`. `deliver` calls it once per event with the candidate
+endpoints (`{ principal, kind }`, where `principal` is the owner's user id;
+for a service endpoint, the organization's default
+[service principal](/docs/blocks/service-accounts), or the endpoint id
+without one) and cancels the deliveries it leaves out. Each delivery is
+checked against its own stored `subject`. A throw retries every delivery of
+that event. Without the option the block uses
+`authorization.delivery.subscribers`.
+
+With `authorization` but no `delivery.subscribers`, the block fails closed
+on records: it uses `subjectReaders(transport)`, so an event whose subject
+is a [registered subject](/docs/blocks/sql#subject-registry)
+(`subjects/<type>/<id>` or `<type>/<id>`) only reaches endpoints whose owner
+or service principal holds the subject's `read` key, through
+`can_subject_for`. A share link never counts. Events without a subject, or
+about a type the registry doesn't list, keep the queue-time check.
+
+To publish from the [outbox](/docs/blocks/outbox), pass `webhooks.sink()` to
+the relay. It publishes each CloudEvent with its `partitionkey` as the
+organization and its `id` as the event id, and removes the relay's type
+prefix so endpoints subscribe to `invoice.paid` rather than
+`dev.better-supabase.invoice.paid`. Pass `sink({ typePrefix })` when the relay
+uses its own prefix.
+
+The sink publishes up to 1,000 events per call through
+`better_supabase.publish_webhook_events(events jsonb)`, which runs
+`publish_webhook_event` for each element. `webhooks.publishMany(inputs)`
+calls it from a service transport and returns one `Result` per event, the
+number of deliveries it queued or the error.
+
+### Partitioned deliveries
+
+`blocks.webhooks-out.options.partitioned` creates a new `webhook_deliveries`
+table partitioned by month on `created_at`, with the primary key
+`(id, created_at)`. A lock per event replaces the unique
+`(endpoint, event)` index, and `purge_webhook_deliveries` drops every month
+past the cutoff whose deliveries are all finished. Schedule
+`better_supabase.maintain_partitions()` once a month. An existing table stays
+as it is, and `better-supabase doctor` reports it as BS335.
+
+## Delivering
+
+Call `deliver()` from a cron route or a job. `deliverRoute` wraps it for
+Vercel Cron, behind the `CRON_SECRET` bearer token:
+
+```ts title="app/api/webhooks/deliver/route.ts"
+import { webhooks } from "@/lib/webhooks";
+
+export const GET = webhooks.deliverRoute({ secret: process.env.CRON_SECRET });
+```
+
+`deliver` claims due rows with `for update skip locked` and leases them
+(`lease`, two minutes by default), so two runs never send the same delivery.
+The claim counts the attempt, so a worker that dies mid-send still uses one
+up, and the attempt is the lease token: a worker whose lease ran out and was
+claimed again can't record its result. A batch (`batch`, 25) is sent with
+`concurrency` (10) requests in flight, so it finishes inside the lease.
+Each request carries the Standard Webhooks headers (`webhook-id`,
+`webhook-timestamp` and `webhook-signature`) and a
+[CloudEvents 1.0](/docs/standards/events) event in structured mode
+(`content-type: application/cloudevents+json`). Receivers check it with
+[`verifyWebhook`](/docs/standards/webhooks) or any Standard Webhooks library.
+The delivery id is the `webhook-id` and the CloudEvent `id`, the same on every
+retry.
+
+```json
+{
+  "specversion": "1.0",
+  "id": "8f6c1e0a-…",
+  "source": "https://app.example.com/webhooks",
+  "type": "invoice.paid",
+  "subject": "invoices/42",
+  "time": "2026-10-14T09:30:00Z",
+  "datacontenttype": "application/json",
+  "data": { "id": "42", "amount": 1200 }
+}
+```
+
+| Attribute     | Value                                                                       |
+| ------------- | --------------------------------------------------------------------------- |
+| `source`      | `source`, else `/webhooks` on `appUrl`, else `urn:better-supabase:webhooks` |
+| `type`        | The event type, after `typePrefix` and a dot when you set one               |
+| `subject`     | The `subject` given to `publish`, left out without one                      |
+| `time`        | When the event was queued                                                   |
+| `dataschema`  | `dataschema`, a URI or a function of the delivery                           |
+| `traceparent` | `traceparent(delivery)`, left out when it isn't a valid W3C trace context   |
+
+An endpoint with `batch` set to `true` gets its claimed deliveries in one
+request, as a CloudEvents batch (`application/cloudevents-batch+json`, a JSON
+array of events). The `webhook-id` of a batch is `batch_` and a hash of its
+delivery ids, and the deliveries succeed or fail together.
+
+| Response                       | Result                            |
+| ------------------------------ | --------------------------------- |
+| 2xx                            | `succeeded`                       |
+| 408, 429, 5xx, a network error | `retrying`, on the schedule below |
+| A URL check that fails (DNS)   | `retrying`, on the schedule below |
+| Any other status               | `dead`                            |
+| A URL `allowUrl` rejects       | `dead`, never sent                |
+| The last of `maxAttempts` (8)  | `dead`, also when the worker died |
+
+A delivery is `pending` until a worker claims it and `delivering` while the
+lease holds it. `shouldDeliver` returning `false` and disabling the endpoint
+leave it `canceled`.
+
+Retries follow the Svix schedule: 5 seconds, 5 minutes, 30 minutes, 2
+hours, 5 hours, then 10 hours, each with equal jitter (half the step plus a
+random share of the other half, and never under a second) so failed
+receivers aren't hit in bursts and a retry never fires at once. A `Retry-After` header
+on the response wins when it asks for longer, up to a day.
+
+An endpoint whose deliveries keep failing for `disableAfter` (5 days)
+without a success in between is disabled, its pending deliveries are
+canceled and the outbox gets `webhook.disabled`. Setting `enabled` back to
+`true` clears `failing_since`.
+`redeliver(deliveryId)` queues a finished delivery again from its first
+attempt.
+
+The log keeps the status, attempt, response status and body (the first
+2000 characters), duration and last error of every delivery, so you can show
+it in your settings page with a plain query.
+
+## URL checks
+
+The default `allowUrl` is `publicUrl()`: HTTPS only, no credentials in the
+URL, no local host names, and every address the host resolves to must be
+public (not loopback, private, link-local or reserved, so cloud metadata
+endpoints are out). IPv6 addresses that carry an IPv4 address (mapped,
+IPv4-compatible, NAT64, 6to4 and Teredo) are checked by that address or
+refused. It resolves with `node:dns` where the runtime has it; pass
+`resolve` on other runtimes. Use `allowHosts` for a receiver you trust.
+
+`fetchTransport` follows no redirects by default (`maxRedirects: 0`), so a
+redirect dead-letters the delivery; each hop you allow is checked with
+`allowUrl` first. It reads at most `maxResponseBytes` (64 KiB) of a response
+body. The check and the connection resolve the host separately, so a host
+whose DNS changes in between (DNS rebinding) can still reach an internal
+address. When that matters, send webhooks through an egress proxy that
+refuses private addresses, with a custom `http` transport.
+
+Signing secrets are 32 random bytes (`whsec_` and base64). With Vault
+storage, deleting a secret row or its endpoint deletes the Vault secret.
+
+```ts
+createWebhooks({
+  transport: sqlTransport(postgres.admin),
+  allowUrl: publicUrl({ allowHosts: ["hooks.internal.example.com"] }),
+});
+```
+
+### Other requests to URLs users give you
+
+`createSafeFetch` applies the same checks to any request whose URL comes
+from a user or tenant: link previews, imports from a URL, avatars by URL,
+OAuth callback checks. It returns a `fetch` that refuses a URL outside
+`publicUrl` (or your `allowUrl`) with `UnsafeUrlError`, checks every redirect
+before following it (3 at most by default, `maxRedirects`), drops
+`authorization`, `cookie` and `proxy-authorization` on a redirect to another
+origin, and stops after `timeoutMs` (10 seconds):
+
+```ts
+import { createSafeFetch } from "better-supabase/blocks/webhooks";
+
+const safeFetch = createSafeFetch();
+
+const response = await safeFetch(userSuppliedUrl);
+```
+
+When your requests carry credentials in other headers, such as an API key
+for the service you call, list them in `sensitiveHeaders` so a redirect to
+another origin drops them too. Redirects within the same origin keep them.
+
+```ts
+const safeFetch = createSafeFetch({ sensitiveHeaders: ["x-api-key"] });
+```
+
+When the check itself fails, usually because the DNS lookup for the host
+failed, `safeFetch` throws `UrlCheckError` instead, with the lookup error as
+`cause`. The URL was not refused, so treat it as a transient failure you may
+retry, and treat `UnsafeUrlError` as final:
+
+```ts
+import { UnsafeUrlError, UrlCheckError } from "better-supabase/blocks/webhooks";
+
+try {
+  await safeFetch(userSuppliedUrl);
+} catch (error) {
+  if (error instanceof UnsafeUrlError) return { status: "refused" };
+  if (error instanceof UrlCheckError) return { status: "retry" };
+  throw error;
+}
+```
+
+The DNS caveat above applies here too.
+
+## Extending it
+
+| Option or hook                | Use                                                                                     |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| `signer`                      | `standardWebhooks({ headers })` renames the headers; `hmacSigner` matches other formats |
+| `asymmetricSigner`            | Signs `v1a` endpoints, usually `standardWebhooksAsymmetric({ signer })`                 |
+| `encoders`                    | `WebhookEncoder`s for endpoint `format`s, such as `otlpLogs()` and `splunkHec()`        |
+| `credentials`                 | The `CredentialProvider` that resolves an endpoint's `credential_ref`                   |
+| `transform`                   | The CloudEvent `data` for a delivery                                                    |
+| `subscribers`                 | A `SubscriberPolicy` that narrows each event's endpoints at send time                   |
+| `headers`                     | Extra headers per delivery, e.g. an `idempotency-key`                                   |
+| `shouldDeliver`               | Return `false` (or throw) to cancel a delivery, e.g. for a suspended plan               |
+| `retry`                       | `maxAttempts`, `backoff(attempt)` in seconds, `retryable(status)`                       |
+| `http`                        | A `WebhookTransport`, e.g. through an egress proxy                                      |
+| `secrets`                     | A `WebhookSecretStore`, e.g. a KMS                                                      |
+| `after_webhook_delivery` hook | A SQL function that runs after each delivery completes, with its id and status          |
+| `webhook.*` block events      | `delivered`, `failed` and `disabled` on `betterSupabase.events`                         |
+| `webhooks.*` permissions      | Rename them with `blocks.webhooks-out.permissions.manage` and `.view`                   |
+
+`testWebhookSigner`, `testWebhookTransport` and `testWebhookSecretStore`
+from `better-supabase/testing` check your own implementations against the
+contract.
+
+## Existing tables
+
+The managed tables are `webhook_endpoints` with `event_types`,
+`webhook_endpoint_secrets` and `webhook_deliveries` with `event_type`, keyed
+on `organization_id`. Adopt yours, rename what differs and map what you
+don't have to `null`. This adopts a `webhook_destinations` table with
+`event_kinds`, keeps secrets in a column, stores uuid event and run ids,
+maps the stored statuses and signs with an existing HMAC format:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    "webhooks-out": {
+      ownership: "adopt",
+      idType: "uuid",
+      tables: {
+        endpoints: "public.webhook_destinations",
+        secrets: "public.webhook_destination_secrets",
+      },
+      columns: {
+        endpoints: {
+          eventTypes: "event_kinds",
+          failingSince: null,
+          disabledAt: null,
+          disabledReason: null,
+        },
+        secrets: { endpoint: "destination_id", vaultId: null, expiresAt: null },
+        deliveries: {
+          endpoint: "destination_id",
+          type: "event_kind",
+          run: "workflow_run_id",
+        },
+      },
+      options: {
+        secretStorage: "column",
+        eventIdType: "uuid",
+        runIdType: "uuid",
+        statuses: {
+          delivering: "processing",
+          succeeded: "completed",
+          retrying: "failed",
+          dead: "dead_lettered",
+        },
+      },
+    },
+  },
+});
+```
+
+```ts
+createWebhooks({
+  transport: sqlTransport(postgres.admin),
+  signer: hmacSigner({
+    signatureHeader: "x-acme-signature",
+    timestampHeader: "x-acme-timestamp",
+  }),
+});
+```
+
+With the default `secretStorage: "vault"`, an adopted secrets table needs
+the `vault_secret_id` column (map `columns.secrets.vaultId` when yours has
+another name) and no `secret` column: the module never reads it, so `sql
+sync` doesn't ask you to map it to `null`. With `secretStorage: "column"` it
+is the other way round.
+
+The `permissions`, `batch`, `signing`, `format` and `credentialRef` endpoint
+columns and the `subject` delivery column are new in version 3 of the module.
+An adopted table has them only when you map them under `columns`, so without
+them service endpoints get only events published without `readPermission`,
+nothing is sent as a batch, every endpoint signs with `v1` and gets
+`defaultFormat`, no request carries a connector credential and deliveries
+carry no `subject`.
+
+An adopted endpoints table without a mapped `format` column needs an explicit
+`defaultFormat`, since that one value then decides the body of every request.
+`upgrade` refuses the config without it, and doctor reports it as
+[BS344](/docs/cli/doctor#bs344). Use `standard` to keep the 0.8 body, or
+`cloudevents` once your receivers read CloudEvents:
+
+```ts title="better-supabase.config.ts"
+"webhooks-out": {
+  ownership: "adopt",
+  tables: { endpoints: "public.webhook_endpoints" },
+  options: { defaultFormat: "standard" },
+},
+```
+
+Without `failingSince`, endpoints are never disabled automatically.
+Without `expiresAt`, rotating replaces the secret at once instead of
+overlapping. With `secretStorage: "column"` the secret is stored as plain
+text in a table no client can read. `statuses` maps each status to the value
+your table stores; the ones you leave out keep their names. The options
+marked migration-only match an existing schema: the config accepts them in
+`ownership: "adopt"` only, and doctor warns about them (BS314) until you remove them.
+The module's functions stay in its own schema (`better_supabase` unless
+`schema` names another one that the Data API doesn't expose, see
+[BS312](/docs/cli/doctor#bs312)); `tables` points at the adopted tables
+wherever they are.
+
+| Option          | Default       | Meaning                                                                                               |
+| --------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
+| `secretStorage` | `vault`       | `vault`, or `column` (migration-only, adopt mode)                                                     |
+| `allowHttp`     | `false`       | Allow `http:` endpoint URLs                                                                           |
+| `defaultFormat` | `cloudevents` | The format of new endpoints and of rows without one; required in adopt mode without a `format` column |
+| `disableAfter`  | `5 days`      | How long an endpoint fails without a success before it's disabled                                     |
+| `eventIdType`   | `text`        | The type of the event id column: `text` or `uuid`; others are migration-only                          |
+| `runIdType`     | `text`        | The type of the run id column: `text` or `uuid`; others are migration-only                            |
+| `statuses`      | none          | The stored value of each status, in adopt mode only                                                   |
+
+## Error codes
+
+| `hint`                         | When                                                         |
+| ------------------------------ | ------------------------------------------------------------ |
+| `WEBHOOK_TYPE_REQUIRED`        | `publish` or `dispatch` without an event type                |
+| `WEBHOOK_FORBIDDEN`            | The caller lacks `webhooks.manage` in the organization       |
+| `WEBHOOK_ENDPOINT_NOT_FOUND`   | No endpoint with that id                                     |
+| `WEBHOOK_ENDPOINT_DISABLED`    | Dispatching or redelivering to a disabled endpoint           |
+| `WEBHOOK_DELIVERY_NOT_FOUND`   | No delivery with that id                                     |
+| `WEBHOOK_DELIVERY_IN_PROGRESS` | Redelivering a delivery that hasn't finished                 |
+| `WEBHOOK_STATUS_UNKNOWN`       | Completing a delivery with a status the block doesn't know   |
+| `WEBHOOK_ATTEMPT_REQUIRED`     | Completing a delivery without the attempt its claim returned |
+| `WEBHOOK_SECRET_TOO_SHORT`     | Importing a secret shorter than 16 characters                |
+
+## Hooks
+
+`createWebhooks` takes `hooks` around its methods, such as a rule before
+`publish` that returns a `DbError` to refuse the call; see
+[extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.webhooksOut` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/settings/webhooks/actions.ts"
+"use server";
+
+import { createWebhooks, sqlTransport } from "better-supabase/blocks/webhooks";
+
+export async function addEndpoint(
+  organizationId: string,
+  input: { url: string; events: string[] },
+) {
+  const ctx = await bsb.context();
+  const db = postgres.asUser(ctx.auth.claims);
+  const [endpoint] = await db.queryRaw<{ id: string }>(
+    `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
+     values ($1, $2, $3, $4) returning id`,
+    [organizationId, new URL(input.url).host, input.url, input.events],
+  );
+  const webhooks = createWebhooks({ transport: sqlTransport(db) });
+  return webhooks.rotateSecret(endpoint!.id).orThrow();
+}
+```

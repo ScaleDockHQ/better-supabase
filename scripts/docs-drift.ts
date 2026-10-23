@@ -49,7 +49,7 @@ function doctorCodes(): string[] {
     join(library, "schemas/doctor-report-v1.json"),
   ).properties.findings.items.properties.code.enum;
 
-  const page = readFileSync(join(docs, "cli/doctor.mdx"), "utf-8");
+  const page = readFileSync(join(docs, "(reference)/cli/doctor.mdx"), "utf-8");
 
   const headings = new Set(
     [...page.matchAll(/^### (BS\d{3})$/gmu)].map((match) => match[1]),
@@ -74,42 +74,20 @@ function markdownFiles(dir: string, extension: string): string[] {
   );
 }
 
-/**
- * The imports in the README's subpath and blocks tables: every cell that starts
- * with a `better-supabase` import. A cell may group entries: `` `/edge` `` is
- * relative to the cell's first import, and `plugins/*` covers every plugin.
- */
-function readmeImports(readme: string): string[] {
-  return readme.split("\n").flatMap((line) => {
-    if (!line.startsWith("|")) {
-      return [];
-    }
+/** The repo README is the npm README plus the repository sections. */
+function readmeBody(): string[] {
+  const npm = readFileSync(join(library, "README.md"), "utf-8").trim();
+  const repo = readFileSync(join(root, "README.md"), "utf-8");
 
-    return line
-      .split("|")
-      .map((cell) => cell.trim())
-      .filter((cell) => cell.startsWith("`better-supabase"))
-      .flatMap((cell) =>
-        [...cell.matchAll(/`([^`]+)`/gu)].map((match) => match[1] ?? ""),
-      )
-      .map((name) => (name.startsWith("/") ? `better-supabase${name}` : name));
-  });
-}
-
-function inTable(entry: string, imports: readonly string[]): boolean {
-  return imports.some((name) =>
-    name.endsWith("/*") ? entry.startsWith(name.slice(0, -1)) : name === entry,
-  );
+  return repo.startsWith(npm)
+    ? []
+    : ["README.md does not start with packages/better-supabase/README.md"];
 }
 
 function subpaths(): string[] {
   const { exports: exportsMap } = readJson(
     PackageExports,
     join(library, "package.json"),
-  );
-
-  const imports = readmeImports(
-    readFileSync(join(library, "README.md"), "utf-8"),
   );
 
   const pages = markdownFiles(docs, ".mdx").map((file) =>
@@ -125,12 +103,6 @@ function subpaths(): string[] {
   return entries.flatMap((entry) => {
     const quoted = `"${entry}"`;
     const problems: string[] = [];
-
-    if (!inTable(entry, imports)) {
-      problems.push(
-        `${entry} is missing from the README subpath and blocks tables`,
-      );
-    }
 
     if (!pages.some((page) => page.includes(quoted))) {
       problems.push(`no docs page imports from ${quoted}`);
@@ -267,6 +239,35 @@ function naming(): string[] {
   );
 }
 
+/**
+ * Terms the 0.15 docs retired. Migration guides and the changelog may still
+ * name them, because those pages describe the old API.
+ */
+const REMOVED_TERMS: readonly (readonly [RegExp, string])[] = [
+  [/foundation modules?/giu, '"foundation module" (now a core block)'],
+  [/blockRouter/gu, "`blockRouter` (now `defineApi`)"],
+  [/scaffold screens/giu, '"scaffold screens" (now registry items)'],
+];
+
+const TERM_HISTORY = ["migration/", "changelog.mdx"];
+
+function removedTerms(): string[] {
+  return globSync("apps/docs/content/docs/**/*.mdx", { cwd: root })
+    .filter(
+      (file) => !TERM_HISTORY.some((page) => docsPath(file).includes(page)),
+    )
+    .flatMap((file) =>
+      readFileSync(join(root, file), "utf-8")
+        .split("\n")
+        .flatMap((text, index) =>
+          REMOVED_TERMS.filter(([pattern]) => pattern.test(text)).map(
+            ([, name]) =>
+              `${file}:${String(index + 1)} uses the removed term ${name}`,
+          ),
+        ),
+    );
+}
+
 /** Names and paths the Naming page retired, with what replaced them. */
 const RETIRED: readonly (readonly [RegExp, string])[] = [
   [
@@ -291,13 +292,18 @@ const IGNORED = [
   "**/dist/**",
 ];
 
+/** A docs path with the tab and group folders removed, so it matches the URL. */
+function docsPath(file: string): string {
+  return relative(docs, join(root, file))
+    .split("/")
+    .filter((part) => !/^\(.+\)$/u.test(part))
+    .join("/");
+}
+
 function retiredNames(): string[] {
   const files = [
     ...globSync("apps/docs/content/docs/**/*.mdx", { cwd: root }).filter(
-      (file) =>
-        !RENAMES.some((page) =>
-          relative(docs, join(root, file)).startsWith(page),
-        ),
+      (file) => !RENAMES.some((page) => docsPath(file).startsWith(page)),
     ),
     ...globSync("packages/better-supabase/skills/**/*.md", { cwd: root }),
     ...globSync(".agents/rules/*.mdc", { cwd: root }),
@@ -319,12 +325,158 @@ function retiredNames(): string[] {
   );
 }
 
+const BLOCK_GROUPS = {
+  organizations: ["tenancy", "identity", "admin"],
+  database: ["database"],
+  collaboration: ["collaboration", "messaging"],
+  work: ["work"],
+  crm: ["crm"],
+  commerce: ["commerce"],
+  content: ["content"],
+  ai: ["ai"],
+  automation: ["automation"],
+  developer: ["developer"],
+  growth: ["growth"],
+  people: ["people", "scheduling"],
+} as const satisfies Readonly<Record<string, readonly string[]>>;
+
+const GROUP_OF = new Map<string, string>(
+  Object.entries(BLOCK_GROUPS).flatMap(([group, categories]) =>
+    categories.map((category) => [category, group] as const),
+  ),
+);
+
+interface BlockDoc {
+  readonly category: string;
+  readonly names: readonly string[];
+}
+
+/** One `defineBlock` call: its name, category and SQL module names. */
+function blockDocs(): BlockDoc[] {
+  const docsForBlocks: BlockDoc[] = [];
+
+  for (const name of readdirSync(join(library, "src/blocks"))) {
+    const path = join(library, "src/blocks", name, "manifest.ts");
+
+    if (!existsSync(path)) {
+      continue;
+    }
+
+    for (const part of readFileSync(path, "utf-8")
+      .split("defineBlock(")
+      .slice(1)) {
+      const block = /name: "([^"]+)"/u.exec(part)?.[1];
+      const category = /category: "([^"]+)"/u.exec(part)?.[1];
+
+      const sqlBody = /sql: \[([^\]]*)\]/u.exec(part)?.[1] ?? "";
+
+      const sql = [...sqlBody.matchAll(/"([^"]+)"/gu)].flatMap((match) =>
+        match[1] === undefined ? [] : [match[1]],
+      );
+
+      if (block !== undefined && category !== undefined) {
+        docsForBlocks.push({
+          category,
+          names: [block, ...sql.filter((item) => item !== block)],
+        });
+      }
+    }
+  }
+
+  return docsForBlocks;
+}
+
+/**
+ * Every block page sits in the folder for its manifest category, and every
+ * block has a page. A page may be named after the block or one of its SQL
+ * modules (`webhooks-out`).
+ */
+function blockGroups(): string[] {
+  const blocksDir = join(docs, "(blocks)/blocks");
+  const categoryOf = new Map<string, string>();
+
+  for (const block of blockDocs()) {
+    for (const name of block.names) {
+      categoryOf.set(name, block.category);
+    }
+  }
+
+  const pages = globSync("**/*.mdx", { cwd: blocksDir });
+  const problems: string[] = [];
+  const documented = new Set<string>();
+
+  for (const file of pages) {
+    const parts = file.split("/");
+    const folder = parts[0] ?? "";
+    const page = (parts.at(-1) ?? "").slice(0, -".mdx".length);
+
+    if (
+      page === "index" ||
+      page === "using" ||
+      page.startsWith("catalog-") ||
+      folder === "(using)"
+    ) {
+      continue;
+    }
+
+    const category = categoryOf.get(page);
+    const group = folder.startsWith("(") ? folder.slice(1, -1) : folder;
+
+    if (category === undefined) {
+      problems.push(
+        `blocks/${file} is not a block or one of a block's SQL modules`,
+      );
+      continue;
+    }
+
+    documented.add(page);
+
+    const expected = GROUP_OF.get(category);
+
+    if (expected !== group) {
+      problems.push(
+        `blocks/${file} is in (${group}), but ${page} is category ${category} (${expected ?? "unknown"})`,
+      );
+    }
+  }
+
+  const sqlPage = readFileSync(join(blocksDir, "(using)/sql.mdx"), "utf-8");
+
+  const slugs = new Set(
+    globSync("**/*.mdx", { cwd: docs }).map((file) => {
+      const parts = file.split("/").filter((part) => !/^\(.+\)$/u.test(part));
+
+      const last = parts.at(-1);
+
+      return last?.replace(/\.mdx$/u, "");
+    }),
+  );
+
+  for (const block of blockDocs()) {
+    const covered = block.names.some(
+      (name) =>
+        documented.has(name) ||
+        slugs.has(name) ||
+        sqlPage.includes(`\`${name}\``),
+    );
+
+    if (!covered) {
+      problems.push(`block ${block.names[0] ?? ""} has no docs page`);
+    }
+  }
+
+  return problems;
+}
+
 const problems = [
   ...doctorCodes(),
   ...subpaths(),
   ...metaFiles(docs),
   ...naming(),
   ...retiredNames(),
+  ...removedTerms(),
+  ...blockGroups(),
+  ...readmeBody(),
 ];
 
 for (const problem of problems) {
@@ -336,5 +488,5 @@ if (problems.length > 0) {
 }
 
 console.log(
-  "docs drift: doctor codes, subpaths, meta.json and lib/supabase naming match the code, with no retired names",
+  "docs drift: doctor codes, subpaths, meta.json, block groups and lib/supabase naming match the code, with no retired names",
 );

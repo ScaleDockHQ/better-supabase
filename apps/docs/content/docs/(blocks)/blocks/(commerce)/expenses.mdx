@@ -1,0 +1,200 @@
+---
+title: Expenses
+description: Collect expense reports with lines, categories and receipts, check spend policies on submit, approve through the approvals block, and post the approved total and its reimbursement on the ledger.
+---
+
+`expenses` lets members file expense reports. A report has lines, each in a
+category, with receipts uploaded as attachments. Categories carry a spend
+policy, which `submit` checks before the report goes to the
+[approvals](/docs/blocks/approvals) block. An approved report posts on the
+[ledger](/docs/blocks/ledger), and so does its reimbursement, so what the
+organization owes a member is a ledger balance.
+
+```bash
+better-supabase add expenses
+```
+
+```ts
+import { createExpenses } from "better-supabase/blocks/expenses";
+import { money } from "better-supabase/commerce";
+```
+
+The module requires `tenant`, `access`, `approvals` and `ledger`. With
+`outbox` it records the `expense_report.*` events, with `audit` every change
+is audited, and with [attachments](/docs/blocks/attachments) lines take
+receipts. Amounts are bigint minor units
+([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)),
+and how the approved total posts on the ledger is in
+[ADR 0080](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0080-recurring-charges-on-the-ledger.md).
+
+## Tables
+
+| Table                | Holds                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------- |
+| `expense_categories` | A category per organization, by `key`, with its currency, `limit_amount` and `receipt_over`               |
+| `expense_reports`    | A member's report: the title, the currency, the approval, and the approval and reimbursement transactions |
+| `expense_lines`      | A line: the category, the day, the amount, the description and the merchant                               |
+
+A member reads their own reports and lines. Members with `expenses.read`
+read every report of the organization. Writes go through the functions:
+`expenses.submit` to file reports, `expenses.approve` to approve them (the
+approvals block checks it), and `expenses.manage` for categories and
+reimbursement.
+
+## Your own columns
+
+`extraColumns` adds columns to the `expense_reports` table, and the client's `fields` schema types them.
+
+Server code calls the `expenses` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useExpenses } = defineDataHooks(
+  "expenses",
+  (db: AppDb) => db.expenses,
+);
+```
+
+```ts
+const rows = await db.expenses.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/expenses/list.tsx"
+"use client";
+
+import { useExpenses } from "@/lib/supabase/hooks";
+
+const rows = useExpenses({ limit: 50 });
+```
+
+`create` validates them before the call, and every read that returns a report parses them under `report.fields`.
+
+## Categories and spend policies
+
+```ts
+const expenses = createExpenses({ transport, tenant: organizationId });
+
+await expenses
+  .saveCategory({
+    key: "travel",
+    name: "Travel",
+    limit: money(150_000n, "EUR"),
+    receiptOver: money(2_500n, "EUR"),
+  })
+  .orThrow();
+```
+
+`limit` caps a report's total in the category. `receiptOver` requires a
+receipt on every line above it, and needs the attachments block. Archiving a
+category keeps its lines; a report with a line in an archived category can't
+be submitted.
+
+## File and submit a report
+
+```ts
+const report = await expenses
+  .create({ title: "Client visit, Lisbon", currency: "EUR" })
+  .orThrow();
+
+const line = await expenses
+  .addLine(report.id, {
+    categoryId,
+    spentOn: Temporal.PlainDate.from("2026-10-14"),
+    amount: money(18_900n, "EUR"),
+    description: "Flight",
+    merchant: "TAP",
+  })
+  .orThrow();
+
+const findings = await expenses.check(report.id).orThrow();
+await expenses.submit(report.id).orThrow();
+```
+
+A receipt is an attachment on the line: upload it with the
+[attachments](/docs/blocks/attachments) client and the subject
+`{ type: "expense_line", id: line.id }`. The line's `receipts` counts the
+uploads that finished and weren't flagged as infected.
+
+`check` returns what the spend policy would refuse: a category over its
+limit, a line over its receipt threshold without a receipt, or a line in an
+archived category. `submit` fails with `EXPENSE_POLICY_VIOLATION` while there
+are findings, and otherwise opens an approval. Lines can't change while the
+report is submitted; a rejected report can be edited and submitted again.
+
+| Method                               | Returns                                             |
+| ------------------------------------ | --------------------------------------------------- |
+| `saveCategory(input)`                | the category, created or updated by key             |
+| `archiveCategory(categoryId)`        | the archived category                               |
+| `categories({ includeArchived })`    | categories                                          |
+| `create(input)`                      | the caller's draft report                           |
+| `addLine(reportId, line)`            | the line                                            |
+| `updateLine(lineId, update)`         | the line                                            |
+| `removeLine(lineId)`                 | the report without the line                         |
+| `check(reportId)`                    | the spend policy findings, empty when it may submit |
+| `submit(reportId)`                   | the report with its approval                        |
+| `reimburse(reportId, input)`         | the reimbursed report                               |
+| `cancel(reportId)`                   | the cancelled report                                |
+| `get(reportId)`                      | the report with its lines                           |
+| `list({ status, userId, everyone })` | reports, newest first                               |
+
+## Approval and the ledger
+
+The report's status follows its approval: `submitted` while it's pending,
+`approved` or `rejected` once it's decided. Members with `expenses.approve`
+decide it through the approvals block. When the approval is final, the
+report posts on the ledger: each category's total on its expense account
+(`expenses:category:<key>:<currency>`) against the member's payable account
+(`expenses:payable:<user>:<currency>`).
+
+```ts
+await expenses
+  .reimburse(report.id, { reference: "payout-2026-10-31" })
+  .orThrow();
+```
+
+`reimburse` settles the payable account from expense cash
+(`expenses:cash:<currency>`) and needs `expenses.manage`. Each posting has a
+key per report (`expense:<id>:approved`, `expense:<id>:reimbursed`), so it
+can't post twice. `cancel` withdraws a report that isn't approved yet and
+cancels its pending approval.
+
+## Errors
+
+| Hint                         | Cause                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| `EXPENSES_FORBIDDEN`         | the caller lacks the permission for the change                                  |
+| `EXPENSE_CATEGORY_INVALID`   | the key, name, limit or threshold isn't valid, or a threshold lacks attachments |
+| `EXPENSE_CATEGORY_NOT_FOUND` | no category with this id in the organization                                    |
+| `EXPENSE_CURRENCY_MISMATCH`  | the line's amount or its category's policy isn't in the report's currency       |
+| `EXPENSE_LINE_INVALID`       | the line's day, amount or description isn't valid                               |
+| `EXPENSE_LINE_NOT_FOUND`     | no line with this id that the caller can change                                 |
+| `EXPENSE_POLICY_VIOLATION`   | the report breaks the spend policy; the message lists the findings              |
+| `EXPENSE_REPORT_EMPTY`       | the report has no lines                                                         |
+| `EXPENSE_REPORT_INVALID`     | the title, currency or note isn't valid                                         |
+| `EXPENSE_REPORT_LOCKED`      | the report isn't in a status that allows the change                             |
+| `EXPENSE_REPORT_NOT_FOUND`   | no report with this id that the caller can read                                 |
+
+## Events
+
+`expense_report.created`, `expense_report.submitted` (with the approval),
+`expense_report.approved` and `expense_report.reimbursed` (with the ledger
+transaction) and `expense_report.cancelled`. A rejection is the approvals
+block's `approval.rejected` event. The
+[events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.expenses` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+// better-supabase.config.ts
+blocks: {
+  expenses: { options: { extraColumns: { project_code: "text" } } },
+},
+
+// the client
+const expenses = createExpenses({
+  transport,
+  tenant,
+  fields: v.object({ project_code: v.optional(v.string()) }),
+});
+```

@@ -1,0 +1,143 @@
+---
+title: Rank
+description: Fractional rank keys for ordered lists and boards, a move() that can change a row's group, and a rebalance job.
+---
+
+`rank` orders rows with fractional keys: short base-62 strings that sort in
+byte order. Moving a card between two others writes one new key to one row,
+so a drag on a board never renumbers the rest of the list. The same algorithm
+runs in SQL (`rank_between`) and in TypeScript (`rankBetween`), and both are
+tested against one set of vectors.
+
+```bash
+better-supabase add rank
+```
+
+```ts
+import { createRank, rankBetween } from "better-supabase/blocks/rank";
+```
+
+## Declare a ranked subject
+
+Give the subject a `rank` entry in `config.records`. `group` is optional: it
+names the column a board groups by, such as a pipeline stage.
+
+```ts title="better-supabase.config.ts"
+subjects: {
+  deal: {
+    table: "public.deals",
+    title: "name",
+    permissions: { read: "deals.read", update: "deals.update" },
+    rank: { column: "rank", group: "stage" },
+  },
+},
+```
+
+The rank column is `text collate "C"`, so Postgres compares it byte by byte,
+the same way `rankBetween` does:
+
+```sql
+alter table public.deals add column rank text collate "C" not null default 'V';
+create index on public.deals (organization_id, stage, rank);
+```
+
+## Keys
+
+| Function                      | Returns                                                                           |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| `rankBetween(previous, next)` | A key between two keys; `null` means the start or the end of the list             |
+| `rankKeys(n)`                 | `n` evenly spaced keys, the shortest that fit                                     |
+| `isRankKey(value)`            | Whether a value is a key: base-62 digits that don't end in `0`                    |
+| `rankBetweenResult(...)`      | `rankBetween` as a `Result`, with the hint `RANK_KEY_INVALID` instead of throwing |
+
+`rankBetween(null, null)` is `V`, the first key of an empty list. A key is
+never empty and never ends in `0`, so there is always room for another key
+between two of them.
+
+## Move a row
+
+`move` runs as the caller. It checks `can_subject` for the subject's `update`
+permission, reads the neighbours' keys and writes the new key. With `group`, it
+also sets the group column in the same update, so a state-machine trigger on
+that column checks the stage change and rejects one the machine does not
+allow.
+
+Server code calls the `rank` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useRank } = defineDataHooks(
+  "rank",
+  (db: AppDb) => db.rank,
+);
+```
+
+```ts
+const key = await db.rank
+  .move("deal", dealId, { previous: aboveId, next: belowId, group: "won" })
+  .orThrow();
+```
+
+```tsx title="src/features/rank/list.tsx"
+"use client";
+
+import { useRank } from "@/lib/supabase/hooks";
+
+const rows = useRank({ limit: 50 });
+```
+
+| Hint                     | When                                                   |
+| ------------------------ | ------------------------------------------------------ |
+| `RANK_FORBIDDEN`         | The caller can't update the row                        |
+| `RANK_NEIGHBOR_MISMATCH` | A neighbour is in another tenant or group              |
+| `RANK_NO_GROUP`          | `group` was given for a subject without a group column |
+| `RANK_CONFLICT`          | The neighbours share a key; rebalance the group first  |
+| `RANK_KEY_INVALID`       | A stored key is not a rank key                         |
+
+## Rebalance
+
+Keys grow by about one character each time a row lands between the same two
+neighbours. When a new key is longer than 24 characters and the `queue` module
+is installed, `move` enqueues `rank.rebalance` with the subject type, tenant
+and group. The handler calls `rebalance_ranks`, which rewrites the group's
+keys to short, evenly spaced ones in the same order. It is service only.
+
+```ts title="app/api/jobs/drain/route.ts"
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: { "rank.rebalance": rank.job },
+});
+```
+
+`rank.rebalance("deal", organizationId, "lead")` runs the same rewrite
+directly and resolves to the number of rows it changed.
+
+## Hooks
+
+`createRank` takes `hooks` around `move` and `rebalance`; the `rank.rebalance`
+job calls `rebalance` through them (see [extending blocks](/docs/extending/blocks)).
+
+## Tags and custom fields
+
+Tag definitions and custom field definitions keep their order in a `rank`
+column of their own and don't need this module. A new definition goes after
+the last one. To reorder, pass the keys of the definitions it now sits
+between:
+
+```ts
+await tags.reorder(tag.id, { previous: above?.rank, next: below?.rank });
+```
+
+`reorder` and `reorderDefinition` take the neighbours' keys, compute the key
+with `rankBetween` and save it through `rank_tag` or `rank_field_definition`.
+
+## Without the client
+
+`db.rank` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const rank = createRank({ transport, service });
+
+const key = await rank
+  .move("deal", dealId, { previous: aboveId, next: belowId, group: "won" })
+  .orThrow();
+```

@@ -1,0 +1,131 @@
+---
+title: Access requests
+description: Members ask for a role in their organization, for a set time if they like. The request goes through approvals, the final approval grants the role, and the grant ends early or when it expires.
+---
+
+`access-requests` lets a member ask for a role (a viewer asking to be an admin for month end, a contractor asking to join). It files the request with the [approvals](/docs/blocks/approvals) module, so approvers, steps, delegation, notifications and expiry work as they do there. The final approval grants the role, and when the grant has a duration, `expire_access_grants()` puts the previous role back. Asking needs `access_requests.create`, reading other people's requests needs `access_requests.read`, and ending someone else's grant needs `access_requests.manage`.
+
+```bash
+better-supabase add access-requests
+```
+
+Server code calls the `access-requests` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAccessRequests } = defineDataHooks(
+  "accessRequests",
+  (db: AppDb) => db.accessRequests,
+);
+```
+
+```ts
+import { createAccessRequests } from "better-supabase/blocks/access-requests";
+import { createApprovals } from "better-supabase/blocks/approvals";
+
+const request = await db.accessRequests
+  .request({
+    organizationId,
+    role: "admin",
+    reason: "Month end",
+    duration: Temporal.Duration.from({ days: 3 }),
+  })
+  .orThrow();
+
+// An approver decides through approvals.
+const approvals = createApprovals({ transport });
+await approvals.approve(request.approvalId!).orThrow();
+```
+
+```tsx title="src/features/access-requests/list.tsx"
+"use client";
+
+import { useAccessRequests } from "@/lib/supabase/hooks";
+
+const rows = useAccessRequests({ limit: 50 });
+```
+
+## Configure
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "access-requests": {
+    options: {
+      roles: ["admin", "billing"],
+      maxDuration: "P7D",
+      policy: { steps: [{ approvers: { role: "owner" } }], expiresIn: "P2D" },
+    },
+  },
+},
+```
+
+| Option        | Default                                       | What it does                                                                                                       |
+| ------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `roles`       | every role of the access model except `owner` | The roles a member may ask for (`ACCESS_ROLE_INVALID` otherwise)                                                   |
+| `policy`      | one step: holders of `members.update_role`    | An [approvals policy](/docs/blocks/approvals#configure-policies) without `run`: steps, `expiresIn`, `selfApproval` |
+| `maxDuration` | none                                          | An ISO 8601 duration that caps a grant and is the default when a request names none                                |
+| `join`        | `false`                                       | Lets someone outside the organization ask to join with a role                                                      |
+
+A member can have one pending request per organization (`ACCESS_REQUEST_PENDING`), can't ask for the role they hold (`ACCESS_ROLE_HELD`), and an owner can't ask for another role.
+
+## Statuses
+
+`pending`, `rejected`, `cancelled` and `expired` follow the approval request; cancel a request with `approvals.cancel(request.approvalId)`. `granted` means the role is held, and `ended` means it was given up, revoked or ran out.
+
+`end(id)` ends a grant early, for the holder or a manager. Schedule `expire_access_grants()` to end grants past their `expiresAt`:
+
+```sql
+select cron.schedule('expire-access', '*/5 * * * *', 'select better_supabase.expire_access_grants()');
+```
+
+When a grant ends, the previous role comes back (or the membership goes, for someone who joined through the request), unless the role was changed in the meantime: a later change wins.
+
+## The provider access model
+
+With the `provider` access model the module doesn't touch memberships. The authorization provider's adapter grants the role when it receives `access.request_approved` and takes it back on `access.ended`.
+
+## Events and hooks
+
+The module records `access.requested`, `access.request_approved` and `access.ended` (with `reason` set to `expired` or `revoked`), each with `organizationId`, `userId`, `role`, the request `id`, `approvalId` and `expiresAt`; they also go to the [audit log](/docs/blocks/audit). The approvals module records its own `approval.*` events for the request. The module calls `before_access_request`, `after_access_request`, `before_access_grant` and `after_access_grant`.
+
+## With ReUI
+
+An admin page renders `list(organizationId, { status: "pending" })` in a ReUI data grid with approve and reject actions from the approvals client. A member's request form pairs a role select with a duration select and shows their requests from `list(organizationId, { mine: true })`.
+
+## Your own fields
+
+`blocks.access-requests.options.extraColumns` adds columns to the `access_requests` table,
+keyed by column name with their SQL type. Pass `createAccessRequests` a Standard Schema
+for them as `fields`: `request` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and every read return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAccessRequests({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```
+
+## Without the client
+
+`db.accessRequests` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createAccessRequests } from "better-supabase/blocks/access-requests";
+import { createApprovals } from "better-supabase/blocks/approvals";
+
+const access = createAccessRequests({ transport });
+const request = await access
+  .request({
+    organizationId,
+    role: "admin",
+    reason: "Month end",
+    duration: Temporal.Duration.from({ days: 3 }),
+  })
+  .orThrow();
+
+// An approver decides through approvals.
+const approvals = createApprovals({ transport });
+await approvals.approve(request.approvalId!).orThrow();
+```

@@ -1,0 +1,148 @@
+---
+title: Offline-first
+description: Read and write on the device with the PowerSync engine, and upload the changes through the repositories.
+---
+
+An offline-first app keeps two clients over the same definition:
+
+- `bsb`: the [React Native client](/docs/frontend/react-native) with
+  [`powersyncEngine`](/docs/frontend/powersync). Screens read and write
+  through `bsb.db` and the data hooks, which run on the PowerSync database,
+  online or not.
+- `server`: `bindClient(betterSupabase, supabase)` over PostgREST, as the
+  signed-in user. Only the upload path uses it.
+
+PowerSync syncs rows down and queues local writes. Its connector's
+`uploadData` sends the queue to your backend; replaying each change through
+`server.db` means RLS, block hooks and validation run on it, exactly as for
+an online write.
+
+## Upload through the repositories
+
+Each queued change has an `op`: `PUT` (insert or replace), `PATCH` (update the
+changed columns) or `DELETE`. `createUploadConnector` maps each one to the
+table's repository and authenticates sync with the Supabase session:
+
+```ts title="src/lib/powersync/connector.ts"
+import { bindClient } from "better-supabase/client";
+import { createUploadConnector } from "better-supabase/powersync";
+import { betterSupabase } from "../supabase";
+import { supabase } from "../supabase/supabase.native";
+
+const server = bindClient(betterSupabase, supabase);
+
+export const connector = createUploadConnector({
+  endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
+  supabase,
+  tables: { customers: server.db.customers },
+});
+```
+
+It reads the queue in batches of 100 (`batchSize`). Every table that takes
+local writes needs a route: a change to a table missing from `tables` stops
+the upload with an error that names it, so no change is dropped without a
+trace. A route can also be a function of the change, for a table that needs
+custom replay:
+
+```ts
+tables: {
+  customers: server.db.customers,
+  notes: (entry) => server.db.notes.upsert({ ...renameColumns(entry.opData), id: entry.id }),
+},
+```
+
+`opData` holds the columns as SQLite stored them, under their database names;
+with `casing: 'camel'`, use a function route that renames them to the app
+keys.
+
+`uploadRoute(repository, options)` builds the same function from a
+repository, typed by the repository's insert and key types, so wrapping one
+needs no cast. By default a `PUT` upserts, a `PATCH` updates and a `DELETE`
+deletes. For a table whose rows are written once, such as attachments, pass
+`put: "create"`: a `PUT` inserts with `create`, and a `conflict` counts as
+applied, because the row is already on the server from an earlier upload of
+the same change. A `PATCH` on that route fails with `unsupported` and is
+discarded; a `DELETE` still deletes.
+
+```ts
+import { uploadRoute } from "better-supabase/powersync";
+
+tables: {
+  customers: server.db.customers,
+  attachments: uploadRoute(server.db.attachments, { put: "create" }),
+},
+```
+
+To compose a route yourself, call the route `uploadRoute` returns inside your
+own function, or type a helper with `UploadRepository<Insert, Key>`; every
+generated repository fits it.
+
+To sync only while someone is signed in, pass the connector to
+`syncWithAuth`. It connects on sign-in, and on sign-out or a change of user it
+disconnects and clears the local database, so one user never reads another's
+rows. Unsynced changes are cleared with them; pass `clearOnSignOut: false` to
+keep the database.
+
+```tsx title="src/lib/powersync/sync.ts"
+import { syncWithAuth } from "better-supabase/powersync";
+
+export function useSync(): void {
+  useEffect(() => syncWithAuth(powersync, bsb.auth, { connector }), []);
+}
+```
+
+## Retry, discard or surface a conflict
+
+A failed upload returns a [`DbError`](/docs/concepts/results). Its `kind`
+decides what happens to the change; `uploadOutcome(kind)` is the default
+below, and `classify` overrides it for some errors:
+
+| Kind                                                                                                             | Do                                                            |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `network`, `timeout`, `aborted`, `rate_limited`, `quota_exceeded`, `serialization`, `unauthorized`, `unexpected` | retry: PowerSync keeps the batch and calls `uploadData` again |
+| `conflict`, `stale`, `foreign_key`                                                                               | conflict: complete it and show the conflict next to the row   |
+| `forbidden`, `not_found`, `check`, `not_null`, `validation` and the rest                                         | discard: complete it; the server will never accept it         |
+
+Retrying a change the server will never accept blocks the queue for good,
+so the kinds that can't succeed on a retry complete. Completing removes the
+change from the queue, and the next sync replaces the local row with the
+server's version, so the device ends up where the server is. An
+`unauthorized` error retries while the session lives; once the refresh token
+is dead, the upload stops until the user signs in again.
+
+PowerSync retries on its own, so a failed retry and a failed session read
+don't throw to your code. Pass `onError` to log them. When `getSession`
+fails, `fetchCredentials` returns `null` and calls `onError` with a
+`DbError` of kind `unauthorized` (or `network` when the Auth server is
+unreachable) and `{ phase: "credentials" }`. An upload error that keeps the
+batch queued arrives with `{ phase: "upload" }`. A signed-out session is not
+an error:
+
+```ts
+createUploadConnector({
+  endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,
+  supabase,
+  tables: { customers: server.db.customers },
+  onError: (error, { phase }) => log.warn(`powersync ${phase}`, error),
+});
+```
+
+## Conflicts
+
+The server's row wins once the change is gone from the queue. The connector
+keeps every conflict and discarded change in `connector.rejected` (and calls
+`onConflict` or `onDiscard`), with the queued `entry` and the error. Pass
+the connector to the engine, `powersyncEngine(powersync, { connector })`, and
+`useConflicts()` from `better-supabase/react` reads them in a component: show
+each on its row, let the user apply it again as a new write, then `dismiss`
+it. A `conflict` error carries the `constraint` and
+`columns` that rejected it, which is enough to point at the field.
+
+For edits that must not overwrite a newer server row, record the
+`updated_at` the user saw and pass it as `expect`:
+`customers.update(id, data, { expect: { updated_at: seenAt } })` returns a
+`stale` error when someone else changed the row first, and the user decides.
+
+The [Expo example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/expo-powersync)
+uses this connector with `powersyncEngine`, `syncWithAuth` and
+`useConflicts`.

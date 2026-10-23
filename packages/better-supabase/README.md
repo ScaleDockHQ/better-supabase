@@ -6,11 +6,9 @@
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ScaleDockHQ/better-supabase/blob/main/LICENSE)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6%20%7C%207-3178c6.svg)
 
-[Docs](https://bettersupabase.com/docs) · [Quickstart](https://bettersupabase.com/docs/getting-started) · [Examples](https://bettersupabase.com/docs/examples) · [Changelog](https://bettersupabase.com/changelog) · [GitHub](https://github.com/ScaleDockHQ/better-supabase)
+[Docs](https://bettersupabase.com/docs) · [Quickstart](https://bettersupabase.com/docs/getting-started) · [Blocks](https://bettersupabase.com/docs/blocks) · [Examples](https://bettersupabase.com/docs/examples) · [Changelog](https://bettersupabase.com/changelog) · [GitHub](https://github.com/ScaleDockHQ/better-supabase)
 
-better-supabase sits on top of the supabase-js client you already use. You keep your database, your RLS policies, Supabase Auth and Storage. The CLI reads your schema and generates a typed repository for every table, so a query is a typed object instead of a string, a typo in a column name is a compile error, and the row type follows what you selected.
-
-It also writes the glue every Supabase app repeats: the session cookie and token refresh for Next.js, Hono, oRPC, Edge Functions, MCP servers and [every other framework adapter](https://bettersupabase.com/docs/frameworks), pagination, soft delete, timestamps, cache invalidation, background jobs and typed Storage and Realtime. It is built on [`@supabase/supabase-js`](https://github.com/supabase/supabase-js), [`@supabase/server`](https://github.com/supabase/server), [`@supabase/middleware`](https://github.com/supabase/middleware) and [`@supabase/ssr`](https://github.com/supabase/ssr), and the CLI writes `database.types.ts` with [`@supabase/postgrest-typegen`](https://www.npmjs.com/package/@supabase/postgrest-typegen); [Supabase packages](https://bettersupabase.com/docs/supabase-packages) lists every package and how it is installed. It is an independent open-source project, not made by Supabase.
+better-supabase sits on the supabase-js client you already use. You keep your database, your RLS policies, Supabase Auth and Storage. The CLI reads your schema and generates a typed repository for every table, so a query is a typed object instead of a string.
 
 ## Before and after
 
@@ -19,421 +17,115 @@ With supabase-js, the query is a string and the error is a Postgres code:
 ```ts
 const { data, error } = await supabase
   .from("customers")
-  .select("id, name, organization(name), notes!inner(kind)")
+  .select("id, name")
   .eq("status", "active")
-  .eq("notes.kind", "call")
-  .order("name")
   .limit(20);
 if (error) throw error;
-
-const { error: insertError } = await supabase.from("tags").insert({ name });
-if (insertError?.code === "23505") return { message: "Tag already exists" };
 ```
 
-With better-supabase, every column, relation and operator is typed, and errors are values with a `kind`:
+With better-supabase, the same read is a typed call on `db`, and the generated hook takes the same arguments:
 
 ```ts
-const customers = await db.customers.list({
+const customers = await db.customers
+  .list({ select: ["id", "name"], where: { status: "active" }, limit: 20 })
+  .orThrow();
+
+const rows = useCustomers({
   select: ["id", "name"],
-  where: { status: "active", notes: { some: { kind: "call" } } },
-  include: { organization: { select: ["name"] } },
-  orderBy: { name: "asc" },
+  where: { status: "active" },
   limit: 20,
 });
-// customers.data: { id: string; name: string; organization: { name: string } }[]
-
-const tag = await db.tags.create({ organizationId, name });
-if (tag.error?.kind === "conflict") return { message: "Tag already exists" };
 ```
 
-Each call is still one PostgREST request, and it runs as the signed-in user, so your RLS policies decide what it can read and write. The [supabase-js migration guide](https://bettersupabase.com/docs/migration/supabase-js) maps every supabase-js call to its repository equivalent, and the two work side by side while you move over.
+Each call is still one PostgREST request, and it runs as the signed-in user, so your RLS policies decide what it can read and write. The [supabase-js migration guide](https://bettersupabase.com/docs/migration/supabase-js) maps every supabase-js call to its repository equivalent.
 
-## What you get
-
-- **Stronger generated types.** [`better-supabase gen`](https://bettersupabase.com/docs/cli/gen) writes the same `database.types.ts` as `supabase gen types` and adds relationship cardinality, unique keys, CHECK-constraint unions, typed jsonb and camelCase column maps.
-- **A typed repository per table.** [`list`, `get`, `create`, `upsert`, `page`, counts and aggregates](https://bettersupabase.com/docs/repository), with nested relation filters and includes, compiled to PostgREST or to SQL on a direct Postgres connection.
-- **Results instead of exceptions.** Every call returns a [`Result` with a plain, serializable `DbError`](https://bettersupabase.com/docs/concepts/results) that you can return from server actions and RPC handlers. `.orThrow()` is opt-in, and adapters turn errors into RFC 9457 Problem Details with the right status.
-- **Your casing.** Keep database names with `casing: 'snake'`, or get [camelCase rows](https://bettersupabase.com/docs/concepts/casing) renamed inside the PostgREST query.
-- **Auth without extra round trips.** Valid access tokens are [verified locally](https://bettersupabase.com/docs/auth) against the JWKS and never reach the Auth server. Refresh happens once, in the proxy. The service role is an explicit `bsb.admin()` call.
-- **Cache tags that follow writes.** Mutations [invalidate the tables they change](https://bettersupabase.com/docs/concepts/caching), with read-your-writes in Next.js server actions and table-based invalidation in TanStack Query.
-- **Block extensions.** The [updated-at](https://bettersupabase.com/docs/blocks/updated-at), [created-by](https://bettersupabase.com/docs/blocks/created-by), [trash](https://bettersupabase.com/docs/blocks/trash) and [memberships](https://bettersupabase.com/docs/blocks/memberships) blocks stamp, soft-delete and scope rows in the repository as well as in Postgres, and the generated schemas [validate writes](https://bettersupabase.com/docs/repository/validation). `gen` installs them; plugins stay versioned for your own.
-- **Blocks for the SQL every app repeats.** [Jobs on Supabase Queues](https://bettersupabase.com/docs/blocks/queue), webhook inboxes, idempotency keys, organizations and invitations, notifications, outgoing webhooks, API keys, billing, usage quotas, feature flags, SSO and SCIM, vector search and Stripe entitlements. [`better-supabase add`](https://bettersupabase.com/docs/blocks/sql) writes the tables, functions and policies into your declarative schema.
-- **Tests and CI checks.** [`asUser`](https://bettersupabase.com/docs/testing) runs RLS tests as any user against the local stack, `gen --check` fails on schema drift, and [`doctor`](https://bettersupabase.com/docs/cli/doctor) reports security and performance findings, with SARIF output for code scanning.
-
-## Install
+## Install and quick start
 
 ```bash
 pnpm add better-supabase @supabase/supabase-js
 pnpm add -D pg @supabase/postgrest-typegen@0.6.0
-```
 
-`pg` and `@supabase/postgrest-typegen` are optional peers that only the CLI loads, to read your schema and write `database.types.ts`; apps that only run the runtime entries skip them. Before installing, `npx better-supabase init` detects your frameworks and prints the install command for your package manager. The package is ESM only. The CLI needs Node 24 or later, and the runtime entries run on every WinterTC runtime. On runtimes without a native `Temporal` (Node 24, Safari), load [`temporal-polyfill`](https://bettersupabase.com/docs/concepts/temporal) once at startup. TypeScript 6 and 7 are tested.
-
-## Quick start
-
-Generate the typed schema from your local stack:
-
-```bash
 supabase start
-pnpm better-supabase init   # config, src/lib/supabase/index.ts and framework glue
-pnpm better-supabase dev env    # URL and keys into .env.local
-pnpm better-supabase gen    # database.types.ts and generated.ts
+pnpm better-supabase init    # config, src/lib/supabase and framework glue
+pnpm better-supabase gen     # database.types.ts, generated.ts and the data hooks
 ```
 
-Define the client once, then connect it per request with the current user's Supabase client:
+`pg` and `@supabase/postgrest-typegen` are optional peers that only the CLI loads. The package is ESM only. The CLI needs Node 24 or later, and the runtime entries run on every WinterTC runtime.
+
+On the server, the adapter gives each request a `db` for the caller. In the browser, `bsb.db` is the same client for the current session:
 
 ```ts
-import { createClient } from "@supabase/supabase-js";
-import { defineSupabase } from "better-supabase";
-
-import { schema } from "./lib/supabase/generated.ts";
-
-export const betterSupabase = defineSupabase(schema);
-
-const db = betterSupabase.connect(createClient(url, publishableKey));
+const { db } = await bsb.context();
 
 const customers = await db.customers
-  .list({ select: ["id", "name"], where: { status: "active" } })
+  .list({ where: { status: "active" }, limit: 20 })
   .orThrow();
 ```
 
-`defineSupabase` holds no secrets and no connection. Because you connect with the client for the current user, every query runs under their RLS policies.
+`gen.hooks` writes `useCustomers` and `useCustomer` next to the generated module. [Data hooks](https://bettersupabase.com/docs/frontend/data-hooks) covers the options.
 
 ## Use it where you run
 
-An adapter verifies the session, refreshes it where it should and gives each handler a `db` for the caller. In Next.js:
+An adapter verifies the session, refreshes it in the proxy and gives each handler a `db` for the caller.
 
-```tsx
-// src/lib/supabase/server.ts
-export const bsb = createNext(betterSupabase);
-
-// src/proxy.ts
-export const proxy = (request: NextRequest) => bsb.proxy(request);
-
-// app/customers/page.tsx
-export default async function Customers() {
-  const { db } = await bsb.context();
-  const customers = await db.customers
-    .list({ select: ["id", "name"] })
-    .orThrow();
-  return <CustomerList customers={customers} />;
-}
-```
-
-| Where you run                      | What the adapter gives you                                                 | Docs                                                                                                                                                                    |
-| ---------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Next.js                            | Proxy, Server Components, route handlers, server actions and cache tags    | [Next.js](https://bettersupabase.com/docs/frameworks/next)                                                                                                              |
-| Hono                               | Middleware, Result-aware handlers and REST resources that match OpenAPI    | [Hono](https://bettersupabase.com/docs/frameworks/hono)                                                                                                                 |
-| oRPC                               | A middleware that adds the caller's repositories to the oRPC context       | [oRPC](https://bettersupabase.com/docs/frameworks/orpc)                                                                                                                 |
-| Edge Functions, Deno, Bun, Workers | Fetch handlers with the caller's repositories                              | [Edge](https://bettersupabase.com/docs/frameworks/edge)                                                                                                                 |
-| Expo Router                        | Server loaders, API routes and middleware that run as the caller           | [Expo Router](https://bettersupabase.com/docs/frameworks/expo)                                                                                                          |
-| TanStack Start                     | Request middleware with the caller's repositories in every server function | [TanStack Start](https://bettersupabase.com/docs/frameworks/tanstack-start)                                                                                             |
-| SvelteKit                          | A `handle` hook with the caller's repositories on `event.locals`           | [SvelteKit](https://bettersupabase.com/docs/frameworks/sveltekit)                                                                                                       |
-| React Router                       | Server middleware with the caller's repositories in loaders and actions    | [React Router](https://bettersupabase.com/docs/frameworks/react-router)                                                                                                 |
-| H3, Nitro and Nuxt                 | H3 2 middleware, Nitro 2 middleware and a Nuxt module                      | [H3](https://bettersupabase.com/docs/frameworks/h3), [Nuxt](https://bettersupabase.com/docs/frameworks/nuxt)                                                            |
-| Elysia                             | The caller's repositories derived into every route                         | [Elysia](https://bettersupabase.com/docs/frameworks/elysia)                                                                                                             |
-| Node, Express, Fastify, Koa        | Middleware with route guards and Problem Details errors                    | [Node](https://bettersupabase.com/docs/frameworks/node)                                                                                                                 |
-| NestJS                             | Middleware, `@Ctx()` and role guards                                       | [NestJS](https://bettersupabase.com/docs/frameworks/nestjs)                                                                                                             |
-| Astro and SolidStart               | Middleware, page guards and actions                                        | [Astro](https://bettersupabase.com/docs/frameworks/astro), [SolidStart](https://bettersupabase.com/docs/frameworks/solid-start)                                         |
-| MCP servers                        | Tools from your tables and your own code, running as the signed-in user    | [MCP](https://bettersupabase.com/docs/frameworks/mcp)                                                                                                                   |
-| React and TanStack Query           | A browser client, typed hooks, query and mutation options, live queries    | [Frontend](https://bettersupabase.com/docs/frontend/query)                                                                                                              |
-| Vue, Solid and Svelte              | Live queries, presence, actions and the session                            | [Vue](https://bettersupabase.com/docs/frontend/vue), [Solid](https://bettersupabase.com/docs/frontend/solid), [Svelte](https://bettersupabase.com/docs/frontend/svelte) |
-
-Every adapter is listed on the [frameworks overview](https://bettersupabase.com/docs/frameworks). Next.js, Hono, Expo Router, SvelteKit, TanStack Start and React Router are supported adapters with the full test matrix; the others are community adapters that ship with a smoke test ([adapter tiers](https://bettersupabase.com/docs/frameworks#adapter-tiers)).
+| Where you run                                                             | Docs                                                              |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Next.js, Hono, oRPC, Expo Router, SvelteKit, TanStack Start, React Router | [Frameworks](https://bettersupabase.com/docs/frameworks)          |
+| Edge Functions, Node, NestJS, Astro, SolidStart, H3, Nuxt, Elysia         | [Frameworks](https://bettersupabase.com/docs/frameworks)          |
+| React, React Native, Vue, Solid, Svelte                                   | [Frontend](https://bettersupabase.com/docs/frontend/client)       |
+| PowerSync and SQLite on the device                                        | [Local data](https://bettersupabase.com/docs/frontend/local-data) |
+| MCP servers                                                               | [MCP](https://bettersupabase.com/docs/frameworks/mcp)             |
 
 ## The CLI
 
-The `better-supabase` command ships in this package:
+One command per job. `bsb` is the short name.
 
 ```bash
-pnpm better-supabase init                   # config, client and framework glue
-pnpm better-supabase dev env                    # local URL and keys into .env.local
-pnpm better-supabase gen                    # database.types.ts and generated.ts
-pnpm better-supabase gen --check            # exit 1 in CI when the schema drifted
-pnpm better-supabase doctor                 # RLS, grants, indexes and Supabase advisors
-pnpm better-supabase doctor --format sarif  # the same findings for GitHub code scanning
-pnpm better-supabase add queue               # a block's SQL into supabase/schemas
-pnpm better-supabase skills install         # Agent Skills for your coding agent
+pnpm better-supabase init            # config, client and framework glue
+pnpm better-supabase gen             # types and data hooks
+pnpm better-supabase gen --check     # exit 1 in CI when the schema drifted
+pnpm better-supabase add queue       # a block's SQL into supabase/schemas
+pnpm better-supabase doctor          # RLS, grants, indexes and Supabase advisors
+pnpm better-supabase skills install  # Agent Skills for your coding agent
 ```
 
-See the [CLI reference](https://bettersupabase.com/docs/cli) for every command and flag.
+The [CLI reference](https://bettersupabase.com/docs/cli) lists every command and flag.
 
-## Blocks
+## Blocks and presets
 
-Blocks are the features most SaaS apps build by hand. Each one installs [SQL modules](https://bettersupabase.com/docs/blocks/sql) (tables, functions and RLS policies) into your declarative schema, and blocks with a TypeScript side import it from `better-supabase/blocks/<name>`:
+A block is a feature most apps build by hand. `better-supabase add` installs its SQL, and the app calls the instance on `db`. The catalog is grouped by what the block is for:
 
-```bash
-pnpm better-supabase add organizations invitations
-```
+| Category                   | Catalog                                                                       |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| Organizations and identity | [Organizations](https://bettersupabase.com/docs/blocks/catalog-organizations) |
+| Database                   | [Database](https://bettersupabase.com/docs/blocks/catalog-database)           |
+| Collaboration              | [Collaboration](https://bettersupabase.com/docs/blocks/catalog-collaboration) |
+| Work                       | [Work](https://bettersupabase.com/docs/blocks/catalog-work)                   |
+| CRM                        | [CRM](https://bettersupabase.com/docs/blocks/catalog-crm)                     |
+| Commerce                   | [Commerce](https://bettersupabase.com/docs/blocks/catalog-commerce)           |
+| Content                    | [Content](https://bettersupabase.com/docs/blocks/catalog-content)             |
+| AI                         | [AI](https://bettersupabase.com/docs/blocks/catalog-ai)                       |
+| Automation                 | [Automation](https://bettersupabase.com/docs/blocks/catalog-automation)       |
+| Developer                  | [Developer](https://bettersupabase.com/docs/blocks/catalog-developer)         |
+| Growth                     | [Growth](https://bettersupabase.com/docs/blocks/catalog-growth)               |
+| People and scheduling      | [People](https://bettersupabase.com/docs/blocks/catalog-people)               |
 
-`add` lists them under `blocks` in `better-supabase.config.ts`, so `better-supabase upgrade` keeps the files up to date. Each key is a block, and its value holds that block's settings, such as its roles, permission keys or the existing tables it adopts:
-
-```ts
-export default defineConfig({
-  blocks: {
-    permissions: {
-      roles: {
-        owner: ["*"],
-        admin: ["organization.*", "members.*"],
-        member: ["organization.read"],
-      },
-    },
-    organizations: {},
-    invitations: { permissions: { invite: "organization.members.invite" } },
-  },
-});
-```
-
-Or start from a preset, such as `npx better-supabase init --preset saas`, and add or remove blocks from there.
-
-The TypeScript side calls those functions as the signed-in user:
-
-```ts
-import { createOrganizations } from "better-supabase/blocks/organizations";
-
-const organizations = createOrganizations({ transport, actorId: user.id });
-await organizations.invite({ organizationId, email, role: "member" });
-```
-
-| Block                                                                                                                                                                                                                                                 | Import                                                                       | SQL modules                            |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------- |
-| [createBlocks](https://bettersupabase.com/docs/blocks/create-blocks): builds several blocks from one set of options and wires them on the ports they provide and consume                                                                              | `better-supabase/blocks`                                                     | none                                   |
-| [Access contract](https://bettersupabase.com/docs/blocks/permissions): `can()` for policies, over fixed roles, your own permission catalog or an authorization provider, and `<Can>` in the app                                                       | `better-supabase/blocks/permissions`                                         | `access`, `tenant`                     |
-| [Subjects](https://bettersupabase.com/docs/blocks/subjects): titles and links for any subject, batched, with the SubjectLink and SubjectChip recipes                                                                                                  | `better-supabase/blocks/subjects`                                            | `subjects`                             |
-| [Record bindings](https://bettersupabase.com/docs/blocks/records): load the comments, files and tags of one record page in parallel, each settled, and keep them current                                                                              | `better-supabase/records`                                                    | none                                   |
-| [Organizations](https://bettersupabase.com/docs/blocks/organizations): members, invitations, roles and switching                                                                                                                                      | `better-supabase/blocks/organizations`                                       | `organizations`, `invitations`         |
-| [Profiles](https://bettersupabase.com/docs/blocks/profiles): a profile row per user, synced from Auth                                                                                                                                                 | `better-supabase/blocks/profiles`                                            | `profiles`                             |
-| [Jobs](https://bettersupabase.com/docs/blocks/queue): Supabase Queues jobs, cron, idempotency keys and a webhook inbox                                                                                                                                | `better-supabase/blocks/queue`                                               | `jobs`, `idempotency`, `webhook-inbox` |
-| [Outbox](https://bettersupabase.com/docs/blocks/outbox): transactional events with consumer cursors, relayed as CloudEvents                                                                                                                           | `better-supabase/blocks/outbox`                                              | `outbox`                               |
-| [Notifications](https://bettersupabase.com/docs/blocks/notifications): sending, listing and delivering notifications, and `useNotifications` for a live list                                                                                          | `better-supabase/blocks/notifications`                                       | `notifications`                        |
-| [Inbox](https://bettersupabase.com/docs/blocks/inbox): shared inboxes with conversations, assignment, notes, read receipts and channel delivery, plus `useInbox` and a chat widget                                                                    | `better-supabase/blocks/inbox`                                               | `inbox`, `chat-sdk-state`              |
-| [Webhooks](https://bettersupabase.com/docs/blocks/webhooks-out): Standard Webhooks, verifying incoming ones and delivering outgoing ones                                                                                                              | `better-supabase/blocks/webhooks`                                            | `webhooks-out`                         |
-| [API keys](https://bettersupabase.com/docs/blocks/api-keys): hashed keys per tenant and per user, with scopes, rotation, expiry and an `apiKey` caller in every adapter                                                                               | `better-supabase/blocks/api-keys`                                            | `api-keys`                             |
-| [MFA](https://bettersupabase.com/docs/auth/mfa-sso): TOTP enrolment and step-up to `aal2`, with `useMfa` and `useStepUp`                                                                                                                              | `better-supabase/blocks/mfa`                                                 | `mfa`                                  |
-| [OAuth consent](https://bettersupabase.com/docs/auth/oauth-consent): the consent page and connected agents for the Auth OAuth server, with `useOAuthConsent` and `useOAuthGrants`                                                                     | `better-supabase/blocks/sessions`                                            | `sessions`                             |
-| [Audit log](https://bettersupabase.com/docs/blocks/audit): list, filter, export as NDJSON or OCSF, and purge per tenant                                                                                                                               | `better-supabase/blocks/audit`                                               | `audit`                                |
-| [Settings](https://bettersupabase.com/docs/blocks/settings): typed settings per user and per organization, validated with Standard Schema                                                                                                             | `better-supabase/blocks/settings`                                            | `settings`                             |
-| [Usage](https://bettersupabase.com/docs/blocks/usage): idempotent usage counters, quotas in RLS and RPCs, and Stripe meter reporting                                                                                                                  | `better-supabase/blocks/usage`                                               | `usage`                                |
-| [Billing](https://bettersupabase.com/docs/blocks/billing): Stripe Checkout, the customer portal, seat sync and webhook handling                                                                                                                       | `better-supabase/blocks/billing`                                             | `billing`                              |
-| [Feature flags](https://bettersupabase.com/docs/blocks/flags): targeting rules, overrides and rollouts, evaluated in RLS and in an OpenFeature-shaped provider                                                                                        | `better-supabase/blocks/flags`                                               | `flags`                                |
-| [Comments](https://bettersupabase.com/docs/blocks/comments): subject conversations on messaging, with mentions, resolve, pins, edit history, anchors, attachments and assign-to-task                                                                  | `better-supabase/blocks/comments`                                            | `comments`                             |
-| [Activity](https://bettersupabase.com/docs/blocks/timeline): a record's activity feed from the outbox, with facets and an outbox sink                                                                                                                 | `better-supabase/blocks/timeline`                                            | `activity`                             |
-| [Attachments](https://bettersupabase.com/docs/blocks/attachments): files linked to records, signed uploads, versions, image previews, a scan gate and `useAttachmentUpload`                                                                           | `better-supabase/blocks/attachments`, `better-supabase/blocks/attachments/*` | `attachments`                          |
-| [Data lifecycle](https://bettersupabase.com/docs/blocks/data-lifecycle): data exports and organization deletion with a grace period                                                                                                                   | `better-supabase/blocks/data-lifecycle`                                      | `data-lifecycle`                       |
-| [SSO](https://bettersupabase.com/docs/blocks/sso): verified domains, SAML per organization, SSO enforcement and SCIM 2.0                                                                                                                              | `better-supabase/blocks/sso`                                                 | `sso`                                  |
-| [Onboarding](https://bettersupabase.com/docs/blocks/onboarding): checklists per user or organization, and `useOnboarding`                                                                                                                             | `better-supabase/blocks/onboarding`                                          | `onboarding`                           |
-| [Waitlist](https://bettersupabase.com/docs/blocks/waitlist): a waitlist with approvals, hashed invite codes and an invite-only sign-up hook                                                                                                           | `better-supabase/blocks/waitlist`                                            | `waitlist`                             |
-| [Announcements](https://bettersupabase.com/docs/blocks/announcements): in-app announcements by audience and time window, and `useAnnouncements`                                                                                                       | `better-supabase/blocks/announcements`                                       | `announcements`                        |
-| [Number sequences](https://bettersupabase.com/docs/blocks/numbering): gapless numbers per period, assigned in the document's transaction                                                                                                              | `better-supabase/blocks/numbering`                                           | `numbering`                            |
-| [Teams](https://bettersupabase.com/docs/blocks/teams): tenant teams and members, shared with the inbox                                                                                                                                                | `better-supabase/blocks/teams`                                               | `teams`                                |
-| [Tags](https://bettersupabase.com/docs/blocks/tags): tag definitions and per-subject link tables                                                                                                                                                      | `better-supabase/blocks/tags`                                                | `tags`                                 |
-| [State machine](https://bettersupabase.com/docs/blocks/state-machine): allowed transitions, history and `status.changed`                                                                                                                              | `better-supabase/blocks/state-machine`                                       | `state-machine`                        |
-| [Custom fields](https://bettersupabase.com/docs/blocks/custom-fields): typed values, with a permission check for sensitive fields                                                                                                                     | `better-supabase/blocks/custom-fields`                                       | `custom-fields`                        |
-| [Share links](https://bettersupabase.com/docs/blocks/share-links): hashed links, view counts and per-user state                                                                                                                                       | `better-supabase/blocks/share-links`                                         | `share-links`                          |
-| [Identities](https://bettersupabase.com/docs/blocks/identities): verified email and chat identities linked to users                                                                                                                                   | `better-supabase/blocks/identities`                                          | `identities`                           |
-| [Service principals](https://bettersupabase.com/docs/blocks/service-accounts): non-human members that run organization-owned workflows and webhooks                                                                                                   | `better-supabase/blocks/service-accounts`                                    | `service-accounts`                     |
-| [Signing keys](https://bettersupabase.com/docs/blocks/signing-keys): Ed25519 and ES256 keys in Vault, rotation, JWKS and a JWT signer                                                                                                                 | `better-supabase/blocks/signing-keys`                                        | `signing-keys`                         |
-| [Shared signals](https://bettersupabase.com/docs/blocks/security-events): an OpenID SSF transmitter and receiver with CAEP and RISC events                                                                                                            | `better-supabase/blocks/security-events`                                     | `security-events`                      |
-| [OAuth server](https://bettersupabase.com/docs/blocks/oauth-server): client registry, PKCE authorization codes, device codes, grants and token revocation storage                                                                                     | `better-supabase/blocks/oauth-server`                                        | `oauth-server`                         |
-| [Custom domains](https://bettersupabase.com/docs/blocks/domains): custom domains verified by DNS, platform subdomains, a primary hostname and the proxy lookup                                                                                        | `better-supabase/blocks/domains`                                             | `domains`                              |
-| [Reminders](https://bettersupabase.com/docs/blocks/reminders): RFC 5545 recurrence, scheduled on jobs and delivered as notifications                                                                                                                  | `better-supabase/blocks/reminders`                                           | `reminders`                            |
-| [Imports](https://bettersupabase.com/docs/blocks/imports): CSV mapping, a dry run and a jobs handler                                                                                                                                                  | `better-supabase/blocks/imports`                                             | `imports`                              |
-| [Rank](https://bettersupabase.com/docs/blocks/rank): fractional rank keys, `move()` between neighbours and into a group, and a rebalance job                                                                                                          | `better-supabase/blocks/rank`                                                | `rank`                                 |
-| [Saved views](https://bettersupabase.com/docs/blocks/saved-views): named list views per user, team or organization, checked against the list, and `useSavedViews` for nuqs                                                                            | `better-supabase/blocks/saved-views`                                         | `saved-views`                          |
-| [Relations](https://bettersupabase.com/docs/blocks/relations): typed links between subjects with cycle checks, ancestors, descendants, rollups and Gantt and tree adapters                                                                            | `better-supabase/blocks/relations`                                           | `relations`                            |
-| [Bulk actions](https://bettersupabase.com/docs/blocks/bulk): one action over many rows with a result per row, and background runs on the jobs queue                                                                                                   | `better-supabase/blocks/bulk`                                                | `bulk`                                 |
-| [Undo](https://bettersupabase.com/docs/blocks/undo): apply the undo tokens block methods return, and `useUndoStack` for a toast's Undo button                                                                                                         | `better-supabase/blocks/undo`                                                |                                        |
-| [Search](https://bettersupabase.com/docs/blocks/search): a search index kept by triggers, `search(q)` as the caller, recents, favorites and `useCommandSearch`                                                                                        | `better-supabase/blocks/search`                                              | `search`                               |
-| [Metrics](https://bettersupabase.com/docs/blocks/metrics): `defineMetric`, rollups, `series()` and `kpi()` with a previous-range comparison                                                                                                           | `better-supabase/blocks/metrics`                                             | `metrics`                              |
-| [Commerce](https://bettersupabase.com/docs/concepts/commerce): money in bigint minor units, and versioned payment and tax providers with Stripe adapters                                                                                              | `better-supabase/commerce`                                                   | none                                   |
-| [Calendar](https://bettersupabase.com/docs/blocks/calendar): calendars, recurring events with overrides, RFC 5545 import and export, an iCal feed and `useCalendar`                                                                                   | `better-supabase/blocks/calendar`                                            | `calendar`                             |
-| [Bookings](https://bettersupabase.com/docs/blocks/bookings): resources, weekly hours, open slots in SQL, holds, no double bookings and public booking links                                                                                           | `better-supabase/blocks/bookings`                                            | `bookings`                             |
-| [Versions](https://bettersupabase.com/docs/blocks/versions): numbered snapshots with JSON Patch diffs, restore, auto and frozen snapshots, and retention                                                                                              | `better-supabase/blocks/versions`                                            | `versions`                             |
-| [Updated at](https://bettersupabase.com/docs/blocks/updated-at): `createdAt` and `updatedAt` from a trigger and the repository, so a client can't backdate a row                                                                                      | `better-supabase/blocks/updated-at`                                          | none                                   |
-| [Created by](https://bettersupabase.com/docs/blocks/created-by): `createdBy` and `updatedBy` from the session, and `impersonatedBy` during support sessions                                                                                           | `better-supabase/blocks/created-by`                                          | none                                   |
-| [Memberships](https://bettersupabase.com/docs/blocks/memberships): scope every query and write to the active organization, in the repository and in RLS                                                                                               | `better-supabase/blocks/memberships`                                         | `memberships`                          |
-| [Trash](https://bettersupabase.com/docs/blocks/trash): soft delete with children in one batch, restore with unique checks, and purge after a retention period                                                                                         | `better-supabase/blocks/trash`                                               | `trash`                                |
-| [Reactions](https://bettersupabase.com/docs/blocks/reactions): emoji reactions on any subject, messages and inbox messages, with custom emoji and live counts                                                                                         | `better-supabase/blocks/reactions`                                           | `reactions`                            |
-| [Reactions](https://bettersupabase.com/docs/blocks/reactions): emoji reactions and up or down votes on any subject, comments and inbox messages, with custom emoji, vote scores and live counts                                                       | `better-supabase/blocks/reactions`                                           | `reactions`                            |
-| [Posts](https://bettersupabase.com/docs/blocks/posts): forum and feedback boards with voted posts, roadmap statuses, merged duplicates, replies and moderation                                                                                        | `better-supabase/blocks/posts`                                               | `posts`                                |
-| [Content](https://bettersupabase.com/docs/blocks/content): pages, posts and other typed entries per organization, with locales, scheduled and approved publishing, versions and a public read by slug                                                 | `better-supabase/blocks/content`                                             | `content`                              |
-| [Approvals](https://bettersupabase.com/docs/blocks/approvals): approval steps per subject and action, delegation, expiry, reminders and a gated state-machine transition                                                                              | `better-supabase/blocks/approvals`                                           | `approvals`                            |
-| [Access requests](https://bettersupabase.com/docs/blocks/access-requests): members ask for a role for a set time, approved through approvals, and the grant ends on its own                                                                           | `better-supabase/blocks/access-requests`                                     | `access-requests`                      |
-| [Documents](https://bettersupabase.com/docs/blocks/documents): Yjs documents on any subject, with an update log, compaction and a private topic per document                                                                                          | `better-supabase/blocks/documents`, `better-supabase/yjs`                    | `documents`                            |
-| [Catalog](https://bettersupabase.com/docs/blocks/catalog): products, options and variants, prices in bigint minor units per currency and price list, categories, collections and a public storefront                                                  | `better-supabase/blocks/catalog`                                             | `catalog`                              |
-| [Inventory](https://bettersupabase.com/docs/blocks/inventory): stock per variant and location on the ledger, reservations that expire, transfers between locations and purchase orders with partial receiving                                         | `better-supabase/blocks/inventory`                                           | `inventory`                            |
-| [Ledger](https://bettersupabase.com/docs/blocks/ledger): double-entry accounts in a currency or custom unit, balanced append-only transactions, running balances and holds; inventory, leave and invoices post to it                                  | `better-supabase/blocks/ledger`                                              | `ledger`                               |
-| [Assets and locations](https://bettersupabase.com/docs/blocks/assets): a location tree and an asset registry with tags, status and assignment to members or records; optional PostGIS points, areas and radius search                                 | `better-supabase/blocks/assets`                                              | `assets`                               |
-| [Drive](https://bettersupabase.com/docs/blocks/drive): folders and files on attachments, with inherited grants, revisions, a bin, stars, recent items and share links                                                                                 | `better-supabase/blocks/drive`                                               | `drive`, `drive-files`                 |
-| [Orders](https://bettersupabase.com/docs/blocks/orders): carts, a checkout that prices from the catalog, quotes tax, reserves stock and takes one payment, then fulfillments, returns, refunds and invoices                                           | `better-supabase/blocks/orders`                                              | `orders`                               |
-| [Promotions](https://bettersupabase.com/docs/blocks/promotions): percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts                                                 | `better-supabase/blocks/promotions`                                          | `promotions`                           |
-| [Forms](https://bettersupabase.com/docs/blocks/forms): versioned multi-step forms whose JSON Schema Postgres checks on submit, public links and `useQuestionnaire`                                                                                    | `better-supabase/blocks/forms`                                               | `forms`                                |
-| [Signatures](https://bettersupabase.com/docs/blocks/signatures): simple electronic signatures on a frozen version of a record, with a hash per signature                                                                                              | `better-supabase/blocks/signatures`                                          | `signatures`                           |
-| [Time tracking](https://bettersupabase.com/docs/blocks/time-tracking): timers and logged time on any record, weekly timesheets approved through approvals and `toWeeklyGrid`                                                                          | `better-supabase/blocks/time-tracking`                                       | `time-tracking`                        |
-| [Reviews](https://bettersupabase.com/docs/blocks/reviews): ratings and reviews of products and records, verified purchases, moderation and a public aggregate                                                                                         | `better-supabase/blocks/reviews`                                             | `reviews`                              |
-| [Moderation](https://bettersupabase.com/docs/blocks/moderation): reports, a review queue, decisions and bans for comments, reviews and any record, with an automatic hide threshold                                                                   | `better-supabase/blocks/moderation`                                          | `moderation`                           |
-| [Enrollments](https://bettersupabase.com/docs/blocks/enrollments): programs of steps and enrollments of any record in them, with progress and completion; onboarding runs on it                                                                       | `better-supabase/blocks/enrollments`                                         | `enrollments`                          |
-| [Courses](https://bettersupabase.com/docs/blocks/courses): courses of modules and lessons, quizzes graded by forms, progress, completion and certificates; learners enroll through enrollments                                                        | `better-supabase/blocks/courses`                                             | `courses`                              |
-| [Leave](https://bettersupabase.com/docs/blocks/leave): leave types, requests approved through approvals and a balance ledger with accruals and carryover                                                                                              | `better-supabase/blocks/leave`                                               | `leave`                                |
-| [Rules](https://bettersupabase.com/docs/blocks/automations): tenant rules that test a subject against a filter tree on a trigger event and name actions your app runs                                                                                 | `better-supabase/blocks/automations`                                         | `rules`                                |
-| [Scores](https://bettersupabase.com/docs/blocks/scores): tenant-editable scoring models of rule points and weighted metrics, versioned, with bands and a breakdown per record; lead and health scoring are models                                     | `better-supabase/blocks/scores`                                              | `scores`                               |
-| [Vercel Marketplace](https://bettersupabase.com/docs/blocks/vercel-marketplace): installations, resources, plans and invoices from Vercel, verified webhooks, the SSO exchange and usage reporting                                                    | `better-supabase/blocks/vercel-marketplace`                                  | `vercel-marketplace`                   |
-| [Templates](https://bettersupabase.com/docs/blocks/templates): versioned templates that create records, system starters and forks, merge fields, and the workflows each record starts                                                                 | `better-supabase/blocks/templates`                                           | `templates`                            |
-| [Pipelines](https://bettersupabase.com/docs/blocks/pipelines): tenant-editable stages for any record, categories that map to open, success or failure, stage history, time in stage and board totals per currency                                     | `better-supabase/blocks/pipelines`                                           | `pipelines`                            |
-| [Parties](https://bettersupabase.com/docs/blocks/contacts): companies and people with lifecycle stages and owners, who works where with a role and a primary contact, dedupe by domain and email, merges and search                                   | `better-supabase/blocks/contacts`                                            | `parties`                              |
-| [Engagements](https://bettersupabase.com/docs/blocks/activities): calls, emails, meetings, notes and tasks logged on one or more records, with an owner, a due time and an outcome, a record's next step and a member's open tasks                    | `better-supabase/blocks/activities`                                          | `engagements`                          |
-| [Mail sync](https://bettersupabase.com/docs/blocks/mail-sync): Gmail and Outlook mailboxes connected per member, threads synced onto parties as engagements, and replies sent from the record                                                         | `better-supabase/blocks/mail-sync`                                           | `mail-sync`                            |
-| [Segments](https://bettersupabase.com/docs/blocks/segments): saved filters over companies, people or deals, with members kept in Postgres and an event when a record enters or leaves                                                                 | `better-supabase/blocks/segments`                                            | `segments`                             |
-| [Assignment](https://bettersupabase.com/docs/blocks/assignment): round robin and weighted queues that pick an owner for new records within a territory                                                                                                | `better-supabase/blocks/assignment`                                          | `assignment`                           |
-| [Enrichment](https://bettersupabase.com/docs/blocks/enrichment): company and person profiles from People Data Labs or your own provider, filling a record's empty columns                                                                             | `better-supabase/blocks/enrichment`                                          | `enrichment`                           |
-| [Sequences](https://bettersupabase.com/docs/blocks/sequences): email, wait and task steps that run per contact from their mailbox until the contact replies                                                                                           | `better-supabase/blocks/sequences`                                           | `sequences`                            |
-| [Lead scoring](https://bettersupabase.com/docs/blocks/lead-scoring): scores people and companies from their columns, segments, email activity and enrichment                                                                                          | `better-supabase/blocks/lead-scoring`                                        | `lead-scoring`                         |
-| [Forecasts](https://bettersupabase.com/docs/blocks/forecasts): snapshots of the deals forecast per period, with the deals behind each number and what moved between two snapshots                                                                     | `better-supabase/blocks/forecasts`                                           | `forecasts`                            |
-| [Field history](https://bettersupabase.com/docs/blocks/field-history): who changed which tracked column of a record, from what to what, recorded by a trigger                                                                                         | `better-supabase/blocks/field-history`                                       | `field-history`                        |
-| [Deals](https://bettersupabase.com/docs/blocks/deals): deals on pipelines with amounts in minor units, a company and contacts, a team, line items, forecast calls with attainment, close-date slips, a next step and batched edits                    | `better-supabase/blocks/deals`                                               | `deals`                                |
-| [Work items](https://bettersupabase.com/docs/blocks/tasks): issues and tasks on pipelines with identifiers, parents, several assignees, priority, dates, locking, projects, iterations and a progress tree                                            | `better-supabase/blocks/tasks`                                               | `tasks`                                |
-| [Quotes](https://bettersupabase.com/docs/blocks/quotes): quotes with line items and totals, revisions, a public link the customer accepts, rejects or asks changes through, expiry and quotes from deals                                              | `better-supabase/blocks/quotes`                                              | `quotes`                               |
-| [Invoices](https://bettersupabase.com/docs/blocks/invoices): invoices a tenant sends its own customers, numbered on issue, with payments, credit notes, void, write-off, aging and invoices from accepted quotes                                      | `better-supabase/blocks/invoices`                                            | `invoices`                             |
-| [Service levels](https://bettersupabase.com/docs/blocks/sla): first response, next response and resolution clocks on any record from policies per type and priority, business hours, pauses, warnings and breaches                                    | `better-supabase/blocks/sla`                                                 | `sla`                                  |
-| [Targets](https://bettersupabase.com/docs/blocks/goals): goals per period for a member, a team or the organization, with progress from won deals, completed work items and paid invoices                                                              | `better-supabase/blocks/goals`                                               | `targets`                              |
-| [Hiring](https://bettersupabase.com/docs/blocks/hiring): jobs and applications on a pipeline per job, candidates from config.records, scorecards per stage, interviews and hire events                                                                | `better-supabase/blocks/hiring`                                              | `hiring`                               |
-| [Employees](https://bettersupabase.com/docs/blocks/employees): employees with or without an account, managers and an org chart, offboarding, employees from hired applications, and private details and contracts behind a permission                 | `better-supabase/blocks/employees`                                           | `employees`                            |
-| [Collections](https://bettersupabase.com/docs/blocks/collections): favorites a member ranks in a sidebar, and static lists of records for a user, a team or the organization                                                                          | `better-supabase/blocks/collections`                                         | `collections`                          |
-| [AI chat](https://bettersupabase.com/docs/blocks/ai-chat): chats with branches, shares, a model catalog, moderation and runs, in the canonical message format, and `useAiChats`                                                                       | `better-supabase/blocks/ai-chat`                                             | `ai-chat`                              |
-| [AI files](https://bettersupabase.com/docs/blocks/ai-files): attachments and generated files in a private bucket, provider file references and versioned documents with suggested edits                                                               | `better-supabase/blocks/ai-files`                                            | `ai-files`                             |
-| [Knowledge](https://bettersupabase.com/docs/blocks/knowledge): documents chunked and embedded per organization, user, agent or chat, and hybrid search                                                                                                | `better-supabase/blocks/knowledge`                                           | `knowledge`                            |
-| [Memory](https://bettersupabase.com/docs/blocks/memory): memory files, archival facts and message recall per user, agent or chat                                                                                                                      | `better-supabase/blocks/memory`                                              | `memory`                               |
-| [Messaging](https://bettersupabase.com/docs/blocks/messaging): conversations, members, threaded messages, mentions and read markers for channels and direct messages, plus `useMessages` and `useConversations`                                       | `better-supabase/blocks/messaging`                                           | `messaging`                            |
-| [Channels](https://bettersupabase.com/docs/blocks/channels): public and private channels on messaging, with topics, membership and an optional linked record                                                                                          | `better-supabase/blocks/channels`                                            | `channels`                             |
-| [Agents](https://bettersupabase.com/docs/blocks/agents): custom assistants with instructions, tools, knowledge and starters, a gallery with installs and ratings                                                                                      | `better-supabase/blocks/agents`                                              | `agents`                               |
-| [Connectors](https://bettersupabase.com/docs/blocks/connectors): MCP servers per organization, per-user grants behind a `credential_ref`, sessions and tool fingerprints                                                                              | `better-supabase/blocks/connectors`                                          | `connectors`                           |
-| [AI tasks](https://bettersupabase.com/docs/blocks/ai-schedules): scheduled prompts that run an agent on a cron and record each run                                                                                                                    | `better-supabase/blocks/ai-schedules`                                        | `ai-schedules`                         |
-| [Push notifications](https://bettersupabase.com/docs/blocks/push): device tokens with RLS, Expo registration and an Expo Push API sender                                                                                                              | `better-supabase/blocks/push`                                                | `push`                                 |
-| [AI cache](https://bettersupabase.com/docs/blocks/ai-cache): model responses cached by key with a capped TTL and a purge job                                                                                                                          | `better-supabase/blocks/ai-cache`                                            | `ai-cache`                             |
-| [AI providers](https://bettersupabase.com/docs/blocks/ai-keys): per-tenant provider keys as credential refs, batch jobs and sandboxes with an idle stop                                                                                               | `better-supabase/blocks/ai-keys`                                             | `ai-keys`                              |
-| [Workflows](https://bettersupabase.com/docs/blocks/workflows): a run registry for any engine, schedules, semaphores, admission control, and `useWorkflowRuns`                                                                                         | `better-supabase/blocks/workflows`                                           | `workflows`, `workflow-sdk`            |
-| [Workflow builder](https://bettersupabase.com/docs/blocks/workflow-editor): graph workflows members edit and publish, triggers, credentials, node run status and alerts                                                                               | `better-supabase/blocks/workflow-editor`                                     | `workflow-editor`                      |
-| [Entitlements](https://bettersupabase.com/docs/blocks/entitlements): Stripe entitlements per tenant, `hasEntitlement` and the members of a plan change                                                                                                | `better-supabase/blocks/entitlements`                                        | `entitlements`                         |
-| [Vector search](https://bettersupabase.com/docs/blocks/vector-search): `search_<table>` functions over embedding columns, called with `db.$search`                                                                                                    | SQL only                                                                     | `vector-search`                        |
-| [Guests](https://bettersupabase.com/docs/blocks/guests): clients and contractors invited by email who read, comment on and upload to the records they are granted, and a portal for the party they act for; never members                             | `better-supabase/blocks/guests`                                              | `guests`                               |
-| [Passes](https://bettersupabase.com/docs/blocks/passes): QR and NFC admission passes signed with your signing keys, a ticket per booking or a pass per resource, with a log of every scan and capacity counted against bookings                       | `better-supabase/blocks/passes`                                              | `passes`                               |
-| [Billable time](https://bettersupabase.com/docs/blocks/billable-time): an hourly rate card per organization, member and record that turns tracked time into draft invoice lines in minor units, with billed time locked until the invoice is voided   | `better-supabase/blocks/billable-time`                                       | `billable-time`                        |
-| [Contracts](https://bettersupabase.com/docs/blocks/contracts): contracts from draft through review and e-signature to active, expired or terminated, with values in minor units, renewal reminders before the notice deadline, and obligations        | `better-supabase/blocks/contracts`                                           | `contracts`                            |
-| [Controls](https://bettersupabase.com/docs/blocks/compliance): compliance frameworks and controls with evidence, recurring evidence tasks that go overdue, a status rollup per framework, and versioned policies members acknowledge                  | `better-supabase/blocks/compliance`                                          | `controls`                             |
-| [Incidents](https://bettersupabase.com/docs/blocks/incidents): incidents with a severity, a status timeline, affected components and postmortems, and a public status page with daily uptime that visitors read without signing in                    | `better-supabase/blocks/incidents`                                           | `incidents`                            |
-| [Leases](https://bettersupabase.com/docs/blocks/leases): units let to parties with rent in minor units posted on the ledger once per period, deposits held through ledger holds, renewals, terminations and maintenance requests                      | `better-supabase/blocks/leases`                                              | `leases`                               |
-| [Expenses](https://bettersupabase.com/docs/blocks/expenses): expense reports with lines, categories and receipts, spend policies checked on submit, approval through the approvals block, and reimbursement posted on the ledger                      | `better-supabase/blocks/expenses`                                            | `expenses`                             |
-| [Donations](https://bettersupabase.com/docs/blocks/donations): gifts and pledges from donors to funds and campaigns posted on the ledger, pledge charges through a payments provider once per period, and numbered tax receipts with a yearly summary | `better-supabase/blocks/donations`                                           | `donations`                            |
-| [Dispatch](https://bettersupabase.com/docs/blocks/dispatch): field service work orders scheduled into technicians' slots without overlaps, worked through en route and on site to done, with day routes and the parts each job used                   | `better-supabase/blocks/dispatch`                                            | `dispatch`                             |
-| [Shipments](https://bettersupabase.com/docs/blocks/shipments): packages between addresses, labels bought through a versioned carrier interface, and a tracking timeline that a signed carrier webhook updates once per event                          | `better-supabase/blocks/shipments`                                           | `shipments`                            |
-
-The other SQL modules (`updated-at`, `actor`, `rate-limit`, `impersonation` and the rest) are listed on the [SQL modules page](https://bettersupabase.com/docs/blocks/sql), and the [roadmap](https://bettersupabase.com/docs/roadmap) lists what comes next.
-
-## Works with
-
-| Area       | Supported                                                                                                                                                                                                            |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Frameworks | Next.js 16, Hono, oRPC, Expo Router, TanStack Start, SvelteKit, React Router, H3 and Nitro, Nuxt, Elysia, Node (`node:http`, Express, Fastify, Koa), NestJS, Astro, SolidStart, Supabase Edge Functions, MCP servers |
-| Runtimes   | Node.js, Deno, Bun, Cloudflare Workers, Vercel Functions, Supabase Edge                                                                                                                                              |
-| Frontend   | React 19, React Native and Expo, Vue, Solid, Svelte 5, TanStack Query 5, TanStack DB, live queries over Realtime                                                                                                     |
-| Local data | PowerSync, Expo SQLite, Lite                                                                                                                                                                                         |
-| AI         | AI SDK, Chat SDK, eve, Workflow SDK, MCP                                                                                                                                                                             |
-| Validation | Zod, Valibot and any Standard Schema                                                                                                                                                                                 |
-| Standards  | OpenAPI 3.0 to 3.2, AsyncAPI 3, Arazzo 1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP                                                                                                               |
-| Testing    | Vitest, pgTAP, the Supabase local stack                                                                                                                                                                              |
-
-## Good to know
-
-- **It does not replace supabase-js.** Auth flows, Storage and Realtime stay on the supabase-js client, which is one property away as `db.$client`.
-- **It does not replace RLS.** Queries run as the caller and your policies decide. Bypassing them takes an explicit `bsb.admin()`.
-- **A direct Postgres connection is optional.** Queries go through PostgREST by default. [`better-supabase/postgres`](https://bettersupabase.com/docs/auth/postgres) runs the same repository API over SQL for jobs, scripts and transactions.
-- **PostgREST's limits still apply.** There are no transactions across requests, and a few filters only work on reads. The [limitations page](https://bettersupabase.com/docs/guides/limitations) lists each one and what to use instead.
+A [preset](https://bettersupabase.com/docs/presets) installs a set of blocks for a product, such as a CRM, a helpdesk or a CMS.
 
 ## Subpaths
 
-The package has one entry per feature, so an app only loads what it imports. Every subpath is listed below, grouped by area. In a cell with several imports, `/name` is short for `better-supabase/name`.
+Each feature is its own entry, so an app only loads what it imports.
 
-### Core
-
-| Import                                 | What it gives you                                                                      |
-| -------------------------------------- | -------------------------------------------------------------------------------------- |
-| `better-supabase`                      | `defineSupabase`, repositories, `Result`, `DbError`, `SPEC_PINS`                       |
-| `better-supabase/config`               | `defineConfig` and generators for `better-supabase.config.ts`                          |
-| `better-supabase/preset`               | Named presets, designs and the resolver behind `/create`                               |
-| `better-supabase/create`               | Designs, schema parsing, previews and deploy plans behind `/create`                    |
-| `better-supabase/create/lite`          | Validates a design in PGlite and reports what Postgres rejects                         |
-| `better-supabase/create/oauth`         | PKCE, sealed cookies and a session shape for any OAuth provider                        |
-| `better-supabase/create/supabase`      | Supabase OAuth with PKCE, sealed sessions and the Management API client                |
-| `better-supabase/server`               | Repositories bound to the caller, admin and acting-as identities                       |
-| `better-supabase/postgres`             | The same repositories over direct Postgres                                             |
-| `better-supabase/env`                  | Validated Supabase settings                                                            |
-| `better-supabase/stripe`               | `stripeFromKey`: a Stripe client for billing, usage and commerce that bundlers resolve |
-| `better-supabase/list`                 | Search, facets, sorting and pagination from one definition                             |
-| `better-supabase/better-result`        | `withBetterResult`: a `db` whose methods return better-result values                   |
-| `better-supabase/storage`, `/realtime` | Typed buckets (paths, versions, vector, analytics) and broadcast topics                |
-| `better-supabase/sql`                  | The SQL modules and read-set compiler behind `better-supabase sql`                     |
-| `better-supabase/lint`                 | Editor rules and runtime guards for unbounded reads and unscoped deletes               |
-| `better-supabase/cli`                  | `run`, `createCli` and codegen for scripts that drive the CLI                          |
-| `better-supabase/testing`              | `asUser`, `localAuth`, typed seeds and conformance kits                                |
-| `better-supabase/events`, `/otel`      | CloudEvents and OpenTelemetry                                                          |
-| `better-supabase/spec`                 | One API model rendered as OpenAPI, AsyncAPI and Arazzo documents, with Overlays        |
-
-### Frontend and local data
-
-| Import                                     | What it gives you                                                                         |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `better-supabase/client`                   | Browser repositories that follow the session                                              |
-| `better-supabase/client/native`            | The same for React Native, without `@supabase/ssr`, and keychain storage                  |
-| `better-supabase/react`                    | Provider, typed hooks and the server session                                              |
-| `better-supabase/react/native`             | OAuth, auth deep links, a protected route hook and `AuthGate` for Expo                    |
-| `better-supabase/query`                    | TanStack Query options with table-based invalidation                                      |
-| `better-supabase/tanstack-db`              | TanStack DB collections over a query, and `tanstackDbEngine` for the data hooks           |
-| `better-supabase/vue`, `/solid`, `/svelte` | Live queries, presence, actions and the session for Vue, Solid and Svelte 5               |
-| `better-supabase/powersync`                | `powersyncEngine`: the data hooks and repositories on PowerSync, and the upload connector |
-| `better-supabase/sqlite`                   | `sqliteEngine`: the data hooks and repositories on Expo SQLite or Supabase Lite           |
-
-### Server adapters
-
-| Import                                                | What it gives you                                                                           |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `better-supabase/ssr`                                 | The `@supabase/ssr` cookie format for any framework                                         |
-| `better-supabase/next`, `/next/image`, `/next/client` | Proxy, Server Components, route handlers, Storage images, session-change hook               |
-| `better-supabase/hono`, `/orpc`                       | Hono middleware and REST resources, and an oRPC middleware                                  |
-| `better-supabase/edge`                                | Fetch handlers for Supabase Edge Functions, Deno, Bun and Workers                           |
-| `better-supabase/expo`                                | Expo Router server loaders, API routes and middleware                                       |
-| `better-supabase/tanstack-start`, `/sveltekit`        | TanStack Start request middleware and a SvelteKit `handle` hook                             |
-| `better-supabase/react-router`, `/h3`, `/elysia`      | Middleware for React Router, H3 2 and Elysia                                                |
-| `better-supabase/h3/v1`, `/nuxt`                      | Middleware for Nitro 2, and a Nuxt module that registers it                                 |
-| `better-supabase/node`, `/nestjs`                     | Node `http`, Express, Fastify, Koa and NestJS                                               |
-| `better-supabase/astro`, `/solid-start`               | Astro middleware, Actions and images; SolidStart middleware and actions                     |
-| `better-supabase/mcp`, `/mcp/sdk`                     | MCP servers whose tools run as the signed-in user, and bearer auth for the official MCP SDK |
-
-### AI and agents
-
-| Import                                                      | What it gives you                                                                                                     |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `better-supabase/ai-sdk`                                    | AI SDK message converters, gateway usage attribution and the model catalog                                            |
-| `better-supabase/ai-sdk/chat`, `/ai-sdk/react`              | `createAssistant` for a chat route and `useAssistant` on the client                                                   |
-| `better-supabase/ai-sdk/files`, `/ai-sdk/cache`             | File parts from Storage and generated files, and a middleware that answers from the AI cache                          |
-| `better-supabase/ai-sdk/batches`                            | AI SDK batches per tenant, polled from a job, with results in Postgres                                                |
-| `better-supabase/ai-sdk/embeddings`, `/ai-sdk/memory`       | Embedders, reranking and a knowledge search tool; memory and recall tools and fact extraction                         |
-| `better-supabase/ai-sdk/agents`, `/ai-sdk/mcp`              | A `ToolLoopAgent` from a stored agent with moderation, and MCP connections authorized through OAuth                   |
-| `better-supabase/ai-sdk/workflow`, `/ai-sdk/workflow/react` | Durable chat on the Workflow SDK with `durableChat`, `durableTurn` and `useDurableAssistant`                          |
-| `better-supabase/chat-sdk`                                  | Chat SDK state in Postgres, the inbox adapter and channel webhooks                                                    |
-| `better-supabase/eve`                                       | eve on Supabase: route auth, connections over credential providers, memory, sessions and the inbox channel (Node)     |
-| `better-supabase/flags-sdk`                                 | A Flags SDK adapter over the flags block, an `identify` for user, tenant and custom contexts, and Flags Explorer data |
-
-### Workflows, streams and credentials
-
-| Import                                                | What it gives you                                                                   |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `better-supabase/workflow-sdk`, `/workflow-sdk/world` | Workflow SDK helpers bound to the caller, and a World on Supabase (Node)            |
-| `better-supabase/workflow-sdk/builder`                | Compiles workflow builder graphs to Workflow SDK workflows and starts them          |
-| `better-supabase/streams`, `/streams/redis`           | Resumable output for chats, workflows and agents, in Postgres or Redis              |
-| `better-supabase/credentials`, `/vercel-connect`      | Third-party tokens behind a `credential_ref`, over Supabase Vault or Vercel Connect |
-| `better-supabase/yjs`                                 | A Yjs provider for the documents block: stored edits, a private topic, presence     |
-
-The 40 `better-supabase/blocks/*` subpaths are listed under [Blocks](#blocks).
+| Area                                    | Start here                                                                  |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| Repositories, results and config        | [`better-supabase`](https://bettersupabase.com/docs/repository)             |
+| Server, Postgres and auth               | [`better-supabase/server`](https://bettersupabase.com/docs/auth/server)     |
+| Framework adapters                      | [`better-supabase/next`](https://bettersupabase.com/docs/frameworks)        |
+| Browser client and data hooks           | [`better-supabase/client`](https://bettersupabase.com/docs/frontend/client) |
+| Blocks                                  | [`better-supabase/blocks/<name>`](https://bettersupabase.com/docs/blocks)   |
+| APIs (OpenAPI, AsyncAPI, Arazzo)        | [`better-supabase/spec`](https://bettersupabase.com/docs/specs)             |
+| AI SDK, Chat SDK, eve, flags, workflows | [Integrations](https://bettersupabase.com/docs/integrations)                |
+| Tests                                   | [`better-supabase/testing`](https://bettersupabase.com/docs/testing)        |
 
 ## For AI agents
 
@@ -441,15 +133,13 @@ The package ships [Agent Skills](https://agentskills.io) for queries, APIs, auth
 
 ```bash
 npx skills add ScaleDockHQ/better-supabase
-# or, from the installed version:
-pnpm better-supabase skills install
 ```
 
-The docs are also available as [`/llms.txt`](https://bettersupabase.com/llms.txt), as Markdown at `/docs/<page>.md`, and through the read-only docs MCP server at `https://bettersupabase.com/mcp`.
+The docs are also available as [`/llms.txt`](https://bettersupabase.com/llms.txt), as Markdown at `/docs/<page>.md`, and through the read-only docs MCP server at `https://bettersupabase.com/mcp`. See [For AI agents](https://bettersupabase.com/docs/for-ai-agents).
 
 ## Documentation
 
-The full documentation is at [bettersupabase.com/docs](https://bettersupabase.com/docs), and a runnable app for every adapter is in [`apps/examples`](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples).
+The full documentation is at [bettersupabase.com/docs](https://bettersupabase.com/docs).
 
 ## License
 

@@ -1,0 +1,292 @@
+---
+title: Messaging
+description: The conversations, members, messages, threads and read markers that channels, direct messages and record threads share.
+---
+
+The `messaging` block is the core that chat features sit on: conversations,
+their members, messages with one level of threads, edits, pins, mentions,
+scheduled messages and read markers. It has no UI of its own. The
+[channels](/docs/blocks/channels) block builds Slack-style channels and direct
+messages on it, and later phases move comments and the support inbox onto the
+same tables (ADR 0062).
+
+```bash
+better-supabase add messaging   # adds tenant, access and subjects as well
+```
+
+The block's entities are `message` (the `messages` table) and `conversation`
+(the `conversations` table). Both register as subjects, so reactions, share
+links and search accept them. Rename them with `blocks.messaging.names`;
+see [Typed blocks](/docs/blocks/typed-blocks). `messageInputSchema` and
+`messageChangeSchema` validate what `send` and `edit` take.
+
+| Table                  | Holds                                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `conversations`        | `kind`, `access`, `title`, the linked record (`subject_type`, `subject_id`), `last_message_at`, archiving |
+| `conversation_members` | `user_id`, `role`, `notify` (`all`, `mentions` or `none`) and the member's `last_read_at`                 |
+| `messages`             | `body`, `document`, `mentions`, `parent_id`, `thread_id`, reply counts, pins, resolution and scheduling   |
+| `message_edits`        | The earlier versions of an edited message                                                                 |
+| `thread_reads`         | Read markers per thread root, and per conversation for readers who aren't members                         |
+
+| Permission          | Lets a member                                     | Default roles          |
+| ------------------- | ------------------------------------------------- | ---------------------- |
+| `messages.read`     | read the conversations they can see in a tenant   | `member`, `admin`      |
+| `messages.send`     | open conversations, send, edit their own messages | `member`, `admin`      |
+| `messages.moderate` | delete, pin and archive in any conversation       | `admin` (`messages.*`) |
+
+## Conversations
+
+A conversation's `kind` says what it is for, and its `access` says who reads
+it:
+
+| Kind       | Access              | Who reads it                                                         |
+| ---------- | ------------------- | -------------------------------------------------------------------- |
+| `channel`  | `members`, `tenant` | its members, or everyone with `messages.read` in the tenant          |
+| `dm`       | `members`           | the two people in it; opening it again returns the same conversation |
+| `group_dm` | `members`           | three to nine people, also opened once per set of people             |
+| `subject`  | `subject`           | whoever can read the linked record, one conversation per record      |
+
+Members must hold `messages.read` in the tenant. Sending to a `tenant`
+channel joins the sender to it. A `subject` conversation opens only in the
+record's own tenant: when the record's type has a tenant column in
+`config.records` and the row belongs to another tenant, `open_conversation`
+fails with `MESSAGING_NOT_FOUND`, for the service role as well. A type with
+`tenant: false` has no tenant to compare.
+
+Server code calls the `messaging` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useMessaging } = defineDataHooks(
+  "messaging",
+  (db: AppDb) => db.messaging,
+);
+```
+
+```ts
+import {
+  createMessaging,
+  sqlTransport,
+} from "better-supabase/blocks/messaging";
+
+const launch = await db.messaging
+  .open({ kind: "channel", title: "launch", memberIds: [alice, bob] })
+  .orThrow();
+const direct = await db.messaging.openDirect([alice]).orThrow();
+const thread = await db.messaging
+  .openSubject({ type: "deal", id: dealId })
+  .orThrow();
+```
+
+```tsx title="src/features/messaging/list.tsx"
+"use client";
+
+import { useMessaging } from "@/lib/supabase/hooks";
+
+const rows = useMessaging({ limit: 50 });
+```
+
+`conversations()` lists the caller's conversations, newest message first, with
+their unread and mention counts. `unreadCounts()` returns the counts alone for
+a sidebar badge, and `markRead` moves the caller's read marker.
+
+## Messages and threads
+
+```ts
+const message = await messaging
+  .send(launch.id, { body: `Ready @[Alice](${alice})` })
+  .orThrow();
+
+await messaging.send(launch.id, { body: "On it", parentId: message.id });
+const replies = await messaging.replies(message.id).orThrow();
+```
+
+`@[Name](<user id>)` in the body mentions a user, and `@channel` or `@here`
+mentions every member. Threads are one level deep by default: a reply to a
+reply joins the root's thread. Set `threadDepth: "unlimited"` to nest them.
+`list` returns the top-level messages (and replies sent with
+`broadcast: true`), oldest first, in pages; `replies` returns a thread.
+
+Only the author edits a message, within `editWindow` seconds when it is set,
+and every edit keeps the earlier version (`edits`). Deleting is a soft delete
+that clears the body and removes the message's files. `pin` and `resolve`
+mark a message for the conversation.
+
+With the [attachments](/docs/blocks/attachments) block, upload files to the
+conversation (subject `conversation`) and pass their ids as `attachmentIds`;
+`send` moves them onto the message. With the
+[reactions](/docs/blocks/reactions) block, every message carries its reaction
+summary.
+
+### File anchors
+
+`anchor` on a top-level message says where it points. A file anchor points at
+an attachment on the conversation's record or on one of its messages: a page,
+a region of the page or video frame (fractions from 0 to 1), or a moment or
+span in seconds. `fileAnchor` builds one and throws a `TypeError` when a value
+is out of range, and `send` fails with `MESSAGING_ANCHOR_INVALID` when the
+shape is wrong or the file is on another record. `anchoredTo` lists the
+messages anchored to a file, oldest first:
+
+```ts
+import { fileAnchor } from "better-supabase/blocks/messaging";
+
+await messaging.send(review.id, {
+  body: "The intro runs long",
+  anchor: fileAnchor(videoId, { start: 12.5, end: 20 }),
+});
+
+const notes = await messaging.anchoredTo(videoId).orThrow();
+```
+
+Any other JSON anchor, such as a text range, is stored as it is.
+`isFileAnchor` tells a file anchor from the rest when you render a message.
+
+## Record mentions
+
+`@[Name](subject:<type>/<id>)` mentions a record registered in
+[`config.records`](/docs/blocks/sql#subject-registry), such as a deal or a
+customer, and renders as a chip. `recordMention(name, subject)` writes one,
+`mentionSegments(body)` splits a body into text, user, record and scope
+segments for rendering, and `parseMentions(body)` returns the mentioned
+users, records and scope.
+
+```ts
+import { recordMention } from "better-supabase/blocks/messaging";
+
+await messaging.send(launch.id, {
+  body: `Renewal is close on ${recordMention("Acme", { type: "deal", id: dealId })}`,
+});
+
+const backlinks = await messaging
+  .recordMentions({ type: "deal", id: dealId })
+  .orThrow();
+```
+
+`send` and `edit` index the record mentions of a message; an edit that drops
+one drops its backlink. `recordMentions(subject, { before, limit })` lists the
+messages that mention a record, newest first (default 50, at most 200), each
+with its conversation's `id`, `kind`, `title` and `subject`. It returns
+nothing to a caller who can't read the record, and only the messages in
+conversations the caller reads. A mention of an unregistered type stays plain
+text. `message.sent` carries the mentioned records as `recordMentions`.
+
+## Thread summaries
+
+`summarize(target, summarizer)` writes a short summary of a conversation or
+a thread for someone who missed it, and `summary(target)` reads the saved
+one. The block never calls a model: the summarizer is a versioned
+`ThreadSummarizer` (`apiVersion: 1`) that receives the messages and returns
+the text, so any SDK can provide it. With the AI SDK, use
+[`summarizeWith`](/docs/ai-sdk#thread-summaries):
+
+```ts
+import { summarizeWith } from "better-supabase/ai-sdk";
+
+const summarizer = summarizeWith("anthropic/claude-sonnet-4.5");
+
+const summary = await messaging
+  .summarize({ threadId: rootId }, summarizer)
+  .orThrow();
+// { summary, model, messageCount, throughAt, stale, ... }
+```
+
+A target is `{ conversationId }` for the conversation's top-level messages
+or `{ threadId }` for a root message and its replies. `summarize` reads the
+messages as the caller, so a summary only covers what they can read, and
+leaves out internal notes, deleted messages and unsent scheduled ones. It
+sends at most `maxMessages` (default and maximum 200, the newest ones) and
+the previous summary, so the model updates it instead of starting over.
+
+A saved summary is `stale` once a message in its scope is sent after its
+`throughAt`, edited or deleted. `summarize` returns a current summary without
+calling the model again; `{ force: true }` writes a new one. Only the service
+role saves summaries, so pass the block the `service` transport
+(`createBlocks` does this): a member can't store a summary that misstates the
+thread. Every reader of the conversation reads it.
+
+## Notifications
+
+With the [notifications](/docs/blocks/notifications) block, sending a message
+notifies:
+
+| Type                | Who                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `message.mentioned` | mentioned users who can read the conversation, unless their `notify` is `none`     |
+| `message.direct`    | the other people in a direct or group message whose `notify` is `all`              |
+| `message.replied`   | the thread's followers: its author and everyone who replied, besides the mentioned |
+
+Each one carries a `subject_label`: the record's `subject_title` for a
+record's conversation, else the conversation's title. `message.replied` is
+sent only when the thread has a follower besides the replier and the
+mentioned members. `notify: false` sends none of the three, and following
+threads still works.
+
+`follow` starts or stops following a conversation or a thread, and
+`setNotify` sets a member's level for a conversation.
+
+## Scheduled messages
+
+`send` with `scheduledFor` stores the message unsent: only its author sees it
+until then. With the [jobs](/docs/blocks/queue) block the module enqueues a
+delayed `message.publish` job on `scheduleQueue`; without it, call
+`publishDue()` from a cron with the service role.
+
+## Realtime
+
+Each conversation has a private Realtime topic, `<topic>:<conversation id>`
+(`messages` by default). A trigger broadcasts `message`, `message_updated` and
+`message_deleted` with the ids, and `typing(conversationId)` broadcasts
+`typing`. Only callers who read the conversation can join its topic.
+`conversationTopic(id)` builds the topic name.
+
+The React hooks `useMessages` and `useConversations` follow these topics for
+a chat screen; see [Channels](/docs/blocks/channels#a-chat-screen). They are a
+registry item: install them with `npx shadcn add @better-supabase/use-messaging`,
+which writes `hooks/use-messaging.ts` into the app.
+
+## Options
+
+| Option          | Default       | What it does                                                |
+| --------------- | ------------- | ----------------------------------------------------------- |
+| `topic`         | `"messages"`  | The Realtime topic prefix                                   |
+| `threadDepth`   | `1`           | `1` keeps threads one level deep; `"unlimited"` nests them  |
+| `maxBodyLength` | `40000`       | The longest body, in characters                             |
+| `editWindow`    | `0`           | Seconds an author may edit a message; `0` for always        |
+| `scheduleQueue` | `"messaging"` | The jobs queue for scheduled messages                       |
+| `extraColumns`  | none          | Extra columns on `messages`, set through `fields` in `send` |
+| `notify`        | `true`        | `false` sends no message notifications                      |
+
+## Events
+
+The block writes `conversation.created`, `conversation.archived`,
+`conversation.member_added`, `conversation.member_removed`, `message.sent`,
+`message.edited`, `message.deleted`, `message.pinned` and `message.resolved`
+to the [outbox](/docs/blocks/outbox). Their payloads name the subject with
+`subjectType` and `subjectId`; see [Events](/docs/extending/events).
+
+The hooks `before_message_send` and `after_message_send` run inside `send`,
+and `before_message_edit` and `after_message_edit` inside `edit`; see [Extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.messaging` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createMessaging,
+  sqlTransport,
+} from "better-supabase/blocks/messaging";
+
+const messaging = createMessaging({
+  transport: sqlTransport(sql),
+  tenant: () => organizationId,
+});
+
+const launch = await messaging
+  .open({ kind: "channel", title: "launch", memberIds: [alice, bob] })
+  .orThrow();
+const direct = await messaging.openDirect([alice]).orThrow();
+const thread = await messaging
+  .openSubject({ type: "deal", id: dealId })
+  .orThrow();
+```

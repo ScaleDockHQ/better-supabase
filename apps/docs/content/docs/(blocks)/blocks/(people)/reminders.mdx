@@ -1,0 +1,117 @@
+---
+title: Reminders
+description: RFC 5545 recurrence and reminders, expanded in TypeScript and delivered through notifications.
+---
+
+`reminders` stores a recurrence rule, a reminder (who, how, how long before) and one delivery row per occurrence. Expansion runs in the app with `expandRule`, on `Temporal.ZonedDateTime`, so a local time stays put across a daylight-saving change. `list_reminder_schedule` returns each reminder with its rule. `planReminderDeliveries` expands a horizon and returns one delayed job per occurrence, with a dedupe key of reminder id and occurrence. `deliverReminder` calls `mark_reminder_sent`, which records `reminder.sent`, then your notify function.
+
+```bash
+better-supabase add reminders
+```
+
+The block's entity is `reminder` (the `reminders` table). It isn't registered as a subject. Rename it with `blocks.reminders.names`.
+
+```ts
+import {
+  createReminders,
+  planReminderDeliveries,
+} from "better-supabase/blocks/reminders";
+```
+
+`options.ruleFormat` is `rrule` (the default) or `columns`. The columns format maps `frequency`, `interval_count`, `week_days`, `month_day`, `month_weekday` and `month_ordinal`.
+
+`reminders.upsert(subject, offsetMinutes)` sets a reminder for the caller, `reminders.list(subject)` returns the caller's reminders on that subject, and `reminders.remove(id)` deletes one with its delivery history. All three need `reminders.manage`. The subject is a `RecordRef`, such as `{ type: "task", id: taskId }`, and `upsert` and `list` act in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. The [calendar](/docs/blocks/calendar) block mirrors each event into a rule, so reminders on a `calendar_event` fire.
+
+`expandRule` covers `FREQ`, `INTERVAL`, `COUNT`, `UNTIL`, `BYDAY` with ordinals, `BYMONTHDAY`, `BYMONTH`, `BYSETPOS` and `WKST`. The pin is `SPEC_PINS.rfc5545`.
+
+## Delivery
+
+`reminders.deliver(payload)` marks one occurrence sent and, when this call
+recorded it, calls `notifyDelivery`, which defaults to sending the
+`notification` type through the `notifier` port. It returns `ok(true)` for the first
+delivery and `ok(false)` for a replay, which records no second
+`reminder.sent` and sends nothing. `reminders.job` is the same call as a job
+handler, for the `reminders.deliver` queue (`REMINDER_DELIVERY_QUEUE`):
+
+Server code calls the `reminders` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useReminders } = defineDataHooks(
+  "reminders",
+  (db: AppDb) => db.reminders,
+);
+```
+
+```ts
+const rows = await db.reminders.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/reminders/list.tsx"
+"use client";
+
+import { useReminders } from "@/lib/supabase/hooks";
+
+const rows = useReminders({ limit: 50 });
+```
+
+Before it records the occurrence, `deliver` checks the reminder's user with
+`audience`, a `SubscriberPolicy`. A user it leaves out still has the
+occurrence recorded but gets no notification, and a throw fails the call
+with the hint `REMINDER_AUDIENCE_FAILED` so the job retries. Without the
+option it uses `authorization.delivery.audience`; with `authorization` and
+no such policy, it uses `subjectReaders`, so a user who lost read access to
+the subject stops getting its reminders:
+
+```ts
+createReminders({ ...context, authorization: bsb.authorization });
+```
+
+`reminder.sent` carries `organizationId`, `id`, `subjectType`, `subjectId`
+and `userId`, so a [watcher sink](/docs/blocks/notifications#watchers) can
+route it like any other subject event.
+
+## Your own fields
+
+`options.extraColumns` adds columns to `reminders`. `upsert` writes them (its last argument) from `fields`,
+and `upsert` return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { reminders: { options: { extraColumns: { channel: "text" } } } },
+});
+```
+
+```ts
+const client = createReminders({
+  transport,
+  tenant: organizationId,
+  fields: v.object({ channel: v.optional(v.picklist(["email", "push"])) }),
+});
+await client.upsert({ type: "task", id: taskId }, 30, { channel: "push" });
+```
+
+## Adopt mode
+
+Map `tables.rules`, `tables.reminders` and `tables.deliveries`. Collection-level defaults, such as `agenda_collection_notification_reminders`, are reminders whose subject is the collection.
+
+## Without the client
+
+`db.reminders` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const { reminders } = createBlocks(
+  { transport, service },
+  {
+    notifications: notificationsBlock,
+    reminders: remindersBlock.with({ notification: "reminder.due" }),
+  },
+);
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: { [REMINDER_DELIVERY_QUEUE]: reminders.job },
+});
+```

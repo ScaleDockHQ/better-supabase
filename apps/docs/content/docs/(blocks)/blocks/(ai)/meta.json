@@ -1,0 +1,15 @@
+{
+  "title": "AI",
+  "pages": [
+    "catalog-ai",
+    "vector-search",
+    "ai-chat",
+    "ai-files",
+    "knowledge",
+    "memory",
+    "agents",
+    "ai-schedules",
+    "ai-cache",
+    "ai-keys"
+  ]
+}

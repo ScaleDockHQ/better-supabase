@@ -1,0 +1,286 @@
+---
+title: Channels
+description: Public and private team channels on the messaging core, with topics, membership, linked records and live hooks for a chat screen.
+---
+
+The `channels` block adds Slack-style channels to an organization. Each
+channel is a [messaging](/docs/blocks/messaging) conversation of kind
+`channel` with a unique name, a topic, a purpose and an optional linked
+record, so messages, threads, mentions, typing, files and read markers all
+come from messaging. Direct messages stay in messaging (`openDirect`).
+
+```bash
+better-supabase add channels   # adds messaging, tenant, access and subjects as well
+```
+
+The `chat` preset installs channels with messaging, reactions and
+attachments on top of `saas`.
+
+The block's entity is `channel` (the `channels` table). It registers as a
+subject, so search, share links and reactions accept it, and its search
+document is the name, the topic and the purpose. Rename it with
+`blocks.channels.names`; see [Typed blocks](/docs/blocks/typed-blocks).
+`channelInputSchema` and `channelChangeSchema` validate what `create` and
+`update` take.
+
+| Permission        | Lets a member                                       | Default roles          |
+| ----------------- | --------------------------------------------------- | ---------------------- |
+| `messages.read`   | browse public channels and read the ones they're in | `member`, `admin`      |
+| `channels.create` | create a channel, which they then own               | `member`, `admin`      |
+| `channels.manage` | rename, change and archive any channel              | `admin` (`channels.*`) |
+
+## Create and browse
+
+Server code calls the `channels` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useChannels } = defineDataHooks(
+  "channels",
+  (db: AppDb) => db.channels,
+);
+```
+
+```ts
+import { createChannels, sqlTransport } from "better-supabase/blocks/channels";
+
+const general = await db.channels.create({ name: "General" }).orThrow();
+const launch = await db.channels
+  .create({
+    name: "launch",
+    visibility: "private",
+    topic: "Ship date and blockers",
+    memberIds: [alice, bob],
+  })
+  .orThrow();
+```
+
+```tsx title="src/features/channels/list.tsx"
+"use client";
+
+import { useChannels } from "@/lib/supabase/hooks";
+
+const rows = useChannels({ limit: 50 });
+```
+
+Names are trimmed and lowercased, and may hold letters, digits, `-` and `_`
+(`general`). A name already taken in the tenant fails with code `23505`, and
+an invalid one with `22023`. The creator owns the channel. A channel's `id` is
+also its conversation id, so pass it to `messaging.send` and the hooks below.
+
+| Visibility | Conversation access | Who sees and reads it                                          |
+| ---------- | ------------------- | -------------------------------------------------------------- |
+| `public`   | `tenant`            | everyone with `messages.read`; anyone of them can `join`       |
+| `private`  | `members`           | its members only; others get `undefined` from `get` and `find` |
+
+`list()` returns the caller's channels by name. `list({ browse: true })`
+returns every channel the caller can see, joined or not, with `memberCount`
+and the caller's `role`. Archived channels are left out unless
+`includeArchived` is set.
+
+## Membership
+
+`join` adds the caller to a public channel; joining a private one fails as if
+it did not exist. `leave` returns `false` when the caller wasn't a member.
+`invite(channelId, userIds)` adds people who hold `messages.read` in the
+tenant and returns how many joined. Any member of a private channel can
+invite; in a public channel, where people join themselves, only a holder of
+`messages.moderate` adds others. Sending to a public channel also joins the
+sender.
+
+`update` takes a partial change; `null` clears the topic or the purpose. Only
+the owner or a holder of `channels.manage` updates a channel.
+`archive(channelId)` makes it read-only and `archive(channelId, false)`
+restores it; the owner or a holder of `messages.moderate` archives.
+
+## Channels on a record
+
+Pass `subject` to link a channel to a record, such as a deal room for one
+customer. The caller must be able to read the record, and the record must
+belong to the channel's tenant.
+`list({ on: { type, id } })` lists the channels linked to it that the caller
+can see.
+
+```ts
+await channels.create({
+  name: "deal-acme",
+  subject: { type: "customer", id: customerId },
+});
+const rooms = await channels
+  .list({ on: { type: "customer", id: customerId } })
+  .orThrow();
+```
+
+## A chat screen
+
+The hooks are a registry item: install them with
+`npx shadcn add @better-supabase/use-messaging`, which writes
+`hooks/use-messaging.ts` into the app. They read the client from the app's
+provider (see
+[block controllers](/docs/frontend/block-controllers)). Both stay live over
+the conversations' Realtime topics.
+
+```tsx
+"use client";
+
+import { useConversations, useMessages } from "@/hooks/use-messaging";
+
+export function ChannelList() {
+  const { conversations } = useConversations({ kinds: ["channel"] });
+
+  return (
+    <ul>
+      {conversations?.map((channel) => (
+        <li key={channel.id}>
+          {channel.title} ({channel.unread})
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function Messages({ channelId }: { channelId: string }) {
+  const { messages, send } = useMessages({ conversationId: channelId });
+
+  return (
+    <>
+      {messages?.map((message) => (
+        <p key={message.id}>{message.body}</p>
+      ))}
+      <button type="button" onClick={() => void send("Hello")}>
+        Say hello
+      </button>
+    </>
+  );
+}
+```
+
+| Hook                                                         | Returns                                                                                                                |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `useConversations({ kinds, limit })`                         | `conversations` with `unread` and `mentions`, `status`, `error` and `refresh`                                          |
+| `useMessages({ conversationId, threadId, limit, markRead })` | `messages`, `hasOlder`, `typing`, and `send`, `edit`, `remove`, `pin`, `resolve`, `loadOlder`, `setTyping`, `markRead` |
+
+`useMessages` with a `threadId` shows that thread's replies, and `send` then
+replies into it. It moves the read marker as messages arrive unless
+`markRead` is `false`. `setTyping(true)` broadcasts again every three seconds
+while it is held. `createMessagesController` and
+`createConversationsController` from `better-supabase/blocks/messaging` run
+the same state without a framework.
+
+The UI recipes [`channel-sidebar`](/docs/registry/ui-recipes/channel-sidebar),
+[`message-list`](/docs/registry/ui-recipes/message-list),
+[`message-composer`](/docs/registry/ui-recipes/message-composer) and
+[`thread-panel`](/docs/registry/ui-recipes/thread-panel) build the full screen
+from shadcn components; the Next.js example serves it at `/chat`.
+
+## Vue, Svelte and Solid
+
+`useBlockController` from `better-supabase/vue`, `/svelte` and `/solid` runs
+`createMessagesController` or `createConversationsController` with its options,
+so pass a messaging client
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)); `auth` and
+`ports` come from the app's better-supabase plugin, store or provider unless you
+pass them. `createConversationsController` also takes `enabled`, which is `true`
+once the caller acts in a tenant.
+
+```vue title="Messages.vue"
+<script setup lang="ts">
+import {
+  createMessagesController,
+  createMessaging,
+  rpcTransport,
+} from "better-supabase/blocks/messaging";
+import { useBlockController } from "better-supabase/vue";
+
+const { channelId } = defineProps<{ channelId: string }>();
+const client = createMessaging({
+  transport: rpcTransport(supabase),
+  tenant: () => organizationId,
+});
+const { state, actions } = useBlockController(createMessagesController, {
+  client,
+  conversationId: channelId,
+});
+</script>
+
+<template>
+  <p v-for="message in state.messages ?? []" :key="message.id">
+    {{ message.body }}
+  </p>
+  <button type="button" @click="actions.send('Hello')">Say hello</button>
+</template>
+```
+
+```svelte title="Channels.svelte"
+<script lang="ts">
+  import { createConversationsController } from "better-supabase/blocks/messaging";
+  import { useBlockController } from "better-supabase/svelte";
+
+  const channels = useBlockController(createConversationsController, {
+    client,
+    enabled: true,
+    kinds: ["channel"],
+  });
+</script>
+
+<ul>
+  {#each $channels.conversations ?? [] as channel (channel.id)}
+    <li>{channel.title}</li>
+  {/each}
+</ul>
+```
+
+```tsx title="Channels.tsx"
+import { For } from "solid-js";
+import { createConversationsController } from "better-supabase/blocks/messaging";
+import { useBlockController } from "better-supabase/solid";
+
+export function Channels() {
+  const { state } = useBlockController(createConversationsController, {
+    client,
+    enabled: true,
+    kinds: ["channel"],
+  });
+
+  return (
+    <ul>
+      <For each={state().conversations ?? []}>
+        {(channel) => <li>{channel.title}</li>}
+      </For>
+    </ul>
+  );
+}
+```
+
+`supabase`, `organizationId` and `client` stand for your Supabase client, the
+active organization and the messaging client above.
+
+## Events
+
+The block writes `channel.created` and `channel.updated` to the
+[outbox](/docs/blocks/outbox). Their payloads carry the channel id, name and
+visibility, and name a linked record with `subjectType` and `subjectId`; see
+[Events](/docs/extending/events). Messages in a channel write the messaging
+block's events.
+
+## Without the client
+
+`db.channels` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createChannels, sqlTransport } from "better-supabase/blocks/channels";
+
+const channels = createChannels({
+  transport: sqlTransport(sql),
+  tenant: () => organizationId,
+});
+
+const general = await channels.create({ name: "General" }).orThrow();
+const launch = await channels
+  .create({
+    name: "launch",
+    visibility: "private",
+    topic: "Ship date and blockers",
+    memberIds: [alice, bob],
+  })
+  .orThrow();
+```

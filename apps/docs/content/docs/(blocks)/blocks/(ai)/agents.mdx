@@ -1,0 +1,116 @@
+---
+title: Agents
+description: Saved assistants with their own instructions, model, tools, connectors and knowledge, shared in an organization or a public store with installs and ratings.
+---
+
+The `agents` block stores assistants that users build and share. An agent
+has a slug, instructions, an optional model, the tools and connectors it
+may use, the knowledge scopes it searches and starter prompts.
+
+```bash
+better-supabase add agents   # adds tenant and access as well
+```
+
+| Table            | Holds                                                    |
+| ---------------- | -------------------------------------------------------- |
+| `agents`         | One agent per organization and slug, with its visibility |
+| `agent_installs` | Which users installed an agent                           |
+| `agent_ratings`  | One rating (1 to 5) and comment per agent and user       |
+| `agent_skills`   | Skill references an agent loads from a provider          |
+
+An agent starts private: only its owner sees it. Publishing it makes it
+visible to the organization's members (`organization`) or to every
+signed-in user (`public`). Moderators see and change every agent in the
+organization.
+
+| Permission    | Lets a member                 | Default roles              |
+| ------------- | ----------------------------- | -------------------------- |
+| `ai.read`     | see the organization's agents | `owner`, `admin`, `member` |
+| `ai.create`   | create agents                 | `owner`, `admin`, `member` |
+| `ai.share`    | publish an agent              | `owner`, `admin`, `member` |
+| `ai.moderate` | change or delete any agent    | `owner`, `admin`           |
+
+Rename the keys with `blocks.agents.permissions.read`, `.create`,
+`.publish` and `.moderate`. The `maxInstructions` option (100,000
+characters by default) limits the instructions.
+
+## Server
+
+Server code calls the `agents` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAgents } = defineDataHooks(
+  "agents",
+  (db: AppDb) => db.agents,
+);
+```
+
+```ts
+const rows = await db.agents.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/agents/list.tsx"
+"use client";
+
+import { useAgents } from "@/lib/supabase/hooks";
+
+const rows = useAgents({ limit: 50 });
+```
+
+```ts
+const agent = await agents
+  .create(organizationId, {
+    slug: "release-notes",
+    name: "Release notes",
+    instructions: "Write release notes from the merged pull requests.",
+    tools: ["search_knowledge"],
+    knowledgeScopes: [{ scope: "agent" }],
+  })
+  .orThrow();
+await agents.publish(agent.id, "organization").orThrow();
+```
+
+| Method                         | Does                                                      |
+| ------------------------------ | --------------------------------------------------------- |
+| `create`, `update`, `remove`   | Change the caller's agents                                |
+| `get`, `bySlug`                | Read one agent the caller can see                         |
+| `list(organizationId, filter)` | `store` (published), `mine` (owned) or `installed`        |
+| `publish(id, visibility)`      | Set `private`, `organization` or `public`                 |
+| `install`, `rate`              | Install or uninstall, and rate from 1 to 5 with a comment |
+| `setSkills`                    | Replace the skill references                              |
+
+Each agent carries `installCount`, `ratingCount`, the average `rating`,
+and for the caller `installed` and `myRating`. A slug that is taken in the
+organization fails with a `conflict` error.
+
+## AI SDK
+
+[`better-supabase/ai-sdk/agents`](/docs/ai-sdk/agents) turns an agent into
+a `ToolLoopAgent` with its tools, approvals and knowledge search.
+
+## Your own fields
+
+`blocks.agents.options.extraColumns` adds columns to the `agents` table,
+keyed by column name with their SQL type. Pass `createAgents` a Standard Schema
+for them as `fields`: `create`, `update` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and every agent read return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAgents({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```
+
+## Without the client
+
+`db.agents` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/agents.ts"
+import { createAgents, rpcTransport } from "better-supabase/blocks/agents";
+
+export const agentsFor = (supabase: SupabaseClient) =>
+  createAgents({ transport: rpcTransport(supabase) });
+```

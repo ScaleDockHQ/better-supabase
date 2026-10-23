@@ -1,0 +1,548 @@
+---
+title: Attachments
+description: Files linked to records in a tenant, uploaded through signed URLs to a private bucket and served only after a malware scan.
+---
+
+The `attachments` block links files to records in a tenant. Each file gets
+a row in `attachments` and an object in a private Storage bucket at
+`{organization_id}/attachments/{id}`. The bucket's policies accept an
+upload only when a pending record of the caller expects it, and serve a
+file only after your scanner marks it clean.
+
+```bash
+better-supabase add attachments   # adds tenant and access as well
+```
+
+The block's entity is `attachment` (the `attachments` table). It isn't registered as a subject, so files can't be attached to files. Rename it with `blocks.attachments.names`; the storage paths (`.../attachments/...`) and the `bsb_attachments_*` constraint and storage policy names keep the block name, so existing files stay where they are. `attachmentInputSchema` validates what `upload` takes.
+
+| Column                       | Holds                                                               |
+| ---------------------------- | ------------------------------------------------------------------- |
+| `subject_type`, `subject_id` | The record the file belongs to, or both null                        |
+| `bucket`, `object_path`      | Where the object lives; the path is generated from the id           |
+| `name`, `mime_type`, `size`  | The file name, and the type and size Storage stored                 |
+| `status`, `scan_detail`      | `pending`, `clean`, `infected` or `failed`, and what the scan found |
+| `uploaded_by`, `uploaded_at` | The uploader, and when `confirm` saw the object                     |
+
+| Permission           | Lets a member                                 | Default roles             |
+| -------------------- | --------------------------------------------- | ------------------------- |
+| `attachments.read`   | list attachments and download clean files     | `member`, `admin`         |
+| `attachments.upload` | upload files                                  | `member`, `admin`         |
+| `attachments.manage` | read any file and delete other members' files | `admin` (`attachments.*`) |
+
+The uploader can always read and delete their own file.
+
+## Options
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    attachments: {
+      options: {
+        bucket: "attachments",
+        maxSize: 25 * 1024 * 1024,
+        allowedMimeTypes: ["image/*", "application/pdf"],
+        requireScan: true,
+      },
+    },
+  },
+});
+```
+
+The module creates the bucket as private with `maxSize` (default 50 MiB) as
+its file size limit and `allowedMimeTypes` as its allowed types; an existing
+bucket keeps its settings. The table checks the same limits. With
+`requireScan: false`, `confirm` marks a file clean right away, and files
+nobody scanned are served too (an `infected` one never is). The client reads
+`requireScan` from `blocks.generated.ts`, which `better-supabase gen` writes
+from this config, so `defineBlocks` passes it to `createAttachments` and you
+never repeat it (see [the generated config](/docs/blocks/create-blocks#the-generated-config)).
+
+`publicBuckets` lists buckets that Storage serves without a signed URL, for
+media on a public page such as a product photo or an article image. The
+module creates those buckets as public and keeps every other bucket private,
+so removing a bucket from the list makes it private again on the next
+`better-supabase add`. A public bucket needs `requireScan: false`, because
+Storage serves its files before any scan could run. `attachments.publicUrl(attachment)`
+and `images.publicUrl(attachment, { transform })` return the URL; a file in
+a private bucket returns `ATTACHMENT_PRIVATE`, and an infected one
+`ATTACHMENT_NOT_SCANNED`.
+
+```ts title="better-supabase.config.ts"
+attachments: {
+  options: { publicBuckets: ["attachments"], requireScan: false },
+},
+```
+
+### Subjects and buckets
+
+`subjects` maps each subject type to its table, as in the
+[subject registry](/docs/blocks/sql#subject-registry): uploading and reading a file then
+also need the subject row to be readable through the subject table's own
+policies (and its `permission`), and an unlisted type is refused. A subject
+can keep its files in its own bucket with its own MIME types, so an app with a
+bucket per feature keeps them:
+
+```ts
+options: {
+  bucket: "attachments",
+  path: "{organization_id}/{subject_type}/{subject_id}/{id}",
+  subjects: {
+    chat_message: { table: "chat_messages", bucket: "chat", allowedMimeTypes: ["image/*", "application/pdf"] },
+    expense: { table: "expenses", bucket: "receipts", allowedMimeTypes: ["image/*"], cascade: true },
+  },
+},
+```
+
+The module creates every listed bucket that doesn't exist yet and adds its
+storage policies for each, next to any policies the bucket already has. With
+subjects, reading an object also needs its subject: the storage read policy
+checks that the caller sees the attachment row through its own read policy
+(`attachment_object_visible`), so a member who can't see the subject, or who
+isn't in the tenant, can't download its files, uploader and
+`attachments.manage` included.
+`cascade: true` deletes a subject's attachment rows with the subject row;
+remove the objects with `attachments.remove` or a storage cleanup job.
+
+### Permissions per subject
+
+`permissions` gives a subject type its own keys, in place of
+`attachments.read`, `attachments.upload` and `attachments.manage`, and
+`scope` names a provider scope whose ids are the subject ids, so a grant on
+the record itself counts next to one on the tenant. Both work as they do in
+the [subject registry](/docs/blocks/sql#subject-registry), and apply to the table's
+policies and to the storage checks in `attachment_object_allowed`:
+
+```ts
+subjects: {
+  contract: {
+    table: "contracts",
+    permissions: { read: "contracts.read", upload: "contracts.edit", manage: "contracts.manage" },
+  },
+  project: { table: "projects", idType: "uuid", scope: "project" },
+},
+```
+
+From 0.11, a subject the block takes from the registry (`config.records`)
+also takes its `upload` and `manage` keys from
+`records.<type>.permissions`. The registry's `read` stays the key for
+reading the subject itself, so set the files' `read` key in
+`blocks.attachments.on.<type>.permissions`, which also
+overrides the registry's keys one by one.
+
+Without its own keys, a subject's files follow the block-wide keys, so any
+member of the tenant with `attachments.read` reads them, even when the
+subject table lets only some members see the row. Doctor reports that case as
+[BS345](/docs/cli/doctor#bs345) when the table's policies check more than
+tenant membership.
+
+A subject without a tenant, such as a user's own notes, takes `tenant: false`:
+its files have no `organization_id`, their path starts with `-`, and the
+subject table's own policies alone decide who reads and uploads them, without
+tenant permissions. Other files still need a tenant. List those types in the
+client's `tenantless` option, so `upload`, `put` and `list` on such a subject
+send no tenant and need none:
+
+```ts
+subjects: {
+  note: { table: "notes", tenant: false },
+},
+```
+
+Server code calls the `attachments` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAttachments } = defineDataHooks(
+  "attachments",
+  (db: AppDb) => db.attachments,
+);
+```
+
+```ts
+await db.attachments
+  .upload(
+    { type: "note", id: noteId },
+    { name: file.name, mimeType: file.type, size: file.size },
+  )
+  .orThrow();
+```
+
+```tsx title="src/features/attachments/list.tsx"
+"use client";
+
+import { useAttachments } from "@/lib/supabase/hooks";
+
+const rows = useAttachments({ limit: 50 });
+```
+
+`path` sets the object path, from `{organization_id}` (required first),
+`{id}` (required), `{subject_type}` and `{subject_id}` (a file without a
+subject gets `-`). It defaults to `{organization_id}/attachments/{id}`.
+Changing it later rewrites the column on Postgres 17; on older versions,
+recreate the column in a migration.
+
+## Upload and download
+
+Uploading takes three steps: create the record and a signed upload URL on
+the server, upload the file from the browser, then confirm.
+
+```ts title="app/projects/[id]/actions.ts"
+"use server";
+
+import {
+  createAttachments,
+  rpcTransport,
+} from "better-supabase/blocks/attachments";
+
+export async function startUpload(projectId: string, file: FileMeta) {
+  const supabase = await createServerClient();
+  const attachments = createAttachments({
+    transport: rpcTransport(supabase),
+    storage: supabase.storage,
+    tenant: organizationId,
+  });
+  return attachments
+    .upload(
+      { type: "project", id: projectId },
+      { name: file.name, mimeType: file.type, size: file.size },
+    )
+    .orThrow();
+}
+```
+
+The first argument is the record as a `RecordRef` (`{ type, id }`), or
+`null` for a file without one. The tenant comes from the block's `tenant`
+option, an organization id or a function that returns the current one;
+`createBlocks` and `createBlockClient` pass the request's tenant (see
+[createBlocks](/docs/blocks/create-blocks#one-block-per-request)). A call
+that needs a tenant and has none fails with `invalid_request` and the hint
+`TENANT_REQUIRED`. Each attachment carries `subject` (a `RecordRef`, or
+`undefined` without one) and `organizationId`.
+
+The browser uploads with the token,
+`supabase.storage.from(bucket).uploadToSignedUrl(path, token, file)`, or a
+`PUT` to `signedUrl`. Then `attachments.confirm(id)` checks that the object
+exists, takes its size and type from Storage and writes
+`attachment.uploaded` to the outbox. `confirm` returns
+`not_found` with the hint `ATTACHMENT_NOT_UPLOADED` until the object exists.
+
+`upload` takes `metadata`, a JSON object kept with the record in the
+`metadata` column (a caption, where the file came from), and every
+attachment returns it as `metadata` (`{}` without any). It also takes
+`width` and `height` in pixels for an image and `pages` for a document, so a
+list can lay out previews and show a page count before any file loads.
+
+`download(id)` returns a signed URL (300 seconds by default, `downloadTtl`
+changes it; `{ as: "plan.pdf" }` sets the download name). Until the scan
+passes it returns `invalid_request` with the hint `ATTACHMENT_NOT_SCANNED`.
+`list({ type, id })` lists a record's files oldest first (`list()` lists
+every file of the tenant), and `remove(id)` deletes the object and then the
+row.
+
+With the [profiles](/docs/blocks/profiles) module installed, each file that
+`list` returns carries `author` (type `Author`): the uploader's `id`, `name`
+and `avatarUrl`. `list_attachments` reads them through
+`attachment_authors(uuid[])`, a security definer function that returns only
+the uploaders of files the caller may read. `author` is `undefined` without
+the profiles module and once the account is deleted, and the other methods
+leave it out; `uploadedBy` is always there.
+
+Files the server makes or fetches (an export, a generated PDF, an import
+from a URL) go through `put(subject, attachment, file)`, which creates the record,
+uploads the bytes with the storage client and confirms it in one call,
+without a signed upload URL. Both work in a writable
+[support session](/docs/auth/impersonation#storage-in-a-support-session):
+there `confirm` first claims the browser's upload for the user the admin
+acts as and records the session on the object. A refused claim returns
+`forbidden` with the hint `ATTACHMENT_FORBIDDEN`, or `not_found` with
+`ATTACHMENT_NOT_UPLOADED`, and the record stays pending. When Storage
+refuses the signed upload URL or the upload (a bucket policy or a read-only
+support session), `upload` and `put` delete the record again and return the
+refusal, so no pending record is left behind. `read(id)` returns the bytes as a `Blob` for server-side processing, behind
+the same scan gate as `download` (`ATTACHMENT_NOT_SCANNED` until the scan
+passes):
+
+```ts
+const report = await attachments
+  .put(
+    { type: "project", id: projectId },
+    { name: "report.pdf", mimeType: "application/pdf", size: pdf.byteLength },
+    pdf,
+  )
+  .orThrow();
+
+const { file } = await attachments.read(attachmentId).orThrow();
+const text = await extractText(await file.arrayBuffer());
+```
+
+Pass the caller's Supabase client so the table and bucket policies apply;
+`createAttachments` never needs the service role. A service-role client works
+too, for jobs that act for no user.
+
+### Upload from the browser
+
+`useAttachmentUpload` runs the three steps for each file, side by side, and
+reports progress. It watches each file until the scan answers, so an upload
+ends as `done` or `blocked`. The hook is a registry item: install it with
+`npx shadcn add @better-supabase/use-attachments`, which writes
+`hooks/use-attachments.ts` into the app. `createAttachmentUploadController`
+is the framework-free controller under it, and Vue, Svelte and Solid run it
+with `useBlockController` from `better-supabase/vue`, `/svelte` and `/solid`
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)).
+
+```tsx title="app/projects/[id]/files.tsx"
+"use client";
+
+import { useAttachmentUpload } from "@/hooks/use-attachments";
+
+export function ProjectFiles({ projectId }: { projectId: string }) {
+  const { uploads, add, retry, dismiss } = useAttachmentUpload({
+    subject: { type: "project", id: projectId },
+  });
+
+  return (
+    <input
+      type="file"
+      multiple
+      onChange={(event) =>
+        add(
+          [...(event.target.files ?? [])].map((file) => ({
+            file,
+            name: file.name,
+          })),
+        )
+      }
+    />
+  );
+}
+```
+
+Each upload has a `status` (`uploading`, `confirming`, `scanning`, `done`,
+`blocked` for an infected file, or `error`), a `progress` from 0 to 1, the
+attachment `id` once created and the `error`. `retry(key)` starts a failed
+upload again, `dismiss(key)` stops one and drops it, `clear()` drops the
+uploads that ended, and `busy` says whether any is still running. Pass
+`start` and `confirm` server actions to create the record on the server,
+`onUploaded` to refresh the list, and `send` to replace the default
+`XMLHttpRequest` upload (in React Native, for example).
+
+In Vue, Svelte and Solid, `useBlockController` passes the controller's
+options as they are, so pass `start` and `confirm` yourself, and `refresh` to wait for
+the scan. Vue returns `state` as a shallow ref with the actions on
+`actions`:
+
+```vue title="ProjectFiles.vue"
+<script setup lang="ts">
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createAttachments,
+  createAttachmentUploadController,
+  rpcTransport,
+} from "better-supabase/blocks/attachments";
+
+const { projectId } = defineProps<{ projectId: string }>();
+const supabase = useSupabase();
+const attachments = createAttachments({
+  transport: rpcTransport(supabase),
+  storage: supabase.storage,
+});
+const status = (id: string) =>
+  attachments.get(id).map((file) => ({ status: file.status }));
+
+const { state, actions } = useBlockController(
+  createAttachmentUploadController,
+  {
+    start: (file) =>
+      attachments
+        .upload({ type: "project", id: projectId }, file)
+        .map((upload) => ({
+          id: upload.attachment.id,
+          signedUrl: upload.signedUrl,
+        })),
+    confirm: (id) =>
+      attachments.confirm(id).map((file) => ({ status: file.status })),
+    refresh: status,
+  },
+  false,
+);
+</script>
+```
+
+Svelte runs the same controller with `useBlockController` from
+`better-supabase/svelte`, which returns a readable store (`$uploads.uploads`,
+with the actions on `.actions`), and Solid runs it with `useBlockController`
+from `better-supabase/solid` and reads the snapshot with `state()`:
+
+```ts
+import { createAttachmentUploadController } from "better-supabase/blocks/attachments";
+import { useBlockController } from "better-supabase/svelte";
+import { useBlockController as useSolidController } from "better-supabase/solid";
+
+const uploads = useBlockController(
+  createAttachmentUploadController,
+  options,
+  false,
+);
+const { state, actions } = useSolidController(
+  createAttachmentUploadController,
+  options,
+  false,
+);
+```
+
+## Versions
+
+`replace(id, file)` starts a new version of a file and returns a signed
+upload URL, like `upload`: the current file becomes an earlier version, and
+the new one goes through the upload, `confirm` and the scan before it can be
+downloaded. Only the uploader (with `attachments.upload`) or someone with
+`attachments.manage` can replace a file. `versions(id)` lists the earlier
+versions newest first, `download(id, { version })` signs one of them, and
+`restore(id, version)` makes one current again, keeping the current file as
+an earlier version. `remove(id)` deletes every version's file.
+
+```ts
+const next = await attachments
+  .replace(attachmentId, {
+    name: "plan-v2.pdf",
+    mimeType: "application/pdf",
+    size: file.size,
+  })
+  .orThrow();
+// Upload to next.signedUrl, then confirm(attachmentId).
+const [previous] = await attachments.versions(attachmentId).orThrow();
+await attachments.restore(attachmentId, previous.version).orThrow();
+```
+
+## Image previews
+
+`attachments.images(variants)` signs resized URLs of image files, in the shape
+`useImage` from `better-supabase/react` takes. Name the sizes once, and pass
+an attachment or its id. The URLs stay behind the scan gate
+(`ATTACHMENT_NOT_SCANNED`), and a file that isn't `image/*` returns
+`ATTACHMENT_NOT_IMAGE`.
+
+```tsx
+const images = attachments.images({
+  thumb: { width: 160, height: 160, resize: "cover" },
+});
+
+const { src, srcSet, width, height } = useImage(images, attachment, "thumb");
+```
+
+The variants use Supabase image transformations, so the project needs them
+turned on (see [image transformations](/docs/platform/storage#image-transformations)).
+
+## Scanning
+
+`createAttachmentScanner` runs your scanner (ClamAV, a scanning API) on each
+uploaded file with a service-role client, and records the verdict with
+`set_attachment_status`, which only the service role can call.
+
+```ts title="app/api/cron/attachments/route.ts"
+import {
+  createAttachmentScanner,
+  sqlTransport,
+} from "better-supabase/blocks/attachments";
+
+const scanner = createAttachmentScanner({
+  transport: sqlTransport(postgres.admin),
+  storage: supabaseAdmin.storage,
+  scan: async (file) => {
+    const result = await clamav.scan(await file.arrayBuffer());
+    return result.infected
+      ? { status: "infected", detail: result.signature }
+      : { status: "clean" };
+  },
+});
+
+await outbox.relay("attachment-scans", scanner.sink());
+```
+
+`scanner.sink()` scans the file of each `attachment.uploaded` event, and
+`scanner.job` is a [jobs](/docs/blocks/queue) handler for an
+`{ attachmentId }` payload when you prefer a queue. A file that is already
+clean or infected is not scanned again, so replays are safe. When `scan`
+throws, the file is marked `failed` with the error as `scan_detail`, the
+result is an error with the hint `ATTACHMENT_SCAN_FAILED`, and the next
+attempt scans it again. An event or job for an attachment that was deleted
+before its scan is done: the sink skips it and the job completes, so one
+deleted file never blocks the events behind it in the relay. Other errors,
+such as a failed download or a throwing `scan`, still throw so the relay or
+the queue retries.
+
+### Any bucket
+
+The scan gate also works without the attachments table, for a file drive,
+avatars or generated exports. `scanned_objects` holds one row per object,
+`object_clean(bucket, path)` answers in any storage policy, and
+`createObjectScanner` records verdicts with `set_object_scan` (service role):
+
+```sql
+create policy "drive files are clean" on storage.objects for select to authenticated
+  using (bucket_id = 'files' and better_supabase.object_clean(bucket_id, name) and ...);
+```
+
+```ts
+const objects = createObjectScanner({
+  transport: sqlTransport(postgres.admin),
+  storage: supabaseAdmin.storage,
+  scan: (file, { bucket, path }) => scanWithClamav(file),
+});
+await outbox.relay("object-scans", objects.sink());
+```
+
+With `scanBuckets: ["files"]`, a trigger on `storage.objects` gives each new
+or replaced object in those buckets a `pending` row and writes an
+`object.uploaded` event (`{ bucket, path }`), which `objects.sink()` scans;
+`objects.job` takes the same payload from a queue. An object deleted from
+storage before its scan (`NoSuchKey`) is skipped the same way; a missing
+bucket or any other error still throws. Scanning an attachment also records
+its object in `scanned_objects`, so both gates agree.
+
+## Events
+
+With the outbox installed, the module writes these events with the tenant as
+the partition key and `attachments/<id>` as the subject:
+
+| Event                 | When                                                   | Data                                                                         |
+| --------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `attachment.uploaded` | `confirm` saw the object                               | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `mimeType`, `size` |
+| `attachment.scanned`  | a scan result was recorded                             | `attachmentId`, `status`, `uploadedBy`                                       |
+| `attachment.replaced` | `replace` started a new version                        | `attachmentId`, `subjectType`, `subjectId`, `uploadedBy`, `version`          |
+| `attachment.restored` | `restore` made an earlier version current              | `attachmentId`, `subjectType`, `subjectId`, `version`                        |
+| `object.uploaded`     | an object landed in a `scanBuckets` bucket (no tenant) | `bucket`, `path`                                                             |
+
+## Your own fields
+
+`blocks.attachments.options.extraColumns` adds columns to the `attachments` table,
+keyed by column name with their SQL type. Pass `createAttachments` a Standard Schema
+for them as `fields`: `upload`, `put` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and every attachment read return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAttachments({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```
+
+## Without the client
+
+`db.attachments` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const attachments = createAttachments({
+  transport: rpcTransport(supabase),
+  storage: supabase.storage,
+  tenantless: ["note"],
+});
+
+await attachments
+  .upload(
+    { type: "note", id: noteId },
+    { name: file.name, mimeType: file.type, size: file.size },
+  )
+  .orThrow();
+```

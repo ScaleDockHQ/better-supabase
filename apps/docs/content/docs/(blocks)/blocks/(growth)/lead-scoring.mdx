@@ -1,0 +1,176 @@
+---
+title: Lead scoring
+description: Score people and companies under a tenant-editable score model whose rules read the record, its segments, its email activity and its enrichment.
+---
+
+The `lead-scoring` block keeps a [score](/docs/blocks/scores) on every
+[person](/docs/blocks/contacts), and optionally every company, under one score
+model per organization. The model's rules read the record's own columns and
+three sets of fields the block adds: the [segments](/docs/blocks/segments)
+the record is in, its email activity from [mail-sync](/docs/blocks/mail-sync)
+and its [enrichment](/docs/blocks/enrichment) status. A trigger marks a
+record when it, its segments or its mail change, and a scheduled run scores
+the marked ones.
+
+```bash
+better-supabase add lead-scoring   # adds tenant, access, parties and scores as well
+```
+
+Scoring one record needs `scores.compute`, as for any score. The block adds
+no permissions of its own.
+
+## Define the lead model
+
+The organization's lead model is a `scores` model with the key `lead` over
+`person`. `syncFields` replaces a subject type's catalog, so sync the
+record's columns and the block's fields as one catalog once per deploy, then
+save the model:
+
+Server code calls the `lead-scoring` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useLeadScoring } = defineDataHooks(
+  "leadScoring",
+  (db: AppDb) => db.leadScoring,
+);
+```
+
+```ts
+const rows = await db.leadScoring.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/lead-scoring/list.tsx"
+"use client";
+
+import { useLeadScoring } from "@/lib/supabase/hooks";
+
+const rows = useLeadScoring({ limit: 50 });
+```
+
+`repliedOnce` and `inEnterpriseSegment` are filter trees over the fields
+below, such as `mail.replied` greater than 0 or `segments` containing a
+segment's id.
+
+| Field                | Type        | What it holds                                   |
+| -------------------- | ----------- | ----------------------------------------------- |
+| `segments`           | multiselect | the ids of the segments the record is in        |
+| `mail.sent`          | number      | emails sent to the record                       |
+| `mail.opened`        | number      | emails it opened                                |
+| `mail.clicked`       | number      | emails it clicked a link in                     |
+| `mail.replied`       | number      | replies it sent                                 |
+| `mail.lastSentAt`    | date        | when the last email went out                    |
+| `mail.lastRepliedAt` | date        | when it last replied                            |
+| `enrichment.status`  | select      | `matched` or `not_found`, from the last request |
+
+The segments, mail and enrichment fields are empty when that block isn't
+installed. Set `companyModel` to score companies too, under a second model
+over `company`.
+
+## Score
+
+```ts
+import {
+  createLeadScoring,
+  rpcTransport,
+} from "better-supabase/blocks/lead-scoring";
+
+const leads = createLeadScoring({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+});
+
+const score = await leads.score({ type: "person", id: person.id }).orThrow();
+// { score: 62, band: "hot", changed: true, breakdown: { rules, metrics } }
+```
+
+`score(subject)` scores one record now. `fields(subject)` returns the values
+the model reads for it, which helps when a rule doesn't match the way you
+expect.
+
+`scoreDue()` runs as the service role and scores up to `limit` (100) records
+that were marked since their last score or weren't scored for
+`rescoreAfterHours`. It returns how many it scored. Call it from a cron
+route:
+
+```ts title="app/api/cron/lead-scores/route.ts"
+export async function GET() {
+  const scored = await blocks["lead-scoring"]
+    .scoreDue({ limit: 200 })
+    .orThrow();
+
+  return Response.json({ scored });
+}
+```
+
+A changed score emits `score.changed` from the scores block, so a workflow
+can assign a hot lead or enroll it in a [sequence](/docs/blocks/sequences).
+
+## Options
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "lead-scoring": { options: { companyModel: "account-fit" } },
+},
+```
+
+| Option              | Default  | What it does                                            |
+| ------------------- | -------- | ------------------------------------------------------- |
+| `personModel`       | `"lead"` | the key of the model people are scored under            |
+| `companyModel`      | `""`     | the key of the model companies are scored under, if any |
+| `rescoreAfterHours` | `24`     | hours after which an unchanged record is scored again   |
+
+| Error code               | When                                                  |
+| ------------------------ | ----------------------------------------------------- |
+| `LEAD_SCORING_FORBIDDEN` | the caller lacks `scores.compute`                     |
+| `LEAD_SCORING_NOT_FOUND` | there is no such record in the organization           |
+| `LEAD_SCORING_SUBJECT`   | the subject type is not a person, or a scored company |
+
+## Without the client
+
+`db.leadScoring` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createAutomationsAdmin,
+  defineRuleFields,
+} from "better-supabase/blocks/automations";
+import { leadRuleFields } from "better-supabase/blocks/lead-scoring";
+import { createScores } from "better-supabase/blocks/scores";
+
+const columns = defineRuleFields("person", {
+  lifecycle: { type: "select", options: ["lead", "customer"] },
+});
+
+await createAutomationsAdmin({ transport: serviceTransport })
+  .syncFields({
+    subjectType: "person",
+    fields: [...columns.fields, ...leadRuleFields("person").fields],
+  })
+  .orThrow();
+
+await createScores({ transport, tenant: organizationId })
+  .saveModel({
+    key: "lead",
+    name: "Lead score",
+    subjectType: "person",
+    rules: [
+      { id: "replied", conditions: repliedOnce, points: 30 },
+      { id: "enterprise", conditions: inEnterpriseSegment, points: 20 },
+    ],
+    metrics: [
+      {
+        id: "opens",
+        source: "field",
+        field: "mail.opened",
+        weight: 2,
+        cap: 20,
+      },
+    ],
+    bands: [
+      { label: "hot", min: 50 },
+      { label: "warm", min: 20 },
+      { label: "cold", min: -1000 },
+    ],
+  })
+  .orThrow();
+```

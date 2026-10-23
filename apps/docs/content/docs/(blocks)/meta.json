@@ -1,0 +1,6 @@
+{
+  "title": "Blocks",
+  "description": "The block catalog, presets and UI recipes.",
+  "root": true,
+  "pages": ["blocks", "presets", "registry"]
+}

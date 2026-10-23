@@ -1,0 +1,15 @@
+{
+  "title": "Developer",
+  "pages": [
+    "catalog-developer",
+    "webhooks-out",
+    "webhooks-in",
+    "api-keys",
+    "service-accounts",
+    "signing-keys",
+    "security-events",
+    "oauth-server",
+    "vercel-marketplace",
+    "incidents"
+  ]
+}

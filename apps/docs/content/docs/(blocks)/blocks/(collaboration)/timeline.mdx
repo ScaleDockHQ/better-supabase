@@ -1,0 +1,188 @@
+---
+title: Activity
+description: An activity feed per tenant and a timeline per record, filled from outbox events and joined with audit entries, notification deliveries and workflow runs.
+---
+
+The `timeline` block keeps a tenant's activity feed and each record's
+timeline. An outbox sink, `activitySink`, writes outbox events into
+`activity_entries`, and `createTimeline().list` reads the feed or one
+record's timeline, joined with the record's audit entries, notification
+deliveries and workflow runs when those blocks are installed.
+
+```bash
+better-supabase add timeline   # adds tenant and access as well
+```
+
+Until 0.14 the feed was part of the comments block. Add `activity: {}` to
+`blocks` to keep it; see [From 0.13 to 0.14](/docs/migration/0.13-to-0.14#comments-on-the-messaging-core).
+The crm, projects, helpdesk and docs [presets](/docs/presets) include it.
+
+| Table              | Holds                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `activity_entries` | One row per outbox event: `type`, `actor_id`, `subject_type`, `subject_id`, `summary`, `data`, `occurred_at` |
+
+| Permission      | Lets a member                   | Default roles     |
+| --------------- | ------------------------------- | ----------------- |
+| `activity.read` | read the tenant's activity feed | `member`, `admin` |
+
+`blocks.timeline.permissions.read` renames the key.
+
+## Writing the feed
+
+`activitySink` is an outbox sink that writes events into `activity_entries`.
+Run it as a consumer with a service-role transport, since
+`record_activity()` is granted to `service_role` only:
+
+```ts title="app/api/cron/activity/route.ts"
+import { activitySink, sqlTransport } from "better-supabase/blocks/timeline";
+
+await outbox.relay(
+  "activity",
+  activitySink({
+    transport: sqlTransport(postgres.admin),
+    types: ["message.sent", "status.changed", "billing.*"],
+    describe: (event, type) =>
+      type === "message.sent" ? { summary: "commented" } : {},
+  }),
+);
+```
+
+Events without a tenant are skipped, and the event id is unique, so a
+replayed batch writes nothing twice. `types` keeps the events whose type
+matches exactly or by a `.*` prefix. The actor is the event's `actorId`,
+`authorId` or `userId`. The subject is the event's `recordType` and
+`recordId`, then its `subjectType` and `subjectId`, then the CloudEvents
+`subject`, so a comment (`message.sent` on a record conversation) lands on
+the record's timeline. `describe` can set the summary, actor, subject and
+data, or return `null` to skip an event.
+
+## Reading the feed
+
+`createTimeline({ transport, tenant })` builds the client, or
+`createBlockClient(ctx.db, timelineBlock, { config: blockConfig })` builds it
+for a request (see
+[createBlocks](/docs/blocks/create-blocks#one-block-per-request)).
+`list(subject?, { cursor, limit, sources })` reads the feed through
+`list_activity`, which runs as the caller: the tenant's entries newest first,
+or one record's timeline when you pass `{ type, id }`. Pass `null` or nothing
+for the tenant feed. It works over `rpcTransport` too, without exposing the
+module schema. Each entry's `subject` is a `RecordRef`, or `undefined` for
+an entry without one.
+
+Server code calls the `timeline` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useTimeline } = defineDataHooks(
+  "timeline",
+  (db: AppDb) => db.timeline,
+);
+```
+
+```ts
+import { createTimeline, rpcTransport } from "better-supabase/blocks/timeline";
+
+const timeline = await db.timeline
+  .list({ type: "quote", id: quoteId }, { limit: 20 })
+  .orThrow();
+```
+
+```tsx title="src/features/timeline/list.tsx"
+"use client";
+
+import { useTimeline } from "@/lib/supabase/hooks";
+
+const rows = useTimeline({ limit: 50 });
+```
+
+`limit` defaults to 50 and is at most 500, and `cursor` (an instant) pages
+back. Each entry carries a `source`: `event` for a row of `activity_entries`,
+`audit` for an audit log entry, `delivery` for a notification delivery and
+`run` for a workflow run (see below). Pass `sources` to keep some of them:
+
+```ts
+const sent = await activity
+  .list({ type: "quote", id: quoteId }, { sources: ["delivery"] })
+  .orThrow();
+```
+
+### Visibility per record
+
+With the `subjects` module of the
+[subject registry](/docs/blocks/sql#subject-registry) installed, the feed only
+shows a caller the entries on records they can read. The read policy on
+`activity_entries` checks `can_subject(subject_type, subject_id, 'read')` row
+by row for every subject type in the registry, so the tenant feed, the
+record timeline and `activityListQuery` all leave out entries on records the
+caller can't read, and entries on a deleted record. `list_activity` returns
+an empty timeline for a record the caller can't read. Entries without a
+subject, or on a type the registry doesn't list, keep the tenant check alone.
+
+### Audit entries in a timeline
+
+With the [audit](/docs/blocks/audit) module installed with
+`options.readPolicy: true`, a record's timeline also returns the audit log
+entries for the record's row: the entries whose table is the type's
+registry table and whose record id is the subject id. The audit read policy
+gates them, so only callers who hold `audit.read` (by default `admin` and
+`owner`) see them. An audit entry has `source: "audit"`, the audit entry id
+as `id`, the audit event type as `type` (`audit.<op>` when it has none), and
+`op`, `changed` and `table` in `data`. The tenant feed and
+`activityListQuery` list no audit entries.
+
+### Deliveries and workflow runs in a timeline
+
+With the subject registry and the [notifications](/docs/blocks/notifications)
+module, a record's timeline also returns the deliveries of notifications
+about the record: one entry per channel and recipient, with
+`source: "delivery"`, `delivery.<status>` as `type` and `channel`, `status`,
+`userId`, `notificationId` and `notificationType` (plus `providerStatus` and
+`templateKey` when tracked) in `data`. A recipient can read only their own
+deliveries, so `list_activity` reads them through the security definer
+function `activity_subject_deliveries`, which returns them to callers who
+hold both `activity.read` and `notifications.send`, the same bar as
+`list_subject_deliveries`.
+
+With the [workflows](/docs/blocks/workflows) module, it returns the
+record's workflow runs with `source: "run"`, `run.<status>` as `type` and
+`runId`, `definition`, `status` and `error` in `data`. Runs are read as the
+caller, so the run's read policy applies: its actor, or members with
+`workflow.read` (by default only `owner`).
+
+Both need `can_subject` read on the record, and the tenant feed lists
+neither.
+
+## A list query
+
+`activityListQuery` reads `activity_entries` as a cursor-paged
+[list query](/docs/platform/list) filtered by type, actor and subject,
+newest first (sorts `newest` and `oldest`, facets `type`, `actor`,
+`subjectType` and `subjectId`). Generate types for the `better_supabase`
+schema to have the table in your models:
+
+```ts
+import { activityListQuery } from "better-supabase/blocks/timeline";
+
+export const activity = activityListQuery(betterSupabase, "activityEntries", {
+  pageSize: 30,
+});
+```
+
+The block also takes `hooks` around `list`; see
+[extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.timeline` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createTimeline, rpcTransport } from "better-supabase/blocks/timeline";
+
+const activity = createTimeline({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+});
+
+const timeline = await activity
+  .list({ type: "quote", id: quoteId }, { limit: 20 })
+  .orThrow();
+```

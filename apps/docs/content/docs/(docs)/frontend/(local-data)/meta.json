@@ -1,0 +1,11 @@
+{
+  "title": "Local data",
+  "pages": [
+    "local-data",
+    "query",
+    "tanstack-db",
+    "live-queries",
+    "powersync",
+    "sqlite"
+  ]
+}

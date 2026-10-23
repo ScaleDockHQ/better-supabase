@@ -1,0 +1,679 @@
+---
+title: Realtime
+description: Typed broadcast topics with generated authorization, row-change triggers and disposable subscriptions.
+---
+
+`defineTopic` describes a private Realtime broadcast topic once. The same
+definition names the channel, authorizes it in SQL, validates payloads, and
+subscribes.
+
+```ts title="lib/topics.ts"
+import { defineTopic } from "better-supabase/realtime";
+import * as v from "valibot";
+
+export const customersTopic = defineTopic(
+  "organization:{organizationId}:customers",
+);
+
+export const notifications = defineTopic(
+  "organization:{organizationId}:notifications:{userId}",
+  {
+    events: { created: v.object({ id: v.string(), title: v.string() }) },
+    send: true,
+  },
+);
+```
+
+Or declare templates under `topics` in `better-supabase.config.ts` and pass
+the generated constant: `defineTopic(topics.notifications)`.
+
+The result also describes itself for [AsyncAPI](/docs/specs/asyncapi#broadcast-topics):
+`events` and `presenceSchema` hold the payload schemas, `clientSend` says
+whether clients may broadcast, `permission` is the instance permission key,
+and `status` is the platform status of the topic. Private topics rely on
+Realtime Authorization, which is in public beta, so their `status` is
+`beta`; public topics are `ga`. `topicsFrom(module)` from
+`better-supabase/spec` passes a module's topics to `defineApi`.
+
+## Authorization
+
+Topics are private by default: Realtime checks `realtime.messages` policies
+when a client joins. `topic.sql()` generates them:
+
+- The topic must match the template (`^organization:[^:]+:notifications:[^:]+$`).
+- `{organizationId}` must equal the JWT `tenant_id` (or `app_metadata.tenant_id`).
+  This check and the `bsb:t:*` receive policy of `realtime-tables` read the
+  claim, not the membership table, so a removed member can still join until
+  their token expires. A topic with `access` checks membership through
+  `tenant_ids_with()` instead; see
+  [Removed members](/docs/repository/permissions#removed-members-and-the-tenant-claim).
+- `{userId}` must equal `auth.uid()`.
+
+Both checks switch on automatically when the template has those placeholders.
+Configure them with `tenant: { param, claim | sql }` and `owner: { param }`,
+or turn them off with `false`. `send: true` adds an insert policy so clients
+can broadcast too, and `presence` authorizes [presence](#presence).
+
+`access` replaces the tenant check with permissions: joining needs `receive`
+in the scope named by the `{organizationId}` segment, and sending needs
+`send`. Without `sql`, the policies call the [access contract](/docs/repository/permissions)
+(`tenant_ids_with`, or `is_platform` for `scope: 'platform'`). With an
+[authorization provider](/docs/extending/authorization-providers),
+`sql: "provider"` calls its `idsWith` and `isPlatform` functions for any
+scope:
+
+```ts
+export const board = defineTopic("organization:{organizationId}:board", {
+  access: {
+    receive: "board.read",
+    send: "board.write",
+    scope: "organization",
+    sql: "provider",
+  },
+});
+```
+
+`better-supabase upgrade` fills in the config's `authorization.functions`.
+Anywhere else, pass them to `topic.sql({ functions })`; without them it
+throws. An object with `idsWith` and `isPlatform` copies the templates
+instead.
+
+Without `send`, clients can only receive. `segment` (1-based, `:`-separated)
+works as for [buckets](/docs/platform/storage#provider-permissions). The
+segment is compared as text, so it must be the id's canonical lowercase form:
+a topic with an uppercase uuid is denied.
+
+The policies check role and scope, not a permission's row conditions. Use a
+key only when its grants have no row conditions beyond the scope: for one
+that has them, the topic lets every member of the scope join or send. Keep
+those permissions on tables.
+
+```ts
+// Wrong: board.read is granted only for boards the member owns
+access: { receive: "board.read", scope: "organization", sql },
+// Right: board.view is granted per organization, with no row condition
+access: { receive: "board.view", scope: "organization", sql },
+```
+
+`better-supabase gen` and [`doctor`](/docs/cli/doctor#bs214) (BS214) refuse a
+`receive` or `send` key the provider doesn't mark `sqlComplete: true`, for
+topics in the config and for generated topic policies in your SQL files.
+
+### Instance permission
+
+`permission` checks a permission on the one instance a topic is about, with
+the instance id taken from a topic segment:
+
+```ts
+export const post = defineTopic(
+  "organization:{organizationId}:posts:{postId}",
+  { permission: "posts.read" },
+);
+```
+
+Joining and sending then also need `posts.read` on the post in the last
+segment. The check adds to the tenant and owner checks.
+
+| Field      | Default                                  |
+| ---------- | ---------------------------------------- |
+| `key`      | Required; the string form sets only this |
+| `param`    | The template's last placeholder          |
+| `resource` | The part of `key` before the first `.`   |
+| `scope`    | `tenant`                                 |
+
+`param` must be a whole segment. With an
+[authorization provider](/docs/extending/authorization-providers), the policy
+calls its `permitted` template with `{permission}`, `{id}` (the instance
+segment), `{tenant}` (the tenant segment, or `null` without one),
+`{resource}` and `{scope}`; a `null` answer denies. `better-supabase upgrade`
+passes the config's `authorization.functions`; anywhere else pass them to
+`topic.sql({ functions })`. Without `permitted`, the policy falls back to the
+[access contract](/docs/repository/permissions): the caller needs the permission in
+the tenant of the topic (`tenant_ids_with`), so the check can't tell one
+instance from another, and a topic without a tenant segment throws.
+
+### Writing the policies to a file
+
+`realtime.policies` keeps the generated policies in a schema file:
+`better-supabase upgrade` imports the modules in `from`, collects every
+topic they export, and writes their `sql()` to `output`, and
+`upgrade --check` fails when the file no longer matches, for example in CI:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: {
+    realtime: {
+      policies: {
+        from: ["src/realtime/topics.ts"],
+        output: "supabase/schemas/905_topics.sql",
+      },
+    },
+  },
+});
+```
+
+Node imports the modules, so their relative imports need the `.ts`
+extension. Create a migration from the file as from any other schema file.
+
+Some SQL modules write the receive policy of their own topics: `notifications`
+(its `topic` option, `notifications:{userId}` by default, while `realtime` is
+`broadcast`), `announcements` (its `topic` option, `announcements` by
+default) and `realtime-tables` (every topic that starts with `bsb:t:`). When a
+module in `blocks` covers a topic you export, for example to subscribe
+to it with the typed client, `upgrade` leaves that topic out of `output` and
+names the module in a comment at the top of the file, so the database doesn't
+get two equivalent policies. Templates match by their literal parts, so
+`notifications:{user}` matches `notifications:{userId}`. A topic that also
+sends or uses presence keeps its policies, because the module only writes a
+receive policy for broadcasts.
+
+## Before production
+
+- **Turn off public access.** The policies only apply to private channels. In
+  the dashboard's Realtime settings, turn off "Allow public access" so a
+  client can't join the same topic as a public channel and skip them.
+- **Policies are cached per connection.** Realtime checks them when a client
+  joins and keeps the result until the client's access token refreshes or it
+  rejoins. A member you remove keeps receiving until then, up to the token's
+  expiry.
+- **`realtime.messages` is not a history.** Database broadcasts are rows in
+  `realtime.messages`, which is partitioned by day and pruned after a few
+  days. Clients that reconnect should refetch from your tables.
+
+## Row changes
+
+`topic.trigger(table, options)` writes a trigger that broadcasts a table's
+changes to a topic. By default each message carries the row's key and the
+topic values, never the row itself:
+
+```json
+{
+  "operation": "UPDATE",
+  "schema": "public",
+  "table": "customers",
+  "id": "c1",
+  "values": { "organizationId": "o1" }
+}
+```
+
+`id` is the primary key value, an object keyed by column for a composite key,
+or `null` for a table without one. Clients refetch the row through the Data
+API, so their column grants and policies decide what they see.
+
+For column values only, the trigger calls the `realtime-tables` module's
+`better_supabase.broadcast_topic()` and needs no function of its own. A
+placeholder reads its snake_case column (`{organizationId}` reads
+`organization_id`) unless `values` names another one; `events` limits the
+operations and `event` names the broadcast event:
+
+```ts
+quotesTopic.trigger("public.quotes", { event: "quote.changed" });
+```
+
+Pass `betterSupabase` to name the table by its app key, check the columns
+against the schema and look values up in parent rows:
+
+```ts
+customersTopic.trigger("customers", {
+  betterSupabase,
+  values: { organizationId: "organizationId" },
+});
+```
+
+A lookup `{ from, via, select }` reads the `select` column of the `from` row
+whose primary key (or `key`) equals `via`, a column of the changed row or
+another lookup, so a delivery can reach its thread's topic through the
+message it belongs to:
+
+```ts
+threadTopic.trigger("deliveries", {
+  betterSupabase,
+  values: {
+    threadId: { from: "messages", via: "messageId", select: "threadId" },
+  },
+  event: { insert: "delivery_added", update: "delivery_changed" },
+  payload: {
+    deliveryId: "id",
+    organizationId: {
+      from: "threads",
+      select: "organizationId",
+      via: { from: "messages", via: "messageId", select: "threadId" },
+    },
+    operation: { sql: "lower(tg_op)" },
+  },
+});
+```
+
+`event` names the broadcast event, for every operation or per operation
+(`INSERT`, `UPDATE` or `DELETE` otherwise). A `payload` object replaces the
+key payload: each key is a column, a lookup, or `{ sql }`, an expression on
+the row `{row}` with `tg_op` for the operation. Handle a custom payload with
+its own event schema.
+
+`topics` sends the same change to more topics, each with its own `values`:
+
+```ts
+customersTopic.trigger("customers", {
+  betterSupabase,
+  values: { organizationId: "organizationId" },
+  topics: [{ topic: ownerTopic, values: { userId: "ownerId" } }],
+});
+```
+
+Without `betterSupabase`, values and lookups use database names: `table` or
+`schema.table` for `from`, and columns for `via`, `select` and `key`, whose
+default is `id`:
+
+```ts
+inboxTopic.trigger("public.messages", {
+  values: {
+    organizationId: {
+      from: "public.threads",
+      via: "thread_id",
+      select: "organization_id",
+    },
+  },
+});
+```
+
+Lookups, a custom payload, per-operation events and `topics` need a function
+per trigger. It goes into the `better_supabase` schema, which the Data API
+does not expose, so clients can't call it through `/rpc`. Pass
+`functionSchema` to put it somewhere else.
+
+The function reads each parent row once per changed row, however many
+values, payload keys and topics use it, and builds a custom payload once for
+all topics. A two-level lookup costs two queries per row.
+
+`when: { changed }` sends an update only when one of the listed columns
+differs between the old and the new row. Inserts and deletes always send.
+On a trigger for updates alone (`events: ["update"]`) the filter becomes the
+trigger's `when` clause, so Postgres skips the function entirely; with more
+events the function returns early instead:
+
+```ts
+boardTopic.trigger("cards", {
+  betterSupabase,
+  values: { boardId: "boardId" },
+  events: ["update"],
+  when: { changed: ["status", "position"] },
+});
+```
+
+A topic whose value comes out null, such as one whose parent is gone, is
+skipped. So is a value with characters a topic doesn't allow (the check
+`topic()` makes): the trigger raises a warning that names the table and
+column, skips that topic, and the write goes through. The other topics
+still get the change.
+
+### Deletes and cascades
+
+A delete reads its values and lookups from the old row, so deleting a child
+row on its own reaches the parent's topic. A cascade is different: when a
+parent's delete removes its children (`on delete cascade`), the parent row
+is already gone when the child's trigger runs, so a lookup through it finds
+nothing. The trigger then raises a warning that starts with
+`better-supabase: realtime lookup found no row`, names the table and the
+missing parent, and skips the topics that need it. The delete goes through.
+
+To still reach subscribers on a cascade, keep the topic value on the row
+itself (a denormalized `organization_id`, say), which needs no lookup, or add
+a topic trigger on the parent so its own delete is broadcast.
+
+Both kinds of trigger run after the write. Attached as a `before` trigger
+they raise an error, since returning `null` there would cancel the write.
+
+<Callout type="warn">
+  `payload: "row"` sends the old and new row in full (`old_record` and
+  `record`). That bypasses column grants: every subscriber of the topic sees
+  every column, including the ones their role can't select. Use it only for
+  tables with nothing to hide, and prefer the key payload.
+</Callout>
+
+```ts
+auditTopic.trigger("public.audit_notes", { payload: "row" });
+```
+
+`triggerSql(betterSupabase, table, options)` from 0.8 still works as an alias
+for `trigger(table, { ...options, betterSupabase })` and is deprecated. Its
+default payload is now the key payload too.
+
+### Calling broadcast_topic from SQL
+
+A schema file can call `better_supabase.broadcast_topic()` directly. Its
+arguments are the topic template, the event (empty for the operation),
+`'false'` for a public topic (empty for private), and `'row'` for the whole
+row (empty or `'keys'` for the key payload). A placeholder is `{column}`, or
+`{name=column}` to name the value in `values` differently from the column:
+
+```sql title="supabase/schemas/030_quotes.sql"
+create trigger quotes_broadcast after insert or update or delete on public.quotes
+  for each row execute function better_supabase.broadcast_topic(
+    'organization:{organizationId=organization_id}:quotes', 'quote.changed'
+  );
+```
+
+It reads each placeholder from the new row (the old one for a delete). A
+placeholder the table has no column for is an error. The key payload reads
+only the primary key and the placeholder columns, and the catalog lookup runs
+once per statement. It still sends one message per row, so a table that
+takes bulk writes should broadcast through `database.realtime.tables` (the
+statement-level `track_realtime`) instead.
+
+### From the config
+
+`database.realtime.triggers` makes `upgrade` write them to the `realtime.policies`
+output after the policies. Each entry names a topic that `from` exports by its
+template, and `upgrade` passes the rest to that topic's `trigger()` without
+`betterSupabase`, so the config writes the same SQL as the call. An entry
+takes `values`, `events`, `event`, `payload`, `topics`, `when` and `functionSchema`,
+with database names in values and lookups:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: {
+    realtime: {
+      policies: {
+        from: ["src/realtime/topics.ts"],
+        output: "supabase/schemas/905_topics.sql",
+      },
+      triggers: [
+        {
+          topic: "organization:{organizationId}:quotes",
+          table: "public.quotes",
+          event: "quote.changed",
+        },
+      ],
+    },
+  },
+  blocks: ["realtime-tables"],
+});
+```
+
+Lookups, a payload object, per-operation events and `topics` work as they do
+on `trigger()`. Here the inbox's messages go to their organization's topic,
+found through the parent thread, and to the thread's own topic:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: {
+    realtime: {
+      policies: {
+        from: ["src/realtime/topics.ts"],
+        output: "supabase/schemas/905_topics.sql",
+      },
+      triggers: [
+        {
+          topic: "organization:{organizationId}:inbox",
+          table: "public.messages",
+          values: {
+            organizationId: {
+              from: "public.threads",
+              via: "thread_id",
+              select: "organization_id",
+            },
+          },
+          event: { insert: "created", update: "updated", delete: "deleted" },
+          payload: {
+            operation: { sql: "lower(tg_op)" },
+            thread_id: "thread_id",
+            record_id: "id",
+          },
+          topics: [{ topic: "thread:{threadId}" }],
+        },
+      ],
+    },
+  },
+});
+```
+
+`topics` names each extra topic by its template, which a module in `from`
+also exports, and takes its own `values`.
+
+`upgrade` refuses `database.realtime.triggers` without `realtime.policies`, or for a
+template no module in `from` exports. A trigger that calls
+`better_supabase.broadcast_topic()` also needs `realtime-tables` in `blocks`;
+one with a function of its own does not.
+
+### On the client
+
+`rowKeys` reads the key payload, or returns `null` for other tables:
+
+```ts
+const change = rowKeys(betterSupabase, "customers", message);
+// { operation: 'UPDATE', schema: 'public', table: 'customers', id: 'c1', values: { organizationId: 'o1' } }
+```
+
+`rowChange` reads the `payload: "row"` shape and returns app-cased rows:
+
+```ts
+const change = rowChange(betterSupabase, "customers", message);
+// { operation: 'UPDATE', table: 'customers', record: Customer | null, oldRecord: Partial<Customer> | null }
+```
+
+Doctor reports trigger functions that still send whole rows without the
+`payload: "row"` marker ([BS337](/docs/cli/doctor#bs337)).
+
+## Subscribe
+
+```ts
+using sub = notifications.subscribe(
+  supabase,
+  { organizationId, userId },
+  {
+    created: (n) => toast(n.title), // typed from the schema
+    "*": (payload, message) => console.log(message.event, payload),
+  },
+);
+await sub.ready; // rejects when the join is refused
+```
+
+`using` ends the subscription at the end of the scope. `await using` waits for
+it, and you can also call `sub.unsubscribe()`. Subscriptions to the same topic
+on one client share a channel, which is removed when the last one ends; they
+must agree on `self`. A channel whose first join is refused or times out is
+dropped, so the next `subscribe` joins again. For private topics,
+`subscribe` calls `realtime.setAuth()` first, so Realtime gets the
+session's current token. A token you set yourself with
+`supabase.realtime.setAuth(token)`, such as one minted for an agent or a
+service, is kept: `subscribe`, `send`, `useBroadcast`, `usePresence` and `useLiveCount` only
+refresh a token that came from the session. Payloads that fail their schema
+skip the handler and go to `onInvalid`.
+
+## Send
+
+```ts
+await notifications
+  .send(supabase, { organizationId, userId }, "created", { id, title })
+  .orThrow();
+```
+
+The payload is validated first (a `validation` error on failure) and sent over
+HTTP without joining the channel. Policy denials come back as `unauthorized`
+or `forbidden`.
+
+### Fan-out
+
+`topic.fanOut(client, options)` sends one event to a topic per subscriber,
+after a `SubscriberPolicy` has decided who may read it:
+
+```ts
+const result = await inbox
+  .fanOut(admin, {
+    subscribers: members.map((id) => ({ principal: id })),
+    values: (subscriber) => ({ userId: subscriber.principal }),
+    event: "created",
+    payload: { id, title },
+    source: {
+      type: "post.created",
+      tenant,
+      actorId,
+      payload: { id },
+      subject: `post/${id}`,
+    },
+    server: { authorization },
+  })
+  .orThrow();
+// { sent, skipped, failed }
+```
+
+The policy is `options.policy`, then the topic's `subscribers` option, then
+the server's `authorization.delivery.subscribers`
+([Runtime hooks](/docs/extending/authorization-providers#runtime-hooks)).
+Without any, every subscriber gets the event, except under a server with
+hooks: there an event with a `subject` goes to no one and returns a
+`forbidden` error with the hint `REALTIME_SUBSCRIBER_POLICY_REQUIRED`. Pass
+`policy: subjectReaders(sqlTransport(postgres.admin))` to send it to the
+members who may read the subject. The policy receives `source`
+and the subscribers, and can narrow the list but never widen it: a
+subscriber it returns that wasn't passed in is ignored. Subscribers it leaves
+out come back in `skipped`. A policy that throws sends to no one and returns
+a `forbidden` error with the hint `REALTIME_SUBSCRIBER_POLICY_FAILED`. Sends
+run one at a time; a failed send lands in `failed` with its error and the
+rest continue.
+
+## Presence
+
+Pass a schema as `presence` to show who is on a topic. The policies then
+authorize presence, and every subscription can `track` this client's state
+and get everyone's states after each sync:
+
+```ts title="lib/topics.ts"
+export const customerViewers = defineTopic(
+  "organization:{organizationId}:customer:{customerId}:viewers",
+  { presence: v.object({ userId: v.string(), name: v.string() }) },
+);
+```
+
+```tsx title="features/customers/components/viewers.tsx"
+"use client";
+
+export function Viewers({ organizationId, customerId, me }: Props) {
+  const supabase = useSupabase();
+  const [viewers, setViewers] = useState<readonly string[]>([]);
+
+  useEffect(() => {
+    const sub = customerViewers.subscribe(
+      supabase,
+      { organizationId, customerId },
+      {},
+      {
+        onPresence: (members) =>
+          setViewers([...new Set(members.map((m) => m.state.name))]),
+      },
+    );
+    void sub.track({ userId: me.id, name: me.name });
+    return () => void sub.unsubscribe();
+  }, [supabase, organizationId, customerId, me.id, me.name]);
+
+  return <AvatarStack names={viewers} />;
+}
+```
+
+`track` validates the state (a `validation` error on failure), waits for the
+join and returns a `Result`. States other clients track that fail the schema
+are left out of `onPresence` and reach `onInvalid` as a `presence` message.
+`members()` returns the last sync. Each tab is its own member with its own
+`key`, so group by a field of the state (`userId` above) to count people.
+
+Presence shares the topic's channel, so one client has one state per topic:
+the last `track` wins, and it goes away with the subscription that tracked
+it. `presence: true` skips the schema and accepts any object. Every
+definition of a topic name must agree on presence. For cursors or
+collaborative editing, broadcast positions as a regular event; presence
+suits state that changes a few times a session, since every change reaches
+everyone.
+
+### Who has a record open
+
+With the [subjects](/docs/blocks/sql#subject-registry) module, every
+registered record has a presence topic, `presence:<type>:<id>`, and the
+module's policies let anyone who can read the record join it. You define no
+topic and write no policy: `subjectPresence` is the topic, and
+`subjectPresenceValues(subject)` turns a record into its values (`null` pauses
+the join).
+
+```tsx title="features/deals/components/deal-viewers.tsx"
+"use client";
+
+import { usePresence } from "better-supabase/react";
+import {
+  subjectPresence,
+  subjectPresenceValues,
+} from "better-supabase/realtime";
+
+export function DealViewers({ dealId, me }: Props) {
+  const { members } = usePresence(
+    subjectPresence,
+    subjectPresenceValues({ type: "deal", id: dealId }),
+    { state: { userId: me.id, name: me.name, avatarUrl: me.avatarUrl } },
+  );
+
+  return <AvatarStack people={members.map((member) => member.state)} />;
+}
+```
+
+A channel passes its `conversation` subject, a comment thread the record it
+belongs to, and a [document](/docs/blocks/documents) its own subject, so one
+helper covers all three. `subjectPresenceTopic(schema)` validates the
+tracked states. The states come from the clients: show them as hints and
+never decide access on them. A record id the subject's id type can't cast is
+refused, not an error.
+
+## Chat and cursors
+
+The realtime chat and cursor blocks in the Supabase library join a public
+channel, take the sender's name from the client, and keep messages only in
+the browsers that were open when they arrived. To build the same features on
+topics:
+
+- **Authorize the topic.** Use a private `defineTopic` template with a
+  tenant or owner placeholder, and turn off public access (see
+  [Before production](#before-production)).
+- **Persist messages.** Insert each message into a table and broadcast it
+  with [`trigger`](#row-changes), so the row is the record. Clients that
+  join late or reconnect load the history from the table, and the sender's
+  id comes from `auth.uid()` in the row's policy instead of from the client.
+- **Throttle sends in the app.** Realtime limits the messages per second for
+  each client and project. Send a cursor position at most every 50 to 100 ms
+  and drop the positions in between; `send` and `track` don't throttle for
+  you.
+- **Name people from the session.** Use the user id as the identity, and
+  take names and colors from a profile row or the presence state.
+
+The collaborative editor blocks sync Yjs documents through
+`@supabase-labs/y-supabase`. better-supabase ships no Yjs provider, so that
+stays an app dependency; check that it joins a private channel before you
+rely on a topic policy to guard the document.
+
+## React
+
+```tsx
+import { useBroadcast } from "better-supabase/react";
+
+const status = useBroadcast(
+  customersTopic,
+  organizationId ? { organizationId } : null,
+  {},
+  { invalidate: ["customers"] },
+);
+```
+
+The hook subscribes while mounted and resubscribes when the topic or the
+signed-in user changes. `invalidate` refetches the table's
+[TanStack queries](/docs/frontend/query) after each message. It needs
+`queryClient` on `BetterSupabaseProvider`. The hook returns `joining`,
+`subscribed`, `closed` or `error`.
+
+An app that uses supabase-js without the better-supabase client passes its
+client (and a `queryClient` for `invalidate`) instead of the provider. The
+hook then follows that client's auth state to resubscribe for a new user:
+
+```tsx
+const status = useBroadcast(
+  customersTopic,
+  { organizationId },
+  { updated: (payload) => refresh(payload.id) },
+  { client: supabase, queryClient },
+);
+```

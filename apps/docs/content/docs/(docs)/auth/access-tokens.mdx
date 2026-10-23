@@ -1,0 +1,112 @@
+---
+title: External access tokens
+description: Accept RFC 9068 JWT access tokens from your own or a platform's authorization server, verified against its JWKS, so the request runs as the user under RLS.
+---
+
+`accessTokenResolver` accepts JWT access tokens that an authorization server
+other than Supabase Auth issued, such as a platform's OAuth server or one you
+built with the [oauth-server block](/docs/blocks/oauth-server). It verifies
+the token against the issuer's JWK Set and resolves it to a `user` caller with
+`source: "oauth"`. The token's `sub`, `client_id` and `scope` become the
+request's claims, so RLS and the delegated-token narrowing see the same user
+and the same scopes.
+
+```ts title="src/server.ts"
+import { accessTokenResolver } from "better-supabase/server";
+
+export const bsb = createHono(betterSupabase, {
+  postgres,
+  auth: {
+    resolvers: [
+      accessTokenResolver({
+        jwks: new URL(env.OAUTH_JWKS_URL),
+        issuer: env.OAUTH_ISSUER,
+        audience: "https://api.example.com",
+      }),
+    ],
+  },
+});
+```
+
+The claims reach Postgres unchanged, so `auth.uid()` returns the token's `sub`,
+a policy such as `owner = (select auth.uid())` filters rows for that user, and
+`request.jwt.claims` keeps `client_id` and `scope` for policies that check
+them. The pgTAP test `oauth_token_claims.test.sql` in this repository covers
+that path.
+
+Resolvers run before the Supabase Bearer and cookie checks. The resolver
+only claims an `Authorization: Bearer` token whose header has `typ: "at+jwt"`
+(RFC 9068 section 2.1), so a Supabase session token or an API key falls
+through to the usual resolution.
+
+## What it checks
+
+A claimed token that fails a check answers 401 and never falls through to
+another resolver.
+
+| Check                                                                                  | Error code                            |
+| -------------------------------------------------------------------------------------- | ------------------------------------- |
+| `iss` equals `issuer`                                                                  | `ACCESS_TOKEN_ISSUER`                 |
+| `aud` holds `audience` (a string or one of a list)                                     | `ACCESS_TOKEN_AUDIENCE`               |
+| `exp` is in the future and `iat` is not, with `clockSkew` seconds of slack (30)        | `ACCESS_TOKEN_EXPIRED`                |
+| the signature verifies with a key from the JWKS, and `sub`, `client_id`, `jti` are set | `ACCESS_TOKEN_INVALID`                |
+| a `role` claim, when present, equals `role` (`authenticated`)                          | `ACCESS_TOKEN_ROLE`                   |
+| there is no `cnf` claim, since sender-constrained tokens need a proof check            | `ACCESS_TOKEN_BOUND`                  |
+| the token is not revoked                                                               | `ACCESS_TOKEN_REVOKED`                |
+| the revocation check answered                                                          | `ACCESS_TOKEN_REVOCATION_UNAVAILABLE` |
+
+The accepted algorithms are `RS256`, `PS256`, `ES256` and `EdDSA`; set
+`algorithms` to narrow them. RSA keys need at least 2048 bits, and an RSA key
+whose `alg` names another algorithm is never used.
+
+## The JWK Set
+
+`jwks` takes a JWK Set, a `URL`, or a function that returns one. A URL is
+fetched once and cached for `cacheSeconds` (300). A token signed with a `kid`
+the cached set lacks refetches it, at most once per `refetchSeconds` (30), so
+the issuer can rotate keys without a restart. When a refetch fails, the
+resolver keeps verifying with the keys it has.
+
+## Revocation
+
+JWT access tokens are valid until `exp` unless something says otherwise.
+Pass `revocation` to check every request against a revocation list:
+
+```ts
+import {
+  createOAuthServer,
+  sqlTransport,
+} from "better-supabase/blocks/oauth-server";
+
+const oauth = createOAuthServer({ transport: sqlTransport(postgres.admin) });
+
+accessTokenResolver({
+  jwks: new URL(env.OAUTH_JWKS_URL),
+  issuer: env.OAUTH_ISSUER,
+  audience: "https://api.example.com",
+  revocation: oauth,
+});
+```
+
+`revocation.isRevoked(jti, grantId)` gets the token's `jti` and its
+`grant_id` claim (`grantClaim` names another). The oauth-server block's
+client fits as it is. A check that fails with a network error answers 503,
+not a pass.
+
+## Claims and the database
+
+The resolved claims are the token's claims with `role` set to the configured
+role. `claims(payload)` adds claims of your own, such as a tenant id; it can't
+override the reserved ones (`sub`, `role`, `client_id`, `scope`, `iss`, `aud`,
+`exp`, `iat`, `jti`).
+
+`ctx.sql` and `ctx.db` over direct Postgres set these claims as
+`request.jwt.claims`, so policies read `auth.uid()` and the token's `scope`
+narrows the user's permissions (see
+[Delegated tokens](/docs/repository/permissions#delegated-tokens)). `ctx.supabase` forwards the token to
+PostgREST, which accepts it only when the issuer is registered as a
+[third-party auth provider](https://supabase.com/docs/guides/auth/third-party/overview)
+of the project. Without that, use `ctx.sql` or `ctx.db` for these requests.
+
+The `oauth` source never refreshes and never writes cookies; a client gets a
+new access token from its own authorization server.

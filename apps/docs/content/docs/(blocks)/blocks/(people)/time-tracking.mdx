@@ -1,0 +1,218 @@
+---
+title: Time tracking
+description: Timers and logged time on any record, one running timer per member and no overlapping entries enforced by Postgres, weekly timesheets approved through the approvals module, locked weeks, and a weekly grid shape for a data grid.
+---
+
+`time-tracking` stores time entries and weekly timesheets per organization. An entry belongs to a member, can name the record it was spent on (a project, a ticket, a client), and is billable or not, with an hourly rate. An exclusion constraint keeps one member's entries from overlapping, which also means one running timer per member. A member submits a week as a timesheet, the [approvals](/docs/blocks/approvals) module routes it to an approver, and an approved week is locked.
+
+Tracking your own time needs `time_tracking.track`, reading other members' entries and timesheets needs `time_tracking.read`, approving needs `time_tracking.approve` (the default approval step), and logging time for someone else, editing their entries and reopening an approved week needs `time_tracking.manage`. Admins get every permission and members get `time_tracking.track`.
+
+```bash
+better-supabase add time-tracking
+```
+
+The module needs `tenant`, `permissions` and `approvals`, and creates the `btree_gist` extension for its exclusion constraint.
+
+Server code calls the `time-tracking` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useTimeTracking } = defineDataHooks(
+  "timeTracking",
+  (db: AppDb) => db.timeTracking,
+);
+```
+
+```ts
+import { money } from "better-supabase/commerce";
+import { createTimeTracking } from "better-supabase/blocks/time-tracking";
+
+await db.timeTracking
+  .start({
+    subject: { type: "project", id: projectId },
+    billable: true,
+    rate: money(12_000n, "EUR"),
+  })
+  .orThrow();
+const entry = await db.timeTracking.stop().orThrow();
+
+const week = Temporal.PlainDate.from("2026-10-05");
+const sheet = await db.timeTracking.timesheet(week).orThrow();
+// sheet.totals: { seconds, billableSeconds, amounts: [money(48_000n, "EUR")] }
+await db.timeTracking.submit(week, "Week 41").orThrow();
+```
+
+```tsx title="src/features/time-tracking/list.tsx"
+"use client";
+
+import { useTimeTracking } from "@/lib/supabase/hooks";
+
+const rows = useTimeTracking({ limit: 50 });
+```
+
+Every call acts in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`.
+
+## Timers and entries
+
+`start` starts a timer for the caller. When a timer already runs, it stops first and is recorded, so a member switches tasks with one call. `stop` ends the running timer (`TIME_NO_TIMER` when none runs) and `running` returns it, or `undefined`.
+
+`log` records a finished entry with `startedAt` and `endedAt`. Its end must come after its start (`TIME_ENTRY_INVALID`), and it can't overlap another of the member's entries (`TIME_ENTRY_OVERLAP`). Passing `userId` logs time for another member of the organization, which needs `time_tracking.manage` (`TIME_USER_INVALID` when they aren't a member). `update(entryId, patch)` changes the times, the subject, `billable`, `rate` or `note`; `null` clears the subject, rate or note. `remove` deletes an entry. A member edits their own entries; anyone else's needs `time_tracking.manage`.
+
+A rate is a `Money` value from `better-supabase/commerce`: an hourly amount in minor units of its currency, so `money(12_000n, "EUR")` is 120 euros an hour. The client returns `CURRENCY_INVALID` before any database call for a code that isn't ISO 4217, and the table keeps `rate` and `rate_currency` set together (`TIME_RATE_INVALID`). The functions return `rate` as text, as every block amount is ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)).
+
+An entry's `subject` is a `RecordRef`, `{ type, id }`, or none; an entry without one returns `subject: undefined`. The SQL functions take it as `subject_type` and `subject_id` and fail with `TIME_SUBJECT_INVALID` when a caller passes only one of them. With a subject, the caller must be able to read the record, through its registration in [`config.records`](/docs/blocks/sql#subject-registry) or the block's `on`. Entries stay when their record is deleted, so billed time keeps its history.
+
+With the [employees block](/docs/blocks/employees) installed, every entry
+has an `employee_id` column: the employee of the organization behind the
+entry's member, or null for a member who isn't one. Triggers set it when an
+entry is written and when an employee's account changes, so payroll and
+HR reports join time to employees without matching users by hand.
+
+`list` returns the caller's entries, newest first. `from` and `to` select the entries that overlap that range, `subject` selects one record's time, and `userId` or `everyone: true` read other members' entries with `time_tracking.read`.
+
+## Timesheets and approvals
+
+A week starts on Monday in the module's `timeZone`. `timesheet(week)` returns the caller's week (or another member's with `userId` and `time_tracking.read`) with the entries that start in it and its totals: `seconds` counts every entry and running ones up to now, `billableSeconds` the billable ones, and `amounts` adds billable hours times their rate, rounded to minor units, with one `Money` per currency ordered by code. A week passed as any day is read as the week that contains it.
+
+| Status      | Meaning                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| `open`      | never submitted, or reopened                                            |
+| `submitted` | an approval request for it is pending                                   |
+| `approved`  | the final approval step approved it                                     |
+| `rejected`  | the approval request was rejected; the member can edit and submit again |
+
+`submit(week, note)` opens an approval request for the week, with the timesheet as its subject (`timesheet`). It fails with `TIMESHEET_TIMER_RUNNING` while a timer in the week still runs, `TIMESHEET_SUBMITTED` while a request is pending and `TIMESHEET_APPROVED` once approved. Approvers decide with the approvals client, and the final approval marks the timesheet approved:
+
+```ts
+import { createApprovals } from "better-supabase/blocks/approvals";
+
+const approvals = createApprovals({ transport });
+await approvals.approve(sheet.approvalId!).orThrow();
+```
+
+A week is locked while its request is pending and once it is approved: adding, changing or deleting an entry that starts in it fails with `TIME_PERIOD_LOCKED`, also for direct table writes. A rejection unlocks it. `reopen(timesheetId)` unlocks an approved week (`TIMESHEET_NOT_APPROVED` otherwise) and needs `time_tracking.manage`. `timesheets()` lists the caller's timesheets, newest week first, filtered by `status` and paged with `before`.
+
+## Configure
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "time-tracking": {
+    options: {
+      timeZone: "Europe/Amsterdam",
+      policy: { steps: [{ approvers: { role: "admin" } }], expiresIn: "P7D" },
+    },
+  },
+},
+```
+
+| Option     | Default                                      | What it does                                                                                                                      |
+| ---------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `timeZone` | `UTC`                                        | The IANA time zone weeks and days start in                                                                                        |
+| `policy`   | one step: holders of `time_tracking.approve` | An [approvals policy](/docs/blocks/approvals#configure-policies) without `run`, because the final approval is what locks the week |
+
+Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIMESHEET_NOT_FOUND`, `TIMESHEET_TIMER_RUNNING`, `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED` and `TIMESHEET_NOT_APPROVED`.
+
+## Events and hooks
+
+The module records `time_entry.started`, `time_entry.recorded` (with `seconds`, `billable`, `rate` as text and `rateCurrency`), `time_entry.updated` and `time_entry.deleted`, each with the entry's `subjectType`, `subjectId` and `startedAt`, so an [outbox](/docs/blocks/outbox) consumer can add up hours per record or feed billable hours to a usage meter. It records `timesheet.submitted`, `timesheet.approved` and `timesheet.reopened` with the `week` and `approvalId`, and audits them. It calls `before_time_entry_save`, `after_time_entry_save`, `before_timesheet_submit` and `after_timesheet_submit`.
+
+## Metrics
+
+Every entry has a `seconds` column, generated from `ended_at - started_at` and null while the timer runs. `timeTrackingMetrics()` defines `time_tracked` over it for the [metrics](/docs/blocks/metrics) block: the seconds of finished entries per day they start in, filtered or grouped by `billable`, `user_id` and `subject_type`. Running timers count once they stop.
+
+```ts title="better-supabase.config.ts"
+import { timeTrackingMetrics } from "better-supabase/blocks/time-tracking";
+
+blocks: {
+  "time-tracking": {},
+  metrics: { options: { metrics: timeTrackingMetrics({ tz: "Europe/Amsterdam" }) } },
+},
+```
+
+Time is often logged for a past day, so the metrics sink buckets entry events by the entry's `startedAt` instead of when the event happened. Pass `TIME_TRACKING_METRIC_EVENTS` and `timeEntryMetricTime` to the metrics block's `sink` option:
+
+```ts title="app/api/outbox/route.ts"
+import {
+  TIME_TRACKING_METRIC_EVENTS,
+  timeEntryMetricTime,
+  timeTrackingMetrics,
+} from "better-supabase/blocks/time-tracking";
+
+const app = createBlocks(
+  { transport: service },
+  {
+    metrics: metricsBlock
+      .with({
+        sink: { on: TIME_TRACKING_METRIC_EVENTS, time: timeEntryMetricTime },
+      })
+      .using((options) =>
+        createMetrics({ ...options, metrics: timeTrackingMetrics() }),
+      ),
+  },
+);
+```
+
+`time_entry.updated` carries `previousStartedAt`, and `timeEntryMetricTime` returns it next to `startedAt`, so an update that moves an entry to another day rolls up both days in the same relay. In adopt mode, map `seconds` to a column of your own or leave it out and define the metric yourself.
+
+## With ReUI
+
+`toWeeklyGrid` turns a week's entries into the rows of ReUI's weekly Data Grid (`data-grid-base-4`): one row per record and billable flag, a column per day from Monday, and totals per row, day and week. It splits entries that cross midnight in the time zone, and counts a running entry up to now.
+
+```tsx
+import { toWeeklyGrid } from "better-supabase/blocks/time-tracking";
+
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+
+const sheet = await time.timesheet(week).orThrow();
+const grid = toWeeklyGrid(sheet.entries, {
+  week,
+  // The module's timeZone option, as `better-supabase gen` wrote it.
+  timeZone: blockConfig["time-tracking"].options.timeZone,
+});
+// columns: a subject column, then grid.days (header day.date, footer day.seconds), then a total column
+// <DataGrid data={grid.rows}>: row.days[i] seconds per day, row.seconds for the total
+```
+
+Pass `rowKey` to group rows differently, for example by subject only. The header can show `sheet.status` as a badge with a submit button that calls `submit`, disabled while a timer runs, and a timer button that calls `start` and `stop` and shows `running`.
+
+## Your own columns
+
+Add columns to the time entry table with `blocks.time-tracking.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`start`, `log` and `update` validates and writes them, and every method that returns an entry return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createTimeTracking } from "better-supabase/blocks/time-tracking";
+import { z } from "zod";
+
+const client = createTimeTracking({
+  transport,
+  tenant: organizationId,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```
+
+## Without the client
+
+`db.timeTracking` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { money } from "better-supabase/commerce";
+import { createTimeTracking } from "better-supabase/blocks/time-tracking";
+
+const time = createTimeTracking({ transport, tenant: organizationId });
+await time
+  .start({
+    subject: { type: "project", id: projectId },
+    billable: true,
+    rate: money(12_000n, "EUR"),
+  })
+  .orThrow();
+const entry = await time.stop().orThrow();
+
+const week = Temporal.PlainDate.from("2026-10-05");
+const sheet = await time.timesheet(week).orThrow();
+// sheet.totals: { seconds, billableSeconds, amounts: [money(48_000n, "EUR")] }
+await time.submit(week, "Week 41").orThrow();
+```

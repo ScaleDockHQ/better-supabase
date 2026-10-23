@@ -1,0 +1,102 @@
+---
+title: Signatures
+description: Simple electronic signatures on a frozen version of a record, with sequential or parallel signers, a SHA-256 hash per signature and a check that the signed content is unchanged.
+---
+
+The `signatures` SQL module asks members to sign one version of a record, kept by the [versions](/docs/blocks/versions) block. It needs `versions` in managed or adopt mode. Requesting needs `signatures.request`, and reading a record's requests needs `signatures.read`; signers always read the requests they are on. The signature is a simple electronic signature: the module records who signed which content, how and when, and the app renders the final document.
+
+```bash
+better-supabase add versions signatures
+```
+
+Server code calls the `signatures` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSignatures } = defineDataHooks(
+  "signatures",
+  (db: AppDb) => db.signatures,
+);
+```
+
+```ts
+import { createSignatures } from "better-supabase/blocks/signatures";
+
+const request = await db.signatures
+  .request({
+    organizationId,
+    subjectType: "contract",
+    subjectId: contract.id,
+    signers: [buyerId, sellerId],
+    order: "sequential",
+  })
+  .orThrow();
+await db.signatures
+  .sign(request.id, { method: "typed", typedName: "Ada Lovelace" })
+  .orThrow();
+```
+
+```tsx title="src/features/signatures/list.tsx"
+"use client";
+
+import { useSignatures } from "@/lib/supabase/hooks";
+
+const rows = useSignatures({ limit: 50 });
+```
+
+Without `versionId`, the request snapshots the record's versioned columns first. The version is frozen, so retention and `delete_version` keep it. Signers must be members of the organization, at most 20 and each once. With `order: "sequential"` each signs after the one before; `parallel` is the default. A signature is `click`, `typed` (with the typed name) or `drawn` (with the attachment that holds the image, which needs the [attachments](/docs/blocks/attachments) module). The request completes when everyone has signed, and a signer can `decline` it, which closes it for everyone. The requester, or a holder of `signatures.manage`, can `cancel` a pending request.
+
+Each signature stores a SHA-256 hash over the request, the version's content hash, the signer, the method and the time, with the caller's address and user agent. `get` returns the request with its signatures and a `verification`: `contentMatches` recomputes the signed version's hash from its content, each signature's `valid` recomputes its hash, and `changedSince` is true when the record has a newer version than the one signed. A signed record that was edited later shows `changedSince: true`, and a changed signature or version row shows `valid: false`.
+
+With the [approvals](/docs/blocks/approvals) module, `approvalRequestId` links a pending approval request on the same record. When a signer is an approver for its current step, their signature approves that step, so signing a contract can be the approval that sends it.
+
+Errors carry these hints: `SIGNATURE_SIGNERS_INVALID`, `SIGNATURE_VERSION_NOT_FOUND`, `SIGNATURE_OUT_OF_ORDER`, `SIGNATURE_ALREADY_SIGNED`, `SIGNATURE_METHOD_INVALID`, `SIGNATURE_CONTENT_CHANGED` (the version changed between the request and the signature), `SIGNATURE_REQUEST_CLOSED` and `SIGNATURE_FORBIDDEN`.
+
+Until 0.14 the client was exported from `better-supabase/blocks/forms`. Import it from `better-supabase/blocks/signatures`; see [From 0.13 to 0.14](/docs/migration/0.13-to-0.14#signatures-get-their-own-block).
+
+## Events and hooks
+
+The module records `signature.requested`, `signature.signed` (with `signer` and `method`), `signature.completed`, `signature.declined` and `signature.cancelled`, each with the signed record's `subjectType` and `subjectId`, and audits requests, signatures, declines and cancellations. It calls `before_signature_request`, `after_signature_request`, `before_signature_sign` and `after_signature_sign`.
+
+## With ReUI
+
+For drawn signatures, ReUI's Signature Pad (free, MIT) captures the image. Upload it with the attachments block, then pass its id to `sign(request.id, { method: "drawn", imageAttachmentId })`. A ReUI timeline renders `get(request.id)`: one item per signer, completed when their signature is in `signatures`, with a warning when `verification.changedSince` is true.
+
+## Your own columns
+
+Add columns to the signature request table with `blocks.signatures.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`request` validates and writes them, and `request`, `get`, `list`, `decline` and `cancel` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createSignatures } from "better-supabase/blocks/signatures";
+import { z } from "zod";
+
+const client = createSignatures({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```
+
+## Without the client
+
+`db.signatures` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createSignatures } from "better-supabase/blocks/signatures";
+
+const signatures = createSignatures({ transport });
+const request = await signatures
+  .request({
+    organizationId,
+    subjectType: "contract",
+    subjectId: contract.id,
+    signers: [buyerId, sellerId],
+    order: "sequential",
+  })
+  .orThrow();
+await signatures
+  .sign(request.id, { method: "typed", typedName: "Ada Lovelace" })
+  .orThrow();
+```

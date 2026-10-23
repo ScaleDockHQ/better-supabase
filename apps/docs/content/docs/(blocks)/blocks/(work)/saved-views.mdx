@@ -1,0 +1,375 @@
+---
+title: Saved views
+description: Named list views per user, team or organization, with the filter tree, sort, columns, grouping and density checked against the list definition, personal defaults, duplicates, and useSavedViews for nuqs.
+---
+
+`saved-views` stores named views of a list: a filter tree, a sort, the
+visible columns, the grouping and the density. A view belongs to one user,
+one team or the whole organization, and each of those can have a default
+view that opens first. The client checks a view's query against the list's
+`defineListQuery` definition before it saves it, so a stored view always
+parses.
+
+```bash
+better-supabase add saved-views
+```
+
+```ts
+import { createSavedViews } from "better-supabase/blocks/saved-views";
+import { useSavedViews } from "@/hooks/use-saved-views";
+```
+
+## Scopes and permissions
+
+| Scope    | Who sees it                              | Who can change it                      |
+| -------- | ---------------------------------------- | -------------------------------------- |
+| `user`   | The owner                                | The owner                              |
+| `team`   | Members of the team (the `teams` module) | Members of the team with `views.share` |
+| `tenant` | Everyone in the organization             | Anyone with `views.share`              |
+
+Reading any view needs `views.read`. The default roles give members
+`views.read` and admins `views.*`. Without the `teams` module installed, team
+views can't be created and are never visible.
+
+## Save and list views
+
+Pass the list definitions to `lists` so `upsert` checks each view's `query`
+with the list's own `parse`. An invalid view returns a `validation` error
+with the issues, prefixed with `query`, and makes no call.
+
+Server code calls the `saved-views` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSavedViews } = defineDataHooks(
+  "savedViews",
+  (db: AppDb) => db.savedViews,
+);
+```
+
+```ts
+const rows = await db.savedViews.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/saved-views/list.tsx"
+"use client";
+
+import { useSavedViews } from "@/lib/supabase/hooks";
+
+const rows = useSavedViews({ limit: 50 });
+```
+
+`state.query` never stores `page` or `after`, so a view opens on the first
+page. `savedViewStateSchema(tasksList)` returns the JSON Schema of the whole
+state, with `query` taken from the list's `jsonSchema`, for API docs and
+forms.
+
+| Method                    | What it does                                                        |
+| ------------------------- | ------------------------------------------------------------------- |
+| `upsert(input)`           | Adds a view, or updates `input.id`; resolves to its id and rank key |
+| `list(organizationId, l)` | The caller's views of list `l`, in rank order                       |
+| `reorder(id, neighbors)`  | Moves a view between its neighbours' rank keys                      |
+| `setDefault(id, on)`      | Makes a view the default of its slot, clearing the slot's other one |
+| `setPreference(id, p)`    | Sets the caller's own default, hidden and pinned flags on a view    |
+| `duplicate(id, input)`    | Copies a view the caller sees into a new view                       |
+| `delete(id)`              | Deletes a view                                                      |
+
+`defaultView(views)` picks the view to open: the caller's preferred view,
+then the user's default, a team default, the organization's, and then the
+first view. It skips views the caller hid.
+
+## Personal preferences
+
+Changing a shared view's slot default needs `views.share`. A member who only
+reads a team or organization view can still make it their own default, hide
+it from their menu or pin it. `setPreference` stores those flags in
+`saved_view_preferences`, one row per view and user, and needs only that the
+caller sees the view. A flag you leave out keeps its value, and each user has
+one preferred default per list.
+
+```ts
+await savedViews
+  .setPreference(viewId, { isDefault: true, pinned: true })
+  .orThrow();
+
+const views = await savedViews.list(organizationId, "tasks").orThrow();
+// views[0].preference: { isDefault: true, hidden: false, pinned: true }
+```
+
+`list` returns the caller's `preference` with every view, hidden ones
+included, so a menu can offer to show them again. Only the user reads their
+own rows, and deleting a view deletes its preferences. An adopted setup can
+leave the table out with `tables: { preferences: null }`; `preference` is
+then always false.
+
+## Duplicate a view
+
+`duplicate(id, { name, scope, teamId })` copies the state, kind and list of
+a view the caller sees. The copy is a personal view unless you pass `scope`,
+and it goes through the same checks as `upsert`, so a `team` or `tenant` copy
+needs `views.share`. A member can copy a shared view to change it on their
+own.
+
+```ts
+const copy = await savedViews
+  .duplicate(viewId, { name: "My open bugs" })
+  .orThrow();
+```
+
+| Hint                              | When                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `SAVED_VIEW_INVALID`              | A name, list, kind or scope is out of range, `state` is not an object, or a preference has no signed-in user |
+| `SAVED_VIEW_FORBIDDEN`            | The caller can't read, share or change the view                                                              |
+| `SAVED_VIEW_NOT_FOUND`            | The view doesn't exist or isn't visible                                                                      |
+| `SAVED_VIEW_RANK_INVALID`         | `reorder` was given a key that is not a rank key                                                             |
+| `SAVED_VIEW_COLLECTION_NOT_FOUND` | `state.collectionId` names no list in the organization that is shared or the caller's own                    |
+
+## Views of a list
+
+`state.collectionId` keeps a view to the records of a static list from the
+[collections](/docs/blocks/collections) block. The view stores the list's id;
+pass `collections.where(state.collectionId)` as the list query's `where` when
+you run it. With the collections module installed, `upsert` checks that the
+list exists in the organization and is shared or the caller's own.
+
+## Sync with the URL
+
+`useSavedViews` is a registry item: `npx shadcn add
+@better-supabase/use-saved-views` writes `hooks/use-saved-views.ts` into the
+app. The hook reads and writes the list's nuqs state. It loads the views,
+opens the default view when the URL holds no query, reports which view the
+URL matches, and saves the URL's query as a view.
+
+The columns, grouping, density and layout live outside the URL. Pass
+`getState` to return what the table shows now and `onApplyState` to show a
+view's state: `saveCurrent` then stores the query and that state together,
+`apply` puts the query in the URL and passes everything else to
+`onApplyState`, and `active` and `isDirty` compare both. Without `getState`
+only the query counts.
+
+```tsx title="app/tasks/views-menu.tsx"
+"use client";
+
+import { useState } from "react";
+import { useQueryStates, createParser } from "nuqs";
+import { useSavedViews } from "@/hooks/use-saved-views";
+import type {
+  SavedViewColumns,
+  SavedViewDensity,
+} from "better-supabase/blocks/saved-views";
+
+import { tasksList } from "@/lib/lists";
+import {
+  listViews,
+  saveView,
+  deleteView,
+  duplicateView,
+  setViewPreference,
+} from "./actions";
+
+export function ViewsMenu({ organizationId }: { organizationId: string }) {
+  const [urlState, setUrlState] = useQueryStates(tasksList.nuqs(createParser));
+  const [columns, setColumns] = useState<SavedViewColumns>({});
+  const [density, setDensity] = useState<SavedViewDensity>("default");
+  const views = useSavedViews({
+    load: () => listViews(organizationId, "tasks"),
+    save: ({ name, state, id }) =>
+      saveView({ organizationId, list: "tasks", name, state, id }),
+    remove: deleteView,
+    duplicate: ({ id, name }) => duplicateView(id, { name }),
+    setPreference: setViewPreference,
+    urlState,
+    setUrlState,
+    getState: () => ({ columns, density }),
+    onApplyState: (state) => {
+      setColumns(state.columns ?? {});
+      setDensity(state.density ?? "default");
+    },
+  });
+  // views.views, views.active, views.isDirty, views.apply(view),
+  // views.saveCurrent(name), views.duplicate(id, name),
+  // views.setPreference(id, { isDefault: true })
+}
+```
+
+`apply` calls `onApplyState` with every key the view stores except `query`,
+so reset each part the view leaves out. The `upsert` callback receives the
+query alone as `query` and the whole state as `state`.
+
+`queryFromUrlState` and `urlStateFromQuery` convert between nuqs values and a
+stored query outside React, and `sameQuery` compares two queries while
+ignoring the page and empty facets. `displayStateOf` drops `query` from a
+state, and `sameDisplayState` compares the rest.
+
+## Vue
+
+`useBlockController` from `better-supabase/vue` runs
+`createSavedViewsController` with its options; the controller needs no
+provider. `state` is a shallow ref of the snapshot and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useBlockController } from "better-supabase/vue";
+import { createSavedViewsController } from "better-supabase/blocks/saved-views";
+
+const { state } = useBlockController(
+  createSavedViewsController,
+  {
+    load: () => loadViews(),
+    urlState: () => readUrlState(),
+    setUrlState: (next) => writeUrlState(next),
+  },
+  false,
+);
+</script>
+
+<template>
+  <ul>
+    <li v-for="view in state.views ?? []" :key="view.id">{{ view.name }}</li>
+  </ul>
+</template>
+```
+
+`loadViews`, `readUrlState` and `writeUrlState` stand for your server call
+and your router's query state. The controller's `apply`, `saveCurrent` and
+`remove` are on the actions.
+
+## Svelte
+
+`useBlockController` from `better-supabase/svelte` runs
+`createSavedViewsController` with its options; the controller needs no
+provider. It returns a readable store of the snapshot, read with `$`,
+with the actions on `.actions`. The work starts on mount, and the controller
+is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { useBlockController } from "better-supabase/svelte";
+  import { createSavedViewsController } from "better-supabase/blocks/saved-views";
+
+  const views = useBlockController(createSavedViewsController, {
+    load: () => loadViews(),
+    urlState: () => readUrlState(),
+    setUrlState: (next) => writeUrlState(next),
+  }, false);
+</script>
+
+<ul>
+  {#each $views.views ?? [] as view (view.id)}
+    <li>{view.name}</li>
+  {/each}
+</ul>
+```
+
+## Solid
+
+`useBlockController` from `better-supabase/solid` runs
+`createSavedViewsController` with its options; the controller needs no
+provider. `state()` reads the snapshot through `from`, and `actions` are the
+controller's actions. The work starts on mount, and the controller is
+disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useBlockController } from "better-supabase/solid";
+import { createSavedViewsController } from "better-supabase/blocks/saved-views";
+
+export function Component() {
+  const { state } = useBlockController(
+    createSavedViewsController,
+    {
+      load: () => loadViews(),
+      urlState: () => readUrlState(),
+      setUrlState: (next) => writeUrlState(next),
+    },
+    false,
+  );
+  return (
+    <ul>
+      <For each={state().views ?? []}>{(view) => <li>{view.name}</li>}</For>
+    </ul>
+  );
+}
+```
+
+## Your own fields
+
+`options.extraColumns` adds columns to `saved_views`. `upsert` writes them from `fields`,
+and `upsert`, `duplicate` and `list` return them in `fields`. Pass a Standard Schema as `fields`
+to type them: writes are validated before they reach the database (a
+`validation` error), and reads are parsed. `hooks` refuses, rewrites or
+observes any method; see [extending blocks](/docs/extending/blocks).
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { "saved-views": { options: { extraColumns: { color: "text" } } } },
+});
+```
+
+```ts
+const client = createSavedViews({
+  transport,
+  fields: v.object({ color: v.optional(v.string()) }),
+});
+await client.upsert({
+  organizationId,
+  list: "tasks",
+  name: "Mine",
+  state,
+  fields: { color: "teal" },
+});
+```
+
+## Events
+
+`upsert` and `delete` record `saved_view.saved` and `saved_view.deleted` in the
+outbox when it is installed, and `upsert` calls the `before_view_save` and
+`after_view_save` hooks. `duplicate` saves through the same function, so a
+copy records `saved_view.saved` and runs both hooks. Preferences record no
+event.
+
+## With ReUI
+
+- Filters edits the filter tree a view stores, and Data Grid's column
+  state maps onto `columns` (visibility, order, sizes and pinning).
+- A Select or Tabs list in the toolbar switches views with `apply`, with a
+  dot when `isDirty` is true.
+- `kind` picks the layout: Data Grid, Kanban, Event Calendar or Gantt.
+
+The free `c-data-grid-*` examples show column state, and the Pro data grid
+and filters blocks show a toolbar with saved views. Pro blocks are licensed
+per user, so copy them from [reui.io](https://reui.io).
+
+## Without the client
+
+`db.savedViews` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/views.ts"
+import { createSavedViews } from "better-supabase/blocks/saved-views";
+
+import { tasksList } from "./lists";
+
+export const savedViews = createSavedViews({
+  transport,
+  lists: { tasks: tasksList },
+});
+
+await savedViews
+  .upsert({
+    organizationId,
+    list: "tasks",
+    name: "Open bugs",
+    kind: "board",
+    scope: "tenant",
+    state: {
+      query: { facets: { status: ["open"] }, sort: "newest" },
+      grouping: ["status"],
+      columns: { visible: ["title", "assignee"], pinned: { left: ["title"] } },
+      density: "compact",
+    },
+  })
+  .orThrow();
+
+const views = await savedViews.list(organizationId, "tasks").orThrow();
+```

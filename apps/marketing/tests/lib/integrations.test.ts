@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { globSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -21,20 +21,27 @@ const UNLISTED = new Set([
   "hono-and-next",
 ]);
 
-function hasDocsPage(href: string): boolean {
-  const path = href.replace(/^\/docs\/?/, "");
+/** Slugs with `(group)` folders removed, so a moved page still matches its URL. */
+const PAGE_SLUGS = new Set(
+  globSync("**/*.mdx", { cwd: DOCS }).map((file) =>
+    file
+      .split("/")
+      .filter((part) => !/^\(.+\)$/u.test(part))
+      .join("/")
+      .replace(/\.mdx$/u, "")
+      .replace(/\/index$/u, ""),
+  ),
+);
 
-  return (
-    existsSync(join(DOCS, `${path}.mdx`)) ||
-    existsSync(join(DOCS, path, "index.mdx"))
-  );
+function hasDocsPage(href: string): boolean {
+  return PAGE_SLUGS.has(href.replace(/^\/docs\/?/u, ""));
 }
 
 describe("integrations", () => {
   it("every frameworks docs page is linked", () => {
     const hrefs = new Set(integrations.map((integration) => integration.href));
 
-    const missing = readdirSync(join(DOCS, "frameworks"))
+    const missing = readdirSync(join(DOCS, "(docs)/frameworks"))
       .filter((file) => file.endsWith(".mdx"))
       .map((file) => file.replace(/\.mdx$/, ""))
       .filter((slug) => !UNLISTED.has(slug))

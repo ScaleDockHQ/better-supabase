@@ -1,0 +1,195 @@
+---
+title: Employees
+description: Employees with or without an account, a manager, team and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.
+---
+
+`employees` keeps the people an organization employs. An employee has a name, an optional account (`userId`: contractors and interns often have none), a manager, a team, a job title, an employment type, a start and end date, and a status of `preboarding`, `active`, `on_leave` or `offboarded`. Managers form a tree: the database refuses a manager from another organization and a manager who reports to the employee. Private details and a contract history sit in their own tables, which only the employee and holders of `employees.view_sensitive` read.
+
+Reading the directory needs `employees.read`, which members have. Creating, editing and offboarding needs `employees.write`, and the private details and contracts need `employees.view_sensitive`; admins have both. A manager without `employees.read` still reads the employees under them through `reportsOf` and `orgChart`, and every employee reads their own row, details and contracts.
+
+```bash
+better-supabase add employees
+```
+
+The module needs `memberships` and `access`. With `outbox` it records events, with `hiring` it makes employees from hired applications, and with `relations` it links them to the application they came from.
+
+Server code calls the `employees` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useEmployees } = defineDataHooks(
+  "employees",
+  (db: AppDb) => db.employees,
+);
+```
+
+```ts
+import { createEmployees } from "better-supabase/blocks/employees";
+
+const mia = await db.employees
+  .create(organizationId, {
+    name: "Mia de Vries",
+    userId,
+    jobTitle: "Designer",
+    managerId: leadId,
+    startDate: Temporal.PlainDate.from("2026-11-01"),
+  })
+  .orThrow();
+```
+
+```tsx title="src/features/employees/list.tsx"
+"use client";
+
+import { useEmployees } from "@/lib/supabase/hooks";
+
+const rows = useEmployees({ limit: 50 });
+```
+
+The status defaults to `preboarding` before the start date and `active` from it. `employmentType` is one of `blocks.employees.options.employmentTypes` (`employee`, `contractor`, `intern` and `temporary` by default), and the first one is the default. A `userId` must be a member of the organization (`EMPLOYEE_USER_NOT_MEMBER`) and an employee only once (`EMPLOYEE_USER_TAKEN`).
+
+Installing the block registers employees as the `employee` subject, so comments, files, tags and search attach to them. Set the page a search result links to on the entity:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { employees: { names: { employee: { url: "/people/{id}" } } } },
+});
+```
+
+## Editing
+
+`update(changes)` applies a batch of `{ employeeId, field, value }` cells, each on its own, as an editable grid sends them. A change that fails comes back in `rejected` with its hint and the others stay. The fields are `name`, `email`, `userId`, `jobTitle`, `teamId`, `managerId`, `employmentType`, `status`, `startDate`, `endDate` and the extra columns by name; `null` clears one. `status` takes `preboarding`, `active` or `on_leave`; setting it on an offboarded employee rehires them and clears the end date.
+
+```ts
+const { accepted, rejected } = await employees
+  .update([
+    { employeeId: mia.id, field: "jobTitle", value: "Lead designer" },
+    { employeeId: leadId, field: "managerId", value: mia.id },
+  ])
+  .orThrow();
+// rejected[0].hint === "EMPLOYEE_MANAGER_CYCLE" when the lead manages Mia
+```
+
+`options.extraColumns` adds columns to the employees table. Pass a Standard Schema as `fields` to type them, parse them on reads and validate them on writes:
+
+```ts
+const employees = createEmployees({
+  transport,
+  fields: z.object({ cost_center: z.string() }),
+});
+```
+
+## Time and leave
+
+With [time-tracking](/docs/blocks/time-tracking) or [leave](/docs/blocks/leave)
+installed, time entries and leave requests carry an `employee_id` column.
+A trigger fills it from the employee with the row's account when the row is
+written, and a trigger on employees fills or clears it when an employee
+gets, changes or loses an account. Upgrading an app that has both blocks
+fills the column for the rows it already has. A member who isn't an
+employee keeps `employee_id` null.
+
+## Org chart
+
+`orgChart(organizationId)` returns the current employees under everyone without a manager, and `orgChart(organizationId, rootId)` the employees under one, each with its `depth` and number of `directReports`, in display order. `reportsOf(managerId)` returns the direct reports, and `{ indirect: true }` everyone under the manager. Offboarded employees are left out.
+
+## Offboarding
+
+`offboard(employeeId, { endDate, reason })` sets the status to `offboarded`, the end date (today by default) and the reason, and moves the employee's reports to their manager. Offboarding again returns the employee unchanged.
+
+## From a hired application
+
+With the [hiring](/docs/blocks/hiring) module, `fromApplication(applicationId)` makes the employee for a hired application, in `preboarding`. The name comes from the candidate's `title` column in `config.records`, and the job title, team and employment type from the job; pass overrides such as `{ startDate }` as the second argument. The employee's origin is the application, so calling it again returns the same employee, and with `relations` it gets a `created_from` relation to the application. Call it from an `application.hired` handler:
+
+```ts
+onBlockEvent(bsb, hiringEvents, "application.hired", async (event) => {
+  await employees.fromApplication(event.data.applicationId).orThrow();
+});
+```
+
+`create` takes an `origin` (`{ type, id }`) too, so other imports stay idempotent.
+
+## Private details
+
+`savePrivateDetails(employeeId, input)` saves the national id, IBAN, birth date, personal email, phone, address and emergency contacts; the keys it leaves out keep their value. `privateDetails(employeeId)` reads them. The employee edits their own details, and offboarding stamps `offboardedAt`, so an [anonymize rule](/docs/blocks/data-lifecycle) can clear them a retention period later:
+
+```ts title="better-supabase.config.ts"
+"data-lifecycle": {
+  options: {
+    anonymize: [
+      {
+        table: "better_supabase.employee_private_details",
+        after: "2 years",
+        from: "offboarded_at",
+        set: {
+          national_id: null,
+          iban: null,
+          address: null,
+          emergency_contacts: { sql: "'[]'::jsonb" },
+        },
+        markedBy: "anonymized_at",
+      },
+    ],
+  },
+},
+```
+
+The three tables declare their tenant to `data-lifecycle`, so an organization export includes them and the purge deletes them. The employees row and the private details also declare the employee's user, so a user's own export includes them.
+
+## Contracts
+
+`addContract(employeeId, { startsOn, endsOn, hoursPerWeek, salary, salaryPeriod, note })` appends to the employee's contract history. `salary` is a `Money` value from [commerce](/docs/concepts/commerce), such as `money(5_400_000n, "EUR")`, which carries its currency and is sent as text so it stays exact past 2^53, and `salaryPeriod` is `hour`, `week`, `month` or `year`. A new contract starts after the latest one (`EMPLOYEE_CONTRACT_OVERLAP`), which ends the day before; rows are never edited. `contracts(employeeId)` returns them, the newest first. Adding one needs `employees.write` and `employees.view_sensitive`.
+
+## Adopting a table
+
+An app with its own employees table adopts it with `ownership: "adopt"`, maps its columns, and maps the ones it lacks to `null`: `email`, `jobTitle`, `team`, `employmentType`, `startDate`, `endDate`, `offboardReason`, the origin columns and the timestamps are optional, and the module leaves out what needs them. `privateDetails` and `contracts` can be `null` as whole tables.
+
+## Events
+
+| Event                                     | Data                                                                                                         |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `employee.created`                        | `organizationId`, `employeeId`, `subjectType`, `subjectId`, `name`, `userId`, `managerId`, `status`          |
+| `employee.updated`, `employee.offboarded` | the same without the last three, with `fields` (the changed fields, or `contract`) or `endDate` and `reason` |
+| `employee.manager_changed`                | the same, with `fromManagerId` and `toManagerId`; offboarding records one for each report that moves         |
+
+## Hooks
+
+`before_employee_create`, `after_employee_create`, `before_employee_update`, `after_employee_update`, `before_employee_offboard` and `after_employee_offboard` run in the same transaction as the change. See [extending blocks](/docs/extending/blocks).
+
+## Errors
+
+| Hint                             | Cause                                                           |
+| -------------------------------- | --------------------------------------------------------------- |
+| `EMPLOYEE_FORBIDDEN`             | the caller lacks `employees.write`, or can't read the org chart |
+| `EMPLOYEE_NOT_FOUND`             | no employee the caller can change or whose details they can see |
+| `EMPLOYEE_ATTRS_INVALID`         | a missing name or a field with an invalid value                 |
+| `EMPLOYEE_TYPE_INVALID`          | an employment type outside `options.employmentTypes`            |
+| `EMPLOYEE_STATUS_INVALID`        | a status other than preboarding, active or on_leave             |
+| `EMPLOYEE_USER_NOT_MEMBER`       | the user isn't a member of the organization                     |
+| `EMPLOYEE_USER_TAKEN`            | the user is already an employee of the organization             |
+| `EMPLOYEE_MANAGER_NOT_FOUND`     | the manager isn't an employee of the organization               |
+| `EMPLOYEE_MANAGER_CYCLE`         | the manager reports to the employee                             |
+| `EMPLOYEE_FIELD_UNKNOWN`         | a change names a field that can't be written                    |
+| `EMPLOYEE_CHANGES_INVALID`       | changes isn't a list                                            |
+| `EMPLOYEE_ORIGIN_NOT_FOUND`      | no application the caller can turn into an employee             |
+| `EMPLOYEE_APPLICATION_NOT_HIRED` | the application isn't hired                                     |
+| `EMPLOYEE_PRIVATE_INVALID`       | a private detail has an invalid value, such as a malformed IBAN |
+| `EMPLOYEE_CONTRACT_INVALID`      | a contract without a start date, or with an invalid value       |
+| `EMPLOYEE_CONTRACT_OVERLAP`      | the contract starts on or before the latest one                 |
+
+## Without the client
+
+`db.employees` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createEmployees } from "better-supabase/blocks/employees";
+
+const employees = createEmployees({ transport });
+const mia = await employees
+  .create(organizationId, {
+    name: "Mia de Vries",
+    userId,
+    jobTitle: "Designer",
+    managerId: leadId,
+    startDate: Temporal.PlainDate.from("2026-11-01"),
+  })
+  .orThrow();
+```

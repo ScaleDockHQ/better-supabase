@@ -1,0 +1,20 @@
+{
+  "title": "Organizations and identity",
+  "pages": [
+    "catalog-organizations",
+    "organizations",
+    "memberships",
+    "profiles",
+    "audit",
+    "settings",
+    "data-lifecycle",
+    "sso",
+    "teams",
+    "metrics",
+    "created-by",
+    "access-requests",
+    "identities",
+    "domains",
+    "compliance"
+  ]
+}

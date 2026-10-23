@@ -1,0 +1,282 @@
+---
+title: React
+description: Provider, typed hooks and the server session.
+---
+
+```tsx title="src/app/providers.tsx"
+"use client";
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BetterSupabaseProvider } from "better-supabase/react";
+import { bsb } from "@/lib/supabase/client";
+
+const queryClient = new QueryClient();
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BetterSupabaseProvider client={bsb} queryClient={queryClient}>
+        {children}
+      </BetterSupabaseProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+Create hooks typed for your schema once:
+
+```ts title="src/lib/hooks.ts"
+import { createHooks } from "better-supabase/react";
+import type { bsb } from "./supabase/client";
+
+export const { useDb, useQueries, useAuth, useSupabase } =
+  createHooks<typeof bsb>();
+```
+
+```tsx
+function CustomerList() {
+  const q = useQueries();
+  const { data } = useQuery(q.customers.list({ select: ["id", "name"] }));
+  const auth = useAuth();
+  if (auth.status === "signed-out") return <SignIn />;
+  return (
+    <ul>
+      {data?.map((c) => (
+        <li key={c.id}>{c.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+- `useAuth()` renders `loading` on the server and during hydration, then the
+  real state. It uses `useSyncExternalStore`, so it never tears.
+- `useDb()` and `useQueries()` re-render when the user changes.
+- With `queryClient`, the provider removes all better-supabase queries when
+  the user signs out or switches accounts, and refetches them when the
+  token's tenant or role changes, so one user's or tenant's data never shows
+  up for the next. It uses [`clearOnUserChange`](/docs/frontend/query#clearing-on-sign-out).
+- `useBroadcast(topic, values, handlers, { invalidate })` subscribes to a
+  [Realtime topic](/docs/platform/realtime) while mounted and refetches the
+  listed tables after each message.
+
+## Auth, search, storage and presence hooks
+
+These hooks replace the code most screens write by hand. Each reads the
+provider's client, or takes `{ client: supabase }` without the provider.
+
+```tsx title="src/features/auth/sign-in-form.tsx"
+"use client";
+
+import { useSignIn } from "better-supabase/react";
+
+export function SignInForm() {
+  const signIn = useSignIn({ onSuccess: () => router.push("/") });
+  return (
+    <form
+      action={(form) =>
+        signIn.password({
+          email: String(form.get("email")),
+          password: String(form.get("password")),
+        })
+      }
+    >
+      {signIn.error ? <p role="alert">{signIn.error.message}</p> : null}
+      <button disabled={signIn.pending}>Sign in</button>
+    </form>
+  );
+}
+```
+
+| Hook                                       | What it returns                                                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `useSignIn()`                              | `password`, `otp`, `verifyOtp` and `oauth`, with `pending` and the last `error`                                          |
+| `useSignOut()`                             | `signOut(options)`, with `pending` and `error`; the provider then clears cached queries                                  |
+| `useDebouncedSearch(initial, { delayMs })` | `value` and `setValue` for the input, the settled `term`, and `pattern` with `%` and `_` escaped for `ilike`             |
+| `useSignedUrl(bucket, target, { ttl })`    | a signed URL that is signed again before it expires; `null` pauses                                                       |
+| `useImage(bucket, target, variant)`        | `src`, `srcSet`, `width` and `height` for an `<img>` at a [bucket variant](/docs/platform/storage#image-transformations) |
+| `useUpload(bucket)`                        | `upload(target, body)`, `progress` from 0 to 1, `status`, `abort` and `reset`                                            |
+| `usePresence(topic, values, { state })`    | the `members` on a presence topic, `track` and `untrack`                                                                 |
+
+`useDebouncedSearch` pairs with `contains`, which escapes the term itself:
+`where: search.term ? { name: { contains: search.term } } : {}`. `escapeLike`
+is exported for filters you build yourself.
+
+`useUpload` reports real progress where `XMLHttpRequest` exists (browsers
+and React Native): the upload goes to a signed upload URL, and `abort`
+cancels the request. Elsewhere, and for uploads with `metadata`, progress
+jumps to 1 when the upload finishes. The same `onProgress` option works on
+`bucket.upload()` directly.
+
+`usePresence` tracks the `state` option after the join and again when its
+JSON changes; pass `null` to untrack. It rejoins when the user changes.
+
+## Server Actions
+
+`useAction` and `useActionForm` call a [`bsb.action()`](/docs/frameworks/next#server-actions)
+Server Action and track its `ActionResult`, so a component doesn't need its
+own transition, pending flag and error state.
+
+```tsx title="src/features/customers/components/create-customer-form.tsx"
+"use client";
+
+import { useActionForm } from "better-supabase/react";
+
+import { createCustomer } from "../customer-actions";
+
+export function CreateCustomerForm() {
+  const form = useActionForm(createCustomer, {
+    onSuccess: (customer) => toast.success(`${customer.name} added`),
+  });
+  return (
+    <form {...form.formProps}>
+      <Input name="name" aria-invalid={form.fieldErrors.name !== undefined} />
+      {form.fieldErrors.name ? <p>{form.fieldErrors.name}</p> : null}
+      <Button type="submit" disabled={form.pending}>
+        Add
+      </Button>
+    </form>
+  );
+}
+```
+
+- `useActionForm(action, { onSuccess, onError, resetOnSuccess })` submits
+  the form's `FormData`. The fields keep what the user typed when the action
+  fails and clear on success (`resetOnSuccess: false` keeps them, for an edit
+  form). `fieldErrors` holds the first message per field of a `validation`
+  error; `fieldErrorsOf(error)` returns the same for any `DbError`.
+- `useAction(action, { onSuccess, onError })` runs the action from an event
+  handler with `run(input)`, which resolves with the `ActionResult`. The
+  input type drops `FormData`, so `run` takes the action's object input.
+  `pending` covers the run and the re-render it causes, `data` and `error`
+  hold the last result, and `pendingInputs` lists the inputs in flight, so
+  one table row can show its own change before the server confirms it:
+
+```tsx
+const roleChange = useAction(updateMemberRole);
+const roleOf = (member: Member) =>
+  roleChange.pendingInputs.findLast((input) => input.userId === member.userId)
+    ?.role ?? member.role;
+```
+
+- A thrown error (not an `ActionResult` error) still reaches the nearest
+  error boundary.
+
+`createErrorMessages(messages)` from `better-supabase` turns a `DbError`
+into the sentence to show. It takes a message, or a function of the error,
+for every [error kind](/docs/repository/unique-and-errors#error-kinds); leaving a kind out is a type
+error, so a new kind can't fall through to a generic message. Build it
+where your translations are:
+
+```ts title="src/lib/use-error-message.ts"
+import { createErrorMessages } from "better-supabase";
+
+export function useErrorMessage() {
+  const t = useExtracted("errors");
+  return createErrorMessages({
+    unauthorized: t("Sign in again to continue."),
+    forbidden: t("You don't have access to this."),
+    raised: (error) => error.message,
+    // ...every other kind
+  });
+}
+```
+
+## Record pages
+
+`createRecordProvider(customerRecord)` returns a `RecordProvider` and a
+`useRecord` hook for one
+[generated record type](/docs/repository/record-bindings#generated-record-types). The
+provider takes the record's `id`, the `initial` view the server loaded, the
+`writes` (Server Actions) and a realtime `topic`; `useRecord()` returns
+`{ state, actions, meta }`.
+
+## Server session
+
+`useAuth()` reads the browser client, so it is `loading` during server
+rendering. To render signed-in UI on the server, hand Client Components the
+server-verified session instead: pass a `bsb.session()` promise to
+`SessionProvider` and read it with `useSession()`.
+
+```tsx title="Server Component, inside <Suspense>"
+import { SessionProvider } from "better-supabase/react";
+
+<SessionProvider sessionPromise={getSession()}>
+  <SideNav />
+</SessionProvider>;
+```
+
+```tsx title="Client Component"
+"use client";
+import { useSession } from "better-supabase/react";
+
+export function SideNav() {
+  const session = useSession(); // suspends until the promise resolves
+  return session.kind === "user" ? <Menu claims={session.claims} /> : null;
+}
+```
+
+- `SessionProvider` renders from Server Components: the `react-server` build
+  exports it as a client reference.
+- `useSession()` suspends, so keep it under a `<Suspense>` boundary, and
+  create the promise inside that boundary.
+- The session is a plain `AuthSession` (no token), the same type
+  `bsb.session()` returns. `tenantOf(session)` reads its active tenant (the
+  tenant claim at the top level of the token, then in `app_metadata`), on
+  the server and in the browser.
+
+See [Cache Components](/docs/frameworks/next-cache-components) for the full
+pattern, including role-filtered menus.
+
+## A tenant from the URL
+
+When the tenant is part of the route (`/[organizationId]/customers`), the
+browser client doesn't read the URL: `useDb()`, `useQueries()` and the live
+hooks scope tenant tables to the `tenant_id` claim. Resolve the tenant on the
+server and hand it down:
+
+- Read the rows in a Server Component with
+  `bsb.context({ tenant: organizationId })`, or in a
+  `'use cache: private'` function that takes `organizationId` as an argument
+  and calls `bsb.cached({ tenant: organizationId })`. Pass the rows to the
+  Client Component.
+- Pass `organizationId` to the Client Component as a prop, and send it in the
+  action's input. The action scopes its context with
+  `tenant: (input) => input.organizationId`, so a tenant the caller doesn't
+  belong to grants nothing, the same as a tenant from the resolver.
+- Pass the same id to the live hooks: `useLiveQuery(spec, { tenant })` and
+  `useLiveCount(seed, { tenant })`. Seed the count with the `db` from the
+  scoped context: `bsb.liveCount(spec, db)`.
+
+```tsx title="src/app/[organizationId]/customers/page.tsx"
+export default async function Customers({
+  params,
+}: PageProps<"/[organizationId]/customers">) {
+  const { organizationId } = await params;
+  const customers = await getCustomers(organizationId);
+  return <CustomerList organizationId={organizationId} customers={customers} />;
+}
+```
+
+```tsx title="src/features/customers/customer-list.tsx"
+"use client";
+
+export function CustomerList({ organizationId, customers }: Props) {
+  useLiveQuery(customersSpec, { tenant: organizationId });
+  const add = (name: string) => createCustomer({ organizationId, name });
+  // ...
+}
+```
+
+```ts title="src/features/customers/customer-actions.ts"
+"use server";
+
+export const createCustomer = bsb.action(
+  { input: CreateCustomer, tenant: (input) => input.organizationId },
+  (input, { db }) =>
+    db.customers.create({ name: input.name }, { select: ["id"] }),
+);
+```
+
+The Realtime policy still decides which tenant topics a user may join (see
+[live queries](/docs/frontend/live-queries)).

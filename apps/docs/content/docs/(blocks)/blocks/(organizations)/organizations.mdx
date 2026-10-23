@@ -1,0 +1,710 @@
+---
+title: Organizations and invitations
+description: Create organizations, manage members and roles, invite by email and switch the active organization, on tables you already have or tables the block creates.
+---
+
+The `organizations` and `invitations` [SQL modules](/docs/blocks/sql) put
+the rules for teams in Postgres: who may rename an organization, who may
+invite whom and with which role, that an organization always keeps an owner,
+and that an invitation is accepted once by the address it was sent to.
+`better-supabase/blocks/organizations` calls those functions from TypeScript, returns a
+`Result` for each call and emits [block events](/docs/extending/events).
+
+```bash
+pnpm better-supabase add organizations invitations
+```
+
+Both modules need `tenant` (the memberships table) and `access` (the
+[access contract](/docs/repository/permissions)), so `add` pulls those in too.
+Permissions are checked with `member_can()`, so the same functions work with
+the default roles, your own role and permission tables, an authorization
+provider or your own functions.
+
+## Functions
+
+| Function                                                                         | What it does                                                                                                                                                   |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_organization(attrs)`                                                     | creates the organization from `name`, `slug` and the `attributes` columns, and makes the caller owner                                                          |
+| `update_organization(organization, attrs)`                                       | updates the columns present in `attrs` (`update`)                                                                                                              |
+| `delete_organization(organization)`                                              | deletes it, sets `deleted_at` with `deleteMode: 'soft'`, or requests the deletion with `deleteMode: 'lifecycle'` (`delete`); missing with `deleteMode: 'none'` |
+| `organization_slug_problem(value, except_organization)`                          | `invalid`, `reserved`, `taken` or null, for form validation                                                                                                    |
+| `update_member_role(organization, member, role)`                                 | changes a member's role, up to the caller's own (`updateRole`)                                                                                                 |
+| `remove_member(organization, member)` and `leave_organization(organization)`     | removes a member (`removeMember`), or the caller                                                                                                               |
+| `transfer_ownership(organization, new_owner, former_role)`                       | makes another member owner and gives the caller `former_role` (`transferOwnership`)                                                                            |
+| `suspend_member(organization, member)` and `resume_member(organization, member)` | suspends or resumes a member, who keeps their role (`suspendMember`); only with a membership `disabledAt` column                                               |
+| `switch_organization(organization)`                                              | makes it the caller's active organization (see [Switching](#switching-organizations))                                                                          |
+| `list_my_organizations()`                                                        | organizations the caller belongs to (`id`, `name`, `slug`, `role`, and `disabled_at` with a membership `disabledAt` column)                                    |
+| `list_members(organization)`                                                     | members the caller may read (`members.read`), with `disabled_at` when the memberships table has the column                                                     |
+| `list_organization_invitations(organization)`                                    | open invitations, when the invitations module is installed (`members.invite`)                                                                                  |
+| `mark_used(organization)`                                                        | sets `last_used_at` on the caller's membership                                                                                                                 |
+| `invite_member(tenant, invitee_email, invitee_role)`                             | creates an invitation and returns it with its token (`invite`)                                                                                                 |
+| `resend_invitation(invitation_id)`                                               | issues a new token and expiry; the old token stops working                                                                                                     |
+| `update_invitation(invitation_id, invitee_email, invitee_role, prefill)`         | changes an open, unexpired invitation's email, role or prefill (null keeps the value) with the `invite` checks; the token and expiry stay                      |
+| `revoke_invitation(invitation_id)`                                               | revokes an open invitation (`revoke`)                                                                                                                          |
+| `invitation_preview(token)`                                                      | status, email, role and organization for the accept page; callable without a session                                                                           |
+| `accept_invitation(token)` and `decline_invitation(token)`                       | accepts for the signed-in user, or declines                                                                                                                    |
+| `accept_invitation_by_id(id)` and `decline_invitation_by_id(id)`                 | the same by invitation id, for the invitee's signed-in session (an in-app inbox)                                                                               |
+
+The name in parentheses is the block action whose permission the function
+checks. `create_invitation(organization, email, role)` from 0.4 still works and
+returns the token only.
+
+Every check runs in the function, and the database keeps two rules even for
+writes that bypass the functions. A deferred trigger refuses a commit that
+leaves an organization without an owner (`ownerInvariant`), and a trigger on
+the memberships table stops members from changing their own role or
+assigning a role above their own. That guard checks only client writes (made
+as `anon` or `authenticated`): the
+service role, direct admin connections and `security definer` functions pass
+it, so your own functions that write memberships (an invitation accept that
+seats the invitee, a one-statement ownership transfer) work, and check their
+own ceilings as the module's functions do.
+
+When another trigger already guards an adopted memberships table, such as an
+authorization provider's assignment rules, set `assignmentGuard:
+"external"`: the module drops its own trigger, so a role change is checked
+once and fails with one error vocabulary. The module's functions still
+check before they write: `update_member_role` refuses a change to the
+caller's own role (`ORGANIZATION_SELF_ROLE`) and needs `can_assign` for both
+the member's current role and the new one (`ORGANIZATION_ROLE_CEILING`), and
+`remove_member` needs it for the current role. Those checks hold even when
+the external guard skips writes from `security definer` functions. A managed memberships table always keeps
+the module's guard.
+
+`transfer_ownership` promotes the new owner and demotes the calling owner in
+one `update`, so a statement-level rule on the number of owners sees the
+transfer as a whole, and it refuses a new owner
+whose account is disabled (`ORGANIZATION_FORBIDDEN`) or whose membership is
+suspended (`ORGANIZATION_MEMBER_SUSPENDED`).
+
+## Suspending members
+
+With a `disabledAt` column on the memberships table (managed tables have it;
+an adopted one maps `blocks.memberships.columns.memberships.disabledAt`, see
+[suspended memberships](/docs/repository/permissions#suspended-memberships)),
+`suspend_member(organization, member)` switches a member off in one
+organization without removing them. They keep their role and their row, get
+no permissions there, and `resume_member` gives everything back.
+
+Both functions check the `suspendMember` action, which defaults to the
+`removeMember` key (`members.remove`, or what
+`blocks.organizations.permissions.removeMember` sets), and the role
+ceiling: the caller must be able to assign the member's role
+(`ORGANIZATION_ROLE_CEILING`). They refuse
+the caller's own membership (`ORGANIZATION_SELF`), and `suspend_member`
+refuses the last active owner (`ORGANIZATION_OWNER_REQUIRED`). A suspended
+owner doesn't count as one, so the deferred owner check also refuses a commit
+that leaves only suspended owners. Each returns `false` when nothing changed,
+calls the `after_member_change` hook with `suspended` or `resumed`, writes an
+`organization.member_suspended` or `organization.member_resumed` audit entry
+when the audit module is installed, and emits the same event.
+
+The role guard on the memberships table treats a client write that changes
+`disabled_at` like a role change: nobody suspends or resumes themselves, or a
+member above their own role.
+
+From TypeScript, `suspendMember(organizationId, userId)` and
+`resumeMember(organizationId, userId)` return whether the state changed, and
+`members()` and `mine()` carry `disabledAt` (a `Temporal.Instant`) for a
+suspended membership. To lock a user out of every organization and end their
+sessions, suspend the account instead (see
+[suspending an account](/docs/auth/account-deletion#suspending-an-account)).
+
+The owner check locks the organization row, so two owners who leave at the
+same time can't both succeed. When the block owns the organizations table, the
+slug is required, and memberships, invitations and permission overrides
+reference the organization with `on delete cascade`: deleting it deletes
+them. Under `model: 'catalog'`, a role that a member still holds can't be
+deleted (`on delete restrict`). The keys are added to tables that already
+exist too; when older rows have no organization, the block adds the key
+without validating them and logs a warning.
+
+## From TypeScript
+
+`createOrganizations` takes a transport that runs the functions as the user.
+`mine()`, `members(organizationId)` and `invitations(organizationId)` list
+the caller's organizations, an organization's members and its open
+invitations.
+`sqlTransport` uses a Postgres connection with the user's claims, and works
+whatever schema the modules are in:
+
+Server code calls the `organizations` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useOrganizations } = defineDataHooks(
+  "organizations",
+  (db: AppDb) => db.organizations,
+);
+```
+
+```ts
+const rows = await db.organizations.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/organizations/list.tsx"
+"use client";
+
+import { useOrganizations } from "@/lib/supabase/hooks";
+
+const rows = useOrganizations({ limit: 50 });
+```
+
+`rpcTransport(ctx.supabase)` calls them over the Data API instead. Never add
+`better_supabase` or a `blocks.<module>.schema` to `[api] schemas`: those
+schemas hold internal helpers that policies call, and doctor reports exposing
+them as BS312. Set `api: "api"` on the `organizations` and `invitations`
+modules instead: `add` writes a `security invoker` entry point in `api` for
+each function the modules grant to `authenticated`, with the same name and
+arguments. Add `api` to `[api] schemas` and pass
+`rpcTransport(ctx.supabase, { schema: "api" })`, or `schema: "api"` to
+`createOrganizations`. With entry points in different schemas, pass
+`schema: { organizations: "api", invitations: "app_api" }`.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  organizations: { api: "api" },
+  invitations: { api: "api" },
+},
+```
+
+Each method returns an `AsyncResult`. Errors the block raises are `DbError`s
+whose `hint` is a stable code, so a form can show the right message:
+
+```ts
+const result = await organizations.create({ name, slug });
+if (!result.ok && result.error.hint === "ORGANIZATION_SLUG_TAKEN") {
+  return { field: "slug", message: "That address is taken" };
+}
+```
+
+| Option      | What it does                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| `transport` | `sqlTransport(client)`, `rpcTransport(client)` or your own `call(schema, fn, args)`            |
+| `schema`    | the modules' schema, or one per module (`better_supabase`)                                     |
+| `events`    | `betterSupabase.events`; each change emits `organization.*` or `invitation.*`                  |
+| `actorId`   | the user acting, recorded on the events                                                        |
+| `canInvite` | runs before `invite_member`; return `false` for seat limits or plans                           |
+| `onInvite`  | runs after an invite or resend with the token, to send the email; when it throws, resend later |
+| `mappers`   | your own error mapping, as in `betterSupabase.mapError()`                                      |
+
+The token is only in the `onInvite` argument and the `invite` result. It is
+never part of an event, and by default only its SHA-256 hash is stored.
+
+The invitation in `onInvite` carries what an email needs without another
+read. `organization` holds the id and `previewColumns`, `extra` holds the
+keys an `invitation_preview_extra` hook adds (a role label, say, see
+[existing tables](#existing-tables)), and, with the profiles module installed, `inviter`
+holds the inviter's `id` and public profile fields (`username`, `fullName`,
+`firstName`, `lastName` and `avatar`, as the profiles module maps them). An
+email template can say who invited the person to which role:
+
+```ts
+onInvite: ({ invitation, token }) =>
+  sendInvitationEmail(invitation.email, {
+    link: `/invite/${token}`,
+    inviter: String(invitation.inviter?.["fullName"] ?? "A teammate"),
+    role: String(invitation.extra["roleLabel"] ?? invitation.role),
+  }),
+```
+
+`invite_member`, `resend_invitation`, `update_invitation` and
+`my_invitations` return the same keys in SQL. Without the profiles module,
+`inviter` is `null`; return the inviter's name from the hook instead (it
+receives the invitation id, and `invited_by` is on the row).
+
+### Your own fields and hooks
+
+Columns from `options.attributes` and `options.extraColumns` come back from
+`mine()` next to `id`, `name`, `slug` and `role`. Pass a Standard Schema for
+them as `fields` to type them, parse them on read and validate `create` and
+`update`, and `hooks` to refuse, rewrite or observe any method:
+
+```ts
+const organizations = createOrganizations({
+  transport,
+  fields: z.object({ plan: z.enum(["free", "pro"]) }),
+  hooks: {
+    create: {
+      before: ([attrs, options]) => [{ plan: "free", ...attrs }, options],
+    },
+  },
+});
+
+const [first] = await organizations.mine().orThrow();
+first?.plan; // "free" | "pro"
+```
+
+Invitations take their own columns from
+`blocks.invitations.options.extraColumns`. `invite` writes them from
+`fields`, every invitation the block returns carries them in `fields`, and
+`invitationFields` types and checks them:
+
+```ts
+const organizations = createOrganizations({
+  transport,
+  invitationFields: z.object({ source: z.enum(["admin", "signup"]) }),
+});
+await organizations.invite({
+  organizationId,
+  email,
+  role: "member",
+  fields: { source: "admin" },
+});
+```
+
+SQL hooks run inside the functions for every caller:
+`before_organization_create(attrs jsonb, owner uuid)`,
+`after_organization_create(organization, owner uuid)`,
+`before_organization_update(organization, attrs jsonb)` and
+`after_organization_update(organization, attrs jsonb)`.
+[Extending blocks](/docs/extending/blocks) covers all of it.
+
+## Switching organizations
+
+`switch_organization(organization)` checks the caller is a member and the organization
+is active, then follows `blocks.permissions.activeTenant`:
+
+| Source          | `switch_organization` writes                                         | `refresh` |
+| --------------- | -------------------------------------------------------------------- | --------- |
+| `claim`         | the claim (`auth.organization.claim`) into the user's `app_metadata` | `true`    |
+| `profileColumn` | the organization id into that column of the user's profile           | `false`   |
+| `resolver`      | nothing: your resolver picks the tenant per request                  | `false`   |
+
+When `refresh` is `true`, refresh the session so the next access token
+carries the new claim. If your access token hook builds the claim from
+somewhere else, use the `profileColumn` or `resolver` source instead.
+
+### In the browser
+
+`useOrganizations` lists the caller's organizations and the active one, read
+from the tenant claim (`auth.organization.claim`) of the provider's session.
+`switchTo(id)` calls `switch_organization`, refreshes the session when the
+result asks for it, and loads the list again; it returns a `Result` and keeps a
+failure in `error`. The same hook runs in React DOM and React Native. It is a
+registry item: install it with `npx shadcn add
+@better-supabase/use-organizations`, which writes `hooks/use-organizations.ts`
+into the app; the file also exports `useMembers` and `useInvitations`.
+
+```tsx title="components/organization-switcher.tsx"
+import { useOrganizations } from "@/hooks/use-organizations";
+
+const { organizations, active, switching, switchTo } = useOrganizations({
+  schema: "api",
+});
+```
+
+`load` replaces `organizations.mine()`, such as with a server action that adds
+the plan to each row, and `initial` and `activeId` take what a server already
+rendered so the first load is skipped. `onSwitched` replaces the session
+refresh, such as with a router refresh after it in a Next.js app.
+`createOrganizationsController` from `better-supabase/blocks/organizations` is
+the same logic without React. Vue, Svelte and Solid run it with
+`useBlockController` from `better-supabase/vue`, `/svelte` and `/solid`, taking
+the controller's options with `auth` from the provider
+(see [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)). The
+[organization switcher recipe](/docs/registry/ui-recipes/org-switcher) shows it
+in the Next.js and Expo examples.
+
+```vue title="ActiveOrganization.vue"
+<script setup lang="ts">
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createOrganizations,
+  createOrganizationsController,
+  rpcTransport,
+} from "better-supabase/blocks/organizations";
+
+const supabase = useSupabase();
+const organizations = createOrganizations({
+  transport: rpcTransport(supabase),
+});
+const { state, actions } = useBlockController(createOrganizationsController, {
+  client: organizations,
+  load: () => organizations.mine().orThrow(),
+  onSwitched: async () => {
+    await supabase.auth.refreshSession();
+  },
+});
+</script>
+
+<template>
+  <button
+    v-for="organization in state.organizations"
+    :key="organization.id"
+    @click="actions.switchTo(organization.id)"
+  >
+    {{ organization.name }}
+  </button>
+</template>
+```
+
+```svelte title="ActiveOrganization.svelte"
+<script lang="ts">
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
+  import {
+    createOrganizations,
+    createOrganizationsController,
+    rpcTransport,
+  } from "better-supabase/blocks/organizations";
+
+  const { supabase } = getBetterSupabase();
+  const client = createOrganizations({ transport: rpcTransport(supabase) });
+  const organizations = useBlockController(createOrganizationsController, {
+    client,
+    load: () => client.mine().orThrow(),
+    onSwitched: async () => {
+      await supabase.auth.refreshSession();
+    },
+  });
+</script>
+
+<p>{$organizations.activeId}</p>
+```
+
+```tsx title="ActiveOrganization.tsx"
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import {
+  createOrganizations,
+  createOrganizationsController,
+  rpcTransport,
+} from "better-supabase/blocks/organizations";
+
+export function ActiveOrganization() {
+  const supabase = useSupabase();
+  const client = createOrganizations({ transport: rpcTransport(supabase) });
+  const { state } = useBlockController(createOrganizationsController, {
+    client,
+    load: () => client.mine().orThrow(),
+    onSwitched: async () => {
+      await supabase.auth.refreshSession();
+    },
+  });
+  return <p>{state().activeId}</p>;
+}
+```
+
+## Members and invitations in the browser
+
+`useMembers` and `useInvitations` from `@/hooks/use-organizations` call the
+same functions as
+`members`, `updateMemberRole`, `removeMember`, `invitations`, `invite` and
+`revokeInvitation`, through the provider's client. Each takes the
+organization and waits without one, and each write returns a `Result` and
+keeps a failure in `error`. The same hooks run in React DOM and React
+Native.
+
+```tsx title="components/members-table.tsx"
+import { useInvitations, useMembers } from "@/hooks/use-organizations";
+
+const { members, pending, setRole, remove } = useMembers({
+  organizationId,
+  schema: "api",
+});
+const { invite, inviting, sent, clear } = useInvitations({
+  organizationId,
+  schema: "api",
+});
+```
+
+`setRole(userId, role)` shows the new role at once and puts the old one
+back when `update_member_role` refuses it; `pending` lists the members with
+a write in flight. `remove(userId)` removes a member and loads the list
+again. `invite({ email, role })` keeps the result in `sent` until `clear()`,
+so a dialog can show the accept link from `sent.token`, and `revoke(id)`
+revokes an open invitation.
+
+`load` replaces the default list, such as with a server action that adds
+names and avatars from your profiles table, and `initial` takes rows a
+server already rendered so the first load is skipped. `onChanged` runs
+after a change committed, such as a server action that refreshes the
+member's session or completes an onboarding step. Both modules audit the
+changes themselves. `createMembersController` and
+`createInvitationsController` from `better-supabase/blocks/organizations`
+are the same logic without React, and the `/vue`, `/svelte` and `/solid`
+entries export `useMembers` and `useInvitations` over them. The
+[members table](/docs/registry/ui-recipes/members-table) and
+[invite dialog](/docs/registry/ui-recipes/invite-dialog) recipes show
+them in the Next.js and Expo examples.
+
+## Options
+
+`blocks.organizations.options`:
+
+| Option            | Default                             | What it does                                                                                                                                                                                                                                                          |
+| ----------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `attributes`      | `[]`                                | extra columns `create_organization` and `update_organization` accept; a missing key keeps the column default                                                                                                                                                          |
+| `extraColumns`    | none                                | column name to SQL type on a managed table, such as `{ plan: "text not null default 'free'" }`; added to the table and accepted like `attributes`, and both come back from `list_my_organizations` in `attributes jsonb`                                              |
+| `ownerRole`       | `owner`                             | the creator's role                                                                                                                                                                                                                                                    |
+| `formerOwnerRole` | `admin`                             | the previous owner's role after a transfer                                                                                                                                                                                                                            |
+| `deleteMode`      | `hard`                              | `soft` sets `deleted_at` and keeps the memberships; `lifecycle` schedules the deletion with the data-lifecycle module's `request_organization_deletion` (grace period, then the purge job); `none` writes no `delete_organization`, so no entry point deletes at once |
+| `ownerInvariant`  | `true`                              | an organization always keeps an owner                                                                                                                                                                                                                                 |
+| `auditCategory`   | `organization`                      | the category of the `organization.deleted` audit entry; `audit_event` maps it through `blocks.audit.options.values` too, so an adopted log with its own categories can map `organization` there instead                                                               |
+| `assignmentGuard` | `module`                            | `external` leaves role checks on an adopted memberships table to another trigger                                                                                                                                                                                      |
+| `slugPattern`     | `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$` | the slug format                                                                                                                                                                                                                                                       |
+| `slugMinLength`   | `2`                                 | the shortest slug                                                                                                                                                                                                                                                     |
+| `slugMaxLength`   | `48`                                | the longest slug                                                                                                                                                                                                                                                      |
+| `reservedSlugs`   | `[]`                                | slugs nobody can take, checked with the `reserved-slugs` table when that module is installed                                                                                                                                                                          |
+| `slugCitext`      | `false`                             | a `citext` slug column on a managed table                                                                                                                                                                                                                             |
+
+`permissions.create` makes creating an organization a platform permission,
+checked with `is_platform()`. Without it every signed-in user can create one.
+`permissions.updatePlatform` and `permissions.deletePlatform` name platform
+keys that let platform staff update or delete any organization without the
+service role, next to the members who hold `update` or `delete` in it.
+`permissions.updateRolePlatform` and `permissions.removeMemberPlatform` do the
+same for `update_member_role` and `remove_member`: platform staff with that
+key pass the permission check, and the role ceiling still applies, so the
+access model's `can_assign` must allow them the roles they change.
+
+`blocks.invitations.options` (`tokenStorage: "plain"` is migration-only: the
+config accepts it in `ownership: "adopt"` only, and doctor warns about it, BS314):
+
+| Option                  | Default    | What it does                                                 |
+| ----------------------- | ---------- | ------------------------------------------------------------ |
+| `validFor`              | `7 days`   | how long an invitation is open                               |
+| `maxValidFor`           | `30 days`  | the longest `valid_for` an invite or resend may ask for      |
+| `prefill`               | `false`    | adds the `prefill` column (managed tables)                   |
+| `tokenStorage`          | `sha256`   | `plain` stores the token itself; migration-only (adopt mode) |
+| `tokenBytes`            | `24`       | the token's random bytes                                     |
+| `requireConfirmedEmail` | `true`     | the user's address must be confirmed before accepting        |
+| `previewColumns`        | `["name"]` | the organization columns `invitation_preview` returns        |
+| `platformRoles`         | none       | the platform role table under the `provider` model           |
+| `extraColumns`          | none       | column name to SQL type on a managed invitations table       |
+
+Accepting checks the inviter again: an inviter who lost the invite permission,
+or a permission the role grants, can no longer bring someone in with it.
+
+An invitation with a null organization is a platform invitation. It needs
+`blocks.permissions.model: "catalog"` with a `platformAssignments` table, and lives in
+its own `platform_invitations` table. The inviter needs the `invitePlatform`
+permission (`platform.invite`) and every permission the platform role grants,
+both when inviting and when the invitation is accepted. Managed catalog roles
+have a `scope` column (`memberships` or `platform`), and neither kind of role is
+assignable as the other. An adopted catalog maps `blocks.permissions.columns.roles.scope`
+and names its values in `blocks.permissions.options.tenantRoleScope` and
+`platformRoleScope`; an adopted invitations table that also holds platform
+invitations (rows without an organization) maps `tables.platformInvitations`
+to itself.
+
+Under the `provider` model, name the table that holds platform role
+assignments in `blocks.invitations.options.platformRoles`:
+
+```ts title="better-supabase.config.ts"
+invitations: {
+  options: {
+    platformRoles: {
+      table: "public.user_roles",
+      user: "user_id",
+      role: "role_id",
+      // The role column holds a roles table id; the role name is its key.
+      // where names the platform roles when the table holds tenant roles too.
+      through: {
+        table: "public.roles",
+        id: "id",
+        column: "key",
+        where: "{row}.scope = 'system'",
+      },
+      // Optional: who may assign which platform role. {role} is the name.
+      canAssign: "authz.can_assign_platform_role({user}, {role})",
+    },
+  },
+},
+```
+
+A platform invitation's role resolves only among the roles
+`through.where` accepts (`{row}` is the roles row), so a tenant role's id or
+key is refused with `INVITATION_ROLE_UNKNOWN`, when inviting and again at
+accept. When `through.table` is also the tenant module's `roleThrough`
+table, `where` is required there too (`roleThrough.where`, such as
+`"{row}.scope = 'organization'"`), so organization invitations, accept and
+`update_member_role` resolve only tenant roles; see
+[membership roles stored as ids](/docs/repository/permissions#membership-roles-stored-as-ids).
+With `through.where`, a `bsb_role_scope` trigger on `platformRoles.table` also
+refuses a direct write of any other role, from the service role too, with
+`PLATFORM_ROLE_SCOPE`.
+
+The inviter needs `invitePlatform` through the provider's `isPlatform`. Without
+`canAssign`, that permission alone lets them invite to any platform role.
+Accepting inserts the assignment into the table. Platform invitations can
+share the tenant invitations table (map `tables.platformInvitations` to the
+same table): their rows have no tenant, the role is stored in the role
+column's own type (a uuid through the roles table, say), and `prefill` is
+written when the table has that column. When the provider has `isPlatformFor`,
+accept checks the inviter again through it, never the invitee: a `canAssign`
+with `{user}` runs with the inviter, a `canAssign` that reads the caller (no
+`{user}`, such as `authz.can_assign_platform({role})`) is checked only when
+they invite, unless `canAssignFor` gives the inviter's form, such as
+`"authz.can_assign_platform_for({user}, {role})"`. Without `isPlatformFor`,
+the inviter is checked when they invite, not again at accept.
+
+### Accepting from the app
+
+An in-app inbox can't hold the invitation token, since only its hash is
+stored. `accept_invitation_by_id(invitation_id)` and
+`decline_invitation_by_id(invitation_id)` do the same as the token functions
+for the signed-in user whose confirmed email the invitation names; anyone
+else gets `INVITATION_EMAIL_MISMATCH` on accept and `false` on decline.
+`my_invitations()` lists the open invitations for the caller's confirmed
+email, tenant and platform ones, without their tokens, so the inbox knows
+what to show. Each one carries `created_at`, its `organization` (the id plus
+`previewColumns`, null for a platform invitation), the `inviter` and the
+keys an `invitation_preview_extra` hook adds, so the inbox needs no read
+policy on the invitations table. In TypeScript,
+`organizations.myInvitations()` returns them as `createdAt`, `organization`,
+`inviter` and `extra`, and
+`acceptInvitationById(id)` and `declineInvitationById(id)` answer them.
+
+### Editing an invitation
+
+`update_invitation(invitation_id, invitee_email, invitee_role, prefill)`
+changes an open invitation in place, so apps don't need a client update
+policy on the invitations table. A null argument keeps the current value. It
+makes the checks `invite_member` makes: the caller needs `invite` in the
+organization (`invitePlatform` for a platform invitation), may assign both
+the current and the new role (`INVITATION_ROLE_FORBIDDEN`), and a new address
+must not belong to a member (`INVITATION_ALREADY_MEMBER`). Another open
+invitation for the new address is replaced. The token and expiry stay, so
+the link already sent keeps working: call `resend_invitation` to mail a new
+link to a changed address. An expired invitation is refused with
+`INVITATION_EXPIRED`, as accept refuses it; call `resend_invitation` first
+to renew its expiry, then edit it. It returns the invitation without its token and
+emits `invitation.updated`. In TypeScript:
+
+```ts
+await organizations.updateInvitation(invitationId, {
+  role: "admin",
+  prefill: { name: "Ada Lovelace" },
+});
+```
+
+## Existing tables
+
+Both modules support `adopt`, so they run over the tables you have. Map the
+names and set the columns you don't have to `null`:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: {
+    permissions: { model: "catalog" },
+    memberships: {
+      ownership: "adopt",
+      tables: { memberships: "public.organization_users" },
+      columns: { memberships: { tenant: "organization_id", role: "role_id" } },
+    },
+    organizations: {
+      ownership: "adopt",
+      tables: { organizations: "public.organizations" },
+      columns: { organizations: { createdBy: null, deletedAt: null } },
+      options: { attributes: ["logo_url"] },
+    },
+    invitations: {
+      ownership: "adopt",
+      tables: { invitations: "public.organization_invitations" },
+      columns: {
+        invitations: {
+          tenant: "organization_id",
+          role: "role_id",
+          tokenHash: "token",
+        },
+      },
+      options: { tokenStorage: "plain" },
+    },
+  },
+});
+```
+
+Under the `catalog` access model, roles are ids in your roles table, and the
+functions accept a role id or key. The `before_organization_create`,
+`after_organization_create`, `after_member_change`, `before_invitation_create`
+and `after_invitation_accept` [SQL hooks](/docs/extending/events#sql-hooks)
+run your own checks and side effects in the same transaction.
+
+`invitation_preview_extra(invitation uuid) returns jsonb` adds keys to what
+`invitation_preview` returns, such as the role's display name or branding
+from another table, and to every invitation `invite_member`,
+`resend_invitation`, `update_invitation` and `my_invitations` return. Its keys are merged over the preview's, and it runs as
+the module function's owner, since the preview is callable without a
+session:
+
+```sql
+create function public.invitation_preview_extra(invitation uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select jsonb_build_object('roleLabel', r.label)
+  from public.invitations i join public.roles r on r.id = i.role_id
+  where i.id = invitation
+$$;
+```
+
+In TypeScript, `previewInvitation(token)` returns the keys the hook added in
+`extra` (`preview.extra.roleLabel`), next to the fixed fields.
+
+## Errors
+
+| Code                                                                                 | When                                               |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `ORGANIZATION_FORBIDDEN`                                                             | the caller lacks the permission                    |
+| `ORGANIZATION_DISABLED`                                                              | the organization is disabled or deleted            |
+| `ORGANIZATION_NOT_MEMBER`, `ORGANIZATION_NOT_FOUND`                                  | no such membership or organization                 |
+| `ORGANIZATION_SELF`, `ORGANIZATION_SELF_ROLE`                                        | removing yourself, or changing your own role       |
+| `ORGANIZATION_ROLE_CEILING`, `ORGANIZATION_ROLE_UNKNOWN`                             | a role above your own, or no such role             |
+| `ORGANIZATION_OWNER_REQUIRED`                                                        | the change would leave no owner                    |
+| `ORGANIZATION_SLUG_INVALID`, `ORGANIZATION_SLUG_RESERVED`, `ORGANIZATION_SLUG_TAKEN` | the slug can't be used                             |
+| `INVITATION_FORBIDDEN`, `INVITATION_ROLE_FORBIDDEN`                                  | the caller may not invite, or not with that role   |
+| `INVITATION_ROLE_UNKNOWN`, `INVITATION_ALREADY_MEMBER`                               | no such role, or the address is already a member   |
+| `INVITATION_INVALID`                                                                 | unknown, accepted, declined or revoked invitation  |
+| `INVITATION_EXPIRED`                                                                 | an open invitation past its expiry: resend it      |
+| `INVITATION_VALIDITY`                                                                | `valid_for` is not positive or above `maxValidFor` |
+| `INVITATION_SIGN_IN`, `INVITATION_EMAIL_MISMATCH`                                    | not signed in, or signed in with another address   |
+| `INVITATION_EMAIL_UNCONFIRMED`                                                       | the address is not confirmed yet                   |
+| `INVITATION_SELF`, `INVITATION_INVITER_REVOKED`                                      | your own invitation, or the inviter lost the right |
+| `INVITATION_SCOPE_UNSUPPORTED`                                                       | a platform invitation without platform roles       |
+
+`INVITATION_EXPIRED` and `INVITATION_INVALID` share the SQLSTATE `P0002`, so
+code that checks only the SQLSTATE sees no change; check the `hint` to tell
+an expired invitation, which `resend_invitation` renews, from one that is
+gone. In TypeScript, `InvitationErrorHint` lists the invitation codes, and a
+failed call carries one as `error.hint`:
+
+```ts
+const accepted = await organizations.acceptInvitation(token);
+if (!accepted.ok && accepted.error.hint === "INVITATION_EXPIRED") {
+  // Ask the organization to resend the invitation.
+}
+```
+
+## Without the client
+
+`db.organizations` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/organizations/actions.ts"
+"use server";
+import {
+  createOrganizations,
+  sqlTransport,
+} from "better-supabase/blocks/organizations";
+import { betterSupabase } from "@/lib/supabase/client";
+import { postgres } from "@/lib/supabase/postgres";
+import { bsb } from "@/lib/supabase/server";
+import { sendInvitationEmail } from "@/lib/email";
+
+export async function inviteMember(organizationId: string, email: string) {
+  const ctx = await bsb.context();
+  if (ctx.auth.kind !== "user") throw new Error("Sign in first");
+  const organizations = createOrganizations({
+    transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
+    events: betterSupabase.events,
+    actorId: ctx.auth.user.id,
+    canInvite: async () => (await seatsLeft(organizationId)) > 0,
+    onInvite: ({ invitation, token }) =>
+      sendInvitationEmail(invitation.email, `/invite/${token}`),
+  });
+  return organizations.invite({ organizationId, email, role: "member" });
+}
+```

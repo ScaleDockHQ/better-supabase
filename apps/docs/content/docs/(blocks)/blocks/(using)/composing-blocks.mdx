@@ -1,0 +1,55 @@
+---
+title: Composing blocks
+description: Where the glue between blocks lives, from record pages and lists to default automations between blocks and forms with custom fields.
+---
+
+Blocks work together through three layers. Knowing which layer a piece of
+glue belongs to tells you where to write it and what `gen` writes for you.
+
+| Layer                    | Owner           | What it holds                                                               |
+| ------------------------ | --------------- | --------------------------------------------------------------------------- |
+| Library logic            | better-supabase | record bindings, record lists, the timeline, My work, actions, `recordForm` |
+| One file per record type | `gen`           | the record type that names the blocks bound to it                           |
+| UI                       | your app        | recipes copied into the app and rendered with your shadcn components        |
+
+## Reads: record bindings
+
+A record binding is one block's part of a record, such as its comments, files
+or versions, with a `load`, an optional `count` and a permission, named by the
+block's key in the config. With `gen.recordTypes`, `gen` writes one record type
+per type in `config.records` with the blocks bound to it. Everything that shows
+more than one block on a record reads bindings:
+
+- a [record page](/docs/repository/record-bindings) loads each binding on its own, so a
+  failing or hidden one doesn't take the page down;
+- a [record list](/docs/repository/record-lists) fills columns from a binding's
+  `count` or rows, one query per page;
+- the timeline merges the bindings of one record, newest first;
+- My work collects what waits on the caller across the installed blocks.
+
+## Writes: default automations
+
+A block that turns its records into another block's ships a
+[default automation](/docs/blocks/automations#default-automations): an
+automation row whose trigger is its outbox event and whose action is a
+conversion action of the target block. The inbox ships "Open a task for each
+new conversation" (`tasks.from_conversation`), hiring ships "Preboard each
+hired candidate" (`employees.from_application`) and quotes ships "Order each
+accepted quote" (`orders.from_quote`). An organization turns them off or
+edits them like its own automations. Each conversion creates the record once
+and keeps the lineage as a `created_from` relation.
+
+## Forms: entity schema and custom fields
+
+[`recordForm`](/docs/blocks/entity-forms) builds one form from a block's
+entity schema and the organization's custom fields, and `useRecordForm`
+holds its state. The form recipe renders it.
+
+## Which layer?
+
+- Data that belongs to one record and shows on its page or list: a record binding.
+- A record that should exist because another one changed: an automation with a conversion action.
+- A form over a block entity with tenant fields: `recordForm` and the recipe.
+- Markup of any kind: a [recipe](/docs/registry/ui-recipes), never the library.
+
+The decision is ADR 0064; ADR 0093 replaces its sections with record bindings and its flows with default automations.

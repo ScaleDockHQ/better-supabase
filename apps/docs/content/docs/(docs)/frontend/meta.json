@@ -1,0 +1,14 @@
+{
+  "title": "Frontend",
+  "pages": [
+    "client",
+    "data-hooks",
+    "block-controllers",
+    "react",
+    "react-native",
+    "vue",
+    "solid",
+    "svelte",
+    "(local-data)"
+  ]
+}

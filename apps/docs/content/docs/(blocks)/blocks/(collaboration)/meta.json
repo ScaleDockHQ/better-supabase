@@ -1,0 +1,20 @@
+{
+  "title": "Collaboration",
+  "pages": [
+    "catalog-collaboration",
+    "notifications",
+    "push",
+    "inbox",
+    "comments",
+    "timeline",
+    "messaging",
+    "channels",
+    "attachments",
+    "share-links",
+    "reactions",
+    "posts",
+    "moderation",
+    "enrollments",
+    "guests"
+  ]
+}

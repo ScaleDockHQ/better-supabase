@@ -1,0 +1,187 @@
+---
+title: Trash
+description: Soft delete through each subject's deletedAt column, with children trashed in one batch, restore with unique checks, a list per organization and purge after a retention period.
+---
+
+`trash` sets a subject's `deletedAt` column instead of deleting the row, records it in `trash_items`, and trashes the rows that point at it in the same batch. Restoring a trash item restores its whole batch. Reading the trash needs `trash.read`, trashing needs `trash.create` and the subject's `write` permission, restoring needs `trash.restore`, and purging needs `trash.manage`.
+
+```bash
+better-supabase add trash
+```
+
+Server code calls the `trash` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useTrash } = defineDataHooks(
+  "trash",
+  (db: AppDb) => db.trash,
+);
+```
+
+```ts
+import { createTrash } from "better-supabase/blocks/trash";
+
+const batch = await db.trash
+  .trash(organizationId, "project", projectId)
+  .orThrow();
+const bin = await db.trash.list(organizationId).orThrow();
+await db.trash.restore(batch.id).orThrow();
+```
+
+```tsx title="src/features/trash/list.tsx"
+"use client";
+
+import { useTrash } from "@/lib/supabase/hooks";
+
+const rows = useTrash({ limit: 50 });
+```
+
+## Configure subjects
+
+Every [`config.records`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column can be trashed; `title` names the column the trash list shows. Per subject, `unique` lists the columns no live row in the organization may share when the row is restored, and `children` lists the subjects trashed with it.
+
+```ts title="better-supabase.config.ts"
+subjects: {
+  project: { table: "public.projects", idType: "uuid", title: "name", deletedAt: "deleted_at" },
+  task: { table: "public.tasks", idType: "uuid", title: "title", deletedAt: "deleted_at" },
+},
+blocks: {
+  trash: {
+    on: {
+      project: { unique: ["slug"], children: [{ type: "task", column: "project_id" }] },
+      task: {},
+    },
+    options: {
+      retentionDays: 30,
+    },
+  },
+},
+```
+
+| Option                      | Default            | What it does                                                                 |
+| --------------------------- | ------------------ | ---------------------------------------------------------------------------- |
+| `subjects.<type>.deletedAt` | the registry entry | The `timestamptz` column that marks a trashed row                            |
+| `subjects.<type>.title`     | the registry entry | The column the trash list shows                                              |
+| `subjects.<type>.unique`    | none               | Columns checked on restore; a clash fails with `TRASH_RESTORE_CONFLICT`      |
+| `subjects.<type>.children`  | none               | `{ type, column }`: rows of `type` whose `column` holds this subject's id    |
+| `retentionDays`             | `30`               | Days before `purge_expired_trash` deletes a batch; `0` keeps it until purged |
+
+Children are trashed recursively, so a project trashes its tasks and their own children. A child that was already in the trash stays in its own batch.
+
+## Hide trashed rows
+
+Filter on the `deletedAt` column in queries and policies (`deleted_at is null`). For a policy that can't see the column, `better_supabase.is_trashed(subject_type, subject_id)` tells whether a subject is in the trash:
+
+```sql
+create policy "projects_read" on public.projects for select to authenticated
+  using (deleted_at is null and organization_id in (select better_supabase.tenant_ids_with('projects.read')));
+```
+
+The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subject`, `subject_title`) already skip rows with `deletedAt` set, and so does the block's repository extension below.
+
+## In the repository
+
+`gen` installs the block's repository extension in the generated schema, so repository reads hide trashed rows and `delete()` sets the column:
+
+```ts
+const db = defineSupabase(schema).connect(supabase);
+
+await db.customers.delete(id); // sets deleted_at
+await db.customers.get(id); // not_found
+await db.customers.list({ withDeleted: true });
+await db.customers.list({ onlyDeleted: true });
+await db.customers.restore(id); // clears deleted_at
+await db.customers.delete(id, { hard: true }); // really deletes
+```
+
+The extension and the block share the column and not the bin: a repository `delete()` writes no `trash_items` row and trashes no children, so call the block's `trash()` when the row should show in the trash list and restore with its batch. `restore()` and `withDeleted` only exist on tables with the column.
+
+### Which column
+
+`gen` picks one column per table. A table bound to a [`config.records`](/docs/blocks/sql#subject-registry) entry with a `deletedAt` column uses that column, so the repository, search, metrics and the trash all read the same one. Every other table uses `blocks.trash.options.deletedAt` (default `deleted_at`) when it has that column. Either column must be `timestamptz` or `timestamp`, or `gen` fails.
+
+### Where trashed rows are hidden
+
+- Reads, counts, `exists` and pagination on the table.
+- Updates: an update never touches a trashed row, so `update` returns `not_found`.
+- Includes: `organizations.list({ include: { customers: true } })` leaves out trashed customers.
+- Relation filters: `{ customers: { some: {...} } }` only considers live rows. `every` is rewritten so trashed rows neither satisfy nor fail it.
+
+`withDeleted` and `onlyDeleted` change the queried table only; nested includes stay filtered.
+
+### Writes
+
+Set the column through `delete` and `restore` only: a create or update that passes `deletedAt` fails with `invalid_request` unless it passes `{ override: true }`. An upsert that updates an existing row clears the column, so upserting a trashed row brings it back.
+
+In a [`defineApi`](/docs/specs) document the column is `readOnly` and left out of the required fields of request bodies. A column without a comment is described as "Set when the row is deleted. Deleted rows are not returned, and delete sets this column instead of removing the row."
+
+A soft delete returns no rows, so mutation events and cache invalidation get the primary key from the `where` instead: listeners see `intent: "softDelete"` and `keys`, and [CloudEvents](/docs/extending/events) are typed `dev.better-supabase.row.softdeleted`.
+
+### Indexes
+
+Every read adds `deleted_at is null`, so index the live rows only. A partial index skips trashed rows, stays small as they pile up, and serves the filter the extension adds:
+
+```sql
+create index on customers (organization_id, name) where deleted_at is null;
+```
+
+A unique constraint that should only hold for live rows becomes a partial unique index:
+
+```sql
+create unique index on customers (organization_id, kvk) where deleted_at is null;
+```
+
+Doctor's [BS218](/docs/cli/doctor#bs218) points at tables with the column and without a partial index.
+
+### Deletes and RLS
+
+A soft delete is an `UPDATE ... SET deleted_at = now()` without `RETURNING`. The time comes from `defineSupabase(schema, { now })`, or from the system clock in a runtime without Temporal. That matters: a common policy hides trashed rows from `SELECT`, and PostgREST checks returned rows against it, so an update that returns the row fails with `forbidden`. The extension never asks for the row back. `better-supabase doctor` flags tables where this would bite.
+
+Deleting a row that is already trashed returns `not_found`. `{ hard: true }` deletes regardless of the column.
+
+## Purge
+
+`purge(id)` deletes a batch's rows for good, children first. `purge_expired_trash()` purges batches past their retention; schedule it with pg_cron or the [jobs](/docs/blocks/queue) drain:
+
+```sql
+select cron.schedule('purge-trash', '15 3 * * *', 'select better_supabase.purge_expired_trash()');
+```
+
+## Events and hooks
+
+The module records `subject.trashed`, `subject.restored` and `subject.purged` for every row, each with `organizationId`, `subjectType`, `subjectId`, the trash item `id` and the `batchId`, so search indexes and [data lifecycle](/docs/blocks/data-lifecycle) can follow them. It calls `before_trash`, `after_trash`, `before_untrash` and `after_untrash` around trash and restore.
+
+## With ReUI
+
+A bin page renders `list()` in a ReUI data grid, with restore and delete-forever actions per row. `count` shows how many rows a batch holds, and `purgeAfter` when it goes for good.
+
+## Your own columns
+
+Add columns to the trash item, such as a reason, table with `blocks.trash.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`trash` (the last argument) validates and writes them, and `list` return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createTrash } from "better-supabase/blocks/trash";
+import { z } from "zod";
+
+const client = createTrash({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```
+
+## Without the client
+
+`db.trash` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createTrash } from "better-supabase/blocks/trash";
+
+const trash = createTrash({ transport });
+const batch = await trash.trash(organizationId, "project", projectId).orThrow();
+const bin = await trash.list(organizationId).orThrow();
+await trash.restore(batch.id).orThrow();
+```

@@ -1,0 +1,177 @@
+---
+title: Contracts
+description: Contracts with counterparties from draft through review and signature to active, expired or terminated, with values in minor units, renewal terms that schedule reminders, and obligations with due dates and owners.
+---
+
+`contracts` tracks agreements with the records your app already has, such as
+a party or a customer. A contract moves from draft through review and
+signature to active, renews or expires on its end date, and carries the
+obligations each side owes. It builds on three blocks: a contract is frozen
+as a [version](/docs/blocks/versions) and signed with
+[signatures](/docs/blocks/signatures), and its owner gets a
+[reminder](/docs/blocks/reminders) before the notice deadline.
+
+```bash
+better-supabase add contracts
+```
+
+```ts
+import { createContracts } from "better-supabase/blocks/contracts";
+import { money } from "better-supabase/commerce";
+```
+
+The module requires `tenant`, `access`, `subjects`, `versions`,
+`signatures` and `reminders`. With `outbox` it records the contract events,
+and with `audit` every change is audited. Values are bigint minor units
+([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)).
+
+## Tables
+
+| Table                  | Holds                                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contracts`            | The title, the counterparty (`counterparty_type`, `counterparty_id`), the owner, the status, the `value` and `currency`, the term and the renewal terms |
+| `contract_obligations` | What a party owes under a contract: a title, a due date, an owner, and `open`, `done` or `waived`                                                       |
+
+Both tables are read through the functions; members with `contracts.read`
+read them. The counterparty is any type in `config.records` (ADR 0018), and
+it must belong to the contract's organization.
+
+## Draft a contract
+
+Server code calls the `contracts` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useContracts } = defineDataHooks(
+  "contracts",
+  (db: AppDb) => db.contracts,
+);
+```
+
+```ts
+const contract = await db.contracts
+  .create(organizationId, {
+    title: "Hosting agreement",
+    counterparty: { type: "parties", id: partyId },
+    value: money(2_400_000n, "EUR"),
+    startsOn: Temporal.PlainDate.from("2026-01-01"),
+    endsOn: Temporal.PlainDate.from("2026-12-31"),
+    autoRenew: true,
+    noticeDays: 60,
+  })
+  .orThrow();
+```
+
+```tsx title="src/features/contracts/list.tsx"
+"use client";
+
+import { useContracts } from "@/lib/supabase/hooks";
+
+const rows = useContracts({ limit: 50 });
+```
+
+The owner defaults to the caller. `renewalMonths` defaults to 12 and
+`noticeDays` to 30; `noticeDeadline` is `endsOn` less `noticeDays`. A draft or
+a contract in review changes freely with `update`. An active contract changes
+only its description, owner and renewal terms; anything else fails with
+`CONTRACT_LOCKED`.
+
+| Method                                | Returns                                                 |
+| ------------------------------------- | ------------------------------------------------------- |
+| `create(organizationId, input)`       | the draft                                               |
+| `update(contractId, changes)`         | the contract                                            |
+| `transition(contractId, action)`      | the contract in its new status                          |
+| `sendForSignature(contractId, input)` | the contract, `out_for_signature`                       |
+| `get(contractId)`                     | the contract                                            |
+| `list(organizationId, options)`       | the contracts, newest first                             |
+| `forCounterparty(counterparty)`       | the contracts with a record, in every organization      |
+| `runRenewals(asOf)`                   | how many contracts renewed and expired                  |
+| `saveObligation(contractId, input)`   | the obligation                                          |
+| `setObligationStatus(id, status)`     | the obligation                                          |
+| `deleteObligation(id)`                | the deleted obligation                                  |
+| `obligations(organizationId, opts)`   | the obligations, the earliest due first, with `overdue` |
+
+## Lifecycle
+
+| Action      | From                        | To           | Needs              |
+| ----------- | --------------------------- | ------------ | ------------------ |
+| `submit`    | `draft`                     | `in_review`  | `contracts.write`  |
+| `return`    | `in_review`                 | `draft`      | `contracts.write`  |
+| `activate`  | `in_review`                 | `active`     | `contracts.manage` |
+| `recall`    | `out_for_signature`         | `in_review`  | `contracts.manage` |
+| `terminate` | any status before `expired` | `terminated` | `contracts.manage` |
+
+`sendForSignature` takes a contract in review, freezes it as a version and
+opens a signature request on that version for the members in `signers`
+(`signOrder` `parallel` or `sequential`). It needs `contracts.manage` and the
+signatures block's request permission. When every signer signs, the contract
+becomes `active` and `signedAt` is set; a decline or a cancel returns it to
+`in_review`. `terminate` takes an optional reason.
+
+## Renewals
+
+While a contract is active and has an end date, its owner has a reminder
+`reminderDays` (default 14) before the notice deadline, kept in step when the
+dates or the owner change. Run `runRenewals` daily with the service role, for
+example from a [job](/docs/blocks/queue): an active contract past its end date
+renews by `renewalMonths` when `autoRenew` is on, and expires otherwise.
+
+```ts
+export default defineBlocksConfig({
+  blocks: { contracts: { options: { reminderDays: 21 } } },
+});
+```
+
+## Obligations
+
+`saveObligation` adds an obligation to a contract, or changes one when
+`obligationId` is set; the owner must be a member. `setObligationStatus`
+marks it `done` or `waived` (and back to `open`). It needs `contracts.write`,
+or being the obligation's owner. `obligations` filters by contract, owner,
+`openOnly` and `dueBefore`.
+
+## Section
+
+The [contracts binding](/docs/repository/record-bindings) lists the contracts with a
+record on its page, read with `forCounterparty`.
+
+## Merging records
+
+When two counterparty records merge, their contracts move to the record that
+is kept ([ADR 0072](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0072-subject-merge-handlers.md)).
+
+## Errors
+
+| Hint                          | Cause                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `CONTRACT_FORBIDDEN`          | the caller lacks `contracts.read`, `.write` or `.manage`                                    |
+| `CONTRACT_INVALID`            | a field is invalid, or the counterparty or owner isn't in the organization                  |
+| `CONTRACT_NOT_FOUND`          | no contract with this id in an organization the caller reads                                |
+| `CONTRACT_LOCKED`             | the contract is past review and the change isn't to its description, owner or renewal terms |
+| `CONTRACT_TRANSITION_INVALID` | the action doesn't apply to the contract's status                                           |
+| `OBLIGATION_NOT_FOUND`        | no obligation with this id                                                                  |
+
+## Events
+
+`contract.created`, `contract.updated`, `contract.status_changed`,
+`contract.renewed`, `obligation.saved` and `obligation.status_changed`. The
+[events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.contracts` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const contracts = createContracts({ transport });
+
+const contract = await contracts
+  .create(organizationId, {
+    title: "Hosting agreement",
+    counterparty: { type: "parties", id: partyId },
+    value: money(2_400_000n, "EUR"),
+    startsOn: Temporal.PlainDate.from("2026-01-01"),
+    endsOn: Temporal.PlainDate.from("2026-12-31"),
+    autoRenew: true,
+    noticeDays: 60,
+  })
+  .orThrow();
+```

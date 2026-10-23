@@ -1,0 +1,452 @@
+---
+title: Rules
+description: Tenant-editable rules that test a subject against a filter tree when a trigger event happens and name the actions your app runs, evaluated the same way in SQL and TypeScript.
+---
+
+`rules` lets an organization write its own "when this, then that" rules. A rule belongs to a subject type (`expense`), is tested when a trigger event happens (`expense.submitted`), holds its conditions as a [filter tree](/docs/platform/list#filter-trees) over fields you declare, and names actions as `{ kind, config }` references: `approvals.request` with `{ action: "finance_review" }`, for example. The database stores, checks and evaluates rules; your app decides what each action kind does.
+
+Reading rules needs `rules.read`, changing a disabled rule needs `rules.edit`, enabling a rule or changing an enabled one needs `rules.publish`, and removing one needs `rules.admin`. Admins get every permission and members get `rules.read`.
+
+```bash
+better-supabase add automations
+```
+
+The module needs `memberships` and `access`.
+
+## Fields
+
+`defineRuleFields` declares what rules on a subject type may test: a field id, its [filter type](/docs/platform/list#filter-trees) and the key of the subject record it reads, dotted for a nested value. Sync the catalog once per deploy with a service-role client, so the database checks trees against the same fields.
+
+Server code calls the `automations` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAutomations } = defineDataHooks(
+  "automations",
+  (db: AppDb) => db.automations,
+);
+```
+
+```ts
+const rows = await db.automations.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/automations/list.tsx"
+"use client";
+
+import { useAutomations } from "@/lib/supabase/hooks";
+
+const rows = useAutomations({ limit: 50 });
+```
+
+A field's `columnType` decides how dates compare: `timestamptz` (the default) compares instants in the evaluation's time zone, and `date` compares days. `nullable: false` tells the evaluator a value is always there; on a nullable field, "is not" and the other negative operators also match a record without a value, except "is not empty". `operators` narrows the type's operators, and `options` lists the values a select offers.
+
+`ruleFilterFields(fields)` returns the `fields` prop of ReUI's Filters, and `checkRuleConditions(tree, fields)` returns the problems `upsert` would report, so an editor can show them before it saves.
+
+## Rules
+
+```ts
+import { createAutomations } from "better-supabase/blocks/automations";
+
+const rules = createAutomations({ transport });
+
+const rule = await rules
+  .upsert(organizationId, {
+    subjectType: "expense",
+    trigger: "expense.submitted",
+    name: "Large travel expenses",
+    conditions: {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        {
+          id: "a",
+          type: "rule",
+          path: ["category"],
+          operator: "is",
+          value: "travel",
+        },
+        {
+          id: "b",
+          type: "rule",
+          path: ["amount"],
+          operator: "gt",
+          value: 1000,
+        },
+      ],
+    },
+    actions: [
+      { kind: "approvals.request", config: { action: "finance_review" } },
+    ],
+  })
+  .orThrow();
+
+await rules.setEnabled(rule.id, true).orThrow();
+```
+
+`upsert` creates a rule, or changes the one with `id`. Keys you leave out keep their value, and the subject type can't change. Pass the `version` the editor read and a newer stored version fails with `RULE_CONFLICT`, so two editors don't overwrite each other. Every change bumps `version` and keeps the previous tree in `versions(id)`. A new rule is disabled and goes last; `move(id, rank)` takes a key from `rankBetween` over its neighbours ([rank keys](/docs/blocks/rank)).
+
+The database checks every tree: fields must be in the catalog, operators must suit the field's type, values must fit the operator (two for "between", a list for "is any of"), and the tree stays within `maxDepth` and `maxConditions`. Conditions without an operator take no part, so an editor can save a half-finished row.
+
+`list(organizationId, { subjectType, trigger, enabled })` returns rules in the order they are tested. `get(id)` returns `undefined` when the caller can't read the rule, and `remove(id)` returns `false` when there was none they may remove.
+
+## Evaluate
+
+A rule matches when its tree is true for the subject. The answer is three-valued: a condition on a missing value is unknown, an "and" with an unknown part is unknown unless another part is false, and only a true root matches. An empty tree matches everything, so a rule without conditions runs on every trigger event.
+
+`matching(organizationId, { subjectType, trigger, subject, timeZone })` evaluates the enabled rules for the trigger in the database and returns each match with `results`, the truth of every condition and group by node id. A matched rule with `stopProcessing` ends the list. From a job or a webhook, the service-role `run` does the same and also logs each evaluation:
+
+```ts
+const matches = await createAutomationsAdmin({ transport: serviceTransport })
+  .run(organizationId, {
+    subjectType: "expense",
+    trigger: "expense.submitted",
+    subjectId: expense.id,
+    subject: expense,
+    timeZone: "Europe/Amsterdam",
+  })
+  .orThrow();
+```
+
+`evaluateRule(rule, subject, fields, clock)` runs the same evaluation in memory, and in SQL `rule_evaluate(conditions, subject, rule_field_map('expense'), time_zone, now)` returns `{ matched, results }`; `rule_matches` returns only the boolean, for policies and triggers. Both evaluators run against the same cases in the integration tests.
+
+`test(rule, sample)` evaluates a rule on a sample record without running anything and logs it as a test, for a "Try it" button. `evaluations(id)` lists the log, newest first.
+
+## Actions
+
+Actions are references, never code: the database stores `{ kind, config }` and your app runs them. One action registry serves automations, workflow action steps and sequence action steps. `defineAction` declares an action with a kind, a title for the editor, an optional Standard Schema for its config and a `run` that returns a `Result`. `createActionRegistry` collects the actions of every installed block and throws when two of them handle the same kind.
+
+`createRuleDispatcher({ actions })` runs the actions of every match in order. A failed action doesn't stop the others, an action that throws becomes an `unexpected` outcome, a kind the registry lacks is an `invalid_request` outcome with the hint `ACTION_UNKNOWN`, and a config that fails the action's schema is a `validation` outcome with the hint `ACTION_CONFIG_INVALID`.
+
+```ts
+import { createApprovals } from "better-supabase/blocks/approvals";
+import {
+  approvalsAction,
+  createActionRegistry,
+  createRuleDispatcher,
+  defineAction,
+} from "better-supabase/blocks/automations";
+import { ok } from "better-supabase";
+
+const actions = createActionRegistry([
+  approvalsAction(createApprovals({ transport })),
+  defineAction({
+    kind: "crm.tag",
+    title: "Tag the customer",
+    run: async ({ context, action }) => {
+      await tagCustomer(context.subjectId, String(action.config?.tag));
+      return ok(null);
+    },
+  }),
+]);
+
+const dispatcher = createRuleDispatcher({ actions });
+
+const outcomes = await dispatcher
+  .dispatch(matches, {
+    organizationId,
+    subjectType: "expense",
+    subjectId: expense.id,
+    payload: { amount: expense.amount },
+  })
+  .orThrow();
+```
+
+`run` receives the action, its origin (the automation, workflow run or sequence enrollment that started it) and the context, plus a `key` that stays the same for every retry of this action for this event. Pass the key on as an idempotency key.
+
+`approvalsAction` starts an [approval request](/docs/blocks/approvals) for the action in `config.action`, which must be a policy action your approvals options name for the subject type.
+
+Four more actions cover the common cases. Each takes the part of a client it calls, so you pass the block you already built:
+
+| Action                      | Config                                                | What it does                                                                         |
+| --------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `notifyAction(notifier)`    | `type`, `recipients` and or `recipientField`, `data`  | sends the notification to the listed user ids and the one in the payload column      |
+| `setFieldAction(setField)`  | `field`, `value`                                      | calls your setter with the subject and the value; the setter decides what it accepts |
+| `webhookAction(webhooks)`   | `endpointId`, `type` (defaults to the rule's trigger) | queues an outgoing webhook delivery with the subject and the payload                 |
+| `workflowAction(workflows)` | `definition`                                          | starts the workflow definition on the subject, with the payload as its input         |
+
+`notify` and `workflow` key each send by rule, action and event, so a retried event sends once.
+
+```ts
+const actions = createActionRegistry([
+  notifyAction(notifications),
+  setFieldAction(({ subjectId, field, value }) =>
+    db.tasks.update(subjectId, { [field]: value }),
+  ),
+  webhookAction(webhooks),
+  workflowAction(workflowBuilder),
+]);
+```
+
+### Conversion actions
+
+A conversion action creates a record in its block from a record in another and links it `created_from` the source, once: a retried event finds the link and creates nothing. The target blocks ship them:
+
+| Action                          | Block       | Creates                                                |
+| ------------------------------- | ----------- | ------------------------------------------------------ |
+| `taskFromConversationAction`    | `tasks`     | a task from an inbox conversation                      |
+| `employeeFromApplicationAction` | `employees` | an employee from a hired candidate                     |
+| `orderFromQuoteAction`          | `orders`    | an order from an accepted quote, through your `create` |
+
+Each takes `clients`, which returns the block clients for one organization, such as `createBlocks` over a service connection with `tenant: () => tenant`. `defineConversionAction` builds your own from a `load`, a `map` into the target's input schema and a `create`.
+
+## Default automations
+
+A block that feeds another ships default automations: rows its SQL module writes to `rule_defaults`, which every organization gets its own copy of the first time its rules run or are listed. The organization turns them off or edits them like any rule. `resetDefault(id)` puts the shipped version back, and removing one fails with the hint `RULE_DEFAULT`.
+
+| Default                                | Block    | Trigger                     | Action                       | Ships when               |
+| -------------------------------------- | -------- | --------------------------- | ---------------------------- | ------------------------ |
+| Open a task for each new conversation  | `inbox`  | `inbox_conversation.opened` | `tasks.from_conversation`    | `tasks` is installed     |
+| Preboard each hired candidate          | `hiring` | `application.hired`         | `employees.from_application` | `employees` is installed |
+| Order each accepted quote (turned off) | `quotes` | `quote.accepted`            | `orders.from_quote`          | `orders` is installed    |
+
+A rule copied from a default carries its `defaultKey`. Register the matching conversion action in the registry, and the sink's `eventTarget` fallback runs the default without a `load` for its event.
+
+## Run rules from events
+
+`createRuleSink` turns the rules into an [outbox](/docs/blocks/outbox) consumer. For each event it calls your `load`, tests the rules whose trigger is the event's type and dispatches the actions of the ones that match. App tables with [`events`](/docs/repository/tables#events) emit `task.created`, `task.updated` and `task.deleted`, so a rule with the trigger `task.updated` runs on every edit.
+
+```ts title="app/api/outbox/rules/route.ts"
+import { createRuleSink } from "better-supabase/blocks/automations";
+
+const sink = createRuleSink({
+  rules: rulesAdmin,
+  dispatcher,
+  load: async (event) => {
+    const { id, organizationId } = event.payload as AppTableEventData;
+    const task = await db.tasks.get(String(id)).orThrow();
+
+    return {
+      organizationId: String(organizationId),
+      subjectType: "task",
+      subjectId: String(id),
+      subject: task,
+      context: {
+        organizationId: String(organizationId),
+        subjectType: "task",
+        subjectId: String(id),
+        eventId: event.id,
+        payload: task,
+      },
+    };
+  },
+});
+
+export const POST = async () =>
+  Response.json(await outbox.consume("rules", sink));
+```
+
+`load` returning `undefined`, or no `load`, falls back to `eventTarget(event)`: the organization from the outbox tenant or `payload.organizationId`, the id from the CloudEvents subject or `payload.id`, and the payload as the subject. An event without an organization is skipped. A failed evaluation throws, so the outbox retries the batch; a failed action goes to `onOutcomes` instead, because a retry would run the other actions again.
+
+## Editor
+
+`useRuleBuilder` holds the editor state of one rule: the subject type's fields, the condition tree with your edits, the problems `checkRuleConditions` finds, whether anything changed, and `upsert`. Pass `rule: null` to start a new rule from `initial` (an empty `and` group by default). The hook is a registry item: install it with `npx shadcn add @better-supabase/use-automations`, which writes `hooks/use-automations.ts` into the app.
+
+```tsx title="components/rule-editor.tsx"
+"use client";
+
+import { useRuleBuilder } from "@/hooks/use-automations";
+
+export function RuleEditor({ organizationId }: { organizationId: string }) {
+  const builder = useRuleBuilder({
+    organizationId,
+    rule: null,
+    subjectType: "expense",
+    trigger: "expense.submitted",
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void builder.save({ enabled: true });
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => builder.addRule(undefined, "amount")}
+      >
+        Add condition
+      </button>
+      <button
+        type="submit"
+        disabled={!builder.dirty || builder.issues.length > 0}
+      >
+        Save
+      </button>
+    </form>
+  );
+}
+```
+
+`addRule(group, field)` and `addGroup(group, combinator)` add to the root group when `group` is left out and return the new node's id. `setField` keeps the operator and value when the new field has the same type, and `setOperator` keeps the value when the new operator takes the same kind of value. `move(id, group, index)` takes the index the node ends up at, as `arrayMove` from dnd-kit counts it. `locked` names nodes the editor can't change, move or remove, such as a fixed first condition; a group that holds a locked node can't be removed either. The lock lives in the editor only, so enforce it on the server if it matters.
+
+The [Rule builder recipe](/docs/registry/ui-recipes/rule-builder) renders this editor with shadcn components: field, operator and value rows, nested And and Or groups, drag handles and a locked first condition. The `use-rule-editor` [registry item](/docs/registry) installs a `useRuleEditor` hook that reads the organization from the session and the schema from `blocks.generated.ts`.
+
+The tree helpers the controller uses (`findNode`, `insertNode`, `moveNode`, `removeNode`, `setRuleField`, `setRuleOperator` and the rest) are exported from `better-supabase/blocks/automations` for your own editor. `createRuleBuilderController` is the same state without React. In Server Components, call `rules.get(id)` instead.
+
+## Vue
+
+`useBlockController` from `better-supabase/vue` runs `createRuleBuilderController` with its options and a `client` from `createAutomations`; `auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass them. `state` is a shallow ref of the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createAutomations,
+  createRuleBuilderController,
+  rpcTransport,
+} from "better-supabase/blocks/automations";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state, actions } = useBlockController(createRuleBuilderController, {
+  client: createAutomations({ transport: rpcTransport(supabase) }),
+  organizationId,
+  rule: null,
+  subjectType: "expense",
+});
+</script>
+
+<template>
+  <button type="button" @click="actions.addRule(undefined, 'amount')">
+    Add condition
+  </button>
+  <p>{{ state.issues.length }} problems</p>
+</template>
+```
+
+## Svelte
+
+`useBlockController` from `better-supabase/svelte` runs `createRuleBuilderController` with the same options; `auth` and `ports` come from `setBetterSupabase(bsb)` unless you pass them. It returns a readable store of the snapshot, read with `$`, with the actions on `.actions`. The work starts on mount, and the controller is disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
+  import {
+    createAutomations,
+    createRuleBuilderController,
+    rpcTransport,
+  } from "better-supabase/blocks/automations";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const builder = useBlockController(createRuleBuilderController, {
+    client: createAutomations({ transport: rpcTransport(supabase) }),
+    organizationId,
+    rule: null,
+    subjectType: "expense",
+  });
+</script>
+
+<button type="button" onclick={() => builder.actions.addRule(undefined, "amount")}>
+  Add condition
+</button>
+<p>{$builder.issues.length} problems</p>
+```
+
+## Solid
+
+`useBlockController` from `better-supabase/solid` runs `createRuleBuilderController` with the same options; `auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless you pass them. `state()` reads the snapshot and `actions` are the controller's actions. The work starts on mount, and the controller is disposed with the owner.
+
+```tsx title="Component.tsx"
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import {
+  createAutomations,
+  createRuleBuilderController,
+  rpcTransport,
+} from "better-supabase/blocks/automations";
+
+export function Component(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state, actions } = useBlockController(createRuleBuilderController, {
+    client: createAutomations({ transport: rpcTransport(supabase) }),
+    organizationId: props.organizationId,
+    rule: null,
+    subjectType: "expense",
+  });
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => actions.addRule(undefined, "amount")}
+      >
+        Add condition
+      </button>
+      <p>{state().issues.length} problems</p>
+    </>
+  );
+}
+```
+
+## Configure
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  automations: {
+    options: { maxConditions: 30, maxDepth: 3, maxActions: 5 },
+  },
+},
+```
+
+| Option          | Default | Meaning                                         |
+| --------------- | ------- | ----------------------------------------------- |
+| `maxConditions` | `50`    | the most conditions one rule may hold           |
+| `maxDepth`      | `4`     | how deep groups nest, the root group counting 1 |
+| `maxActions`    | `20`    | the most actions one rule may run               |
+| `enable`        | `[]`    | default automation keys to ship turned on       |
+| `disable`       | `[]`    | default automation keys to ship turned off      |
+
+`enable` and `disable` take the keys of the [default automations](#default-automations), such as `quotes.quote_to_order`, and change whether a new organization's copy starts on. `disable` wins when a key is in both. The `erp` preset enables `quotes.quote_to_order`.
+
+## Errors
+
+| Hint                    | Cause                                                                    |
+| ----------------------- | ------------------------------------------------------------------------ |
+| `RULE_FORBIDDEN`        | the caller lacks the permission for this                                 |
+| `RULE_NOT_FOUND`        | no rule the caller can see has this id                                   |
+| `RULE_CONFLICT`         | the rule changed since the editor read `version`                         |
+| `RULE_SUBJECT_UNKNOWN`  | the subject type has no synced fields                                    |
+| `RULE_INVALID`          | a malformed tree, a missing name or trigger, or a tree over the limits   |
+| `RULE_FIELD_UNKNOWN`    | a condition names a field the catalog doesn't have                       |
+| `RULE_OPERATOR_INVALID` | the operator doesn't suit the field's type                               |
+| `RULE_VALUE_INVALID`    | the value doesn't fit the operator                                       |
+| `RULE_ACTIONS_INVALID`  | actions aren't a list of `{ kind, config }` with a dotted lowercase kind |
+| `RULE_RANK_INVALID`     | the rank isn't a rank key                                                |
+| `RULE_FIELDS_INVALID`   | `syncFields` got a field with a bad id, type or column type              |
+| `RULE_DEFAULT`          | the rule is a block's default automation; turn it off instead            |
+| `RULE_NOT_DEFAULT`      | `resetDefault` got a rule no block ships                                 |
+| `ACTION_UNKNOWN`        | no action in the registry handles the kind                               |
+| `ACTION_CONFIG_INVALID` | the action's config fails its schema                                     |
+
+## Events
+
+The block records `rule.saved`, `rule.enabled`, `rule.disabled` and `rule.removed` with `organizationId`, `ruleId`, `name`, `subjectType`, `trigger` and `version`, which the audit log keeps as configuration changes. A live match records `rule.matched` with the `subjectId`. See [events](/docs/extending/events).
+
+The block takes `hooks` around its methods; see [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.automations` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createAutomationsAdmin,
+  defineRuleFields,
+} from "better-supabase/blocks/automations";
+
+export const expenseFields = defineRuleFields("expense", {
+  status: { type: "select", options: ["draft", "submitted", "paid"] },
+  amount: { type: "number", nullable: false },
+  category: { type: "select", options: ["travel", "meals", "software"] },
+  submittedAt: { type: "date" },
+  "submitter.seniority": { type: "select", label: "Submitter seniority" },
+});
+
+await createAutomationsAdmin({ transport: serviceTransport })
+  .syncFields(expenseFields)
+  .orThrow();
+```

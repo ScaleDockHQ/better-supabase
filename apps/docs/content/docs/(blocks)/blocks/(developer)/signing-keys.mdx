@@ -1,0 +1,196 @@
+---
+title: Signing keys
+description: Asymmetric keys per owner in Supabase Vault, with rotation that keeps old keys published until their tokens expire, a JWKS endpoint and a signer for JWTs and Ed25519 webhooks.
+---
+
+`signing-keys` keeps Ed25519 and ES256 keys per owner: an organization, an
+app, a stream of security events. The private key lives in
+[Supabase Vault](https://supabase.com/docs/guides/database/vault), the public
+key in a `signing_keys` row, and signing runs in TypeScript with WebCrypto.
+Receivers check signatures against a JWK Set you publish, so they never hold
+a secret.
+
+```bash
+better-supabase add signing-keys
+```
+
+```ts
+import {
+  createSigningKeys,
+  sqlTransport,
+} from "better-supabase/blocks/signing-keys";
+```
+
+Every function is service-role only. Clients can't read the table.
+
+## Create and rotate
+
+`create(owner, alg)` generates a key (`Ed25519` by default, or `ES256`),
+stores the private key in Vault and makes it the owner's active key. The
+`kid` is the RFC 7638 thumbprint of the public key. `rotate(owner)` does the
+same with the active key's type, and the key it replaces is retired:
+
+Server code calls the `signing-keys` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSigningKeys } = defineDataHooks(
+  "signingKeys",
+  (db: AppDb) => db.signingKeys,
+);
+```
+
+```ts
+const rows = await db.signingKeys.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/signing-keys/list.tsx"
+"use client";
+
+import { useSigningKeys } from "@/lib/supabase/hooks";
+
+const rows = useSigningKeys({ limit: 50 });
+```
+
+| Method                 | What it does                                                          |
+| ---------------------- | --------------------------------------------------------------------- |
+| `create(owner, alg?)`  | Generates a key and makes it active; the previous key is retired      |
+| `rotate(owner, alg?)`  | `create` with the active key's type                                   |
+| `retire(kid)`          | Retires a key without a replacement                                   |
+| `noteExp(kid, exp)`    | Keeps a key published until at least `exp`                            |
+| `jwks(owner, opts?)`   | The owner's public keys still in use, as a JWK Set                    |
+| `jwksResponse(owner)`  | `jwks` as an `application/jwk-set+json` response with `Cache-Control` |
+| `signer(owner, opts?)` | Signs with the owner's active key                                     |
+| `remove(owner)`        | Deletes every key of the owner and its Vault secrets                  |
+| `purge(opts?)`         | Deletes retired keys that no token can still need                     |
+
+### Owners
+
+An owner is any `{ type, id }` pair. Use one owner per tenant that needs its
+own JWKS, such as `{ type: "environment", id: environment.id }`, so rotating
+one tenant's key never touches another's. A platform with one authorization
+server for every tenant uses the exported `PLATFORM_OWNER`
+(`{ type: "platform", id: "default" }`).
+
+An owner has at most one active key. `add_signing_key` takes an advisory
+lock per owner, so two rotations at once leave one active key.
+
+## Sign
+
+`signer(owner)` imports the active private key once and keeps it for
+`cacheSeconds` (300). `sign(bytes)` returns the raw signature with its `kid`
+and `alg`; `signJwt(claims, header?)` returns a compact JWS with `alg`, `kid`
+and `typ: "JWT"` in the header:
+
+```ts
+const signer = signingKeys.signer(owner, { create: "Ed25519" });
+const token = await signer
+  .signJwt({
+    iss: "https://app.example.com",
+    sub: userId,
+    exp: nowSeconds + 600,
+  })
+  .orThrow();
+```
+
+Without an active key, signing fails with `not_found` and the hint
+`SIGNING_KEY_MISSING`, unless `create` names the type to generate. An
+Ed25519 key signs with `alg: "EdDSA"` (RFC 8037), which most verifiers read;
+set `ed25519Alg: "Ed25519"` for the fully specified name from RFC 9864.
+
+### Token types
+
+Name each kind of token you sign with `typ`, so a token of one kind can't be
+replayed as another (RFC 8725 section 3.11). `jwtType("invite")` returns
+`vnd.invite+jwt` and throws for a name outside lower-case letters, digits and
+`-`. `signJwt` accepts `JWT` or a type ending in `+jwt` and fails with the
+hint `SIGNING_TYP_INVALID` for any other value. Verify with the same type:
+
+```ts
+import { jwtType, verifyCompact } from "better-supabase/blocks/signing-keys";
+
+const typ = jwtType("invite");
+const token = await signer.signJwt({ sub: userId }, { typ }).orThrow();
+await verifyCompact(token, jwks, { typ }); // throws JWS_TYP for another kind
+```
+
+A numeric `exp` claim is noted on the key, rounded up to the hour, so a
+retired key stays in the JWKS until the last token it signed has expired.
+
+## Publish the JWKS
+
+```ts title="app/.well-known/jwks.json/route.ts"
+import { signingKeys } from "@/lib/signing-keys";
+
+export const GET = () =>
+  signingKeys.jwksResponse({ type: "app", id: "default" }, { maxAge: 300 });
+```
+
+The set has the active key and every retired key whose last `exp` plus the
+grace period is still ahead. The grace defaults to the `jwksGrace` option
+(`5 minutes`), which covers clock skew and cached JWKS responses; pass
+`grace` to `jwks` or `purge` to change it for one call:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "signing-keys": { options: { jwksGrace: "15 minutes" } },
+},
+```
+
+Receivers verify with any JOSE library, or with `verifyCompact` from this
+entry, which checks the `alg` against the key and refuses `none`:
+
+```ts
+import { verifyCompact } from "better-supabase/blocks/signing-keys";
+
+const { header, payload } = await verifyCompact(token, jwks, { typ: "JWT" });
+```
+
+Run `purge()` from a daily job to delete the retired keys that dropped out
+of the set. Deleting a row deletes its Vault secret through a trigger.
+
+## Ed25519 webhooks
+
+[Outgoing webhooks](/docs/blocks/webhooks-out) can sign with an owner's key
+instead of shared secrets (Standard Webhooks `v1a`). Pass the signer to
+`standardWebhooksAsymmetric` and give receivers the `whpk_` public key:
+
+```ts
+import {
+  standardWebhooksAsymmetric,
+  webhookPublicKey,
+} from "better-supabase/blocks/webhooks";
+
+const asymmetricSigner = standardWebhooksAsymmetric({
+  signer: signingKeys.signer({ type: "webhooks", id: "default" }),
+});
+const publicKey = webhookPublicKey(created.publicKey); // "whpk_…"
+```
+
+## Events
+
+| Type                  | When                                          |
+| --------------------- | --------------------------------------------- |
+| `signing_key.created` | A key was created; `data` has `kid` and `alg` |
+| `signing_key.retired` | A key was retired, by rotation or `retire`    |
+
+Both carry `ownerType`, `ownerId` and `kid`, and write a `security` audit
+entry when the audit block is installed.
+
+## Without the client
+
+`db.signingKeys` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/signing-keys.ts"
+import {
+  createSigningKeys,
+  sqlTransport,
+} from "better-supabase/blocks/signing-keys";
+
+export const signingKeys = createSigningKeys({
+  transport: sqlTransport(postgres.admin),
+});
+
+const owner = { type: "organization", id: organizationId };
+const created = await signingKeys.create(owner).orThrow();
+// { kid: "kPrK_qmx…", alg: "Ed25519", publicKey: { kty: "OKP", … }, retired: null }
+```

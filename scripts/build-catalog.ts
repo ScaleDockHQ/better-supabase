@@ -9,6 +9,7 @@
  */
 import {
   existsSync,
+  globSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -77,7 +78,7 @@ function worksWith(module: {
 const ROOT = join(import.meta.dirname, "..");
 const PACKAGE_JSON = join(ROOT, "packages/better-supabase/package.json");
 const EXPORTS_JSON = join(ROOT, "packages/better-supabase/api/exports.json");
-const DOCS_BLOCKS = join(ROOT, "apps/docs/content/docs/blocks");
+const DOCS_BLOCKS = join(ROOT, "apps/docs/content/docs/(blocks)/blocks");
 
 export const CATALOG_FILE: string = join(
   ROOT,
@@ -204,7 +205,9 @@ function docsPages(): ReadonlyMap<string, string> {
 }
 
 function docsPage(name: string, pages: ReadonlyMap<string, string>): string {
-  if (existsSync(join(DOCS_BLOCKS, `${name}.mdx`))) {
+  const page = globSync(`**/${name}.mdx`, { cwd: DOCS_BLOCKS });
+
+  if (page.length > 0) {
     return `/docs/blocks/${name}`;
   }
 

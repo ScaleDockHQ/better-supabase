@@ -16,7 +16,7 @@ const testFiles = (dir: string): string[] =>
 
 const PAGE = resolve(
   HERE,
-  "../../../../apps/docs/content/docs/standards/index.mdx",
+  "../../../../apps/docs/content/docs/(reference)/standards/index.mdx",
 );
 
 interface Row {

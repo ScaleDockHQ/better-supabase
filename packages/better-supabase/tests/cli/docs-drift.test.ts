@@ -1,3 +1,4 @@
+import { globSync } from "node:fs";
 import { glob, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -14,6 +15,30 @@ import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const repo = join(import.meta.dirname, "../../../..");
 const docs = join(repo, "apps/docs/content/docs");
+const GROUP = /^\(.+\)$/u;
+
+/** The file for a docs path such as `cli/init.mdx`, ignoring tab folders. */
+function docsFile(relativePath: string): string {
+  const wanted = relativePath.replace(/^\/docs\//u, "");
+
+  const matches = globSync("**/*.mdx", { cwd: docs }).filter(
+    (file) =>
+      file
+        .split("/")
+        .filter((part) => !GROUP.test(part))
+        .join("/") === wanted,
+  );
+
+  const [match] = matches;
+
+  if (matches.length !== 1 || match === undefined) {
+    throw new Error(
+      `${relativePath} matched ${matches.join(", ") || "nothing"}`,
+    );
+  }
+
+  return join(docs, match);
+}
 
 /** The page that documents each command's flags. */
 const PAGES: Readonly<Record<string, string>> = {
@@ -122,7 +147,7 @@ describe("CLI docs", () => {
   it.each(Object.entries(PAGES))(
     "documents every flag of %s in %s",
     async (command, page) => {
-      const text = await readFile(join(docs, page), "utf-8");
+      const text = await readFile(docsFile(page), "utf-8");
 
       const missing = (await flagsOf(command)).filter(
         (flag) => !text.includes(`--${flag}`),
@@ -135,7 +160,7 @@ describe("CLI docs", () => {
   it.each(Object.entries(pagesByFile()))(
     "has no flag rows in %s that the commands lack",
     async (page, commands) => {
-      const text = await readFile(join(docs, page), "utf-8");
+      const text = await readFile(docsFile(page), "utf-8");
 
       const known = new Set(
         (await Promise.all(commands.map(flagsOf)))
@@ -162,7 +187,7 @@ describe("CLI docs", () => {
     const [page = "", anchor] = (spec?.docs ?? "").split("#");
 
     const text = await readFile(
-      join(docs, `${page.replace(/^\/docs\//, "")}.mdx`),
+      docsFile(`${page.replace(/^\/docs\//, "")}.mdx`),
       "utf-8",
     );
 
@@ -182,13 +207,13 @@ describe("CLI docs", () => {
   });
 
   it("documents the global options and every error code", async () => {
-    const index = await readFile(join(docs, "cli/index.mdx"), "utf-8");
+    const index = await readFile(docsFile("cli/index.mdx"), "utf-8");
 
     for (const flag of globalFlags) {
       expect(index).toContain(`--${flag}`);
     }
 
-    const errors = await readFile(join(docs, "cli/errors.mdx"), "utf-8");
+    const errors = await readFile(docsFile("cli/errors.mdx"), "utf-8");
 
     const headings = [...errors.matchAll(/^## `([a-z_]+)`$/gm)].map(
       (match) => match[1],
@@ -210,8 +235,8 @@ const SOURCES = [
 
 /** Pages that quote the old names on purpose. */
 const HISTORY = new Set([
-  "apps/docs/content/docs/concepts/naming.mdx",
-  "apps/docs/content/docs/migration/0.1-to-0.2.mdx",
+  "apps/docs/content/docs/(docs)/concepts/naming.mdx",
+  "apps/docs/content/docs/(docs)/migration/(older)/0.1-to-0.2.mdx",
 ]);
 
 async function sources(): Promise<{ path: string; text: string }[]> {
@@ -322,7 +347,7 @@ const FACTORIES = new Set([
 
 describe("blocks overview", () => {
   it("lists every module with what it requires and works with", async () => {
-    const page = await readFile(join(docs, "blocks/index.mdx"), "utf-8");
+    const page = await readFile(docsFile("blocks/index.mdx"), "utf-8");
     const section = page.slice(page.indexOf("## How modules work together"));
 
     const cell = (names: readonly string[]): string =>

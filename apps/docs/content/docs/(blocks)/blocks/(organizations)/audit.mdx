@@ -1,0 +1,626 @@
+---
+title: Audit log
+description: Record events, and list, reveal and export a tenant's audit entries as NDJSON, CSV or OCSF, and purge them per tenant's retention.
+---
+
+The `audit` SQL module records row changes and `audit_event()` calls (see
+[SQL modules](/docs/blocks/sql#audit-log)). The audit block reads that log
+from TypeScript: a list for an activity page, an export for customers and
+SIEMs, and retention.
+
+```bash
+better-supabase add audit
+```
+
+Turn on `readPolicy` so members read their tenant's entries with
+`audit.read`, and platform staff read every entry:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { audit: { options: { readPolicy: true } } },
+});
+```
+
+## Recording events
+
+`audit.record` writes a semantic event through `audit_event` and returns the
+entry id. Call it with a service-role transport from a job, a webhook
+handler or an API route:
+
+```ts
+const id = await audit
+  .record({
+    eventType: "ticket.escalated",
+    category: "support",
+    organizationId,
+    record: ticket.id,
+    summary: "Escalated to the on-call team",
+    requestId: ctx.requestId,
+    correlationId: ctx.correlationId,
+    metadata: { ticketId: ticket.id, priority: 2 },
+  })
+  .orThrow();
+```
+
+Its fields are the arguments of `audit_event`. `actorId`, `actorKind`,
+`actorLabel`, `ip`, `userAgent`, `sessionId`, `requestId` and `scope` count
+only for the service role and direct admin connections; any other caller
+gets its own user and the request's id. `supportSessionId`, `impersonatedBy`
+and `impersonationReason` fill the impersonation columns, such as for an
+entry about a support session that the admin's own token records. Any
+caller but the service role may only name itself as `impersonatedBy`, from
+a token without an `act` claim; otherwise the claim's values are stored. Pass `ctx.requestId` and
+`ctx.correlationId` from the [server context](/docs/auth/server#request-and-correlation-ids)
+so the event and the row changes of the same action share them; without
+them, `audit_event` reads the request's settings and headers (see
+[Request and correlation ids](/docs/blocks/sql#request-and-correlation-ids)).
+An id that isn't 1 to 128 safe characters is dropped. `scope` defaults
+to `tenant` with an organization and `platform` without one, and an adopted
+log can take its own value (`region`, say). An adopted log's columns outside
+the module's model are filled from metadata keys with
+`blocks.audit.options.metadataColumns` (see
+[SQL modules](/docs/blocks/sql#audit-log)). A key the event leaves out
+leaves its column to the column's default, so a `not null default` column
+keeps working, and the mapped keys are removed from the stored metadata
+unless `keepMappedMetadata` is `true`. `list` and `export` return those
+columns by name under `columns`; pass their types to `createAudit` to
+type them:
+
+Server code calls the `audit` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAudit } = defineDataHooks(
+  "audit",
+  (db: AppDb) => db.audit,
+);
+```
+
+```ts
+const rows = await db.audit.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/audit/list.tsx"
+"use client";
+
+import { useAudit } from "@/lib/supabase/hooks";
+
+const rows = useAudit({ limit: 50 });
+```
+
+A column that follows from what the module already records, such as a flag
+for entries by platform staff, needs no metadata key: make it a generated
+column of the adopted log. Postgres fills it for every entry, from
+`audit_event` and from the row-change trigger alike, and the module never
+writes it:
+
+```sql
+alter table public.audit_logs
+  drop column actor_is_platform_admin,
+  add column actor_is_platform_admin boolean not null
+    generated always as (coalesce(actor_kind = 'platform_admin', false)) stored;
+```
+
+With `values: { actorKind: { support: "platform_admin" } }`, a support
+session's entries and a service call with `actorKind: "support"` store
+`platform_admin`, and the flag follows. An expression that needs another
+table (a role lookup) can't be a generated column; pass that value as a
+metadata key instead.
+
+## Module actions
+
+Every SQL module records its security-relevant actions in the log once the
+`audit` module is installed: a membership change, an API key, a setting, a
+flag, a credential, a connector, a webhook secret or a support session each
+write one entry, in the same transaction as the outbox event. The modules use
+one set of categories:
+
+| Category        | Actions                                                      |
+| --------------- | ------------------------------------------------------------ |
+| `membership`    | invitations, member roles, removals, ownership, the waitlist |
+| `access`        | roles, permissions and overrides in the access catalog       |
+| `security`      | API keys, credentials, provider keys, support sessions, SSO  |
+| `configuration` | organizations, settings, flags, announcements, workflows     |
+| `billing`       | billing customers                                            |
+| `data`          | row changes from the table trigger, attachments, exports     |
+| `ai`            | agents, tool policies and approvals, chat shares             |
+| `integration`   | connectors, incoming and outgoing webhooks                   |
+| `read`          | decrypted or sensitive values, when a table opts in          |
+
+An adopted log whose `category` column has a check of its own maps the
+shared names with `values`, the same way it maps actor kinds:
+
+```ts title="better-supabase.config.ts"
+audit: {
+  options: {
+    values: {
+      category: { membership: "users", configuration: "settings" },
+    },
+  },
+},
+```
+
+Set `audit: false` on a module to keep its actions out of the log; they
+still reach the outbox:
+
+```ts
+blocks: { "flags": { audit: false } },
+```
+
+`options.auditCategory` on `organizations`, `organizations-suspension` and
+`impersonation` still works and puts every entry of that module under one
+category, but it is deprecated: map the shared categories with `values`
+instead.
+
+## Read audits
+
+A clinic or a regulated app has to show who looked at a record, not only who
+changed it. Reads are audited where values are decrypted, so a query that
+skips the definer path can't read the value either:
+
+- an app table with [`auditReads: true`](/docs/repository/tables#encrypted-columns)
+  writes `<type>.viewed` for each `<table>_reveal` call;
+- [`custom-fields`](/docs/blocks/custom-fields#encrypted-fields) with
+  `options.auditReads` writes `field_value.viewed` for each `readValues` call
+  that returns an encrypted or sensitive value.
+
+Each entry has the category `read`, the acting member and the tenant, and
+names the rows in `metadata.ids`. One call writes one entry per tenant
+whatever the number of rows, so listing a page of records costs one insert.
+List them with `category: "read"`; [retention](#retention) purges them with
+the other entries.
+
+## Recording CloudEvents
+
+`audit.sink()` returns an `EventSink` that records each CloudEvent it
+receives, so the events another part of the app already sends reach the log:
+
+```ts
+import { forwardBlockEvents } from "better-supabase/events";
+
+forwardBlockEvents(betterSupabase, audit.sink(), {
+  source: "/crm",
+  types: ["organization.*", "support.*"],
+});
+```
+
+`auditEventOf(event)` is the mapping it uses:
+
+| Audit field                                                 | From the CloudEvent                                                       |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `eventType`                                                 | `type` without the `dev.better-supabase.` prefix (`typePrefix` option)    |
+| `category`                                                  | `security` for `account.*` and `support.*` (`category` option)            |
+| `record`                                                    | `subject`                                                                 |
+| `organizationId`                                            | the `memberships` or `partitionkey` extension, then `data.organizationId` |
+| `actorId`                                                   | `data.actorId`                                                            |
+| `metadata`                                                  | `data`                                                                    |
+| `idempotencyKey`                                            | `source` and `id`, so a redelivered event is recorded once                |
+| `supportSessionId`, `impersonatedBy`, `impersonationReason` | `data.sessionId`, `data.adminId` and `data.reason` of a `support.*` event |
+
+`category` takes the event type without its prefix and returns one of the
+module categories above, or `undefined` for none, so app events land next to
+the module actions:
+
+```ts
+audit.sink({
+  category: (type) => (type.startsWith("invoice.") ? "billing" : undefined),
+});
+```
+
+The sink records up to 1,000 events per call through
+`better_supabase.audit_event_many(events jsonb)`, which runs `audit_event`
+for each element with the same checks. `audit.recordMany(events)` calls it
+directly and returns one `Result` per event, so one bad event doesn't stop
+the others.
+
+`send` throws when an entry fails, after trying the rest, so an outbox relay
+retries the batch. Build the log on a service-role transport: only the
+service role can set the actor. The server's `audit` option takes the same
+sink (see [Account deletion](/docs/auth/account-deletion#recording-account-actions-in-the-audit-log)).
+
+## Listing entries
+
+`createAudit` reads the log through the module's own functions, as the
+caller, so the read policy decides what each member sees and an adopted log's
+column mappings are already applied. It needs no generated types and no
+exposed schema: pass `sqlTransport(ctx.postgres)` (direct Postgres as the
+user), or `rpcTransport(supabase, { schema: "api" })` with the module's
+[API schema](/docs/blocks/sql#calling-a-module-over-the-data-api).
+
+```ts title="app/settings/audit/page.ts"
+import { createAudit, sqlTransport } from "better-supabase/blocks/audit";
+
+const audit = createAudit({ transport: sqlTransport(ctx.postgres) });
+
+const page = await audit
+  .list({ organizationId, eventType: "invoice.sent", since, limit: 50 })
+  .orThrow();
+// page.entries: id, occurredAt, eventType, actorId, actorLabel, summary, targetLabel, ...
+const older = await audit.list({ organizationId, cursor: page.next });
+```
+
+`list` calls `list_audit_events` with the tenant, event type, actor, target
+type, record, category, outcome, source, actor kind, correlation id and time
+filters, newest first; pass
+`page.next` as `cursor` for the next page. Every filter but the times takes
+one value or a list, `search` matches text in the event type, summary,
+target, actor and tenant labels, record and table (case-insensitive),
+`order: "asc"` lists oldest first, and `count: true` adds `page.total`, the
+number of entries the filters match, from `count_audit_events`:
+
+```ts
+const page = await audit
+  .list({
+    organizationId,
+    eventType: ["invoice.sent", "invoice.paid"],
+    outcome: "failure",
+    search: "acme",
+    order: "asc",
+    count: true,
+  })
+  .orThrow();
+// page.total: 12
+```
+
+A table with page numbers opens page N with `offset` next to `count`:
+
+```ts
+const page = await audit
+  .list({
+    organizationId,
+    limit: 25,
+    offset: (pageNumber - 1) * 25,
+    count: true,
+  })
+  .orThrow();
+// page.entries: the entries of that page; page.total: every match
+```
+
+`offset` skips that many entries after the filters (and after `before`, when
+both are set), and `export` takes it too, to start an export at that entry.
+
+`export` takes the same filters, `search` and `order`. Restricted details (row snapshots, IP, user agent) are
+never in the list. `audit.reveal(entryId)` returns them for a member with the
+reveal permission in the entry's tenant, or platform staff, and records the
+look as an `audit.revealed` entry; anyone else gets `not_found`
+(`AUDIT_ENTRY_NOT_FOUND`).
+
+`auditListQuery` is the older path: a [list query](/docs/platform/list)
+over the audit table with facets for `table`, `record`, `op`, `actor`,
+`event`, `category`, `outcome` and `target`. It reads the table itself, so it
+needs the table in your generated models and follows the managed column
+names; use it with `ctx.sql` over direct Postgres, since the module schema is
+not exposed to the Data API.
+
+```ts
+export const auditList = auditListQuery(betterSupabase, "auditEvents");
+const page = await auditList
+  .run(ctx.sql, query.value, {
+    where: { organizationId, ...auditList.between(from, to) },
+  })
+  .orThrow();
+```
+
+### In the browser
+
+`useAuditLog` loads the newest page through the provider's client, as the caller, so the read policy
+applies as it does for `list`. `setFilters({ actorId, eventType, search })`
+narrows the table and loads the first page again (an empty value matches
+every entry), and `loadMore()` appends the next, older page while
+`hasMore` is `true`. The same hook runs in React DOM and React Native. It
+is a registry item: install it with
+`npx shadcn add @better-supabase/use-audit`, which writes
+`hooks/use-audit.ts` into the app.
+
+```tsx title="components/audit-log-table.tsx"
+import { useAuditLog } from "@/hooks/use-audit";
+
+const { entries, filters, hasMore, setFilters, loadMore } = useAuditLog({
+  organizationId,
+  schema: "api",
+});
+```
+
+`createAuditLogController` from `better-supabase/blocks/audit` is the same
+logic without React. Vue, Svelte and Solid run it with `useBlockController`
+from `better-supabase/vue`, `/svelte` and `/solid`, passing a `client` from
+`createAudit`, with `auth` from the provider (see
+[Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)). The
+[audit log table recipe](/docs/registry/ui-recipes/audit-log-table) shows it in the Next.js
+and Expo examples.
+
+```vue title="AuditLog.vue"
+<script setup lang="ts">
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createAudit,
+  createAuditLogController,
+  rpcTransport,
+} from "better-supabase/blocks/audit";
+
+const props = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state, actions } = useBlockController(createAuditLogController, {
+  client: createAudit({ transport: rpcTransport(supabase), schema: "api" }),
+  organizationId: props.organizationId,
+});
+</script>
+
+<template>
+  <p v-for="entry in state.entries" :key="entry.id">{{ entry.eventType }}</p>
+  <button v-if="state.hasMore" @click="actions.loadMore()">Load more</button>
+</template>
+```
+
+```svelte title="AuditLog.svelte"
+<script lang="ts">
+  import {
+    getBetterSupabase,
+    useBlockController,
+  } from "better-supabase/svelte";
+  import {
+    createAudit,
+    createAuditLogController,
+    rpcTransport,
+  } from "better-supabase/blocks/audit";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const audit = useBlockController(createAuditLogController, {
+    client: createAudit({ transport: rpcTransport(supabase), schema: "api" }),
+    organizationId,
+  });
+</script>
+
+<p>{$audit.entries?.length ?? 0} entries</p>
+```
+
+```tsx title="AuditLog.tsx"
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import {
+  createAudit,
+  createAuditLogController,
+  rpcTransport,
+} from "better-supabase/blocks/audit";
+
+export function AuditLog(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state } = useBlockController(createAuditLogController, {
+    client: createAudit({ transport: rpcTransport(supabase), schema: "api" }),
+    organizationId: props.organizationId,
+  });
+  return <p>{state().entries?.length ?? 0} entries</p>;
+}
+```
+
+## Reverting changes
+
+`audit.revert(entryIds)` writes the old values of row changes back, newest
+entry first, all or nothing. It runs as the caller, so the target table's
+policies and grants decide whether each write is allowed, and the revert is
+itself audited. The caller needs `audit.revert` in each entry's organization
+(admins and owners have it by default).
+
+```ts title="app/settings/audit/actions.ts"
+const { reverted, undo } = await audit.revert([entry.id]).orThrow();
+```
+
+| Entry    | Revert                                                              |
+| -------- | ------------------------------------------------------------------- |
+| `update` | Restores the changed columns, if the row still holds the new values |
+| `insert` | Deletes the row, if it still holds the inserted values              |
+| `delete` | Inserts the row again with its old values, generated columns aside  |
+
+| Hint                         | When                                                                 |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `AUDIT_ENTRY_NOT_FOUND`      | An entry is missing or the caller lacks `audit.revert` in its tenant |
+| `AUDIT_ENTRY_NOT_REVERTIBLE` | The entry is an event, or its table no longer exists                 |
+| `AUDIT_ENTRY_REDACTED`       | A value the revert needs was redacted when it was logged             |
+| `ROW_CHANGED_SINCE`          | The row changed after the entry, or a deleted row exists again       |
+| `AUDIT_REVERT_FORBIDDEN`     | The table's policies hide the row from the caller                    |
+| `AUDIT_REVERT_TOO_MANY`      | More than 1000 entries in one call                                   |
+
+Reverting needs the row snapshots (`old` and `new` on the log, or in the
+restricted table) and the access module. An adopted log without them gets no
+`revert_audit_entries` function.
+
+### Undo tokens
+
+Methods whose change has an inverse return an `undo` token: `relations.link`,
+`relations.unlink` and `audit.revert`. The token is plain JSON, so a server
+action can return it to a toast, and applying it runs the inverse as the
+caller, with the same permission checks as any other write. A revert's token
+names the entries the revert wrote, found by the correlation id it sets, so
+applying it reverts the revert. An adopted log without a correlation id column
+returns `undo: null`.
+
+Apply a token with `createUndo` from `better-supabase/blocks/undo`, or keep a
+stack of them in the browser with `useUndoStack`; see
+[Undo](/docs/blocks/undo). Bulk actions return no token, because a row's
+inverse depends on the action; revert their audit entries instead.
+
+## Exporting
+
+`audit.export()` streams every entry the caller can read as NDJSON, CSV or
+OCSF, one `list_audit_events` page at a time, so memory stays flat however
+long the log is, and it reads an adopted log and the version 3 columns
+(`actorLabel`, `summary`, `requestId` and the rest) like `list` does:
+
+```ts title="app/api/audit/export/route.ts"
+export const GET = bsb.handler(async (request, ctx) => {
+  const audit = createAudit({
+    transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
+  });
+  const stream = audit.export({ organizationId, since, format: "csv" });
+  return new Response(stream, { headers: { "content-type": "text/csv" } });
+});
+```
+
+`format: "csv"` writes a header row and one row per entry, with text that
+starts like a spreadsheet formula prefixed with `'`. `columns` picks and
+orders the columns (a record key, a key with its header label,
+`columns.<name>` for a column `metadataColumns` fills, or
+`restricted.<field>` for restricted details), `preamble` writes lines
+before the header row, and `formatRow` changes each row before it is
+written:
+
+```ts
+const stream = audit.export({
+  organizationId,
+  format: "csv",
+  preamble: [`Audit log for ${organization.name}`, `Exported ${now}`],
+  columns: [
+    { key: "occurredAt", label: "Time" },
+    { key: "actorLabel", label: "Who" },
+    "eventType",
+    { key: "columns.ticket_id", label: "Ticket" },
+    { key: "restricted.ip", label: "IP address" },
+  ],
+  formatRow: (row, record) => ({
+    ...row,
+    occurredAt: record.occurredAt.toLocaleString("en-GB"),
+  }),
+});
+```
+
+A `restricted.<field>` column (`ip`, `userAgent`, `sessionId`, `metadata`,
+`old`, `new` or `changes`) reads each page's details through
+`reveal_audit_entries(entries)`, which returns them for the entries the
+caller may reveal (the same check as `reveal`), leaves the cells of the
+others empty, and records one `audit.revealed` entry per tenant with the
+revealed ids in `metadata.entries`. It needs the `restricted` option and
+the access module. Without `columns`, the export keeps its default
+columns. For an export that runs
+in the background (a jobs handler that emails a link, say),
+`audit.exportToStorage({ storage, bucket, path, signedUrlTtl, ...filters })`
+writes the file to Storage, such as the data lifecycle `data-exports`
+bucket, and returns its path and a signed download URL.
+
+`exportAuditLog(sql, options)` streams NDJSON or OCSF straight from the
+managed table's columns. Keep it for a managed log; `audit.export()` covers
+adopted logs and CSV.
+
+`format: "ocsf"` maps each entry to an
+[OCSF](https://schema.ocsf.io/1.9.0) event (`SPEC_PINS.ocsf`). Row changes
+are Entity Management (`class_uid` 3004) with the table and record as the
+`entity`; `audit_event()` entries are API Activity (6003) with the event type
+as `api.operation`. The activity comes from the event type's last segment:
+`created` is Create, `exported` is Read, `renamed` is Update and `revoked` is
+Delete; anything else is Other (99) with the event type as `activity_name`.
+`toOcsf(entry, product)` maps one entry.
+
+## Retention
+
+`purgeAuditLog` deletes entries past their retention and returns how many.
+Without `retention` it calls `purge_audit_log`, which honours an
+`audit_retention` SQL hook; with it, each tenant is purged with its own
+number of days. `setAuditRetention` reads those days from a column:
+
+```ts title="jobs/purge-audit.ts"
+import { purgeAuditLog, setAuditRetention } from "better-supabase/blocks/audit";
+
+await purgeAuditLog(postgres.admin, {
+  olderThan: "1 year",
+  retention: setAuditRetention(postgres.admin, {
+    table: "public.organizations",
+    column: "audit_retention_days",
+  }),
+});
+```
+
+`purgeAuditLog` reads every tenant's days in one query. A tenant whose
+column is `null` keeps the `olderThan` default. Run the job
+until it returns 0; each call deletes at most `batch` entries per tenant.
+`purgeAuditLog` also takes a service-role transport instead of the SQL
+connection, such as `rpcTransport(admin, { schema: "api" })` over the
+wrappers `blocks.audit.api` writes.
+
+With the `data-lifecycle` module, `purge_audit_log` also follows the
+`audit` [retention policies and legal holds](/docs/blocks/data-lifecycle#retention-policies-and-legal-holds).
+
+### Partitioned log
+
+`options.partitioned` creates a new managed log partitioned by month on
+`occurred_at`, so a purge drops whole months instead of deleting rows:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { audit: { options: { partitioned: true } } },
+});
+```
+
+The module creates this month's partition and the next three, plus a
+default partition for anything outside them. Schedule
+`better_supabase.maintain_partitions()` once a month to add the months
+ahead. `purge_audit_log` drops every month past the cutoff, which is the
+longest `audit` retention policy or `older_than`, and deletes the dropped
+entries' restricted details. It deletes rows one by one instead while a
+legal hold covers audit entries, when an `audit_retention` hook exists, or
+for one tenant.
+
+The option applies when the module creates the log. An existing log stays
+as it is, and `better-supabase doctor` reports it as BS335; move its rows
+into a partitioned copy yourself. An adopted log is never partitioned.
+
+## Hash chain
+
+`options.chain` links each tenant's entries in a hash chain: every entry
+stores its position, the previous entry's hash and its own hash, a SHA-256
+of the row and the previous hash. Changing, deleting or inserting an entry
+afterwards breaks the chain from that point. `createAuditChain` checks it
+and signs its heads:
+
+```ts title="jobs/audit-checkpoint.ts"
+import { createAuditChain, sqlTransport } from "better-supabase/blocks/audit";
+import { createSigningKeys } from "better-supabase/blocks/signing-keys";
+
+const signingKeys = createSigningKeys({
+  transport: sqlTransport(postgres.admin),
+});
+const chain = createAuditChain({
+  transport: sqlTransport(postgres.admin),
+  signer: signingKeys.signer(
+    { type: "app", id: "audit" },
+    { create: "Ed25519" },
+  ),
+  issuer: "https://app.example.com",
+});
+
+await chain.checkpoint().orThrow();
+
+const verdict = await chain.verify({ organizationId }).orThrow();
+// { valid: true, checked: 1204, seq: 1204, hash: "9f2c…" }
+// { valid: false, checked: 311, seq: 312, brokenAt: "8841", reason: "hash" }
+```
+
+| Method               | What it does                                                           |
+| -------------------- | ---------------------------------------------------------------------- |
+| `verify(range?)`     | Checks a tenant's entries in order, optionally between `from` and `to` |
+| `heads()`            | Each tenant's latest entry that no checkpoint covers yet               |
+| `checkpoint()`       | Signs every head as a JWS and records it in `audit_checkpoints`        |
+| `checkpoints(opts?)` | A tenant's recorded checkpoints, newest first                          |
+
+A verdict's `reason` is `hash` (an entry changed), `link` (an entry points
+at the wrong predecessor), `gap` (an entry is missing) or `checkpoint` (a signed head no longer
+matches). Without a `to`, `verify` checks up to the latest checkpoint, so
+deleting the newest entries is caught once a checkpoint covers them. The checkpoint JWS carries `sub` (the
+tenant), `seq`, `hash`, `entry` and `iat`; publish the signer's
+[JWK Set](/docs/blocks/signing-keys) so an auditor can check the
+checkpoints without database access. Run `checkpoint()` on a schedule:
+an entry rewritten together with every later hash still fails against the
+last signed head.
+
+Every chain function is service-role only. The chain starts with the first
+entry written after the option is on; older entries stay outside it. It
+needs a managed log.
+
+## Without the client
+
+`db.audit` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const audit = createAudit<{ ticket_id: string | null; priority: number }>({
+  transport: sqlTransport(ctx.postgres),
+});
+const page = await audit.list({ organizationId }).orThrow();
+// page.entries[0].columns: { ticket_id: "...", priority: 2 }
+```
