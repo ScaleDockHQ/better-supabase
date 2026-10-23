@@ -1,7 +1,6 @@
 // #region recipe:api-keys-table
 "use client";
 
-import { useApiKeys } from "better-supabase/blocks/api-keys/react";
 import { KeyRoundIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { toast } from "sonner";
@@ -24,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useApiKeys } from "@/hooks/use-api-keys";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";
 

@@ -1,13 +1,7 @@
 "use client";
 
-import type {
-  AttachmentFileInput,
-  AttachmentUploadItem,
-  AttachmentUploadState,
-} from "better-supabase/blocks/attachments/react";
 import type { ChangeEvent, ReactNode } from "react";
 
-import { useAttachmentUpload } from "better-supabase/blocks/attachments/react";
 import { useAction } from "better-supabase/react";
 import {
   DownloadIcon,
@@ -19,6 +13,12 @@ import {
 import { useExtracted, useFormatter } from "next-intl";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import type {
+  AttachmentFileInput,
+  AttachmentUploadItem,
+  AttachmentUploadState,
+} from "@/hooks/use-attachments";
 
 import { Badge } from "@/components/reui/badge";
 import {
@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import { removeCustomerAttachments } from "@/features/customers/customer-record-actions";
+import { useAttachmentUpload } from "@/hooks/use-attachments";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AttachmentRow, Loaded } from "../customer-record-queries";

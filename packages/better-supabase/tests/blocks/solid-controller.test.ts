@@ -5,7 +5,7 @@ import type { SolidController } from "../../src/blocks/solid-controller.ts";
 import type { EnvOptions } from "../fixtures/block-bindings.ts";
 
 import { useBlockController } from "../../src/blocks/solid-controller.ts";
-import { useUndoStack } from "../../src/blocks/undo/solid/index.ts";
+import { createUndoController } from "../../src/blocks/undo/index.ts";
 import { BetterSupabaseProvider } from "../../src/solid/index.ts";
 import { testControllerBinding } from "../../src/testing/kits/controller-binding.ts";
 import {
@@ -82,7 +82,11 @@ describe("useBlockController (Solid)", () => {
 
   it("runs a generated wrapper without a provider when its controller needs none", () => {
     const { bound, unmount } = mount(() =>
-      useUndoStack({ apply: async () => undefined }),
+      useBlockController(
+        createUndoController,
+        { apply: async () => undefined },
+        false,
+      ),
     );
 
     bound.actions.push({ v: 1, calls: [] }, "Moved");

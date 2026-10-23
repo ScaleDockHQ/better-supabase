@@ -1,7 +1,6 @@
 // #region recipe:onboarding-checklist
 "use client";
 
-import { useOnboarding } from "better-supabase/blocks/onboarding/react";
 import { tenantOf } from "better-supabase/react";
 import { CheckCircle2Icon, CircleIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
@@ -17,6 +16,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { gettingStarted } from "@/features/onboarding/checklist";
+import { useOnboarding } from "@/hooks/use-onboarding";
 import { Link } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";

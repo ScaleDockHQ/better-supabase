@@ -3,11 +3,11 @@
 
 import type { RecordRef } from "better-supabase/blocks/subjects";
 
-import { useSubject } from "better-supabase/blocks/subjects/react";
 import { useExtracted } from "next-intl";
 
 import { Badge } from "@/components/reui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSubject } from "@/hooks/use-subjects";
 import { Link } from "@/i18n/navigation";
 
 /**

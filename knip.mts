@@ -88,6 +88,8 @@ const config: KnipConfig = {
         "src/components/reui/**",
         "src/lib/supabase/records/**",
         "src/lib/supabase/hooks.ts",
+        // Copied from the registry, which knip checks as entries.
+        "src/hooks/use-*.ts",
       ],
       // Knip's Playwright plugin finds the specs and the `webServer`
       // command; the setup project is a `testMatch` regex, which it can't read.
@@ -114,7 +116,8 @@ const config: KnipConfig = {
         "src/app/**/*.{ts,tsx}",
         "src/**/*.native.{ts,tsx}",
       ],
-      ignore: exampleIgnore,
+      // The src/hooks files are copied from the registry, which knip checks.
+      ignore: [...exampleIgnore, "src/hooks/use-*.ts"],
       // @react-native/metro-config pins the optional peer of React Native's
       // CLI plugin to the React Native version.
       ignoreDependencies: [

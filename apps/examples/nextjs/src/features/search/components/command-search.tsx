@@ -1,7 +1,6 @@
 // #region recipe:command-search
 "use client";
 
-import { useCommandSearch } from "better-supabase/blocks/search/react";
 import { SearchIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -14,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useCommandSearch } from "@/hooks/use-search";
 import { Link } from "@/i18n/navigation";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 

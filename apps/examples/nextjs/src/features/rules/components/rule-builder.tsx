@@ -3,7 +3,6 @@
 
 import type { DragEndEvent } from "@dnd-kit/core";
 import type { RuleField } from "better-supabase/blocks/automations";
-import type { RuleBuilderState } from "better-supabase/blocks/automations/react";
 import type {
   FilterCombinator,
   FilterGroupNode,
@@ -29,7 +28,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { contains, ruleOperators } from "better-supabase/blocks/automations";
-import { useRuleBuilder } from "better-supabase/blocks/automations/react";
 import { FILTER_OPERATOR_LABELS } from "better-supabase/list";
 import {
   GripVerticalIcon,
@@ -42,6 +40,8 @@ import {
 import { useExtracted } from "next-intl";
 import { createContext, use, useId, useMemo, useState } from "react";
 import * as v from "valibot";
+
+import type { RuleBuilderState } from "@/hooks/use-automations";
 
 import {
   Alert,
@@ -79,6 +79,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useStatusLabel } from "@/features/customers/use-status-label";
+import { useRuleBuilder } from "@/hooks/use-automations";
 import { useRouter } from "@/i18n/navigation";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";

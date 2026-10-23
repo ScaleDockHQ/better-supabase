@@ -35,6 +35,12 @@ const REMOVED_NAMES: readonly { pattern: RegExp; replacement: string }[] = [
     pattern: /\brequireTenant\b/,
     replacement: "`requireOrganization` (`bsb codemod 0.15` renames it)",
   },
+  {
+    pattern:
+      /["']better-supabase\/(?:blocks\/[\w-]+\/(?:react|vue|svelte|solid)|chat-sdk\/react)["']/,
+    replacement:
+      "the block's React hooks from the registry (`npx shadcn add @better-supabase/use-<block>`), or `useBlockController(create<Block>Controller, options)` from `better-supabase/vue`, `/svelte` or `/solid`",
+  },
 ];
 
 function lineAt(text: string, index: number): number {

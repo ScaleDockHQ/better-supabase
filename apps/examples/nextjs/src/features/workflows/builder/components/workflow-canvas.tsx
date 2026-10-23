@@ -13,8 +13,6 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useWorkflowCanvasRun } from "better-supabase/blocks/workflow-editor/react";
-import { useWorkflowRuns } from "better-supabase/blocks/workflows/react";
 import { useAction } from "better-supabase/react";
 import { PlayIcon, PlusIcon, SaveIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
@@ -31,6 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useWorkflowCanvasRun } from "@/hooks/use-workflow-editor";
+import { useWorkflowRuns } from "@/hooks/use-workflows";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BuilderDetail } from "../builder-queries";

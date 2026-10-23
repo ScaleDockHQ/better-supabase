@@ -1,7 +1,7 @@
 // #region recipe:org-switcher
-import { useOrganizations } from "better-supabase/blocks/organizations/react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
+import { useOrganizations } from "../hooks/use-organizations";
 import { API_SCHEMA } from "../lib/blocks";
 
 /**

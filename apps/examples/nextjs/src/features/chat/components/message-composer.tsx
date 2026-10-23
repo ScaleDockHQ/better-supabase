@@ -2,7 +2,6 @@
 "use client";
 
 import type { Result } from "better-supabase";
-import type { MessageDraft } from "better-supabase/blocks/messaging/react";
 import type { DragEvent, Ref } from "react";
 
 import { useAction } from "better-supabase/react";
@@ -10,6 +9,8 @@ import { PaperclipIcon, SendIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
+
+import type { MessageDraft } from "@/hooks/use-messaging";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";

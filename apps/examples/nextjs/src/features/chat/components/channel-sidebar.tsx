@@ -3,7 +3,6 @@
 
 import type { SubmitEvent } from "react";
 
-import { useConversations } from "better-supabase/blocks/messaging/react";
 import { useAction } from "better-supabase/react";
 import {
   HashIcon,
@@ -55,6 +54,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useConversations } from "@/hooks/use-messaging";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 

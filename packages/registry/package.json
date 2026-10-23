@@ -15,8 +15,10 @@
   "devDependencies": {
     "@better-supabase/typescript-config": "workspace:*",
     "@supabase/supabase-js": "catalog:",
+    "@tanstack/query-core": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
+    "@valibot/to-json-schema": "catalog:",
     "better-supabase": "workspace:*",
     "expo": "catalog:",
     "expo-notifications": "catalog:",
@@ -27,6 +29,7 @@
     "react-native": "catalog:",
     "server-only": "catalog:",
     "shadcn": "catalog:",
+    "temporal-polyfill": "catalog:",
     "typescript": "catalog:",
     "valibot": "catalog:",
     "vitest": "catalog:"

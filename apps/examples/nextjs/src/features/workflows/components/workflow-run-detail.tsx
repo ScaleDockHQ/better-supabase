@@ -2,7 +2,6 @@
 
 import type { WorkflowRun } from "better-supabase/blocks/workflows";
 
-import { useWorkflowRun } from "better-supabase/blocks/workflows/react";
 import { useAction } from "better-supabase/react";
 import { CheckIcon, CircleStopIcon, XIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
@@ -19,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWorkflowRun } from "@/hooks/use-workflows";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {

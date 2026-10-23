@@ -2,16 +2,13 @@
 "use client";
 
 import type { SettingEntries } from "better-supabase/blocks/settings";
-import type {
-  SettingField,
-  SettingsState,
-} from "better-supabase/blocks/settings/react";
 
-import { useSettings } from "better-supabase/blocks/settings/react";
 import { tenantOf } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 import { toast } from "sonner";
+
+import type { SettingField, SettingsState } from "@/hooks/use-settings";
 
 import {
   Card,
@@ -37,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/lib/hooks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { useErrorMessage } from "@/lib/use-error-message";

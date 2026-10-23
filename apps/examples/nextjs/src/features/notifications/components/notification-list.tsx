@@ -1,7 +1,6 @@
 // #region recipe:notification-list
 "use client";
 
-import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { BellIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -14,6 +13,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useNotifications } from "@/hooks/use-notifications";
 import { useAuth } from "@/lib/hooks";
 
 import type { NotificationRow } from "../notification-types";

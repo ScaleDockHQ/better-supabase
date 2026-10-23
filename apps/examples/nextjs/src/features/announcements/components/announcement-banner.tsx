@@ -1,7 +1,6 @@
 // #region recipe:announcement-banner
 "use client";
 
-import { useAnnouncements } from "better-supabase/blocks/announcements/react";
 import { MegaphoneIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -12,6 +11,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useAnnouncements } from "@/hooks/use-announcements";
 
 /**
  * The newest live announcement for this user and organization. Loads in the

@@ -1,8 +1,8 @@
 // #region recipe:usage-meter
-import { useUsageMeter } from "better-supabase/blocks/usage/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { ActivityIndicator, Text, View } from "react-native";
 
+import { useUsageMeter } from "../hooks/use-usage";
 import { API_SCHEMA } from "../lib/blocks";
 
 const labels = new Map([

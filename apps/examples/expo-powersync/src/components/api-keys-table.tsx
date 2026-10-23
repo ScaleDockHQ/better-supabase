@@ -1,5 +1,4 @@
 // #region recipe:api-keys-table
-import { useApiKeys } from "better-supabase/blocks/api-keys/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 import { useState } from "react";
 import {
@@ -11,6 +10,7 @@ import {
   View,
 } from "react-native";
 
+import { useApiKeys } from "../hooks/use-api-keys";
 import { API_SCHEMA } from "../lib/blocks";
 
 /**

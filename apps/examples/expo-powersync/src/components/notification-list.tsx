@@ -1,8 +1,8 @@
 // #region recipe:notification-list
-import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { tenantOf, useAuth, useSupabase } from "better-supabase/react";
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
 
+import { useNotifications } from "../hooks/use-notifications";
 import { blocks } from "../lib/blocks";
 
 /**

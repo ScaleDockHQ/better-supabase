@@ -1,10 +1,10 @@
 // #region recipe:notification-bell
 import type { NotificationCounts } from "better-supabase/blocks/notifications";
 
-import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { tenantOf, useAuth, useSupabase } from "better-supabase/react";
 import { Pressable, Text, View } from "react-native";
 
+import { useNotifications } from "../hooks/use-notifications";
 import { blocks } from "../lib/blocks";
 
 const unreadOf = (counts: readonly NotificationCounts[]): number =>

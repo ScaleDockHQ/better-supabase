@@ -1,6 +1,5 @@
 "use client";
 
-import { useOAuthConsent } from "better-supabase/blocks/session-revocation/react";
 import { useExtracted } from "next-intl";
 import { useSyncExternalStore } from "react";
 
@@ -14,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOAuthConsent } from "@/hooks/use-session-revocation";
 
 const noSubscription = (): (() => void) => () => undefined;
 

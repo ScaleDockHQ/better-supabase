@@ -1,7 +1,6 @@
 // #region recipe:inbox-threads
 "use client";
 
-import { useInbox } from "better-supabase/blocks/inbox/react";
 import { InboxIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
@@ -23,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useInbox } from "@/hooks/use-inbox";
 import { cn } from "@/lib/utils";
 
 import type { ConversationRow } from "../inbox-types";

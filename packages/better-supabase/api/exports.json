@@ -843,12 +843,16 @@
       "useAction",
       "useActionForm",
       "useAuth",
+      "useBlockEnv",
       "useBlockEvent",
       "useBlockMutation",
       "useBlockQuery",
+      "useBlockTenant",
       "useBroadcast",
+      "useController",
       "useDebouncedSearch",
       "useImage",
+      "useLatest",
       "useLiveCount",
       "useLiveQuery",
       "usePresence",
@@ -1815,6 +1819,7 @@
       "provideSession",
       "useAction",
       "useAuth",
+      "useBlockController",
       "useBlockEvent",
       "useBlockMutation",
       "useBlockQuery",
@@ -1839,6 +1844,7 @@
       "BlockEventSource",
       "BlockMutationActions",
       "BlockMutationState",
+      "BlockOptions",
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
@@ -1861,6 +1867,7 @@
       "ProfileOf",
       "SupportView",
       "UseActionOptions",
+      "VueController",
       "VuePresenceOptions"
     ]
   },
@@ -1872,6 +1879,7 @@
       "fieldErrorsOf",
       "useAction",
       "useAuth",
+      "useBlockController",
       "useBlockEvent",
       "useBlockMutation",
       "useBlockQuery",
@@ -1895,6 +1903,7 @@
       "BlockEventSource",
       "BlockMutationActions",
       "BlockMutationState",
+      "BlockOptions",
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
@@ -1916,6 +1925,7 @@
       "PresenceHookOptions",
       "PresenceTopic",
       "ProfileOf",
+      "SolidController",
       "SolidPresenceOptions",
       "SupportView",
       "UseActionOptions"
@@ -1931,6 +1941,7 @@
       "setSession",
       "useAction",
       "useAuth",
+      "useBlockController",
       "useBlockEvent",
       "useBlockMutation",
       "useBlockQuery",
@@ -1952,6 +1963,7 @@
       "BlockEventSource",
       "BlockMutationActions",
       "BlockMutationState",
+      "BlockOptions",
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
@@ -1973,6 +1985,7 @@
       "PresenceHookOptions",
       "PresenceTopic",
       "ProfileOf",
+      "SvelteController",
       "SveltePresenceOptions",
       "UseActionOptions"
     ]
@@ -2227,6 +2240,8 @@
       "defineTransportMiddleware",
       "entityNames",
       "entitySchema",
+      "envBlockOptions",
+      "envBlockSettings",
       "event",
       "extendBlock",
       "fillTopic",
@@ -2255,6 +2270,7 @@
       "BlockContext",
       "BlockDefinition",
       "BlockEmit",
+      "BlockEnv",
       "BlockFields",
       "BlockHookInfo",
       "BlockHooks",
@@ -2293,6 +2309,7 @@
       "EntitySchema",
       "EntitySchemas",
       "EntitySchemaSpec",
+      "EnvBlockOptions",
       "EventMap",
       "EventMapOf",
       "Events",
@@ -2327,6 +2344,7 @@
       "RunState",
       "UniquePort",
       "UsingOptions",
+      "VisibleRange",
       "WithBlockHooksOptions",
       "WithExtraFields"
     ]
@@ -2583,52 +2601,6 @@
       "WatcherSinkOptions"
     ]
   },
-  "./blocks/notifications/react": {
-    "values": [
-      "useNotifications"
-    ],
-    "types": [
-      "NotificationSource",
-      "NotificationsState",
-      "UseNotificationsOptions"
-    ]
-  },
-  "./blocks/notifications/vue": {
-    "values": [
-      "useNotifications"
-    ],
-    "types": [
-      "BlockOptions",
-      "NotificationsActions",
-      "NotificationsControllerOptions",
-      "NotificationsSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/notifications/svelte": {
-    "values": [
-      "useNotifications"
-    ],
-    "types": [
-      "BlockOptions",
-      "NotificationsActions",
-      "NotificationsControllerOptions",
-      "NotificationsSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/notifications/solid": {
-    "values": [
-      "useNotifications"
-    ],
-    "types": [
-      "BlockOptions",
-      "NotificationsActions",
-      "NotificationsControllerOptions",
-      "NotificationsSnapshot",
-      "SolidController"
-    ]
-  },
   "./env": {
     "values": [
       "ENV_VARIABLES",
@@ -2672,6 +2644,7 @@
       "FilterFieldLabels",
       "FilterFieldType",
       "FilterGroupNode",
+      "FilterLimits",
       "FilterNode",
       "FilterOperatorArity",
       "FilterOperatorSpec",
@@ -3108,51 +3081,6 @@
       "FeatureGateSnapshot"
     ]
   },
-  "./blocks/entitlements/react": {
-    "values": [
-      "useFeatureGate"
-    ],
-    "types": [
-      "FeatureGateState",
-      "UseFeatureGateOptions"
-    ]
-  },
-  "./blocks/entitlements/vue": {
-    "values": [
-      "useFeatureGate"
-    ],
-    "types": [
-      "BlockOptions",
-      "FeatureGateActions",
-      "FeatureGateControllerOptions",
-      "FeatureGateSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/entitlements/svelte": {
-    "values": [
-      "useFeatureGate"
-    ],
-    "types": [
-      "BlockOptions",
-      "FeatureGateActions",
-      "FeatureGateControllerOptions",
-      "FeatureGateSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/entitlements/solid": {
-    "values": [
-      "useFeatureGate"
-    ],
-    "types": [
-      "BlockOptions",
-      "FeatureGateActions",
-      "FeatureGateControllerOptions",
-      "FeatureGateSnapshot",
-      "SolidController"
-    ]
-  },
   "./blocks/permissions": {
     "values": [
       "batchPermissions",
@@ -3178,55 +3106,6 @@
       "PermissionsOptions",
       "PermissionSource",
       "PermissionsSnapshot"
-    ]
-  },
-  "./blocks/permissions/react": {
-    "values": [
-      "Can",
-      "usePermission",
-      "usePermissions"
-    ],
-    "types": [
-      "CanProps",
-      "PermissionSet",
-      "PermissionsState",
-      "UsePermissionsOptions"
-    ]
-  },
-  "./blocks/permissions/vue": {
-    "values": [
-      "usePermissions"
-    ],
-    "types": [
-      "BlockOptions",
-      "PermissionsActions",
-      "PermissionsControllerOptions",
-      "PermissionsSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/permissions/svelte": {
-    "values": [
-      "usePermissions"
-    ],
-    "types": [
-      "BlockOptions",
-      "PermissionsActions",
-      "PermissionsControllerOptions",
-      "PermissionsSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/permissions/solid": {
-    "values": [
-      "usePermissions"
-    ],
-    "types": [
-      "BlockOptions",
-      "PermissionsActions",
-      "PermissionsControllerOptions",
-      "PermissionsSnapshot",
-      "SolidController"
     ]
   },
   "./blocks/subjects": {
@@ -3255,53 +3134,6 @@
       "SubjectsController",
       "SubjectsControllerOptions",
       "SubjectsOptions",
-      "SubjectsSnapshot"
-    ]
-  },
-  "./blocks/subjects/react": {
-    "values": [
-      "useSubject",
-      "useSubjects"
-    ],
-    "types": [
-      "ResolvedSubject",
-      "SubjectsState",
-      "SubjectState"
-    ]
-  },
-  "./blocks/subjects/vue": {
-    "values": [
-      "useSubjects"
-    ],
-    "types": [
-      "BlockOptions",
-      "SubjectsActions",
-      "SubjectsControllerOptions",
-      "SubjectsSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/subjects/svelte": {
-    "values": [
-      "useSubjects"
-    ],
-    "types": [
-      "BlockOptions",
-      "SubjectsActions",
-      "SubjectsControllerOptions",
-      "SubjectsSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/subjects/solid": {
-    "values": [
-      "useSubjects"
-    ],
-    "types": [
-      "BlockOptions",
-      "SolidController",
-      "SubjectsActions",
-      "SubjectsControllerOptions",
       "SubjectsSnapshot"
     ]
   },
@@ -3423,56 +3255,6 @@
       "SettingValues"
     ]
   },
-  "./blocks/settings/react": {
-    "values": [
-      "useSettings"
-    ],
-    "types": [
-      "SettingField",
-      "SettingKind",
-      "SettingsState",
-      "UseSettingsOptions"
-    ]
-  },
-  "./blocks/settings/vue": {
-    "values": [
-      "useSettings"
-    ],
-    "types": [
-      "BlockOptions",
-      "SettingEntries",
-      "SettingsActions",
-      "SettingsControllerOptions",
-      "SettingsSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/settings/svelte": {
-    "values": [
-      "useSettings"
-    ],
-    "types": [
-      "BlockOptions",
-      "SettingEntries",
-      "SettingsActions",
-      "SettingsControllerOptions",
-      "SettingsSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/settings/solid": {
-    "values": [
-      "useSettings"
-    ],
-    "types": [
-      "BlockOptions",
-      "SettingEntries",
-      "SettingsActions",
-      "SettingsControllerOptions",
-      "SettingsSnapshot",
-      "SolidController"
-    ]
-  },
   "./blocks/usage": {
     "values": [
       "createUsage",
@@ -3507,52 +3289,6 @@
       "UsagePeriod",
       "UsageRecorded",
       "UsageStatus"
-    ]
-  },
-  "./blocks/usage/react": {
-    "values": [
-      "useUsageMeter"
-    ],
-    "types": [
-      "MeterReading",
-      "UsageMeterState",
-      "UseUsageMeterOptions"
-    ]
-  },
-  "./blocks/usage/vue": {
-    "values": [
-      "useUsageMeter"
-    ],
-    "types": [
-      "BlockOptions",
-      "UsageMeterActions",
-      "UsageMeterControllerOptions",
-      "UsageMeterSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/usage/svelte": {
-    "values": [
-      "useUsageMeter"
-    ],
-    "types": [
-      "BlockOptions",
-      "SvelteController",
-      "UsageMeterActions",
-      "UsageMeterControllerOptions",
-      "UsageMeterSnapshot"
-    ]
-  },
-  "./blocks/usage/solid": {
-    "values": [
-      "useUsageMeter"
-    ],
-    "types": [
-      "BlockOptions",
-      "SolidController",
-      "UsageMeterActions",
-      "UsageMeterControllerOptions",
-      "UsageMeterSnapshot"
     ]
   },
   "./blocks/billing": {
@@ -3599,57 +3335,6 @@
       "StripeTaxId",
       "SubscriptionItem",
       "TenantStripeRow"
-    ]
-  },
-  "./blocks/billing/react": {
-    "values": [
-      "usePlanPicker"
-    ],
-    "types": [
-      "CheckoutStarted",
-      "PlanCatalog",
-      "PlanOption",
-      "PlanPickerState",
-      "UsePlanPickerOptions"
-    ]
-  },
-  "./blocks/billing/vue": {
-    "values": [
-      "usePlanPicker"
-    ],
-    "types": [
-      "BlockOptions",
-      "PlanOption",
-      "PlanPickerActions",
-      "PlanPickerControllerOptions",
-      "PlanPickerSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/billing/svelte": {
-    "values": [
-      "usePlanPicker"
-    ],
-    "types": [
-      "BlockOptions",
-      "PlanOption",
-      "PlanPickerActions",
-      "PlanPickerControllerOptions",
-      "PlanPickerSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/billing/solid": {
-    "values": [
-      "usePlanPicker"
-    ],
-    "types": [
-      "BlockOptions",
-      "PlanOption",
-      "PlanPickerActions",
-      "PlanPickerControllerOptions",
-      "PlanPickerSnapshot",
-      "SolidController"
     ]
   },
   "./blocks/feature-flags": {
@@ -3814,57 +3499,6 @@
       "ScanVerdict"
     ]
   },
-  "./blocks/attachments/react": {
-    "values": [
-      "useAttachmentUpload"
-    ],
-    "types": [
-      "AttachmentFileInput",
-      "AttachmentScanState",
-      "AttachmentSend",
-      "AttachmentUploadItem",
-      "AttachmentUploadState",
-      "AttachmentUploadStatus",
-      "AttachmentUploadTicket",
-      "UseAttachmentUploadOptions"
-    ]
-  },
-  "./blocks/attachments/vue": {
-    "values": [
-      "useAttachmentUpload"
-    ],
-    "types": [
-      "AttachmentUploadActions",
-      "AttachmentUploadControllerOptions",
-      "AttachmentUploadSnapshot",
-      "BlockOptions",
-      "VueController"
-    ]
-  },
-  "./blocks/attachments/svelte": {
-    "values": [
-      "useAttachmentUpload"
-    ],
-    "types": [
-      "AttachmentUploadActions",
-      "AttachmentUploadControllerOptions",
-      "AttachmentUploadSnapshot",
-      "BlockOptions",
-      "SvelteController"
-    ]
-  },
-  "./blocks/attachments/solid": {
-    "values": [
-      "useAttachmentUpload"
-    ],
-    "types": [
-      "AttachmentUploadActions",
-      "AttachmentUploadControllerOptions",
-      "AttachmentUploadSnapshot",
-      "BlockOptions",
-      "SolidController"
-    ]
-  },
   "./blocks/data-lifecycle": {
     "values": [
       "createDataExporter",
@@ -3985,54 +3619,6 @@
       "StepProgress"
     ]
   },
-  "./blocks/onboarding/react": {
-    "values": [
-      "useOnboarding"
-    ],
-    "types": [
-      "OnboardingState",
-      "UseOnboardingOptions"
-    ]
-  },
-  "./blocks/onboarding/vue": {
-    "values": [
-      "useOnboarding"
-    ],
-    "types": [
-      "BlockOptions",
-      "ChecklistScope",
-      "OnboardingActions",
-      "OnboardingControllerOptions",
-      "OnboardingSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/onboarding/svelte": {
-    "values": [
-      "useOnboarding"
-    ],
-    "types": [
-      "BlockOptions",
-      "ChecklistScope",
-      "OnboardingActions",
-      "OnboardingControllerOptions",
-      "OnboardingSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/onboarding/solid": {
-    "values": [
-      "useOnboarding"
-    ],
-    "types": [
-      "BlockOptions",
-      "ChecklistScope",
-      "OnboardingActions",
-      "OnboardingControllerOptions",
-      "OnboardingSnapshot",
-      "SolidController"
-    ]
-  },
   "./blocks/waitlist": {
     "values": [
       "createWaitlist",
@@ -4095,66 +3681,6 @@
       "WorkflowStartTicket",
       "WorkflowTickOptions",
       "WorkflowTickResult"
-    ]
-  },
-  "./blocks/workflows/react": {
-    "values": [
-      "useWorkflowRun",
-      "useWorkflowRuns"
-    ],
-    "types": [
-      "UseWorkflowRunOptions",
-      "UseWorkflowRunsOptions",
-      "WorkflowRunsState",
-      "WorkflowRunState"
-    ]
-  },
-  "./blocks/workflows/vue": {
-    "values": [
-      "useWorkflowRun",
-      "useWorkflowRuns"
-    ],
-    "types": [
-      "BlockOptions",
-      "VueController",
-      "WorkflowRunActions",
-      "WorkflowRunControllerOptions",
-      "WorkflowRunsActions",
-      "WorkflowRunsControllerOptions",
-      "WorkflowRunSnapshot",
-      "WorkflowRunsSnapshot"
-    ]
-  },
-  "./blocks/workflows/svelte": {
-    "values": [
-      "useWorkflowRun",
-      "useWorkflowRuns"
-    ],
-    "types": [
-      "BlockOptions",
-      "SvelteController",
-      "WorkflowRunActions",
-      "WorkflowRunControllerOptions",
-      "WorkflowRunsActions",
-      "WorkflowRunsControllerOptions",
-      "WorkflowRunSnapshot",
-      "WorkflowRunsSnapshot"
-    ]
-  },
-  "./blocks/workflows/solid": {
-    "values": [
-      "useWorkflowRun",
-      "useWorkflowRuns"
-    ],
-    "types": [
-      "BlockOptions",
-      "SolidController",
-      "WorkflowRunActions",
-      "WorkflowRunControllerOptions",
-      "WorkflowRunsActions",
-      "WorkflowRunsControllerOptions",
-      "WorkflowRunSnapshot",
-      "WorkflowRunsSnapshot"
     ]
   },
   "./blocks/workflow-editor": {
@@ -4242,66 +3768,6 @@
       "WorkflowVersion",
       "WorkflowVersionOwner",
       "WorkflowVersionStatus"
-    ]
-  },
-  "./blocks/workflow-editor/react": {
-    "values": [
-      "useWorkflowCanvasRun",
-      "useWorkflowEditor"
-    ],
-    "types": [
-      "UseWorkflowCanvasRunOptions",
-      "UseWorkflowEditorOptions",
-      "WorkflowCanvasRunState",
-      "WorkflowEditorState"
-    ]
-  },
-  "./blocks/workflow-editor/vue": {
-    "values": [
-      "useWorkflowCanvasRun",
-      "useWorkflowEditor"
-    ],
-    "types": [
-      "BlockOptions",
-      "VueController",
-      "WorkflowCanvasRunActions",
-      "WorkflowCanvasRunControllerOptions",
-      "WorkflowCanvasRunSnapshot",
-      "WorkflowEditorActions",
-      "WorkflowEditorControllerOptions",
-      "WorkflowEditorSnapshot"
-    ]
-  },
-  "./blocks/workflow-editor/svelte": {
-    "values": [
-      "useWorkflowCanvasRun",
-      "useWorkflowEditor"
-    ],
-    "types": [
-      "BlockOptions",
-      "SvelteController",
-      "WorkflowCanvasRunActions",
-      "WorkflowCanvasRunControllerOptions",
-      "WorkflowCanvasRunSnapshot",
-      "WorkflowEditorActions",
-      "WorkflowEditorControllerOptions",
-      "WorkflowEditorSnapshot"
-    ]
-  },
-  "./blocks/workflow-editor/solid": {
-    "values": [
-      "useWorkflowCanvasRun",
-      "useWorkflowEditor"
-    ],
-    "types": [
-      "BlockOptions",
-      "SolidController",
-      "WorkflowCanvasRunActions",
-      "WorkflowCanvasRunControllerOptions",
-      "WorkflowCanvasRunSnapshot",
-      "WorkflowEditorActions",
-      "WorkflowEditorControllerOptions",
-      "WorkflowEditorSnapshot"
     ]
   },
   "./workflow-sdk": {
@@ -4633,85 +4099,6 @@
       "TemplateInput"
     ]
   },
-  "./blocks/inbox/react": {
-    "values": [
-      "useConversation",
-      "useInbox",
-      "useInboxWidget"
-    ],
-    "types": [
-      "ConversationState",
-      "InboxListState",
-      "InboxSource",
-      "InboxWidgetState",
-      "UseConversationOptions",
-      "UseInboxOptions",
-      "UseInboxWidgetOptions"
-    ]
-  },
-  "./blocks/inbox/vue": {
-    "values": [
-      "useConversation",
-      "useInbox",
-      "useInboxWidget"
-    ],
-    "types": [
-      "BlockOptions",
-      "ConversationActions",
-      "ConversationControllerOptions",
-      "ConversationSnapshot",
-      "Identified",
-      "InboxControllerOptions",
-      "InboxListActions",
-      "InboxListSnapshot",
-      "InboxWidgetActions",
-      "InboxWidgetControllerOptions",
-      "InboxWidgetSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/inbox/svelte": {
-    "values": [
-      "useConversation",
-      "useInbox",
-      "useInboxWidget"
-    ],
-    "types": [
-      "BlockOptions",
-      "ConversationActions",
-      "ConversationControllerOptions",
-      "ConversationSnapshot",
-      "Identified",
-      "InboxControllerOptions",
-      "InboxListActions",
-      "InboxListSnapshot",
-      "InboxWidgetActions",
-      "InboxWidgetControllerOptions",
-      "InboxWidgetSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/inbox/solid": {
-    "values": [
-      "useConversation",
-      "useInbox",
-      "useInboxWidget"
-    ],
-    "types": [
-      "BlockOptions",
-      "ConversationActions",
-      "ConversationControllerOptions",
-      "ConversationSnapshot",
-      "Identified",
-      "InboxControllerOptions",
-      "InboxListActions",
-      "InboxListSnapshot",
-      "InboxWidgetActions",
-      "InboxWidgetControllerOptions",
-      "InboxWidgetSnapshot",
-      "SolidController"
-    ]
-  },
   "./chat-sdk": {
     "values": [
       "approvalLink",
@@ -4775,22 +4162,6 @@
       "ParsedDeliveries",
       "SupabaseState",
       "SupabaseStateOptions"
-    ]
-  },
-  "./chat-sdk/react": {
-    "values": [
-      "useConversation",
-      "useInbox",
-      "useInboxWidget"
-    ],
-    "types": [
-      "ConversationState",
-      "InboxListState",
-      "InboxSource",
-      "InboxWidgetState",
-      "UseConversationOptions",
-      "UseInboxOptions",
-      "UseInboxWidgetOptions"
     ]
   },
   "./blocks/ai-chat": {
@@ -4903,94 +4274,6 @@
       "BlockTransport",
       "NewAiSandbox",
       "SharedAiChat"
-    ]
-  },
-  "./blocks/ai-chat/react": {
-    "values": [
-      "useAiChats",
-      "useAiChatTree",
-      "useAiModels",
-      "useAiShare"
-    ],
-    "types": [
-      "AiChatsState",
-      "AiChatTreeState",
-      "AiModelsState",
-      "AiShareState",
-      "UseAiChatsOptions",
-      "UseAiChatTreeOptions"
-    ]
-  },
-  "./blocks/ai-chat/vue": {
-    "values": [
-      "useAiChats",
-      "useAiChatTree",
-      "useAiModels",
-      "useAiShare"
-    ],
-    "types": [
-      "AiChatsActions",
-      "AiChatsControllerOptions",
-      "AiChatsSnapshot",
-      "AiChatTreeActions",
-      "AiChatTreeControllerOptions",
-      "AiChatTreeSnapshot",
-      "AiModelsActions",
-      "AiModelsControllerOptions",
-      "AiModelsSnapshot",
-      "AiShareActions",
-      "AiShareControllerOptions",
-      "AiShareSnapshot",
-      "BlockOptions",
-      "VueController"
-    ]
-  },
-  "./blocks/ai-chat/svelte": {
-    "values": [
-      "useAiChats",
-      "useAiChatTree",
-      "useAiModels",
-      "useAiShare"
-    ],
-    "types": [
-      "AiChatsActions",
-      "AiChatsControllerOptions",
-      "AiChatsSnapshot",
-      "AiChatTreeActions",
-      "AiChatTreeControllerOptions",
-      "AiChatTreeSnapshot",
-      "AiModelsActions",
-      "AiModelsControllerOptions",
-      "AiModelsSnapshot",
-      "AiShareActions",
-      "AiShareControllerOptions",
-      "AiShareSnapshot",
-      "BlockOptions",
-      "SvelteController"
-    ]
-  },
-  "./blocks/ai-chat/solid": {
-    "values": [
-      "useAiChats",
-      "useAiChatTree",
-      "useAiModels",
-      "useAiShare"
-    ],
-    "types": [
-      "AiChatsActions",
-      "AiChatsControllerOptions",
-      "AiChatsSnapshot",
-      "AiChatTreeActions",
-      "AiChatTreeControllerOptions",
-      "AiChatTreeSnapshot",
-      "AiModelsActions",
-      "AiModelsControllerOptions",
-      "AiModelsSnapshot",
-      "AiShareActions",
-      "AiShareControllerOptions",
-      "AiShareSnapshot",
-      "BlockOptions",
-      "SolidController"
     ]
   },
   "./blocks/ai-files": {
@@ -5822,52 +5105,6 @@
       "UndoToken"
     ]
   },
-  "./blocks/undo/react": {
-    "values": [
-      "useUndoStack"
-    ],
-    "types": [
-      "UndoEntry",
-      "UndoStack",
-      "UseUndoStackOptions"
-    ]
-  },
-  "./blocks/undo/vue": {
-    "values": [
-      "useUndoStack"
-    ],
-    "types": [
-      "BlockOptions",
-      "UndoActions",
-      "UndoSnapshot",
-      "UndoStackOptions",
-      "VueController"
-    ]
-  },
-  "./blocks/undo/svelte": {
-    "values": [
-      "useUndoStack"
-    ],
-    "types": [
-      "BlockOptions",
-      "SvelteController",
-      "UndoActions",
-      "UndoSnapshot",
-      "UndoStackOptions"
-    ]
-  },
-  "./blocks/undo/solid": {
-    "values": [
-      "useUndoStack"
-    ],
-    "types": [
-      "BlockOptions",
-      "SolidController",
-      "UndoActions",
-      "UndoSnapshot",
-      "UndoStackOptions"
-    ]
-  },
   "./blocks/tags": {
     "values": [
       "createTagInputController",
@@ -6130,51 +5367,6 @@
       "RuleVersion",
       "RuleWebhooks",
       "RuleWorkflows"
-    ]
-  },
-  "./blocks/automations/react": {
-    "values": [
-      "useRuleBuilder"
-    ],
-    "types": [
-      "RuleBuilderState",
-      "UseRuleBuilderOptions"
-    ]
-  },
-  "./blocks/automations/vue": {
-    "values": [
-      "useRuleBuilder"
-    ],
-    "types": [
-      "BlockOptions",
-      "RuleBuilderActions",
-      "RuleBuilderControllerOptions",
-      "RuleBuilderSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/automations/svelte": {
-    "values": [
-      "useRuleBuilder"
-    ],
-    "types": [
-      "BlockOptions",
-      "RuleBuilderActions",
-      "RuleBuilderControllerOptions",
-      "RuleBuilderSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/automations/solid": {
-    "values": [
-      "useRuleBuilder"
-    ],
-    "types": [
-      "BlockOptions",
-      "RuleBuilderActions",
-      "RuleBuilderControllerOptions",
-      "RuleBuilderSnapshot",
-      "SolidController"
     ]
   },
   "./blocks/vercel-marketplace": {
@@ -6748,60 +5940,12 @@
       "BulkStatus"
     ]
   },
-  "./blocks/saved-views/react": {
-    "values": [
-      "useSavedViews"
-    ],
-    "types": [
-      "SavedViewLike",
-      "SavedViewsState",
-      "UseSavedViewsOptions"
-    ]
-  },
-  "./blocks/saved-views/vue": {
-    "values": [
-      "useSavedViews"
-    ],
-    "types": [
-      "BlockOptions",
-      "SavedViewLike",
-      "SavedViewsActions",
-      "SavedViewsControllerOptions",
-      "SavedViewsSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/saved-views/svelte": {
-    "values": [
-      "useSavedViews"
-    ],
-    "types": [
-      "BlockOptions",
-      "SavedViewLike",
-      "SavedViewsActions",
-      "SavedViewsControllerOptions",
-      "SavedViewsSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/saved-views/solid": {
-    "values": [
-      "useSavedViews"
-    ],
-    "types": [
-      "BlockOptions",
-      "SavedViewLike",
-      "SavedViewsActions",
-      "SavedViewsControllerOptions",
-      "SavedViewsSnapshot",
-      "SolidController"
-    ]
-  },
   "./blocks/search": {
     "values": [
       "createCommandSearchController",
       "createSearch",
       "dbTransport",
+      "groupHits",
       "rpcTransport",
       "SEARCH_SINK_DEFAULTS",
       "searchBlock",
@@ -6812,6 +5956,8 @@
       "BlockTransport",
       "CommandSearchActions",
       "CommandSearchController",
+      "CommandSearchGroup",
+      "CommandSearchItem",
       "CommandSearchOptions",
       "CommandSearchSnapshot",
       "Embedder",
@@ -6824,54 +5970,6 @@
       "SearchSinkAction",
       "SearchSinkOptions",
       "SearchUserItem"
-    ]
-  },
-  "./blocks/search/react": {
-    "values": [
-      "groupHits",
-      "useCommandSearch"
-    ],
-    "types": [
-      "CommandSearchGroup",
-      "CommandSearchItem",
-      "CommandSearchState",
-      "UseCommandSearchOptions"
-    ]
-  },
-  "./blocks/search/vue": {
-    "values": [
-      "useCommandSearch"
-    ],
-    "types": [
-      "BlockOptions",
-      "CommandSearchActions",
-      "CommandSearchOptions",
-      "CommandSearchSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/search/svelte": {
-    "values": [
-      "useCommandSearch"
-    ],
-    "types": [
-      "BlockOptions",
-      "CommandSearchActions",
-      "CommandSearchOptions",
-      "CommandSearchSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/search/solid": {
-    "values": [
-      "useCommandSearch"
-    ],
-    "types": [
-      "BlockOptions",
-      "CommandSearchActions",
-      "CommandSearchOptions",
-      "CommandSearchSnapshot",
-      "SolidController"
     ]
   },
   "./blocks/metrics": {
@@ -7046,51 +6144,6 @@
       "WorkingHoursInput"
     ]
   },
-  "./blocks/calendar/react": {
-    "values": [
-      "useCalendar"
-    ],
-    "types": [
-      "CalendarState",
-      "UseCalendarOptions"
-    ]
-  },
-  "./blocks/calendar/vue": {
-    "values": [
-      "useCalendar"
-    ],
-    "types": [
-      "BlockOptions",
-      "CalendarActions",
-      "CalendarControllerOptions",
-      "CalendarSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/calendar/svelte": {
-    "values": [
-      "useCalendar"
-    ],
-    "types": [
-      "BlockOptions",
-      "CalendarActions",
-      "CalendarControllerOptions",
-      "CalendarSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/calendar/solid": {
-    "values": [
-      "useCalendar"
-    ],
-    "types": [
-      "BlockOptions",
-      "CalendarActions",
-      "CalendarControllerOptions",
-      "CalendarSnapshot",
-      "SolidController"
-    ]
-  },
   "./blocks/bookings": {
     "values": [
       "BOOKING_EXPIRE_QUEUE",
@@ -7133,51 +6186,6 @@
       "PlacedBooking",
       "PublicBookingService",
       "WeeklyHours"
-    ]
-  },
-  "./blocks/bookings/react": {
-    "values": [
-      "useAvailableSlots"
-    ],
-    "types": [
-      "AvailableSlotsState",
-      "UseAvailableSlotsOptions"
-    ]
-  },
-  "./blocks/bookings/vue": {
-    "values": [
-      "useAvailableSlots"
-    ],
-    "types": [
-      "AvailableSlotsActions",
-      "AvailableSlotsOptions",
-      "AvailableSlotsSnapshot",
-      "BlockOptions",
-      "VueController"
-    ]
-  },
-  "./blocks/bookings/svelte": {
-    "values": [
-      "useAvailableSlots"
-    ],
-    "types": [
-      "AvailableSlotsActions",
-      "AvailableSlotsOptions",
-      "AvailableSlotsSnapshot",
-      "BlockOptions",
-      "SvelteController"
-    ]
-  },
-  "./blocks/bookings/solid": {
-    "values": [
-      "useAvailableSlots"
-    ],
-    "types": [
-      "AvailableSlotsActions",
-      "AvailableSlotsOptions",
-      "AvailableSlotsSnapshot",
-      "BlockOptions",
-      "SolidController"
     ]
   },
   "./blocks/versions": {
@@ -7514,51 +6522,6 @@
       "QuestionnaireStepView",
       "SubmissionListOptions",
       "SubmitOptions"
-    ]
-  },
-  "./blocks/forms/react": {
-    "values": [
-      "useQuestionnaire"
-    ],
-    "types": [
-      "QuestionnaireView",
-      "UseQuestionnaireOptions"
-    ]
-  },
-  "./blocks/forms/vue": {
-    "values": [
-      "useQuestionnaire"
-    ],
-    "types": [
-      "BlockOptions",
-      "QuestionnaireActions",
-      "QuestionnaireOptions",
-      "QuestionnaireSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/forms/svelte": {
-    "values": [
-      "useQuestionnaire"
-    ],
-    "types": [
-      "BlockOptions",
-      "QuestionnaireActions",
-      "QuestionnaireOptions",
-      "QuestionnaireSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/forms/solid": {
-    "values": [
-      "useQuestionnaire"
-    ],
-    "types": [
-      "BlockOptions",
-      "QuestionnaireActions",
-      "QuestionnaireOptions",
-      "QuestionnaireSnapshot",
-      "SolidController"
     ]
   },
   "./blocks/time-tracking": {
@@ -8059,511 +7022,6 @@
       "SalaryPeriod"
     ]
   },
-  "./blocks/reactions/react": {
-    "values": [
-      "useReactions"
-    ],
-    "types": [
-      "ReactionsState",
-      "UseReactionsOptions"
-    ]
-  },
-  "./blocks/reactions/vue": {
-    "values": [
-      "useReactions"
-    ],
-    "types": [
-      "BlockOptions",
-      "ReactionsActions",
-      "ReactionsControllerOptions",
-      "ReactionsSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/reactions/svelte": {
-    "values": [
-      "useReactions"
-    ],
-    "types": [
-      "BlockOptions",
-      "ReactionsActions",
-      "ReactionsControllerOptions",
-      "ReactionsSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/reactions/solid": {
-    "values": [
-      "useReactions"
-    ],
-    "types": [
-      "BlockOptions",
-      "ReactionsActions",
-      "ReactionsControllerOptions",
-      "ReactionsSnapshot",
-      "SolidController"
-    ]
-  },
-  "./blocks/messaging/react": {
-    "values": [
-      "useConversations",
-      "useMessages"
-    ],
-    "types": [
-      "ConversationsState",
-      "MessageDraft",
-      "MessagesState",
-      "UseConversationsOptions",
-      "UseMessagesOptions"
-    ]
-  },
-  "./blocks/messaging/vue": {
-    "values": [
-      "useConversations",
-      "useMessages"
-    ],
-    "types": [
-      "BlockOptions",
-      "ConversationsActions",
-      "ConversationsControllerOptions",
-      "ConversationsSnapshot",
-      "MessagesActions",
-      "MessagesControllerOptions",
-      "MessagesSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/messaging/svelte": {
-    "values": [
-      "useConversations",
-      "useMessages"
-    ],
-    "types": [
-      "BlockOptions",
-      "ConversationsActions",
-      "ConversationsControllerOptions",
-      "ConversationsSnapshot",
-      "MessagesActions",
-      "MessagesControllerOptions",
-      "MessagesSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/messaging/solid": {
-    "values": [
-      "useConversations",
-      "useMessages"
-    ],
-    "types": [
-      "BlockOptions",
-      "ConversationsActions",
-      "ConversationsControllerOptions",
-      "ConversationsSnapshot",
-      "MessagesActions",
-      "MessagesControllerOptions",
-      "MessagesSnapshot",
-      "SolidController"
-    ]
-  },
-  "./blocks/comments/react": {
-    "values": [
-      "useComments"
-    ],
-    "types": [
-      "CommentDraft",
-      "CommentsState",
-      "UseCommentsOptions"
-    ]
-  },
-  "./blocks/comments/vue": {
-    "values": [
-      "useComments"
-    ],
-    "types": [
-      "BlockOptions",
-      "CommentsActions",
-      "CommentsControllerOptions",
-      "CommentsSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/comments/svelte": {
-    "values": [
-      "useComments"
-    ],
-    "types": [
-      "BlockOptions",
-      "CommentsActions",
-      "CommentsControllerOptions",
-      "CommentsSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/comments/solid": {
-    "values": [
-      "useComments"
-    ],
-    "types": [
-      "BlockOptions",
-      "CommentsActions",
-      "CommentsControllerOptions",
-      "CommentsSnapshot",
-      "SolidController"
-    ]
-  },
-  "./blocks/organizations/react": {
-    "values": [
-      "useInvitations",
-      "useMembers",
-      "useOrganizations"
-    ],
-    "types": [
-      "InvitationChange",
-      "InvitationDraft",
-      "InvitationsState",
-      "MemberChange",
-      "MembersState",
-      "OrganizationRowSource",
-      "OrganizationSource",
-      "OrganizationsState",
-      "UseInvitationsOptions",
-      "UseMembersOptions",
-      "UseOrganizationsOptions"
-    ]
-  },
-  "./blocks/organizations/vue": {
-    "values": [
-      "useInvitations",
-      "useMembers",
-      "useOrganizations"
-    ],
-    "types": [
-      "BlockOptions",
-      "InvitationsActions",
-      "InvitationsControllerOptions",
-      "InvitationsSnapshot",
-      "MembersActions",
-      "MembersControllerOptions",
-      "MembersSnapshot",
-      "OrganizationInvitationRow",
-      "OrganizationMember",
-      "OrganizationMembership",
-      "OrganizationsActions",
-      "OrganizationsControllerOptions",
-      "OrganizationsSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/organizations/svelte": {
-    "values": [
-      "useInvitations",
-      "useMembers",
-      "useOrganizations"
-    ],
-    "types": [
-      "BlockOptions",
-      "InvitationsActions",
-      "InvitationsControllerOptions",
-      "InvitationsSnapshot",
-      "MembersActions",
-      "MembersControllerOptions",
-      "MembersSnapshot",
-      "OrganizationInvitationRow",
-      "OrganizationMember",
-      "OrganizationMembership",
-      "OrganizationsActions",
-      "OrganizationsControllerOptions",
-      "OrganizationsSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/organizations/solid": {
-    "values": [
-      "useInvitations",
-      "useMembers",
-      "useOrganizations"
-    ],
-    "types": [
-      "BlockOptions",
-      "InvitationsActions",
-      "InvitationsControllerOptions",
-      "InvitationsSnapshot",
-      "MembersActions",
-      "MembersControllerOptions",
-      "MembersSnapshot",
-      "OrganizationInvitationRow",
-      "OrganizationMember",
-      "OrganizationMembership",
-      "OrganizationsActions",
-      "OrganizationsControllerOptions",
-      "OrganizationsSnapshot",
-      "SolidController"
-    ]
-  },
-  "./blocks/audit/react": {
-    "values": [
-      "useAuditLog"
-    ],
-    "types": [
-      "AuditFilters",
-      "AuditLogState",
-      "UseAuditLogOptions"
-    ]
-  },
-  "./blocks/audit/vue": {
-    "values": [
-      "useAuditLog"
-    ],
-    "types": [
-      "AuditLogActions",
-      "AuditLogControllerOptions",
-      "AuditLogSnapshot",
-      "BlockOptions",
-      "VueController"
-    ]
-  },
-  "./blocks/audit/svelte": {
-    "values": [
-      "useAuditLog"
-    ],
-    "types": [
-      "AuditLogActions",
-      "AuditLogControllerOptions",
-      "AuditLogSnapshot",
-      "BlockOptions",
-      "SvelteController"
-    ]
-  },
-  "./blocks/audit/solid": {
-    "values": [
-      "useAuditLog"
-    ],
-    "types": [
-      "AuditLogActions",
-      "AuditLogControllerOptions",
-      "AuditLogSnapshot",
-      "BlockOptions",
-      "SolidController"
-    ]
-  },
-  "./blocks/api-keys/react": {
-    "values": [
-      "useApiKeys"
-    ],
-    "types": [
-      "ApiKeyChange",
-      "ApiKeyDraft",
-      "ApiKeysState",
-      "UseApiKeysOptions"
-    ]
-  },
-  "./blocks/api-keys/vue": {
-    "values": [
-      "useApiKeys"
-    ],
-    "types": [
-      "ApiKeysActions",
-      "ApiKeysControllerOptions",
-      "ApiKeysSnapshot",
-      "BlockOptions",
-      "VueController"
-    ]
-  },
-  "./blocks/api-keys/svelte": {
-    "values": [
-      "useApiKeys"
-    ],
-    "types": [
-      "ApiKeysActions",
-      "ApiKeysControllerOptions",
-      "ApiKeysSnapshot",
-      "BlockOptions",
-      "SvelteController"
-    ]
-  },
-  "./blocks/api-keys/solid": {
-    "values": [
-      "useApiKeys"
-    ],
-    "types": [
-      "ApiKeysActions",
-      "ApiKeysControllerOptions",
-      "ApiKeysSnapshot",
-      "BlockOptions",
-      "SolidController"
-    ]
-  },
-  "./blocks/mfa/react": {
-    "values": [
-      "needsStepUp",
-      "useMfa",
-      "useStepUp"
-    ],
-    "types": [
-      "MfaAssurance",
-      "MfaEnrollment",
-      "MfaFactor",
-      "MfaState",
-      "StepUpState",
-      "UseMfaOptions"
-    ]
-  },
-  "./blocks/mfa/vue": {
-    "values": [
-      "useMfa",
-      "useStepUp"
-    ],
-    "types": [
-      "BlockOptions",
-      "MfaActions",
-      "MfaControllerOptions",
-      "MfaSnapshot",
-      "StepUpActions",
-      "StepUpControllerOptions",
-      "StepUpSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/mfa/svelte": {
-    "values": [
-      "useMfa",
-      "useStepUp"
-    ],
-    "types": [
-      "BlockOptions",
-      "MfaActions",
-      "MfaControllerOptions",
-      "MfaSnapshot",
-      "StepUpActions",
-      "StepUpControllerOptions",
-      "StepUpSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/mfa/solid": {
-    "values": [
-      "useMfa",
-      "useStepUp"
-    ],
-    "types": [
-      "BlockOptions",
-      "MfaActions",
-      "MfaControllerOptions",
-      "MfaSnapshot",
-      "SolidController",
-      "StepUpActions",
-      "StepUpControllerOptions",
-      "StepUpSnapshot"
-    ]
-  },
-  "./blocks/session-revocation/react": {
-    "values": [
-      "useOAuthConsent",
-      "useOAuthGrants"
-    ],
-    "types": [
-      "OAuthClientInfo",
-      "OAuthConsentRequest",
-      "OAuthConsentState",
-      "OAuthGrant",
-      "OAuthGrantsState",
-      "UseOAuthConsentOptions"
-    ]
-  },
-  "./blocks/session-revocation/vue": {
-    "values": [
-      "useOAuthConsent",
-      "useOAuthGrants"
-    ],
-    "types": [
-      "BlockOptions",
-      "OAuthConsentActions",
-      "OAuthConsentControllerOptions",
-      "OAuthConsentSnapshot",
-      "OAuthGrantsActions",
-      "OAuthGrantsControllerOptions",
-      "OAuthGrantsSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/session-revocation/svelte": {
-    "values": [
-      "useOAuthConsent",
-      "useOAuthGrants"
-    ],
-    "types": [
-      "BlockOptions",
-      "OAuthConsentActions",
-      "OAuthConsentControllerOptions",
-      "OAuthConsentSnapshot",
-      "OAuthGrantsActions",
-      "OAuthGrantsControllerOptions",
-      "OAuthGrantsSnapshot",
-      "SvelteController"
-    ]
-  },
-  "./blocks/session-revocation/solid": {
-    "values": [
-      "useOAuthConsent",
-      "useOAuthGrants"
-    ],
-    "types": [
-      "BlockOptions",
-      "OAuthConsentActions",
-      "OAuthConsentControllerOptions",
-      "OAuthConsentSnapshot",
-      "OAuthGrantsActions",
-      "OAuthGrantsControllerOptions",
-      "OAuthGrantsSnapshot",
-      "SolidController"
-    ]
-  },
-  "./blocks/tags/react": {
-    "values": [
-      "useTagInput"
-    ],
-    "types": [
-      "TagChange",
-      "TagInputState",
-      "UseTagInputOptions"
-    ]
-  },
-  "./blocks/tags/vue": {
-    "values": [
-      "useTagInput"
-    ],
-    "types": [
-      "BlockOptions",
-      "TagInputActions",
-      "TagInputControllerOptions",
-      "TagInputSnapshot",
-      "VueController"
-    ]
-  },
-  "./blocks/tags/svelte": {
-    "values": [
-      "useTagInput"
-    ],
-    "types": [
-      "BlockOptions",
-      "SvelteController",
-      "TagInputActions",
-      "TagInputControllerOptions",
-      "TagInputSnapshot"
-    ]
-  },
-  "./blocks/tags/solid": {
-    "values": [
-      "useTagInput"
-    ],
-    "types": [
-      "BlockOptions",
-      "SolidController",
-      "TagInputActions",
-      "TagInputControllerOptions",
-      "TagInputSnapshot"
-    ]
-  },
   "./blocks/catalog": {
     "values": [
       "catalogBlock",
@@ -8749,51 +7207,6 @@
       "PromotionsOptions",
       "RpcClient",
       "SavedPromotion"
-    ]
-  },
-  "./blocks/announcements/react": {
-    "values": [
-      "useAnnouncements"
-    ],
-    "types": [
-      "AnnouncementsState",
-      "UseAnnouncementsOptions"
-    ]
-  },
-  "./blocks/announcements/vue": {
-    "values": [
-      "useAnnouncements"
-    ],
-    "types": [
-      "AnnouncementsActions",
-      "AnnouncementsControllerOptions",
-      "AnnouncementsSnapshot",
-      "BlockOptions",
-      "VueController"
-    ]
-  },
-  "./blocks/announcements/svelte": {
-    "values": [
-      "useAnnouncements"
-    ],
-    "types": [
-      "AnnouncementsActions",
-      "AnnouncementsControllerOptions",
-      "AnnouncementsSnapshot",
-      "BlockOptions",
-      "SvelteController"
-    ]
-  },
-  "./blocks/announcements/solid": {
-    "values": [
-      "useAnnouncements"
-    ],
-    "types": [
-      "AnnouncementsActions",
-      "AnnouncementsControllerOptions",
-      "AnnouncementsSnapshot",
-      "BlockOptions",
-      "SolidController"
     ]
   },
   "./openapi": {

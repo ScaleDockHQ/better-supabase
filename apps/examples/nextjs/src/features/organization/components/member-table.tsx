@@ -2,7 +2,6 @@
 "use client";
 
 import { DbException } from "better-supabase";
-import { useMembers } from "better-supabase/blocks/organizations/react";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { toast } from "sonner";
@@ -27,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { RoleBadge } from "@/features/user/components/role-badge";
 import { assignableRoles } from "@/features/user/user-permissions";
+import { useMembers } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
 import { blockConfig } from "@/lib/supabase/blocks.generated";

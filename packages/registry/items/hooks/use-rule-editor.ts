@@ -1,10 +1,11 @@
-import type { RuleBuilderState } from "better-supabase/blocks/automations/react";
 import type { FilterQuery } from "better-supabase/list";
 
 import { generatedOptions } from "better-supabase/blocks";
-import { useRuleBuilder } from "better-supabase/blocks/automations/react";
 import { tenantOf, useAuth } from "better-supabase/react";
 
+import type { RuleBuilderState } from "@/hooks/use-automations";
+
+import { useRuleBuilder } from "@/hooks/use-automations";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 
 export interface RuleEditorOptions {

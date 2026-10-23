@@ -1,8 +1,7 @@
 // #region recipe:can
 "use client";
 
-import { Can } from "better-supabase/blocks/permissions/react";
-
+import { Can } from "@/hooks/use-permissions";
 import { permissions } from "@/lib/supabase/blocks.generated";
 
 import { TaskImportDialog } from "./task-import-dialog";

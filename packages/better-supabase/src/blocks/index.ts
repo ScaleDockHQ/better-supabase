@@ -49,6 +49,14 @@ export type { BlockTenant } from "../core/tenant-source.ts";
 
 export type { RecordRef } from "../schema/types.ts";
 
+export { envBlockOptions, envBlockSettings } from "./block-env-options.ts";
+
+export type { EnvBlockOptions } from "./block-env-options.ts";
+
+export type { BlockEnv } from "./block-env.ts";
+
+export type { VisibleRange } from "./range.ts";
+
 export type {
   EntityNames,
   EntityNoun,
