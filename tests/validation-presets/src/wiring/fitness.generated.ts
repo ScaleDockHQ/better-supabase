@@ -10,7 +10,7 @@ import { billingBlock } from "better-supabase/blocks/billing";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
 import { calendarBlock } from "better-supabase/blocks/calendar";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
-import { admissionPassesBlock } from "better-supabase/blocks/admission-passes";
+import { passesBlock } from "better-supabase/blocks/passes";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { queueBlock } from "better-supabase/blocks/queue";
 import { notificationsBlock } from "better-supabase/blocks/notifications";
@@ -34,7 +34,7 @@ export const blockSet = defineBlocks(blockConfig, {
   bookings: bookingsBlock,
   calendar: calendarBlock,
   enrollments: enrollmentsBlock,
-  admissionPasses: admissionPassesBlock,
+  passes: passesBlock,
   entitlements: entitlementsBlock,
   queue: queueBlock,
   notifications: notificationsBlock,

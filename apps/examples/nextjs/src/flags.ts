@@ -29,10 +29,7 @@ function definitionsSource() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  return {
-    transport: rpcTransport(service),
-    schema: blockConfig["feature-flags"].api,
-  };
+  return { transport: rpcTransport(service), schema: blockConfig.flags.api };
 }
 
 /** One provider for every flag: the definitions load once per 30 seconds. */

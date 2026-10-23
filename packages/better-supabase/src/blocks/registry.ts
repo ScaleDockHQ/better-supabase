@@ -2,7 +2,6 @@ import type { AnyBlock } from "./define-block.ts";
 
 import { accessRequestsBlock } from "./access-requests/manifest.ts";
 import { activitiesBlock } from "./activities/manifest.ts";
-import { admissionPassesBlock } from "./admission-passes/manifest.ts";
 import { agentsBlock } from "./agents/manifest.ts";
 import { aiCacheBlock } from "./ai-cache/manifest.ts";
 import { aiChatBlock } from "./ai-chat/manifest.ts";
@@ -20,7 +19,7 @@ import { automationsBlock } from "./automations/manifest.ts";
 import { billableTimeBlock } from "./billable-time/manifest.ts";
 import { billingBlock } from "./billing/manifest.ts";
 import { bookingsBlock } from "./bookings/manifest.ts";
-import { bulkActionsBlock } from "./bulk-actions/manifest.ts";
+import { bulkBlock } from "./bulk/manifest.ts";
 import { calendarBlock } from "./calendar/manifest.ts";
 import { catalogBlock } from "./catalog/manifest.ts";
 import { channelsBlock } from "./channels/manifest.ts";
@@ -35,7 +34,6 @@ import { coursesBlock } from "./courses/manifest.ts";
 import { createdByBlock } from "./created-by/manifest.ts";
 import { credentialsBlock } from "./credentials/manifest.ts";
 import { customFieldsBlock } from "./custom-fields/manifest.ts";
-import { dataApiGrantsBlock } from "./data-api-grants/manifest.ts";
 import { dataLifecycleBlock } from "./data-lifecycle/manifest.ts";
 import { dealsBlock } from "./deals/manifest.ts";
 import { dispatchBlock } from "./dispatch/manifest.ts";
@@ -48,14 +46,16 @@ import { enrichmentBlock } from "./enrichment/manifest.ts";
 import { enrollmentsBlock } from "./enrollments/manifest.ts";
 import { entitlementsBlock } from "./entitlements/manifest.ts";
 import { expensesBlock } from "./expenses/manifest.ts";
-import { featureFlagsBlock } from "./feature-flags/manifest.ts";
 import { fieldEncryptionBlock } from "./field-encryption/manifest.ts";
 import { fieldHistoryBlock } from "./field-history/manifest.ts";
+import { flagsBlock } from "./flags/manifest.ts";
 import { forecastsBlock } from "./forecasts/manifest.ts";
 import { formsBlock } from "./forms/manifest.ts";
 import { goalsBlock } from "./goals/manifest.ts";
+import { grantsBlock } from "./grants/manifest.ts";
 import { guestsBlock } from "./guests/manifest.ts";
 import { hiringBlock } from "./hiring/manifest.ts";
+import { identitiesBlock } from "./identities/manifest.ts";
 import { impersonationBlock } from "./impersonation/manifest.ts";
 import { importsBlock } from "./imports/manifest.ts";
 import { inboxBlock } from "./inbox/manifest.ts";
@@ -68,7 +68,6 @@ import { leadScoringBlock } from "./lead-scoring/manifest.ts";
 import { leasesBlock } from "./leases/manifest.ts";
 import { leaveBlock } from "./leave/manifest.ts";
 import { ledgerBlock } from "./ledger/manifest.ts";
-import { linkedIdentitiesBlock } from "./linked-identities/manifest.ts";
 import { mailSyncBlock } from "./mail-sync/manifest.ts";
 import { membershipsBlock } from "./memberships/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
@@ -83,6 +82,7 @@ import { onboardingBlock } from "./onboarding/manifest.ts";
 import { ordersBlock } from "./orders/manifest.ts";
 import { organizationsBlock } from "./organizations/manifest.ts";
 import { outboxBlock } from "./outbox/manifest.ts";
+import { passesBlock } from "./passes/manifest.ts";
 import { permissionsBlock } from "./permissions/manifest.ts";
 import { pgtapBlock } from "./pgtap/manifest.ts";
 import { pipelinesBlock } from "./pipelines/manifest.ts";
@@ -113,7 +113,7 @@ import { securityEventsBlock } from "./security-events/manifest.ts";
 import { segmentsBlock } from "./segments/manifest.ts";
 import { sequencesBlock } from "./sequences/manifest.ts";
 import { serviceAccountsBlock } from "./service-accounts/manifest.ts";
-import { sessionRevocationBlock } from "./session-revocation/manifest.ts";
+import { sessionsBlock } from "./sessions/manifest.ts";
 import { settingsBlock } from "./settings/manifest.ts";
 import { shareLinksBlock } from "./share-links/manifest.ts";
 import { shipmentsBlock } from "./shipments/manifest.ts";
@@ -164,7 +164,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   auditBlock,
   billingBlock,
   bookingsBlock,
-  bulkActionsBlock,
+  bulkBlock,
   calendarBlock,
   catalogBlock,
   collectionsBlock,
@@ -184,7 +184,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   moderationBlock,
   enrollmentsBlock,
   guestsBlock,
-  admissionPassesBlock,
+  passesBlock,
   billableTimeBlock,
   leasesBlock,
   expensesBlock,
@@ -205,12 +205,12 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   rlsGuardBlock,
   entitlementsBlock,
   fieldEncryptionBlock,
-  featureFlagsBlock,
+  flagsBlock,
   formsBlock,
   signaturesBlock,
-  dataApiGrantsBlock,
+  grantsBlock,
   hiringBlock,
-  linkedIdentitiesBlock,
+  identitiesBlock,
   importsBlock,
   inboxBlock,
   inventoryBlock,
@@ -259,7 +259,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   savedViewsBlock,
   searchBlock,
   serviceAccountsBlock,
-  sessionRevocationBlock,
+  sessionsBlock,
   settingsBlock,
   shareLinksBlock,
   securityEventsBlock,

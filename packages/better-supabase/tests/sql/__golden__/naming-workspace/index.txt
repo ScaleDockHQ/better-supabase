@@ -12,7 +12,7 @@ api-keys
 settings
 usage
 billing
-feature-flags
+flags
 comments
 attachments
 data-lifecycle

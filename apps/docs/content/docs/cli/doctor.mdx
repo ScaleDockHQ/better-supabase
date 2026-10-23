@@ -164,9 +164,9 @@ every request fails with
 need exactly the privileges listed; other tables in the generated schemas need
 `select` for `authenticated`, except tables with RLS on and no permissive
 policy when
-`blocks.data-api-grants.options.fromPolicies` is on: those are service-only, so
+`blocks.grants.options.fromPolicies` is on: those are service-only, so
 BS106 expects no grants for them ([BS115](#bs115)). Add the table to `expose`
-and run `better-supabase add data-api-grants`. When `config.toml` sets
+and run `better-supabase add grants`. When `config.toml` sets
 `[api] auto_expose_new_tables = false`, the finding says so.
 
 A table that only the server reads, such as an audit log written with the
@@ -262,7 +262,7 @@ covers the functions policies call, and the functions those call.
 **Warning: table without a policy still granted to the Data API.** A table
 with RLS on and no permissive policy for `anon` or `authenticated` answers
 every request with no rows or a denied write, yet a grant lists it in the API
-schema. With `blocks.data-api-grants.options.fromPolicies`, `better-supabase upgrade`
+schema. With `blocks.grants.options.fromPolicies`, `better-supabase upgrade`
 revokes `anon`, `authenticated` and `public` on every table in `schemas` with
 RLS on that no `expose` entry and no permissive policy reaches, and keeps the privileges
 of `service_role`. Until the migration is applied, doctor reports the grants
@@ -988,10 +988,10 @@ your own role for anything else.
 `blocks`, and a table with RLS in `schemas` has no restrictive policy
 that calls `better_supabase.session_active()`, so a token whose session was
 signed out, or whose user was banned or deleted, keeps reaching the table
-until it expires. Set `blocks.session-revocation.options.policies` to `true` and
+until it expires. Set `blocks.sessions.options.policies` to `true` and
 run `better-supabase upgrade` to write the policy on every table, or add it
 by hand. Doctor skips the block schemas and the tables SQL modules adopt; list
-other tables in `blocks.session-revocation.options.exclude` as `schema.table`
+other tables in `blocks.sessions.options.exclude` as `schema.table`
 globs. See [Ended sessions](/docs/auth/account-deletion#ended-sessions).
 
 ### BS321
@@ -1162,12 +1162,12 @@ table and swap the names in a maintenance window, or turn the option off.
 ### BS336
 
 **Warning: flag past its expiry.** The flags table has an `expires_at` column
-(`blocks.feature-flags.options.extraColumns`), and a flag on the live database that
+(`blocks.flags.options.extraColumns`), and a flag on the live database that
 isn't archived has an `expires_at` in the past. A release flag that outlives
 its rollout keeps a dead branch in the code. Remove its checks, then archive
 the flag (`flags.upsert(key, { archived: true })`), or move `expires_at` when
 the flag stays. The finding names the `owner` column when the table has one.
-See [owner and expiry](/docs/blocks/feature-flags#owner-and-expiry).
+See [owner and expiry](/docs/blocks/flags#owner-and-expiry).
 
 ### BS337
 

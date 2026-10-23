@@ -30,7 +30,7 @@ whatever they require:
 | [catalog](/docs/blocks/catalog)           | Ticket types as products, with prices per currency |
 | [orders](/docs/blocks/orders)             | Checkout for tickets, refunds and invoices         |
 | [bookings](/docs/blocks/bookings)         | The event's capacity as a bookable resource        |
-| [passes](/docs/blocks/admission-passes)   | QR and NFC tickets, checked in at the door         |
+| [passes](/docs/blocks/passes)             | QR and NFC tickets, checked in at the door         |
 | [signing-keys](/docs/blocks/signing-keys) | The organization's key that signs each pass        |
 | [waitlist](/docs/blocks/waitlist)         | A waitlist for sold-out events                     |
 | [reminders](/docs/blocks/reminders)       | Reminders before the event starts                  |
@@ -43,7 +43,7 @@ booking, so the bookings block refuses a sale past capacity. The pass token
 is signed on the server with the organization's key and goes in a QR code;
 at the door a scanner verifies it and the database checks the pass in once.
 A drop-in pass on the resource is counted against the same capacity
-([passes](/docs/blocks/admission-passes)).
+([passes](/docs/blocks/passes)).
 
 ## With ReUI
 

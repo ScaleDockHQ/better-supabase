@@ -53,13 +53,13 @@ describe("formerBlockPath", () => {
 
 describe("renamedBlocksSql", () => {
   it("moves each row only while the new name is free", () => {
-    const sql = renamedBlocksSql([{ from: "flags", to: "feature-flags" }]);
+    const sql = renamedBlocksSql([{ from: "actor", to: "created-by" }]);
 
     expect(sql).toContain(
-      "update better_supabase.blocks set name = 'feature-flags'",
+      "update better_supabase.blocks set name = 'created-by'",
     );
-    expect(sql).toContain("where name = 'flags'");
-    expect(sql).toContain("b.name = 'feature-flags'");
+    expect(sql).toContain("where name = 'actor'");
+    expect(sql).toContain("b.name = 'created-by'");
     expect(sql).toContain("to_regclass('better_supabase.blocks')");
   });
 });

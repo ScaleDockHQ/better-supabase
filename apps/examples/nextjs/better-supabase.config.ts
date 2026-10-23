@@ -313,7 +313,7 @@ export default defineConfig({
     },
     invitations: {},
     profiles: {},
-    "feature-flags": {},
+    flags: {},
     announcements: {},
     // Onboarding checklists run on enrollments (ADR 0077).
     enrollments: {},
@@ -377,7 +377,7 @@ export default defineConfig({
     // card each in the app.
     // Ending a session on /settings/sessions cuts its access at once: every
     // app table gets the restrictive session_active() policy.
-    "session-revocation": { options: { policies: true } },
+    sessions: { options: { policies: true } },
     sso: {},
     approvals: {
       options: {
@@ -403,7 +403,7 @@ export default defineConfig({
       },
     },
     "access-requests": {},
-    "data-api-grants": {},
+    grants: {},
     subjects: {},
     reactions: {},
     // Forum and feedback boards behind /community (ADR 0092).
@@ -465,7 +465,7 @@ export default defineConfig({
     sla: {},
     // Encrypted definitions and sensitive values are audited when read.
     "custom-fields": { options: { auditReads: true } },
-    "bulk-actions": {},
+    bulk: {},
     trash: {},
     relations: {},
     employees: { names: { employee: { url: "/people" } } },
@@ -484,7 +484,7 @@ export default defineConfig({
     assets: { options: { postgis: true } },
     guests: {},
     // Class bookings paid for with pass credits.
-    "admission-passes": { options: { credits: true } },
+    passes: { options: { credits: true } },
     "billable-time": {},
     leases: {},
     expenses: {},

@@ -15,7 +15,7 @@ import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { BookingsEvents } from "better-supabase/blocks/bookings";
-import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
+import type { BulkEvents } from "better-supabase/blocks/bulk";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
 import type { CollectionsEvents } from "better-supabase/blocks/collections";
@@ -33,7 +33,7 @@ import type { ScoresEvents } from "better-supabase/blocks/scores";
 import type { ModerationEvents } from "better-supabase/blocks/moderation";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { GuestsEvents } from "better-supabase/blocks/guests";
-import type { AdmissionPassesEvents } from "better-supabase/blocks/admission-passes";
+import type { PassesEvents } from "better-supabase/blocks/passes";
 import type { BillableTimeEvents } from "better-supabase/blocks/billable-time";
 import type { LeasesEvents } from "better-supabase/blocks/leases";
 import type { ExpensesEvents } from "better-supabase/blocks/expenses";
@@ -50,7 +50,7 @@ import type { ContentEvents } from "better-supabase/blocks/content";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { EmployeesEvents } from "better-supabase/blocks/employees";
 import type { ActivitiesEvents } from "better-supabase/blocks/activities";
-import type { FeatureFlagsEvents } from "better-supabase/blocks/feature-flags";
+import type { FlagsEvents } from "better-supabase/blocks/flags";
 import type { FormsEvents } from "better-supabase/blocks/forms";
 import type { SignaturesEvents } from "better-supabase/blocks/signatures";
 import type { HiringEvents } from "better-supabase/blocks/hiring";
@@ -113,7 +113,7 @@ import { attachmentsBlock as attachmentsBlockInstance } from "better-supabase/bl
 import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
 import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
 import { bookingsBlock as bookingsBlockInstance } from "better-supabase/blocks/bookings";
-import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/blocks/bulk-actions";
+import { bulkBlock as bulkBlockInstance } from "better-supabase/blocks/bulk";
 import { calendarBlock as calendarBlockInstance } from "better-supabase/blocks/calendar";
 import { catalogBlock as catalogBlockInstance } from "better-supabase/blocks/catalog";
 import { collectionsBlock as collectionsBlockInstance } from "better-supabase/blocks/collections";
@@ -132,7 +132,7 @@ import { scoresBlock as scoresBlockInstance } from "better-supabase/blocks/score
 import { moderationBlock as moderationBlockInstance } from "better-supabase/blocks/moderation";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { guestsBlock as guestsBlockInstance } from "better-supabase/blocks/guests";
-import { admissionPassesBlock as admissionPassesBlockInstance } from "better-supabase/blocks/admission-passes";
+import { passesBlock as passesBlockInstance } from "better-supabase/blocks/passes";
 import { billableTimeBlock as billableTimeBlockInstance } from "better-supabase/blocks/billable-time";
 import { leasesBlock as leasesBlockInstance } from "better-supabase/blocks/leases";
 import { expensesBlock as expensesBlockInstance } from "better-supabase/blocks/expenses";
@@ -151,11 +151,11 @@ import { driveBlock as driveBlockInstance } from "better-supabase/blocks/drive";
 import { employeesBlock as employeesBlockInstance } from "better-supabase/blocks/employees";
 import { activitiesBlock as activitiesBlockInstance } from "better-supabase/blocks/activities";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
-import { featureFlagsBlock as featureFlagsBlockInstance } from "better-supabase/blocks/feature-flags";
+import { flagsBlock as flagsBlockInstance } from "better-supabase/blocks/flags";
 import { formsBlock as formsBlockInstance } from "better-supabase/blocks/forms";
 import { signaturesBlock as signaturesBlockInstance } from "better-supabase/blocks/signatures";
 import { hiringBlock as hiringBlockInstance } from "better-supabase/blocks/hiring";
-import { linkedIdentitiesBlock as linkedIdentitiesBlockInstance } from "better-supabase/blocks/linked-identities";
+import { identitiesBlock as identitiesBlockInstance } from "better-supabase/blocks/identities";
 import { importsBlock as importsBlockInstance } from "better-supabase/blocks/imports";
 import { inboxBlock as inboxBlockInstance } from "better-supabase/blocks/inbox";
 import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
@@ -299,7 +299,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "bulk-actions": {
+  bulk: {
     schema: "better_supabase",
     options: {
       limit: 500,
@@ -381,7 +381,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "admission-passes": {
+  passes: {
     schema: "better_supabase",
     options: {},
   },
@@ -467,7 +467,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "feature-flags": {
+  flags: {
     schema: "better_supabase",
     options: {},
   },
@@ -479,7 +479,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "data-api-grants": {
+  grants: {
     schema: "better_supabase",
     options: {},
   },
@@ -487,7 +487,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "linked-identities": {
+  identities: {
     schema: "better_supabase",
     options: {},
   },
@@ -691,7 +691,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "session-revocation": {
+  sessions: {
     schema: "better_supabase",
     options: {},
   },
@@ -838,7 +838,7 @@ export const blocks = {
   audit: auditBlockInstance,
   billing: billingBlockInstance,
   bookings: bookingsBlockInstance,
-  "bulk-actions": bulkActionsBlockInstance,
+  bulk: bulkBlockInstance,
   calendar: calendarBlockInstance,
   catalog: catalogBlockInstance,
   collections: collectionsBlockInstance,
@@ -857,7 +857,7 @@ export const blocks = {
   moderation: moderationBlockInstance,
   enrollments: enrollmentsBlockInstance,
   guests: guestsBlockInstance,
-  "admission-passes": admissionPassesBlockInstance,
+  passes: passesBlockInstance,
   "billable-time": billableTimeBlockInstance,
   leases: leasesBlockInstance,
   expenses: expensesBlockInstance,
@@ -876,11 +876,11 @@ export const blocks = {
   employees: employeesBlockInstance,
   activities: activitiesBlockInstance,
   entitlements: entitlementsBlockInstance,
-  "feature-flags": featureFlagsBlockInstance,
+  flags: flagsBlockInstance,
   forms: formsBlockInstance,
   signatures: signaturesBlockInstance,
   hiring: hiringBlockInstance,
-  "linked-identities": linkedIdentitiesBlockInstance,
+  identities: identitiesBlockInstance,
   imports: importsBlockInstance,
   inbox: inboxBlockInstance,
   inventory: inventoryBlockInstance,
@@ -962,11 +962,6 @@ export const permissions = {
     read: "engagements.read",
     write: "engagements.write",
     manage: "engagements.manage",
-  },
-  "admission-passes": {
-    read: "passes.read",
-    manage: "passes.manage",
-    checkIn: "passes.check_in",
   },
   agents: {
     read: "ai.read",
@@ -1058,7 +1053,7 @@ export const permissions = {
     create: "bookings.create",
     read: "bookings.read",
   },
-  "bulk-actions": {
+  bulk: {
     run: "bulk.run",
   },
   calendar: {
@@ -1237,11 +1232,11 @@ export const permissions = {
     approve: "expenses.approve",
     manage: "expenses.manage",
   },
-  "feature-flags": {
-    manage: "flags.manage",
-  },
   "field-history": {
     read: "history.read",
+  },
+  flags: {
+    manage: "flags.manage",
   },
   forecasts: {
     read: "forecasts.read",
@@ -1399,6 +1394,11 @@ export const permissions = {
     suspendMember: "members.remove",
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
+  },
+  passes: {
+    read: "passes.read",
+    manage: "passes.manage",
+    checkIn: "passes.check_in",
   },
   person: {
     read: "parties.read",
@@ -1604,7 +1604,7 @@ export type PermissionKey = "access_requests.create" | "access_requests.manage" 
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkActionsEvents & CalendarEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & AdmissionPassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FeatureFlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkEvents & CalendarEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

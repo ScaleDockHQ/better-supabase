@@ -742,12 +742,12 @@ describe("run", () => {
             notes: ["select", "insert(body)"],
           },
         },
-        blocks: ["data-api-grants"],
+        blocks: ["grants"],
       }),
     );
     const synced = await run(["upgrade", "--cwd", dir]);
     expect(synced).toMatchObject({ code: 0, stderr: "" });
-    const path = /Created (\S+) \(data-api-grants\)/.exec(synced.stdout)?.[1];
+    const path = /Created (\S+) \(grants\)/.exec(synced.stdout)?.[1];
     const grants = await readFile(join(dir, path!), "utf-8");
     expect(grants).toContain(
       'grant select, update ("username", "first_name") on table "public"."profiles" to authenticated;',

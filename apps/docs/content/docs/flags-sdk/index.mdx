@@ -4,14 +4,14 @@ description: Declare flags with the Vercel Flags SDK and evaluate them from the 
 ---
 
 `better-supabase/flags-sdk` connects the [Flags SDK](https://flags-sdk.dev)
-to the [flags block](/docs/blocks/feature-flags). You declare flags with `flag()`
+to the [flags block](/docs/blocks/flags). You declare flags with `flag()`
 from `flags/next`, and the adapter answers them from the flags table with
 the same rules, overrides and rollout buckets as `flag_enabled()` in your
 policies.
 
 ```bash
 pnpm add flags
-pnpm better-supabase add feature-flags
+pnpm better-supabase add flags
 ```
 
 `flags` is an optional peer (`>=4.2 <5`). The entry types the SDK
@@ -32,7 +32,7 @@ The [Next.js example](/docs/examples) wires all of them.
 
 ## Declaring flags
 
-`betterSupabaseAdapter` takes the options of `createFeatureFlagsProvider`: a
+`betterSupabaseAdapter` takes the options of `createFlagsProvider`: a
 `transport` (with `schema` for the Data API) or fixed `definitions`, and a
 `ttl` (30 seconds by default). It loads every flag with
 `flag_definitions()`, which only the service role may call, so give it a
@@ -95,14 +95,14 @@ always answers the fallback.
 
 ## Identifying the caller
 
-`createIdentify` builds on [`flagContext`](/docs/blocks/feature-flags#with-openfeature).
+`createIdentify` builds on [`flagContext`](/docs/blocks/flags#with-openfeature).
 It returns these entities:
 
-| Entity         | Holds                                                                                 |
-| -------------- | ------------------------------------------------------------------------------------- |
-| `user`         | `{ id }`, the user id from the claims                                                 |
-| `organization` | `{ id, plans, roles }`, the active tenant with its features and roles                 |
-| `brand`, ...   | `{ id }` for each custom context, named as in `blocks.feature-flags.options.contexts` |
+| Entity         | Holds                                                                         |
+| -------------- | ----------------------------------------------------------------------------- |
+| `user`         | `{ id }`, the user id from the claims                                         |
+| `organization` | `{ id, plans, roles }`, the active tenant with its features and roles         |
+| `brand`, ...   | `{ id }` for each custom context, named as in `blocks.flags.options.contexts` |
 
 `claims` must return claims you verified locally, such as from
 `getClaims()` or `bsb.context()`; `identify` runs for every flag and never
@@ -201,7 +201,7 @@ never reads a custom context from the tenant table, so pass it through
 
 ## Flags Explorer
 
-[Flags Explorer](https://vercel.com/docs/feature-flags/flags-explorer) in
+[Flags Explorer](https://vercel.com/docs/flags/flags-explorer) in
 the Vercel Toolbar reads the flags from a discovery route. `getProviderData`
 lists every flag in the flags block that isn't archived, with its
 description, options, origin and last change; merge it with the declared
@@ -277,4 +277,4 @@ These are left to the app or to other tools for now:
 - Experiments and metrics. Use PostHog or Statsig through their own Flags
   SDK adapters.
 - Brands as a table of their own. A brand is a custom context read from your
-  tenant table (see [custom contexts](/docs/blocks/feature-flags#custom-contexts)).
+  tenant table (see [custom contexts](/docs/blocks/flags#custom-contexts)).

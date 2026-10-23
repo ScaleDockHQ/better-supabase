@@ -34,14 +34,14 @@ export default defineConfig({
       "search_notes(text, integer)": { execute: ["authenticated"] },
     },
   },
-  blocks: ["data-api-grants"],
+  blocks: ["grants"],
 });
 ```
 
 Then write the grants into your declarative schema and diff a migration:
 
 ```bash
-better-supabase add data-api-grants
+better-supabase add grants
 supabase db schema declarative sync -f data_api_grants
 ```
 
@@ -75,7 +75,7 @@ expose: {
 `upgrade` fails when no schema file declares the table, or when the
 exclusions leave no column. Doctor's [BS339](/docs/cli/doctor#bs339) warns
 about an excluded column the table no longer has, since a renamed secret
-column is then granted under its new name. An app that renders the `data-api-grants` module itself
+column is then granted under its new name. An app that renders the `grants` module itself
 with `renderBlocks` from `better-supabase/sql` passes the layout's grants
 through `resolveExposeColumns(grants, schemaFiles, schemas)` first; the
 module refuses an unresolved `*`.
@@ -118,7 +118,7 @@ table like that which still holds grants on the live database as
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   database: { schemas: ["public"] },
-  blocks: { "data-api-grants": { options: { fromPolicies: true } } },
+  blocks: { grants: { options: { fromPolicies: true } } },
 });
 ```
 

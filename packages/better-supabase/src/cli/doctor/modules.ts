@@ -675,12 +675,12 @@ function duplicateTriggers(context: DoctorContext): FindingInput[] {
  * policy, when `sessions` is in `blocks`.
  */
 function sessionlessTables(context: DoctorContext): FindingInput[] {
-  if (!context.config.blockNames.includes("session-revocation")) {
+  if (!context.config.blockNames.includes("sessions")) {
     return [];
   }
 
   const exclude = globs(
-    context.config.blocks["session-revocation"]?.options?.["exclude"],
+    context.config.blocks["sessions"]?.options?.["exclude"],
   );
 
   const owned = moduleOwned(context);
@@ -703,7 +703,7 @@ function sessionlessTables(context: DoctorContext): FindingInput[] {
         ),
     )
     .map((table) => ({
-      message: `${qualified(table)} has no restrictive session_active() policy, so a signed-out or revoked session keeps its access until the token expires. Set blocks['session-revocation'].options.policies to true and run \`better-supabase upgrade\`, add the policy by hand, or list the table in blocks['session-revocation'].options.exclude.`,
+      message: `${qualified(table)} has no restrictive session_active() policy, so a signed-out or revoked session keeps its access until the token expires. Set blocks['sessions'].options.policies to true and run \`better-supabase upgrade\`, add the policy by hand, or list the table in blocks['sessions'].options.exclude.`,
       target: qualified(table),
       object: tableObject(table),
     }));
@@ -862,7 +862,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Table without the session policy",
     description:
-      "The `sessions` module is in `blocks`, and a table with RLS in `schemas` has no restrictive policy that calls `better_supabase.session_active()`, so a token whose session was signed out, or whose user was banned or deleted, keeps reaching it until it expires. `blocks['session-revocation'].options.policies` writes the policy on every table; `options.exclude` lists the tables to skip, as `schema.table` globs.",
+      "The `sessions` module is in `blocks`, and a table with RLS in `schemas` has no restrictive policy that calls `better_supabase.session_active()`, so a token whose session was signed out, or whose user was banned or deleted, keeps reaching it until it expires. `blocks['sessions'].options.policies` writes the policy on every table; `options.exclude` lists the tables to skip, as `schema.table` globs.",
     check: sessionlessTables,
   },
   {

@@ -37,7 +37,7 @@ import {
 import { appTableSetSql, settableColumns } from "./app-table-set.ts";
 import { appViewBehaviour, appViewChecks, appViewSql } from "./app-views.ts";
 import { appTableSearchTriggers } from "./search.ts";
-import { sessionPolicyTables } from "./session-revocation.ts";
+import { sessionPolicyTables } from "./sessions.ts";
 
 /**
  * The `module` of the files `renderBlocks` writes for `appTables`. App tables
@@ -73,10 +73,7 @@ interface AppTable {
   readonly scope: ScopeColumn | undefined;
   /** Whether `expose` sets the table's grants instead. */
   readonly exposed: boolean;
-  /**
-   * Whether `blocks['session-revocation'].options.policies` adds
-   * `bsb_session_active`.
-   */
+  /** Whether `blocks['sessions'].options.policies` adds `bsb_session_active`. */
   readonly sessionPolicy: boolean;
   /** The columns whose reference checks the tenant too, by column name. */
   readonly tenantReferences: ReadonlyMap<string, TenantReference>;
@@ -734,7 +731,7 @@ function setRefusals(table: AppTable): readonly string[] {
   const subject = table.config.subject;
 
   if (
-    !table.ctx.installed("bulk-actions") ||
+    !table.ctx.installed("bulk") ||
     subject === undefined ||
     settableColumns(table.config).length === 0
   ) {
@@ -1099,8 +1096,8 @@ export function appTablesFiles(
         installed,
       );
 
-      const sessionTables = ctx.installed("session-revocation")
-        ? sessionPolicyTables(ctx.of("session-revocation"), layout)
+      const sessionTables = ctx.installed("sessions")
+        ? sessionPolicyTables(ctx.of("sessions"), layout)
         : [];
 
       return {
@@ -1166,7 +1163,7 @@ export function appTablesFiles(
     installed.includes("search")
       ? appTableSearchTriggers(moduleContext("search", layout, installed))
       : "",
-    installed.includes("bulk-actions") && tables[0]
+    installed.includes("bulk") && tables[0]
       ? appTableSetSql(
           tables.map((table) => ({
             name: table.name,

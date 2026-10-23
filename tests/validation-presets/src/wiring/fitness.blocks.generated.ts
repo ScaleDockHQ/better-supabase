@@ -10,7 +10,7 @@ import type { BillingEvents } from "better-supabase/blocks/billing";
 import type { BookingsEvents } from "better-supabase/blocks/bookings";
 import type { CalendarEvents } from "better-supabase/blocks/calendar";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
-import type { AdmissionPassesEvents } from "better-supabase/blocks/admission-passes";
+import type { PassesEvents } from "better-supabase/blocks/passes";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { RemindersEvents } from "better-supabase/blocks/reminders";
@@ -24,7 +24,7 @@ import { billingBlock as billingBlockInstance } from "better-supabase/blocks/bil
 import { bookingsBlock as bookingsBlockInstance } from "better-supabase/blocks/bookings";
 import { calendarBlock as calendarBlockInstance } from "better-supabase/blocks/calendar";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
-import { admissionPassesBlock as admissionPassesBlockInstance } from "better-supabase/blocks/admission-passes";
+import { passesBlock as passesBlockInstance } from "better-supabase/blocks/passes";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
@@ -71,7 +71,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "admission-passes": {
+  passes: {
     schema: "better_supabase",
     options: {},
   },
@@ -145,7 +145,7 @@ export const blocks = {
   bookings: bookingsBlockInstance,
   calendar: calendarBlockInstance,
   enrollments: enrollmentsBlockInstance,
-  "admission-passes": admissionPassesBlockInstance,
+  passes: passesBlockInstance,
   entitlements: entitlementsBlockInstance,
   queue: queueBlockInstance,
   notifications: notificationsBlockInstance,
@@ -165,11 +165,6 @@ export const blocks = {
  * @public
  */
 export const permissions = {
-  "admission-passes": {
-    read: "passes.read",
-    manage: "passes.manage",
-    checkIn: "passes.check_in",
-  },
   "api-keys": {
     manage: "api_keys.manage",
     own: "api_keys.own",
@@ -228,6 +223,11 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
+  passes: {
+    read: "passes.read",
+    manage: "passes.manage",
+    checkIn: "passes.check_in",
+  },
   reminders: {
     manage: "reminders.manage",
     read: "reminders.read",
@@ -254,7 +254,7 @@ export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | 
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CalendarEvents & EnrollmentsEvents & AdmissionPassesEvents & NotificationsEvents & OrganizationsEvents & RemindersEvents & SettingsEvents & SigningKeysEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CalendarEvents & EnrollmentsEvents & PassesEvents & NotificationsEvents & OrganizationsEvents & RemindersEvents & SettingsEvents & SigningKeysEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

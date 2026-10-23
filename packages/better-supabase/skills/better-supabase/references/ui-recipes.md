@@ -7952,7 +7952,7 @@ export function MetricsDashboardSkeleton() {
 
 ## Feature flags
 
-Which feature flags are on for the active organization, read-only. It loads its data on the server through the block's client; the [feature-flags block](https://bettersupabase.com/blocks/feature-flags) must be installed (`npx better-supabase add feature-flags`). Page: https://bettersupabase.com/recipes/feature-flag-toggles.
+Which feature flags are on for the active organization, read-only. It loads its data on the server through the block's client; the [flags block](https://bettersupabase.com/blocks/flags) must be installed (`npx better-supabase add flags`). Page: https://bettersupabase.com/recipes/feature-flag-toggles.
 
 Web, with shadcn components:
 
@@ -8058,7 +8058,7 @@ export async function FeatureFlagList() {
   };
 
   return (
-    <Card data-testid="feature-flags" data-recipe="feature-flag-toggles">
+    <Card data-testid="flags" data-recipe="feature-flag-toggles">
       <CardHeader>
         <CardTitle>{t("Feature flags")}</CardTitle>
         <CardDescription>
@@ -9279,7 +9279,7 @@ export function SubjectChip({ subject }: { subject: RecordRef }) {
 
 ## Sessions list
 
-The caller's signed-in devices with the last activity and a button to end each session. It loads its data on the server through the block's client; the [session-revocation block](https://bettersupabase.com/blocks/session-revocation) must be installed (`npx better-supabase add session-revocation`). Page: https://bettersupabase.com/recipes/sessions-list.
+The caller's signed-in devices with the last activity and a button to end each session. It loads its data on the server through the block's client; the [sessions block](https://bettersupabase.com/blocks/sessions) must be installed (`npx better-supabase add sessions`). Page: https://bettersupabase.com/recipes/sessions-list.
 
 Web, with shadcn components:
 
@@ -13742,7 +13742,7 @@ export async function CustomFieldsEditor({
 
 ## Bulk action bar
 
-A bar over a selection of rows that runs an action on all of them and reports failures. It loads its data on the server through the block's client; the [bulk-actions block](https://bettersupabase.com/blocks/bulk-actions) must be installed (`npx better-supabase add bulk-actions`). Page: https://bettersupabase.com/recipes/bulk-action-bar.
+A bar over a selection of rows that runs an action on all of them and reports failures. It loads its data on the server through the block's client; the [bulk block](https://bettersupabase.com/blocks/bulk) must be installed (`npx better-supabase add bulk`). Page: https://bettersupabase.com/recipes/bulk-action-bar.
 
 Web, with shadcn components:
 

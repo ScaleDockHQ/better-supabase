@@ -310,7 +310,7 @@ export const runWorkBulkAction = bsb.action(
     authorize: (session) => can(session, "bulk.run"),
   },
   async (input, { tenant, db, auth }) => {
-    const { bulkActions: bulk } = db;
+    const { bulk } = db;
 
     const result =
       input.action === "state"

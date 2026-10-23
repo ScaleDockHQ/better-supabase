@@ -140,7 +140,7 @@ const page = await companiesList.run(db, query, { where }).orThrow();
 
 `where` reads up to 500 ids (`max` raises it to 1000) and returns `{ id: { in: ids } }`; pass `column` when the list's rows point at the record through another column. `subjectIds(id)` returns the same ids.
 
-With the [bulk](/docs/blocks/bulk-actions) module installed, `collections.add` is a built-in action, so a multi-select adds many records at once with a result per row:
+With the [bulk](/docs/blocks/bulk) module installed, `collections.add` is a built-in action, so a multi-select adds many records at once with a result per row:
 
 ```ts
 await bulk

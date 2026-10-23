@@ -819,14 +819,9 @@ describe("integrates", () => {
 describe("fixed functions", () => {
   it("names the tenant role helpers in better_supabase whatever the tenant schema", () => {
     const flags = moduleContext(
-      "feature-flags",
-      {
-        modules: {
-          memberships: { schema: "app" },
-          "feature-flags": { schema: "app" },
-        },
-      },
-      ["memberships", "feature-flags"],
+      "flags",
+      { modules: { memberships: { schema: "app" }, flags: { schema: "app" } } },
+      ["memberships", "flags"],
     );
 
     const tenant = flags.of("memberships");

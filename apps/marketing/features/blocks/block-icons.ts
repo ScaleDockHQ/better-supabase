@@ -152,14 +152,14 @@ import { categoryStyle } from "./categories";
 export const BLOCK_ICONS = {
   // Identity & access
   "created-by": UserPenIcon,
-  "data-api-grants": ShieldCheckIcon,
+  grants: ShieldCheckIcon,
   mfa: SmartphoneIcon,
   permissions: LockKeyholeIcon,
-  "session-revocation": MonitorSmartphoneIcon,
+  sessions: MonitorSmartphoneIcon,
   sso: LogInIcon,
   subjects: BoxesIcon,
   "access-requests": DoorOpenIcon,
-  "linked-identities": FingerprintIcon,
+  identities: FingerprintIcon,
   // Tenancy & accounts
   memberships: BuildingIcon,
   invitations: MailPlusIcon,
@@ -186,7 +186,7 @@ export const BLOCK_ICONS = {
   inbox: InboxIcon,
   push: BellRingIcon,
   // Growth & engagement
-  "feature-flags": FlagIcon,
+  flags: FlagIcon,
   onboarding: RocketIcon,
   enrollments: GraduationCapIcon,
   waitlist: ListOrderedIcon,
@@ -211,7 +211,7 @@ export const BLOCK_ICONS = {
   "custom-fields": TextCursorInputIcon,
   "saved-views": BookmarkIcon,
   relations: NetworkIcon,
-  "bulk-actions": ListChecksIcon,
+  bulk: ListChecksIcon,
   search: SearchIcon,
   approvals: StampIcon,
   pipelines: KanbanIcon,
@@ -243,7 +243,7 @@ export const BLOCK_ICONS = {
   reminders: AlarmClockIcon,
   calendar: CalendarDaysIcon,
   bookings: CalendarCheckIcon,
-  "admission-passes": TicketIcon,
+  passes: TicketIcon,
   "billable-time": HourglassIcon,
   // Verticals
   leases: HouseIcon,

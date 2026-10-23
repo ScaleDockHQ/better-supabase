@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "use-sessions",
+  "title": "useOAuthConsent, useOAuthGrants",
+  "description": "useOAuthConsent and useOAuthGrants: the sessions block's controllers as React hooks, for React DOM and React Native.",
+  "dependencies": [
+    "better-supabase@^0.14.0"
+  ],
+  "files": [
+    {
+      "path": "items/hooks/use-sessions.ts",
+      "content": "\"use client\";\n\nimport type {\n  OAuthConsentActions,\n  OAuthConsentSnapshot,\n  OAuthGrantsActions,\n  OAuthGrantsSnapshot,\n} from \"better-supabase/blocks/sessions\";\n\nimport {\n  createOAuthConsentController,\n  createOAuthGrantsController,\n} from \"better-supabase/blocks/sessions\";\nimport { useBlockEnv, useController, useLatest } from \"better-supabase/react\";\n\nexport type {\n  OAuthClientInfo,\n  OAuthConsentRequest,\n  OAuthGrant,\n} from \"better-supabase/blocks/sessions\";\n\nexport interface UseOAuthConsentOptions {\n  /** `authorization_id` from the page's URL; `undefined` loads nothing. */\n  readonly authorizationId: string | undefined;\n  /**\n   * Leaves for the `redirect_url` Auth returned. Default:\n   * `window.location.assign`.\n   */\n  readonly redirect?: (url: string) => void;\n}\n\nexport interface OAuthConsentState\n  extends OAuthConsentSnapshot, OAuthConsentActions {}\n\nexport interface OAuthGrantsState\n  extends OAuthGrantsSnapshot, OAuthGrantsActions {}\n\n/**\n * The consent page of the Supabase Auth OAuth server: `request` holds the\n * client and scopes, and `approve` or `deny` go to the client through the\n * `redirect_url` Auth returns.\n *\n * ```tsx\n * const { request, deciding, approve, deny } = useOAuthConsent({\n *   authorizationId,\n * });\n * ```\n */\nexport function useOAuthConsent(\n  options: UseOAuthConsentOptions,\n): OAuthConsentState {\n  const { supabase, auth } = useBlockEnv();\n  const latest = useLatest(options);\n  const { authorizationId } = options;\n\n  return useController(\n    () =>\n      createOAuthConsentController({\n        oauth: supabase.auth.oauth,\n        auth,\n        authorizationId,\n        redirect: (url) => {\n          const redirect = latest.current.redirect;\n\n          if (redirect) {\n            redirect(url);\n          } else {\n            globalThis.location.assign(url);\n          }\n        },\n      }),\n    [supabase, auth, authorizationId, latest],\n  ).view;\n}\n\n/**\n * The OAuth clients the user approved, for a connected agents list: `revoke`\n * disconnects one.\n *\n * ```tsx\n * const { grants, revoke } = useOAuthGrants();\n * ```\n */\nexport function useOAuthGrants(): OAuthGrantsState {\n  const { supabase, auth } = useBlockEnv();\n\n  return useController(\n    () => createOAuthGrantsController({ oauth: supabase.auth.oauth, auth }),\n    [supabase, auth],\n  ).view;\n}\n",
+      "type": "registry:hook",
+      "target": "@hooks/use-sessions.ts"
+    }
+  ],
+  "envVars": {},
+  "meta": {
+    "block": "sessions",
+    "platforms": [
+      "web",
+      "native"
+    ],
+    "frameworks": [
+      "next",
+      "vite",
+      "tanstack-start",
+      "react-router",
+      "expo"
+    ]
+  },
+  "docs": "Needs the sessions block (`npx better-supabase add sessions`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and a `BetterSupabaseProvider` above the component. See https://bettersupabase.com/docs/auth/oauth-consent.",
+  "categories": [
+    "hook"
+  ],
+  "type": "registry:hook"
+}

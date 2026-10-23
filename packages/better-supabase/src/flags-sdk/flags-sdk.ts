@@ -2,17 +2,17 @@ import type {
   FlagContext,
   FlagContextOptions,
   FlagDefinition,
-  FeatureFlagsProvider,
-  FeatureFlagsProviderOptions,
+  FlagsProvider,
+  FlagsProviderOptions,
   FlagType,
   FlagValue,
-} from "../blocks/feature-flags/feature-flags.ts";
+} from "../blocks/flags/flags.ts";
 
 import {
-  createFeatureFlagsProvider,
+  createFlagsProvider,
   evaluateFlag,
   flagContext,
-} from "../blocks/feature-flags/feature-flags.ts";
+} from "../blocks/flags/flags.ts";
 import { errorText } from "../core/block-helpers.ts";
 
 /** One Flags SDK entity; Vercel Flags targets it as `<name>.id`. */
@@ -79,8 +79,8 @@ export interface FlagsSdkAdapter<V, E = FlagsSdkEntities> {
 }
 
 export type BetterSupabaseAdapterOptions = (
-  | { readonly provider: FeatureFlagsProvider<string> }
-  | (FeatureFlagsProviderOptions & { readonly provider?: never })
+  | { readonly provider: FlagsProvider<string> }
+  | (FlagsProviderOptions & { readonly provider?: never })
 ) & {
   /** Where each flag is managed, such as the app's admin page. */
   readonly origin?: FlagsSdkOrigin;
@@ -93,7 +93,7 @@ export type BetterSupabaseAdapterOptions = (
  */
 export interface BetterSupabaseAdapterFactory {
   <V = FlagValue>(): FlagsSdkAdapter<V>;
-  readonly provider: FeatureFlagsProvider<string>;
+  readonly provider: FlagsProvider<string>;
   readonly origin?: FlagsSdkOrigin;
 }
 
@@ -194,8 +194,8 @@ const why = (flag: FlagDefinition | undefined): string =>
 export function betterSupabaseAdapter(
   options: BetterSupabaseAdapterOptions,
 ): BetterSupabaseAdapterFactory {
-  const provider: FeatureFlagsProvider<string> =
-    options.provider ?? createFeatureFlagsProvider(options);
+  const provider: FlagsProvider<string> =
+    options.provider ?? createFlagsProvider(options);
 
   const adapterId = Symbol("better-supabase");
   const { origin } = options;
@@ -378,7 +378,7 @@ export interface FlagsSdkProviderData {
  * providers' data through `mergeProviderData`. A failed load becomes a hint.
  */
 export async function getProviderData(options: {
-  readonly provider: FeatureFlagsProvider<string>;
+  readonly provider: FlagsProvider<string>;
   readonly origin?: FlagsSdkOrigin;
 }): Promise<FlagsSdkProviderData> {
   let flags: readonly FlagDefinition[];

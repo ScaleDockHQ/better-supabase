@@ -667,7 +667,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
   it("derives grants from the schema files' policies with fromPolicies", async () => {
     const config: BetterSupabaseConfig = {
       database: { expose: { notes: ["select"] } },
-      blocks: { "data-api-grants": { options: { fromPolicies: true } } },
+      blocks: { grants: { options: { fromPolicies: true } } },
     };
 
     const schemas = join(root, "supabase/schemas");
@@ -679,7 +679,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     await sql(["sync"], config);
 
     const file = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_13_data_api_grants.sql"),
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
       "utf-8",
     );
 
@@ -700,11 +700,11 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
     await sql(["sync"], {
       database: { expose: { tags: ["select"] } },
-      blocks: { "data-api-grants": { options: { fromPolicies: true } } },
+      blocks: { grants: { options: { fromPolicies: true } } },
     });
 
     const file = await readFile(
-      join(schemas, "900_better_supabase_13_data_api_grants.sql"),
+      join(schemas, "900_better_supabase_13_grants.sql"),
       "utf-8",
     );
 
@@ -742,13 +742,13 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
     await sql(["sync"], {
       blocks: {
-        "data-api-grants": { options: { fromPolicies: true } },
-        "session-revocation": { options: { policies: true } },
+        grants: { options: { fromPolicies: true } },
+        sessions: { options: { policies: true } },
       },
     });
 
     const grants = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_13_data_api_grants.sql"),
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
       "utf-8",
     );
 
@@ -758,10 +758,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(grants).not.toContain("legacy");
 
     const sessions = await readFile(
-      join(
-        root,
-        "supabase/schemas/900_better_supabase_26_session_revocation.sql",
-      ),
+      join(root, "supabase/schemas/900_better_supabase_26_sessions.sql"),
       "utf-8",
     );
 
@@ -779,11 +776,11 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
           },
         },
       },
-      blocks: ["data-api-grants"],
+      blocks: ["grants"],
     });
 
     const file = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_13_data_api_grants.sql"),
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
       "utf-8",
     );
 
@@ -816,11 +813,11 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
           },
         },
       },
-      blocks: ["data-api-grants"],
+      blocks: ["grants"],
     });
 
     const file = await readFile(
-      join(schemas, "900_better_supabase_13_data_api_grants.sql"),
+      join(schemas, "900_better_supabase_13_grants.sql"),
       "utf-8",
     );
 
@@ -831,7 +828,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     await expect(
       sql(["sync"], {
         database: { expose: { notes: ["select(*, -body)"] } },
-        blocks: ["data-api-grants"],
+        blocks: ["grants"],
       }),
     ).rejects.toThrow(
       "no `create table` in the schema files declares public.notes",
@@ -879,17 +876,12 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
     await sql(["sync"], {
       blocks: {
-        "session-revocation": {
-          options: { policies: true, exclude: ["public.audit_*"] },
-        },
+        sessions: { options: { policies: true, exclude: ["public.audit_*"] } },
       },
     });
 
     const file = await readFile(
-      join(
-        root,
-        "supabase/schemas/900_better_supabase_26_session_revocation.sql",
-      ),
+      join(root, "supabase/schemas/900_better_supabase_26_sessions.sql"),
       "utf-8",
     );
 

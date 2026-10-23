@@ -803,7 +803,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
-  "bulk-actions": (own) => [
+  bulk: (own) => [
     {
       name: "relations.link",
       run: `perform ${own.fn("link")}(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');`,

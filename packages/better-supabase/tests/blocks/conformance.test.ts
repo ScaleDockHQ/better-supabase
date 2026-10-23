@@ -30,7 +30,7 @@ const NO_CREATOR: readonly string[] = [
   // Controllers over supabase.auth (MFA factors, OAuth consent and grants);
   // the SQL tables have no client of their own.
   "mfa",
-  "session-revocation",
+  "sessions",
 ];
 
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */
@@ -41,8 +41,6 @@ const NO_BLOCK_CALL: readonly string[] = [];
 
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
-  // A pass is an admission credential; what it admits to lives on its booking or record.
-  "admission-passes",
   // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
   // Provider keys and batch jobs the block writes itself.
@@ -62,7 +60,7 @@ const NO_FIELDS: readonly string[] = [
   // Customer rows mirror Stripe and are written by the webhook sync.
   "billing",
   // Run records of the block's own bulk jobs.
-  "bulk-actions",
+  "bulk",
   // A channel names a conversation; app data goes on its linked record or on messages.
   "channels",
   // Comments are messages, so app columns go on blocks.messaging.options.extraColumns;
@@ -89,6 +87,8 @@ const NO_FIELDS: readonly string[] = [
   "forecasts",
   // Guests and grants are access rows; who the guest is lives in their party.
   "guests",
+  // Linked accounts and verification codes are auth bookkeeping.
+  "identities",
   // Runs log an import; the imported rows land in the app's own tables.
   "imports",
   // chat-sdk-state is the Chat SDK's state store, which takes no app columns.
@@ -103,8 +103,6 @@ const NO_FIELDS: readonly string[] = [
   // Accounts and entries are double-entry bookkeeping other blocks post to;
   // per-account data goes in `metadata`.
   "ledger",
-  // Linked accounts and verification codes are auth bookkeeping.
-  "linked-identities",
   // Mailboxes, threads and messages mirror a provider's mail; app data goes on the linked records.
   "mail-sync",
   // The model writes memories through memory commands, which carry no app columns.
@@ -120,6 +118,8 @@ const NO_FIELDS: readonly string[] = [
   "oauth-server",
   // An event log; the app's data goes in each event's payload.
   "outbox",
+  // A pass is an admission credential; what it admits to lives on its booking or record.
+  "passes",
   // Role and catalog rows are the access model; the client reads permission keys.
   "permissions",
   // One user's emoji on a subject, and a custom emoji's image and shortcode.

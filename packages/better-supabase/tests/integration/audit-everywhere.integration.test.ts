@@ -10,7 +10,7 @@ const ACTION_MODULES = [
   "organizations",
   "invitations",
   "settings",
-  "feature-flags",
+  "flags",
   "billing",
   "credentials",
   "connectors",

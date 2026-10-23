@@ -311,7 +311,7 @@ const OWN_RULES: readonly Rule[] = [
     severity: "error",
     title: "Table not granted to the Data API",
     description:
-      "Hosted projects grant new tables to anon and authenticated unless the project turns default privileges off (auto_expose_new_tables = false locally). Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated, except tables with RLS on and no permissive policy under `blocks['data-api-grants'].options.fromPolicies`, which are service-only. Tables marked `serviceRole` in `tables` must have no grants for either role.",
+      "Hosted projects grant new tables to anon and authenticated unless the project turns default privileges off (auto_expose_new_tables = false locally). Without a grant, every Data API request fails with 42501 before RLS runs. Tables in `expose` need the privileges listed there; other tables need `select` for authenticated, except tables with RLS on and no permissive policy under `blocks['grants'].options.fromPolicies`, which are service-only. Tables marked `serviceRole` in `tables` must have no grants for either role.",
     check: (context) => {
       const auto = context.configToml
         ? tomlGet(context.configToml.document, [
@@ -372,10 +372,8 @@ const OWN_RULES: readonly Rule[] = [
         }
 
         const serviceOnly =
-          context.config.blockNames.includes("data-api-grants") &&
-          context.config.blocks["data-api-grants"]?.options?.[
-            "fromPolicies"
-          ] === true &&
+          context.config.blockNames.includes("grants") &&
+          context.config.blocks["grants"]?.options?.["fromPolicies"] === true &&
           table.rls &&
           !table.policies.some(
             (policy) =>
@@ -402,7 +400,7 @@ const OWN_RULES: readonly Rule[] = [
 
           return [
             {
-              message: `${role} has no ${missing.join(", ")} on ${qualified(table)}, so the Data API answers 42501. Add it to \`expose\` and run \`better-supabase add data-api-grants\`, or run \`grant ${missing.join(", ")} on table ${qualified(table)} to ${role};\`.${note}`,
+              message: `${role} has no ${missing.join(", ")} on ${qualified(table)}, so the Data API answers 42501. Add it to \`expose\` and run \`better-supabase add grants\`, or run \`grant ${missing.join(", ")} on table ${qualified(table)} to ${role};\`.${note}`,
               target: `${qualified(table)}:${role}`,
               object: tableObject(table),
             },

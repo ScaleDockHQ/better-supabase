@@ -679,7 +679,7 @@ export const RECIPES: readonly RecipeSource[] = [
   {
     slug: "feature-flag-toggles",
     title: "Feature flags",
-    blocks: ["feature-flags"],
+    blocks: ["flags"],
     kind: "component",
     description:
       "Which feature flags are on for the active organization, read-only.",

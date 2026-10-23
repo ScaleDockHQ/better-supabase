@@ -430,7 +430,7 @@ Every hook is optional. A slot passed to a block directly wins over the hook.
 | `support.authorize`              | a support session start: `true` still needs a second approver, `{ approvedBy }` names one | [Support sessions](/docs/auth/impersonation)        |
 | `delivery.subscribers`           | which webhook endpoints, outbox consumers and realtime members may read an event          | [Outgoing webhooks](/docs/blocks/webhooks-out)      |
 | `delivery.audience`              | which notification recipients may read a notification                                     | [Notifications](/docs/blocks/notifications)         |
-| `identities.principalByIdentity` | the user or contact a verified email address or chat user links to                        | [Identities](/docs/blocks/linked-identities)        |
+| `identities.principalByIdentity` | the user or contact a verified email address or chat user links to                        | [Identities](/docs/blocks/identities)               |
 | `chat.onAction`                  | a button a linked chat user pressed, such as an approval                                  | [Chat SDK](/docs/chat-sdk)                          |
 | `approverOf`                     | whether a user may approve a request; the server side of `isApprover`                     | [Approvals](#approvals)                             |
 | `tickets.subject`                | the context an opaque run ticket stands for, for jobs and workflow steps                  | [Jobs](/docs/blocks/queue)                          |

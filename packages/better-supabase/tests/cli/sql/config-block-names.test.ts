@@ -58,7 +58,7 @@ describe("renameBlocksInSource", () => {
   auth: {
     authorization: { operations: { "work-items.create": "tasks.write" } },
   },
-  $env: { staging: { blocks: { flags: {} } }, other: "x" },
+  $env: { staging: { blocks: { actor: {} } }, other: "x" },
   $production: { blocks: { jobs: {} } },
   $test: "skip",
   preset: { blocks: "all" },
@@ -68,7 +68,7 @@ describe("renameBlocksInSource", () => {
     const next = textOf(renameBlocksInSource(source));
 
     expect(next).toContain('{ "tasks.create": "tasks.write" }');
-    expect(next).toContain('blocks: { "feature-flags": {} }');
+    expect(next).toContain('blocks: { "created-by": {} }');
     expect(next).toContain("blocks: { queue: {} }");
     expect(next).toContain('preset: { blocks: "all" }');
   });
@@ -109,12 +109,12 @@ describe("renameBlocksInConfig", () => {
       renameBlocksInConfig({
         blocks: { access: {}, comments: {} },
         auth: { authorization: { operations: { "work-items.create": "x" } } },
-        $test: { blocks: { flags: {} } },
+        $test: { blocks: { actor: {} } },
       }),
     ).toEqual({
       blocks: { permissions: {}, comments: {} },
       auth: { authorization: { operations: { "tasks.create": "x" } } },
-      $test: { blocks: { "feature-flags": {} } },
+      $test: { blocks: { "created-by": {} } },
     });
   });
 
@@ -153,8 +153,8 @@ describe("withBlockNames", () => {
   });
 
   it("renames a JSON config and keeps an unchanged one", () => {
-    expect(textOf(withBlockNames(ok('{"blocks":{"bulk":{}}}'), true))).toBe(
-      '{\n  "blocks": {\n    "bulk-actions": {}\n  }\n}\n',
+    expect(textOf(withBlockNames(ok('{"blocks":{"jobs":{}}}'), true))).toBe(
+      '{\n  "blocks": {\n    "queue": {}\n  }\n}\n',
     );
 
     const same = ok('{"blocks":{"comments":{}}}');
@@ -167,10 +167,10 @@ describe("withBlockNames", () => {
     expect(
       textOf(
         withBlockNames(
-          ok("export default defineConfig({ blocks: { passes: {} } });\n"),
+          ok("export default defineConfig({ blocks: { actor: {} } });\n"),
           false,
         ),
       ),
-    ).toContain('"admission-passes": {}');
+    ).toContain('"created-by": {}');
   });
 });

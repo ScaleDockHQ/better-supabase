@@ -671,7 +671,7 @@ export default defineConfig({
     rules: true,
   },
   auth: {
-    authorization: { operations: { "flags.manage": "owner", "audit.read": "admin" } },
+    authorization: { operations: { "jobs.manage": "owner", "audit.read": "admin" } },
   },
 });
 `;
@@ -686,7 +686,7 @@ export default defineConfig({
     automations: true,
   },
   auth: {
-    authorization: { operations: { "feature-flags.manage": "owner", "audit.read": "admin" } },
+    authorization: { operations: { "queue.manage": "owner", "audit.read": "admin" } },
   },
 });
 `);

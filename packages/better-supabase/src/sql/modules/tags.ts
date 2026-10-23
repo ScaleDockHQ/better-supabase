@@ -640,7 +640,7 @@ ${userGrant(`${ctx.fn("rank_tag")}(uuid, text)`)}
 }
 
 const CONTRIBUTES: BlockContributes = {
-  "bulk-actions": (own) => [
+  bulk: (own) => [
     {
       name: "tags.set",
       declare: "v_tag uuid;",

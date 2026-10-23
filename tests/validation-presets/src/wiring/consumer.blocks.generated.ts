@@ -6,7 +6,7 @@ import {
 } from "better-supabase/blocks";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { PushEvents } from "better-supabase/blocks/push";
-import { linkedIdentitiesBlock as linkedIdentitiesBlockInstance } from "better-supabase/blocks/linked-identities";
+import { identitiesBlock as identitiesBlockInstance } from "better-supabase/blocks/identities";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { pushBlock as pushBlockInstance } from "better-supabase/blocks/push";
@@ -17,7 +17,7 @@ import { pushBlock as pushBlockInstance } from "better-supabase/blocks/push";
  * and the options its SQL and TypeScript halves share.
  */
 export const blockConfig = {
-  "linked-identities": {
+  identities: {
     schema: "better_supabase",
     options: {},
   },
@@ -39,7 +39,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "session-revocation": {
+  sessions: {
     schema: "better_supabase",
     options: {},
   },
@@ -56,7 +56,7 @@ export const blockConfig = {
  * @public
  */
 export const blocks = {
-  "linked-identities": linkedIdentitiesBlockInstance,
+  identities: identitiesBlockInstance,
   notifications: notificationsBlockInstance,
   profiles: profilesBlockInstance,
   push: pushBlockInstance,

@@ -23,8 +23,8 @@ import type {
 } from "./context.ts";
 import type { BlockContributes } from "./contributions.ts";
 import type { DeclaredForeignKey } from "./foreign-keys.ts";
-import type { FunctionGrant, TableGrant } from "./modules/data-api-grants.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
+import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
 import type { JsonSchemaCheck } from "./shared.ts";
 
@@ -260,13 +260,13 @@ export interface BlockSqlLayout {
   readonly functionGrants?: readonly FunctionGrant[];
   /**
    * Grants the permissive policies in the schema files imply, for
-   * `blocks['data-api-grants'].options.fromPolicies`. Tables in `grants` keep
-   * their listed privileges.
+   * `blocks['grants'].options.fromPolicies`. Tables in `grants` keep their
+   * listed privileges.
    */
   readonly policyGrants?: readonly TableGrant[];
   /**
    * The tables the schema files create, for
-   * `blocks['session-revocation'].options.policies`.
+   * `blocks['sessions'].options.policies`.
    */
   readonly declaredTables?: readonly string[];
   /**

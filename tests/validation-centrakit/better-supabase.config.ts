@@ -492,9 +492,7 @@ export default defineConfig({
       },
     },
     "api-keys": { options: { scopes: "catalog" } },
-    "session-revocation": {
-      options: { policies: true, exclude: ["centrakit.roles"] },
-    },
+    sessions: { options: { policies: true, exclude: ["centrakit.roles"] } },
     "jsonb-schemas": {},
     settings: {
       options: {

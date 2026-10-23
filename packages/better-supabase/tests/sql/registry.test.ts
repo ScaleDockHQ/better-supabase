@@ -272,7 +272,7 @@ describe("renderBlocks", () => {
     expect(data("jsonb-schemas")).toContain(
       'create extension if not exists "pg_jsonschema" with schema "extensions";',
     );
-    expect(data("feature-flags")).toContain(
+    expect(data("flags")).toContain(
       'create extension if not exists "pgcrypto" with schema "extensions";',
     );
   });
@@ -497,9 +497,9 @@ describe("sameBlockFile", () => {
       "/project",
     );
 
-    const [file] = renderBlocks(["data-api-grants"], moduleLayout(config));
+    const [file] = renderBlocks(["grants"], moduleLayout(config));
     expect(file!.path).toBe(
-      "supabase/schemas/900_better_supabase_13_data_api_grants.sql",
+      "supabase/schemas/900_better_supabase_13_grants.sql",
     );
     expect(file!.contents).toContain(
       [
@@ -517,7 +517,7 @@ describe("sameBlockFile", () => {
       ].join("\n"),
     );
     expect(file!.contents).not.toContain('"reprice"(uuid) to');
-    expect(renderBlocks(["data-api-grants"])[0]!.contents).not.toContain(
+    expect(renderBlocks(["grants"])[0]!.contents).not.toContain(
       "config.expose",
     );
   });
@@ -572,14 +572,12 @@ describe("sameBlockFile", () => {
   it("writes the session policy on the declared tables except the excluded ones", () => {
     const layout = {
       modules: {
-        "session-revocation": {
-          options: { policies: true, exclude: ["public.audit_*"] },
-        },
+        sessions: { options: { policies: true, exclude: ["public.audit_*"] } },
       },
       declaredTables: ["public.invoices", "public.audit_log"],
     };
 
-    const [file] = renderBlocks(["session-revocation"], layout);
+    const [file] = renderBlocks(["sessions"], layout);
     expect(file!.contents).toContain(
       [
         'drop policy if exists bsb_session_active on "public"."invoices";',
@@ -591,14 +589,13 @@ describe("sameBlockFile", () => {
     );
     expect(file!.contents).not.toContain("audit_log");
     expect(
-      renderBlocks(["session-revocation"], {
-        declaredTables: ["public.invoices"],
-      })[0]!.contents,
+      renderBlocks(["sessions"], { declaredTables: ["public.invoices"] })[0]!
+        .contents,
     ).not.toContain("bsb_session_active");
   });
 
   it("writes a service-only last_sign_ins in the sessions module", () => {
-    const [file] = renderBlocks(["session-revocation"], {});
+    const [file] = renderBlocks(["sessions"], {});
     expect(file!.contents).toContain(
       "create or replace function better_supabase.last_sign_ins(p_users uuid[])\nreturns table (user_id uuid, last_sign_in_at timestamptz)",
     );
@@ -617,12 +614,12 @@ describe("sameBlockFile", () => {
     const config = resolveConfig(
       {
         database: { expose: { customers: ["select"] } },
-        blocks: { "data-api-grants": { options: { fromPolicies: true } } },
+        blocks: { grants: { options: { fromPolicies: true } } },
       },
       "/project",
     );
 
-    const [file] = renderBlocks(["data-api-grants"], {
+    const [file] = renderBlocks(["grants"], {
       ...moduleLayout(config),
       policyGrants: [
         {
@@ -639,7 +636,7 @@ describe("sameBlockFile", () => {
     });
 
     expect(file!.contents).toContain(
-      "-- config.expose and the policies (blocks['data-api-grants'].options.fromPolicies)",
+      "-- config.expose and the policies (blocks['grants'].options.fromPolicies)",
     );
     expect(file!.contents).toContain(
       'grant select on table "public"."customers" to authenticated;',
@@ -660,7 +657,7 @@ describe("sameBlockFile", () => {
     const config = resolveConfig(
       {
         database: { expose: { customers: ["select"] } },
-        blocks: { "data-api-grants": { options: { fromPolicies: true } } },
+        blocks: { grants: { options: { fromPolicies: true } } },
       },
       "/project",
     );
@@ -688,7 +685,7 @@ describe("sameBlockFile", () => {
       ],
     };
 
-    const [file] = renderBlocks(["data-api-grants"], layout);
+    const [file] = renderBlocks(["grants"], layout);
     expect(file!.contents).toContain(
       [
         'revoke all on table "public"."jobs" from public, anon, authenticated, service_role;',
@@ -701,7 +698,7 @@ describe("sameBlockFile", () => {
       'grant select, insert, update, delete on table "public"."notes" to authenticated',
     );
 
-    const [rlsOff] = renderBlocks(["data-api-grants"], {
+    const [rlsOff] = renderBlocks(["grants"], {
       ...layout,
       rlsTables: ["audit.entries"],
     });
@@ -709,7 +706,7 @@ describe("sameBlockFile", () => {
     expect(rlsOff!.contents).not.toContain('"public"."jobs"');
     expect(rlsOff!.contents).toContain('"audit"."entries"');
 
-    const [without] = renderBlocks(["data-api-grants"], {
+    const [without] = renderBlocks(["grants"], {
       ...moduleLayout(config),
       declaredTables: layout.declaredTables,
     });
@@ -736,9 +733,9 @@ describe("sameBlockFile", () => {
       "/project",
     );
 
-    expect(() =>
-      renderBlocks(["data-api-grants"], moduleLayout(config)),
-    ).toThrow(/is not a function signature/);
+    expect(() => renderBlocks(["grants"], moduleLayout(config))).toThrow(
+      /is not a function signature/,
+    );
   });
 
   it("writes a search function per vectorSearch table", () => {

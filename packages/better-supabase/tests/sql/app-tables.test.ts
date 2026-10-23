@@ -278,14 +278,12 @@ describe("appTables SQL", () => {
   });
 
   it("expects the session policy on the tables the sessions block covers", () => {
-    const [, test] = render(["session-revocation"], {
+    const [, test] = render(["sessions"], {
       scope: "user",
       appTables: TABLES,
       declaredTables: ["public.projects", "public.tasks"],
       modules: {
-        "session-revocation": {
-          options: { policies: true, exclude: ["public.tasks"] },
-        },
+        sessions: { options: { policies: true, exclude: ["public.tasks"] } },
       },
     });
 
@@ -551,7 +549,7 @@ describe("appTables SQL errors", () => {
   });
 
   it("renders app_table_set for the bulk action over subject tables", () => {
-    const schema = render([...BLOCKS, "permissions", "bulk-actions"], {
+    const schema = render([...BLOCKS, "permissions", "bulk"], {
       appTables: {
         tasks: {
           columns: {
