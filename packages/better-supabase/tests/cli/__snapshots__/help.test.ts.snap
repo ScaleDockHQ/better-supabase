@@ -950,11 +950,10 @@ Docs: https://bettersupabase.com/docs/cli/init#remove
 exports[`help > documents scaffold 1`] = `
 "Usage: better-supabase scaffold <command> [options]
 
-Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table
+Writes an API module and its routes for Hono or Next.js
 
 Commands
-  api      Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js
-  screens  Writes Next.js list, create and detail pages for an app table
+  api  Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js
 
 Global options
   --cwd <dir>            Project directory
@@ -1000,38 +999,6 @@ Global options
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/scaffold
-"
-`;
-
-exports[`help > documents scaffold screens 1`] = `
-"Usage: better-supabase scaffold screens [options] [table]
-
-Writes Next.js list, create and detail pages for an app table
-
-Arguments
-  [table]  The app table to write pages for
-
-Options
-  --framework <name>  next. Defaults to next when package.json lists it
-  --base-path <path>  The route the pages live under. Defaults to /<table>
-  --dry-run           Print what would change, with a diff, and write nothing
-  --check             Write nothing; exit 1 with a diff when a file would change
-  --force             Overwrite files the CLI did not generate
-
-Global options
-  --cwd <dir>            Project directory
-  --config <file>        Config file, relative to --cwd
-  --env <name>           Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
-  --json                 Print one JSON document on stdout; errors as Problem Details. On by default in agent mode
-  --agent <auto|yes|no>  Agent mode (JSON output, no prompts, consent for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
-  --confirm <token>      The token from a consent_required result, passed once the user agreed
-  -y, --yes              Ask nothing; use the flags and the defaults
-  --no-color             Print no colors, like $NO_COLOR
-  --debug                Print stack traces, the commands the CLI runs, and timings on stderr
-  -h, --help             Show help
-
-Side effects: Writes files.
-Docs: https://bettersupabase.com/docs/cli/scaffold#screens
 "
 `;
 
@@ -1267,7 +1234,7 @@ Set up
 Generate
   gen       Writes the typed client from the database, then every other generated file the config sets up
   spec      Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders
-  scaffold  Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table
+  scaffold  Writes an API module and its routes for Hono or Next.js
 
 Local stack
   dev  Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine

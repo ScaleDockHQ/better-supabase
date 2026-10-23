@@ -1,6 +1,6 @@
 ---
 title: scaffold
-description: Write an API module, a REST resource per table and an OpenAPI route for Hono or Next.js, or list, create and detail pages for an app table.
+description: Write an API module, a REST resource per table and an OpenAPI route for Hono or Next.js.
 ---
 
 `scaffold api` writes the files that serve your tables as REST
@@ -145,61 +145,3 @@ The command prints what is left to do:
 - Describe the resources in `lib/api.ts`. A later `scaffold api` only
   rewrites `api.generated.ts`, so run it again with a new `--tables` list
   to add or remove a table.
-
-## Screens
-
-`scaffold screens <table>` writes Next.js pages for one of your
-[app tables](/docs/blocks/app-tables): a list, a create form and a detail
-page. They read and write through the generated repository with `bsb` from
-`lib/supabase/server`, so the table's policies check every request.
-
-```bash
-pnpm better-supabase scaffold screens tasks
-pnpm better-supabase scaffold screens tasks --base-path "(app)/work/tasks"
-```
-
-`--base-path` is the route under `app/`, `/<table>` by default. Route
-groups such as `(app)` stay in the folder and leave the links; a dynamic
-segment such as `[locale]` is refused, so move the pages under one
-yourself.
-
-| File                    | What it does                                                                  |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| `<route>/page.tsx`      | The newest 100 rows of the caller's tenant (or user) in a table               |
-| `<route>/new/page.tsx`  | Loads the rows each reference picker lists, then renders the form             |
-| `<route>/form.tsx`      | The create form, a client component on `useActionState`                       |
-| `<route>/actions.ts`    | The Server Action that parses the form, creates the row and opens it          |
-| `<route>/[id]/page.tsx` | One row, or `notFound()` for an id that is malformed, missing or out of scope |
-| `<route>/show.ts`       | Turns a column value into text for the list and detail pages                  |
-
-Every file is written once. After that the command lists it as Skipped and
-leaves it alone, unless you pass `--force`.
-
-Each column gets the input its config calls for:
-
-| Column                                       | Input                                        |
-| -------------------------------------------- | -------------------------------------------- |
-| `text` with `options`                        | A select of the options                      |
-| `text` with `format` `email`, `url`, `phone` | An input of that type                        |
-| `text` with `format` `long_text`             | A textarea                                   |
-| A number type                                | A number input with `min` and `max`          |
-| `boolean`                                    | A checkbox                                   |
-| `date`                                       | A date input                                 |
-| `timestamptz`                                | A date and time input, with the string codec |
-| A reference to another app table             | A select of its rows, labelled by its title  |
-
-The form leaves out identity columns, columns with a function default
-(`now()`, `gen_random_uuid()`, `auth.uid()`), `jsonb` and `text[]`. The
-action converts each value to the type the [`codecs`](/docs/cli/config)
-generate and passes the tenant column itself.
-
-The command stops for a table it can't serve: one that isn't in
-`tables`, one with `scope: "none"` (only the service role writes it),
-and one with a required column the form has no input for. It also needs
-Next.js; pass `--framework next` when `package.json` doesn't list it.
-
-For search, filters, saved views, a board, a calendar or a timeline, start
-from the `record-*` [UI recipes](/docs/registry/ui-recipes#app-tables), which build
-the same screens on ReUI.
-
-Side effects: Writes files.

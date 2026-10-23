@@ -96,7 +96,8 @@ interface). Sections, record features and `sectionAction` go, replaced by
 one generated `records/<type>.ts` per record type (this supersedes ADR 0064).
 The per-framework block folders go; widget logic stays as headless
 controllers and the wrappers become registry items, which are the only UI
-path. `defineApi` includes every instance and table, oRPC becomes its
+path. The library writes no pages: `scaffold screens` goes, and an app builds
+its screens from the UI recipes and the data hooks. `defineApi` includes every instance and table, oRPC becomes its
 implementation, and the specs live under `better-supabase/spec`. Flows
 become default automations with one trigger (the outbox event), one action
 registry (ADR 0046) and one scheduler on the queue. Preset codes give way

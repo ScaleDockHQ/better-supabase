@@ -512,12 +512,11 @@ app table removes them. A table listed in `expose` keeps the grants
 
 ## Screens
 
-`better-supabase scaffold screens <table>` writes a list, a create form and
-a detail page for a table in Next.js, with an input per column from its
-type, format and options (see [scaffold](/docs/cli/scaffold#screens)). The
-`record-*` [UI recipes](/docs/registry/ui-recipes#app-tables) build richer screens on
-ReUI: a grid with saved views, a board, a calendar, a timeline and a Gantt
-chart.
+better-supabase writes no pages. Build a table's screens on its generated
+data hooks (`useTasks`, `useTask`, see [data hooks](/docs/frontend/data-hooks))
+and start from the `record-*` [UI recipes](/docs/registry/ui-recipes#app-tables),
+which build them on ReUI: a grid with saved views, a form, a board, a
+calendar, a timeline and a Gantt chart.
 
 ## Example
 

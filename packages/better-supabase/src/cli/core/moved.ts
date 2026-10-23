@@ -6,6 +6,18 @@ interface MovedCommand {
   readonly to: readonly string[];
 }
 
+/** Commands removed in 0.15, with what replaces them. */
+const REMOVED_COMMANDS: readonly {
+  readonly path: readonly string[];
+  readonly replacement: string;
+}[] = [
+  {
+    path: ["scaffold", "screens"],
+    replacement:
+      "better-supabase writes no pages. Build them on the generated data hooks and the record-* UI recipes: https://bettersupabase.com/docs/registry/ui-recipes#app-tables",
+  },
+];
+
 /** Commands renamed in 0.9 and folded in 0.15, longest prefix first. */
 const MOVED_COMMANDS: readonly MovedCommand[] = [
   { from: ["openapi", "emit"], to: ["spec", "emit", "openapi"] },
@@ -152,6 +164,15 @@ export function movedCommand(
   argv: readonly string[],
   bin = "better-supabase",
 ): CliError | undefined {
+  for (const removed of REMOVED_COMMANDS) {
+    if (withoutPrefix(argv, removed.path)) {
+      return new CliError(
+        "unknown_command",
+        `"${removed.path.join(" ")}" was removed in 0.15. ${removed.replacement}`,
+      );
+    }
+  }
+
   for (const moved of MOVED_COMMANDS) {
     const rest = withoutPrefix(argv, moved.from);
 

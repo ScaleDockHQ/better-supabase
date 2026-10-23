@@ -298,8 +298,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   },
   {
     name: "scaffold",
-    description:
-      "Writes an API module and its routes for Hono or Next.js, or list, create and detail pages for an app table",
+    description: "Writes an API module and its routes for Hono or Next.js",
     group: "generate",
     docs: "/docs/cli/scaffold",
     effects: [FILES],
@@ -309,13 +308,6 @@ export const COMMANDS: readonly CommandSpec[] = [
         description:
           "Writes an API module, its resource routes and an OpenAPI route for Hono or Next.js",
         docs: "/docs/cli/scaffold",
-        effects: [FILES],
-      },
-      {
-        name: "screens",
-        description:
-          "Writes Next.js list, create and detail pages for an app table",
-        docs: "/docs/cli/scaffold#screens",
         effects: [FILES],
       },
     ],

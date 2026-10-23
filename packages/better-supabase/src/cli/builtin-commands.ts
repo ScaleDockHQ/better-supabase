@@ -55,11 +55,6 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "scaffold api",
     () => import("./commands/scaffold.ts").then((m) => m.scaffoldApiCommand),
   ],
-  [
-    "scaffold screens",
-    () =>
-      import("./commands/scaffold.ts").then((m) => m.scaffoldScreensCommand),
-  ],
   ["mcp", () => import("./commands/mcp.ts").then((m) => m.mcpCommand)],
   [
     "skills list",

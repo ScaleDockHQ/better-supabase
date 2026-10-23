@@ -511,6 +511,15 @@ const { state } = useBlockController(createOnboardingController, {
 
 See [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid).
 
+## `scaffold screens` is removed
+
+better-supabase no longer writes pages. The files an earlier
+`scaffold screens` wrote are yours and keep working. For new screens, use the
+table's generated data hooks (`useTasks`, `useTask`) and start from the
+`record-*` [UI recipes](/docs/registry/ui-recipes#app-tables). Running
+`bsb scaffold screens` now exits with a message that points there.
+`scaffold api` is unchanged.
+
 ## Doctor finds what is left
 
 `better-supabase doctor` reports BS418 for app code that still imports a
