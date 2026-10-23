@@ -1,37 +1,68 @@
 ---
-title: expo-sqlite
-description: The same repositories over a local expo-sqlite database, without PowerSync.
+title: SQLite
+description: The data hooks and the repositories on a local Expo SQLite or Supabase Lite database, without PowerSync.
 ---
 
-```ts title="src/lib/local.ts"
+```ts title="src/lib/supabase/client.native.ts"
 import { addDatabaseChangeListener, openDatabaseAsync } from "expo-sqlite";
-import { expoSqliteExecutor } from "better-supabase/expo-sqlite";
-import { betterSupabase } from "./supabase";
+import { createNativeClient } from "better-supabase/client/native";
+import { expoSqliteDatabase, sqliteEngine } from "better-supabase/sqlite";
+import { betterSupabase } from "./index";
 
 const sqlite = await openDatabaseAsync("app.db", {
   enableChangeListener: true,
 });
 
-export const local = betterSupabase.connect(
-  expoSqliteExecutor(sqlite, { addDatabaseChangeListener }),
-);
-
-const drafts = await local.notes
-  .list({ where: { status: "draft" }, orderBy: { updatedAt: "desc" } })
-  .orThrow();
+export const bsb = createNativeClient(betterSupabase, supabase, {
+  engine: sqliteEngine(
+    expoSqliteDatabase(sqlite, { addDatabaseChangeListener }),
+    { local: ["notes"] },
+  ),
+});
 ```
 
-`expoSqliteExecutor(db)` runs repository calls on a database the app owns,
-with the same SQLite compiler as [PowerSync](/docs/repository/powersync).
-Use it for drafts, caches and settings that never sync, or for an app that
-syncs on its own schedule. The app creates the tables (with the database
-column names) before the first call. `expo-sqlite` is not a dependency: the
-executor reads `getAllAsync`, `runAsync` and `withTransactionAsync` from the
-database it gets.
+`sqliteEngine(database)` runs `bsb.db` and the [data hooks](/docs/frontend/data-hooks)
+on a SQLite database the app owns, with the same SQLite compiler as
+[PowerSync](/docs/repository/powersync). Use it for drafts, caches and
+settings that never sync, or for an app that syncs on its own schedule. The
+app creates the tables (with the database column names) before the first
+call. `local` lists the tables the database holds; `bsb.db` reads and writes
+every other table on the server. Leave it out to run every table locally.
 
-Writes run in `withExclusiveTransactionAsync` on iOS and Android, so other
-queries on the same database can't see a half-done write, and in
-`withTransactionAsync` on web. An insert without a text or uuid key gets
+```tsx title="app/drafts.tsx"
+import { useNotes } from "@/lib/supabase/hooks";
+
+export function Drafts() {
+  const drafts = useNotes({
+    where: { status: "draft" },
+    orderBy: { updatedAt: "desc" },
+  });
+  // ...
+}
+```
+
+The hooks read the database once and again after each change to the table
+they read. With Expo SQLite, open the database with `enableChangeListener:
+true` and pass `addDatabaseChangeListener`; changes from another open
+database file are ignored, and events arrive in batches of at most one every
+30 ms (`throttleMs` changes that). A database without change events, such as
+Supabase Lite, reads again after each write `bsb.db` makes. Writes through
+the hooks apply to the cached lists first and roll back on an error.
+
+## Databases
+
+| Database                                                   | Adapter                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------- |
+| Expo SQLite (`openDatabaseAsync`)                          | `expoSqliteDatabase(db, { addDatabaseChangeListener })` |
+| Supabase Lite (a connection with `exec`)                   | `liteDatabase(connection)`                              |
+| A database with `getAll`, `execute` and `writeTransaction` | pass it as it is                                        |
+
+Neither `expo-sqlite` nor `@supabase/lite` is a dependency: the adapters read
+`getAllAsync`, `runAsync` and `withTransactionAsync`, or `exec`, from the
+database they get. Expo writes run in `withExclusiveTransactionAsync` on iOS
+and Android, so other queries on the same database can't see a half-done
+write, and in `withTransactionAsync` on web. Lite writes run one at a time
+between `begin` and `commit`. An insert without a text or uuid key gets
 `crypto.randomUUID()`, or a UUID from SQLite's `randomblob` when Hermes has
 no `crypto`.
 
@@ -39,32 +70,8 @@ no `crypto`.
 
 Everything the PowerSync page lists runs the same way, and the same features
 return a `DbError` of kind `unsupported`: full-text search and function
-sources. Includes and related counts run locally. `checkSqlite` from
-`better-supabase/expo-sqlite` checks a list definition or a query spec in a
-test.
-
-## Live queries
-
-Pass `addDatabaseChangeListener` and open the database with
-`enableChangeListener: true`. Then `watch()` from the same subpath, and
-`useWatch()` from `better-supabase/powersync/react`, rerun a call when one of
-its tables changes:
-
-```tsx title="app/drafts.tsx"
-import { useWatch } from "better-supabase/powersync/react";
-import { expoSqliteDatabase } from "better-supabase/expo-sqlite";
-
-const database = expoSqliteDatabase(sqlite, { addDatabaseChangeListener });
-
-export function Drafts() {
-  const drafts = useWatch({
-    db: database,
-    tables: ["notes"],
-    query: () => local.notes.list({ where: { status: "draft" } }),
-  });
-  // ...
-}
-```
-
-Changes to another open database file are ignored. Events arrive in batches
-of at most one every 30 ms; `throttleMs` changes that.
+sources. By default those reads and `db.$rpc` go to the client's PostgREST
+executor; pass `fallback: false` to keep every call local, or another
+executor as `fallback`. Includes and related counts run locally.
+`checkSqlite` from `better-supabase/sqlite` checks a list definition or a
+query spec in a test.

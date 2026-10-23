@@ -310,7 +310,7 @@ The other SQL modules (`updated-at`, `actor`, `rate-limit`, `impersonation` and 
 | Frameworks | Next.js 16, Hono, oRPC, Expo Router, TanStack Start, SvelteKit, React Router, H3 and Nitro, Nuxt, Elysia, Node (`node:http`, Express, Fastify, Koa), NestJS, Astro, SolidStart, Supabase Edge Functions, MCP servers |
 | Runtimes   | Node.js, Deno, Bun, Cloudflare Workers, Vercel Functions, Supabase Edge                                                                                                                                              |
 | Frontend   | React 19, React Native and Expo, Vue, Solid, Svelte 5, TanStack Query 5, TanStack DB, live queries over Realtime                                                                                                     |
-| Local data | PowerSync, expo-sqlite                                                                                                                                                                                               |
+| Local data | PowerSync, Expo SQLite, Lite                                                                                                                                                                                         |
 | AI         | AI SDK, Chat SDK, eve, Workflow SDK, MCP                                                                                                                                                                             |
 | Validation | Zod, Valibot and any Standard Schema                                                                                                                                                                                 |
 | Standards  | OpenAPI 3.0 to 3.2, AsyncAPI 3, Arazzo 1, RFC 9457, OpenTelemetry, CloudEvents, Standard Webhooks, MCP                                                                                                               |
@@ -354,18 +354,17 @@ The package has one entry per feature, so an app only loads what it imports. Eve
 
 ### Frontend and local data
 
-| Import                                          | What it gives you                                                                              |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `better-supabase/client`                        | Browser repositories that follow the session                                                   |
-| `better-supabase/client/native`                 | The same for React Native, without `@supabase/ssr`, and keychain storage                       |
-| `better-supabase/react`                         | Provider, typed hooks and the server session                                                   |
-| `better-supabase/react/native`                  | OAuth, auth deep links, a protected route hook and `AuthGate` for Expo                         |
-| `better-supabase/query`                         | TanStack Query options with table-based invalidation                                           |
-| `better-supabase/tanstack-db`                   | TanStack DB collections that load through a query and write through the repositories           |
-| `better-supabase/tanstack-db/supabase`          | TanStack DB collections on `@supabase-labs/tanstack-db`, with Realtime and repository writes   |
-| `better-supabase/vue`, `/solid`, `/svelte`      | Live queries, presence, actions and the session for Vue, Solid and Svelte 5                    |
-| `better-supabase/powersync`, `/powersync/react` | The repositories over PowerSync's local SQLite, `useWatch`, `useSyncStatus` and `useConflicts` |
-| `better-supabase/expo-sqlite`                   | The same repositories over a local expo-sqlite database, with live queries                     |
+| Import                                     | What it gives you                                                                         |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `better-supabase/client`                   | Browser repositories that follow the session                                              |
+| `better-supabase/client/native`            | The same for React Native, without `@supabase/ssr`, and keychain storage                  |
+| `better-supabase/react`                    | Provider, typed hooks and the server session                                              |
+| `better-supabase/react/native`             | OAuth, auth deep links, a protected route hook and `AuthGate` for Expo                    |
+| `better-supabase/query`                    | TanStack Query options with table-based invalidation                                      |
+| `better-supabase/tanstack-db`              | TanStack DB collections over a query, and `tanstackDbEngine` for the data hooks           |
+| `better-supabase/vue`, `/solid`, `/svelte` | Live queries, presence, actions and the session for Vue, Solid and Svelte 5               |
+| `better-supabase/powersync`                | `powersyncEngine`: the data hooks and repositories on PowerSync, and the upload connector |
+| `better-supabase/sqlite`                   | `sqliteEngine`: the data hooks and repositories on Expo SQLite or Supabase Lite           |
 
 ### Server adapters
 

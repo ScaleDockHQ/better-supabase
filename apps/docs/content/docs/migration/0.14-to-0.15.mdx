@@ -588,12 +588,45 @@ adapters with a smoke test. Nothing is removed and no import changes; see
 [adapter tiers](/docs/frameworks#adapter-tiers) before you pick one for a new
 app.
 
+## Local-first runs on engines
+
+PowerSync, SQLite and TanStack DB are engines behind the generated data
+hooks, so a native screen reads `useCustomers(...)` like a web screen. Pass
+the engine to the client:
+
+```ts title="src/lib/supabase/client.native.ts"
+import { powersyncEngine } from "better-supabase/powersync";
+
+export const bsb = createNativeClient(betterSupabase, supabase, {
+  engine: powersyncEngine(powersync, { connector, local: ["customers"] }),
+});
+```
+
+`bsb.db` then runs on the device database for the tables in `local` and on
+PostgREST for the rest. The upload connector replays through a client
+without the engine, `bindClient(betterSupabase, supabase)`.
+
+| 0.14                                                              | 0.15                                                                                 |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `watch(powersync, query, { tables: sqliteTables(...) })`          | a generated hook on `powersyncEngine`                                                |
+| `useWatch` from `better-supabase/powersync/react`                 | a generated hook, or `defineDataHooks` for a list definition                         |
+| `useSyncStatus(db)`, `useConflicts(connector)`                    | `useSyncStatus()`, `useConflicts()` from `better-supabase/react`                     |
+| `betterSupabase.connect(powersyncExecutor(powersync))` as `local` | `bsb.db` with `powersyncEngine`                                                      |
+| `better-supabase/expo-sqlite`, `expoSqliteExecutor`               | `sqliteEngine(expoSqliteDatabase(db))` from `better-supabase/sqlite`                 |
+| `supabaseCollection` from `better-supabase/tanstack-db/supabase`  | `collectionOptions` and `tanstackDbEngine` from `better-supabase/tanstack-db`        |
+| `realtime: true` on a collection                                  | `live: realtimeChanges(betterSupabase, supabase)` on `memoryEngine` or `queryEngine` |
+
+`@supabase-labs/tanstack-db` is no longer a peer. `where` on every hook and
+repository also takes a filter tree from a list query or a saved view. See
+[Data hooks](/docs/frontend/data-hooks#engines),
+[PowerSync](/docs/repository/powersync) and [SQLite](/docs/repository/sqlite).
+
 ## Doctor finds what is left
 
 `better-supabase doctor` reports BS418 for app code that still imports a
 renamed block subpath or plugin subpath, an export named after a renamed
 block, a spec subpath, a `blockRouter` call, or a record feature, leases
-maintenance or pass credit API that 0.15 removed. A config key that moved fails to load with its new place, so after
+maintenance, pass credit or local-first API that 0.15 removed. A config key that moved fails to load with its new place, so after
 the codemod a clean doctor run means nothing from 0.14 is left.
 
 ## Upgrade order

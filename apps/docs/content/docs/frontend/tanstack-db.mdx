@@ -1,73 +1,13 @@
 ---
 title: TanStack DB
-description: TanStack DB collections that load through a query or through @supabase-labs/tanstack-db, and write through the repositories.
+description: TanStack DB collections that load through a query option and write through the repositories, next to the data hooks.
 ---
 
-better-supabase has two ways to build a TanStack DB collection.
-`better-supabase/tanstack-db/supabase` wraps Supabase's
-[`@supabase-labs/tanstack-db`](https://www.npmjs.com/package/@supabase-labs/tanstack-db):
-live queries load on demand through PostgREST and Realtime keeps them
-current. `better-supabase/tanstack-db` loads a collection through one of
-your [query options](/docs/frontend/query) instead and needs no other
-package.
-
-## With @supabase-labs/tanstack-db
-
-```bash
-pnpm add @supabase-labs/tanstack-db @tanstack/react-db
-```
-
-```ts title="src/lib/collections.ts"
-import { createCollection } from "@tanstack/react-db";
-import { supabaseCollection } from "better-supabase/tanstack-db/supabase";
-import { customersRow } from "./supabase/generated.standard";
-import { betterSupabase } from "./supabase";
-import { db, supabase } from "./client";
-
-export const customers = createCollection(
-  supabaseCollection(betterSupabase, supabase, "customers", {
-    schema: customersRow,
-    db,
-    realtime: true,
-  }),
-);
-```
-
-`supabaseCollection(betterSupabase, supabase, table, options)` calls
-`supabaseCollectionOptions()` with the table's database name and primary
-key, then replaces its write handlers. `schema` is any Standard Schema for
-the row: the `standardSchema()`, `zod()` or `valibot()` generator output
-works. `realtime: true` subscribes to `postgres_changes` on the table, and
-`realtimeUseFilter: true` narrows that subscription to each live query's
-filter. Pass `queryClient` to share one with the rest of the app.
-
-Inserts, updates and deletes run `create`, `update` and `delete` on the
-table's repository, so RLS, hooks, events and plugins apply, and a failed
-write throws a `DbException` that rolls the optimistic change back. The row
-the repository returns goes straight into the collection. Tables with
-[codec](/docs/concepts/temporal) columns refetch instead, because the
-repository decodes values that the synced rows keep raw. Pass
-`writes: "direct"` (and no `db`) to keep the package's own handlers, which
-write through the supabase client.
-
-Rows keep the configured casing. With `casing: "camel"`,
-`supabaseCollection()` renames filters, sort columns, request bodies and
-Realtime payloads between app names and column names, so live queries and
-`schema` use `organizationId` while PostgREST sees `organization_id`.
-Requests and Realtime listeners run in the table's own schema, so a table
-in `better_supabase` or another exposed schema works the same as one in
-`public`.
-
-For Realtime, add each table to the publication in a migration:
-
-```sql title="supabase/schemas/realtime.sql"
-alter publication supabase_realtime add table public.customers;
-```
-
-Delete events carry the replica identity of the deleted row, so the table
-needs a primary key or `replica identity full`.
-[`doctor`](/docs/cli/doctor#bs306) reports a published table whose delete
-events carry no keys as BS306.
+`better-supabase/tanstack-db` builds TanStack DB collections that load
+through one of your [query options](/docs/frontend/query) and write through
+the repositories, and `tanstackDbEngine` keeps the
+[data hooks](/docs/frontend/data-hooks) in step with them. TanStack DB is
+not a dependency: the options are typed by shape.
 
 ## Through a query option
 
@@ -91,8 +31,7 @@ export const customers = createCollection(
 `collectionOptions(betterSupabase, db, table, options)` returns the options
 `queryCollectionOptions()` reads. The collection loads its rows with the
 [query option](/docs/frontend/query) you pass and keys them by the table's
-primary key (a JSON array for a composite key). TanStack DB is not a
-dependency: the options are typed by shape.
+primary key (a JSON array for a composite key).
 
 ## Writes
 
@@ -105,8 +44,50 @@ the other queries that read the table, call
 `invalidateOnMutation(betterSupabase, queryClient)` from
 `better-supabase/query` once at startup.
 
+## With the data hooks
+
+`tanstackDbEngine` runs the generated hooks next to the collections: a change
+to a collection (an optimistic write, a refetch) reads every hook on that
+table again, and a hook's write refetches the table's collection, so live
+queries and hooks show the same rows.
+
+```ts title="src/lib/client.ts"
+import { createClient } from "better-supabase/client";
+import { queryEngine } from "better-supabase/query";
+import { realtimeChanges } from "better-supabase/realtime";
+import { tanstackDbEngine } from "better-supabase/tanstack-db";
+import { customers } from "./collections";
+
+export const bsb = createClient(betterSupabase, {
+  engine: tanstackDbEngine({
+    collections: () => ({ customers }),
+    cache: queryEngine(queryClient, {
+      live: realtimeChanges(betterSupabase, supabase),
+    }),
+  }),
+});
+```
+
+`collections` is a function here because the collections read `bsb.db`; the
+engine calls it when a hook first follows a read. `cache` decides where the
+hooks keep their reads, in memory by default.
+
 ## Live queries
 
-Join and filter collections with TanStack DB's `useLiveQuery`. To refresh a
-collection when another client changes the table, invalidate its tables
-from a realtime subscription with `invalidateTables(queryClient, ["customers"])`.
+Join and filter collections with TanStack DB's `useLiveQuery`. To refresh
+them when another client changes a table, pass
+`live: realtimeChanges(betterSupabase, supabase)` from
+`better-supabase/realtime` to the engine's `cache`, as above, or invalidate
+the tables from your own subscription with
+`invalidateTables(queryClient, ["customers"])`.
+
+For Realtime, add each table to the publication in a migration:
+
+```sql title="supabase/schemas/realtime.sql"
+alter publication supabase_realtime add table public.customers;
+```
+
+Delete events carry the replica identity of the deleted row, so the table
+needs a primary key or `replica identity full`.
+[`doctor`](/docs/cli/doctor#bs306) reports a published table whose delete
+events carry no keys as BS306.
