@@ -56,22 +56,25 @@ example) also reads as the default, so old rows never break a page.
 `createSettings` takes the definition as `settings` and returns typed
 `get`, `set` and `reset` methods for each scope:
 
-```ts title="app/settings/actions.ts"
-import { createSettings, rpcTransport } from "better-supabase/blocks/settings";
+Server code calls the `settings` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import { settings } from "@/lib/settings";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSettings } = defineDataHooks(
+  "settings",
+  (db: AppDb) => db.settings,
+);
+```
 
-const client = createSettings({
-  settings,
-  transport: rpcTransport(supabase, { schema: "api" }),
-});
+```ts
+const rows = await db.settings.list({ limit: 50 }).orThrow();
+```
 
-const theme = await client.getUser("theme").orThrow(); // "light" | "dark" | "system"
-await client.setUser("theme", "dark").orThrow();
-await client.resetUser("theme"); // back to the default
+```tsx title="src/features/settings/list.tsx"
+"use client";
 
-const all = await client.getOrganization(organizationId).orThrow();
-await client.setOrganization(organizationId, "defaultRole", "viewer");
+import { useSettings } from "@/lib/supabase/hooks";
+
+const rows = useSettings({ limit: 50 });
 ```
 
 With [`defineBlocks`](/docs/blocks/create-blocks), pass the definition
@@ -318,3 +321,25 @@ validated in TypeScript only.
 | ---------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | `schemas`  | none                                                       | A `defineSettings()` result or `{ user, organization, platform }` JSON Schemas |
 | `platform` | `{ permission: "settings.manage", read: "authenticated" }` | The permission and read rule of platform keys that don't set their own         |
+
+## Without the client
+
+`db.settings` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/settings/actions.ts"
+import { createSettings, rpcTransport } from "better-supabase/blocks/settings";
+
+import { settings } from "@/lib/settings";
+
+const client = createSettings({
+  settings,
+  transport: rpcTransport(supabase, { schema: "api" }),
+});
+
+const theme = await client.getUser("theme").orThrow(); // "light" | "dark" | "system"
+await client.setUser("theme", "dark").orThrow();
+await client.resetUser("theme"); // back to the default
+
+const all = await client.getOrganization(organizationId).orThrow();
+await client.setOrganization(organizationId, "defaultRole", "viewer");
+```

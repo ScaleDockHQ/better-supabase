@@ -9,13 +9,25 @@ description: Allowed status transitions as the caller, a history row, status eve
 better-supabase add state-machine
 ```
 
-```ts
-import { createStateMachine } from "better-supabase/blocks/state-machine";
+Server code calls the `state-machine` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const machine = createStateMachine<"quote">({ transport });
-await machine
-  .transition({ type: "quote", id: quoteId }, "sent", "ready for the client")
-  .orThrow();
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useStateMachine } = defineDataHooks(
+  "stateMachine",
+  (db: AppDb) => db.stateMachine,
+);
+```
+
+```ts
+const rows = await db.stateMachine.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/state-machine/list.tsx"
+"use client";
+
+import { useStateMachine } from "@/lib/supabase/hooks";
+
+const rows = useStateMachine({ limit: 50 });
 ```
 
 `options.machines` names each subject table, its status column, the initial status and the allowed edges. A trigger on that table runs the check, writes the history row and records `status.changed`, so a direct update or a board move into another status emits the event too, and an update that keeps the status emits nothing. The machine name is the `subjectType` of the history row and the events, so name a machine after its subject (`deal`, `task`) when watchers or comments use the same subject type.
@@ -150,3 +162,16 @@ A machine with `lifecycle: true` needs a lifecycles table with the columns of `s
 `createStateMachine` takes `hooks` around its methods, such as a rule before
 `transition` that returns a `DbError` to refuse the call; see
 [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.stateMachine` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createStateMachine } from "better-supabase/blocks/state-machine";
+
+const machine = createStateMachine<"quote">({ transport });
+await machine
+  .transition({ type: "quote", id: quoteId }, "sent", "ready for the client")
+  .orThrow();
+```

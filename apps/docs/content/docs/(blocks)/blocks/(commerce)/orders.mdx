@@ -16,19 +16,25 @@ records fulfillments, returns, refunds and the invoice.
 better-supabase add orders
 ```
 
-```ts title="lib/orders.ts"
-import { fixedRates, stripePayments } from "better-supabase/commerce";
-import { createOrders, sqlTransport } from "better-supabase/blocks/orders";
+Server code calls the `orders` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const orders = createOrders({
-  transport: sqlTransport(ctx.postgres),
-  service: sqlTransport(servicePostgres),
-  payments: stripePayments({
-    stripe: { secretKey: env.STRIPE_SECRET_KEY },
-    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
-  }),
-  tax: fixedRates({ rates: { NL: { standard: "0.21" } } }),
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useOrders } = defineDataHooks(
+  "orders",
+  (db: AppDb) => db.orders,
+);
+```
+
+```ts
+const rows = await db.orders.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/orders/list.tsx"
+"use client";
+
+import { useOrders } from "@/lib/supabase/hooks";
+
+const rows = useOrders({ limit: 50 });
 ```
 
 The module needs `tenant`, `permissions` and `catalog`. It uses `inventory` for
@@ -356,3 +362,22 @@ Orders doesn't export e-invoices (EN 16931), issue credit notes, sell
 subscriptions or license keys for digital goods, or handle B2B quotes and
 purchase orders from customers. Adopt mode, which maps the tables to
 existing ones, isn't available yet.
+
+## Without the client
+
+`db.orders` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/orders.ts"
+import { fixedRates, stripePayments } from "better-supabase/commerce";
+import { createOrders, sqlTransport } from "better-supabase/blocks/orders";
+
+export const orders = createOrders({
+  transport: sqlTransport(ctx.postgres),
+  service: sqlTransport(servicePostgres),
+  payments: stripePayments({
+    stripe: { secretKey: env.STRIPE_SECRET_KEY },
+    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+  }),
+  tax: fixedRates({ rates: { NL: { standard: "0.21" } } }),
+});
+```

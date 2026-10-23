@@ -13,12 +13,20 @@ better-supabase add invoices
 
 The module needs `tenant`, `permissions` and `subjects`.
 
+Server code calls the `invoices` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useInvoices } = defineDataHooks(
+  "invoices",
+  (db: AppDb) => db.invoices,
+);
+```
+
 ```ts
 import { createInvoices } from "better-supabase/blocks/invoices";
 import { money } from "better-supabase/commerce";
 
-const invoices = createInvoices({ transport });
-const draft = await invoices
+const draft = await db.invoices
   .create(
     organizationId,
     { title: "October support", company: { type: "company", id: acmeId } },
@@ -32,13 +40,21 @@ const draft = await invoices
     ],
   )
   .orThrow();
-const invoice = await invoices.issue(draft.id).orThrow(); // INV-1, due in 30 days
-await invoices
+const invoice = await db.invoices.issue(draft.id).orThrow(); // INV-1, due in 30 days
+await db.invoices
   .recordPayment(invoice.id, {
     amount: money(137_940n, "EUR"),
     reference: "bank-2026-10-21-1",
   })
   .orThrow();
+```
+
+```tsx title="src/features/invoices/list.tsx"
+"use client";
+
+import { useInvoices } from "@/lib/supabase/hooks";
+
+const rows = useInvoices({ limit: 50 });
 ```
 
 ## Your own fields
@@ -143,3 +159,35 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 | `CURRENCY_MISMATCH`          | a line, credit or payment isn't in the record's currency; returned before any database call |
 | `CURRENCY_INVALID`           | the currency isn't an ISO 4217 code                                                         |
 | `LINES_CURRENCY`             | a line sent straight to SQL isn't in the record's currency                                  |
+
+## Without the client
+
+`db.invoices` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createInvoices } from "better-supabase/blocks/invoices";
+import { money } from "better-supabase/commerce";
+
+const invoices = createInvoices({ transport });
+const draft = await invoices
+  .create(
+    organizationId,
+    { title: "October support", company: { type: "company", id: acmeId } },
+    [
+      {
+        description: "Support hours",
+        quantity: 12,
+        unitAmount: money(9_500n, "EUR"),
+        taxRateBps: 2100,
+      },
+    ],
+  )
+  .orThrow();
+const invoice = await invoices.issue(draft.id).orThrow(); // INV-1, due in 30 days
+await invoices
+  .recordPayment(invoice.id, {
+    amount: money(137_940n, "EUR"),
+    reference: "bank-2026-10-21-1",
+  })
+  .orThrow();
+```

@@ -13,27 +13,43 @@ better-supabase add contacts
 
 The module needs `memberships` and `access`.
 
+Server code calls the `contacts` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useContacts } = defineDataHooks(
+  "contacts",
+  (db: AppDb) => db.contacts,
+);
+```
+
 ```ts
 import { createContacts } from "better-supabase/blocks/contacts";
 
-const parties = createContacts({ transport });
-const acme = await parties
+const acme = await db.contacts
   .saveCompany(organizationId, {
     name: "Acme",
     domain: "acme.com",
     ownerId: userId,
   })
   .orThrow();
-const ada = await parties
+const ada = await db.contacts
   .savePerson(organizationId, {
     name: "Ada Lovelace",
     email: "ada@acme.com",
     title: "CTO",
   })
   .orThrow();
-await parties
+await db.contacts
   .linkPerson(acme.id, ada.id, { role: "Champion", primary: true })
   .orThrow();
+```
+
+```tsx title="src/features/contacts/list.tsx"
+"use client";
+
+import { useContacts } from "@/lib/supabase/hooks";
+
+const rows = useContacts({ limit: 50 });
 ```
 
 ## Companies and people
@@ -154,3 +170,30 @@ The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filter
 | `PARTY_EMAIL_TAKEN`       | another active person has the email                               |
 | `PARTY_NOT_FOUND`         | no such record                                                    |
 | `PARTY_MERGE_INVALID`     | the records can't be merged                                       |
+
+## Without the client
+
+`db.contacts` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createContacts } from "better-supabase/blocks/contacts";
+
+const parties = createContacts({ transport });
+const acme = await parties
+  .saveCompany(organizationId, {
+    name: "Acme",
+    domain: "acme.com",
+    ownerId: userId,
+  })
+  .orThrow();
+const ada = await parties
+  .savePerson(organizationId, {
+    name: "Ada Lovelace",
+    email: "ada@acme.com",
+    title: "CTO",
+  })
+  .orThrow();
+await parties
+  .linkPerson(acme.id, ada.id, { role: "Champion", primary: true })
+  .orThrow();
+```

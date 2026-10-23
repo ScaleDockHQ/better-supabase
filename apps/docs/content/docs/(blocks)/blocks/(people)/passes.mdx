@@ -37,12 +37,27 @@ passes with the nonce; members with `passes.read` list the organization's.
 
 ## Issue a pass
 
-```ts
-const passes = createPasses({ transport, tenant: organizationId });
+Server code calls the `passes` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const ticket = await passes
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: usePasses } = defineDataHooks(
+  "passes",
+  (db: AppDb) => db.passes,
+);
+```
+
+```ts
+const ticket = await db.passes
   .issue({ bookingId, holderUserId: userId, holderName: "Jane" })
   .orThrow();
+```
+
+```tsx title="src/features/passes/list.tsx"
+"use client";
+
+import { usePasses } from "@/lib/supabase/hooks";
+
+const rows = usePasses({ limit: 50 });
 ```
 
 A pass for a booking is a ticket: it is valid until the booking ends and
@@ -223,3 +238,15 @@ for the booking and scan that: scanning the pack itself counts as another use.
 `pass.issued` and `pass.revoked`, `pass.admitted` and `pass.rejected` for
 every scan, and `pass.credit_used` and `pass.credit_refunded` for class
 credits. The [events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.passes` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const passes = createPasses({ transport, tenant: organizationId });
+
+const ticket = await passes
+  .issue({ bookingId, holderUserId: userId, holderName: "Jane" })
+  .orThrow();
+```

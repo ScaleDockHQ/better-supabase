@@ -26,36 +26,25 @@ and `push.device_unregistered`.
 
 ## Register the device
 
-```tsx title="app/_layout.tsx"
-import * as Notifications from "expo-notifications";
-import Constants from "expo-constants";
-import { Platform } from "react-native";
-import {
-  createPush,
-  registerDevice,
-  rpcTransport,
-  unregisterOnSignOut,
-} from "better-supabase/blocks/push";
+Server code calls the `push` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const devices = createPush({ transport: rpcTransport(supabase) });
-let token: string | undefined;
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: usePush } = defineDataHooks(
+  "push",
+  (db: AppDb) => db.push,
+);
+```
 
-export async function onSignedIn() {
-  const device = await registerDevice({
-    notifications: Notifications,
-    devices,
-    platform: Platform.OS,
-    projectId: Constants.easConfig?.projectId,
-    appVersion: Constants.expoConfig?.version,
-  }).orThrow();
-  token = device?.token;
-}
+```ts
+const rows = await db.push.list({ limit: 50 }).orThrow();
+```
 
-export const signOut = unregisterOnSignOut({
-  signOut: () => supabase.auth.signOut(),
-  devices,
-  token: () => token,
-});
+```tsx title="src/features/push/list.tsx"
+"use client";
+
+import { usePush } from "@/lib/supabase/hooks";
+
+const rows = usePush({ limit: 50 });
 ```
 
 `registerDevice` asks for permission when it isn't granted yet (pass
@@ -139,3 +128,39 @@ Expo rejects every message for a reason other than an unregistered device,
 the channel throws, and `notifications.deliver()` retries the delivery.
 Pass `message` to build the push yourself, and `onTickets` to keep the
 tickets for `checkReceipts`.
+
+## Without the client
+
+`db.push` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```tsx title="app/_layout.tsx"
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
+import {
+  createPush,
+  registerDevice,
+  rpcTransport,
+  unregisterOnSignOut,
+} from "better-supabase/blocks/push";
+
+const devices = createPush({ transport: rpcTransport(supabase) });
+let token: string | undefined;
+
+export async function onSignedIn() {
+  const device = await registerDevice({
+    notifications: Notifications,
+    devices,
+    platform: Platform.OS,
+    projectId: Constants.easConfig?.projectId,
+    appVersion: Constants.expoConfig?.version,
+  }).orThrow();
+  token = device?.token;
+}
+
+export const signOut = unregisterOnSignOut({
+  signOut: () => supabase.auth.signOut(),
+  devices,
+  token: () => token,
+});
+```

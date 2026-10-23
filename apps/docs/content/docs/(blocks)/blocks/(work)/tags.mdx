@@ -25,15 +25,31 @@ In managed mode every application lives in `taggings` (`subject_type`, `subject_
 
 Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A record is a `RecordRef`, `{ type, id }`.
 
+Server code calls the `tags` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useTags } = defineDataHooks(
+  "tags",
+  (db: AppDb) => db.tags,
+);
+```
+
 ```ts
-const tags = createTags({ transport, tenant: organizationId });
 const customer = { type: "customer", id: customerId };
 
-const vip = await tags
+const vip = await db.tags
   .create({ kind: "customer", name: "VIP", color: "amber" })
   .orThrow();
-await tags.attach(customer, vip.id).orThrow();
-const onCustomer = await tags.list({ on: customer }).orThrow();
+await db.tags.attach(customer, vip.id).orThrow();
+const onCustomer = await db.tags.list({ on: customer }).orThrow();
+```
+
+```tsx title="src/features/tags/list.tsx"
+"use client";
+
+import { useTags } from "@/lib/supabase/hooks";
+
+const rows = useTags({ limit: 50 });
 ```
 
 `create({ kind, name, color?, description?, fields? })` creates a tag of a kind, and `update(id, { name?, fields? })` renames it or sets its extra columns. `attach(record, tagId)` and `detach(record, tagId)` put a tag on a record and take it off. `list({ kind? })` returns the tenant's tags of a kind (every kind without one) in rank order, for a caller with `tags.read` or `tags.manage`. `list({ on: record })` returns the tags on one record, for a caller who can also read the record. They call `list_tags` and `subject_tags`.
@@ -184,4 +200,19 @@ const client = createTags({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.tags` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const tags = createTags({ transport, tenant: organizationId });
+const customer = { type: "customer", id: customerId };
+
+const vip = await tags
+  .create({ kind: "customer", name: "VIP", color: "amber" })
+  .orThrow();
+await tags.attach(customer, vip.id).orThrow();
+const onCustomer = await tags.list({ on: customer }).orThrow();
 ```

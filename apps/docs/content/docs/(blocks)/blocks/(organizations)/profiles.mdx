@@ -71,12 +71,28 @@ organization and team and `onboarding` stay private: read your own through
 `update_my_profile(attrs)` updates the `updatable` columns present in
 `attrs`. `createProfiles` from `better-supabase/blocks/profiles` calls both:
 
+Server code calls the `profiles` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useProfiles } = defineDataHooks(
+  "profiles",
+  (db: AppDb) => db.profiles,
+);
+```
+
 ```ts
 import { createProfiles } from "better-supabase/blocks/profiles";
 
-const profiles = createProfiles({ transport });
-const row = await profiles.mine().orThrow();
-await profiles.updateMine({ full_name: "Ada Lovelace" }).orThrow();
+const row = await db.profiles.mine().orThrow();
+await db.profiles.updateMine({ full_name: "Ada Lovelace" }).orThrow();
+```
+
+```tsx title="src/features/profiles/list.tsx"
+"use client";
+
+import { useProfiles } from "@/lib/supabase/hooks";
+
+const rows = useProfiles({ limit: 50 });
 ```
 
 Pass a Standard Schema as `fields` to type your own columns (from
@@ -214,3 +230,15 @@ without it keeps working.
 
 Avatar and logo uploads use the [`avatarBucket` and `organizationLogoBucket`
 presets](/docs/platform/storage#avatars-and-organization-logos).
+
+## Without the client
+
+`db.profiles` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createProfiles } from "better-supabase/blocks/profiles";
+
+const profiles = createProfiles({ transport });
+const row = await profiles.mine().orThrow();
+await profiles.updateMine({ full_name: "Ada Lovelace" }).orThrow();
+```

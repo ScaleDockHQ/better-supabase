@@ -62,12 +62,27 @@ also sets the group column in the same update, so a state-machine trigger on
 that column checks the stage change and rejects one the machine does not
 allow.
 
-```ts
-const rank = createRank({ transport, service });
+Server code calls the `rank` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const key = await rank
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useRank } = defineDataHooks(
+  "rank",
+  (db: AppDb) => db.rank,
+);
+```
+
+```ts
+const key = await db.rank
   .move("deal", dealId, { previous: aboveId, next: belowId, group: "won" })
   .orThrow();
+```
+
+```tsx title="src/features/rank/list.tsx"
+"use client";
+
+import { useRank } from "@/lib/supabase/hooks";
+
+const rows = useRank({ limit: 50 });
 ```
 
 | Hint                     | When                                                   |
@@ -114,3 +129,15 @@ await tags.reorder(tag.id, { previous: above?.rank, next: below?.rank });
 
 `reorder` and `reorderDefinition` take the neighbours' keys, compute the key
 with `rankBetween` and save it through `rank_tag` or `rank_field_definition`.
+
+## Without the client
+
+`db.rank` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const rank = createRank({ transport, service });
+
+const key = await rank
+  .move("deal", dealId, { previous: aboveId, next: belowId, group: "won" })
+  .orThrow();
+```

@@ -15,15 +15,24 @@ better-supabase add collections
 
 The module needs `tenant`, `permissions` and `subjects`, and uses `teams` for team lists and `outbox` for its events.
 
+Server code calls the `collections` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useCollections } = defineDataHooks(
+  "collections",
+  (db: AppDb) => db.collections,
+);
+```
+
 ```ts
 import { createCollections } from "better-supabase/blocks/collections";
 
-const collections = createCollections({ transport });
+await db.collections
+  .star(organizationId, { type: "deal", id: dealId })
+  .orThrow();
+const stars = await db.collections.starred(organizationId).orThrow();
 
-await collections.star(organizationId, { type: "deal", id: dealId }).orThrow();
-const stars = await collections.starred(organizationId).orThrow();
-
-const keyAccounts = await collections
+const keyAccounts = await db.collections
   .create(organizationId, {
     name: "Key accounts",
     subjectType: "company",
@@ -31,7 +40,15 @@ const keyAccounts = await collections
     teamId,
   })
   .orThrow();
-await collections.add(keyAccounts.id, [acmeId, globexId]).orThrow();
+await db.collections.add(keyAccounts.id, [acmeId, globexId]).orThrow();
+```
+
+```tsx title="src/features/collections/list.tsx"
+"use client";
+
+import { useCollections } from "@/lib/supabase/hooks";
+
+const rows = useCollections({ limit: 50 });
 ```
 
 ## Favorites
@@ -219,4 +236,27 @@ const client = createCollections({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.collections` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createCollections } from "better-supabase/blocks/collections";
+
+const collections = createCollections({ transport });
+
+await collections.star(organizationId, { type: "deal", id: dealId }).orThrow();
+const stars = await collections.starred(organizationId).orThrow();
+
+const keyAccounts = await collections
+  .create(organizationId, {
+    name: "Key accounts",
+    subjectType: "company",
+    scope: "team",
+    teamId,
+  })
+  .orThrow();
+await collections.add(keyAccounts.id, [acmeId, globexId]).orThrow();
 ```

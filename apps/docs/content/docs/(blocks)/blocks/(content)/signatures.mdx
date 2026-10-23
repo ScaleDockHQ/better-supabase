@@ -9,11 +9,19 @@ The `signatures` SQL module asks members to sign one version of a record, kept b
 better-supabase add versions signatures
 ```
 
+Server code calls the `signatures` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSignatures } = defineDataHooks(
+  "signatures",
+  (db: AppDb) => db.signatures,
+);
+```
+
 ```ts
 import { createSignatures } from "better-supabase/blocks/signatures";
 
-const signatures = createSignatures({ transport });
-const request = await signatures
+const request = await db.signatures
   .request({
     organizationId,
     subjectType: "contract",
@@ -22,9 +30,17 @@ const request = await signatures
     order: "sequential",
   })
   .orThrow();
-await signatures
+await db.signatures
   .sign(request.id, { method: "typed", typedName: "Ada Lovelace" })
   .orThrow();
+```
+
+```tsx title="src/features/signatures/list.tsx"
+"use client";
+
+import { useSignatures } from "@/lib/supabase/hooks";
+
+const rows = useSignatures({ limit: 50 });
 ```
 
 Without `versionId`, the request snapshots the record's versioned columns first. The version is frozen, so retention and `delete_version` keep it. Signers must be members of the organization, at most 20 and each once. With `order: "sequential"` each signs after the one before; `parallel` is the default. A signature is `click`, `typed` (with the typed name) or `drawn` (with the attachment that holds the image, which needs the [attachments](/docs/blocks/attachments) module). The request completes when everyone has signed, and a signer can `decline` it, which closes it for everyone. The requester, or a holder of `signatures.manage`, can `cancel` a pending request.
@@ -61,4 +77,26 @@ const client = createSignatures({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.signatures` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createSignatures } from "better-supabase/blocks/signatures";
+
+const signatures = createSignatures({ transport });
+const request = await signatures
+  .request({
+    organizationId,
+    subjectType: "contract",
+    subjectId: contract.id,
+    signers: [buyerId, sellerId],
+    order: "sequential",
+  })
+  .orThrow();
+await signatures
+  .sign(request.id, { method: "typed", typedName: "Ada Lovelace" })
+  .orThrow();
 ```

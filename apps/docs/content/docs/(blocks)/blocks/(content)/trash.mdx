@@ -9,13 +9,31 @@ description: Soft delete through each subject's deletedAt column, with children 
 better-supabase add trash
 ```
 
+Server code calls the `trash` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useTrash } = defineDataHooks(
+  "trash",
+  (db: AppDb) => db.trash,
+);
+```
+
 ```ts
 import { createTrash } from "better-supabase/blocks/trash";
 
-const trash = createTrash({ transport });
-const batch = await trash.trash(organizationId, "project", projectId).orThrow();
-const bin = await trash.list(organizationId).orThrow();
-await trash.restore(batch.id).orThrow();
+const batch = await db.trash
+  .trash(organizationId, "project", projectId)
+  .orThrow();
+const bin = await db.trash.list(organizationId).orThrow();
+await db.trash.restore(batch.id).orThrow();
+```
+
+```tsx title="src/features/trash/list.tsx"
+"use client";
+
+import { useTrash } from "@/lib/supabase/hooks";
+
+const rows = useTrash({ limit: 50 });
 ```
 
 ## Configure subjects
@@ -153,4 +171,17 @@ const client = createTrash({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.trash` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createTrash } from "better-supabase/blocks/trash";
+
+const trash = createTrash({ transport });
+const batch = await trash.trash(organizationId, "project", projectId).orThrow();
+const bin = await trash.list(organizationId).orThrow();
+await trash.restore(batch.id).orThrow();
 ```

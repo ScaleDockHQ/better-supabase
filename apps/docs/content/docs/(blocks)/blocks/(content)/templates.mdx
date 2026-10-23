@@ -19,39 +19,25 @@ The module needs `memberships` and `access`. With `outbox` it records events, wi
 
 A type gives a template its Standard Schemas and creates the record. `settings` and `body` are checked on every write and parsed again before `apply`. `apply` returns the record it created as a subject.
 
-```ts title="lib/templates.ts"
-import "server-only";
+Server code calls the `templates` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import * as v from "valibot";
-import {
-  createTemplates,
-  defineMergeFields,
-  defineTemplateType,
-  sqlTransport,
-} from "better-supabase/blocks/templates";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useTemplates } = defineDataHooks(
+  "templates",
+  (db: AppDb) => db.templates,
+);
+```
 
-const project = defineTemplateType({
-  settings: v.object({ color: v.string() }),
-  body: v.object({ tasks: v.array(v.string()) }),
-  apply: async ({ body, settings, organizationId, key }) => {
-    const created = await projects
-      .create({ organizationId, color: settings.color, tasks: body.tasks, key })
-      .orThrow();
-    return { subject: { type: "project", id: created.id } };
-  },
-});
+```ts
+const rows = await db.templates.list({ limit: 50 }).orThrow();
+```
 
-export const invoiceFields = defineMergeFields("invoice", {
-  "customer.name": { label: "Customer", example: "Ada Lovelace" },
-  total: { label: "Total", example: "€120.00" },
-});
+```tsx title="src/features/templates/list.tsx"
+"use client";
 
-export const templatesFor = (sql: Sql) =>
-  createTemplates({
-    transport: sqlTransport(sql),
-    types: { project },
-    workflows: builderFor(sql),
-  });
+import { useTemplates } from "@/lib/supabase/hooks";
+
+const rows = useTemplates({ limit: 50 });
 ```
 
 A type without `apply` stores templates you render yourself, such as emails. Applying one returns an `invalid_request` error.
@@ -202,4 +188,43 @@ const client = createTemplates({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.templates` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/templates.ts"
+import "server-only";
+
+import * as v from "valibot";
+import {
+  createTemplates,
+  defineMergeFields,
+  defineTemplateType,
+  sqlTransport,
+} from "better-supabase/blocks/templates";
+
+const project = defineTemplateType({
+  settings: v.object({ color: v.string() }),
+  body: v.object({ tasks: v.array(v.string()) }),
+  apply: async ({ body, settings, organizationId, key }) => {
+    const created = await projects
+      .create({ organizationId, color: settings.color, tasks: body.tasks, key })
+      .orThrow();
+    return { subject: { type: "project", id: created.id } };
+  },
+});
+
+export const invoiceFields = defineMergeFields("invoice", {
+  "customer.name": { label: "Customer", example: "Ada Lovelace" },
+  total: { label: "Total", example: "€120.00" },
+});
+
+export const templatesFor = (sql: Sql) =>
+  createTemplates({
+    transport: sqlTransport(sql),
+    types: { project },
+    workflows: builderFor(sql),
+  });
 ```

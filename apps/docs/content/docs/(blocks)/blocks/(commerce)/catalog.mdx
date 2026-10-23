@@ -37,15 +37,30 @@ The service role passes every check, for imports and sync jobs.
 
 ## Products
 
-```ts
-const catalog = createCatalog({ transport });
+Server code calls the `catalog` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const shirt = await catalog
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useCatalog } = defineDataHooks(
+  "catalog",
+  (db: AppDb) => db.catalog,
+);
+```
+
+```ts
+const shirt = await db.catalog
   .createProduct(organizationId, { title: "Linen Shirt", kind: "physical" })
   .orThrow();
 // { id, slug: "linen-shirt", status: "draft" }
 
-await catalog.setProductStatus(shirt.id, "active").orThrow();
+await db.catalog.setProductStatus(shirt.id, "active").orThrow();
+```
+
+```tsx title="src/features/catalog/list.tsx"
+"use client";
+
+import { useCatalog } from "@/lib/supabase/hooks";
+
+const rows = useCatalog({ limit: 50 });
 ```
 
 The slug comes from the title when you leave it out, and it is unique per
@@ -349,4 +364,19 @@ const client = createCatalog({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.catalog` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const catalog = createCatalog({ transport });
+
+const shirt = await catalog
+  .createProduct(organizationId, { title: "Linen Shirt", kind: "physical" })
+  .orThrow();
+// { id, slug: "linen-shirt", status: "draft" }
+
+await catalog.setProductStatus(shirt.id, "active").orThrow();
 ```

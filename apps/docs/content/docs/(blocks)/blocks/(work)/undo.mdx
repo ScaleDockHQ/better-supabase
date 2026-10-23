@@ -25,16 +25,25 @@ blocks return (`link`, `unlink`, `revert_audit_entries`), then runs them in
 order and stops at the first error. Check the token on the server, since it
 comes back from the browser.
 
-```ts title="app/tasks/actions.ts"
-"use server";
+Server code calls the `undo` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import { createUndo, sqlTransport } from "better-supabase/blocks/undo";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useUndo } = defineDataHooks(
+  "undo",
+  (db: AppDb) => db.undo,
+);
+```
 
-export async function undoAction(token: unknown) {
-  const ctx = await server.context();
-  const undo = createUndo({ transport: sqlTransport(ctx.postgres) });
-  return (await undo.apply(token)).orThrow();
-}
+```ts
+const rows = await db.undo.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/undo/list.tsx"
+"use client";
+
+import { useUndo } from "@/lib/supabase/hooks";
+
+const rows = useUndo({ limit: 50 });
 ```
 
 `apply` resolves to the number of calls it ran. A value that is not an
@@ -170,3 +179,19 @@ user, so copy them from [reui.io](https://reui.io).
 `createUndo` takes `hooks` around its methods, such as a rule before
 `apply` that returns a `DbError` to refuse the call; see
 [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.undo` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/tasks/actions.ts"
+"use server";
+
+import { createUndo, sqlTransport } from "better-supabase/blocks/undo";
+
+export async function undoAction(token: unknown) {
+  const ctx = await server.context();
+  const undo = createUndo({ transport: sqlTransport(ctx.postgres) });
+  return (await undo.apply(token)).orThrow();
+}
+```

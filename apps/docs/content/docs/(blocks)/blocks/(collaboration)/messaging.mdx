@@ -53,24 +53,36 @@ record's own tenant: when the record's type has a tenant column in
 fails with `MESSAGING_NOT_FOUND`, for the service role as well. A type with
 `tenant: false` has no tenant to compare.
 
+Server code calls the `messaging` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useMessaging } = defineDataHooks(
+  "messaging",
+  (db: AppDb) => db.messaging,
+);
+```
+
 ```ts
 import {
   createMessaging,
   sqlTransport,
 } from "better-supabase/blocks/messaging";
 
-const messaging = createMessaging({
-  transport: sqlTransport(sql),
-  tenant: () => organizationId,
-});
-
-const launch = await messaging
+const launch = await db.messaging
   .open({ kind: "channel", title: "launch", memberIds: [alice, bob] })
   .orThrow();
-const direct = await messaging.openDirect([alice]).orThrow();
-const thread = await messaging
+const direct = await db.messaging.openDirect([alice]).orThrow();
+const thread = await db.messaging
   .openSubject({ type: "deal", id: dealId })
   .orThrow();
+```
+
+```tsx title="src/features/messaging/list.tsx"
+"use client";
+
+import { useMessaging } from "@/lib/supabase/hooks";
+
+const rows = useMessaging({ limit: 50 });
 ```
 
 `conversations()` lists the caller's conversations, newest message first, with
@@ -254,3 +266,27 @@ to the [outbox](/docs/blocks/outbox). Their payloads name the subject with
 
 The hooks `before_message_send` and `after_message_send` run inside `send`,
 and `before_message_edit` and `after_message_edit` inside `edit`; see [Extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.messaging` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createMessaging,
+  sqlTransport,
+} from "better-supabase/blocks/messaging";
+
+const messaging = createMessaging({
+  transport: sqlTransport(sql),
+  tenant: () => organizationId,
+});
+
+const launch = await messaging
+  .open({ kind: "channel", title: "launch", memberIds: [alice, bob] })
+  .orThrow();
+const direct = await messaging.openDirect([alice]).orThrow();
+const thread = await messaging
+  .openSubject({ type: "deal", id: dealId })
+  .orThrow();
+```

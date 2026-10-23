@@ -168,21 +168,25 @@ false, so nobody can probe another tenant's usage with it.
 
 ## Recording and consuming
 
-```ts title="app/api/documents/route.ts"
-import { createUsage, sqlTransport } from "better-supabase/blocks/usage";
+Server code calls the `usage` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const usage = createUsage({ transport: sqlTransport(postgres.asUser(claims)) });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useUsage } = defineDataHooks(
+  "usage",
+  (db: AppDb) => db.usage,
+);
+```
 
-// Counts the call and fails when it would go over the quota.
-const consumed = await usage.consume(organizationId, "documents", {
-  idempotencyKey: requestId,
-});
-if (!consumed.ok) return problemResponse(consumed.error);
+```ts
+const rows = await db.usage.list({ limit: 50 }).orThrow();
+```
 
-await usage.record(organizationId, "api_calls"); // metering only, no check
-const { used, limit, remaining, resetsAt } = await usage
-  .current(organizationId, "documents")
-  .orThrow();
+```tsx title="src/features/usage/list.tsx"
+"use client";
+
+import { useUsage } from "@/lib/supabase/hooks";
+
+const rows = useUsage({ limit: 50 });
 ```
 
 `consume` locks the day's counter, so two concurrent calls can't both take the
@@ -483,3 +487,24 @@ Stripe client of your own.
 `createUsage` takes `hooks` around its methods, such as a rule before
 `consume` that returns a `DbError` to refuse the call; see
 [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.usage` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/api/documents/route.ts"
+import { createUsage, sqlTransport } from "better-supabase/blocks/usage";
+
+const usage = createUsage({ transport: sqlTransport(postgres.asUser(claims)) });
+
+// Counts the call and fails when it would go over the quota.
+const consumed = await usage.consume(organizationId, "documents", {
+  idempotencyKey: requestId,
+});
+if (!consumed.ok) return problemResponse(consumed.error);
+
+await usage.record(organizationId, "api_calls"); // metering only, no check
+const { used, limit, remaining, resetsAt } = await usage
+  .current(organizationId, "documents")
+  .orThrow();
+```

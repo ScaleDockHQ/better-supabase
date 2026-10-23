@@ -9,15 +9,31 @@ description: Numbered snapshots of a subject's content, with JSON Patch diffs, r
 better-supabase add versions
 ```
 
+Server code calls the `versions` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useVersions } = defineDataHooks(
+  "versions",
+  (db: AppDb) => db.versions,
+);
+```
+
 ```ts
 import { createVersions } from "better-supabase/blocks/versions";
 
-const versions = createVersions({ transport, tenant: organizationId });
-const v = await versions
+const v = await db.versions
   .snapshot({ type: "quote", id: quoteId }, { label: "Sent to customer" })
   .orThrow();
-const patch = await versions.diff(previousId, v.id).orThrow();
-await versions.restore(previousId).orThrow();
+const patch = await db.versions.diff(previousId, v.id).orThrow();
+await db.versions.restore(previousId).orThrow();
+```
+
+```tsx title="src/features/versions/list.tsx"
+"use client";
+
+import { useVersions } from "@/lib/supabase/hooks";
+
+const rows = useVersions({ limit: 50 });
 ```
 
 A snapshot whose content matches the latest version is not written again: `snapshot` returns the latest version with `unchanged: true`. Versions are numbered per subject from 1.
@@ -117,4 +133,19 @@ const client = createVersions({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.versions` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createVersions } from "better-supabase/blocks/versions";
+
+const versions = createVersions({ transport, tenant: organizationId });
+const v = await versions
+  .snapshot({ type: "quote", id: quoteId }, { label: "Sent to customer" })
+  .orThrow();
+const patch = await versions.diff(previousId, v.id).orThrow();
+await versions.restore(previousId).orThrow();
 ```

@@ -37,17 +37,20 @@ Every table is read through the functions only. Members with
 
 ## Create and label a shipment
 
+Server code calls the `shipments` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useShipments } = defineDataHooks(
+  "shipments",
+  (db: AppDb) => db.shipments,
+);
+```
+
 ```ts
 import { createShipments } from "better-supabase/blocks/shipments";
 import { money } from "better-supabase/commerce";
 
-const shipments = createShipments({
-  transport,
-  tenant: organizationId,
-  carriers: [myCarrier],
-});
-
-const shipment = await shipments
+const shipment = await db.shipments
   .create({
     from: { line1: "Dock 4", city: "Rotterdam", country: "NL" },
     to: { name: "Jane", line1: "Main St 1", city: "Berlin", country: "DE" },
@@ -57,13 +60,21 @@ const shipment = await shipments
   })
   .orThrow();
 
-const rates = await shipments.rates(shipment.id).orThrow();
-const labeled = await shipments
+const rates = await db.shipments.rates(shipment.id).orThrow();
+const labeled = await db.shipments
   .buyLabel(shipment.id, {
     carrier: rates[0].carrier,
     service: rates[0].service,
   })
   .orThrow();
+```
+
+```tsx title="src/features/shipments/list.tsx"
+"use client";
+
+import { useShipments } from "@/lib/supabase/hooks";
+
+const rows = useShipments({ limit: 50 });
 ```
 
 A new shipment is a `draft`. `rates` asks every carrier and returns the
@@ -223,3 +234,36 @@ and refresh. It is in the Next.js example.
 `shipment.created`, `shipment.labeled`, `shipment.status_changed` and
 `shipment.cancelled`. The [events page](/docs/extending/events) lists their
 payloads.
+
+## Without the client
+
+`db.shipments` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createShipments } from "better-supabase/blocks/shipments";
+import { money } from "better-supabase/commerce";
+
+const shipments = createShipments({
+  transport,
+  tenant: organizationId,
+  carriers: [myCarrier],
+});
+
+const shipment = await shipments
+  .create({
+    from: { line1: "Dock 4", city: "Rotterdam", country: "NL" },
+    to: { name: "Jane", line1: "Main St 1", city: "Berlin", country: "DE" },
+    packages: [
+      { weightGrams: 1200, lengthMm: 300, widthMm: 200, heightMm: 100 },
+    ],
+  })
+  .orThrow();
+
+const rates = await shipments.rates(shipment.id).orThrow();
+const labeled = await shipments
+  .buyLabel(shipment.id, {
+    carrier: rates[0].carrier,
+    service: rates[0].service,
+  })
+  .orThrow();
+```

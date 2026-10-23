@@ -114,25 +114,38 @@ which are granted to `authenticated`, so an app that only reaches the
 database through the Data API manages flags with `blocks.flags.api`
 and `rpcTransport`:
 
+Server code calls the `flags` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useFlags } = defineDataHooks(
+  "flags",
+  (db: AppDb) => db.flags,
+);
+```
+
 ```ts
 import { createFlags, rpcTransport } from "better-supabase/blocks/flags";
 
-const admin = createFlags({
-  transport: rpcTransport(supabase, { schema: "api" }),
-});
-
-await admin.upsert("new_editor", {
+await db.flags.upsert("new_editor", {
   rolloutPercentage: 25,
   rolloutVariant: "on",
 });
-await admin.override("new_editor", { organizationId }, "on");
-await admin.override(
+await db.flags.override("new_editor", { organizationId }, "on");
+await db.flags.override(
   "new_editor",
   { context: "brand", contextKey: "acme" },
   "on",
 );
-await admin.override("new_editor", { userId }, null); // removes it
-const flags = await admin.list().orThrow();
+await db.flags.override("new_editor", { userId }, null); // removes it
+const flags = await db.flags.list().orThrow();
+```
+
+```tsx title="src/features/flags/list.tsx"
+"use client";
+
+import { useFlags } from "@/lib/supabase/hooks";
+
+const rows = useFlags({ limit: 50 });
 ```
 
 `upsert` creates the flag or updates the fields you pass and keeps the rest.
@@ -281,3 +294,28 @@ returns the four `get*Details` methods that `withOpenFeature` calls (see
 
 The provider follows the OpenFeature specification pinned in
 `SPEC_PINS.openfeature` (see [standards](/docs/standards)).
+
+## Without the client
+
+`db.flags` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createFlags, rpcTransport } from "better-supabase/blocks/flags";
+
+const admin = createFlags({
+  transport: rpcTransport(supabase, { schema: "api" }),
+});
+
+await admin.upsert("new_editor", {
+  rolloutPercentage: 25,
+  rolloutVariant: "on",
+});
+await admin.override("new_editor", { organizationId }, "on");
+await admin.override(
+  "new_editor",
+  { context: "brand", contextKey: "acme" },
+  "on",
+);
+await admin.override("new_editor", { userId }, null); // removes it
+const flags = await admin.list().orThrow();
+```

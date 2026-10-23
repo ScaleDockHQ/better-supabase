@@ -29,24 +29,36 @@ post dialog.
 
 ## Boards and posts
 
+Server code calls the `posts` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: usePosts } = defineDataHooks(
+  "posts",
+  (db: AppDb) => db.posts,
+);
+```
+
 ```ts
 import { createPosts, rpcTransport } from "better-supabase/blocks/posts";
 
-const posts = createPosts({
-  transport: rpcTransport(supabase),
-  tenant: organizationId,
-});
-
-const ideas = await posts
+const ideas = await db.posts
   .saveBoard({ key: "ideas", name: "Ideas", kind: "feedback" })
   .orThrow();
 
-const post = await posts
+const post = await db.posts
   .create(ideas.id, {
     title: "Dark mode for reports",
     body: "The exported PDFs ignore the theme.",
   })
   .orThrow();
+```
+
+```tsx title="src/features/posts/list.tsx"
+"use client";
+
+import { usePosts } from "@/lib/supabase/hooks";
+
+const rows = usePosts({ limit: 50 });
 ```
 
 `saveBoard` creates a board, or with `id` changes it; the key can't change
@@ -147,3 +159,27 @@ The block writes `post_board.saved`, and per post `post.created`,
 | `POST_INVALID`         | a title, status, vote or body doesn't validate                   |
 | `POST_NOT_FOUND`       | there is no such post, or the caller can't read it               |
 | `POST_BOARD_NOT_FOUND` | there is no such board in the organization                       |
+
+## Without the client
+
+`db.posts` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createPosts, rpcTransport } from "better-supabase/blocks/posts";
+
+const posts = createPosts({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+});
+
+const ideas = await posts
+  .saveBoard({ key: "ideas", name: "Ideas", kind: "feedback" })
+  .orThrow();
+
+const post = await posts
+  .create(ideas.id, {
+    title: "Dark mode for reports",
+    body: "The exported PDFs ignore the theme.",
+  })
+  .orThrow();
+```

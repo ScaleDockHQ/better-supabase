@@ -26,15 +26,22 @@ lead routes it without a member session.
 
 ## Queues
 
+Server code calls the `assignment` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAssignment } = defineDataHooks(
+  "assignment",
+  (db: AppDb) => db.assignment,
+);
+```
+
 ```ts
 import {
   createAssignment,
   rpcTransport,
 } from "better-supabase/blocks/assignment";
 
-const assignment = createAssignment({ transport: rpcTransport(supabase) });
-
-const benelux = await assignment
+const benelux = await db.assignment
   .saveQueue(organizationId, {
     name: "Benelux leads",
     subjectType: "company",
@@ -57,12 +64,20 @@ const benelux = await assignment
   })
   .orThrow();
 
-await assignment
+await db.assignment
   .setMembers(benelux.id, [
     { userId: senior.id, weight: 3 },
     { userId: junior.id, weight: 1 },
   ])
   .orThrow();
+```
+
+```tsx title="src/features/assignment/list.tsx"
+"use client";
+
+import { useAssignment } from "@/lib/supabase/hooks";
+
+const rows = useAssignment({ limit: 50 });
 ```
 
 A territory uses the subject type's rule fields (see
@@ -115,3 +130,46 @@ column, notify the new owner or start a follow-up task. See
 | `ASSIGNMENT_INVALID`        | a bad name, strategy or weight                         |
 | `ASSIGNMENT_MEMBER_INVALID` | a user is not a member of the queue's organization     |
 | `ASSIGNMENT_FIELDS_MISSING` | the territory's subject type has no synced rule fields |
+
+## Without the client
+
+`db.assignment` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createAssignment,
+  rpcTransport,
+} from "better-supabase/blocks/assignment";
+
+const assignment = createAssignment({ transport: rpcTransport(supabase) });
+
+const benelux = await assignment
+  .saveQueue(organizationId, {
+    name: "Benelux leads",
+    subjectType: "company",
+    strategy: "weighted",
+    rank: 0,
+    conditions: {
+      id: "root",
+      type: "group",
+      combinator: "and",
+      rules: [
+        {
+          id: "r1",
+          type: "rule",
+          path: ["country"],
+          operator: "is_any_of",
+          value: ["NL", "BE", "LU"],
+        },
+      ],
+    },
+  })
+  .orThrow();
+
+await assignment
+  .setMembers(benelux.id, [
+    { userId: senior.id, weight: 3 },
+    { userId: junior.id, weight: 1 },
+  ])
+  .orThrow();
+```

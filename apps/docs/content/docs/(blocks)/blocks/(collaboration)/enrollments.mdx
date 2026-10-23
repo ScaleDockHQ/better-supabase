@@ -23,12 +23,19 @@ better-supabase add enrollments
 The module needs `memberships` and `access`. Enrollments in an organization go to
 the outbox, and program changes go to the audit log as well.
 
+Server code calls the `enrollments` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useEnrollments } = defineDataHooks(
+  "enrollments",
+  (db: AppDb) => db.enrollments,
+);
+```
+
 ```ts
 import { createEnrollments } from "better-supabase/blocks/enrollments";
 
-const enrollments = createEnrollments({ transport, tenant: organizationId });
-
-await enrollments
+await db.enrollments
   .saveProgram({
     key: "customer-onboarding",
     name: "Customer onboarding",
@@ -41,11 +48,19 @@ await enrollments
   })
   .orThrow();
 
-const enrollment = await enrollments
+const enrollment = await db.enrollments
   .enroll("customer-onboarding", { type: "party", id: partyId })
   .orThrow();
 
-await enrollments.complete(enrollment.id, "kickoff").orThrow();
+await db.enrollments.complete(enrollment.id, "kickoff").orThrow();
+```
+
+```tsx title="src/features/enrollments/list.tsx"
+"use client";
+
+import { useEnrollments } from "@/lib/supabase/hooks";
+
+const rows = useEnrollments({ limit: 50 });
 ```
 
 | Option     | Default | What it does                   |
@@ -161,3 +176,32 @@ rewrites a subject's history: progress counts only the steps it enrolled
 with. The tenant is nullable so a user's own onboarding checklist fits the
 same tables, and the module's internal functions let other blocks drive
 programs they own without going through `enrollment_programs`.
+
+## Without the client
+
+`db.enrollments` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createEnrollments } from "better-supabase/blocks/enrollments";
+
+const enrollments = createEnrollments({ transport, tenant: organizationId });
+
+await enrollments
+  .saveProgram({
+    key: "customer-onboarding",
+    name: "Customer onboarding",
+    subjectTypes: ["party"],
+    steps: [
+      { id: "kickoff", title: "Kickoff call" },
+      { id: "import", title: "Import data" },
+      { id: "training", title: "Train the team" },
+    ],
+  })
+  .orThrow();
+
+const enrollment = await enrollments
+  .enroll("customer-onboarding", { type: "party", id: partyId })
+  .orThrow();
+
+await enrollments.complete(enrollment.id, "kickoff").orThrow();
+```

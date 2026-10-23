@@ -11,21 +11,25 @@ better-supabase add drive
 
 `drive` installs `drive-files` with it, which adds what needs the attachments module: uploads and revisions, the storage policies, the bin, stars, recent items, folder links and the purge. Install [versions](/docs/blocks/versions), [trash](/docs/blocks/trash), [share-links](/docs/blocks/share-links) and [teams](/docs/blocks/teams) for revisions, the bin, stars and links, and team grants.
 
+Server code calls the `drive` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useDrive } = defineDataHooks(
+  "drive",
+  (db: AppDb) => db.drive,
+);
+```
+
 ```ts
 import { createAttachments } from "better-supabase/blocks/attachments";
 import { createDrive, rpcTransport } from "better-supabase/blocks/drive";
 
 const transport = rpcTransport(supabase);
-const drive = createDrive({
-  transport,
-  storage: supabase.storage,
-  attachments: createAttachments({ transport, storage: supabase.storage }),
-});
 
-const projects = await drive
+const projects = await db.drive
   .createFolder(organizationId, { name: "Projects" })
   .orThrow();
-const upload = await drive
+const upload = await db.drive
   .upload(organizationId, {
     parentId: projects.id,
     name: file.name,
@@ -36,11 +40,19 @@ const upload = await drive
 await supabase.storage
   .from(upload.attachment.bucket)
   .uploadToSignedUrl(upload.attachment.path, upload.token, file);
-await drive.commit(upload.node.id, upload.attachment.id).orThrow();
+await db.drive.commit(upload.node.id, upload.attachment.id).orThrow();
 
-await drive.share(projects.id, { type: "team", id: designTeam }, "editor");
-await drive.share(projects.id, { type: "role", id: memberRoleId }, "viewer");
-const { signedUrl } = await drive.download(upload.node.id).orThrow();
+await db.drive.share(projects.id, { type: "team", id: designTeam }, "editor");
+await db.drive.share(projects.id, { type: "role", id: memberRoleId }, "viewer");
+const { signedUrl } = await db.drive.download(upload.node.id).orThrow();
+```
+
+```tsx title="src/features/drive/list.tsx"
+"use client";
+
+import { useDrive } from "@/lib/supabase/hooks";
+
+const rows = useDrive({ limit: 50 });
 ```
 
 ## Access
@@ -212,3 +224,39 @@ with the hint `DRIVE_FORBIDDEN`, and the upload stays uncommitted.
 ## Events and hooks
 
 The drive records `drive.node_created`, `drive.node_renamed`, `drive.node_moved`, `drive.node_shared`, `drive.node_unshared` and `drive.node_purged`; the [events page](/docs/extending/events) lists their payloads. Sharing and unsharing also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
+
+## Without the client
+
+`db.drive` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createAttachments } from "better-supabase/blocks/attachments";
+import { createDrive, rpcTransport } from "better-supabase/blocks/drive";
+
+const transport = rpcTransport(supabase);
+const drive = createDrive({
+  transport,
+  storage: supabase.storage,
+  attachments: createAttachments({ transport, storage: supabase.storage }),
+});
+
+const projects = await drive
+  .createFolder(organizationId, { name: "Projects" })
+  .orThrow();
+const upload = await drive
+  .upload(organizationId, {
+    parentId: projects.id,
+    name: file.name,
+    mimeType: file.type,
+    size: file.size,
+  })
+  .orThrow();
+await supabase.storage
+  .from(upload.attachment.bucket)
+  .uploadToSignedUrl(upload.attachment.path, upload.token, file);
+await drive.commit(upload.node.id, upload.attachment.id).orThrow();
+
+await drive.share(projects.id, { type: "team", id: designTeam }, "editor");
+await drive.share(projects.id, { type: "role", id: memberRoleId }, "viewer");
+const { signedUrl } = await drive.download(upload.node.id).orThrow();
+```

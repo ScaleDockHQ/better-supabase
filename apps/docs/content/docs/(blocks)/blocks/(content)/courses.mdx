@@ -24,19 +24,26 @@ quiz lessons work; without it, saving a quiz lesson fails with
 `COURSE_QUIZ_UNAVAILABLE`. Course changes and learner events go to the outbox,
 and course, enrollment and certificate changes go to the audit log as well.
 
+Server code calls the `courses` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useCourses } = defineDataHooks(
+  "courses",
+  (db: AppDb) => db.courses,
+);
+```
+
 ```ts
 import { createCourses } from "better-supabase/blocks/courses";
 
-const courses = createCourses({ transport, tenant: organizationId });
-
-const course = await courses
+const course = await db.courses
   .upsert({ key: "security-basics", title: "Security basics" })
   .orThrow();
-const intro = await courses
+const intro = await db.courses
   .saveModule(course.id, { title: "Introduction" })
   .orThrow();
 
-await courses
+await db.courses
   .saveLesson(course.id, {
     moduleId: intro.id,
     title: "Why it matters",
@@ -44,7 +51,7 @@ await courses
     minutes: 5,
   })
   .orThrow();
-await courses
+await db.courses
   .saveLesson(course.id, {
     moduleId: intro.id,
     title: "Check yourself",
@@ -52,9 +59,17 @@ await courses
     formId: quizFormId,
   })
   .orThrow();
-await courses.upsert({ id: course.id, status: "published" }).orThrow();
+await db.courses.upsert({ id: course.id, status: "published" }).orThrow();
 
-await courses.enroll(course.id).orThrow();
+await db.courses.enroll(course.id).orThrow();
+```
+
+```tsx title="src/features/courses/list.tsx"
+"use client";
+
+import { useCourses } from "@/lib/supabase/hooks";
+
+const rows = useCourses({ limit: 50 });
 ```
 
 | Option         | Default | What it does                         |
@@ -207,3 +222,40 @@ refuses to complete or reset those steps directly, so a quiz lesson completes
 only through a graded submission. Quizzes reuse forms because the
 forms block grades submissions in SQL, which keeps scores out of the
 client's reach.
+
+## Without the client
+
+`db.courses` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createCourses } from "better-supabase/blocks/courses";
+
+const courses = createCourses({ transport, tenant: organizationId });
+
+const course = await courses
+  .upsert({ key: "security-basics", title: "Security basics" })
+  .orThrow();
+const intro = await courses
+  .saveModule(course.id, { title: "Introduction" })
+  .orThrow();
+
+await courses
+  .saveLesson(course.id, {
+    moduleId: intro.id,
+    title: "Why it matters",
+    body: { text: "Most breaches start with a reused password." },
+    minutes: 5,
+  })
+  .orThrow();
+await courses
+  .saveLesson(course.id, {
+    moduleId: intro.id,
+    title: "Check yourself",
+    kind: "quiz",
+    formId: quizFormId,
+  })
+  .orThrow();
+await courses.upsert({ id: course.id, status: "published" }).orThrow();
+
+await courses.enroll(course.id).orThrow();
+```

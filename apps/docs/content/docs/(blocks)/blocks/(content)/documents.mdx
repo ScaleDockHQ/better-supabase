@@ -14,28 +14,25 @@ pnpm add yjs
 
 The block's entity is `document` (the `documents` table). Installing it registers `document` as a subject. Rename it with `blocks.documents.names`; parameter names, such as `max_documents`, keep the default noun.
 
+Server code calls the `documents` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useDocuments } = defineDataHooks(
+  "documents",
+  (db: AppDb) => db.documents,
+);
+```
+
 ```ts
-import * as Y from "yjs";
-import {
-  createDocuments,
-  rpcTransport,
-} from "better-supabase/blocks/documents";
-import { createDocumentProvider } from "better-supabase/yjs";
+const rows = await db.documents.list({ limit: 50 }).orThrow();
+```
 
-const documents = createDocuments({ transport: rpcTransport(supabase) });
-const doc = new Y.Doc();
-const provider = createDocumentProvider({
-  documents,
-  client: supabase,
-  doc,
-  ref: { organizationId, subjectType: "page", subjectId: page.id },
-  onPresence: (members) => setEditors(members),
-});
-await provider.connect().orThrow();
-await provider.track({ name: user.name, color: "#0a7" });
+```tsx title="src/features/documents/list.tsx"
+"use client";
 
-// Bind doc to an editor (Tiptap, Lexical, CodeMirror), then on unmount:
-await provider.destroy();
+import { useDocuments } from "@/lib/supabase/hooks";
+
+const rows = useDocuments({ limit: 50 });
 ```
 
 ## Configure
@@ -128,3 +125,31 @@ Named versions are versions with a label. `nameVersion(documentId, versionId, la
 ## Events and hooks
 
 `open` records `document.created` with `organizationId`, `subjectType`, `subjectId`, `id` and `name`. `suggest` records `document.suggested`, and the decisions record `document.suggestion_accepted` and `document.suggestion_rejected`, each with `suggestionId`, `authorId` and `status` as well. The `before_document_create` and `after_document_create` SQL hooks run around the insert.
+
+## Without the client
+
+`db.documents` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import * as Y from "yjs";
+import {
+  createDocuments,
+  rpcTransport,
+} from "better-supabase/blocks/documents";
+import { createDocumentProvider } from "better-supabase/yjs";
+
+const documents = createDocuments({ transport: rpcTransport(supabase) });
+const doc = new Y.Doc();
+const provider = createDocumentProvider({
+  documents,
+  client: supabase,
+  doc,
+  ref: { organizationId, subjectType: "page", subjectId: page.id },
+  onPresence: (members) => setEditors(members),
+});
+await provider.connect().orThrow();
+await provider.track({ name: user.name, color: "#0a7" });
+
+// Bind doc to an editor (Tiptap, Lexical, CodeMirror), then on unmount:
+await provider.destroy();
+```

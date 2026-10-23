@@ -27,18 +27,33 @@ The module needs `memberships` and `access`. It moderates messages when
 [reviews](/docs/blocks/reviews) requires it. Decisions and bans go to the
 outbox and the audit log.
 
+Server code calls the `moderation` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useModeration } = defineDataHooks(
+  "moderation",
+  (db: AppDb) => db.moderation,
+);
+```
+
 ```ts
 import { createModeration } from "better-supabase/blocks/moderation";
 
-const moderation = createModeration({ transport, tenant: organizationId });
-
-await moderation
+await db.moderation
   .report({ type: "message", id: comment.id }, { reason: "spam" })
   .orThrow();
 
-const queue = await moderation.queue().orThrow();
+const queue = await db.moderation.queue().orThrow();
 
-await moderation.decide(queue[0].id, "hide", { reason: "Spam" }).orThrow();
+await db.moderation.decide(queue[0].id, "hide", { reason: "Spam" }).orThrow();
+```
+
+```tsx title="src/features/moderation/list.tsx"
+"use client";
+
+import { useModeration } from "@/lib/supabase/hooks";
+
+const rows = useModeration({ limit: 50 });
 ```
 
 | Option              | Default                                                        | What it does                                                                       |
@@ -145,3 +160,21 @@ One item per subject, whatever the content, gives one queue, one log and one
 set of permissions for messages, reviews and your own records. Content
 modules keep their own tables and read the item's status, so they hide what
 moderators hide without copying the decision.
+
+## Without the client
+
+`db.moderation` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createModeration } from "better-supabase/blocks/moderation";
+
+const moderation = createModeration({ transport, tenant: organizationId });
+
+await moderation
+  .report({ type: "message", id: comment.id }, { reason: "spam" })
+  .orThrow();
+
+const queue = await moderation.queue().orThrow();
+
+await moderation.decide(queue[0].id, "hide", { reason: "Spam" }).orThrow();
+```

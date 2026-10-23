@@ -28,11 +28,19 @@ blocks: {
 
 ## Policies
 
+Server code calls the `sla` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSla } = defineDataHooks(
+  "sla",
+  (db: AppDb) => db.sla,
+);
+```
+
 ```ts
 import { createSla } from "better-supabase/blocks/sla";
 
-const sla = createSla({ transport, tenant: organizationId });
-await sla
+await db.sla
   .savePolicy({
     subjectType: "ticket",
     name: "Normal",
@@ -42,7 +50,7 @@ await sla
     businessHours: true,
   })
   .orThrow();
-await sla
+await db.sla
   .savePolicy({
     subjectType: "ticket",
     name: "Urgent",
@@ -52,6 +60,14 @@ await sla
     warnAtPercent: 50,
   })
   .orThrow();
+```
+
+```tsx title="src/features/sla/list.tsx"
+"use client";
+
+import { useSla } from "@/lib/supabase/hooks";
+
+const rows = useSla({ limit: 50 });
 ```
 
 `savePolicy` acts in the block's `tenant`, an organization id or a function that returns the current one (`createBlocks` and `createBlockClient` pass the request's tenant); a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A record uses the policy for its type and priority, or the policy without a priority. One active policy covers each type and priority (`SLA_POLICY_TAKEN`). `warnAtPercent` (default 80) is when a clock warns. With `businessHours`, only the hours of `options.businessHours` count, in its time zone (UTC, 09:00 to 17:00, Monday to Friday by default); `dueAt(start, minutes, businessHours)` shows the result.
@@ -115,4 +131,34 @@ const client = createSla({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.sla` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createSla } from "better-supabase/blocks/sla";
+
+const sla = createSla({ transport, tenant: organizationId });
+await sla
+  .savePolicy({
+    subjectType: "ticket",
+    name: "Normal",
+    firstResponseMinutes: 240,
+    nextResponseMinutes: 120,
+    resolutionMinutes: 2880,
+    businessHours: true,
+  })
+  .orThrow();
+await sla
+  .savePolicy({
+    subjectType: "ticket",
+    name: "Urgent",
+    priority: "urgent",
+    firstResponseMinutes: 30,
+    resolutionMinutes: 240,
+    warnAtPercent: 50,
+  })
+  .orThrow();
 ```

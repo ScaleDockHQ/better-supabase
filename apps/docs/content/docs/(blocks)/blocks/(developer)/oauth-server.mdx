@@ -20,13 +20,25 @@ Supabase Auth OAuth server fits, use that instead; the
 better-supabase add oauth-server
 ```
 
-```ts
-import {
-  createOAuthServer,
-  sqlTransport,
-} from "better-supabase/blocks/oauth-server";
+Server code calls the `oauth-server` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const oauth = createOAuthServer({ transport: sqlTransport(postgres.admin) });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useOauthServer } = defineDataHooks(
+  "oauthServer",
+  (db: AppDb) => db.oauthServer,
+);
+```
+
+```ts
+const rows = await db.oauthServer.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/oauth-server/list.tsx"
+"use client";
+
+import { useOauthServer } from "@/lib/supabase/hooks";
+
+const rows = useOauthServer({ limit: 50 });
 ```
 
 Every function is service-role only, except `my_oauth_grants` and
@@ -216,3 +228,16 @@ one deployment.
 | `oauth_grant.created`, `oauth_grant.revoked`      | `grantId`, `userId`, `clientId` |
 
 Each also writes an audit entry when the audit module is installed.
+
+## Without the client
+
+`db.oauthServer` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createOAuthServer,
+  sqlTransport,
+} from "better-supabase/blocks/oauth-server";
+
+const oauth = createOAuthServer({ transport: sqlTransport(postgres.admin) });
+```

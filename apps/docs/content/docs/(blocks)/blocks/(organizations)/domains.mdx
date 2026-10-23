@@ -13,16 +13,32 @@ better-supabase add domains
 
 The module needs `memberships` and `access`. With `reserved-slugs` installed, subdomains go through its slug check.
 
+Server code calls the `domains` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useDomains } = defineDataHooks(
+  "domains",
+  (db: AppDb) => db.domains,
+);
+```
+
 ```ts
 import { createDomains } from "better-supabase/blocks/domains";
 
-const domains = createDomains({ transport });
-const hostname = await domains.add(organizationId, "app.acme.com").orThrow();
+const hostname = await db.domains.add(organizationId, "app.acme.com").orThrow();
 // hostname.record: {
 //   type: "TXT",
 //   name: "_better-supabase.app.acme.com",
 //   value: "better-supabase-hostname-verification=3f1c...",
 // }
+```
+
+```tsx title="src/features/domains/list.tsx"
+"use client";
+
+import { useDomains } from "@/lib/supabase/hooks";
+
+const rows = useDomains({ limit: 50 });
 ```
 
 Show the record to the organization's admin, who publishes it at their DNS provider and points the hostname at your app (a CNAME or the address your host gives you). The record stays on the hostname until it is verified, so the settings page can show it again.
@@ -116,3 +132,19 @@ Cache the answer for a minute or so when every request goes through the proxy: a
 The block records `hostname.added`, `hostname.verified`, `hostname.primary_set` and `hostname.removed` with `organizationId`, `hostnameId` and `hostname`, and writes them to the audit log under `configuration`. See [events](/docs/extending/events).
 
 The block takes `hooks` around its methods, such as a rule on how many hostnames a plan may add; see [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.domains` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createDomains } from "better-supabase/blocks/domains";
+
+const domains = createDomains({ transport });
+const hostname = await domains.add(organizationId, "app.acme.com").orThrow();
+// hostname.record: {
+//   type: "TXT",
+//   name: "_better-supabase.app.acme.com",
+//   value: "better-supabase-hostname-verification=3f1c...",
+// }
+```

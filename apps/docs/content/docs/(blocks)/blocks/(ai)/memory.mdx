@@ -43,16 +43,25 @@ and `dimensions` and `type` set the embedding column as in
 
 ## Server
 
-```ts title="lib/memory.ts"
-import { embedWith } from "better-supabase/ai-sdk/embeddings";
-import { createMemory, rpcTransport } from "better-supabase/blocks/memory";
+Server code calls the `memory` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const memoryFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
-  createMemory({
-    transport: rpcTransport(supabase),
-    service: rpcTransport(admin),
-    embedder: embedWith("openai/text-embedding-3-small"),
-  });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useMemory } = defineDataHooks(
+  "memory",
+  (db: AppDb) => db.memory,
+);
+```
+
+```ts
+const rows = await db.memory.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/memory/list.tsx"
+"use client";
+
+import { useMemory } from "@/lib/supabase/hooks";
+
+const rows = useMemory({ limit: 50 });
 ```
 
 | Group       | Methods                                                             |
@@ -147,3 +156,19 @@ extracts facts from a conversation.
 before and after a call: refuse it with a `DbError`, rewrite its arguments
 or observe the result (see [extending blocks](/docs/extending/blocks#hooks)). Methods in a group take their hooks under the group's name,
 such as `hooks: { core: { write: { before } } }`.
+
+## Without the client
+
+`db.memory` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/memory.ts"
+import { embedWith } from "better-supabase/ai-sdk/embeddings";
+import { createMemory, rpcTransport } from "better-supabase/blocks/memory";
+
+export const memoryFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createMemory({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    embedder: embedWith("openai/text-embedding-3-small"),
+  });
+```

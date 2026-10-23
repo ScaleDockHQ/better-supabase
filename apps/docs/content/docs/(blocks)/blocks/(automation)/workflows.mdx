@@ -62,19 +62,25 @@ the trigger node a run of a graph with several started at.
 
 ## Reading runs
 
-```ts title="app/workflows/page.tsx"
-import {
-  createWorkflows,
-  rpcTransport,
-} from "better-supabase/blocks/workflows";
+Server code calls the `workflows` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const workflows = createWorkflows({ transport: rpcTransport(supabase) });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useWorkflows } = defineDataHooks(
+  "workflows",
+  (db: AppDb) => db.workflows,
+);
+```
 
-const runs = await workflows.runs
-  .list({ tenant: organizationId, status: "running", limit: 50 })
-  .orThrow();
-const run = await workflows.runs.get(runId).orThrow();
-await workflows.runs.requestCancel(runId);
+```ts
+const rows = await db.workflows.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/workflows/list.tsx"
+"use client";
+
+import { useWorkflows } from "@/lib/supabase/hooks";
+
+const rows = useWorkflows({ limit: 50 });
 ```
 
 `runs.get` and `requestCancel` take the row's id or the engine's run id.
@@ -327,3 +333,22 @@ idempotency key `admission:<id>`. Both are service-role functions.
 `{ schedules: { create: { before } } }` for a rule that returns a
 `DbError` to refuse a schedule; see
 [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.workflows` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/workflows/page.tsx"
+import {
+  createWorkflows,
+  rpcTransport,
+} from "better-supabase/blocks/workflows";
+
+const workflows = createWorkflows({ transport: rpcTransport(supabase) });
+
+const runs = await workflows.runs
+  .list({ tenant: organizationId, status: "running", limit: 50 })
+  .orThrow();
+const run = await workflows.runs.get(runId).orThrow();
+await workflows.runs.requestCancel(runId);
+```

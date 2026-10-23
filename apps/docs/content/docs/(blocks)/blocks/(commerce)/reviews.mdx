@@ -13,12 +13,19 @@ better-supabase add reviews
 
 The module needs `tenant`, `permissions` and [moderation](/docs/blocks/moderation). With [catalog](/docs/blocks/catalog) installed, products are reviewable (subject type `product`); with `orders` installed, reviews of a product carry `verified`.
 
+Server code calls the `reviews` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useReviews } = defineDataHooks(
+  "reviews",
+  (db: AppDb) => db.reviews,
+);
+```
+
 ```ts
 import { createReviews } from "better-supabase/blocks/reviews";
 
-const reviews = createReviews({ transport });
-
-await reviews
+await db.reviews
   .submit(organizationId, "product", productId, {
     rating: 5,
     title: "Fits well",
@@ -26,6 +33,14 @@ await reviews
     authorName: "Ada",
   })
   .orThrow();
+```
+
+```tsx title="src/features/reviews/list.tsx"
+"use client";
+
+import { useReviews } from "@/lib/supabase/hooks";
+
+const rows = useReviews({ limit: 50 });
 ```
 
 ## Who can review
@@ -92,3 +107,22 @@ The last decision lives on the item (`decidedBy`, `decidedAt` from `moderation.i
 The block records `review.submitted`, `review.published`, `review.rejected`, `review.replied` and `review.deleted` with `organizationId`, `id`, `subjectType`, `subjectId`, `authorId`, `rating`, `status` and `verified`. See [events](/docs/extending/events).
 
 The block takes `hooks` around its methods, and `before_review_submit` and `after_review_submit` run in the database; see [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.reviews` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createReviews } from "better-supabase/blocks/reviews";
+
+const reviews = createReviews({ transport });
+
+await reviews
+  .submit(organizationId, "product", productId, {
+    rating: 5,
+    title: "Fits well",
+    body: "True to size and the fabric holds up.",
+    authorName: "Ada",
+  })
+  .orThrow();
+```

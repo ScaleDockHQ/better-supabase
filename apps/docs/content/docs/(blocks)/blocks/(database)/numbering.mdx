@@ -120,9 +120,25 @@ To show the number a document would get, such as on a send dialog, call `preview
 },
 ```
 
+Server code calls the `numbering` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useNumbering } = defineDataHooks(
+  "numbering",
+  (db: AppDb) => db.numbering,
+);
+```
+
 ```ts
-const numbers = createNumbering({ transport });
-const next = await numbers.preview(organizationId, "invoice", issuedOn);
+const next = await db.numbering.preview(organizationId, "invoice", issuedOn);
+```
+
+```tsx title="src/features/numbering/list.tsx"
+"use client";
+
+import { useNumbering } from "@/lib/supabase/hooks";
+
+const rows = useNumbering({ limit: 50 });
 ```
 
 When different people issue different documents, give an entity its own key with `permission`. `preview_number` then checks that key for the entity and `permissions.assign` for every entity without one, so a config without `permission` keeps working as before:
@@ -191,3 +207,12 @@ table takes no app columns: its rows are counters the module owns.
 ## Adopt mode
 
 Map `tables.sequences` onto an existing table, for example `public.organization_number_sequences`, with columns `tenant`, `entity`, `period` and `lastNumber`. The adopted `entity` column may be an enum, such as `entity public.workflow_subject_type`: `next_number` casts the entity name to the column's type.
+
+## Without the client
+
+`db.numbering` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const numbers = createNumbering({ transport });
+const next = await numbers.preview(organizationId, "invoice", issuedOn);
+```

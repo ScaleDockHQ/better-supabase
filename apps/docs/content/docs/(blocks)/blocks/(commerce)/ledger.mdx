@@ -24,13 +24,20 @@ The module needs `memberships` and `access`. [Inventory](/docs/blocks/inventory)
 [leave](/docs/blocks/leave) and [invoices](/docs/blocks/invoices) require it
 and install it with them.
 
+Server code calls the `ledger` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useLedger } = defineDataHooks(
+  "ledger",
+  (db: AppDb) => db.ledger,
+);
+```
+
 ```ts
 import { createLedger } from "better-supabase/blocks/ledger";
 import { money } from "better-supabase/commerce";
 
-const ledger = createLedger({ transport, tenant: organizationId });
-
-const credits = await ledger
+const credits = await db.ledger
   .openAccount({
     kind: "credit",
     code: `credit:${partyId}`,
@@ -41,7 +48,7 @@ const credits = await ledger
   })
   .orThrow();
 
-const promotions = await ledger
+const promotions = await db.ledger
   .openAccount({
     kind: "credit_source",
     code: "credit:promotions",
@@ -51,7 +58,7 @@ const promotions = await ledger
   })
   .orThrow();
 
-await ledger
+await db.ledger
   .post({
     kind: "credit.grant",
     lines: [
@@ -61,6 +68,14 @@ await ledger
     idempotencyKey: `welcome:${partyId}`,
   })
   .orThrow();
+```
+
+```tsx title="src/features/ledger/list.tsx"
+"use client";
+
+import { useLedger } from "@/lib/supabase/hooks";
+
+const rows = useLedger({ limit: 50 });
 ```
 
 ## Accounts
@@ -139,3 +154,46 @@ amounts live.
 `ledger_transaction.posted` and `ledger_transaction.reversed`, and
 `ledger_hold.placed`, `ledger_hold.captured` and `ledger_hold.released`. The
 [events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.ledger` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createLedger } from "better-supabase/blocks/ledger";
+import { money } from "better-supabase/commerce";
+
+const ledger = createLedger({ transport, tenant: organizationId });
+
+const credits = await ledger
+  .openAccount({
+    kind: "credit",
+    code: `credit:${partyId}`,
+    name: "Store credit",
+    unit: "EUR",
+    holder: { type: "party", id: partyId },
+    readPermission: "parties.read",
+  })
+  .orThrow();
+
+const promotions = await ledger
+  .openAccount({
+    kind: "credit_source",
+    code: "credit:promotions",
+    name: "Promotions",
+    unit: "EUR",
+    allowNegative: true,
+  })
+  .orThrow();
+
+await ledger
+  .post({
+    kind: "credit.grant",
+    lines: [
+      { accountId: credits.id, amount: money(2500n, "EUR") },
+      { accountId: promotions.id, amount: money(-2500n, "EUR") },
+    ],
+    idempotencyKey: `welcome:${partyId}`,
+  })
+  .orThrow();
+```

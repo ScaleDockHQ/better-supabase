@@ -74,22 +74,25 @@ it completes or resets, and its progress counts only the current steps.
 `createOnboarding` reads and completes the steps of any checklist the module
 knows. Each method takes the checklist first, so its step ids are typed:
 
-```ts title="app/(app)/page.tsx"
-import {
-  createOnboarding,
-  rpcTransport,
-} from "better-supabase/blocks/onboarding";
-import { gettingStarted } from "@/onboarding";
+Server code calls the `onboarding` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const onboarding = createOnboarding({ transport: rpcTransport(supabase) });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useOnboarding } = defineDataHooks(
+  "onboarding",
+  (db: AppDb) => db.onboarding,
+);
+```
 
-const progress = await onboarding
-  .progress(gettingStarted, organizationId)
-  .orThrow();
-// { steps: [{ id, title, completed, completedAt, ... }], completed: 1, total: 3, done: false, next: { id: "billing", ... } }
+```ts
+const rows = await db.onboarding.list({ limit: 50 }).orThrow();
+```
 
-await onboarding.complete(gettingStarted, "project", organizationId);
-await onboarding.reset(gettingStarted, "project", organizationId);
+```tsx title="src/features/onboarding/list.tsx"
+"use client";
+
+import { useOnboarding } from "@/lib/supabase/hooks";
+
+const rows = useOnboarding({ limit: 50 });
 ```
 
 A user checklist takes no organization: `onboarding.progress(profile)`.
@@ -271,3 +274,25 @@ export function Component(props: { organizationId: string }) {
 Unknown steps raise `ONBOARDING_STEP_UNKNOWN`, a tenant on a user checklist
 (or none on an organization one) `ONBOARDING_SCOPE`, and a missing
 permission `ONBOARDING_FORBIDDEN`.
+
+## Without the client
+
+`db.onboarding` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/(app)/page.tsx"
+import {
+  createOnboarding,
+  rpcTransport,
+} from "better-supabase/blocks/onboarding";
+import { gettingStarted } from "@/onboarding";
+
+const onboarding = createOnboarding({ transport: rpcTransport(supabase) });
+
+const progress = await onboarding
+  .progress(gettingStarted, organizationId)
+  .orThrow();
+// { steps: [{ id, title, completed, completedAt, ... }], completed: 1, total: 3, done: false, next: { id: "billing", ... } }
+
+await onboarding.complete(gettingStarted, "project", organizationId);
+await onboarding.reset(gettingStarted, "project", organizationId);
+```

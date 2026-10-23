@@ -65,13 +65,28 @@ exist, and `search.reindex()` does it again after a config change.
 (`search.read`), and `can_subject` drops each hit the caller can't `read`, so
 a document is visible only where its source row is.
 
-```ts
-const search = createSearch({ transport, service });
+Server code calls the `search` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const hits = await search
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSearch } = defineDataHooks(
+  "search",
+  (db: AppDb) => db.search,
+);
+```
+
+```ts
+const hits = await db.search
   .search("revnue plan", { types: ["note"], limit: 10 })
   .orThrow();
 // [{ subjectType: "note", subjectId, title, url, snippet, score }]
+```
+
+```tsx title="src/features/search/list.tsx"
+"use client";
+
+import { useSearch } from "@/lib/supabase/hooks";
+
+const rows = useSearch({ limit: 50 });
 ```
 
 The query is lowercased and stripped of accents (`unaccent`), then matched
@@ -359,3 +374,16 @@ with `api: "api"`. The header has a Search button that also opens on Cmd+K:
 `useCommandSearch({ schema: "api" })` drives a dialog that lists favorites and
 recents for an empty query and customer matches as the user types. See
 `apps/examples/nextjs/src/features/search`.
+
+## Without the client
+
+`db.search` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const search = createSearch({ transport, service });
+
+const hits = await search
+  .search("revnue plan", { types: ["note"], limit: 10 })
+  .orThrow();
+// [{ subjectType: "note", subjectId, title, url, snippet, score }]
+```

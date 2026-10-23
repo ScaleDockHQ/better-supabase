@@ -23,22 +23,25 @@ A row comes from one of two places. Nobody inserts or updates `identity_links` d
 1. **Link code.** The signed-in user calls `beginLink(kind, provider)`, which returns a one-time code that expires after 10 minutes. The user hands it to the bot (`/link 3F9A…`). The bot side calls `redeemLink(code, identity)` as the service role, and the row binds the identity the platform reported to the user who issued the code.
 2. **Confirmed address.** A trigger on `auth.users` creates the user's email identity once `email_confirmed_at` is set, and moves it when the address changes. An unconfirmed address creates nothing. Run `backfillVerifiedEmails()` once for users confirmed before you installed the module.
 
-```ts title="app/settings/link-slack/actions.ts"
-"use server";
+Server code calls the `identities` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import {
-  createIdentities,
-  sqlTransport,
-} from "better-supabase/blocks/identities";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useIdentities } = defineDataHooks(
+  "identities",
+  (db: AppDb) => db.identities,
+);
+```
 
-export async function linkSlack() {
-  const ctx = await bsb.context();
-  const identities = createIdentities({
-    transport: sqlTransport(ctx.postgres),
-  });
-  const { code } = await identities.beginLink("chat", "slack").orThrow();
-  return `Send "/link ${code}" to @acme-bot in Slack.`;
-}
+```ts
+const rows = await db.identities.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/identities/list.tsx"
+"use client";
+
+import { useIdentities } from "@/lib/supabase/hooks";
+
+const rows = useIdentities({ limit: 50 });
 ```
 
 ```ts title="lib/bot.ts"
@@ -125,3 +128,25 @@ blocks: {
 `createIdentities` takes `hooks`, keyed by method name, that run your code
 before and after a call: refuse it with a `DbError`, rewrite its arguments
 or observe the result (see [extending blocks](/docs/extending/blocks#hooks)).
+
+## Without the client
+
+`db.identities` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/settings/link-slack/actions.ts"
+"use server";
+
+import {
+  createIdentities,
+  sqlTransport,
+} from "better-supabase/blocks/identities";
+
+export async function linkSlack() {
+  const ctx = await bsb.context();
+  const identities = createIdentities({
+    transport: sqlTransport(ctx.postgres),
+  });
+  const { code } = await identities.beginLink("chat", "slack").orThrow();
+  return `Send "/link ${code}" to @acme-bot in Slack.`;
+}
+```

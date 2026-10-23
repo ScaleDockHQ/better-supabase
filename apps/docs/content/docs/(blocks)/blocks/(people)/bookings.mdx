@@ -53,10 +53,17 @@ and read with `bookings.read`.
 
 ## Resources and services
 
-```ts
-const bookings = createBookings({ transport, service: serviceTransport });
+Server code calls the `bookings` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const { id: resourceId } = await bookings
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useBookings } = defineDataHooks(
+  "bookings",
+  (db: AppDb) => db.bookings,
+);
+```
+
+```ts
+const { id: resourceId } = await db.bookings
   .saveResource(organizationId, {
     name: "Ann",
     kind: "staff",
@@ -64,14 +71,14 @@ const { id: resourceId } = await bookings
   })
   .orThrow();
 
-await bookings
+await db.bookings
   .setAvailability(resourceId, [
     { weekday: 1, start: "09:00", end: "17:00" },
     { weekday: 2, start: "09:00", end: "17:00" },
   ])
   .orThrow();
 
-const { id: serviceId } = await bookings
+const { id: serviceId } = await db.bookings
   .saveService(organizationId, {
     name: "Haircut",
     duration: Temporal.Duration.from({ minutes: 30 }),
@@ -79,6 +86,14 @@ const { id: serviceId } = await bookings
     resourceKinds: ["staff"],
   })
   .orThrow();
+```
+
+```tsx title="src/features/bookings/list.tsx"
+"use client";
+
+import { useBookings } from "@/lib/supabase/hooks";
+
+const rows = useBookings({ limit: 50 });
 ```
 
 Hours are wall-clock times in the resource's zone, so 09:00 stays 09:00 across
@@ -491,4 +506,36 @@ const client = createBookings({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.bookings` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const bookings = createBookings({ transport, service: serviceTransport });
+
+const { id: resourceId } = await bookings
+  .saveResource(organizationId, {
+    name: "Ann",
+    kind: "staff",
+    tz: "Europe/Amsterdam",
+  })
+  .orThrow();
+
+await bookings
+  .setAvailability(resourceId, [
+    { weekday: 1, start: "09:00", end: "17:00" },
+    { weekday: 2, start: "09:00", end: "17:00" },
+  ])
+  .orThrow();
+
+const { id: serviceId } = await bookings
+  .saveService(organizationId, {
+    name: "Haircut",
+    duration: Temporal.Duration.from({ minutes: 30 }),
+    bufferAfter: "PT15M",
+    resourceKinds: ["staff"],
+  })
+  .orThrow();
 ```

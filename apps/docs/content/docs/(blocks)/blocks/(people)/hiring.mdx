@@ -22,21 +22,29 @@ The module needs `tenant`, `access`, `subjects` and `pipelines`. Installing it b
 
 Each job's first application seeds its pipeline; an admin adds or renames stages per job with the pipelines client. The category sets the application's `state`.
 
+Server code calls the `hiring` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useHiring } = defineDataHooks(
+  "hiring",
+  (db: AppDb) => db.hiring,
+);
+```
+
 ```ts
 import { createHiring } from "better-supabase/blocks/hiring";
 
-const hiring = createHiring({ transport });
-const job = await hiring
+const job = await db.hiring
   .saveJob(organizationId, {
     title: "Backend engineer",
     location: "Utrecht",
     status: "open",
   })
   .orThrow();
-const application = await hiring
+const application = await db.hiring
   .apply(job.id, { id: personId }, { source: "referral" })
   .orThrow();
-await hiring
+await db.hiring
   .scheduleInterview(application.id, {
     startsAt,
     endsAt,
@@ -44,6 +52,14 @@ await hiring
     kind: "technical",
   })
   .orThrow();
+```
+
+```tsx title="src/features/hiring/list.tsx"
+"use client";
+
+import { useHiring } from "@/lib/supabase/hooks";
+
+const rows = useHiring({ limit: 50 });
 ```
 
 ## Your own fields
@@ -105,3 +121,31 @@ The ReUI Recruiting Pipeline board reads its columns from the job's pipeline boa
 | `HIRING_STAGE_MISSING`         | the job's pipeline has no stage of that category          |
 | `HIRING_SCORECARD_INVALID`     | a rating from 1 to 4 and a recommendation                 |
 | `HIRING_INTERVIEW_INVALID`     | an interview starts before it ends                        |
+
+## Without the client
+
+`db.hiring` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createHiring } from "better-supabase/blocks/hiring";
+
+const hiring = createHiring({ transport });
+const job = await hiring
+  .saveJob(organizationId, {
+    title: "Backend engineer",
+    location: "Utrecht",
+    status: "open",
+  })
+  .orThrow();
+const application = await hiring
+  .apply(job.id, { id: personId }, { source: "referral" })
+  .orThrow();
+await hiring
+  .scheduleInterview(application.id, {
+    startsAt,
+    endsAt,
+    interviewerIds: [engineerId],
+    kind: "technical",
+  })
+  .orThrow();
+```

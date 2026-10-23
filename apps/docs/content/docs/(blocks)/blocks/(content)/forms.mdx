@@ -9,14 +9,22 @@ description: Versioned forms with steps and show or skip logic, a JSON Schema 20
 better-supabase add forms
 ```
 
+Server code calls the `forms` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useForms } = defineDataHooks(
+  "forms",
+  (db: AppDb) => db.forms,
+);
+```
+
 ```ts
 import { createForms } from "better-supabase/blocks/forms";
 
-const forms = createForms({ transport });
-const form = await forms
+const form = await db.forms
   .create({ organizationId, key: "signup", title: "Sign up" })
   .orThrow();
-await forms
+await db.forms
   .publish(form.id, {
     steps: [
       {
@@ -52,10 +60,18 @@ await forms
     ],
   })
   .orThrow();
-await forms.update(form.id, { status: "open" }).orThrow();
-await forms
+await db.forms.update(form.id, { status: "open" }).orThrow();
+await db.forms
   .submit(form.id, { name: "Ada", email: "ada@example.com" })
   .orThrow();
+```
+
+```tsx title="src/features/forms/list.tsx"
+"use client";
+
+import { useForms } from "@/lib/supabase/hooks";
+
+const rows = useForms({ limit: 50 });
 ```
 
 ## Definitions and versions
@@ -332,3 +348,56 @@ const q = useQuestionnaire({
 `next()` checks the step's fields against the version's schema and stays on the step when one fails. Answering a field that hides later steps moves past them, and `submit()` sends only the answers of fields still visible. Submissions render in a ReUI data grid from `listSubmissions`, with accept and reject actions that call `review`.
 
 Signatures moved to their own block in 0.14; see [Signatures](/docs/blocks/signatures).
+
+## Without the client
+
+`db.forms` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createForms } from "better-supabase/blocks/forms";
+
+const forms = createForms({ transport });
+const form = await forms
+  .create({ organizationId, key: "signup", title: "Sign up" })
+  .orThrow();
+await forms
+  .publish(form.id, {
+    steps: [
+      {
+        key: "contact",
+        title: "Contact",
+        fields: [
+          { key: "name", label: "Name", type: "text", required: true },
+          { key: "email", label: "Email", type: "email", required: true },
+          {
+            key: "plan",
+            label: "Plan",
+            type: "option",
+            options: [
+              { value: "free", label: "Free" },
+              { value: "team", label: "Team" },
+            ],
+          },
+        ],
+      },
+      {
+        key: "team",
+        showIf: { field: "plan", equals: "team" },
+        fields: [
+          {
+            key: "seats",
+            label: "Seats",
+            type: "integer",
+            min: 2,
+            required: true,
+          },
+        ],
+      },
+    ],
+  })
+  .orThrow();
+await forms.update(form.id, { status: "open" }).orThrow();
+await forms
+  .submit(form.id, { name: "Ada", email: "ada@example.com" })
+  .orThrow();
+```

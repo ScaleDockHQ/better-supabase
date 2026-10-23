@@ -30,21 +30,25 @@ per deploy, as for rules. A segment reads the stored row, so each field's
 `column` names a database column of the subject's table (`lifecycle`,
 `amount_minor`, `archived_at`), not a camelCase key.
 
+Server code calls the `segments` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSegments } = defineDataHooks(
+  "segments",
+  (db: AppDb) => db.segments,
+);
+```
+
 ```ts
-import {
-  createAutomationsAdmin,
-  defineRuleFields,
-} from "better-supabase/blocks/automations";
+const rows = await db.segments.list({ limit: 50 }).orThrow();
+```
 
-export const companyFields = defineRuleFields("company", {
-  lifecycle: { type: "select", options: ["lead", "customer", "churned"] },
-  industry: { type: "select", options: ["saas", "retail", "finance"] },
-  archivedAt: { type: "date", column: "archived_at" },
-});
+```tsx title="src/features/segments/list.tsx"
+"use client";
 
-await createAutomationsAdmin({ transport: serviceTransport })
-  .syncFields(companyFields)
-  .orThrow();
+import { useSegments } from "@/lib/supabase/hooks";
+
+const rows = useSegments({ limit: 50 });
 ```
 
 A subject with a `deletedAt` column in `config.records` leaves its deleted
@@ -151,3 +155,24 @@ and record timelines handle it like any other subject event. See
 | `SEGMENT_SUBJECT_UNKNOWN` | the subject type is not in `config.records`         |
 | `SEGMENT_FIELDS_MISSING`  | the subject type has no synced rule fields          |
 | `SEGMENT_TOO_LARGE`       | a refresh matched more than `maxMembers` records    |
+
+## Without the client
+
+`db.segments` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createAutomationsAdmin,
+  defineRuleFields,
+} from "better-supabase/blocks/automations";
+
+export const companyFields = defineRuleFields("company", {
+  lifecycle: { type: "select", options: ["lead", "customer", "churned"] },
+  industry: { type: "select", options: ["saas", "retail", "finance"] },
+  archivedAt: { type: "date", column: "archived_at" },
+});
+
+await createAutomationsAdmin({ transport: serviceTransport })
+  .syncFields(companyFields)
+  .orThrow();
+```

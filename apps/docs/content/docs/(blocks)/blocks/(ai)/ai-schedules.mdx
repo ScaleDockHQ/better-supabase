@@ -33,21 +33,25 @@ can name the agent it runs as.
 
 ## Server
 
-```ts title="lib/ai-tasks.ts"
-import {
-  createAiSchedules,
-  rpcTransport,
-} from "better-supabase/blocks/ai-schedules";
+Server code calls the `ai-schedules` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const tasksFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
-  createAiSchedules({
-    transport: rpcTransport(supabase),
-    service: rpcTransport(admin),
-    run: async (task, run, signal) => {
-      const chatId = await runAssistant(task, signal);
-      return { chatId };
-    },
-  });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAiSchedules } = defineDataHooks(
+  "aiSchedules",
+  (db: AppDb) => db.aiSchedules,
+);
+```
+
+```ts
+const rows = await db.aiSchedules.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/ai-schedules/list.tsx"
+"use client";
+
+import { useAiSchedules } from "@/lib/supabase/hooks";
+
+const rows = useAiSchedules({ limit: 50 });
 ```
 
 ```ts
@@ -111,4 +115,25 @@ const client = createAiSchedules({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.aiSchedules` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/ai-tasks.ts"
+import {
+  createAiSchedules,
+  rpcTransport,
+} from "better-supabase/blocks/ai-schedules";
+
+export const tasksFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createAiSchedules({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    run: async (task, run, signal) => {
+      const chatId = await runAssistant(task, signal);
+      return { chatId };
+    },
+  });
 ```

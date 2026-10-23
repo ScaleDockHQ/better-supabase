@@ -13,11 +13,19 @@ better-supabase add goals
 
 The module needs `memberships` and `access`.
 
+Server code calls the `goals` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useGoals } = defineDataHooks(
+  "goals",
+  (db: AppDb) => db.goals,
+);
+```
+
 ```ts
 import { createGoals } from "better-supabase/blocks/goals";
 
-const targets = createGoals({ transport });
-await targets
+await db.goals
   .upsert(organizationId, {
     name: "Q4 quota",
     metric: "deals.won_amount",
@@ -29,10 +37,18 @@ await targets
   })
   .orThrow();
 
-const running = await targets
+const running = await db.goals
   .progress(organizationId, { ownerId: repId })
   .orThrow();
 // [{ name: "Q4 quota", progress: 18_400_000n, attainment: 0.3067, ... }]
+```
+
+```tsx title="src/features/goals/list.tsx"
+"use client";
+
+import { useGoals } from "@/lib/supabase/hooks";
+
+const rows = useGoals({ limit: 50 });
 ```
 
 ## Metrics
@@ -71,4 +87,30 @@ const client = createGoals({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.goals` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createGoals } from "better-supabase/blocks/goals";
+
+const targets = createGoals({ transport });
+await targets
+  .upsert(organizationId, {
+    name: "Q4 quota",
+    metric: "deals.won_amount",
+    ownerId: repId,
+    currency: "EUR",
+    goal: 60_000_000n,
+    periodStart: Temporal.PlainDate.from("2026-10-01"),
+    periodEnd: Temporal.PlainDate.from("2026-12-31"),
+  })
+  .orThrow();
+
+const running = await targets
+  .progress(organizationId, { ownerId: repId })
+  .orThrow();
+// [{ name: "Q4 quota", progress: 18_400_000n, attainment: 0.3067, ... }]
 ```

@@ -27,12 +27,19 @@ The module needs `tenant`, `permissions` and `rules`. It reads vote scores when
 [reactions](/docs/blocks/reactions) is installed, records `score_model.*`
 events to the outbox and the audit log, and emits `score.changed`.
 
+Server code calls the `scores` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useScores } = defineDataHooks(
+  "scores",
+  (db: AppDb) => db.scores,
+);
+```
+
 ```ts
 import { createScores } from "better-supabase/blocks/scores";
 
-const scores = createScores({ transport, tenant: organizationId });
-
-await scores
+await db.scores
   .saveModel({
     key: "lead",
     name: "Lead score",
@@ -58,10 +65,18 @@ await scores
   })
   .orThrow();
 
-const score = await scores
+const score = await db.scores
   .compute("lead", { type: "party", id: party.id }, party)
   .orThrow();
 // { score: 81, band: "hot", changed: true, breakdown: { rules, metrics } }
+```
+
+```tsx title="src/features/scores/list.tsx"
+"use client";
+
+import { useScores } from "@/lib/supabase/hooks";
+
+const rows = useScores({ limit: 50 });
 ```
 
 `qualified` and `bigRevenue` are `FilterQuery` trees, the same ones the
@@ -147,3 +162,44 @@ Models are data, so an organization tunes its own scoring without a deploy,
 and every version stays readable for the scores it produced. The record passes
 its fields in, as with rules, so the module never reads your tables and works
 for any subject type.
+
+## Without the client
+
+`db.scores` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createScores } from "better-supabase/blocks/scores";
+
+const scores = createScores({ transport, tenant: organizationId });
+
+await scores
+  .saveModel({
+    key: "lead",
+    name: "Lead score",
+    subjectType: "party",
+    rules: [
+      {
+        id: "qualified",
+        label: "Qualified",
+        conditions: qualified,
+        points: 20,
+      },
+      { id: "enterprise", conditions: bigRevenue, points: 30 },
+    ],
+    metrics: [
+      { id: "size", source: "field", field: "employees", weight: 0.5, cap: 25 },
+      { id: "votes", source: "votes", weight: 2 },
+    ],
+    bands: [
+      { label: "hot", min: 50 },
+      { label: "warm", min: 20 },
+      { label: "cold", min: -1000 },
+    ],
+  })
+  .orThrow();
+
+const score = await scores
+  .compute("lead", { type: "party", id: party.id }, party)
+  .orThrow();
+// { score: 81, band: "hot", changed: true, breakdown: { rules, metrics } }
+```

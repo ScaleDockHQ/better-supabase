@@ -128,30 +128,25 @@ invitations.
 `sqlTransport` uses a Postgres connection with the user's claims, and works
 whatever schema the modules are in:
 
-```ts title="app/organizations/actions.ts"
-"use server";
-import {
-  createOrganizations,
-  sqlTransport,
-} from "better-supabase/blocks/organizations";
-import { betterSupabase } from "@/lib/supabase/client";
-import { postgres } from "@/lib/supabase/postgres";
-import { bsb } from "@/lib/supabase/server";
-import { sendInvitationEmail } from "@/lib/email";
+Server code calls the `organizations` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export async function inviteMember(organizationId: string, email: string) {
-  const ctx = await bsb.context();
-  if (ctx.auth.kind !== "user") throw new Error("Sign in first");
-  const organizations = createOrganizations({
-    transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
-    events: betterSupabase.events,
-    actorId: ctx.auth.user.id,
-    canInvite: async () => (await seatsLeft(organizationId)) > 0,
-    onInvite: ({ invitation, token }) =>
-      sendInvitationEmail(invitation.email, `/invite/${token}`),
-  });
-  return organizations.invite({ organizationId, email, role: "member" });
-}
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useOrganizations } = defineDataHooks(
+  "organizations",
+  (db: AppDb) => db.organizations,
+);
+```
+
+```ts
+const rows = await db.organizations.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/organizations/list.tsx"
+"use client";
+
+import { useOrganizations } from "@/lib/supabase/hooks";
+
+const rows = useOrganizations({ limit: 50 });
 ```
 
 `rpcTransport(ctx.supabase)` calls them over the Data API instead. Never add
@@ -681,5 +676,35 @@ failed call carries one as `error.hint`:
 const accepted = await organizations.acceptInvitation(token);
 if (!accepted.ok && accepted.error.hint === "INVITATION_EXPIRED") {
   // Ask the organization to resend the invitation.
+}
+```
+
+## Without the client
+
+`db.organizations` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/organizations/actions.ts"
+"use server";
+import {
+  createOrganizations,
+  sqlTransport,
+} from "better-supabase/blocks/organizations";
+import { betterSupabase } from "@/lib/supabase/client";
+import { postgres } from "@/lib/supabase/postgres";
+import { bsb } from "@/lib/supabase/server";
+import { sendInvitationEmail } from "@/lib/email";
+
+export async function inviteMember(organizationId: string, email: string) {
+  const ctx = await bsb.context();
+  if (ctx.auth.kind !== "user") throw new Error("Sign in first");
+  const organizations = createOrganizations({
+    transport: sqlTransport(postgres.asUser(ctx.auth.claims)),
+    events: betterSupabase.events,
+    actorId: ctx.auth.user.id,
+    canInvite: async () => (await seatsLeft(organizationId)) > 0,
+    onInvite: ({ invitation, token }) =>
+      sendInvitationEmail(invitation.email, `/invite/${token}`),
+  });
+  return organizations.invite({ organizationId, email, role: "member" });
 }
 ```

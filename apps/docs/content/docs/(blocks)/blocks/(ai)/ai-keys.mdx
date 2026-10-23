@@ -35,21 +35,25 @@ purge in [data lifecycle](/docs/blocks/data-lifecycle#credentials) revokes each 
 
 ## Creating the client
 
-```ts title="lib/ai-providers.ts"
-import "server-only";
+Server code calls the `ai-keys` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import { createAiKeys, rpcTransport } from "better-supabase/blocks/ai-keys";
-import { vaultCredentials } from "better-supabase/credentials";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAiKeys } = defineDataHooks(
+  "aiKeys",
+  (db: AppDb) => db.aiKeys,
+);
+```
 
-const service = rpcTransport(bsb.admin().$client, { schema: "api" });
+```ts
+const rows = await db.aiKeys.list({ limit: 50 }).orThrow();
+```
 
-export const providersFor = (supabase: SupabaseClient) =>
-  createAiKeys({
-    transport: rpcTransport(supabase, { schema: "api" }),
-    service,
-    credentials: vaultCredentials({ transport: service, schema: "api" }),
-    schema: "api",
-  });
+```tsx title="src/features/ai-keys/list.tsx"
+"use client";
+
+import { useAiKeys } from "@/lib/supabase/hooks";
+
+const rows = useAiKeys({ limit: 50 });
 ```
 
 ## Keys
@@ -90,3 +94,24 @@ The poll job claims due batches with `due({ batch, leaseSeconds })`, so two
 workers never poll the same one, and writes the outcome with `update` and
 `saveItems`. `items(batchId, { cursor, limit })` pages the results by request
 id. [`aiBatches`](/docs/ai-sdk/batches) does all of this for AI SDK batches.
+
+## Without the client
+
+`db.aiKeys` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/ai-providers.ts"
+import "server-only";
+
+import { createAiKeys, rpcTransport } from "better-supabase/blocks/ai-keys";
+import { vaultCredentials } from "better-supabase/credentials";
+
+const service = rpcTransport(bsb.admin().$client, { schema: "api" });
+
+export const providersFor = (supabase: SupabaseClient) =>
+  createAiKeys({
+    transport: rpcTransport(supabase, { schema: "api" }),
+    service,
+    credentials: vaultCredentials({ transport: service, schema: "api" }),
+    schema: "api",
+  });
+```

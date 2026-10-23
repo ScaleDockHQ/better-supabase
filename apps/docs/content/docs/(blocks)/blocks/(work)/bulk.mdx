@@ -75,10 +75,17 @@ also needs `bulk.run`, which the default member role has.
 
 ## Run rows now
 
-```ts
-const bulk = createBulk({ transport });
+Server code calls the `bulk` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const result = await bulk
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useBulk } = defineDataHooks(
+  "bulk",
+  (db: AppDb) => db.bulk,
+);
+```
+
+```ts
+const result = await db.bulk
   .run({
     organizationId,
     subjectType: "task",
@@ -90,6 +97,14 @@ const result = await bulk
 
 result.failed; // rows that raised
 result.results; // [{ id, ok, error: { code, message, sqlstate } | null }]
+```
+
+```tsx title="src/features/bulk/list.tsx"
+"use client";
+
+import { useBulk } from "@/lib/supabase/hooks";
+
+const rows = useBulk({ limit: 50 });
 ```
 
 Each row runs in its own savepoint, so a failing row leaves the others
@@ -167,3 +182,24 @@ subject table, `audit.revert` writes the old values back.
 The free `c-data-grid-*` examples show row selection; the Pro data grid
 blocks show a bulk action bar. Pro blocks are licensed per user, so copy
 them from [reui.io](https://reui.io).
+
+## Without the client
+
+`db.bulk` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const bulk = createBulk({ transport });
+
+const result = await bulk
+  .run({
+    organizationId,
+    subjectType: "task",
+    rows: selectedIds,
+    action: "tags.set",
+    args: { add: [urgentTagId] },
+  })
+  .orThrow();
+
+result.failed; // rows that raised
+result.results; // [{ id, ok, error: { code, message, sqlstate } | null }]
+```

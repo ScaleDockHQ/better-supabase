@@ -46,14 +46,25 @@ client can't forge an answer.
 
 ## Server
 
-```ts title="lib/ai-chat.ts"
-import { createAiChat, rpcTransport } from "better-supabase/blocks/ai-chat";
+Server code calls the `ai-chat` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const aiChatFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
-  createAiChat({
-    transport: rpcTransport(supabase),
-    service: rpcTransport(admin),
-  });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAiChat } = defineDataHooks(
+  "aiChat",
+  (db: AppDb) => db.aiChat,
+);
+```
+
+```ts
+const rows = await db.aiChat.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/ai-chat/list.tsx"
+"use client";
+
+import { useAiChat } from "@/lib/supabase/hooks";
+
+const rows = useAiChat({ limit: 50 });
 ```
 
 `transport` calls as the user and `service` as the service role. With
@@ -434,4 +445,18 @@ const client = createAiChat({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.aiChat` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/ai-chat.ts"
+import { createAiChat, rpcTransport } from "better-supabase/blocks/ai-chat";
+
+export const aiChatFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createAiChat({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+  });
 ```

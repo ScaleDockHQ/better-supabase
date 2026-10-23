@@ -11,18 +11,34 @@ better-supabase add reactions
 
 The block's entity is `reaction` (the `reactions` table). It isn't registered as a subject. Rename it with `blocks.reactions.names`.
 
+Server code calls the `reactions` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useReactions } = defineDataHooks(
+  "reactions",
+  (db: AppDb) => db.reactions,
+);
+```
+
 ```ts
 import { createReactions } from "better-supabase/blocks/reactions";
 
-const reactions = createReactions({ transport, tenant: organizationId });
 const doc = { type: "doc", id: docId };
 
-await reactions.react(doc, "👍").orThrow();
-const byDoc = await reactions
+await db.reactions.react(doc, "👍").orThrow();
+const byDoc = await db.reactions
   .summary(docIds.map((id) => ({ type: "doc", id })))
   .orThrow();
 byDoc[`doc:${docId}`]; // the doc's ReactionCount[]
-await reactions.react(doc, "👍", { present: false }).orThrow();
+await db.reactions.react(doc, "👍", { present: false }).orThrow();
+```
+
+```tsx title="src/features/reactions/list.tsx"
+"use client";
+
+import { useReactions } from "@/lib/supabase/hooks";
+
+const rows = useReactions({ limit: 50 });
 ```
 
 Every call acts in the block's `tenant`, an organization id or a function that returns the current one; `createBlocks` and `createBlockClient` pass the request's tenant, and a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`. A subject is a `RecordRef`, `{ type, id }`. `summary(subjects)` takes up to 200 subjects of each type and returns their reactions keyed `type:id` (`subjectKey(subject)` from `better-supabase/blocks`); a subject without reactions may be left out.
@@ -220,3 +236,21 @@ The module records `reaction.added` and `reaction.removed` with `organizationId`
 ## With ReUI
 
 Render the ReUI Emoji Picker for new reactions and one Bubble per `ReactionCount`, highlighted when `reacted` is true. `toggle(subject, emoji)` adds the emoji, or removes it when the user already reacted with it.
+
+## Without the client
+
+`db.reactions` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createReactions } from "better-supabase/blocks/reactions";
+
+const reactions = createReactions({ transport, tenant: organizationId });
+const doc = { type: "doc", id: docId };
+
+await reactions.react(doc, "👍").orThrow();
+const byDoc = await reactions
+  .summary(docIds.map((id) => ({ type: "doc", id })))
+  .orThrow();
+byDoc[`doc:${docId}`]; // the doc's ReactionCount[]
+await reactions.react(doc, "👍", { present: false }).orThrow();
+```

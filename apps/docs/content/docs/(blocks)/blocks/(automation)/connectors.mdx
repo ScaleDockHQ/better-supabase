@@ -44,22 +44,25 @@ Rename the keys with `blocks.connectors.permissions.read`, `.use` and
 
 ## Server
 
-```ts title="lib/connectors.ts"
-import { vaultCredentials } from "better-supabase/credentials";
-import {
-  createConnectors,
-  rpcTransport,
-} from "better-supabase/blocks/connectors";
+Server code calls the `connectors` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const connectorsFor = (
-  supabase: SupabaseClient,
-  admin: SupabaseClient,
-) =>
-  createConnectors({
-    transport: rpcTransport(supabase),
-    service: rpcTransport(admin),
-    credentials: vaultCredentials({ transport: rpcTransport(admin) }),
-  });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useConnectors } = defineDataHooks(
+  "connectors",
+  (db: AppDb) => db.connectors,
+);
+```
+
+```ts
+const rows = await db.connectors.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/connectors/list.tsx"
+"use client";
+
+import { useConnectors } from "@/lib/supabase/hooks";
+
+const rows = useConnectors({ limit: 50 });
 ```
 
 | Group          | Methods                                     |
@@ -130,3 +133,25 @@ tools.
 
 [`better-supabase/ai-sdk/mcp`](/docs/ai-sdk/mcp) runs the OAuth flow,
 connects to a server with the stored session and returns its tools.
+
+## Without the client
+
+`db.connectors` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/connectors.ts"
+import { vaultCredentials } from "better-supabase/credentials";
+import {
+  createConnectors,
+  rpcTransport,
+} from "better-supabase/blocks/connectors";
+
+export const connectorsFor = (
+  supabase: SupabaseClient,
+  admin: SupabaseClient,
+) =>
+  createConnectors({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    credentials: vaultCredentials({ transport: rpcTransport(admin) }),
+  });
+```

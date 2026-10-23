@@ -13,24 +13,40 @@ better-supabase add time-tracking
 
 The module needs `tenant`, `permissions` and `approvals`, and creates the `btree_gist` extension for its exclusion constraint.
 
+Server code calls the `time-tracking` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useTimeTracking } = defineDataHooks(
+  "timeTracking",
+  (db: AppDb) => db.timeTracking,
+);
+```
+
 ```ts
 import { money } from "better-supabase/commerce";
 import { createTimeTracking } from "better-supabase/blocks/time-tracking";
 
-const time = createTimeTracking({ transport, tenant: organizationId });
-await time
+await db.timeTracking
   .start({
     subject: { type: "project", id: projectId },
     billable: true,
     rate: money(12_000n, "EUR"),
   })
   .orThrow();
-const entry = await time.stop().orThrow();
+const entry = await db.timeTracking.stop().orThrow();
 
 const week = Temporal.PlainDate.from("2026-10-05");
-const sheet = await time.timesheet(week).orThrow();
+const sheet = await db.timeTracking.timesheet(week).orThrow();
 // sheet.totals: { seconds, billableSeconds, amounts: [money(48_000n, "EUR")] }
-await time.submit(week, "Week 41").orThrow();
+await db.timeTracking.submit(week, "Week 41").orThrow();
+```
+
+```tsx title="src/features/time-tracking/list.tsx"
+"use client";
+
+import { useTimeTracking } from "@/lib/supabase/hooks";
+
+const rows = useTimeTracking({ limit: 50 });
 ```
 
 Every call acts in the block's `tenant`, an organization id or a function that returns the current one. `createBlocks` and `createBlockClient` pass the request's tenant; a call without one fails with `invalid_request` and the hint `TENANT_REQUIRED`.
@@ -175,4 +191,28 @@ const client = createTimeTracking({
   tenant: organizationId,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.timeTracking` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { money } from "better-supabase/commerce";
+import { createTimeTracking } from "better-supabase/blocks/time-tracking";
+
+const time = createTimeTracking({ transport, tenant: organizationId });
+await time
+  .start({
+    subject: { type: "project", id: projectId },
+    billable: true,
+    rate: money(12_000n, "EUR"),
+  })
+  .orThrow();
+const entry = await time.stop().orThrow();
+
+const week = Temporal.PlainDate.from("2026-10-05");
+const sheet = await time.timesheet(week).orThrow();
+// sheet.totals: { seconds, billableSeconds, amounts: [money(48_000n, "EUR")] }
+await time.submit(week, "Week 41").orThrow();
 ```

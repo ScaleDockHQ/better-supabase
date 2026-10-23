@@ -69,17 +69,29 @@ for the tenant feed. It works over `rpcTransport` too, without exposing the
 module schema. Each entry's `subject` is a `RecordRef`, or `undefined` for
 an entry without one.
 
+Server code calls the `timeline` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useTimeline } = defineDataHooks(
+  "timeline",
+  (db: AppDb) => db.timeline,
+);
+```
+
 ```ts
 import { createTimeline, rpcTransport } from "better-supabase/blocks/timeline";
 
-const activity = createTimeline({
-  transport: rpcTransport(supabase),
-  tenant: organizationId,
-});
-
-const timeline = await activity
+const timeline = await db.timeline
   .list({ type: "quote", id: quoteId }, { limit: 20 })
   .orThrow();
+```
+
+```tsx title="src/features/timeline/list.tsx"
+"use client";
+
+import { useTimeline } from "@/lib/supabase/hooks";
+
+const rows = useTimeline({ limit: 50 });
 ```
 
 `limit` defaults to 50 and is at most 500, and `cursor` (an instant) pages
@@ -157,3 +169,20 @@ export const activity = activityListQuery(betterSupabase, "activityEntries", {
 
 The block also takes `hooks` around `list`; see
 [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.timeline` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createTimeline, rpcTransport } from "better-supabase/blocks/timeline";
+
+const activity = createTimeline({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+});
+
+const timeline = await activity
+  .list({ type: "quote", id: quoteId }, { limit: 20 })
+  .orThrow();
+```

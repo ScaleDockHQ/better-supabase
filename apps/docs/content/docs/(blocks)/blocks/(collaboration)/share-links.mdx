@@ -75,6 +75,31 @@ Add columns to the share link table with `blocks.share-links.options.extraColumn
 `fields`. The block also takes `hooks` around its methods; see
 [extending blocks](/docs/extending/blocks).
 
+Server code calls the `share-links` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useShareLinks } = defineDataHooks(
+  "shareLinks",
+  (db: AppDb) => db.shareLinks,
+);
+```
+
+```ts
+const rows = await db.shareLinks.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/share-links/list.tsx"
+"use client";
+
+import { useShareLinks } from "@/lib/supabase/hooks";
+
+const rows = useShareLinks({ limit: 50 });
+```
+
+## Without the client
+
+`db.shareLinks` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
 ```ts
 import { createShareLinks } from "better-supabase/blocks/share-links";
 import { z } from "zod";

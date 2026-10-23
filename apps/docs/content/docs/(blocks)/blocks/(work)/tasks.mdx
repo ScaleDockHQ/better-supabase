@@ -34,14 +34,22 @@ export default defineConfig({
 
 ## Create, edit and assign
 
+Server code calls the `tasks` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useTasks } = defineDataHooks(
+  "tasks",
+  (db: AppDb) => db.tasks,
+);
+```
+
 ```ts
 import { createTasks } from "better-supabase/blocks/tasks";
 
-const items = createTasks({ transport });
-const epic = await items
+const epic = await db.tasks
   .create(organizationId, { title: "Checkout v2", teamId, priority: 2 })
   .orThrow();
-const task = await items
+const task = await db.tasks
   .create(
     organizationId,
     { title: "Payment API", parentId: epic.id, teamId, dueAt },
@@ -49,12 +57,20 @@ const task = await items
   )
   .orThrow();
 
-const { accepted, rejected } = await items
+const { accepted, rejected } = await db.tasks
   .update([
     { workItemId: task.id, field: "stageId", value: inProgressStageId },
     { workItemId: task.id, field: "endAt", value: friday },
   ])
   .orThrow();
+```
+
+```tsx title="src/features/tasks/list.tsx"
+"use client";
+
+import { useTasks } from "@/lib/supabase/hooks";
+
+const rows = useTasks({ limit: 50 });
 ```
 
 `update(changes)` applies grid edits and Gantt drags one by one and returns the refused ones with their hint. The table refuses a parent that would put an item under itself (`WORK_ITEM_PARENT_CYCLE`) and date changes on a locked item (`WORK_ITEM_LOCKED`). Moving to a completed or canceled stage stamps `closedAt` and a close reason (`completed`, or `not_planned` for canceled; pass `closeReason: "duplicate"` with the move to mark a duplicate) and records `work_item.closed`. Moving back to an open stage clears both and records `work_item.reopened`.
@@ -158,4 +174,31 @@ const client = createTasks({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.tasks` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createTasks } from "better-supabase/blocks/tasks";
+
+const items = createTasks({ transport });
+const epic = await items
+  .create(organizationId, { title: "Checkout v2", teamId, priority: 2 })
+  .orThrow();
+const task = await items
+  .create(
+    organizationId,
+    { title: "Payment API", parentId: epic.id, teamId, dueAt },
+    [userId],
+  )
+  .orThrow();
+
+const { accepted, rejected } = await items
+  .update([
+    { workItemId: task.id, field: "stageId", value: inProgressStageId },
+    { workItemId: task.id, field: "endAt", value: friday },
+  ])
+  .orThrow();
 ```

@@ -15,15 +15,25 @@ the order, with a row lock, so a usage limit holds under concurrent orders.
 better-supabase add promotions
 ```
 
-```ts title="lib/promotions.ts"
-import {
-  createPromotions,
-  sqlTransport,
-} from "better-supabase/blocks/promotions";
+Server code calls the `promotions` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const promotions = createPromotions({
-  transport: sqlTransport(ctx.postgres),
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: usePromotions } = defineDataHooks(
+  "promotions",
+  (db: AppDb) => db.promotions,
+);
+```
+
+```ts
+const rows = await db.promotions.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/promotions/list.tsx"
+"use client";
+
+import { usePromotions } from "@/lib/supabase/hooks";
+
+const rows = usePromotions({ limit: 50 });
 ```
 
 The module needs `tenant`, `access`, `catalog` and `orders`, and records
@@ -181,3 +191,18 @@ await client.savePromotion(organizationId, {
 Buy-X-get-Y and tiered discounts, gift cards and store credit, and rule
 collections in a collection scope. Model a gift card as a fixed code with a
 usage limit of one until a gift card block exists.
+
+## Without the client
+
+`db.promotions` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/promotions.ts"
+import {
+  createPromotions,
+  sqlTransport,
+} from "better-supabase/blocks/promotions";
+
+export const promotions = createPromotions({
+  transport: sqlTransport(ctx.postgres),
+});
+```

@@ -13,12 +13,19 @@ better-supabase add leave
 
 The module needs `tenant`, `permissions` and `approvals`.
 
+Server code calls the `leave` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useLeave } = defineDataHooks(
+  "leave",
+  (db: AppDb) => db.leave,
+);
+```
+
 ```ts
 import { createLeave } from "better-supabase/blocks/leave";
 
-const leave = createLeave({ transport });
-
-const vacation = await leave
+const vacation = await db.leave
   .saveType(organizationId, {
     key: "vacation",
     name: "Vacation",
@@ -26,11 +33,11 @@ const vacation = await leave
     carryoverMax: 5,
   })
   .orThrow();
-await leave
+await db.leave
   .accrue(organizationId, { typeId: vacation.id, period: 2026 })
   .orThrow();
 
-const request = await leave
+const request = await db.leave
   .request(organizationId, {
     typeId: vacation.id,
     startsOn: Temporal.PlainDate.from("2026-10-19"),
@@ -38,6 +45,14 @@ const request = await leave
   })
   .orThrow();
 // request.amount: 5 (working days), request.status: "pending"
+```
+
+```tsx title="src/features/leave/list.tsx"
+"use client";
+
+import { useLeave } from "@/lib/supabase/hooks";
+
+const rows = useLeave({ limit: 50 });
 ```
 
 ## Types
@@ -110,3 +125,34 @@ blocks: {
 The block records `leave.requested`, `leave.approved` and `leave.cancelled` with `organizationId`, `id`, `userId`, `typeId`, `startsOn`, `endsOn`, `amount` and `approvalId`, and `leave.adjusted` with `kind`, `amount` and `period` for grants and adjustments. See [events](/docs/extending/events).
 
 The block takes `hooks` around its methods; see [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.leave` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createLeave } from "better-supabase/blocks/leave";
+
+const leave = createLeave({ transport });
+
+const vacation = await leave
+  .saveType(organizationId, {
+    key: "vacation",
+    name: "Vacation",
+    allowance: 25,
+    carryoverMax: 5,
+  })
+  .orThrow();
+await leave
+  .accrue(organizationId, { typeId: vacation.id, period: 2026 })
+  .orThrow();
+
+const request = await leave
+  .request(organizationId, {
+    typeId: vacation.id,
+    startsOn: Temporal.PlainDate.from("2026-10-19"),
+    endsOn: Temporal.PlainDate.from("2026-10-23"),
+  })
+  .orThrow();
+// request.amount: 5 (working days), request.status: "pending"
+```

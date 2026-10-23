@@ -45,18 +45,25 @@ claim it, but verifying it fails with `SSO_DOMAIN_TAKEN`.
 
 ## Domains
 
-```ts title="app/settings/domains/actions.ts"
-import { createSso, rpcTransport } from "better-supabase/blocks/sso";
+Server code calls the `sso` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const sso = createSso({ transport: rpcTransport(supabase) });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSso } = defineDataHooks(
+  "sso",
+  (db: AppDb) => db.sso,
+);
+```
 
-const domain = await sso.addDomain(organizationId, "acme.com").orThrow();
-// Show domain.record: a TXT record the customer adds to their DNS.
-// { type: "TXT", name: "_better-supabase.acme.com", value: "better-supabase-domain-verification=…" }
+```ts
+const rows = await db.sso.list({ limit: 50 }).orThrow();
+```
 
-await sso.domains(organizationId);
-await sso.updateDomain(domain.id, { autoJoinRole: "member", enforceSso: true });
-await sso.removeDomain(domain.id);
+```tsx title="src/features/sso/list.tsx"
+"use client";
+
+import { useSso } from "@/lib/supabase/hooks";
+
+const rows = useSso({ limit: 50 });
 ```
 
 Verification runs as the service role, because the database can't look up
@@ -312,3 +319,21 @@ the [data lifecycle](/docs/blocks/data-lifecycle) block, for a periodic job.
 `createSso` takes `hooks` around its methods, such as a rule before
 `removeDomain` that returns a `DbError` to refuse the call; see
 [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.sso` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/settings/domains/actions.ts"
+import { createSso, rpcTransport } from "better-supabase/blocks/sso";
+
+const sso = createSso({ transport: rpcTransport(supabase) });
+
+const domain = await sso.addDomain(organizationId, "acme.com").orThrow();
+// Show domain.record: a TXT record the customer adds to their DNS.
+// { type: "TXT", name: "_better-supabase.acme.com", value: "better-supabase-domain-verification=…" }
+
+await sso.domains(organizationId);
+await sso.updateDomain(domain.id, { autoJoinRole: "member", enforceSso: true });
+await sso.removeDomain(domain.id);
+```

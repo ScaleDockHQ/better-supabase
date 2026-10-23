@@ -148,19 +148,30 @@ subjects: {
 },
 ```
 
-```ts
-const attachments = createAttachments({
-  transport: rpcTransport(supabase),
-  storage: supabase.storage,
-  tenantless: ["note"],
-});
+Server code calls the `attachments` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-await attachments
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAttachments } = defineDataHooks(
+  "attachments",
+  (db: AppDb) => db.attachments,
+);
+```
+
+```ts
+await db.attachments
   .upload(
     { type: "note", id: noteId },
     { name: file.name, mimeType: file.type, size: file.size },
   )
   .orThrow();
+```
+
+```tsx title="src/features/attachments/list.tsx"
+"use client";
+
+import { useAttachments } from "@/lib/supabase/hooks";
+
+const rows = useAttachments({ limit: 50 });
 ```
 
 `path` sets the object path, from `{organization_id}` (required first),
@@ -515,4 +526,23 @@ const client = createAttachments({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.attachments` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const attachments = createAttachments({
+  transport: rpcTransport(supabase),
+  storage: supabase.storage,
+  tenantless: ["note"],
+});
+
+await attachments
+  .upload(
+    { type: "note", id: noteId },
+    { name: file.name, mimeType: file.type, size: file.size },
+  )
+  .orThrow();
 ```

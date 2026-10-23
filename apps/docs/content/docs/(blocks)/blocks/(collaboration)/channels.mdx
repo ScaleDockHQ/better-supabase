@@ -31,16 +31,20 @@ document is the name, the topic and the purpose. Rename it with
 
 ## Create and browse
 
+Server code calls the `channels` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useChannels } = defineDataHooks(
+  "channels",
+  (db: AppDb) => db.channels,
+);
+```
+
 ```ts
 import { createChannels, sqlTransport } from "better-supabase/blocks/channels";
 
-const channels = createChannels({
-  transport: sqlTransport(sql),
-  tenant: () => organizationId,
-});
-
-const general = await channels.create({ name: "General" }).orThrow();
-const launch = await channels
+const general = await db.channels.create({ name: "General" }).orThrow();
+const launch = await db.channels
   .create({
     name: "launch",
     visibility: "private",
@@ -48,6 +52,14 @@ const launch = await channels
     memberIds: [alice, bob],
   })
   .orThrow();
+```
+
+```tsx title="src/features/channels/list.tsx"
+"use client";
+
+import { useChannels } from "@/lib/supabase/hooks";
+
+const rows = useChannels({ limit: 50 });
 ```
 
 Names are trimmed and lowercased, and may hold letters, digits, `-` and `_`
@@ -249,3 +261,26 @@ The block writes `channel.created` and `channel.updated` to the
 visibility, and name a linked record with `subjectType` and `subjectId`; see
 [Events](/docs/extending/events). Messages in a channel write the messaging
 block's events.
+
+## Without the client
+
+`db.channels` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createChannels, sqlTransport } from "better-supabase/blocks/channels";
+
+const channels = createChannels({
+  transport: sqlTransport(sql),
+  tenant: () => organizationId,
+});
+
+const general = await channels.create({ name: "General" }).orThrow();
+const launch = await channels
+  .create({
+    name: "launch",
+    visibility: "private",
+    topic: "Ship date and blockers",
+    memberIds: [alice, bob],
+  })
+  .orThrow();
+```

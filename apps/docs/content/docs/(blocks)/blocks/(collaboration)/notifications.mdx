@@ -28,28 +28,25 @@ needs `notifications.send` in the organization and every recipient needs
 Declare each type with a Standard Schema for its data. `send` validates the
 data before it reaches the database:
 
-```ts title="lib/notifications.ts"
-import "server-only";
+Server code calls the `notifications` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import {
-  createNotifications,
-  sqlTransport,
-} from "better-supabase/blocks/notifications";
-import { z } from "zod";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useNotifications } = defineDataHooks(
+  "notifications",
+  (db: AppDb) => db.notifications,
+);
+```
 
-export const types = {
-  "task.assigned": z.object({ title: z.string() }),
-  "approval.requested": z.object({ amount: z.number() }),
-};
+```ts
+const rows = await db.notifications.list({ limit: 50 }).orThrow();
+```
 
-export const notificationsFor = (claims: Record<string, unknown>) =>
-  createNotifications({
-    transport: sqlTransport(postgres.asUser(claims)),
-    types,
-    actionable: ["approval.requested"],
-    events: betterSupabase.events,
-    render: (item) => ({ title: `${item.type}: ${item.subject?.label ?? ""}` }),
-  });
+```tsx title="src/features/notifications/list.tsx"
+"use client";
+
+import { useNotifications } from "@/lib/supabase/hooks";
+
+const rows = useNotifications({ limit: 50 });
 ```
 
 ```ts
@@ -917,3 +914,31 @@ stored as dismissed, so other channels can deliver it.
 | `NOTIFICATION_SUPPRESSION_REASON`  | A suppression reason other than `bounce`, `complaint` or `manual`   |
 | `NOTIFICATION_DELIVERY_EVENT_KIND` | `recordDeliveryEvent` with a kind the block doesn't know            |
 | `NOTIFICATION_DELIVERY_MESSAGE_ID` | `recordDeliveryEvent` without a provider message id                 |
+
+## Without the client
+
+`db.notifications` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/notifications.ts"
+import "server-only";
+
+import {
+  createNotifications,
+  sqlTransport,
+} from "better-supabase/blocks/notifications";
+import { z } from "zod";
+
+export const types = {
+  "task.assigned": z.object({ title: z.string() }),
+  "approval.requested": z.object({ amount: z.number() }),
+};
+
+export const notificationsFor = (claims: Record<string, unknown>) =>
+  createNotifications({
+    transport: sqlTransport(postgres.asUser(claims)),
+    types,
+    actionable: ["approval.requested"],
+    events: betterSupabase.events,
+    render: (item) => ({ title: `${item.type}: ${item.subject?.label ?? ""}` }),
+  });
+```

@@ -23,12 +23,20 @@ export default defineConfig({
 
 ## Create and edit
 
+Server code calls the `deals` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useDeals } = defineDataHooks(
+  "deals",
+  (db: AppDb) => db.deals,
+);
+```
+
 ```ts
 import { createDeals } from "better-supabase/blocks/deals";
 import { money } from "better-supabase/commerce";
 
-const deals = createDeals({ transport });
-const deal = await deals
+const deal = await db.deals
   .create(
     organizationId,
     {
@@ -41,6 +49,14 @@ const deal = await deals
     [{ type: "person", id: adaId, role: "Champion", primary: true }],
   )
   .orThrow();
+```
+
+```tsx title="src/features/deals/list.tsx"
+"use client";
+
+import { useDeals } from "@/lib/supabase/hooks";
+
+const rows = useDeals({ limit: 50 });
 ```
 
 A deal needs a name and a close date. It gets a number per organization and an identifier such as `DEAL-1`, or the format of a `deal` entity in [numbering](/docs/blocks/numbering). Its company and contacts are records in `config.records` (the parties types `company` and `person` by default, or set `options.company` and `options.contact`). Each must be in the organization and readable by the caller (`DEAL_COMPANY_FORBIDDEN`, `DEAL_CONTACT_FORBIDDEN`), so an app can point deals at its own customers table.
@@ -156,3 +172,27 @@ The ReUI CRM Pipeline Workspace sends every gesture through one `actions.write(w
 | `CURRENCY_MISMATCH`      | an amount isn't in the record's currency; returned before any database call |
 | `CURRENCY_INVALID`       | the currency isn't an ISO 4217 code                                         |
 | `LINES_CURRENCY`         | a line sent straight to SQL isn't in the record's currency                  |
+
+## Without the client
+
+`db.deals` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createDeals } from "better-supabase/blocks/deals";
+import { money } from "better-supabase/commerce";
+
+const deals = createDeals({ transport });
+const deal = await deals
+  .create(
+    organizationId,
+    {
+      name: "Growth plan, 60 seats",
+      closeOn: Temporal.PlainDate.from("2026-11-30"),
+      amount: money(4_800_000n, "EUR"),
+      company: { type: "company", id: acmeId },
+      motion: "new_logo",
+    },
+    [{ type: "person", id: adaId, role: "Champion", primary: true }],
+  )
+  .orThrow();
+```

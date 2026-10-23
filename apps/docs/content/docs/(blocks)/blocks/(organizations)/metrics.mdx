@@ -147,14 +147,22 @@ metrics block's `sink` option (`{ on, time }`) builds the same sink into
 `createMetrics({ transport, metrics })` types the metric keys and each
 metric's dimensions from the definitions.
 
+Server code calls the `metrics` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useMetrics } = defineDataHooks(
+  "metrics",
+  (db: AppDb) => db.metrics,
+);
+```
+
 ```ts
-const metrics = createMetrics({ transport, metrics: definitions });
 const range = {
   from: Temporal.Instant.from("2026-10-01T00:00:00Z"),
   until: Temporal.Instant.from("2026-11-01T00:00:00Z"),
 };
 
-const series = await metrics
+const series = await db.metrics
   .series("orders", range, {
     organizationId,
     grain: "day",
@@ -163,10 +171,18 @@ const series = await metrics
   })
   .orThrow();
 
-const revenue = await metrics
+const revenue = await db.metrics
   .kpi("revenue", range, { organizationId, compare: "previous" })
   .orThrow();
 // { metric: "revenue", value: 1840, count: 23, previous: 1600, change: 0.15, trend: "up" }
+```
+
+```tsx title="src/features/metrics/list.tsx"
+"use client";
+
+import { useMetrics } from "@/lib/supabase/hooks";
+
+const rows = useMetrics({ limit: 50 });
 ```
 
 A series has one point per bucket of `[from, until)`, with empty buckets as
@@ -258,3 +274,29 @@ The dashboard's New customers card reads three KPIs in one
 `"use cache: private"` function with `bsb.cached()`: the last 30 days against
 the 30 before, and the leads and active customers among them. See
 `getCustomerCounts` in `apps/examples/nextjs/src/features/dashboard`.
+
+## Without the client
+
+`db.metrics` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const metrics = createMetrics({ transport, metrics: definitions });
+const range = {
+  from: Temporal.Instant.from("2026-10-01T00:00:00Z"),
+  until: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+};
+
+const series = await metrics
+  .series("orders", range, {
+    organizationId,
+    grain: "day",
+    groupBy: "channel",
+    compare: "previous",
+  })
+  .orThrow();
+
+const revenue = await metrics
+  .kpi("revenue", range, { organizationId, compare: "previous" })
+  .orThrow();
+// { metric: "revenue", value: 1840, count: 23, previous: 1600, change: 0.15, trend: "up" }
+```

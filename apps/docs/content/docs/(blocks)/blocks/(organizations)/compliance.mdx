@@ -38,10 +38,17 @@ Members with `controls.read` read every table.
 
 ## Frameworks and controls
 
-```ts
-const controls = createCompliance({ transport });
+Server code calls the `compliance` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const soc2 = await controls
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useCompliance } = defineDataHooks(
+  "compliance",
+  (db: AppDb) => db.compliance,
+);
+```
+
+```ts
+const soc2 = await db.compliance
   .saveFramework(organizationId, {
     key: "soc2",
     name: "SOC 2",
@@ -49,7 +56,7 @@ const soc2 = await controls
   })
   .orThrow();
 
-const access = await controls
+const access = await db.compliance
   .saveControl({
     frameworkId: soc2.id,
     code: "CC6.1",
@@ -57,6 +64,14 @@ const access = await controls
     ownerId,
   })
   .orThrow();
+```
+
+```tsx title="src/features/compliance/list.tsx"
+"use client";
+
+import { useCompliance } from "@/lib/supabase/hooks";
+
+const rows = useCompliance({ limit: 50 });
 ```
 
 Saving a framework with a key that exists, or a control with a code that
@@ -179,3 +194,28 @@ be published or acknowledged.
 `control.saved`, `control.evidence_added`, `evidence_task.missed`,
 `policy.published` and `policy.acknowledged`. The
 [events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.compliance` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const controls = createCompliance({ transport });
+
+const soc2 = await controls
+  .saveFramework(organizationId, {
+    key: "soc2",
+    name: "SOC 2",
+    version: "2017",
+  })
+  .orThrow();
+
+const access = await controls
+  .saveControl({
+    frameworkId: soc2.id,
+    code: "CC6.1",
+    title: "Logical access",
+    ownerId,
+  })
+  .orThrow();
+```

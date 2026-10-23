@@ -50,19 +50,25 @@ and `.manage`.
 
 ## Server
 
-```ts title="lib/knowledge.ts"
-import { embedWith } from "better-supabase/ai-sdk/embeddings";
-import {
-  createKnowledge,
-  rpcTransport,
-} from "better-supabase/blocks/knowledge";
+Server code calls the `knowledge` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const knowledgeFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
-  createKnowledge({
-    transport: rpcTransport(supabase),
-    service: rpcTransport(admin),
-    embedder: embedWith("openai/text-embedding-3-small"),
-  });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useKnowledge } = defineDataHooks(
+  "knowledge",
+  (db: AppDb) => db.knowledge,
+);
+```
+
+```ts
+const rows = await db.knowledge.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/knowledge/list.tsx"
+"use client";
+
+import { useKnowledge } from "@/lib/supabase/hooks";
+
+const rows = useKnowledge({ limit: 50 });
 ```
 
 `transport` acts as the user. `service` writes embeddings, which only the
@@ -159,3 +165,22 @@ for the answer.
 before and after a call: refuse it with a `DbError`, rewrite its arguments
 or observe the result (see [extending blocks](/docs/extending/blocks#hooks)). Methods in a group take their hooks under the group's name,
 such as `hooks: { documents: { create: { before } } }`.
+
+## Without the client
+
+`db.knowledge` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/knowledge.ts"
+import { embedWith } from "better-supabase/ai-sdk/embeddings";
+import {
+  createKnowledge,
+  rpcTransport,
+} from "better-supabase/blocks/knowledge";
+
+export const knowledgeFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createKnowledge({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    embedder: embedWith("openai/text-embedding-3-small"),
+  });
+```

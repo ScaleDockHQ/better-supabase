@@ -37,20 +37,35 @@ Both tables are read through the functions only. Members with
 
 ## Set rates
 
-```ts
-const billing = createBillableTime({ transport, tenant: organizationId });
+Server code calls the `billable-time` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-await billing.setRate({ rate: money(9000n, "EUR") }).orThrow();
-await billing
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useBillableTime } = defineDataHooks(
+  "billableTime",
+  (db: AppDb) => db.billableTime,
+);
+```
+
+```ts
+await db.billableTime.setRate({ rate: money(9000n, "EUR") }).orThrow();
+await db.billableTime
   .setRate({ rate: money(12000n, "EUR"), subject: { type: "projects", id } })
   .orThrow();
-await billing
+await db.billableTime
   .setRate({
     rate: money(15000n, "EUR"),
     userId,
     subject: { type: "projects", id },
   })
   .orThrow();
+```
+
+```tsx title="src/features/billable-time/list.tsx"
+"use client";
+
+import { useBillableTime } from "@/lib/supabase/hooks";
+
+const rows = useBillableTime({ limit: 50 });
 ```
 
 A rate without `userId` and `subject` is the organization's rate. A rate can
@@ -148,3 +163,23 @@ time on its page, with `setRate` and `invoice` writes.
 
 `time.invoiced` when time is billed. The
 [events page](/docs/extending/events) lists its payload.
+
+## Without the client
+
+`db.billableTime` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const billing = createBillableTime({ transport, tenant: organizationId });
+
+await billing.setRate({ rate: money(9000n, "EUR") }).orThrow();
+await billing
+  .setRate({ rate: money(12000n, "EUR"), subject: { type: "projects", id } })
+  .orThrow();
+await billing
+  .setRate({
+    rate: money(15000n, "EUR"),
+    userId,
+    subject: { type: "projects", id },
+  })
+  .orThrow();
+```

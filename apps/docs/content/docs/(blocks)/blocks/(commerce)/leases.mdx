@@ -39,18 +39,25 @@ Writes go through the functions, which need `leases.manage`.
 
 `extraColumns` adds columns to the `lease_agreements` table, and the client's `fields` schema types them.
 
-```ts
-// better-supabase.config.ts
-blocks: {
-  leases: { options: { extraColumns: { cost_center: "text" } } },
-},
+Server code calls the `leases` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-// the client
-const leases = createLeases({
-  transport,
-  tenant,
-  fields: v.object({ cost_center: v.optional(v.string()) }),
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useLeases } = defineDataHooks(
+  "leases",
+  (db: AppDb) => db.leases,
+);
+```
+
+```ts
+const rows = await db.leases.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/leases/list.tsx"
+"use client";
+
+import { useLeases } from "@/lib/supabase/hooks";
+
+const rows = useLeases({ limit: 50 });
 ```
 
 `create` validates them before the call, and every read that returns a lease parses them under `lease.fields`.
@@ -204,3 +211,21 @@ record.
 `lease.created`, `lease.activated`, `lease.renewed`, `lease.terminated`,
 `lease.charged` (one rent period) and `lease.paid`. The
 [events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.leases` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+// better-supabase.config.ts
+blocks: {
+  leases: { options: { extraColumns: { cost_center: "text" } } },
+},
+
+// the client
+const leases = createLeases({
+  transport,
+  tenant,
+  fields: v.object({ cost_center: v.optional(v.string()) }),
+});
+```

@@ -152,29 +152,25 @@ replays deterministically.
 
 ## Editing and publishing
 
-```ts title="lib/workflow-builder.ts"
-import "server-only";
+Server code calls the `workflow-editor` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import {
-  createWorkflowEditor,
-  sqlTransport,
-} from "better-supabase/blocks/workflow-editor";
-import {
-  compileGraph,
-  graphStarter,
-} from "better-supabase/workflow-sdk/builder";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useWorkflowEditor } = defineDataHooks(
+  "workflowEditor",
+  (db: AppDb) => db.workflowEditor,
+);
+```
 
-import { steps, stepLibrary } from "@/workflows/steps";
-import { graphExecutor } from "@/workflows/graph";
+```ts
+const rows = await db.workflowEditor.list({ limit: 50 }).orThrow();
+```
 
-export const builderFor = (sql: Sql) =>
-  createWorkflowEditor({
-    transport: sqlTransport(sql),
-    service: sqlTransport(postgres.admin),
-    steps: stepLibrary,
-    compile: compileGraph,
-    start: graphStarter({ steps, executor: graphExecutor }),
-  });
+```tsx title="src/features/workflow-editor/list.tsx"
+"use client";
+
+import { useWorkflowEditor } from "@/lib/supabase/hooks";
+
+const rows = useWorkflowEditor({ limit: 50 });
 ```
 
 ```ts
@@ -694,4 +690,33 @@ const client = createWorkflowEditor({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.workflowEditor` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/workflow-builder.ts"
+import "server-only";
+
+import {
+  createWorkflowEditor,
+  sqlTransport,
+} from "better-supabase/blocks/workflow-editor";
+import {
+  compileGraph,
+  graphStarter,
+} from "better-supabase/workflow-sdk/builder";
+
+import { steps, stepLibrary } from "@/workflows/steps";
+import { graphExecutor } from "@/workflows/graph";
+
+export const builderFor = (sql: Sql) =>
+  createWorkflowEditor({
+    transport: sqlTransport(sql),
+    service: sqlTransport(postgres.admin),
+    steps: stepLibrary,
+    compile: compileGraph,
+    start: graphStarter({ steps, executor: graphExecutor }),
+  });
 ```

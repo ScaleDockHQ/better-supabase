@@ -9,12 +9,20 @@ description: Members ask for a role in their organization, for a set time if the
 better-supabase add access-requests
 ```
 
+Server code calls the `access-requests` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAccessRequests } = defineDataHooks(
+  "accessRequests",
+  (db: AppDb) => db.accessRequests,
+);
+```
+
 ```ts
 import { createAccessRequests } from "better-supabase/blocks/access-requests";
 import { createApprovals } from "better-supabase/blocks/approvals";
 
-const access = createAccessRequests({ transport });
-const request = await access
+const request = await db.accessRequests
   .request({
     organizationId,
     role: "admin",
@@ -26,6 +34,14 @@ const request = await access
 // An approver decides through approvals.
 const approvals = createApprovals({ transport });
 await approvals.approve(request.approvalId!).orThrow();
+```
+
+```tsx title="src/features/access-requests/list.tsx"
+"use client";
+
+import { useAccessRequests } from "@/lib/supabase/hooks";
+
+const rows = useAccessRequests({ limit: 50 });
 ```
 
 ## Configure
@@ -89,4 +105,27 @@ const client = createAccessRequests({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.accessRequests` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createAccessRequests } from "better-supabase/blocks/access-requests";
+import { createApprovals } from "better-supabase/blocks/approvals";
+
+const access = createAccessRequests({ transport });
+const request = await access
+  .request({
+    organizationId,
+    role: "admin",
+    reason: "Month end",
+    duration: Temporal.Duration.from({ days: 3 }),
+  })
+  .orThrow();
+
+// An approver decides through approvals.
+const approvals = createApprovals({ transport });
+await approvals.approve(request.approvalId!).orThrow();
 ```

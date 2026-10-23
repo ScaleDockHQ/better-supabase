@@ -48,12 +48,27 @@ transport instead of granting `inventory.reserve` to every member.
 
 ## Locations
 
-```ts
-const inventory = createInventory({ transport });
+Server code calls the `inventory` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const warehouse = await inventory
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useInventory } = defineDataHooks(
+  "inventory",
+  (db: AppDb) => db.inventory,
+);
+```
+
+```ts
+const warehouse = await db.inventory
   .saveLocation(organizationId, { code: "WH-AMS", name: "Amsterdam" })
   .orThrow();
+```
+
+```tsx title="src/features/inventory/list.tsx"
+"use client";
+
+import { useInventory } from "@/lib/supabase/hooks";
+
+const rows = useInventory({ limit: 50 });
 ```
 
 `kind` is `warehouse` (the default), `store` or `virtual`. Codes are unique
@@ -268,3 +283,15 @@ and their functions are left out.
 Sales orders, fulfilment and returns belong to an orders block. Inventory
 doesn't value stock (no FIFO or average cost), doesn't pick a location for
 an order, and doesn't track lots, serial numbers or expiry dates.
+
+## Without the client
+
+`db.inventory` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const inventory = createInventory({ transport });
+
+const warehouse = await inventory
+  .saveLocation(organizationId, { code: "WH-AMS", name: "Amsterdam" })
+  .orThrow();
+```

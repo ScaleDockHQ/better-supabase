@@ -34,32 +34,25 @@ The transmitter takes a signer, the URL of its JWK Set, and an `authorize`
 function that names the receiver behind a management request. Return
 `null` to answer 401:
 
-```ts title="lib/ssf.ts"
-import {
-  CAEP_EVENTS,
-  createSsfTransmitter,
-  sqlTransport,
-} from "better-supabase/blocks/security-events";
-import { vaultCredentials } from "better-supabase/credentials";
+Server code calls the `security-events` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import { signingKeys } from "@/lib/signing-keys";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSecurityEvents } = defineDataHooks(
+  "securityEvents",
+  (db: AppDb) => db.securityEvents,
+);
+```
 
-export const transmitter = createSsfTransmitter({
-  transport: sqlTransport(postgres.admin),
-  issuer: "https://app.example.com",
-  jwksUri: "https://app.example.com/ssf/jwks",
-  signer: signingKeys.signer(
-    { type: "ssf", id: "transmitter" },
-    { create: "ES256" },
-  ),
-  credentials: vaultCredentials({ transport: sqlTransport(postgres.admin) }),
-  authorize: async (request) => {
-    const client = await verifyAccessToken(request, { scope: "ssf.manage" });
-    return client
-      ? { receiver: client.id, tenant: client.organizationId }
-      : null;
-  },
-});
+```ts
+const rows = await db.securityEvents.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/security-events/list.tsx"
+"use client";
+
+import { useSecurityEvents } from "@/lib/supabase/hooks";
+
+const rows = useSecurityEvents({ limit: 50 });
 ```
 
 `authorize` returns `receiver`, a stable id such as the OAuth client id,
@@ -248,3 +241,35 @@ await api.verify(String(config.stream_id)).orThrow();
 
 Each carries `streamId`, `receiver` and `tenant`, and writes a `security`
 audit entry when the audit block is installed.
+
+## Without the client
+
+`db.securityEvents` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/ssf.ts"
+import {
+  CAEP_EVENTS,
+  createSsfTransmitter,
+  sqlTransport,
+} from "better-supabase/blocks/security-events";
+import { vaultCredentials } from "better-supabase/credentials";
+
+import { signingKeys } from "@/lib/signing-keys";
+
+export const transmitter = createSsfTransmitter({
+  transport: sqlTransport(postgres.admin),
+  issuer: "https://app.example.com",
+  jwksUri: "https://app.example.com/ssf/jwks",
+  signer: signingKeys.signer(
+    { type: "ssf", id: "transmitter" },
+    { create: "ES256" },
+  ),
+  credentials: vaultCredentials({ transport: sqlTransport(postgres.admin) }),
+  authorize: async (request) => {
+    const client = await verifyAccessToken(request, { scope: "ssf.manage" });
+    return client
+      ? { receiver: client.id, tenant: client.organizationId }
+      : null;
+  },
+});
+```

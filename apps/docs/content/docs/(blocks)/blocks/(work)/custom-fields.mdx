@@ -9,20 +9,36 @@ description: Field definitions, options and typed values, with a permission chec
 better-supabase add custom-fields
 ```
 
+Server code calls the `custom-fields` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useCustomFields } = defineDataHooks(
+  "customFields",
+  (db: AppDb) => db.customFields,
+);
+```
+
 ```ts
 import {
   CUSTOM_FIELD_TYPES,
   createCustomFields,
 } from "better-supabase/blocks/custom-fields";
 
-const fields = createCustomFields({ transport, tenant: organizationId });
 const customer = { type: "customer", id: customerId };
 
-const tier = await fields
+const tier = await db.customFields
   .saveDefinition("customer", "tier", "Tier", "option")
   .orThrow();
-await fields.setValue(customer, tier.id, "gold").orThrow();
-const values = await fields.readValues(customer).orThrow();
+await db.customFields.setValue(customer, tier.id, "gold").orThrow();
+const values = await db.customFields.readValues(customer).orThrow();
+```
+
+```tsx title="src/features/custom-fields/list.tsx"
+"use client";
+
+import { useCustomFields } from "@/lib/supabase/hooks";
+
+const rows = useCustomFields({ limit: 50 });
 ```
 
 Definitions belong to an entity (`listDefinitions(entity)`,
@@ -83,3 +99,23 @@ Map `tables.definitions`, `tables.options` and `tables.values`. Set a column to 
 ## Order
 
 Field definitions of an entity are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). A new definition goes after the last one, and `reorderDefinition(id, { previous, next })` moves it between the definitions with those keys. `listDefinitions(entity)` returns an entity's definitions in that order, each with its `rank` key, for callers with `custom_fields.read`. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. The inline layout has no rank column.
+
+## Without the client
+
+`db.customFields` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  CUSTOM_FIELD_TYPES,
+  createCustomFields,
+} from "better-supabase/blocks/custom-fields";
+
+const fields = createCustomFields({ transport, tenant: organizationId });
+const customer = { type: "customer", id: customerId };
+
+const tier = await fields
+  .saveDefinition("customer", "tier", "Tier", "option")
+  .orThrow();
+await fields.setValue(customer, tier.id, "gold").orThrow();
+const values = await fields.readValues(customer).orThrow();
+```

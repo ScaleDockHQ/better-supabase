@@ -37,25 +37,25 @@ tenant's keys. Rename the keys with `blocks.api-keys.permissions`.
 
 ## Managing keys
 
-```ts title="app/settings/api-keys/actions.ts"
-import { createApiKeys, rpcTransport } from "better-supabase/blocks/api-keys";
+Server code calls the `api-keys` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const keys = createApiKeys({ transport: rpcTransport(supabase) });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useApiKeys } = defineDataHooks(
+  "apiKeys",
+  (db: AppDb) => db.apiKeys,
+);
+```
 
-const { key, token } = await keys
-  .create({
-    name: "CI",
-    organizationId,
-    scopes: ["deals:read"],
-    expiresAt: Temporal.Now.instant().add({ hours: 24 * 90 }),
-    rateLimit: 600, // requests per minute
-  })
-  .orThrow();
-// Show `token` once; `key` has everything else.
+```ts
+const rows = await db.apiKeys.list({ limit: 50 }).orThrow();
+```
 
-await keys.list(organizationId); // the tenant's keys for managers, the caller's own otherwise
-await keys.rotate(key.id, { grace: Temporal.Duration.from({ hours: 1 }) });
-await keys.revoke(key.id);
+```tsx title="src/features/api-keys/list.tsx"
+"use client";
+
+import { useApiKeys } from "@/lib/supabase/hooks";
+
+const rows = useApiKeys({ limit: 50 });
 ```
 
 `rotate` returns a new token and keeps the old one working for the grace
@@ -414,4 +414,29 @@ const client = createApiKeys({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.apiKeys` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/settings/api-keys/actions.ts"
+import { createApiKeys, rpcTransport } from "better-supabase/blocks/api-keys";
+
+const keys = createApiKeys({ transport: rpcTransport(supabase) });
+
+const { key, token } = await keys
+  .create({
+    name: "CI",
+    organizationId,
+    scopes: ["deals:read"],
+    expiresAt: Temporal.Now.instant().add({ hours: 24 * 90 }),
+    rateLimit: 600, // requests per minute
+  })
+  .orThrow();
+// Show `token` once; `key` has everything else.
+
+await keys.list(organizationId); // the tenant's keys for managers, the caller's own otherwise
+await keys.rotate(key.id, { grace: Temporal.Duration.from({ hours: 1 }) });
+await keys.revoke(key.id);
 ```

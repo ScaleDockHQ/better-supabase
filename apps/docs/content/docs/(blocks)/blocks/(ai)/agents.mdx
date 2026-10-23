@@ -36,11 +36,25 @@ characters by default) limits the instructions.
 
 ## Server
 
-```ts title="lib/agents.ts"
-import { createAgents, rpcTransport } from "better-supabase/blocks/agents";
+Server code calls the `agents` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const agentsFor = (supabase: SupabaseClient) =>
-  createAgents({ transport: rpcTransport(supabase) });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAgents } = defineDataHooks(
+  "agents",
+  (db: AppDb) => db.agents,
+);
+```
+
+```ts
+const rows = await db.agents.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/agents/list.tsx"
+"use client";
+
+import { useAgents } from "@/lib/supabase/hooks";
+
+const rows = useAgents({ limit: 50 });
 ```
 
 ```ts
@@ -88,4 +102,15 @@ const client = createAgents({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.agents` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/agents.ts"
+import { createAgents, rpcTransport } from "better-supabase/blocks/agents";
+
+export const agentsFor = (supabase: SupabaseClient) =>
+  createAgents({ transport: rpcTransport(supabase) });
 ```

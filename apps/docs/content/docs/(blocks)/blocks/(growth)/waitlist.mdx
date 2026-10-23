@@ -33,16 +33,25 @@ code is shown once, when it is created.
 entries, and the same answer when the address joins again. Rejected entries
 read as `waiting`, so the form never tells someone they were turned down.
 
-```ts title="app/waitlist/actions.ts"
-"use server";
+Server code calls the `waitlist` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import { createWaitlist, rpcTransport } from "better-supabase/blocks/waitlist";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useWaitlist } = defineDataHooks(
+  "waitlist",
+  (db: AppDb) => db.waitlist,
+);
+```
 
-export async function join(email: string) {
-  const waitlist = createWaitlist({ transport: rpcTransport(supabase) });
-  return waitlist.join(email, { referrer: "launch-post" }).orThrow();
-  // { position: 412, status: "waiting" }
-}
+```ts
+const rows = await db.waitlist.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/waitlist/list.tsx"
+"use client";
+
+import { useWaitlist } from "@/lib/supabase/hooks";
+
+const rows = useWaitlist({ limit: 50 });
 ```
 
 `join_waitlist` is open to `anon`, so rate-limit the route that calls it. It
@@ -174,4 +183,20 @@ const client = createWaitlist({
   transport,
   fields: z.object({ priority: z.enum(["low", "high"]) }),
 });
+```
+
+## Without the client
+
+`db.waitlist` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/waitlist/actions.ts"
+"use server";
+
+import { createWaitlist, rpcTransport } from "better-supabase/blocks/waitlist";
+
+export async function join(email: string) {
+  const waitlist = createWaitlist({ transport: rpcTransport(supabase) });
+  return waitlist.join(email, { referrer: "launch-post" }).orThrow();
+  // { position: 412, status: "waiting" }
+}
 ```

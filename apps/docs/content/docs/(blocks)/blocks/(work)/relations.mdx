@@ -60,10 +60,17 @@ deletes its links when its row is deleted.
 
 ## Link and unlink
 
-```ts
-const relations = createRelations({ transport, tenant: organizationId });
+Server code calls the `relations` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const result = await relations
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useRelations } = defineDataHooks(
+  "relations",
+  (db: AppDb) => db.relations,
+);
+```
+
+```ts
+const result = await db.relations
   .link(
     { type: "task", id: designId },
     { type: "task", id: buildId },
@@ -71,11 +78,19 @@ const result = await relations
   )
   .orThrow();
 
-await relations.unlink(
+await db.relations.unlink(
   { type: "task", id: buildId },
   { type: "task", id: designId },
   { kind: "blocked_by" },
 );
+```
+
+```tsx title="src/features/relations/list.tsx"
+"use client";
+
+import { useRelations } from "@/lib/supabase/hooks";
+
+const rows = useRelations({ limit: 50 });
 ```
 
 The ends are `RecordRef`s, `{ type, id }`, and every call acts in the
@@ -209,3 +224,25 @@ reporting-line table, are not adopt targets yet.
 The free `c-gantt-*` and `c-tree-*` examples show both views. ReUI's Tempo
 and Roster templates show sub-issues and reporting trees; Pro blocks are
 licensed per user, so copy them from [reui.io](https://reui.io).
+
+## Without the client
+
+`db.relations` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const relations = createRelations({ transport, tenant: organizationId });
+
+const result = await relations
+  .link(
+    { type: "task", id: designId },
+    { type: "task", id: buildId },
+    { kind: "blocks", data: { type: "FS", lag: 2 } },
+  )
+  .orThrow();
+
+await relations.unlink(
+  { type: "task", id: buildId },
+  { type: "task", id: designId },
+  { kind: "blocked_by" },
+);
+```

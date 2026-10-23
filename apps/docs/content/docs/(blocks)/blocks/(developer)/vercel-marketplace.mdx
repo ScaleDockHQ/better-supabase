@@ -11,14 +11,25 @@ better-supabase add vercel-marketplace
 
 The module needs nothing else, and only the service role calls it. Every function is granted to `service_role`, so build the client on a service-role transport.
 
-```ts
-import { createVercelMarketplace } from "better-supabase/blocks/vercel-marketplace";
+Server code calls the `vercel-marketplace` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const marketplace = createVercelMarketplace({
-  transport: serviceTransport,
-  clientId: process.env.VERCEL_MARKETPLACE_CLIENT_ID,
-  clientSecret: process.env.VERCEL_MARKETPLACE_CLIENT_SECRET,
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useVercelMarketplace } = defineDataHooks(
+  "vercelMarketplace",
+  (db: AppDb) => db.vercelMarketplace,
+);
+```
+
+```ts
+const rows = await db.vercelMarketplace.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/vercel-marketplace/list.tsx"
+"use client";
+
+import { useVercelMarketplace } from "@/lib/supabase/hooks";
+
+const rows = useVercelMarketplace({ limit: 50 });
 ```
 
 Vercel hands out an access token for each installation when it installs the integration. The Partner API seals it in Vault, and invoices and usage reports read it from there. Pass `accessToken: (configurationId) => ...` to keep the tokens yourself instead.
@@ -201,3 +212,17 @@ export const GET = marketplace.usageRoute({
 `blocks.vercel-marketplace.options.currency` (default `usd`) is the currency an invoice takes when the webhook names none.
 
 The block writes `marketplace_installation.upserted`, `marketplace_installation.removed` and `marketplace_invoice.state_changed` to the [outbox](/docs/blocks/outbox) and the [audit log](/docs/blocks/audit) when they are installed.
+
+## Without the client
+
+`db.vercelMarketplace` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createVercelMarketplace } from "better-supabase/blocks/vercel-marketplace";
+
+const marketplace = createVercelMarketplace({
+  transport: serviceTransport,
+  clientId: process.env.VERCEL_MARKETPLACE_CLIENT_ID,
+  clientSecret: process.env.VERCEL_MARKETPLACE_CLIENT_SECRET,
+});
+```

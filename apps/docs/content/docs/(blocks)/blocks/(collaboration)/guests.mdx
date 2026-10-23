@@ -38,10 +38,17 @@ SHA-256 hash and dropped once the guest accepts or is revoked. Members with
 
 ## Invite and accept
 
-```ts
-const guests = createGuests({ transport, tenant: organizationId });
+Server code calls the `guests` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const invite = await guests
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useGuests } = defineDataHooks(
+  "guests",
+  (db: AppDb) => db.guests,
+);
+```
+
+```ts
+const invite = await db.guests
   .invite({
     email: "jane@client.example",
     name: "Jane",
@@ -50,6 +57,14 @@ const invite = await guests
   .orThrow();
 
 await sendInviteEmail(invite.email, `/guest/accept?token=${invite.token}`);
+```
+
+```tsx title="src/features/guests/list.tsx"
+"use client";
+
+import { useGuests } from "@/lib/supabase/hooks";
+
+const rows = useGuests({ limit: 50 });
 ```
 
 `invite` returns the guest with a one-time `token` for the invite link.
@@ -141,3 +156,21 @@ its grants are added to the provider's. See
 `guest.invited`, `guest.accepted` and `guest.revoked`, and
 `guest_grant.created` and `guest_grant.revoked`. The
 [events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.guests` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const guests = createGuests({ transport, tenant: organizationId });
+
+const invite = await guests
+  .invite({
+    email: "jane@client.example",
+    name: "Jane",
+    party: { type: "customer", id: customerId },
+  })
+  .orThrow();
+
+await sendInviteEmail(invite.email, `/guest/accept?token=${invite.token}`);
+```

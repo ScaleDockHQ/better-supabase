@@ -30,19 +30,25 @@ stores the private key in Vault and makes it the owner's active key. The
 `kid` is the RFC 7638 thumbprint of the public key. `rotate(owner)` does the
 same with the active key's type, and the key it replaces is retired:
 
-```ts title="lib/signing-keys.ts"
-import {
-  createSigningKeys,
-  sqlTransport,
-} from "better-supabase/blocks/signing-keys";
+Server code calls the `signing-keys` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const signingKeys = createSigningKeys({
-  transport: sqlTransport(postgres.admin),
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSigningKeys } = defineDataHooks(
+  "signingKeys",
+  (db: AppDb) => db.signingKeys,
+);
+```
 
-const owner = { type: "organization", id: organizationId };
-const created = await signingKeys.create(owner).orThrow();
-// { kid: "kPrK_qmx…", alg: "Ed25519", publicKey: { kty: "OKP", … }, retired: null }
+```ts
+const rows = await db.signingKeys.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/signing-keys/list.tsx"
+"use client";
+
+import { useSigningKeys } from "@/lib/supabase/hooks";
+
+const rows = useSigningKeys({ limit: 50 });
 ```
 
 | Method                 | What it does                                                          |
@@ -169,3 +175,22 @@ const publicKey = webhookPublicKey(created.publicKey); // "whpk_…"
 
 Both carry `ownerType`, `ownerId` and `kid`, and write a `security` audit
 entry when the audit block is installed.
+
+## Without the client
+
+`db.signingKeys` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/signing-keys.ts"
+import {
+  createSigningKeys,
+  sqlTransport,
+} from "better-supabase/blocks/signing-keys";
+
+export const signingKeys = createSigningKeys({
+  transport: sqlTransport(postgres.admin),
+});
+
+const owner = { type: "organization", id: organizationId };
+const created = await signingKeys.create(owner).orThrow();
+// { kid: "kPrK_qmx…", alg: "Ed25519", publicKey: { kty: "OKP", … }, retired: null }
+```

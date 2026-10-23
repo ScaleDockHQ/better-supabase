@@ -41,14 +41,21 @@ create and delete calendars. Deleting a user keeps the events they created.
 
 ## Events and occurrences
 
-```ts
-const calendar = createCalendar({ transport });
+Server code calls the `calendar` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const { id: calendarId } = await calendar
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useCalendar } = defineDataHooks(
+  "calendar",
+  (db: AppDb) => db.calendar,
+);
+```
+
+```ts
+const { id: calendarId } = await db.calendar
   .createCalendar(organizationId, "Team", { tz: "Europe/Amsterdam" })
   .orThrow();
 
-await calendar
+await db.calendar
   .upsert(calendarId, {
     title: "Stand-up",
     startsAt: Temporal.Instant.from("2026-03-23T08:00:00Z"),
@@ -58,12 +65,20 @@ await calendar
   })
   .orThrow();
 
-const week = await calendar
+const week = await db.calendar
   .occurrences([calendarId], {
     from: Temporal.Instant.from("2026-03-30T00:00:00Z"),
     until: Temporal.Instant.from("2026-04-06T00:00:00Z"),
   })
   .orThrow();
+```
+
+```tsx title="src/features/calendar/list.tsx"
+"use client";
+
+import { useCalendar } from "@/lib/supabase/hooks";
+
+const rows = useCalendar({ limit: 50 });
 ```
 
 A series follows its `tz`: the stand-up stays at 09:00 in Amsterdam across
@@ -404,4 +419,33 @@ const client = createCalendar({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.calendar` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const calendar = createCalendar({ transport });
+
+const { id: calendarId } = await calendar
+  .createCalendar(organizationId, "Team", { tz: "Europe/Amsterdam" })
+  .orThrow();
+
+await calendar
+  .upsert(calendarId, {
+    title: "Stand-up",
+    startsAt: Temporal.Instant.from("2026-03-23T08:00:00Z"),
+    endsAt: Temporal.Instant.from("2026-03-23T08:15:00Z"),
+    tz: "Europe/Amsterdam",
+    rrule: "FREQ=WEEKLY;BYDAY=MO",
+  })
+  .orThrow();
+
+const week = await calendar
+  .occurrences([calendarId], {
+    from: Temporal.Instant.from("2026-03-30T00:00:00Z"),
+    until: Temporal.Instant.from("2026-04-06T00:00:00Z"),
+  })
+  .orThrow();
 ```

@@ -45,18 +45,25 @@ reimbursement.
 
 `extraColumns` adds columns to the `expense_reports` table, and the client's `fields` schema types them.
 
-```ts
-// better-supabase.config.ts
-blocks: {
-  expenses: { options: { extraColumns: { project_code: "text" } } },
-},
+Server code calls the `expenses` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-// the client
-const expenses = createExpenses({
-  transport,
-  tenant,
-  fields: v.object({ project_code: v.optional(v.string()) }),
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useExpenses } = defineDataHooks(
+  "expenses",
+  (db: AppDb) => db.expenses,
+);
+```
+
+```ts
+const rows = await db.expenses.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/expenses/list.tsx"
+"use client";
+
+import { useExpenses } from "@/lib/supabase/hooks";
+
+const rows = useExpenses({ limit: 50 });
 ```
 
 `create` validates them before the call, and every read that returns a report parses them under `report.fields`.
@@ -173,3 +180,21 @@ cancels its pending approval.
 transaction) and `expense_report.cancelled`. A rejection is the approvals
 block's `approval.rejected` event. The
 [events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.expenses` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+// better-supabase.config.ts
+blocks: {
+  expenses: { options: { extraColumns: { project_code: "text" } } },
+},
+
+// the client
+const expenses = createExpenses({
+  transport,
+  tenant,
+  fields: v.object({ project_code: v.optional(v.string()) }),
+});
+```

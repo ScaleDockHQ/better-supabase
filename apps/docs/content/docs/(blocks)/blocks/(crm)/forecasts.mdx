@@ -23,6 +23,15 @@ without a member session.
 
 ## Take a snapshot
 
+Server code calls the `forecasts` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useForecasts } = defineDataHooks(
+  "forecasts",
+  (db: AppDb) => db.forecasts,
+);
+```
+
 ```ts
 import {
   createForecasts,
@@ -30,9 +39,7 @@ import {
 } from "better-supabase/blocks/forecasts";
 import { money } from "better-supabase/commerce";
 
-const forecasts = createForecasts({ transport: rpcTransport(supabase) });
-
-const snapshot = await forecasts
+const snapshot = await db.forecasts
   .snapshot(organizationId, {
     since: Temporal.PlainDate.from("2026-10-01"),
     until: Temporal.PlainDate.from("2026-12-31"),
@@ -43,6 +50,14 @@ const snapshot = await forecasts
 
 snapshot.totals.commit; // a Money value, as deals.forecast returns it
 snapshot.dealCount; // the deals copied into the snapshot
+```
+
+```tsx title="src/features/forecasts/list.tsx"
+"use client";
+
+import { useForecasts } from "@/lib/supabase/hooks";
+
+const rows = useForecasts({ limit: 50 });
 ```
 
 A snapshot sums every deal of the organization in the currency, whoever owns
@@ -85,3 +100,29 @@ the currency and the deal count. See [Events](/docs/extending/events).
 | `FORECAST_PIPELINE_UNKNOWN` | the pipeline is not one of the organization's               |
 | `FORECAST_NOT_FOUND`        | no snapshot you may read has the id                         |
 | `FORECAST_MISMATCH`         | the two snapshots differ in organization or currency        |
+
+## Without the client
+
+`db.forecasts` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createForecasts,
+  rpcTransport,
+} from "better-supabase/blocks/forecasts";
+import { money } from "better-supabase/commerce";
+
+const forecasts = createForecasts({ transport: rpcTransport(supabase) });
+
+const snapshot = await forecasts
+  .snapshot(organizationId, {
+    since: Temporal.PlainDate.from("2026-10-01"),
+    until: Temporal.PlainDate.from("2026-12-31"),
+    currency: "EUR",
+    target: money(25_000_000n, "EUR"),
+  })
+  .orThrow();
+
+snapshot.totals.commit; // a Money value, as deals.forecast returns it
+snapshot.dealCount; // the deals copied into the snapshot
+```

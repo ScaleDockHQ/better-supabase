@@ -45,21 +45,25 @@ sync of a mailbox reads the last 30 days (`initialDays`); later syncs read
 Gmail's history or Graph's delta since the stored cursor. A provider of your
 own implements `MailProvider` (`apiVersion: 1`, `name`, `list`, `send`).
 
-```ts title="lib/mail.ts"
-import { vercelConnectCredentials } from "better-supabase/vercel-connect";
-import {
-  createMailSync,
-  gmailMail,
-  outlookMail,
-  rpcTransport,
-} from "better-supabase/blocks/mail-sync";
+Server code calls the `mail-sync` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const mailFor = (supabase: SupabaseClient) =>
-  createMailSync({
-    transport: rpcTransport(supabase),
-    credentials: vercelConnectCredentials(),
-    providers: [gmailMail(), outlookMail()],
-  });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useMailSync } = defineDataHooks(
+  "mailSync",
+  (db: AppDb) => db.mailSync,
+);
+```
+
+```ts
+const rows = await db.mailSync.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/mail-sync/list.tsx"
+"use client";
+
+import { useMailSync } from "@/lib/supabase/hooks";
+
+const rows = useMailSync({ limit: 50 });
 ```
 
 ## Connect a mailbox
@@ -230,3 +234,24 @@ thread is linked to, so a workflow can react to a reply from a contact. An
 open is written once per message, on the first open; a click is written
 every time, with its `url` and the `templateVersionId`. See
 [Events](/docs/extending/events).
+
+## Without the client
+
+`db.mailSync` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/mail.ts"
+import { vercelConnectCredentials } from "better-supabase/vercel-connect";
+import {
+  createMailSync,
+  gmailMail,
+  outlookMail,
+  rpcTransport,
+} from "better-supabase/blocks/mail-sync";
+
+export const mailFor = (supabase: SupabaseClient) =>
+  createMailSync({
+    transport: rpcTransport(supabase),
+    credentials: vercelConnectCredentials(),
+    providers: [gmailMail(), outlookMail()],
+  });
+```

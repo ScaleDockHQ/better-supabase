@@ -58,17 +58,25 @@ staff and the service.
 caller's client in server actions so RLS and the permission checks apply,
 and a service transport for bots and channel webhooks:
 
-```ts title="lib/blocks.ts"
-import "server-only";
+Server code calls the `inbox` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import { createInbox, sqlTransport } from "better-supabase/blocks/inbox";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useInbox } = defineDataHooks(
+  "inbox",
+  (db: AppDb) => db.inbox,
+);
+```
 
-export const inboxFor = (claims: Record<string, unknown>) =>
-  createInbox({ transport: sqlTransport(postgres.asUser(claims)) });
+```ts
+const rows = await db.inbox.list({ limit: 50 }).orThrow();
+```
 
-export const serviceInbox = createInbox({
-  transport: sqlTransport(postgres.asService()),
-});
+```tsx title="src/features/inbox/list.tsx"
+"use client";
+
+import { useInbox } from "@/lib/supabase/hooks";
+
+const rows = useInbox({ limit: 50 });
 ```
 
 `rpcTransport(supabase)` calls the same functions over the Data API when
@@ -400,3 +408,20 @@ staff member replies. See `apps/examples/nextjs/src/features/inbox` and
 before and after a call: refuse it with a `DbError`, rewrite its arguments
 or observe the result (see [extending blocks](/docs/extending/blocks#hooks)). Methods in a group take their hooks under the group's name,
 such as `hooks: { conversations: { resolve: { before } } }`.
+
+## Without the client
+
+`db.inbox` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/blocks.ts"
+import "server-only";
+
+import { createInbox, sqlTransport } from "better-supabase/blocks/inbox";
+
+export const inboxFor = (claims: Record<string, unknown>) =>
+  createInbox({ transport: sqlTransport(postgres.asUser(claims)) });
+
+export const serviceInbox = createInbox({
+  transport: sqlTransport(postgres.asService()),
+});
+```

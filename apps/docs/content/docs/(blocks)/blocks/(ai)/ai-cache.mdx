@@ -28,19 +28,25 @@ Create the block with a service transport.
 
 ## Server
 
-```ts title="lib/ai-cache.ts"
-import "server-only";
+Server code calls the `ai-cache` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import {
-  cacheKey,
-  createAiCache,
-  rpcTransport,
-} from "better-supabase/blocks/ai-cache";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAiCache } = defineDataHooks(
+  "aiCache",
+  (db: AppDb) => db.aiCache,
+);
+```
 
-export const aiCache = createAiCache({
-  transport: rpcTransport(bsb.admin().$client, { schema: "api" }),
-  schema: "api",
-});
+```ts
+const rows = await db.aiCache.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/ai-cache/list.tsx"
+"use client";
+
+import { useAiCache } from "@/lib/supabase/hooks";
+
+const rows = useAiCache({ limit: 50 });
 ```
 
 ```ts
@@ -89,3 +95,22 @@ handlers: {
 | `ai_cache_set(key, value, ttl, tenant, kind, model)` | service |
 | `ai_cache_delete(key, tenant, model)`                | service |
 | `purge_ai_cache(batch)`                              | service |
+
+## Without the client
+
+`db.aiCache` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/ai-cache.ts"
+import "server-only";
+
+import {
+  cacheKey,
+  createAiCache,
+  rpcTransport,
+} from "better-supabase/blocks/ai-cache";
+
+export const aiCache = createAiCache({
+  transport: rpcTransport(bsb.admin().$client, { schema: "api" }),
+  schema: "api",
+});
+```

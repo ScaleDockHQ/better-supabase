@@ -17,23 +17,25 @@ The module needs `memberships` and `access`.
 
 `defineRuleFields` declares what rules on a subject type may test: a field id, its [filter type](/docs/platform/list#filter-trees) and the key of the subject record it reads, dotted for a nested value. Sync the catalog once per deploy with a service-role client, so the database checks trees against the same fields.
 
+Server code calls the `automations` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAutomations } = defineDataHooks(
+  "automations",
+  (db: AppDb) => db.automations,
+);
+```
+
 ```ts
-import {
-  createAutomationsAdmin,
-  defineRuleFields,
-} from "better-supabase/blocks/automations";
+const rows = await db.automations.list({ limit: 50 }).orThrow();
+```
 
-export const expenseFields = defineRuleFields("expense", {
-  status: { type: "select", options: ["draft", "submitted", "paid"] },
-  amount: { type: "number", nullable: false },
-  category: { type: "select", options: ["travel", "meals", "software"] },
-  submittedAt: { type: "date" },
-  "submitter.seniority": { type: "select", label: "Submitter seniority" },
-});
+```tsx title="src/features/automations/list.tsx"
+"use client";
 
-await createAutomationsAdmin({ transport: serviceTransport })
-  .syncFields(expenseFields)
-  .orThrow();
+import { useAutomations } from "@/lib/supabase/hooks";
+
+const rows = useAutomations({ limit: 50 });
 ```
 
 A field's `columnType` decides how dates compare: `timestamptz` (the default) compares instants in the evaluation's time zone, and `date` compares days. `nullable: false` tells the evaluator a value is always there; on a nullable field, "is not" and the other negative operators also match a record without a value, except "is not empty". `operators` narrows the type's operators, and `options` lists the values a select offers.
@@ -425,3 +427,26 @@ blocks: {
 The block records `rule.saved`, `rule.enabled`, `rule.disabled` and `rule.removed` with `organizationId`, `ruleId`, `name`, `subjectType`, `trigger` and `version`, which the audit log keeps as configuration changes. A live match records `rule.matched` with the `subjectId`. See [events](/docs/extending/events).
 
 The block takes `hooks` around its methods; see [extending blocks](/docs/extending/blocks).
+
+## Without the client
+
+`db.automations` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createAutomationsAdmin,
+  defineRuleFields,
+} from "better-supabase/blocks/automations";
+
+export const expenseFields = defineRuleFields("expense", {
+  status: { type: "select", options: ["draft", "submitted", "paid"] },
+  amount: { type: "number", nullable: false },
+  category: { type: "select", options: ["travel", "meals", "software"] },
+  submittedAt: { type: "date" },
+  "submitter.seniority": { type: "select", label: "Submitter seniority" },
+});
+
+await createAutomationsAdmin({ transport: serviceTransport })
+  .syncFields(expenseFields)
+  .orThrow();
+```

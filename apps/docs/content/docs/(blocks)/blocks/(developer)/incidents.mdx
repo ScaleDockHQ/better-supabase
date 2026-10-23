@@ -41,15 +41,30 @@ any of them.
 
 ## Components
 
-```ts
-const incidents = createIncidents({ transport });
+Server code calls the `incidents` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const api = await incidents
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useIncidents } = defineDataHooks(
+  "incidents",
+  (db: AppDb) => db.incidents,
+);
+```
+
+```ts
+const api = await db.incidents
   .saveComponent(organizationId, { name: "API", group: "Platform" })
   .orThrow();
-await incidents
+await db.incidents
   .saveComponent(organizationId, { name: "Primary database", public: false })
   .orThrow();
+```
+
+```tsx title="src/features/incidents/list.tsx"
+"use client";
+
+import { useIncidents } from "@/lib/supabase/hooks";
+
+const rows = useIncidents({ limit: 50 });
 ```
 
 A component is public unless `public` is `false`. Its status is never set by
@@ -172,3 +187,18 @@ incident never shows on the page.
 `incident.opened`, `incident.updated`, `incident.resolved`,
 `postmortem.published` and `status_component.changed`. The
 [events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.incidents` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const incidents = createIncidents({ transport });
+
+const api = await incidents
+  .saveComponent(organizationId, { name: "API", group: "Platform" })
+  .orThrow();
+await incidents
+  .saveComponent(organizationId, { name: "Primary database", public: false })
+  .orThrow();
+```

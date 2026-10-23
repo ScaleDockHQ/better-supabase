@@ -29,20 +29,25 @@ has `billing.*`. The other functions are granted to `service_role` only.
 
 ## Setup
 
-```ts title="src/lib/billing.ts"
-import { createBilling, sqlTransport } from "better-supabase/blocks/billing";
-import { stripeFromKey } from "better-supabase/stripe";
+Server code calls the `billing` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const billing = createBilling({
-  stripe: stripeFromKey({ secretKey: env.STRIPE_SECRET_KEY }),
-  transport: sqlTransport(postgres.admin),
-  events: bsb.events, // billing.* block events
-  seatPrice: env.STRIPE_SEAT_PRICE,
-  sessions: {
-    sql: postgres.admin,
-    invalidate: (id) => bsb.invalidateSession(id),
-  },
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useBilling } = defineDataHooks(
+  "billing",
+  (db: AppDb) => db.billing,
+);
+```
+
+```ts
+const rows = await db.billing.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/billing/list.tsx"
+"use client";
+
+import { useBilling } from "@/lib/supabase/hooks";
+
+const rows = useBilling({ limit: 50 });
 ```
 
 `stripeFromKey()` from `better-supabase/stripe` creates the client from the
@@ -652,3 +657,23 @@ plan's entitlements on their next request. `verifyStripeWebhook` checks the
 | `billing_payment_methods(tenant)`                                 | `authenticated`, `service_role` | the customer's `stripe.payment_methods` rows                                                |
 | `billing_customer_details(tenant)`                                | `authenticated`, `service_role` | the customer's `stripe.customers` row                                                       |
 | `billing_tax_ids(tenant)`                                         | `authenticated`, `service_role` | the customer's `stripe.tax_ids` as `[{ id, type, value, country, verification, created }]`  |
+
+## Without the client
+
+`db.billing` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="src/lib/billing.ts"
+import { createBilling, sqlTransport } from "better-supabase/blocks/billing";
+import { stripeFromKey } from "better-supabase/stripe";
+
+export const billing = createBilling({
+  stripe: stripeFromKey({ secretKey: env.STRIPE_SECRET_KEY }),
+  transport: sqlTransport(postgres.admin),
+  events: bsb.events, // billing.* block events
+  seatPrice: env.STRIPE_SEAT_PRICE,
+  sessions: {
+    sql: postgres.admin,
+    invalidate: (id) => bsb.invalidateSession(id),
+  },
+});
+```

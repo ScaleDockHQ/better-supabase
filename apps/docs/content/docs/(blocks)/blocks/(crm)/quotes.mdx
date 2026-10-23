@@ -13,13 +13,21 @@ better-supabase add quotes
 
 The module needs `tenant`, `permissions` and `subjects`.
 
+Server code calls the `quotes` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useQuotes } = defineDataHooks(
+  "quotes",
+  (db: AppDb) => db.quotes,
+);
+```
+
 ```ts
 import { createQuotes } from "better-supabase/blocks/quotes";
 import { money } from "better-supabase/commerce";
 
-const quotes = createQuotes({ transport });
-const quote = await quotes.fromDeal(dealId).orThrow();
-await quotes
+const quote = await db.quotes.fromDeal(dealId).orThrow();
+await db.quotes
   .setLines(quote.id, [
     {
       description: "Licences",
@@ -35,8 +43,16 @@ await quotes
     },
   ])
   .orThrow();
-const { token } = await quotes.send(quote.id).orThrow();
+const { token } = await db.quotes.send(quote.id).orThrow();
 // Email the customer a link such as https://app.example.com/q/{token}
+```
+
+```tsx title="src/features/quotes/list.tsx"
+"use client";
+
+import { useQuotes } from "@/lib/supabase/hooks";
+
+const rows = useQuotes({ limit: 50 });
 ```
 
 ## Lifecycle
@@ -140,3 +156,33 @@ The module calls `before_quote_send(quote uuid)`, `after_quote_send(quote uuid)`
 | `CURRENCY_MISMATCH`      | a line isn't in the record's currency; returned before any database call |
 | `CURRENCY_INVALID`       | the currency isn't an ISO 4217 code                                      |
 | `LINES_CURRENCY`         | a line sent straight to SQL isn't in the record's currency               |
+
+## Without the client
+
+`db.quotes` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createQuotes } from "better-supabase/blocks/quotes";
+import { money } from "better-supabase/commerce";
+
+const quotes = createQuotes({ transport });
+const quote = await quotes.fromDeal(dealId).orThrow();
+await quotes
+  .setLines(quote.id, [
+    {
+      description: "Licences",
+      quantity: 10,
+      unitAmount: money(100_000n, "EUR"),
+      taxRateBps: 2100,
+    },
+    {
+      description: "Setup",
+      unitAmount: money(50_000n, "EUR"),
+      discountBps: 2000,
+      taxRateBps: 2100,
+    },
+  ])
+  .orThrow();
+const { token } = await quotes.send(quote.id).orThrow();
+// Email the customer a link such as https://app.example.com/q/{token}
+```

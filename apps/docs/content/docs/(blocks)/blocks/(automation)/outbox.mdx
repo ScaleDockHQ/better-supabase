@@ -65,18 +65,25 @@ once, then relay it from a cron route or a worker. `transport` emits and
 reads the history; `service`, which defaults to `transport`, runs the
 consumer calls, which need the service role:
 
-```ts title="lib/outbox.ts"
-import { createOutbox, sqlTransport } from "better-supabase/blocks/outbox";
+Server code calls the `outbox` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const outbox = createOutbox({
-  transport: sqlTransport(postgres.admin),
-  source: "https://crm.example.com",
-  typePrefix: "com.example.crm",
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useOutbox } = defineDataHooks(
+  "outbox",
+  (db: AppDb) => db.outbox,
+);
+```
 
-await outbox.register("billing", {
-  types: ["invoice.*", "organization.created"],
-});
+```ts
+const rows = await db.outbox.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/outbox/list.tsx"
+"use client";
+
+import { useOutbox } from "@/lib/supabase/hooks";
+
+const rows = useOutbox({ limit: 50 });
 ```
 
 ```ts title="app/api/outbox/route.ts"
@@ -287,3 +294,21 @@ remove them.
 | ------------------------- | --------------------------------------------- |
 | `OUTBOX_TYPE_REQUIRED`    | `emit_event` without a type                   |
 | `OUTBOX_UNKNOWN_CONSUMER` | Claiming for a consumer that isn't registered |
+
+## Without the client
+
+`db.outbox` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/outbox.ts"
+import { createOutbox, sqlTransport } from "better-supabase/blocks/outbox";
+
+export const outbox = createOutbox({
+  transport: sqlTransport(postgres.admin),
+  source: "https://crm.example.com",
+  typePrefix: "com.example.crm",
+});
+
+await outbox.register("billing", {
+  types: ["invoice.*", "organization.created"],
+});
+```

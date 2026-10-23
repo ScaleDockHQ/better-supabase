@@ -37,33 +37,25 @@ Pass the list definitions to `lists` so `upsert` checks each view's `query`
 with the list's own `parse`. An invalid view returns a `validation` error
 with the issues, prefixed with `query`, and makes no call.
 
-```ts title="lib/views.ts"
-import { createSavedViews } from "better-supabase/blocks/saved-views";
+Server code calls the `saved-views` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import { tasksList } from "./lists";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSavedViews } = defineDataHooks(
+  "savedViews",
+  (db: AppDb) => db.savedViews,
+);
+```
 
-export const savedViews = createSavedViews({
-  transport,
-  lists: { tasks: tasksList },
-});
+```ts
+const rows = await db.savedViews.list({ limit: 50 }).orThrow();
+```
 
-await savedViews
-  .upsert({
-    organizationId,
-    list: "tasks",
-    name: "Open bugs",
-    kind: "board",
-    scope: "tenant",
-    state: {
-      query: { facets: { status: ["open"] }, sort: "newest" },
-      grouping: ["status"],
-      columns: { visible: ["title", "assignee"], pinned: { left: ["title"] } },
-      density: "compact",
-    },
-  })
-  .orThrow();
+```tsx title="src/features/saved-views/list.tsx"
+"use client";
 
-const views = await savedViews.list(organizationId, "tasks").orThrow();
+import { useSavedViews } from "@/lib/supabase/hooks";
+
+const rows = useSavedViews({ limit: 50 });
 ```
 
 `state.query` never stores `page` or `after`, so a view opens on the first
@@ -348,3 +340,36 @@ event.
 The free `c-data-grid-*` examples show column state, and the Pro data grid
 and filters blocks show a toolbar with saved views. Pro blocks are licensed
 per user, so copy them from [reui.io](https://reui.io).
+
+## Without the client
+
+`db.savedViews` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/views.ts"
+import { createSavedViews } from "better-supabase/blocks/saved-views";
+
+import { tasksList } from "./lists";
+
+export const savedViews = createSavedViews({
+  transport,
+  lists: { tasks: tasksList },
+});
+
+await savedViews
+  .upsert({
+    organizationId,
+    list: "tasks",
+    name: "Open bugs",
+    kind: "board",
+    scope: "tenant",
+    state: {
+      query: { facets: { status: ["open"] }, sort: "newest" },
+      grouping: ["status"],
+      columns: { visible: ["title", "assignee"], pinned: { left: ["title"] } },
+      density: "compact",
+    },
+  })
+  .orThrow();
+
+const views = await savedViews.list(organizationId, "tasks").orThrow();
+```

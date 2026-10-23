@@ -46,16 +46,25 @@ The keys are the `ai-chat` keys by default; rename them with
 
 ## Server
 
-```ts title="lib/ai-files.ts"
-import { createAiFiles, rpcTransport } from "better-supabase/blocks/ai-files";
+Server code calls the `ai-files` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const aiFilesFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
-  createAiFiles({
-    transport: rpcTransport(supabase),
-    storage: supabase.storage,
-    service: rpcTransport(admin),
-    serviceStorage: admin.storage,
-  });
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAiFiles } = defineDataHooks(
+  "aiFiles",
+  (db: AppDb) => db.aiFiles,
+);
+```
+
+```ts
+const rows = await db.aiFiles.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/ai-files/list.tsx"
+"use client";
+
+import { useAiFiles } from "@/lib/supabase/hooks";
+
+const rows = useAiFiles({ limit: 50 });
 ```
 
 `transport` and `storage` act as the user, so the table and bucket
@@ -148,4 +157,20 @@ const client = createAiFiles({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+## Without the client
+
+`db.aiFiles` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="lib/ai-files.ts"
+import { createAiFiles, rpcTransport } from "better-supabase/blocks/ai-files";
+
+export const aiFilesFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createAiFiles({
+    transport: rpcTransport(supabase),
+    storage: supabase.storage,
+    service: rpcTransport(admin),
+    serviceStorage: admin.storage,
+  });
 ```

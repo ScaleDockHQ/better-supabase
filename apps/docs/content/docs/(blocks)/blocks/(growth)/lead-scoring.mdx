@@ -26,50 +26,25 @@ The organization's lead model is a `scores` model with the key `lead` over
 record's columns and the block's fields as one catalog once per deploy, then
 save the model:
 
+Server code calls the `lead-scoring` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useLeadScoring } = defineDataHooks(
+  "leadScoring",
+  (db: AppDb) => db.leadScoring,
+);
+```
+
 ```ts
-import {
-  createAutomationsAdmin,
-  defineRuleFields,
-} from "better-supabase/blocks/automations";
-import { leadRuleFields } from "better-supabase/blocks/lead-scoring";
-import { createScores } from "better-supabase/blocks/scores";
+const rows = await db.leadScoring.list({ limit: 50 }).orThrow();
+```
 
-const columns = defineRuleFields("person", {
-  lifecycle: { type: "select", options: ["lead", "customer"] },
-});
+```tsx title="src/features/lead-scoring/list.tsx"
+"use client";
 
-await createAutomationsAdmin({ transport: serviceTransport })
-  .syncFields({
-    subjectType: "person",
-    fields: [...columns.fields, ...leadRuleFields("person").fields],
-  })
-  .orThrow();
+import { useLeadScoring } from "@/lib/supabase/hooks";
 
-await createScores({ transport, tenant: organizationId })
-  .saveModel({
-    key: "lead",
-    name: "Lead score",
-    subjectType: "person",
-    rules: [
-      { id: "replied", conditions: repliedOnce, points: 30 },
-      { id: "enterprise", conditions: inEnterpriseSegment, points: 20 },
-    ],
-    metrics: [
-      {
-        id: "opens",
-        source: "field",
-        field: "mail.opened",
-        weight: 2,
-        cap: 20,
-      },
-    ],
-    bands: [
-      { label: "hot", min: 50 },
-      { label: "warm", min: 20 },
-      { label: "cold", min: -1000 },
-    ],
-  })
-  .orThrow();
+const rows = useLeadScoring({ limit: 50 });
 ```
 
 `repliedOnce` and `inEnterpriseSegment` are filter trees over the fields
@@ -149,3 +124,53 @@ blocks: {
 | `LEAD_SCORING_FORBIDDEN` | the caller lacks `scores.compute`                     |
 | `LEAD_SCORING_NOT_FOUND` | there is no such record in the organization           |
 | `LEAD_SCORING_SUBJECT`   | the subject type is not a person, or a scored company |
+
+## Without the client
+
+`db.leadScoring` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createAutomationsAdmin,
+  defineRuleFields,
+} from "better-supabase/blocks/automations";
+import { leadRuleFields } from "better-supabase/blocks/lead-scoring";
+import { createScores } from "better-supabase/blocks/scores";
+
+const columns = defineRuleFields("person", {
+  lifecycle: { type: "select", options: ["lead", "customer"] },
+});
+
+await createAutomationsAdmin({ transport: serviceTransport })
+  .syncFields({
+    subjectType: "person",
+    fields: [...columns.fields, ...leadRuleFields("person").fields],
+  })
+  .orThrow();
+
+await createScores({ transport, tenant: organizationId })
+  .saveModel({
+    key: "lead",
+    name: "Lead score",
+    subjectType: "person",
+    rules: [
+      { id: "replied", conditions: repliedOnce, points: 30 },
+      { id: "enterprise", conditions: inEnterpriseSegment, points: 20 },
+    ],
+    metrics: [
+      {
+        id: "opens",
+        source: "field",
+        field: "mail.opened",
+        weight: 2,
+        cap: 20,
+      },
+    ],
+    bands: [
+      { label: "hot", min: 50 },
+      { label: "warm", min: 20 },
+      { label: "cold", min: -1000 },
+    ],
+  })
+  .orThrow();
+```

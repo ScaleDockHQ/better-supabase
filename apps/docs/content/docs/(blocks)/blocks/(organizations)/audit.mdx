@@ -66,12 +66,25 @@ unless `keepMappedMetadata` is `true`. `list` and `export` return those
 columns by name under `columns`; pass their types to `createAudit` to
 type them:
 
+Server code calls the `audit` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAudit } = defineDataHooks(
+  "audit",
+  (db: AppDb) => db.audit,
+);
+```
+
 ```ts
-const audit = createAudit<{ ticket_id: string | null; priority: number }>({
-  transport: sqlTransport(ctx.postgres),
-});
-const page = await audit.list({ organizationId }).orThrow();
-// page.entries[0].columns: { ticket_id: "...", priority: 2 }
+const rows = await db.audit.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/audit/list.tsx"
+"use client";
+
+import { useAudit } from "@/lib/supabase/hooks";
+
+const rows = useAudit({ limit: 50 });
 ```
 
 A column that follows from what the module already records, such as a flag
@@ -599,3 +612,15 @@ last signed head.
 Every chain function is service-role only. The chain starts with the first
 entry written after the option is on; older entries stay outside it. It
 needs a managed log.
+
+## Without the client
+
+`db.audit` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const audit = createAudit<{ ticket_id: string | null; priority: number }>({
+  transport: sqlTransport(ctx.postgres),
+});
+const page = await audit.list({ organizationId }).orThrow();
+// page.entries[0].columns: { ticket_id: "...", priority: 2 }
+```

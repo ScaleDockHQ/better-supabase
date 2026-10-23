@@ -38,10 +38,17 @@ it must belong to the contract's organization.
 
 ## Draft a contract
 
-```ts
-const contracts = createContracts({ transport });
+Server code calls the `contracts` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const contract = await contracts
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useContracts } = defineDataHooks(
+  "contracts",
+  (db: AppDb) => db.contracts,
+);
+```
+
+```ts
+const contract = await db.contracts
   .create(organizationId, {
     title: "Hosting agreement",
     counterparty: { type: "parties", id: partyId },
@@ -52,6 +59,14 @@ const contract = await contracts
     noticeDays: 60,
   })
   .orThrow();
+```
+
+```tsx title="src/features/contracts/list.tsx"
+"use client";
+
+import { useContracts } from "@/lib/supabase/hooks";
+
+const rows = useContracts({ limit: 50 });
 ```
 
 The owner defaults to the caller. `renewalMonths` defaults to 12 and
@@ -140,3 +155,23 @@ is kept ([ADR 0072](https://github.com/ScaleDockHQ/better-supabase/blob/main/doc
 `contract.created`, `contract.updated`, `contract.status_changed`,
 `contract.renewed`, `obligation.saved` and `obligation.status_changed`. The
 [events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.contracts` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const contracts = createContracts({ transport });
+
+const contract = await contracts
+  .create(organizationId, {
+    title: "Hosting agreement",
+    counterparty: { type: "parties", id: partyId },
+    value: money(2_400_000n, "EUR"),
+    startsOn: Temporal.PlainDate.from("2026-01-01"),
+    endsOn: Temporal.PlainDate.from("2026-12-31"),
+    autoRenew: true,
+    noticeDays: 60,
+  })
+  .orThrow();
+```

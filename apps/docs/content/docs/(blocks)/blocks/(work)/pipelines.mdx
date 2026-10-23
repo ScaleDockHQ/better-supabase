@@ -67,18 +67,26 @@ An insert without a pipeline lands in the organization's default pipeline for th
 
 ## Manage pipelines and stages
 
+Server code calls the `pipelines` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: usePipelines } = defineDataHooks(
+  "pipelines",
+  (db: AppDb) => db.pipelines,
+);
+```
+
 ```ts
 import { createPipelines } from "better-supabase/blocks/pipelines";
 
-const pipelines = createPipelines({ transport });
-const renewals = await pipelines
+const renewals = await db.pipelines
   .upsert(organizationId, {
     subjectType: "deal",
     key: "renewals",
     name: "Renewals",
   })
   .orThrow();
-await pipelines
+await db.pipelines
   .saveStage(renewals.id, {
     key: "due",
     name: "Renewal due",
@@ -88,7 +96,15 @@ await pipelines
     wipLimit: 25,
   })
   .orThrow();
-const [deals] = await pipelines.list(organizationId, "deal").orThrow();
+const [deals] = await db.pipelines.list(organizationId, "deal").orThrow();
+```
+
+```tsx title="src/features/pipelines/list.tsx"
+"use client";
+
+import { usePipelines } from "@/lib/supabase/hooks";
+
+const rows = usePipelines({ limit: 50 });
 ```
 
 `saveStage` adds a stage at the end, or changes one when you pass its `id`. Its category must be one the type declares (`PIPELINE_CATEGORY_UNKNOWN`), and a stage that holds records keeps its outcome (`PIPELINE_STAGE_IN_USE`), so a won stage never turns open under its deals. `reorderStage(stageId, { previous, next })` moves a stage between two rank keys. `archiveStage` and `archive` refuse a stage or pipeline that still holds records, and a pipeline keeps at least one open stage (`PIPELINE_LAST_OPEN_STAGE`).
@@ -205,3 +221,31 @@ The ReUI Kanban commits a finished drag through `onValueCommit(value, meta)`. Ca
 | `PIPELINE_TRANSITION_INVALID`  | the pipeline's transitions don't allow the move                         |
 | `PIPELINE_TRANSITIONS_INVALID` | a transition names a stage of another pipeline                          |
 | `PIPELINE_RANK_INVALID`        | not a rank key                                                          |
+
+## Without the client
+
+`db.pipelines` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createPipelines } from "better-supabase/blocks/pipelines";
+
+const pipelines = createPipelines({ transport });
+const renewals = await pipelines
+  .upsert(organizationId, {
+    subjectType: "deal",
+    key: "renewals",
+    name: "Renewals",
+  })
+  .orThrow();
+await pipelines
+  .saveStage(renewals.id, {
+    key: "due",
+    name: "Renewal due",
+    category: "open",
+    probability: 70,
+    rottingAfterDays: 14,
+    wipLimit: 25,
+  })
+  .orThrow();
+const [deals] = await pipelines.list(organizationId, "deal").orThrow();
+```

@@ -158,16 +158,26 @@ const history = await comments.edits(comment.id).orThrow();
 that stores mentions as nodes, `createComments({ mentionsOf })` reads them
 from the comment's `document`:
 
-```ts
-const comments = createComments({
-  transport,
-  tenant: organizationId,
-  mentionsOf: ({ document }) =>
-    mentionNodes(document).map((node) => node.userId),
-});
+Server code calls the `comments` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-await comments.create(subject, { body, document });
-await comments.edit(id, { body, document: null }); // null removes the document
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useComments } = defineDataHooks(
+  "comments",
+  (db: AppDb) => db.comments,
+);
+```
+
+```ts
+await db.comments.create(subject, { body, document });
+await db.comments.edit(id, { body, document: null }); // null removes the document
+```
+
+```tsx title="src/features/comments/list.tsx"
+"use client";
+
+import { useComments } from "@/lib/supabase/hooks";
+
+const rows = useComments({ limit: 50 });
 ```
 
 A comment can also mention another record as `@[Name](subject:<type>/<id>)`.
@@ -473,3 +483,19 @@ export function CommentCount(props: {
 With the [reactions](/docs/blocks/reactions) module installed, react to a
 comment as a message: `reactions.react({ type: "message", id: comment.id },
 emoji)`. Each comment also carries its reaction summary in `reactions`.
+
+## Without the client
+
+`db.comments` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const comments = createComments({
+  transport,
+  tenant: organizationId,
+  mentionsOf: ({ document }) =>
+    mentionNodes(document).map((node) => node.userId),
+});
+
+await comments.create(subject, { body, document });
+await comments.edit(id, { body, document: null }); // null removes the document
+```

@@ -24,17 +24,25 @@ without a member session.
 
 ## Providers
 
-```ts
-import {
-  createEnrichment,
-  peopleDataLabsEnrichment,
-  rpcTransport,
-} from "better-supabase/blocks/enrichment";
+Server code calls the `enrichment` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-const enrichment = createEnrichment({
-  transport: rpcTransport(supabase),
-  provider: peopleDataLabsEnrichment({ apiKey: env.PDL_API_KEY }),
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useEnrichment } = defineDataHooks(
+  "enrichment",
+  (db: AppDb) => db.enrichment,
+);
+```
+
+```ts
+const rows = await db.enrichment.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/enrichment/list.tsx"
+"use client";
+
+import { useEnrichment } from "@/lib/supabase/hooks";
+
+const rows = useEnrichment({ limit: 50 });
 ```
 
 `peopleDataLabsEnrichment` calls the People Data Labs company and person
@@ -119,3 +127,20 @@ the filled columns. Handle it to re-run [segments](/docs/blocks/segments) or
 | `ENRICHMENT_SUBJECT_UNKNOWN` | the subject type is not the company or person type |
 | `ENRICHMENT_INVALID`         | a bad provider name, status or profile             |
 | `ENRICHMENT_KEY_REFUSED`     | the provider refused the API key (401 or 403)      |
+
+## Without the client
+
+`db.enrichment` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createEnrichment,
+  peopleDataLabsEnrichment,
+  rpcTransport,
+} from "better-supabase/blocks/enrichment";
+
+const enrichment = createEnrichment({
+  transport: rpcTransport(supabase),
+  provider: peopleDataLabsEnrichment({ apiKey: env.PDL_API_KEY }),
+});
+```

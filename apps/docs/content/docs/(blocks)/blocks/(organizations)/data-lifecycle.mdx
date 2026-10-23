@@ -128,22 +128,25 @@ of NDJSON (`{id}/{schema.table}.csv`), with a header row, nested values as
 JSON and text that starts like a formula prefixed with `'`, for customers who
 open exports in a spreadsheet.
 
-```ts title="app/settings/data/actions.ts"
-"use server";
+Server code calls the `data-lifecycle` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-import {
-  createDataLifecycle,
-  rpcTransport,
-} from "better-supabase/blocks/data-lifecycle";
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useDataLifecycle } = defineDataHooks(
+  "dataLifecycle",
+  (db: AppDb) => db.dataLifecycle,
+);
+```
 
-const supabase = await createServerClient();
-const lifecycle = createDataLifecycle({
-  transport: rpcTransport(supabase),
-  storage: supabase.storage,
-});
+```ts
+const rows = await db.dataLifecycle.list({ limit: 50 }).orThrow();
+```
 
-await lifecycle.requestExport().orThrow();
-await lifecycle.requestExport({ organizationId }).orThrow();
+```tsx title="src/features/data-lifecycle/list.tsx"
+"use client";
+
+import { useDataLifecycle } from "@/lib/supabase/hooks";
+
+const rows = useDataLifecycle({ limit: 50 });
 ```
 
 A request returns the open export for the same subject instead of starting
@@ -449,3 +452,25 @@ tenant is gone by then (its id stays in `organizationId`):
 `createDataLifecycle` takes `hooks`, keyed by method name, that run your code
 before and after a call: refuse it with a `DbError`, rewrite its arguments
 or observe the result (see [extending blocks](/docs/extending/blocks#hooks)).
+
+## Without the client
+
+`db.dataLifecycle` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts title="app/settings/data/actions.ts"
+"use server";
+
+import {
+  createDataLifecycle,
+  rpcTransport,
+} from "better-supabase/blocks/data-lifecycle";
+
+const supabase = await createServerClient();
+const lifecycle = createDataLifecycle({
+  transport: rpcTransport(supabase),
+  storage: supabase.storage,
+});
+
+await lifecycle.requestExport().orThrow();
+await lifecycle.requestExport({ organizationId }).orThrow();
+```

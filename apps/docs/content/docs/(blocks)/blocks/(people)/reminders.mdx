@@ -33,19 +33,25 @@ delivery and `ok(false)` for a replay, which records no second
 `reminder.sent` and sends nothing. `reminders.job` is the same call as a job
 handler, for the `reminders.deliver` queue (`REMINDER_DELIVERY_QUEUE`):
 
-```ts
-const { reminders } = createBlocks(
-  { transport, service },
-  {
-    notifications: notificationsBlock,
-    reminders: remindersBlock.with({ notification: "reminder.due" }),
-  },
-);
+Server code calls the `reminders` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 
-export const GET = jobs.drainRoute({
-  secret: process.env.CRON_SECRET,
-  handlers: { [REMINDER_DELIVERY_QUEUE]: reminders.job },
-});
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useReminders } = defineDataHooks(
+  "reminders",
+  (db: AppDb) => db.reminders,
+);
+```
+
+```ts
+const rows = await db.reminders.list({ limit: 50 }).orThrow();
+```
+
+```tsx title="src/features/reminders/list.tsx"
+"use client";
+
+import { useReminders } from "@/lib/supabase/hooks";
+
+const rows = useReminders({ limit: 50 });
 ```
 
 Before it records the occurrence, `deliver` checks the reminder's user with
@@ -90,3 +96,22 @@ await client.upsert({ type: "task", id: taskId }, 30, { channel: "push" });
 ## Adopt mode
 
 Map `tables.rules`, `tables.reminders` and `tables.deliveries`. Collection-level defaults, such as `agenda_collection_notification_reminders`, are reminders whose subject is the collection.
+
+## Without the client
+
+`db.reminders` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+const { reminders } = createBlocks(
+  { transport, service },
+  {
+    notifications: notificationsBlock,
+    reminders: remindersBlock.with({ notification: "reminder.due" }),
+  },
+);
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers: { [REMINDER_DELIVERY_QUEUE]: reminders.job },
+});
+```

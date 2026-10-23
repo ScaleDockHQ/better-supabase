@@ -17,13 +17,21 @@ The block's entity is `engagement` (the `activities` table). Installing it regis
 
 The module needs `tenant`, `permissions` and `subjects`.
 
+Server code calls the `activities` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useActivities } = defineDataHooks(
+  "activities",
+  (db: AppDb) => db.activities,
+);
+```
+
 ```ts
 import { createActivities } from "better-supabase/blocks/activities";
 
-const engagements = createActivities({ transport });
 const deal = { type: "deal", id: dealId };
 
-await engagements
+await db.activities
   .log(
     organizationId,
     {
@@ -37,13 +45,21 @@ await engagements
   )
   .orThrow();
 
-await engagements
+await db.activities
   .log(
     organizationId,
     { type: "task", title: "Send proposal", dueAt: friday },
     [deal],
   )
   .orThrow();
+```
+
+```tsx title="src/features/activities/list.tsx"
+"use client";
+
+import { useActivities } from "@/lib/supabase/hooks";
+
+const rows = useActivities({ limit: 50 });
 ```
 
 ## Log and change
@@ -199,3 +215,36 @@ The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day 
 | `ENGAGEMENT_NOTES_INVALID`                                                     | an empty summary or an action item without text            |
 | `ENGAGEMENT_NO_TRANSCRIBER`, `ENGAGEMENT_NO_FILES`, `ENGAGEMENT_NO_NOTE_TAKER` | `createActivities` lacks the option the method needs       |
 | `ENGAGEMENT_TRANSCRIBE_FAILED`, `ENGAGEMENT_SUMMARIZE_FAILED`                  | the transcriber or note taker threw                        |
+
+## Without the client
+
+`db.activities` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createActivities } from "better-supabase/blocks/activities";
+
+const engagements = createActivities({ transport });
+const deal = { type: "deal", id: dealId };
+
+await engagements
+  .log(
+    organizationId,
+    {
+      type: "call",
+      title: "Discovery call",
+      outcome: "connected",
+      durationSeconds: 900,
+      doneAt: Temporal.Now.instant(),
+    },
+    [deal, { type: "person", id: personId }],
+  )
+  .orThrow();
+
+await engagements
+  .log(
+    organizationId,
+    { type: "task", title: "Send proposal", dueAt: friday },
+    [deal],
+  )
+  .orThrow();
+```

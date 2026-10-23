@@ -22,12 +22,19 @@ The module needs `memberships` and `access`. It works with
 when they are installed, and records `asset.*` events to the outbox and the
 audit log.
 
+Server code calls the `assets` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useAssets } = defineDataHooks(
+  "assets",
+  (db: AppDb) => db.assets,
+);
+```
+
 ```ts
 import { createAssets } from "better-supabase/blocks/assets";
 
-const assets = createAssets({ transport, tenant: organizationId });
-
-const site = await assets
+const site = await db.assets
   .createLocation({
     kind: "site",
     name: "Amsterdam office",
@@ -36,7 +43,7 @@ const site = await assets
   })
   .orThrow();
 
-const laptop = await assets
+const laptop = await db.assets
   .createAsset({
     kind: "laptop",
     name: "MacBook Pro 14",
@@ -46,9 +53,17 @@ const laptop = await assets
   })
   .orThrow();
 
-await assets
+await db.assets
   .assign(laptop.id, { type: "member", id: userId }, { note: "New hire" })
   .orThrow();
+```
+
+```tsx title="src/features/assets/list.tsx"
+"use client";
+
+import { useAssets } from "@/lib/supabase/hooks";
+
+const rows = useAssets({ limit: 50 });
 ```
 
 ## Locations
@@ -147,3 +162,36 @@ work on them.
 `asset_location.archived`, and `asset.created`, `asset.updated`,
 `asset.assigned` and `asset.released`. The
 [events page](/docs/extending/events) lists their payloads.
+
+## Without the client
+
+`db.assets` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createAssets } from "better-supabase/blocks/assets";
+
+const assets = createAssets({ transport, tenant: organizationId });
+
+const site = await assets
+  .createLocation({
+    kind: "site",
+    name: "Amsterdam office",
+    code: "AMS",
+    point: { latitude: 52.37, longitude: 4.89 },
+  })
+  .orThrow();
+
+const laptop = await assets
+  .createAsset({
+    kind: "laptop",
+    name: "MacBook Pro 14",
+    locationId: site.id,
+    tag: "IT-0042",
+    serialNumber: "C02XYZ",
+  })
+  .orThrow();
+
+await assets
+  .assign(laptop.id, { type: "member", id: userId }, { note: "New hire" })
+  .orThrow();
+```

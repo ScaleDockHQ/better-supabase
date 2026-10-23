@@ -26,18 +26,22 @@ activates or pauses a sequence.
 
 ## Write a sequence
 
+Server code calls the `sequences` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useSequences } = defineDataHooks(
+  "sequences",
+  (db: AppDb) => db.sequences,
+);
+```
+
 ```ts
 import {
   createSequences,
   rpcTransport,
 } from "better-supabase/blocks/sequences";
 
-const sequences = createSequences({
-  transport: rpcTransport(supabase),
-  tenant: organizationId,
-});
-
-const welcome = await sequences
+const welcome = await db.sequences
   .upsert({
     key: "welcome",
     name: "Welcome series",
@@ -59,6 +63,14 @@ const welcome = await sequences
     ],
   })
   .orThrow();
+```
+
+```tsx title="src/features/sequences/list.tsx"
+"use client";
+
+import { useSequences } from "@/lib/supabase/hooks";
+
+const rows = useSequences({ limit: 50 });
 ```
 
 `upsert` creates a sequence, or with `id` changes the keys you pass. A sequence
@@ -153,3 +165,42 @@ subject event. See [Events](/docs/extending/events).
 | `SEQUENCE_NOT_ACTIVE`           | `enroll` named a sequence that isn't `active`         |
 | `SEQUENCE_NO_MAILER`            | `runDue` found due emails but the set has no `mailer` |
 | `SEQUENCE_NO_MAILBOX`           | a run has no mailbox to send from                     |
+
+## Without the client
+
+`db.sequences` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import {
+  createSequences,
+  rpcTransport,
+} from "better-supabase/blocks/sequences";
+
+const sequences = createSequences({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+});
+
+const welcome = await sequences
+  .upsert({
+    key: "welcome",
+    name: "Welcome series",
+    status: "active",
+    steps: [
+      {
+        id: "intro",
+        kind: "email",
+        subject: "Welcome, {{firstName}}",
+        text: "Reply to this email if you have questions.",
+      },
+      { id: "wait", kind: "wait", minutes: 2880 },
+      {
+        id: "call",
+        kind: "task",
+        title: "Call {{firstName}}",
+        dueInMinutes: 1440,
+      },
+    ],
+  })
+  .orThrow();
+```

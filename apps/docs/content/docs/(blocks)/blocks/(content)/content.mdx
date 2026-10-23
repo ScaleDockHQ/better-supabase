@@ -30,15 +30,19 @@ image an entry points at. The [outbox](/docs/blocks/outbox) and
 
 ## Write entries
 
+Server code calls the `content` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
+
+```ts title="src/lib/supabase/hooks.ts"
+export const { useList: useContent } = defineDataHooks(
+  "content",
+  (db: AppDb) => db.content,
+);
+```
+
 ```ts
 import { createContent, rpcTransport } from "better-supabase/blocks/content";
 
-const content = createContent({
-  transport: rpcTransport(supabase),
-  tenant: organizationId,
-});
-
-const about = await content
+const about = await db.content
   .create({
     type: "page",
     slug: "about",
@@ -47,7 +51,7 @@ const about = await content
   })
   .orThrow();
 
-const dutch = await content
+const dutch = await db.content
   .create({
     type: "page",
     locale: "nl",
@@ -56,6 +60,14 @@ const dutch = await content
     translationOf: about.id,
   })
   .orThrow();
+```
+
+```tsx title="src/features/content/list.tsx"
+"use client";
+
+import { useContent } from "@/lib/supabase/hooks";
+
+const rows = useContent({ limit: 50 });
 ```
 
 `create` writes a draft. `type` must be one of `options.types` and `locale`
@@ -173,3 +185,35 @@ The block writes `content_entry.created`, `content_entry.updated`,
 | `CONTENT_TRANSLATION_EXISTS` | the translation group already has an entry in the locale           |
 | `CONTENT_MEDIA_UNSUPPORTED`  | a cover is set without the attachments block                       |
 | `APPROVAL_PENDING`           | a publish request for the entry is already open                    |
+
+## Without the client
+
+`db.content` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
+
+```ts
+import { createContent, rpcTransport } from "better-supabase/blocks/content";
+
+const content = createContent({
+  transport: rpcTransport(supabase),
+  tenant: organizationId,
+});
+
+const about = await content
+  .create({
+    type: "page",
+    slug: "about",
+    title: "About us",
+    body: { type: "doc", content: [] },
+  })
+  .orThrow();
+
+const dutch = await content
+  .create({
+    type: "page",
+    locale: "nl",
+    slug: "over-ons",
+    title: "Over ons",
+    translationOf: about.id,
+  })
+  .orThrow();
+```
