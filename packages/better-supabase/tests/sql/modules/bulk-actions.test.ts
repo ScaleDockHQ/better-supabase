@@ -62,7 +62,7 @@ describe("bulk module", () => {
 
   it("rejects bad action options and limits", () => {
     expect(() =>
-      sqlOf(["bulk-actions"], { actions: { "tags.set": "app.x" } }),
+      sqlOf(["bulk-actions", "tags"], { actions: { "tags.set": "app.x" } }),
     ).toThrow(/built-in/);
     expect(() =>
       sqlOf(["bulk-actions"], { actions: { archive: "app.x" } }),

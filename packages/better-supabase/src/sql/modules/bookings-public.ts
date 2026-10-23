@@ -1,8 +1,9 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlScope } from "../scope.ts";
 
 import { extraFieldsJson, fail } from "../shared.ts";
-import { liveShareLink } from "./share-links.ts";
+import { liveShareLink, shareLinkRow } from "./share-links.ts";
 
 const SERVICE_CALLER = "auth.role() = 'service_role'";
 const RATE_SCOPE = "bookings.public";
@@ -323,3 +324,42 @@ $$;
 ${anon(`${fn("public_change_booking")}(uuid, text, text)`)}
 `;
 }
+
+/**
+ * Fills `v_busy` with the busy ranges of the resource's host from the calendar
+ * block, without the events that mirror this resource's own bookings, which the
+ * seat check already counts.
+ */
+export function hostBusy(p: Parts): string {
+  const { ctx, b } = p;
+
+  if (
+    !ctx.has("resources", "host") ||
+    !ctx.has("resources", "checkBusy") ||
+    !ctx.installed("calendar") ||
+    ctx.of("calendar").mode === "custom"
+  ) {
+    return "";
+  }
+
+  const mirrored = ctx.has("bookings", "calendarEvent")
+    ? ` and not exists (select 1 from ${p.bookings} bk where bk.${b("calendarEvent")} = bb.event_id and bk.${b("resource")} = v_resource.id)`
+    : "";
+
+  return `v_busy := '{}'::tstzmultirange;
+    if v_resource.host is not null then
+      select coalesce(range_agg(tstzrange(bb.starts_at, bb.ends_at)), '{}'::tstzmultirange) into v_busy
+      from ${ctx.of("calendar").fn("calendar_busy_blocks")}(v_service.tenant, array[v_resource.host], v_floor - v_service.before, booking_slots.range_end + v_service.after) bb
+      where bb.starts_at < bb.ends_at${mirrored};
+    end if;`;
+}
+
+/** What bookings adds to share-links. */
+export const BOOKINGS_CONTRIBUTES: BlockContributes = {
+  "share-links": (own) => [
+    {
+      subject: "booking_service",
+      exists: (subject) => shareLinkRow(own, "services", subject),
+    },
+  ],
+};

@@ -526,7 +526,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "tasks",
         "reactions",
-        "attachments"
+        "attachments",
+        "subjects"
       ],
       "manifest": "comments",
       "scopes": [
@@ -542,7 +543,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions"
       ],
       "integrates": [
-        "profiles"
+        "profiles",
+        "subjects"
       ],
       "manifest": "attachments",
       "scopes": [
@@ -923,7 +925,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "entitlements",
         "ai-keys",
         "approvals",
-        "data-lifecycle"
+        "data-lifecycle",
+        "share-links"
       ],
       "manifest": "ai-chat",
       "scopes": [
@@ -1418,7 +1421,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "drive"
+        "drive",
+        "bulk-actions"
       ],
       "manifest": "tags",
       "scopes": [
@@ -1470,7 +1474,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
-        "approvals"
+        "approvals",
+        "bulk-actions"
       ],
       "manifest": "state-machine",
       "scopes": [
@@ -1536,11 +1541,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions"
       ],
       "integrates": [
-        "ai-chat",
-        "bookings",
-        "calendar",
-        "drive",
-        "forms",
         "outbox",
         "versions"
       ],
@@ -1595,7 +1595,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "notifications",
-        "outbox"
+        "outbox",
+        "subjects"
       ],
       "manifest": "reminders",
       "scopes": [
@@ -1655,15 +1656,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "permissions"
       ],
-      "integrates": [
-        "comments",
-        "messaging",
-        "attachments",
-        "tasks",
-        "approvals",
-        "reminders",
-        "sla"
-      ],
+      "integrates": [],
       "manifest": "subjects",
       "scopes": [
         "tenant"
@@ -1749,7 +1742,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions"
       ],
       "integrates": [
-        "outbox"
+        "outbox",
+        "bulk-actions"
       ],
       "manifest": "relations",
       "scopes": [
@@ -1797,12 +1791,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "queue",
-        "outbox",
-        "tags",
-        "state-machine",
-        "relations",
-        "trash",
-        "collections"
+        "outbox"
       ],
       "manifest": "bulk-actions",
       "scopes": [
@@ -2077,7 +2066,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
-        "data-lifecycle"
+        "data-lifecycle",
+        "bulk-actions"
       ],
       "manifest": "trash",
       "scopes": [
@@ -2149,12 +2139,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "drive",
         "teams",
         "state-machine",
-        "access-requests",
-        "time-tracking",
-        "leave",
-        "expenses",
-        "ai-chat",
-        "impersonation"
+        "subjects"
       ],
       "manifest": "approvals",
       "scopes": [
@@ -2209,7 +2194,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "audit"
+        "audit",
+        "approvals"
       ],
       "manifest": "access-requests",
       "scopes": [
@@ -2874,7 +2860,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "audit"
+        "audit",
+        "approvals"
       ],
       "manifest": "time-tracking",
       "scopes": [
@@ -3032,10 +3019,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "state-machine",
-        "notifications",
-        "deals",
-        "tasks",
-        "hiring"
+        "notifications"
       ],
       "manifest": "pipelines",
       "scopes": [
@@ -3266,7 +3250,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "notifications",
         "numbering",
-        "activities"
+        "activities",
+        "pipelines"
       ],
       "manifest": "deals",
       "scopes": [
@@ -3375,7 +3360,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "numbering",
         "attachments",
-        "reminders"
+        "reminders",
+        "pipelines",
+        "subjects"
       ],
       "manifest": "tasks",
       "scopes": [
@@ -3689,7 +3676,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "notifications"
+        "notifications",
+        "tasks",
+        "subjects"
       ],
       "manifest": "sla",
       "scopes": [
@@ -3798,7 +3787,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "pipelines"
       ],
       "integrates": [
-        "outbox"
+        "outbox",
+        "pipelines"
       ],
       "manifest": "hiring",
       "scopes": [
@@ -3973,7 +3963,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "teams"
+        "teams",
+        "bulk-actions"
       ],
       "manifest": "collections",
       "scopes": [
@@ -4191,7 +4182,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "audit"
+        "audit",
+        "approvals"
       ],
       "manifest": "leave",
       "scopes": [
@@ -4968,7 +4960,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
-        "attachments"
+        "attachments",
+        "approvals"
       ],
       "manifest": "expenses",
       "scopes": [

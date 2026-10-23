@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { WorkItemNames } from "./tasks-functions.ts";
 
@@ -17,8 +18,14 @@ import {
   triggerGrant,
 } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { myWorkTenant } from "./subjects.ts";
 import { checklistTable, workItemExtrasContract } from "./tasks-extras.ts";
 import { workItemFunctions } from "./tasks-functions.ts";
+
+/** The subject type of a work item, after `blocks.tasks.names`. */
+export function workItemType(tasks: BlockSqlContext): string {
+  return tasks.resolved.entities["work_item"]?.to.singular ?? "work_item";
+}
 
 const ITEM = [
   "organizationId",
@@ -440,7 +447,72 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+/** How work items run on pipelines. */
+const WORK_ITEM_PIPELINE: Readonly<Record<string, unknown>> = {
+  enteredAt: "stage_entered_at",
+  scope: "team_id",
+  categories: {
+    triage: "open",
+    backlog: "open",
+    unstarted: "open",
+    started: "open",
+    completed: "success",
+    canceled: "failure",
+  },
+  status: {
+    column: "state",
+    values: {
+      triage: "triage",
+      backlog: "backlog",
+      unstarted: "unstarted",
+      started: "started",
+      completed: "completed",
+      canceled: "canceled",
+    },
+  },
+  stages: [
+    { key: "triage", name: "Triage", category: "triage" },
+    { key: "backlog", name: "Backlog", category: "backlog" },
+    { key: "todo", name: "Todo", category: "unstarted" },
+    { key: "in_progress", name: "In progress", category: "started" },
+    { key: "in_review", name: "In review", category: "started" },
+    { key: "done", name: "Done", category: "completed" },
+    { key: "canceled", name: "Canceled", category: "canceled" },
+  ],
+};
+
+const CONTRIBUTES: BlockContributes = {
+  pipelines: (own) => {
+    const { schema, name } = own.tableName("items");
+
+    return [
+      {
+        type: own.resolved.entityNaming.rename("work_item"),
+        table: `${schema}.${name}`,
+        entry: WORK_ITEM_PIPELINE,
+      },
+    ];
+  },
+  subjects: (own) => {
+    const w = (column: string): string => `i.${own.col("items", column)}`;
+
+    return [
+      {
+        work: `select 'assigned'::text, ${sqlString(workItemType(own))}::text, ${w("id")}::text, ${w("id")}::text, ${w("title")}::text,
+      coalesce(${w("dueAt")}, a.${own.col("assignees", "createdAt")})
+    from ${own.table("assignees")} a
+    join ${own.table("items")} i on ${w("id")} = a.${own.col("assignees", "item")}
+    where a.${own.col("assignees", "user")} = v_me
+      and ${w("state")} not in ('completed', 'canceled')
+      and ${w("archivedAt")} is null
+      and ${myWorkTenant(w("tenant"))}`,
+      },
+    ];
+  },
+};
+
 export const WORK_ITEMS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "tasks",
   scopes: ["tenant"],
   title: "Work items",

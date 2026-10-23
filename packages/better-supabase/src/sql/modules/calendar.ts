@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
@@ -27,7 +28,7 @@ import {
   workingHoursTable,
 } from "./calendar-availability.ts";
 import { moduleOperations } from "./permissions-model.ts";
-import { liveShareLink } from "./share-links.ts";
+import { liveShareLink, shareLinkRow } from "./share-links.ts";
 
 const EVENTS: BlockSqlEvents<CalendarEvents> = {
   "calendar.created": {
@@ -973,7 +974,17 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  "share-links": (own) => [
+    {
+      subject: "calendar",
+      exists: (subject) => shareLinkRow(own, "calendars", subject),
+    },
+  ],
+};
+
 export const CALENDAR: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "calendar",
   scopes: ["tenant"],
   title: "Calendar",

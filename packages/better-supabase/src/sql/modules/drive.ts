@@ -1,9 +1,17 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { driveCoreSql } from "./drive-core.ts";
 import { driveFilesSql } from "./drive-files.ts";
-import { FILE_EVENTS, NAMES, driveKit, labelTags } from "./drive-kit.ts";
+import {
+  FILE_EVENTS,
+  NAMES,
+  driveKit,
+  driveSubjectType,
+  labelTags,
+} from "./drive-kit.ts";
+import { shareLinkRow } from "./share-links.ts";
 
 function contract(): readonly BlockSqlContractFunction[] {
   return [
@@ -94,7 +102,18 @@ const INTEGRATES = [
  * subjects (comments, attachments, versions, trash), so `drive_node` can be one
  * of them; `drive-files` adds what needs those modules.
  */
+
+const CONTRIBUTES: BlockContributes = {
+  "share-links": (own) => [
+    {
+      subject: driveSubjectType(own),
+      exists: (subject) => shareLinkRow(own, "nodes", subject),
+    },
+  ],
+};
+
 export const DRIVE: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "drive",
   scopes: ["tenant"],
   title: "Drive",

@@ -1,9 +1,15 @@
 import type { AccessBlockConfig, AnyBlocksConfig } from "../config/blocks.ts";
-import type { BlockSqlContext, BlockSqlIdType } from "./context.ts";
+import type {
+  BlockSqlContext,
+  BlockSqlIdType,
+  Contributor,
+} from "./context.ts";
+import type { BlockContributions } from "./contributions.ts";
 import type { BlockSqlLayout, BlockSql } from "./module-types.ts";
 
 import { createModuleContext } from "./context.ts";
 import { providerAnswersForGuests } from "./guest-sql.ts";
+import { renamedInstances, rendersOwnInstance } from "./instance-names.ts";
 
 /** The registry `moduleContext` reads names and integrations from. */
 export interface BlockSqlRegistry {
@@ -57,6 +63,7 @@ export function moduleContext(
       ...(installed ? { installed } : {}),
       ...(layout.instances ? { instances: layout.instances } : {}),
       ...(instance === undefined || instance === name ? {} : { instance }),
+      contributors: (block) => contributorsOf(block, layout, installed),
       ...(layout.scope ? { scope: layout.scope } : {}),
       ...providerIdType(layout),
       ...providerGuests(layout),
@@ -203,4 +210,59 @@ export function providerGuests(layout: BlockSqlLayout): {
   providerGuests?: boolean;
 } {
   return providerAnswersForGuests(layout) ? { providerGuests: true } : {};
+}
+
+/**
+ * The installed instances whose block contributes to `block`, in block order,
+ * each with the instance of `block` its `uses` names.
+ */
+function contributorsOf<K extends keyof BlockContributions>(
+  block: K,
+  layout: BlockSqlLayout,
+  installed: readonly string[] | undefined,
+): readonly Contributor<K>[] {
+  if (installed === undefined) {
+    return [];
+  }
+
+  const set = new Set(installed);
+
+  return Object.entries(registry().modules).flatMap(([name, definition]) => {
+    const contribute = set.has(name)
+      ? definition.contributes?.[block]
+      : undefined;
+
+    if (contribute === undefined) {
+      return [];
+    }
+
+    return [
+      ...(rendersOwnInstance(name, layout) ? [name] : []),
+      ...renamedInstances(name, layout).map((each) => each.name),
+    ].flatMap((instance): Contributor<K>[] => {
+      const uses = layout.instances?.[instance]?.uses[block];
+
+      // A renamed instance would repeat its block's subject types and action
+      // names, so it contributes only where its `uses` sends it, or to the
+      // default instance of a block its block requires.
+      if (
+        instance !== name &&
+        uses === undefined &&
+        !definition.requires.includes(block)
+      ) {
+        return [];
+      }
+
+      const own = moduleContext(name, layout, installed, instance);
+
+      return own.mode === "custom"
+        ? []
+        : [
+            {
+              instance: uses ?? block,
+              contribute: (target) => contribute(own, target),
+            },
+          ];
+    });
+  });
 }

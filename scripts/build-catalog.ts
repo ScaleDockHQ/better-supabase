@@ -58,6 +58,22 @@ import {
 import { formatNameRegistry } from "../packages/better-supabase/src/sql/name-sets.ts";
 import { resolveBlocks } from "../packages/better-supabase/src/sql/registry.ts";
 
+/**
+ * The blocks a block works with: what it integrates and the generic blocks it
+ * contributes to.
+ */
+function worksWith(module: {
+  readonly integrates?: readonly string[];
+  readonly contributes?: object;
+}): readonly string[] {
+  return [
+    ...new Set([
+      ...(module.integrates ?? []),
+      ...Object.keys(module.contributes ?? {}),
+    ]),
+  ];
+}
+
 const ROOT = join(import.meta.dirname, "..");
 const PACKAGE_JSON = join(ROOT, "packages/better-supabase/package.json");
 const EXPORTS_JSON = join(ROOT, "packages/better-supabase/api/exports.json");
@@ -274,7 +290,7 @@ export function buildCatalog(): Catalog {
       category: categoryOf(module.name),
       description: module.description,
       requires: module.requires,
-      integrates: module.integrates ?? [],
+      integrates: worksWith(module),
       modes: module.modes ?? ["managed"],
       events: eventsOf(module),
       subpath: exports.has(subpath)
@@ -630,7 +646,7 @@ function presetBlock(module: BlockSql): PresetCatalogBlock {
     title: module.title,
     category: manifest.category,
     requires,
-    integrates: module.integrates ?? [],
+    integrates: worksWith(module),
     manifest: manifest.name,
   };
 

@@ -5,9 +5,11 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { uniqueContributions } from "../contributions.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -36,30 +38,7 @@ import { approverCheck } from "./approver.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
 import { providerMembers } from "./memberships.ts";
 import { OPERATIONS } from "./permissions-model.ts";
-
-/** Requests the access-requests module files; their subject is its row. */
-export const ACCESS_REQUEST_SUBJECT = "access_request";
-
-/** Requests the time-tracking module files; their subject is a timesheet. */
-export const TIMESHEET_SUBJECT = "timesheet";
-
-/** Requests the leave module files; their subject is a leave request. */
-export const LEAVE_REQUEST_SUBJECT = "leave_request";
-
-/** Reports the expenses module submits; their subject is an expense report. */
-export const EXPENSE_REPORT_SUBJECT = "expense_report";
-
-/**
- * Tool calls the ai-chat module files; their subject is its approval row,
- * action `run`.
- */
-export const AI_TOOL_SUBJECT = "ai_tool_approval";
-
-/**
- * Requests the impersonation module files; their subject is its request, action
- * `start`.
- */
-export const SUPPORT_REQUEST_SUBJECT = "support_request";
+import { myWorkTenant } from "./subjects.ts";
 
 /**
  * The policy snapshot of a request another module files and decides: one step
@@ -179,53 +158,21 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const subjects = subjectsOption(ctx);
   const fn = (name: string): string => ctx.fn(name);
 
-  const timesheets =
-    ctx.installed("time-tracking") && ctx.of("time-tracking").mode !== "custom"
-      ? ctx.of("time-tracking")
-      : undefined;
+  const contributed = uniqueContributions(
+    "approvals",
+    ctx.contributions("approvals"),
+    (each) => each.subject,
+  );
 
-  const leave =
-    ctx.installed("leave") && ctx.of("leave").mode !== "custom"
-      ? ctx.of("leave")
-      : undefined;
+  const own = contributed.filter((each) => each.access === "declared");
+  const linked = contributed.filter((each) => each.access === "linked");
 
-  const expenses =
-    ctx.installed("expenses") && ctx.of("expenses").mode !== "custom"
-      ? ctx.of("expenses")
-      : undefined;
-
-  const own = [
-    ACCESS_REQUEST_SUBJECT,
-    ...(timesheets === undefined ? [] : [TIMESHEET_SUBJECT]),
-    ...(leave === undefined ? [] : [LEAVE_REQUEST_SUBJECT]),
-    ...(expenses === undefined ? [] : [EXPENSE_REPORT_SUBJECT]),
-  ];
-
-  const ownSubjects = own.map((type) => sqlString(type)).join(", ");
-
-  const aiChat =
-    ctx.installed("ai-chat") && ctx.of("ai-chat").mode !== "custom"
-      ? ctx.of("ai-chat")
-      : undefined;
-
-  const support =
-    ctx.installed("impersonation") &&
-    ctx.of("impersonation").mode !== "custom" &&
-    ctx.of("impersonation").hasTable("requests")
-      ? ctx.of("impersonation")
-      : undefined;
-
-  // Requests their module decides: only the requester, an eligible approver
-  // and the service role read them, never every reader of the tenant.
-  const linked = [
-    ...(aiChat === undefined ? [] : [AI_TOOL_SUBJECT]),
-    ...(support === undefined ? [] : [SUPPORT_REQUEST_SUBJECT]),
-  ];
+  const ownSubjects = own.map((each) => sqlString(each.subject)).join(", ");
 
   const linkedRow = (column: string): string =>
     linked.length === 0
       ? "false"
-      : `${column} in (${linked.map((type) => sqlString(type)).join(", ")})`;
+      : `${column} in (${linked.map((each) => sqlString(each.subject)).join(", ")})`;
 
   const drive = driveSubjectGuard(ctx);
 
@@ -244,15 +191,20 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       : drive.guard(args.type, args.id, access, listed);
   };
 
-  const declared = (row: string): string =>
-    `(${row}.${c("subjectType")} ${own.length === 1 ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectAccess(
+  const declared = (row: string): string => {
+    const access = subjectAccess(
       {
         type: `${row}.${c("subjectType")}`,
         id: `${row}.${c("subjectId")}`,
         tenant: `${row}.${c("tenant")}`,
       },
       "read",
-    )})`;
+    );
+
+    return own.length === 0
+      ? `(${access})`
+      : `(${row}.${c("subjectType")} ${own.length === 1 ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${access})`;
+  };
 
   const readable = (row: string): string =>
     linked.length === 0
@@ -357,86 +309,55 @@ ${queues
   end if;`
     : "";
 
-  const accessRun = ctx.installed("access-requests")
-    ? `
-  if v_req.${c("subjectType")} = ${sqlString(ACCESS_REQUEST_SUBJECT)} then
-    perform ${ctx.of("access-requests").fn("grant_access_request")}(v_req.${c("subjectId")}::uuid);
-  end if;`
-    : "";
-
-  const timesheetRun =
-    timesheets === undefined
-      ? ""
-      : `
-  if v_req.${c("subjectType")} = ${sqlString(TIMESHEET_SUBJECT)} then
-    perform ${timesheets.fn("approve_timesheet")}(v_req.${c("subjectId")}::uuid);
-  end if;`;
-
-  const leaveRun =
-    leave === undefined
-      ? ""
-      : `
-  if v_req.${c("subjectType")} = ${sqlString(LEAVE_REQUEST_SUBJECT)} then
-    perform ${leave.fn("approve_leave_request")}(v_req.${c("subjectId")}::uuid);
-  end if;`;
-
-  const expensesRun =
-    expenses === undefined
-      ? ""
-      : `
-  if v_req.${c("subjectType")} = ${sqlString(EXPENSE_REPORT_SUBJECT)} then
-    perform ${expenses.fn("approve_expense_report")}(v_req.${c("subjectId")}::uuid);
-  end if;`;
-
   const lastComment = `(select x.${d("comment")} from ${decisions} x where x.${d("request")} = v_req.${c("id")} order by x.${d("createdAt")} desc, x.${d("id")} desc limit 1)`;
 
-  const aiRun =
-    aiChat === undefined
-      ? ""
-      : `
-  if v_req.${c("subjectType")} = ${sqlString(AI_TOOL_SUBJECT)} then
-    perform ${aiChat.fn("apply_ai_tool_approval")}(v_req.${c("subjectId")}, true, ${lastComment});
-  end if;`;
+  const when = (subject: string, body: string, indent: string): string => `
+${indent}if v_req.${c("subjectType")} = ${sqlString(subject)} then
+${indent}  ${body}
+${indent}end if;`;
 
-  const supportRun =
-    support === undefined
-      ? ""
-      : `
-  if v_req.${c("subjectType")} = ${sqlString(SUPPORT_REQUEST_SUBJECT)} then
-    perform ${support.fn("apply_support_approval")}(v_req.${c("subjectId")}::uuid, auth.uid());
-  end if;`;
+  const subjectId = (cast: string): string => `v_req.${c("subjectId")}${cast}`;
 
-  const linkedReject = `${
-    aiChat === undefined
-      ? ""
-      : `
-    if v_req.${c("subjectType")} = ${sqlString(AI_TOOL_SUBJECT)} then
-      perform ${aiChat.fn("apply_ai_tool_approval")}(v_req.${c("subjectId")}, false, decide_approval.comment);
-    end if;`
-  }${
-    support === undefined
-      ? ""
-      : `
-    if v_req.${c("subjectType")} = ${sqlString(SUPPORT_REQUEST_SUBJECT)} then
-      perform ${support.fn("close_support_request")}(v_req.${c("subjectId")}::uuid);
-    end if;`
-  }`;
+  const contributedRun = contributed
+    .map((each) =>
+      when(
+        each.subject,
+        each.approve({ subjectId: subjectId(""), comment: lastComment }),
+        "  ",
+      ),
+    )
+    .join("");
 
-  const linkedEligible = `${
-    aiChat === undefined
-      ? ""
-      : `
-  if v_req.${c("subjectType")} = ${sqlString(AI_TOOL_SUBJECT)} then
-    return ${aiChat.fn("ai_tool_approval_approvable")}(v_req.${c("subjectId")});
-  end if;`
-  }${
-    support === undefined
-      ? ""
-      : `
-  if v_req.${c("subjectType")} = ${sqlString(SUPPORT_REQUEST_SUBJECT)} then
-    return ${support.fn("support_request_approvable")}(v_req.${c("subjectId")}::uuid);
-  end if;`
-  }`;
+  const linkedReject = linked
+    .flatMap((each) =>
+      each.reject === undefined
+        ? []
+        : [
+            when(
+              each.subject,
+              each.reject({
+                subjectId: subjectId(""),
+                comment: "decide_approval.comment",
+              }),
+              "    ",
+            ),
+          ],
+    )
+    .join("");
+
+  const linkedEligible = linked
+    .flatMap((each) =>
+      each.approvable === undefined
+        ? []
+        : [
+            when(
+              each.subject,
+              `return ${each.approvable({ subjectId: subjectId(""), comment: lastComment })};`,
+              "  ",
+            ),
+          ],
+    )
+    .join("");
 
   const notifyBody = ctx.installed("notifications")
     ? `
@@ -645,7 +566,7 @@ declare
   v_run jsonb;
 begin
   select * into v_req from ${requests} r where r.${c("id")} = approval_finalize.request_id;
-  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${accessRun}${timesheetRun}${leaveRun}${expensesRun}${aiRun}${supportRun}
+  v_run := v_req.${c("policy")} -> 'run';${transitionRun}${queueRun}${contributedRun}
   ${record("approval.approved", "v_req", true)}
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'approved');
 end;
@@ -1049,7 +970,26 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   );
 }
 
+const CONTRIBUTES: BlockContributes = {
+  subjects: (own) => {
+    const r = (column: string): string => `r.${own.col("requests", column)}`;
+
+    return [
+      {
+        work: `select 'approval'::text, ${r("subjectType")}::text, ${r("subjectId")}::text, ${r("id")}::text, null::text,
+      ${r("createdAt")}
+    from ${own.table("requests")} r
+    where ${r("status")} = 'pending'
+      and (${r("expiresAt")} is null or ${r("expiresAt")} > now())
+      and ${myWorkTenant(r("tenant"))}
+      and ${own.fn("approval_eligible")}(${r("id")})`,
+      },
+    ];
+  },
+};
+
 export const APPROVALS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "approvals",
   scopes: ["tenant"],
   title: "Approvals",
@@ -1064,12 +1004,6 @@ export const APPROVALS: BlockSqlDefinition = {
     "drive",
     "teams",
     "state-machine",
-    "access-requests",
-    "time-tracking",
-    "leave",
-    "expenses",
-    "ai-chat",
-    "impersonation",
   ],
   target: "schema",
   modes: ["managed", "custom"],

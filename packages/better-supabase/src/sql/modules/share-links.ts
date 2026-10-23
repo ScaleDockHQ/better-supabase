@@ -5,9 +5,11 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { ShareLinkSubjectSql } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { uniqueContributions } from "../contributions.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -22,7 +24,6 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { driveSubjectType } from "./drive-kit.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<ShareLinksEvents> = {
@@ -141,48 +142,31 @@ const SUBJECT_ARGS = {
 } as const;
 
 /**
+ * `exists` for a subject that is a row of `table` in the contributing block,
+ * found in the link's tenant.
+ */
+export function shareLinkRow(
+  own: BlockSqlContext,
+  table: string,
+  subject: ShareLinkSubjectSql,
+): string {
+  const c = (column: string): string => `s.${own.col(table, column)}`;
+
+  return `exists (select 1 from ${own.table(table)} s where ${c("id")}::text = ${subject.id} and ${c("tenant")}::text = ${subject.tenant}::text)`;
+}
+
+/**
  * The subject types other blocks own, each with the SQL that finds the subject
- * in the link's tenant. ai-chat also requires the caller to own the chat, as
- * `share_ai_chat` does.
+ * in the link's tenant.
  */
 function blockSubjects(
   ctx: BlockSqlContext,
 ): readonly (readonly [string, string])[] {
-  const { id, tenant } = SUBJECT_ARGS;
-
-  const row = (module: string, table: string, extra = ""): string => {
-    const other = ctx.of(module);
-    const c = (column: string): string => `s.${other.col(table, column)}`;
-
-    return `exists (select 1 from ${other.table(table)} s where ${c("id")}::text = ${id} and ${c("tenant")}::text = ${tenant}::text${extra})`;
-  };
-
-  const found: (readonly [string, string])[] = [];
-
-  if (ctx.installed("ai-chat")) {
-    found.push([
-      "ai-chat",
-      `exists (select 1 from ${ctx.schema}.ai_chats s where s.id::text = ${id} and s.${ctx.naming.rename("organization_id")}::text = ${tenant}::text and s.owner_id = auth.uid())`,
-    ]);
-  }
-
-  if (ctx.installed("drive")) {
-    found.push([driveSubjectType(ctx.of("drive")), row("drive", "nodes")]);
-  }
-
-  if (ctx.installed("calendar")) {
-    found.push(["calendar", row("calendar", "calendars")]);
-  }
-
-  if (ctx.installed("forms")) {
-    found.push(["form", row("forms", "forms")]);
-  }
-
-  if (ctx.installed("bookings")) {
-    found.push(["booking_service", row("bookings", "services")]);
-  }
-
-  return found;
+  return uniqueContributions(
+    "share-links",
+    ctx.contributions("share-links"),
+    (each) => each.subject,
+  ).map((each) => [each.subject, each.exists(SUBJECT_ARGS)] as const);
 }
 
 /**
@@ -326,89 +310,10 @@ ${lockTable(state, { read: true })}
 `
     : "";
 
-  const chat = ctx.installed("ai-chat")
-    ? `
--- ai-chat sharing is this block. The old functions stay callable and write
--- share_links instead of ai_chat_shares.
-do $$
-begin
-  if to_regclass('${ctx.schema}.ai_chat_shares') is not null then
-    insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "createdBy")}${ctx.has("links", "leaf") ? `, ${ctx.col("links", "leaf")}` : ""})
-    select c.${ctx.naming.rename("organization_id")}, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by${ctx.has("links", "leaf") ? ", s.leaf_id" : ""}
-    from ${ctx.schema}.ai_chat_shares s
-    join ${ctx.schema}.ai_chats c on c.id = s.chat_id
-    on conflict (${ctx.col("links", "tokenHash")}) do nothing;
-  end if;
-end;
-$$;
-create or replace function ${ctx.fn("share_ai_chat")}(chat uuid, leaf text default null)
-returns jsonb
-language plpgsql security definer set search_path = '' as $$
-declare
-  v_tenant ${ctx.idType};
-  v_owner uuid;
-  v_leaf text;
-  v_token text := encode(extensions.gen_random_bytes(32), 'hex');
-  v_id uuid;
-begin
-  select ${ctx.naming.rename("organization_id")}, owner_id, current_leaf_id into v_tenant, v_owner, v_leaf
-  from ${ctx.schema}.ai_chats where id = share_ai_chat.chat;
-  if not found or v_owner is distinct from auth.uid() then
-    ${fail("AI_CHAT_NOT_FOUND", "no chat", "P0002")}
-  end if;
-  v_leaf := coalesce(share_ai_chat.leaf, v_leaf);
-  insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "createdBy")}${ctx.has("links", "leaf") ? `, ${ctx.col("links", "leaf")}` : ""})
-  values (v_tenant, 'ai-chat', share_ai_chat.chat::text, ${sha256Hex("convert_to(v_token, 'utf8')")}, 'view', auth.uid()${ctx.has("links", "leaf") ? ", v_leaf" : ""})
-  returning ${ctx.col("links", "id")} into v_id;
-  return jsonb_build_object('id', v_id, 'token', v_token, 'leaf_id', v_leaf);
-end;
-$$;
-${userGrant(`${ctx.fn("share_ai_chat")}(uuid, text)`)}
-create or replace function ${ctx.fn("revoke_ai_chat_share")}(id uuid)
-returns boolean
-language plpgsql security definer set search_path = '' as $$
-begin
-  return ${ctx.fn("revoke_share_link")}(revoke_ai_chat_share.id);
-end;
-$$;
-create or replace function ${ctx.fn("list_ai_chat_shares")}(chat uuid)
-returns jsonb
-language sql stable security definer set search_path = '' as $$
-  select ${ctx.fn("list_share_links")}('ai-chat', list_ai_chat_shares.chat::text)
-$$;
-create or replace function ${ctx.fn("get_shared_ai_chat")}(token text)
-returns jsonb
-language plpgsql stable security definer set search_path = '' as $$
-declare
-  v_subject text;
-  v_tenant text;
-  v_leaf text;
-  v_chat_id uuid;
-begin
-  if get_shared_ai_chat.token is null or get_shared_ai_chat.token !~ '^[0-9a-f]{64}$' then
-    return null;
-  end if;
-  select l.${ctx.col("links", "subjectId")}, l.${ctx.col("links", "tenant")}::text, ${ctx.has("links", "leaf") ? `l.${ctx.col("links", "leaf")}` : "null"}
-    into v_subject, v_tenant, v_leaf
-  from ${links} l
-  where ${liveShareLink(ctx, "l", "get_shared_ai_chat.token", "'ai-chat'")};
-  if not found or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
-    return null;
-  end if;
-  v_chat_id := v_subject::uuid;
-  -- The chat must still live in the tenant the link was created in.
-  if not exists (select 1 from ${ctx.schema}.ai_chats where id = v_chat_id and ${ctx.naming.rename("organization_id")}::text = v_tenant) then
-    return null;
-  end if;
-  return jsonb_build_object(
-    'chat', (select jsonb_build_object('id', id, 'title', title, 'model', model, 'created_at', created_at) from ${ctx.schema}.ai_chats where id = v_chat_id),
-    'leaf_id', v_leaf,
-    'messages', ${ctx.fn("ai_message_path_of")}(v_chat_id, v_leaf, false)
-  );
-end;
-$$;
-`
-    : "";
+  const contributed = ctx
+    .contributions("share-links")
+    .flatMap((each) => each.sql ?? [])
+    .join("");
 
   return `${schemaPreamble(ctx)}
 ${tables}
@@ -596,7 +501,7 @@ begin
 end;
 $$;
 ${userGrant(`${ctx.fn("set_user_state")}(text, text, boolean)`)}
-${chat}
+${contributed}
 `;
 }
 
@@ -636,15 +541,7 @@ export const SHARE_LINKS: BlockSqlDefinition = {
   description:
     "Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.",
   requires: ["memberships", "permissions"],
-  integrates: [
-    "ai-chat",
-    "bookings",
-    "calendar",
-    "drive",
-    "forms",
-    "outbox",
-    "versions",
-  ],
+  integrates: ["outbox", "versions"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

@@ -6,6 +6,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -1139,7 +1140,17 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  "bulk-actions": (own) => [
+    {
+      name: "stateMachine.transition",
+      run: `perform ${own.fn("transition")}(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason');`,
+    },
+  ],
+};
+
 export const STATE_MACHINE: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "state-machine",
   scopes: ["tenant"],
   title: "State machine",

@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { isRecord } from "../../core/guards.ts";
@@ -25,7 +26,7 @@ import { DURATION } from "./approvals-policies.ts";
 import { formNpsFunction } from "./forms-nps.ts";
 import { formSchemaFunctions, formScoringFunctions } from "./forms-schema.ts";
 import { OPERATIONS } from "./permissions-model.ts";
-import { liveShareLink } from "./share-links.ts";
+import { liveShareLink, shareLinkRow } from "./share-links.ts";
 
 /** The share-links subject type of a public form link. */
 const FORM_SUBJECT = "form";
@@ -1024,7 +1025,17 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  "share-links": (own) => [
+    {
+      subject: "form",
+      exists: (subject) => shareLinkRow(own, "forms", subject),
+    },
+  ],
+};
+
 export const FORMS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "forms",
   scopes: ["tenant"],
   title: "Forms",

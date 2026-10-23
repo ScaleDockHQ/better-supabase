@@ -316,3 +316,13 @@ for new installs, and the data file of a second instance adds it with
 manual step. Rows written before have `block` set to null, which means the
 row's `name` is the block. Block markers keep their format; a second instance
 adds its block after the mode (`-- @bsb-block tickets@1 managed tasks`).
+
+## Blocks contribute to approvals, pipelines and the other generic blocks
+
+`approvals`, `bulk-actions`, `pipelines`, `share-links` and `subjects` no
+longer list the blocks that use them. Each consumer declares its part in
+`contributes`, so the rendered SQL keeps the same branches in a new order.
+Run `better-supabase upgrade`, then `better-supabase db diff` to write the
+migration; the functions change only in the order of their `case` branches.
+A second instance contributes only when its `uses` names the generic
+instance. See [Contributions](/docs/blocks#contributions).

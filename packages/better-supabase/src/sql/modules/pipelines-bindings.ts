@@ -4,6 +4,7 @@ import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
+import { uniqueContributions } from "../contributions.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 
 /**
@@ -203,149 +204,6 @@ function statusOf(
  * `options.subjects`, checked: one binding per subject type that runs on
  * pipelines.
  */
-/**
- * The binding a record block brings when it is installed: the subject type
- * (renamed with the module's entities), its module and table, and the binding
- * entry. An app's own entry for the type in options.subjects is merged over
- * it.
- */
-interface BuiltInBinding {
-  readonly module: string;
-  readonly table: string;
-  readonly type: string;
-  readonly entry: Readonly<Record<string, unknown>>;
-}
-
-/** The record blocks that run on pipelines. */
-const BUILT_IN_BINDINGS: readonly BuiltInBinding[] = [
-  {
-    module: "deals",
-    table: "deals",
-    type: "deal",
-    entry: {
-      enteredAt: "stage_entered_at",
-      amount: "amount",
-      currency: "currency",
-      probability: "probability",
-      owner: "owner_user_id",
-      categories: { open: "open", won: "success", lost: "failure" },
-      status: {
-        column: "outcome",
-        values: { open: "open", won: "won", lost: "lost" },
-      },
-      stages: [
-        {
-          key: "qualified",
-          name: "Qualified",
-          category: "open",
-          probability: 20,
-        },
-        {
-          key: "discovery",
-          name: "Discovery",
-          category: "open",
-          probability: 35,
-        },
-        {
-          key: "proposal",
-          name: "Proposal",
-          category: "open",
-          probability: 55,
-        },
-        {
-          key: "negotiation",
-          name: "Negotiation",
-          category: "open",
-          probability: 75,
-        },
-        {
-          key: "closed_won",
-          name: "Closed won",
-          category: "won",
-          probability: 100,
-        },
-        {
-          key: "closed_lost",
-          name: "Closed lost",
-          category: "lost",
-          probability: 0,
-        },
-      ],
-    },
-  },
-  {
-    module: "tasks",
-    table: "items",
-    type: "work_item",
-    entry: {
-      enteredAt: "stage_entered_at",
-      scope: "team_id",
-      categories: {
-        triage: "open",
-        backlog: "open",
-        unstarted: "open",
-        started: "open",
-        completed: "success",
-        canceled: "failure",
-      },
-      status: {
-        column: "state",
-        values: {
-          triage: "triage",
-          backlog: "backlog",
-          unstarted: "unstarted",
-          started: "started",
-          completed: "completed",
-          canceled: "canceled",
-        },
-      },
-      stages: [
-        { key: "triage", name: "Triage", category: "triage" },
-        { key: "backlog", name: "Backlog", category: "backlog" },
-        { key: "todo", name: "Todo", category: "unstarted" },
-        { key: "in_progress", name: "In progress", category: "started" },
-        { key: "in_review", name: "In review", category: "started" },
-        { key: "done", name: "Done", category: "completed" },
-        { key: "canceled", name: "Canceled", category: "canceled" },
-      ],
-    },
-  },
-  {
-    module: "hiring",
-    table: "applications",
-    type: "application",
-    entry: {
-      enteredAt: "stage_entered_at",
-      owner: "owner_user_id",
-      scope: "job_id",
-      categories: {
-        active: "open",
-        hired: "success",
-        rejected: "failure",
-        withdrawn: "failure",
-      },
-      status: {
-        column: "state",
-        values: {
-          active: "active",
-          hired: "hired",
-          rejected: "rejected",
-          withdrawn: "withdrawn",
-        },
-      },
-      stages: [
-        { key: "applied", name: "Applied", category: "active" },
-        { key: "screening", name: "Screening", category: "active" },
-        { key: "interview", name: "Interview", category: "active" },
-        { key: "offer", name: "Offer", category: "active" },
-        { key: "hired", name: "Hired", category: "hired" },
-        { key: "rejected", name: "Rejected", category: "rejected" },
-        { key: "withdrawn", name: "Withdrawn", category: "withdrawn" },
-      ],
-    },
-  },
-];
-
 export function pipelineBindings(
   ctx: BlockSqlContext,
 ): readonly PipelineBinding[] {
@@ -358,21 +216,16 @@ export function pipelineBindings(
   const raw: Record<string, unknown> = {};
   const builtInSubjects: Record<string, SubjectConfig> = {};
 
-  for (const builtIn of BUILT_IN_BINDINGS) {
-    if (!ctx.installed(builtIn.module)) {
-      continue;
-    }
+  const contributed = uniqueContributions(
+    "pipelines",
+    ctx.contributions("pipelines"),
+    (each) => each.type,
+  );
 
-    const owner = ctx.of(builtIn.module);
-    const type = owner.resolved.entityNaming.rename(builtIn.type);
+  for (const { type, table, entry } of contributed) {
     const own = configured[type];
-    raw[type] = { ...builtIn.entry, ...(isRecord(own) ? own : {}) };
-    const { schema, name } = owner.tableName(builtIn.table);
-    builtInSubjects[type] = {
-      table: `${schema}.${name}`,
-      idType: "uuid",
-      tenant: "tenant_id",
-    };
+    raw[type] = { ...entry, ...(isRecord(own) ? own : {}) };
+    builtInSubjects[type] = { table, idType: "uuid", tenant: "tenant_id" };
   }
 
   for (const [type, entry] of Object.entries(configured)) {

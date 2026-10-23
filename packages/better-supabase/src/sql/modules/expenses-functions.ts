@@ -12,8 +12,10 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
-import { EXPENSE_REPORT_SUBJECT } from "./approvals.ts";
 import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
+
+/** Reports the expenses block submits to approvals. */
+export const EXPENSE_REPORT_SUBJECT = "expense_report";
 
 /** The keys the report reads return next to the extra columns. */
 export const EXPENSE_REPORT_RESERVED = ["fields"] as const;

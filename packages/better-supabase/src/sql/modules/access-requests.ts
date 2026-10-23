@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -22,10 +23,12 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { DURATION, policyOf, policySnapshot } from "./approvals-policies.ts";
-import { ACCESS_REQUEST_SUBJECT } from "./approvals.ts";
 import { roleNameOf } from "./memberships.ts";
 import { roleValue } from "./organizations-roles.ts";
 import { accessModel, OPERATIONS, roleNames } from "./permissions-model.ts";
+
+/** Requests this block files with approvals; their subject is its row. */
+const ACCESS_REQUEST_SUBJECT = "access_request";
 
 const WHERE = "blocks.access-requests.options";
 
@@ -498,7 +501,19 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  approvals: (own) => [
+    {
+      subject: ACCESS_REQUEST_SUBJECT,
+      access: "declared",
+      approve: ({ subjectId }) =>
+        `perform ${own.fn("grant_access_request")}(${subjectId}::uuid);`,
+    },
+  ],
+};
+
 export const ACCESS_REQUESTS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "access-requests",
   scopes: ["tenant"],
   title: "Access requests",

@@ -27,7 +27,10 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { BUCKET, bucketOptions } from "./attachments-bucket.ts";
-import { attachmentsContract } from "./attachments-contract.ts";
+import {
+  ATTACHMENTS_CONTRIBUTES,
+  attachmentsContract,
+} from "./attachments-contract.ts";
 import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -1053,6 +1056,7 @@ on conflict (id) do nothing;`;
 }
 
 export const ATTACHMENTS: BlockSqlDefinition = {
+  contributes: ATTACHMENTS_CONTRIBUTES,
   internal: [
     "attachment_authors",
     "attachment_subject_readable",

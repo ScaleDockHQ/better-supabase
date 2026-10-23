@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
@@ -639,7 +640,17 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  "bulk-actions": (own) => [
+    {
+      name: "trash.trash",
+      run: `perform ${own.fn("trash")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);`,
+    },
+  ],
+};
+
 export const TRASH: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "trash",
   scopes: ["tenant"],
   title: "Trash",

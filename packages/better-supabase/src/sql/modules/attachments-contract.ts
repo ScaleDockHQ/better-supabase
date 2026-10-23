@@ -1,4 +1,5 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 
 /**
  * The attachments functions the module exposes; extra is the contract of
@@ -66,3 +67,19 @@ export function attachmentsContract(
       : []),
   ];
 }
+
+/** What attachments adds to the subject functions. */
+export const ATTACHMENTS_CONTRIBUTES: BlockContributes = {
+  subjects: (own) => [
+    {
+      summary: {
+        name: "attachments",
+        from: `${own.table("attachments")} x`,
+        subjectType: `x.${own.col("attachments", "subjectType")}`,
+        subjectId: `x.${own.col("attachments", "subjectId")}`,
+        latest: `x.${own.col("attachments", "uploadedAt")}`,
+        live: `x.${own.col("attachments", "uploadedAt")} is not null and x.${own.col("attachments", "status")} <> 'infected'`,
+      },
+    },
+  ],
+};

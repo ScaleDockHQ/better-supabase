@@ -342,9 +342,12 @@ describe("blocks overview", () => {
     const expected = Object.values(SQL_MODULES).map((module) => {
       const required = new Set(module.requires);
 
-      const works = (module.integrates ?? []).filter(
-        (name) => !required.has(name),
-      );
+      const works = [
+        ...new Set([
+          ...(module.integrates ?? []),
+          ...Object.keys(module.contributes ?? {}),
+        ]),
+      ].filter((name) => !required.has(name));
 
       return `${module.name} | ${cell(module.requires)} | ${cell(works)}`;
     });

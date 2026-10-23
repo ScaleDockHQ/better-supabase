@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
@@ -801,7 +802,17 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+const CONTRIBUTES: BlockContributes = {
+  "bulk-actions": (own) => [
+    {
+      name: "relations.link",
+      run: `perform ${own.fn("link")}(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');`,
+    },
+  ],
+};
+
 export const RELATIONS: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "relations",
   scopes: ["tenant"],
   title: "Relations",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createBulkActions } from "../../../src/blocks/bulk-actions/index.ts";
-import { BULK_ACTIONS } from "../../../src/sql/modules/bulk-actions.ts";
+import { renderBlocks } from "../../../src/sql/render.ts";
 
 function transport(results: Record<string, unknown>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
@@ -40,7 +40,24 @@ describe("bulk client", () => {
       "appTables.set",
     ];
 
-    expect(Object.keys(BULK_ACTIONS)).toEqual(actions);
+    const sql = renderBlocks(
+      [
+        "bulk-actions",
+        "tags",
+        "state-machine",
+        "relations",
+        "trash",
+        "collections",
+      ],
+      { appTables: { tasks: { subject: { type: "task" } } } },
+    )
+      .filter((file) => file.module === "bulk-actions")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `array[${actions.map((name) => `'${name}'`).join(", ")}]`,
+    );
   });
 
   it("runs rows now with a result per row", async () => {

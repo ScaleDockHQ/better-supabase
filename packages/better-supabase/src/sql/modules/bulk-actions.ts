@@ -5,9 +5,11 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BulkActionContribution } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { uniqueContributions } from "../contributions.ts";
 import {
   fail,
   lockTable,
@@ -18,15 +20,8 @@ import {
 } from "../shared.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
-/** The actions every install knows, each backed by the block that owns it. */
-export const BULK_ACTIONS = {
-  "tags.set": "tags",
-  "stateMachine.transition": "state-machine",
-  "relations.link": "relations",
-  "trash.trash": "trash",
-  "collections.add": "collections",
-  "appTables.set": "app-tables",
-} as const;
+/** The action app tables answer, once the app has tables. */
+const APP_TABLE_ACTION = "appTables.set";
 
 /**
  * The app-tables function `appTables.set` calls, created with the app tables in
@@ -78,7 +73,10 @@ const NAMES: BlockSqlNames = {
  * `options.actions`: an app's own actions, each a `schema.function(tenant,
  * subject_type, id, args)`.
  */
-function bulkActions(ctx: BlockSqlContext): ReadonlyMap<string, string> {
+function bulkActions(
+  ctx: BlockSqlContext,
+  builtIn: ReadonlySet<string>,
+): ReadonlyMap<string, string> {
   const where = "blocks['bulk-actions'].options.actions";
   const raw: unknown = ctx.option("actions") ?? {};
 
@@ -95,7 +93,7 @@ function bulkActions(ctx: BlockSqlContext): ReadonlyMap<string, string> {
       );
     }
 
-    if (name in BULK_ACTIONS) {
+    if (builtIn.has(name)) {
       throw new TypeError(`${where}: "${name}" is a built-in action`);
     }
 
@@ -111,45 +109,24 @@ function bulkActions(ctx: BlockSqlContext): ReadonlyMap<string, string> {
   return actions;
 }
 
+const indent = (statements: string): string =>
+  statements
+    .split("\n")
+    .map((line) => `      ${line}`)
+    .join("\n");
+
 function dispatch(
   ctx: BlockSqlContext,
+  contributed: readonly BulkActionContribution[],
   custom: ReadonlyMap<string, string>,
 ): string {
-  const arms: string[] = [];
-
-  if (ctx.installed("tags")) {
-    const tags = ctx.of("tags");
-    arms.push(`    when 'tags.set' then
-      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'add', '[]'::jsonb)) loop
-        perform ${tags.fn("tag")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);
-      end loop;
-      for v_tag in select value::uuid from jsonb_array_elements_text(coalesce(bulk_row.args -> 'remove', '[]'::jsonb)) loop
-        perform ${tags.fn("untag")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);
-      end loop;`);
-  }
-
-  if (ctx.installed("state-machine")) {
-    arms.push(`    when 'stateMachine.transition' then
-      perform ${ctx.of("state-machine").fn("transition")}(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason');`);
-  }
-
-  if (ctx.installed("relations")) {
-    arms.push(`    when 'relations.link' then
-      perform ${ctx.of("relations").fn("link")}(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');`);
-  }
-
-  if (ctx.installed("trash")) {
-    arms.push(`    when 'trash.trash' then
-      perform ${ctx.of("trash").fn("trash")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);`);
-  }
-
-  if (ctx.installed("collections")) {
-    arms.push(`    when 'collections.add' then
-      perform ${ctx.of("collections").fn("add_collection_entries")}((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);`);
-  }
+  const arms: string[] = contributed.map(
+    (action) => `    when ${sqlString(action.name)} then
+${indent(action.run)}`,
+  );
 
   if (ctx.appTables.size > 0) {
-    arms.push(`    when 'appTables.set' then
+    arms.push(`    when ${sqlString(APP_TABLE_ACTION)} then
       perform public.${sqlIdent(APP_TABLE_SET)}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);`);
   }
 
@@ -215,19 +192,35 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
-  const custom = bulkActions(ctx);
+  const contributed = uniqueContributions(
+    "bulk-actions",
+    ctx.contributions("bulk-actions"),
+    (action) => action.name,
+  );
+
+  const custom = bulkActions(
+    ctx,
+    new Set([APP_TABLE_ACTION, ...contributed.map((action) => action.name)]),
+  );
+
   const background = ctx.installed("queue");
 
   const known = [
-    ...Object.entries(BULK_ACTIONS)
-      .filter(([, module]) =>
-        module === "app-tables"
-          ? ctx.appTables.size > 0
-          : ctx.installed(module),
-      )
-      .map(([name]) => name),
+    ...contributed.map((action) => action.name),
+    ...(ctx.appTables.size > 0 ? [APP_TABLE_ACTION] : []),
     ...custom.keys(),
   ];
+
+  const declares = [
+    ...new Set(contributed.flatMap((action) => action.declare ?? [])),
+  ];
+
+  const declareSection =
+    declares.length === 0
+      ? ""
+      : `declare
+${declares.map((line) => `  ${line}`).join("\n")}
+`;
 
   const knownList =
     known.length === 0
@@ -268,10 +261,8 @@ language plpgsql
 security invoker
 set search_path = ''
 as $$
-declare
-  v_tag uuid;
-begin
-  ${dispatch(ctx, custom)}
+${declareSection}begin
+  ${dispatch(ctx, contributed, custom)}
 end;
 $$;
 ${userGrant(`${ctx.fn("bulk_row")}(${ctx.idType}, text, text, text, jsonb)`)}
@@ -457,15 +448,7 @@ export const BULK: BlockSqlDefinition = {
   description:
     "One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.",
   requires: ["memberships", "permissions"],
-  integrates: [
-    "queue",
-    "outbox",
-    "tags",
-    "state-machine",
-    "relations",
-    "trash",
-    "collections",
-  ],
+  integrates: ["queue", "outbox"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
   version: 1,

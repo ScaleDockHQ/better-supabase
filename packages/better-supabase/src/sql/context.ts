@@ -10,6 +10,7 @@ import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
+import type { BlockContributions } from "./contributions.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
 import type { BlockSqlScope } from "./scope.ts";
 
@@ -367,6 +368,13 @@ export interface BlockSqlContext {
    */
   instanceNamings(): readonly EntityNames[];
   /**
+   * What the installed instances whose `uses` names this instance add to it
+   * through `contributes`, in block order. Custom-mode instances add nothing.
+   */
+  contributions<K extends keyof BlockContributions>(
+    block: K,
+  ): readonly BlockContributions[K][];
+  /**
    * `schema.name` of a module function, quoted. The name is the default one;
    * `blocks.<name>.entities` and `blocks.<name>.functions` rename it.
    */
@@ -580,6 +588,22 @@ export interface BlockSqlContextSource {
    * unchanged.
    */
   readonly instance?: string;
+  /**
+   * The installed instances that contribute to `block`, each with the instance
+   * of `block` its `uses` names.
+   */
+  readonly contributors?: <K extends keyof BlockContributions>(
+    block: K,
+  ) => readonly Contributor<K>[];
+}
+
+/** An installed instance that adds to a generic block. */
+export interface Contributor<K extends keyof BlockContributions> {
+  /** The instance of the generic block it adds to. */
+  readonly instance: string;
+  readonly contribute: (
+    target: BlockSqlContext,
+  ) => readonly BlockContributions[K][];
 }
 
 const IDENT = /^[A-Za-z_][A-Za-z0-9_$]*$/;
@@ -1133,7 +1157,7 @@ export function createModuleContext(
   const held = (kind: string, tenant: string): string =>
     lifecycle("is_held", `${sqlString(kind)}, (${tenant})::text`) ?? "false";
 
-  return {
+  const context: BlockSqlContext = {
     module,
     instance,
     mode: config.mode,
@@ -1158,6 +1182,10 @@ export function createModuleContext(
             : [resolveNames(name, known, modules).entityNaming];
         }),
       ),
+    contributions: (block) =>
+      (shared.contributors?.(block) ?? [])
+        .filter((contributor) => contributor.instance === instance)
+        .flatMap((contributor) => contributor.contribute(context)),
     instanceNamings: () =>
       Object.entries(source.instances ?? {}).flatMap(([name, other]) => {
         const known = namesOf(other.block);
@@ -1411,6 +1439,8 @@ ${indent}end if;`;
         : SERVICE_CALLER;
     },
   };
+
+  return context;
 }
 
 /** The contract's argument list with `{id}` resolved, as Postgres prints it. */
