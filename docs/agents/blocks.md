@@ -228,13 +228,15 @@ never add a new block to one.
 `package.json` `exports` and `publishConfig.exports`, the entry list in
 `tsdown.config.ts`, `tests/bundle/baseline.json` (`pnpm size`), the export
 snapshot (`vitest run tests/exports.test.ts -u`, then review
-`api/exports.json`), and the blocks table in both READMEs.
+`api/exports.json`). The docs page that imports the subpath is what
+`scripts/docs-drift.ts` checks.
 
 ## Docs and tests
 
-- A page in `apps/docs/content/docs/blocks/<name>.mdx`, listed in that
-  folder's `meta.json`, a row in `blocks/index.mdx` and in the modules table
-  of `blocks/sql.mdx`, and the block removed from `roadmap.mdx`.
+- A page at `apps/docs/content/docs/(blocks)/blocks/(<category>)/<name>.mdx`,
+  listed in that group's `meta.json`. The URL stays `/docs/blocks/<name>`.
+  The category catalogs and `blocks/index.mdx` link to it, and the block is
+  removed from `roadmap.mdx`.
 - Unit tests for the module body (`tests/sql/modules/<name>.test.ts`) and the
   TypeScript side (`tests/blocks/<name>`), and an integration test that
   installs the module in a transaction and calls it as a user
