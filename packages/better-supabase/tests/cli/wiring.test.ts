@@ -215,7 +215,11 @@ describe("wiringFor edge cases", () => {
     );
     expect(envExampleText("A=1", env)).toMatch(/^A=1\n\n# better-supabase/);
     expect(
-      wiringChecklist(CONTEXT, { env, providers: [], workers: [] }, undefined),
+      wiringChecklist(
+        CONTEXT,
+        { env, providers: [], workers: [], actions: [], schedules: [] },
+        undefined,
+      ),
     ).toEqual([]);
   });
 
@@ -225,6 +229,8 @@ describe("wiringFor edge cases", () => {
       {
         env: [],
         providers: [],
+        actions: [],
+        schedules: [],
         workers: [
           {
             name: "drain",
@@ -240,5 +246,21 @@ describe("wiringFor edge cases", () => {
     expect(steps).toEqual([
       "  1. Call /api/drain from a cron with `Authorization: Bearer $CRON_SECRET` (queue: Drains.)",
     ]);
+  });
+
+  it("names the block timers and the actions to register", () => {
+    const plan = wiringFor([
+      { name: "sla", block: "sla" },
+      { name: "tasks", block: "tasks" },
+      { name: "inbox", block: "inbox" },
+    ]);
+
+    const steps = wiringChecklist(CONTEXT, plan, undefined);
+
+    expect(steps.join("\n")).toContain("sla check() at `* * * * *`");
+    expect(steps.join("\n")).toContain("blockTickHandler");
+    expect(steps.join("\n")).toContain(
+      "createActionRegistry`: tasks.from_conversation (tasks)",
+    );
   });
 });

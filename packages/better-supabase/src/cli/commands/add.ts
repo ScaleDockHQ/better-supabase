@@ -227,6 +227,10 @@ async function addBlocks(
           (entry) => `${entry.instance}.${entry.provider.option}`,
         ),
         workers: wiring.workers.map((worker) => worker.name),
+        actions: wiring.actions.map((action) => action.kind),
+        schedules: wiring.schedules.map(
+          (schedule) => `${schedule.block}.${schedule.name}`,
+        ),
         files: written.files.map((file) => file.path),
       },
     },

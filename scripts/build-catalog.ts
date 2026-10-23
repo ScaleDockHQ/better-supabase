@@ -547,7 +547,9 @@ function presetManifest(
       : withSections;
 
   const wiring = Object.fromEntries(
-    (["env", "providers", "routes", "workers"] as const).flatMap((key) => {
+    (
+      ["env", "providers", "routes", "workers", "actions", "schedules"] as const
+    ).flatMap((key) => {
       const value = block[key];
 
       return value === undefined || value.length === 0 ? [] : [[key, value]];

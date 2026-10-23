@@ -7007,7 +7007,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "consumes": {
         "notifier": "optional"
       },
-      "provides": []
+      "provides": [],
+      "schedules": [
+        {
+          "name": "tick",
+          "cron": "* * * * *",
+          "runs": "tick()",
+          "description": "Queues a run for each due AI task and computes its next occurrence."
+        }
+      ]
     },
     {
       "name": "announcements",
@@ -13086,7 +13094,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "sequence_enrollment.exited",
           "sequence_enrollment.completed"
         ]
-      }
+      },
+      "schedules": [
+        {
+          "name": "run-due",
+          "cron": "* * * * *",
+          "runs": "runDue()",
+          "description": "Sends the due steps of every active enrollment and moves each to its next wait."
+        }
+      ]
     },
     {
       "name": "lead-scoring",
@@ -13720,7 +13736,13 @@ export const PRESET_CATALOG: PresetCatalog = {
           "employee.offboarded",
           "employee.manager_changed"
         ]
-      }
+      },
+      "actions": [
+        {
+          "kind": "employees.from_application",
+          "title": "Preboard the hired candidate"
+        }
+      ]
     },
     {
       "name": "activities",
@@ -15919,6 +15941,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "description": "Computes tax on order lines.",
           "example": "fixedRates({ rates })"
         }
+      ],
+      "actions": [
+        {
+          "kind": "orders.from_quote",
+          "title": "Order the accepted quote"
+        }
       ]
     },
     {
@@ -16886,7 +16914,29 @@ export const PRESET_CATALOG: PresetCatalog = {
           "rule.removed",
           "rule.matched"
         ]
-      }
+      },
+      "actions": [
+        {
+          "kind": "approvals.request",
+          "title": "Request an approval"
+        },
+        {
+          "kind": "notify",
+          "title": "Send a notification"
+        },
+        {
+          "kind": "set_field",
+          "title": "Set a field"
+        },
+        {
+          "kind": "webhook",
+          "title": "Send a webhook"
+        },
+        {
+          "kind": "workflow",
+          "title": "Start a workflow"
+        }
+      ]
     },
     {
       "name": "vercel-marketplace",
@@ -17195,7 +17245,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "sla.breached",
           "sla.completed"
         ]
-      }
+      },
+      "schedules": [
+        {
+          "name": "check",
+          "cron": "* * * * *",
+          "runs": "check()",
+          "description": "Records the warnings and breaches of the running clocks."
+        }
+      ]
     },
     {
       "name": "sso",
@@ -18177,7 +18235,13 @@ export const PRESET_CATALOG: PresetCatalog = {
           "work_item.archived",
           "work_item.deleted"
         ]
-      }
+      },
+      "actions": [
+        {
+          "kind": "tasks.from_conversation",
+          "title": "Create a task from the conversation"
+        }
+      ]
     },
     {
       "name": "workflow-editor",
@@ -18244,7 +18308,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "workflow_run.failed",
           "workflow_run.cancelled"
         ]
-      }
+      },
+      "schedules": [
+        {
+          "name": "tick",
+          "cron": "* * * * *",
+          "runs": "schedules.tick() and admission.tick()",
+          "description": "Starts every due workflow schedule once and the queued starts that have room."
+        }
+      ]
     }
   ],
   "glue": [

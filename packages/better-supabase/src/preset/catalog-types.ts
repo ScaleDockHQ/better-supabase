@@ -5,6 +5,7 @@ import type {
   BlockProvider,
   BlockWorker,
 } from "../blocks/wiring.ts";
+import type { ActionDescriptor, BlockSchedule } from "../core/automation.ts";
 import type { FieldSpec } from "../core/table-json-schema.ts";
 import type { BlockSqlEntitySpec, BlockSqlTableSpec } from "../sql/context.ts";
 import type { PresetAccess, PresetScope, PresetTenantName } from "./fields.ts";
@@ -96,6 +97,10 @@ export interface PresetCatalogManifest {
   readonly routes?: readonly string[];
   /** The crons or processes it needs. */
   readonly workers?: readonly BlockWorker[];
+  /** The action kinds it ships, for the action registry. */
+  readonly actions?: readonly ActionDescriptor[];
+  /** The timers it runs on the queue's `block_ticks`. */
+  readonly schedules?: readonly BlockSchedule[];
 }
 
 /** One entity's input schemas, in the block's default names. */

@@ -252,6 +252,13 @@ the rest as a numbered checklist:
   command for your framework.
 - **Workers.** The checklist names each route a cron calls, with its schedule
   and the `Authorization: Bearer $CRON_SECRET` header.
+- **Block timers.** The SLA, sequences, AI schedules and workflows blocks run
+  timers on the queue; the checklist lists them and names
+  `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
+  and the `blockTickHandler` drain ([Block timers](/docs/blocks/queue#block-timers)).
+- **Actions.** The checklist lists the action kinds the installed blocks ship,
+  such as `tasks.from_conversation`, to register in the rules consumer's
+  `createActionRegistry` so their default automations run.
 
 [Doctor](/docs/cli/doctor) fails on what is left: BS504 on a required env key
 no env file lists, BS505 on a required provider that is still a comment.
