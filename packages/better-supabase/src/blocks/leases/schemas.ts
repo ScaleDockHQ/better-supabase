@@ -1,5 +1,5 @@
 import type { EntitySchema } from "../entity-schema.ts";
-import type { LeaseInput, MaintenanceRequestInput } from "./leases.ts";
+import type { LeaseInput } from "./leases.ts";
 
 import { entitySchema, moneyField } from "../entity-schema.ts";
 
@@ -29,22 +29,5 @@ export const leaseInputSchema: EntitySchema<LeaseInput> =
         optional: true,
         description: "The extra columns to set.",
       },
-    },
-  });
-
-/** What `fileMaintenance` takes. */
-export const maintenanceRequestInputSchema: EntitySchema<MaintenanceRequestInput> =
-  entitySchema<MaintenanceRequestInput>({
-    title: "MaintenanceRequestInput",
-    fields: {
-      unitId: { kind: "uuid" },
-      title: { kind: "string", minLength: 1, maxLength: 200 },
-      description: { kind: "string", optional: true, maxLength: 5000 },
-      priority: {
-        kind: "enum",
-        values: ["low", "normal", "high", "urgent"],
-        optional: true,
-      },
-      leaseId: { kind: "uuid", optional: true },
     },
   });

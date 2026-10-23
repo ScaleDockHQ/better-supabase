@@ -228,10 +228,6 @@ export const permissions = {
     read: "ledger.read",
     write: "ledger.manage",
   },
-  maintenance_request: {
-    read: "leases.read",
-    write: "leases.maintain",
-  },
   message: {
     read: "messages.read",
     write: "messages.send",
@@ -359,8 +355,6 @@ export const blockEvents: Events<BlockEvents> = {
     "ledger_hold.released",
     "ledger_transaction.posted",
     "ledger_transaction.reversed",
-    "maintenance_request.filed",
-    "maintenance_request.updated",
     "message.deleted",
     "message.edited",
     "message.pinned",
@@ -471,8 +465,6 @@ export const blockEventSchemas = {
   "ledger_hold.released": true,
   "ledger_transaction.posted": true,
   "ledger_transaction.reversed": true,
-  "maintenance_request.filed": true,
-  "maintenance_request.updated": true,
   "message.deleted": true,
   "message.edited": true,
   "message.pinned": true,

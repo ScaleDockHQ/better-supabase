@@ -7,7 +7,6 @@ import {
   leasesBlock,
   leasesEvents,
   leasesBinding,
-  maintenanceRequestInputSchema,
 } from "../../../src/blocks/leases/index.ts";
 import { money } from "../../../src/commerce/money.ts";
 
@@ -64,22 +63,6 @@ const CHARGE = {
   currency: "EUR",
   transactionId: "t1",
   createdAt: AT,
-};
-
-const REQUEST = {
-  id: "m1",
-  organizationId: "org-1",
-  unitId: UNIT,
-  leaseId: "l1",
-  title: "Leaking tap",
-  description: "Kitchen",
-  priority: "high",
-  status: "resolved",
-  reportedBy: "u2",
-  assigneeId: "u3",
-  resolvedAt: AT,
-  createdAt: AT,
-  updatedAt: AT,
 };
 
 function fakeTransport(results: Record<string, unknown>) {
@@ -375,127 +358,6 @@ describe("createLeases", () => {
     ]);
   });
 
-  it("files, updates and lists maintenance requests", async () => {
-    const open = {
-      ...REQUEST,
-      leaseId: null,
-      description: null,
-      priority: "normal",
-      status: "open",
-      reportedBy: null,
-      assigneeId: null,
-      resolvedAt: null,
-    };
-
-    const fake = fakeTransport({
-      file_maintenance_request: open,
-      update_maintenance_request: REQUEST,
-      list_maintenance_requests: [REQUEST],
-    });
-
-    const leases = createLeases({ transport: fake.transport, tenant: "org-1" });
-
-    const filed = await leases
-      .fileMaintenance({ unitId: UNIT, title: "Leaking tap" })
-      .orThrow();
-
-    await leases
-      .fileMaintenance({
-        unitId: UNIT,
-        title: "Leaking tap",
-        description: "Kitchen",
-        priority: "high",
-        leaseId: "l1",
-      })
-      .orThrow();
-
-    const resolved = await leases
-      .updateMaintenance("m1", {
-        status: "resolved",
-        priority: "high",
-        assigneeId: "u3",
-      })
-      .orThrow();
-
-    await leases.updateMaintenance("m1", {}).orThrow();
-    await leases
-      .listMaintenance({
-        unitId: UNIT,
-        leaseId: "l1",
-        status: "open",
-        pageSize: 5,
-      })
-      .orThrow();
-    await leases.listMaintenance().orThrow();
-
-    expect(filed).not.toHaveProperty("leaseId");
-    expect(filed).not.toHaveProperty("resolvedAt");
-    expect(resolved).toMatchObject({
-      leaseId: "l1",
-      description: "Kitchen",
-      reportedBy: "u2",
-      assigneeId: "u3",
-    });
-    expect(resolved.resolvedAt?.toString()).toBe(AT);
-    expect(fake.calls.map(([fn, args]) => [fn, args])).toEqual([
-      [
-        "file_maintenance_request",
-        {
-          tenant: "org-1",
-          unit_id: UNIT,
-          title: "Leaking tap",
-          description: null,
-          priority: "normal",
-          lease_id: null,
-        },
-      ],
-      [
-        "file_maintenance_request",
-        {
-          tenant: "org-1",
-          unit_id: UNIT,
-          title: "Leaking tap",
-          description: "Kitchen",
-          priority: "high",
-          lease_id: "l1",
-        },
-      ],
-      [
-        "update_maintenance_request",
-        {
-          request_id: "m1",
-          status: "resolved",
-          priority: "high",
-          assignee_id: "u3",
-        },
-      ],
-      [
-        "update_maintenance_request",
-        { request_id: "m1", status: null, priority: null, assignee_id: null },
-      ],
-      [
-        "list_maintenance_requests",
-        {
-          tenant: "org-1",
-          unit_id: UNIT,
-          lease_id: "l1",
-          status: "open",
-          page_size: 5,
-        },
-      ],
-      [
-        "list_maintenance_requests",
-        {
-          tenant: "org-1",
-          unit_id: null,
-          lease_id: null,
-          status: null,
-          page_size: null,
-        },
-      ],
-    ]);
-  });
-
   it("rejects malformed rows and a missing count", async () => {
     const leases = createLeases({
       transport: fakeTransport({
@@ -563,17 +425,6 @@ describe("leases block", () => {
       }).issues,
     ).toBeUndefined();
     expect(validate(leaseInputSchema, { unitId: UNIT }).issues).toBeDefined();
-    expect(
-      validate(maintenanceRequestInputSchema, { unitId: UNIT, title: "Tap" })
-        .issues,
-    ).toBeUndefined();
-    expect(
-      validate(maintenanceRequestInputSchema, {
-        unitId: UNIT,
-        title: "Tap",
-        priority: "whenever",
-      }).issues,
-    ).toBeDefined();
   });
 });
 

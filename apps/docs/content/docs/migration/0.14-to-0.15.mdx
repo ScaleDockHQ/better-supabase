@@ -406,3 +406,23 @@ exports (`defineSection` to `defineRecordBinding`, `commentsSection` to
 the feature imports, `recordServer` and `sectionAction` calls for review. A
 config that still sets `generateFeatures` fails with the key to use. See
 [Record bindings](/docs/blocks/records).
+
+## Copied tables become instances
+
+Four blocks dropped a table that copied another block:
+
+| Block              | Before                                   | After                                                                              |
+| ------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| `leases`           | `maintenance_requests` and its functions | a `tasks` instance with `names: { work_item: "maintenance_request" }`              |
+| `admission-passes` | `pass_credit_entries`                    | ledger accounts per pass; `credits(passId)` reads them                             |
+| `inventory`        | its own `inventory_locations`, always    | `tables: { locations: null }` keeps stock at the `assets` locations                |
+| `donations`        | receipt numbers counted by the block     | a `donation_receipt` sequence it contributes to `numbering`, which it now requires |
+
+`better-supabase upgrade` moves the data: pass credits post onto the ledger,
+each organization's receipt sequence starts after its highest receipt, and
+the old maintenance table is renamed to `maintenance_requests_legacy`. Copy
+the maintenance rows you keep into the tasks instance before you generate
+the next schema migration, which drops the legacy table.
+`better-supabase codemod 0.15` lists the calls to `fileMaintenance`,
+`updateMaintenance`, `listMaintenance` and `maintenanceRequestInputSchema`
+for review. See [Leases](/docs/blocks/leases#maintenance-requests).

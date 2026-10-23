@@ -44,7 +44,6 @@ leave
 automations
 ledger
 billable-time
-leases
 contracts
 compliance
 incidents

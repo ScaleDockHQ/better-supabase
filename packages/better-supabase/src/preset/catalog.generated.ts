@@ -2423,7 +2423,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ledger"
       ],
       "integrates": [
-        "outbox"
+        "outbox",
+        "assets"
       ],
       "manifest": "inventory",
       "scopes": [
@@ -4727,7 +4728,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "bookings",
-        "signing-keys"
+        "signing-keys",
+        "ledger"
       ],
       "manifest": "admission-passes",
       "scopes": [
@@ -4881,17 +4883,6 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "write": "manage"
               }
             }
-          },
-          "maintenance_request": {
-            "table": "maintenance",
-            "singular": "maintenance_request",
-            "subject": {
-              "title": "title",
-              "permissions": {
-                "read": "read",
-                "write": "maintain"
-              }
-            }
           }
         },
         "tables": {
@@ -4917,24 +4908,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "terminationReason": "termination_reason",
               "metadata": "metadata",
               "createdBy": "created_by",
-              "createdAt": "created_at",
-              "updatedAt": "updated_at"
-            }
-          },
-          "maintenance": {
-            "name": "maintenance_requests",
-            "columns": {
-              "id": "id",
-              "tenant": "tenant_id",
-              "unit": "unit_id",
-              "lease": "lease_id",
-              "title": "title",
-              "description": "description",
-              "priority": "priority",
-              "status": "status",
-              "reportedBy": "reported_by",
-              "assignee": "assignee_id",
-              "resolvedAt": "resolved_at",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -5068,7 +5041,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "ledger"
+        "ledger",
+        "numbering"
       ],
       "integrates": [
         "outbox",
@@ -9692,15 +9666,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "LeaseTermination"
-        },
-        {
-          "name": "MaintenanceRequest"
-        },
-        {
-          "name": "MaintenanceRequestEventData"
-        },
-        {
-          "name": "MaintenanceRequestInput"
         }
       ],
       "entitySchemas": {
@@ -9847,78 +9812,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "additionalProperties": false
             }
           }
-        },
-        "maintenance_request": {
-          "input": {
-            "title": "MaintenanceRequestInput",
-            "fields": {
-              "unitId": {
-                "kind": "uuid"
-              },
-              "title": {
-                "kind": "string",
-                "minLength": 1,
-                "maxLength": 200
-              },
-              "description": {
-                "kind": "string",
-                "optional": true,
-                "maxLength": 5000
-              },
-              "priority": {
-                "kind": "enum",
-                "values": [
-                  "low",
-                  "normal",
-                  "high",
-                  "urgent"
-                ],
-                "optional": true
-              },
-              "leaseId": {
-                "kind": "uuid",
-                "optional": true
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "MaintenanceRequestInput",
-              "type": "object",
-              "properties": {
-                "unitId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "title": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "description": {
-                  "type": "string",
-                  "maxLength": 5000
-                },
-                "priority": {
-                  "type": "string",
-                  "enum": [
-                    "low",
-                    "normal",
-                    "high",
-                    "urgent"
-                  ]
-                },
-                "leaseId": {
-                  "type": "string",
-                  "format": "uuid"
-                }
-              },
-              "required": [
-                "unitId",
-                "title"
-              ],
-              "additionalProperties": false
-            }
-          }
         }
       },
       "record": [],
@@ -9930,9 +9823,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "lease.renewed",
           "lease.terminated",
           "lease.charged",
-          "lease.paid",
-          "maintenance_request.filed",
-          "maintenance_request.updated"
+          "lease.paid"
         ]
       }
     },

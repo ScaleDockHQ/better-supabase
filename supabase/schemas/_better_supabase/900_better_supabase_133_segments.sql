@@ -123,7 +123,7 @@ begin
     end if;
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
-  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'engagement', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'maintenance_request', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'policy', 'incident', 'form', 'document', 'customer', 'drive_node', 'application', 'project', 'task') then
+  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'engagement', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'policy', 'incident', 'form', 'document', 'customer', 'drive_node', 'application', 'project', 'task') then
     raise exception 'subjectType must be a type in config.records' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
@@ -286,7 +286,6 @@ begin
     when 'asset' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.read'), false)
     when 'asset_location' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.read'), false)
     when 'lease' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)
-    when 'maintenance_request' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)
     when 'expense_report' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.read'), false)
     when 'expense_line' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.read'), false)
     when 'donation_fund' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'donations.read'), false)
@@ -356,7 +355,6 @@ as $$
     when 'asset' then coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)
     when 'asset_location' then coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)
     when 'lease' then coalesce(better_supabase.can('tenant', x."tenant_id", 'leases.read'), false)
-    when 'maintenance_request' then coalesce(better_supabase.can('tenant', x."tenant_id", 'leases.read'), false)
     when 'expense_report' then coalesce(better_supabase.can('tenant', x."tenant_id", 'expenses.read'), false)
     when 'expense_line' then coalesce(better_supabase.can('tenant', x."tenant_id", 'expenses.read'), false)
     when 'donation_fund' then coalesce(better_supabase.can('tenant', x."tenant_id", 'donations.read'), false)
@@ -551,13 +549,6 @@ begin
   elsif v_row."subject_type" = 'lease' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."lease_agreements" s
-      where s."tenant_id" = v_row."tenant_id"
-        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
-      limit 10001
-    ) x;
-  elsif v_row."subject_type" = 'maintenance_request' then
-    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
-      select s."id"::text as id from "better_supabase"."maintenance_requests" s
       where s."tenant_id" = v_row."tenant_id"
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001

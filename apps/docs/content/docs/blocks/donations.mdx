@@ -19,11 +19,10 @@ import { createDonations } from "better-supabase/blocks/donations";
 import { money } from "better-supabase/commerce";
 ```
 
-The module requires `tenant`, `access`, `subjects` and `ledger`. With
+The module requires `tenant`, `access`, `subjects`, `ledger` and
+[numbering](/docs/blocks/numbering), which numbers the receipts. With
 `outbox` it records the `donation.*`, `pledge.*` and `donation_receipt.*`
-events, with `audit` every change is audited, and with
-[numbering](/docs/blocks/numbering) receipt numbers follow its
-`donation_receipt` format. Amounts are bigint minor units
+events, and with `audit` every change is audited. Amounts are bigint minor units
 ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)).
 Charges go through the versioned `PaymentProvider` interface
 ([ADR 0024](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0024-money-and-commerce-providers.md)),
@@ -180,10 +179,13 @@ await donations
 A gift receipt covers one posted gift; issuing it again returns the same
 receipt. A yearly receipt covers a donor's
 posted gifts received in a year and currency; issuing it again returns the
-same receipt until it is voided. Numbers come from numbering when it
-configures `donation_receipt`; without it each organization counts up from 1
-with the prefix `R-`. A voided receipt keeps its number, and a voided gift
-receipt frees the gift for a new one.
+same receipt until it is voided. Numbers come from the
+[numbering](/docs/blocks/numbering) block: donations contributes a
+`donation_receipt` sequence that counts up from 1 per organization with the
+format `R-{n}`, and an entry under `blocks.numbering.options.entities`
+replaces it. Version 2 seeds each organization's sequence with its highest
+receipt number, so numbers continue. A voided receipt keeps its number, and a
+voided gift receipt frees the gift for a new one.
 
 ## Section
 

@@ -34,11 +34,13 @@ constraint settles a race and an error rolls the whole move back.
 shift, latest first for a later time so the series never collides with
 itself.
 
-With `credits: true` and `bookings` installed, `passes` adds
-`pass_credit_entries`: `-1` per booking and `+1` per refund, unique per
-booking and reason, with `passes.uses` as the running total.
-`book_with_credit` locks the pass, books through `hold_booking` and writes the
-entry in one transaction. A trigger on the booking's status refunds once when
+With `credits: true` and `bookings` installed, `passes` posts credits on the
+`ledger` block (amended in 0.15, ADR 0093; it used to add
+`pass_credit_entries`): `-1` on the pass's account and `+1` on the
+organization's pool per booking, the reverse per refund, keyed per booking
+and reason so each posts once, with `passes.uses` as the running total.
+`book_with_credit` locks the pass, books through `hold_booking` and posts the
+transaction in one database transaction. A trigger on the booking's status refunds once when
 it is cancelled at least `creditRefundBefore` before it starts, and ignores the
 `bs:moving` step.
 

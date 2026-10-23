@@ -23,6 +23,7 @@ import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { DISPATCH_NAMES, dispatchContract } from "./dispatch-names.ts";
+import { locationsOf } from "./inventory-stock.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The statuses that hold a technician's slot. */
@@ -130,7 +131,7 @@ function tables(ctx: BlockSqlContext, extras: readonly ExtraColumn[]): string {
         "parts",
         q("location"),
         "location",
-        `${inventory.table("locations")} (${inventory.col("locations", "id")})`,
+        `${locationsOf(inventory).table} (${locationsOf(inventory).col("id")})`,
       ),
   ]
     .filter((sql): sql is string => typeof sql === "string")
@@ -404,8 +405,8 @@ function functions(
             "record_work_order_part.location_id",
           )
         : `  if record_work_order_part.location_id is not null and not exists (
-    select 1 from ${inventory.table("locations")} il
-    where il.${inventory.col("locations", "id")} = record_work_order_part.location_id and il.${inventory.col("locations", "tenant")} = ${tenant}
+    select 1 from ${locationsOf(inventory).table} il
+    where il.${locationsOf(inventory).col("id")} = record_work_order_part.location_id and il.${locationsOf(inventory).col("tenant")} = ${tenant}
   ) then
     ${fail("DISPATCH_INVENTORY_LOCATION_NOT_FOUND", "the inventory location does not exist in this organization", "P0002")}
   end if;`,

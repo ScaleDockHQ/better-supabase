@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
 import { fail, userGrant } from "../shared.ts";
-import { columns, guard, moveStock } from "./inventory-stock.ts";
+import { columns, guard, locationsOf, moveStock } from "./inventory-stock.ts";
 
 const UUID =
   "'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'";
@@ -54,10 +54,10 @@ export function transferFunctions(
   const { fn } = names;
   const transfers = ctx.table("transfers");
   const lines = ctx.table("transferLines");
-  const locations = ctx.table("locations");
+  const locations = locationsOf(ctx).table;
   const t = columns(ctx, "transfers");
   const tl = columns(ctx, "transferLines");
-  const l = columns(ctx, "locations");
+  const l = locationsOf(ctx).col;
 
   const load = (
     name: string,
@@ -206,11 +206,11 @@ export function purchaseOrderFunctions(
   const orders = ctx.table("purchaseOrders");
   const lines = ctx.table("purchaseOrderLines");
   const levels = ctx.table("levels");
-  const locations = ctx.table("locations");
+  const locations = locationsOf(ctx).table;
   const po = columns(ctx, "purchaseOrders");
   const pl = columns(ctx, "purchaseOrderLines");
   const lv = columns(ctx, "levels");
-  const l = columns(ctx, "locations");
+  const l = locationsOf(ctx).col;
   const currencyUnits = ctx.of("catalog").fn("currency_minor_units");
 
   const load = (

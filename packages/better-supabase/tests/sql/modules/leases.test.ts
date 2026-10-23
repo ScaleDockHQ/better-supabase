@@ -53,6 +53,5 @@ describe("leases module", () => {
 
     expect(sql).toContain("lease_agreements_unit_idx");
     expect(sql).toContain("lease_charges_transaction_idx");
-    expect(sql).toContain("maintenance_requests_tenancy_idx");
   });
 });

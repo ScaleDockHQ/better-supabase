@@ -1,13 +1,13 @@
 ---
 title: Leases
-description: Let units to parties with rent in bigint minor units, post each rent period on the ledger once, hold deposits through ledger holds, and track maintenance requests on the unit.
+description: Let units to parties with rent in bigint minor units, post each rent period on the ledger once, and hold deposits through ledger holds.
 ---
 
 `leases` lets units from the [assets](/docs/blocks/assets) block to parties
 such as contacts. Rent posts on the [ledger](/docs/blocks/ledger) once per
 period, so the balance due is a ledger balance and never a second copy.
-Deposits are held through ledger holds while the lease runs, and members
-file maintenance requests on the unit.
+Deposits are held through ledger holds while the lease runs. Maintenance
+requests are a [tasks](/docs/blocks/tasks) instance on the unit.
 
 ```bash
 better-supabase add leases
@@ -19,7 +19,7 @@ import { money } from "better-supabase/commerce";
 ```
 
 The module requires `tenant`, `access`, `subjects`, `assets` and `ledger`.
-With `outbox` it records the `lease.*` and `maintenance_request.*` events,
+With `outbox` it records the `lease.*` events,
 and with `audit` every change is audited. Amounts are bigint minor units
 ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)),
 and how recurring charges post on the ledger is in
@@ -27,16 +27,13 @@ and how recurring charges post on the ledger is in
 
 ## Tables
 
-| Table                  | Holds                                                                                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `lease_agreements`     | The unit (an asset), the party (`party_type`, `party_id`), the dates, `rent` and `currency` per `frequency`, the deposit and its hold |
-| `lease_charges`        | One row per rent period posted: the period, the amount and the ledger transaction, unique per lease and period                        |
-| `maintenance_requests` | A request on a unit, optionally for one of its leases, with a priority, a status and an assignee                                      |
+| Table              | Holds                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `lease_agreements` | The unit (an asset), the party (`party_type`, `party_id`), the dates, `rent` and `currency` per `frequency`, the deposit and its hold |
+| `lease_charges`    | One row per rent period posted: the period, the amount and the ledger transaction, unique per lease and period                        |
 
-Members with `leases.read` read every lease, charge and request of the
-organization; a member who filed a request reads it without it. Writes go
-through the functions: `leases.manage` for leases and payments, and
-`leases.maintain` (or `leases.manage`) to file a request.
+Members with `leases.read` read every lease and charge of the organization.
+Writes go through the functions, which need `leases.manage`.
 
 ## Your own columns
 
@@ -95,9 +92,6 @@ without `endsOn` runs until it is terminated.
 | `postDueRent({ through })`        | how many rent periods posted                   |
 | `recordPayment(leaseId, input)`   | the payment's transaction and the balance due  |
 | `charges(leaseId)`                | the posted rent periods, newest first          |
-| `fileMaintenance(input)`          | the request                                    |
-| `updateMaintenance(id, update)`   | the request                                    |
-| `listMaintenance(options)`        | requests, newest first                         |
 
 ## Rent on the ledger
 
@@ -158,20 +152,28 @@ back to the party. A draft is terminated without touching the ledger.
 
 ## Maintenance requests
 
+Install a second [tasks](/docs/blocks/tasks) instance for maintenance
+requests, with the unit and the lease as extra columns:
+
 ```ts
-await leases
-  .fileMaintenance({
-    unitId,
-    leaseId: lease.id,
-    title: "Leaking tap in the kitchen",
-    priority: "high",
-  })
-  .orThrow();
+// better-supabase.config.ts
+blocks: {
+  maintenance: {
+    block: "tasks",
+    names: { work_item: "maintenance_request" },
+    tables: { projects: null, iterations: null },
+    options: { prefix: "MR", extraColumns: { unit_id: "uuid", lease_id: "uuid" } },
+  },
+},
 ```
 
-A request moves through `open`, `in_progress`, `resolved` and `cancelled`.
-`updateMaintenance` changes the status, the priority or the assignee and
-needs `leases.manage`; resolving a request sets `resolvedAt`.
+Its tables are `maintenance_requests`, `maintenance_request_comments` and the
+other tasks tables, its client is `maintenanceBlock`, and its events are
+`maintenance_request.*`. Leases version 2 dropped its own
+`maintenance_requests` table and functions; the upgrade renames the table to
+`maintenance_requests_legacy` so the instance can take the name. Copy the rows
+you keep into the instance before you generate the next schema migration,
+which drops the legacy table.
 
 ## Section
 
@@ -187,7 +189,7 @@ record.
 
 | Hint                    | Cause                                                                                        |
 | ----------------------- | -------------------------------------------------------------------------------------------- |
-| `LEASES_FORBIDDEN`      | the caller lacks `leases.read`, `.manage` or `.maintain`                                     |
+| `LEASES_FORBIDDEN`      | the caller lacks `leases.read` or `leases.manage`                                            |
 | `LEASE_UNIT_INVALID`    | the unit isn't an asset of the organization                                                  |
 | `LEASE_PARTY_INVALID`   | the party isn't a record of the organization in `config.records`                             |
 | `LEASE_TERMS_INVALID`   | the rent isn't above zero, the dates don't make sense, or the deposit is in another currency |
@@ -196,12 +198,9 @@ record.
 | `LEASE_STATUS_INVALID`  | the lease isn't in a status that allows the change                                           |
 | `LEASE_PAYMENT_INVALID` | the payment isn't above zero                                                                 |
 | `LEASE_NOT_FOUND`       | no lease with this id that the caller can read                                               |
-| `MAINTENANCE_INVALID`   | the request's unit, lease, title, priority or status isn't valid                             |
-| `MAINTENANCE_NOT_FOUND` | no request with this id that the caller can change                                           |
 
 ## Events
 
 `lease.created`, `lease.activated`, `lease.renewed`, `lease.terminated`,
-`lease.charged` (one rent period), `lease.paid`, `maintenance_request.filed`
-and `maintenance_request.updated`. The
+`lease.charged` (one rent period) and `lease.paid`. The
 [events page](/docs/extending/events) lists their payloads.

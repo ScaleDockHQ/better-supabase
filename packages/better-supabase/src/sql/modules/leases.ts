@@ -43,15 +43,6 @@ const CHARGE_PAYLOAD = [
   "transactionId",
 ] as const;
 
-const MAINTENANCE_PAYLOAD = [
-  "organizationId",
-  "id",
-  "unitId",
-  "leaseId",
-  "priority",
-  "status",
-] as const;
-
 const EVENTS: BlockSqlEvents<LeasesEvents> = {
   "lease.created": { subject: "leases", payload: LEASE_PAYLOAD },
   "lease.activated": { subject: "leases", payload: LEASE_PAYLOAD },
@@ -61,14 +52,6 @@ const EVENTS: BlockSqlEvents<LeasesEvents> = {
   "lease.paid": {
     subject: "leases",
     payload: ["organizationId", "id", "transactionId", "amount", "currency"],
-  },
-  "maintenance_request.filed": {
-    subject: "maintenance-requests",
-    payload: MAINTENANCE_PAYLOAD,
-  },
-  "maintenance_request.updated": {
-    subject: "maintenance-requests",
-    payload: MAINTENANCE_PAYLOAD,
   },
 };
 
@@ -81,14 +64,6 @@ const NAMES: BlockSqlNames = {
       subject: {
         title: "title",
         permissions: { read: "read", write: "manage" },
-      },
-    },
-    maintenance_request: {
-      table: "maintenance",
-      singular: "maintenance_request",
-      subject: {
-        title: "title",
-        permissions: { read: "read", write: "maintain" },
       },
     },
   },
@@ -137,25 +112,6 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
     },
-    maintenance: {
-      name: "maintenance_requests",
-      lifecycle: { tenant: "tenant", user: "reportedBy", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        unit: "unit_id",
-        lease: "lease_id",
-        title: "title",
-        description: "description",
-        priority: "priority",
-        status: "status",
-        reportedBy: "reported_by",
-        assignee: "assignee_id",
-        resolvedAt: "resolved_at",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-    },
   },
 };
 
@@ -167,10 +123,8 @@ function tables(ctx: BlockSqlContext): string {
   const assets = ctx.of("assets");
   const leases = ctx.table("leases");
   const charges = ctx.table("charges");
-  const maintenance = ctx.table("maintenance");
   const l = (column: string): string => ctx.col("leases", column);
   const c = (column: string): string => ctx.col("charges", column);
-  const m = (column: string): string => ctx.col("maintenance", column);
   const ops = moduleOperations("leases");
   const read = ctx.permission("read", ops.read);
   const unit = `${assets.table("assets")} (${assets.col("assets", "id")})`;
@@ -237,28 +191,6 @@ drop policy if exists ${index("charges", "read")} on ${charges};
 create policy ${index("charges", "read")} on ${charges} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)});
 
-create table if not exists ${maintenance} (
-  ${m("id")} uuid primary key default gen_random_uuid(),
-  ${m("tenant")} ${ctx.idType} not null,
-  ${m("unit")} uuid not null references ${unit} on delete cascade,
-  ${m("lease")} uuid references ${leases} (${l("id")}) on delete set null,
-  ${m("title")} text not null check (length(${m("title")}) between 1 and 200),
-  ${m("description")} text check (${m("description")} is null or length(${m("description")}) <= 5000),
-  ${m("priority")} text not null default 'normal' check (${m("priority")} in ('low', 'normal', 'high', 'urgent')),
-  ${m("status")} text not null default 'open' check (${m("status")} in ('open', 'in_progress', 'resolved', 'cancelled')),
-  ${m("reportedBy")} uuid,
-  ${m("assignee")} uuid,
-  ${m("resolvedAt")} timestamptz,
-  ${m("createdAt")} timestamptz not null default now(),
-  ${m("updatedAt")} timestamptz not null default now()
-);
-create index if not exists ${index("maintenance", "tenant_idx")} on ${maintenance} (${m("tenant")}, ${m("status")}, ${m("createdAt")} desc);
-create index if not exists ${index("maintenance", "unit_idx")} on ${maintenance} (${m("unit")});
-create index if not exists ${index("maintenance", "tenancy_idx")} on ${maintenance} (${m("lease")}) where ${m("lease")} is not null;
-${lockTable(maintenance, { read: true })}
-drop policy if exists ${index("maintenance", "read")} on ${maintenance};
-create policy ${index("maintenance", "read")} on ${maintenance} for select to authenticated
-  using (${m("reportedBy")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), read)});
 `;
 }
 
@@ -301,8 +233,22 @@ function build(ctx: BlockSqlContext): string {
 
   return `${schemaPreamble(ctx)}
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
--- period, deposits held through ledger holds, and maintenance requests.
+-- period, and deposits held through ledger holds.
 ${tables(ctx)}${leasesFunctions(ctx)}${partyMerges(ctx)}`;
+}
+
+/**
+ * Maintenance requests moved to a tasks instance. The old table keeps its rows
+ * as `maintenance_requests_legacy` until the app moves them, which frees its
+ * name for a `maintenance` instance whose work items are maintenance requests.
+ */
+function maintenanceUpgrade(ctx: BlockSqlContext): string {
+  const fn = (name: string): string => ctx.fn(name);
+
+  return `alter table if exists ${ctx.schema}.maintenance_requests rename to maintenance_requests_legacy;
+drop function if exists ${fn("file_maintenance_request")}(${ctx.idType}, uuid, text, text, text, uuid);
+drop function if exists ${fn("update_maintenance_request")}(uuid, text, text, uuid);
+drop function if exists ${fn("list_maintenance_requests")}(${ctx.idType}, uuid, uuid, text, integer);`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -354,21 +300,6 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "list_lease_charges", args: ["uuid", "integer"], returns: "jsonb" },
-    {
-      name: "file_maintenance_request",
-      args: ["{id}", "uuid", "text", "text", "text", "uuid"],
-      returns: "jsonb",
-    },
-    {
-      name: "update_maintenance_request",
-      args: ["uuid", "text", "text", "uuid"],
-      returns: "jsonb",
-    },
-    {
-      name: "list_maintenance_requests",
-      args: ["{id}", "uuid", "uuid", "text", "integer"],
-      returns: "jsonb",
-    },
   ];
 }
 
@@ -377,11 +308,20 @@ export const LEASES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Leases",
   description:
-    "Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals, terminations and maintenance requests on the unit.",
+    "Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.",
   requires: ["memberships", "permissions", "subjects", "assets", "ledger"],
   integrates: ["outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Drops the maintenance request functions and renames maintenance_requests to maintenance_requests_legacy for a tasks instance to take over.",
+      sql: maintenanceUpgrade,
+    },
+  ],
   names: NAMES,
   contract,
   build,

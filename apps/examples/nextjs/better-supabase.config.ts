@@ -450,6 +450,16 @@ export default defineConfig({
       tables: { projects: "work_projects" },
       names: { work_item: { url: "/work" } },
     },
+    // A second tasks instance: maintenance requests on leased units.
+    maintenance: {
+      block: "tasks",
+      names: { work_item: "maintenance_request" },
+      tables: { projects: null, iterations: null },
+      options: {
+        prefix: "MR",
+        extraColumns: { unit_id: "uuid", lease_id: "uuid" },
+      },
+    },
     "saved-views": { tables: { views: "shared_views" } },
     sla: {},
     // Encrypted definitions and sensitive values are audited when read.

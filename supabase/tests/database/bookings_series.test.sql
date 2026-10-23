@@ -147,9 +147,9 @@ select is(
 );
 reset role;
 select throws_ok(
-  $$insert into better_supabase.pass_credit_entries (tenant_id, pass_id, booking_id, delta, reason)
-    values ('00000000-0000-4000-8000-000000000001', (current_setting('test.pack')::jsonb ->> 'id')::uuid,
-      (current_setting('test.class')::jsonb ->> 'id')::uuid, 1, 'refund')$$,
+  $$insert into better_supabase.ledger_transactions (tenant_id, kind, idempotency_key)
+    values ('00000000-0000-4000-8000-000000000001', 'pass.credit_refunded',
+      'pass-credit:' || (current_setting('test.class')::jsonb ->> 'id') || ':refund')$$,
   '23505',
   null,
   'a booking is refunded once'

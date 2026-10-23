@@ -83,6 +83,66 @@ export const columns =
   (column: string): string =>
     ctx.col(table, column);
 
+/** Where stock locations live: inventory's own table, or the assets block's. */
+export interface InventoryLocations {
+  /** The quoted table. */
+  readonly table: string;
+  /** A quoted column: `id`, `tenant`, `code`, `name`, `kind` or `updatedAt`. */
+  readonly col: (column: string) => string;
+  /** Whether the location of `alias` (or the bare row) takes stock. */
+  readonly active: (alias?: string) => string;
+  /** The `set` clause that turns a location on or off. */
+  readonly setActive: (value: string) => string;
+  /** Whether the locations are the assets block's. */
+  readonly shared: boolean;
+}
+
+/**
+ * The stock locations. With `tables: { locations: null }` and `assets`
+ * installed, stock lives at the assets block's locations, and an archived
+ * location is an inactive one.
+ */
+export function locationsOf(ctx: BlockSqlContext): InventoryLocations {
+  if (ctx.hasTable("locations")) {
+    const l = columns(ctx, "locations");
+
+    return {
+      table: ctx.table("locations"),
+      col: l,
+      active: (alias) =>
+        `${alias === undefined ? "" : `${alias}.`}${l("active")}`,
+      setActive: (value) => `${l("active")} = ${value}`,
+      shared: false,
+    };
+  }
+
+  if (!ctx.installed("assets")) {
+    throw new TypeError(
+      "blocks.inventory.tables.locations is null, so stock lives at the assets block's locations; install assets",
+    );
+  }
+
+  const assets = ctx.of("assets");
+
+  if (assets.mode === "custom") {
+    throw new TypeError(
+      "blocks.inventory needs the assets locations table; assets can't be in custom mode",
+    );
+  }
+
+  const l = columns(assets, "locations");
+
+  return {
+    table: assets.table("locations"),
+    col: l,
+    active: (alias) =>
+      `(${alias === undefined ? "" : `${alias}.`}${l("archivedAt")} is null)`,
+    setActive: (value) =>
+      `${l("archivedAt")} = case when ${value} then null else coalesce(${l("archivedAt")}, now()) end`,
+    shared: true,
+  };
+}
+
 /**
  * Whether a variant's stock can't go below zero: catalog's `track_inventory` is
  * on and `allow_backorder` off.
@@ -145,9 +205,10 @@ export function threshold(
 
 /** Loads a location's tenant into `v_tenant`, raising when it doesn't exist. */
 function loadLocation(ctx: BlockSqlContext, location: string): string {
-  const l = columns(ctx, "locations");
+  const loc = locationsOf(ctx);
+  const l = loc.col;
 
-  return `select x.${l("tenant")}, x.${l("active")} into v_tenant, v_active from ${ctx.table("locations")} x where x.${l("id")} = ${location};
+  return `select x.${l("tenant")}, ${loc.active("x")} into v_tenant, v_active from ${loc.table} x where x.${l("id")} = ${location};
   if v_tenant is null then
     ${fail("INVENTORY_LOCATION_NOT_FOUND", "location not found", "P0002")}
   end if;`;
@@ -173,8 +234,9 @@ export function locationFunctions(
   names: InventoryNames,
 ): string {
   const { fn } = names;
-  const locations = ctx.table("locations");
-  const l = columns(ctx, "locations");
+  const loc = locationsOf(ctx);
+  const locations = loc.table;
+  const l = loc.col;
   const r = columns(ctx, "reservations");
   const ledger = ctx.of("ledger");
   const la = columns(ledger, "accounts");
@@ -205,12 +267,12 @@ begin
     if v_id is null then
       insert into ${locations} (${l("tenant")}, ${l("code")}, ${l("name")}, ${l("kind")})
       values (save_location.tenant, save_location.code, save_location.name, coalesce(save_location.kind, 'warehouse'))
-      returning ${l("id")}, ${l("active")} into v_id, v_active;
+      returning ${l("id")}, ${loc.active()} into v_id, v_active;
     else
       update ${locations} x set ${l("code")} = save_location.code, ${l("name")} = save_location.name,
         ${l("kind")} = coalesce(save_location.kind, x.${l("kind")}), ${l("updatedAt")} = now()
       where x.${l("id")} = save_location.location and x.${l("tenant")} = save_location.tenant
-      returning x.${l("active")} into v_active;
+      returning ${loc.active("x")} into v_active;
       if not found then
         ${fail("INVENTORY_LOCATION_NOT_FOUND", "location not found", "P0002")}
       end if;
@@ -240,7 +302,7 @@ declare
 begin
   ${loadLocation(ctx, "set_location_active.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
-  update ${locations} x set ${l("active")} = coalesce(set_location_active.active, true), ${l("updatedAt")} = now()
+  update ${locations} x set ${loc.setActive("coalesce(set_location_active.active, true)")}, ${l("updatedAt")} = now()
   where x.${l("id")} = set_location_active.location;
   return true;
 end;

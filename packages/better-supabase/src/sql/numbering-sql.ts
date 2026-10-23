@@ -2,10 +2,11 @@ import type { BlockSqlContext } from "./context.ts";
 
 import { isRecord } from "../core/guards.ts";
 import { sqlString } from "../core/template.ts";
+import { sequenceEntry } from "./modules/numbering-entities.ts";
 
 /**
  * The `numbering` format of `entity` in `tenant` as SQL, when the app
- * configured one.
+ * configured one or the block contributes a default.
  */
 function sequenceFormatOf(
   ctx: BlockSqlContext,
@@ -16,15 +17,9 @@ function sequenceFormatOf(
     return undefined;
   }
 
-  const entities = ctx.of("numbering").option("entities");
+  const entry = sequenceEntry(ctx.of("numbering"), entity);
 
-  if (!isRecord(entities)) {
-    return undefined;
-  }
-
-  const entry = entities[entity];
-
-  if (!isRecord(entry) || typeof entry["format"] !== "string") {
+  if (entry === undefined || typeof entry["format"] !== "string") {
     return undefined;
   }
 
@@ -35,8 +30,8 @@ function sequenceFormatOf(
 
 /**
  * PL/pgSQL that assigns the next number of `entity` in `tenant` to `target.seq`
- * (bigint) and `target.identifier` (text): from `numbering` when it configures
- * the entity, otherwise one more than the tenant's highest in `fallback.table`
+ * (bigint) and `target.identifier` (text): from `numbering` when it numbers the
+ * entity, otherwise one more than the tenant's highest in `fallback.table`
  * under a transaction lock, with `prefix` in front (`DEAL-4821`).
  */
 export function assignNumberSql(

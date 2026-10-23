@@ -61,6 +61,25 @@ per organization. `setLocationActive(id, false)` stops new reservations and
 transfers at a location, and a location with stock history can't be deleted
 (`INVENTORY_LOCATION_IN_USE`).
 
+### Stock at the assets locations
+
+With the [assets](/docs/blocks/assets) block installed, turn the
+`inventory_locations` table off and stock lives at the assets block's
+locations instead of a second copy:
+
+```ts
+// better-supabase.config.ts
+blocks: {
+  assets: {},
+  inventory: { tables: { locations: null } },
+},
+```
+
+Levels, movements, reservations, transfers, purchase orders, checkout in
+`orders` and work order parts in `dispatch` then reference `asset_locations`.
+An archived asset location is an inactive stock location, so
+`setLocationActive(id, false)` archives it.
+
 ## Your own fields
 
 `blocks.inventory.options.extraColumns` adds columns to the `inventory_locations` table,

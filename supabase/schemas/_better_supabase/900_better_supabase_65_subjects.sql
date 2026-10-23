@@ -48,7 +48,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,maintenance_request,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,form,document,customer,drive_node,application,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,form,document,customer,drive_node,application,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -106,8 +106,6 @@ begin
       return (select s."name"::text from "better_supabase"."asset_locations" s where s."id" = (subject_title.subject_id)::uuid);
     when 'lease' then
       return (select s."title"::text from "better_supabase"."lease_agreements" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'maintenance_request' then
-      return (select s."title"::text from "better_supabase"."maintenance_requests" s where s."id" = (subject_title.subject_id)::uuid);
     when 'expense_report' then
       return (select s."title"::text from "better_supabase"."expense_reports" s where s."id" = (subject_title.subject_id)::uuid);
     when 'expense_line' then
@@ -338,12 +336,6 @@ begin
       'title', s."title"::text, 'url', null::text))
     from "better_supabase"."lease_agreements" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'lease')::uuid[])), '[]'::jsonb);
-  found := found || coalesce((
-    select jsonb_agg(jsonb_build_object(
-      'type', 'maintenance_request', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
-    from "better_supabase"."maintenance_requests" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'maintenance_request')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'expense_report', 'id', s."id"::text,
@@ -681,16 +673,6 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'leases.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'leases.manage'), false)
-          else true
-        end)
-      );
-    when 'maintenance_request' then
-      return exists (
-        select 1 from "better_supabase"."maintenance_requests" s
-        where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'leases.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'leases.maintain'), false)
           else true
         end)
       );
@@ -1158,16 +1140,6 @@ begin
           else false
         end
       );
-    when 'maintenance_request' then
-      return exists (
-        select 1 from "better_supabase"."maintenance_requests" s
-        where s."id" = (can_subject_for.subject_id)::uuid
-          and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'leases.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'leases.maintain'), false)
-          else false
-        end
-      );
     when 'expense_report' then
       return exists (
         select 1 from "better_supabase"."expense_reports" s
@@ -1405,6 +1377,15 @@ begin
       coalesce(i."due_at", a."created_at")
     from "better_supabase"."work_item_assignees" a
     join "better_supabase"."work_items" i on i."id" = a."work_item_id"
+    where a."user_id" = v_me
+      and i."state" not in ('completed', 'canceled')
+      and i."archived_at" is null
+      and (my_work.tenant is null or i."tenant_id" = my_work.tenant)
+    union all
+    select 'assigned'::text, 'maintenance_request'::text, i."id"::text, i."id"::text, i."title"::text,
+      coalesce(i."due_at", a."created_at")
+    from "better_supabase"."maintenance_request_assignees" a
+    join "better_supabase"."maintenance_requests" i on i."id" = a."maintenance_request_id"
     where a."user_id" = v_me
       and i."state" not in ('completed', 'canceled')
       and i."archived_at" is null

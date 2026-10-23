@@ -1,6 +1,6 @@
 -- better-supabase module: leases
--- @bsb-block leases@1 managed
--- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals, terminations and maintenance requests on the unit.
+-- @bsb-block leases@2 managed
+-- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -41,7 +41,7 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
--- period, deposits held through ledger holds, and maintenance requests.
+-- period, and deposits held through ledger holds.
 
 create table if not exists "better_supabase"."lease_agreements" (
   "id" uuid primary key default gen_random_uuid(),
@@ -107,31 +107,6 @@ drop policy if exists "lease_charges_read" on "better_supabase"."lease_charges";
 create policy "lease_charges_read" on "better_supabase"."lease_charges" for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
-create table if not exists "better_supabase"."maintenance_requests" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "unit_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
-  "lease_id" uuid references "better_supabase"."lease_agreements" ("id") on delete set null,
-  "title" text not null check (length("title") between 1 and 200),
-  "description" text check ("description" is null or length("description") <= 5000),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'open' check ("status" in ('open', 'in_progress', 'resolved', 'cancelled')),
-  "reported_by" uuid,
-  "assignee_id" uuid,
-  "resolved_at" timestamptz,
-  "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now()
-);
-create index if not exists "maintenance_requests_tenant_idx" on "better_supabase"."maintenance_requests" ("tenant_id", "status", "created_at" desc);
-create index if not exists "maintenance_requests_unit_idx" on "better_supabase"."maintenance_requests" ("unit_id");
-create index if not exists "maintenance_requests_tenancy_idx" on "better_supabase"."maintenance_requests" ("lease_id") where "lease_id" is not null;
-alter table "better_supabase"."maintenance_requests" enable row level security;
-revoke all on "better_supabase"."maintenance_requests" from anon, authenticated;
-grant select on "better_supabase"."maintenance_requests" to authenticated;
-grant all on "better_supabase"."maintenance_requests" to service_role;
-drop policy if exists "maintenance_requests_read" on "better_supabase"."maintenance_requests";
-create policy "maintenance_requests_read" on "better_supabase"."maintenance_requests" for select to authenticated
-  using ("reported_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
 -- Creates a draft lease of a unit (an asset) to a party (a registered
 -- subject). Rent is minor units of currency per period of frequency.
@@ -183,7 +158,6 @@ begin
       when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'lease' then exists (select 1 from "better_supabase"."lease_agreements" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
-      when 'maintenance_request' then exists (select 1 from "better_supabase"."maintenance_requests" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = (create_lease.party_id)::uuid and s."tenant_id"::text = create_lease.tenant::text)
@@ -664,149 +638,6 @@ $$;
 revoke execute on function "better_supabase"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_lease_charges"(uuid, integer) to authenticated, service_role;
 
--- Files a maintenance request on a unit, optionally for one of its leases.
-create or replace function "better_supabase"."file_maintenance_request"(tenant uuid, unit_id uuid, title text, description text default null, priority text default 'normal', lease_id uuid default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."maintenance_requests"%rowtype;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', file_maintenance_request.tenant, 'leases.maintain'), false)) or coalesce(better_supabase.can('tenant', file_maintenance_request.tenant, 'leases.manage'), false)) then
-    raise exception 'not allowed to file maintenance requests' using errcode = '42501', hint = 'LEASES_FORBIDDEN';
-  end if;
-  if not exists (select 1 from "better_supabase"."assets" u where u."id" = file_maintenance_request.unit_id and u."tenant_id" = file_maintenance_request.tenant) then
-    raise exception 'the unit is unknown or not in this organization' using errcode = '22023', hint = 'LEASE_UNIT_INVALID';
-  end if;
-  if file_maintenance_request.lease_id is not null and not exists (
-    select 1 from "better_supabase"."lease_agreements" x where x."id" = file_maintenance_request.lease_id
-      and x."tenant_id" = file_maintenance_request.tenant and x."unit_id" = file_maintenance_request.unit_id
-  ) then
-    raise exception 'the lease is unknown or not a lease of this unit' using errcode = '22023', hint = 'LEASE_NOT_FOUND';
-  end if;
-  if coalesce(file_maintenance_request.priority, 'normal') not in ('low', 'normal', 'high', 'urgent') then
-    raise exception 'priority is low, normal, high or urgent' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  if nullif(trim(file_maintenance_request.title), '') is null then
-    raise exception 'a maintenance request needs a title' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  insert into "better_supabase"."maintenance_requests" ("tenant_id", "unit_id", "lease_id", "title", "description", "priority", "reported_by")
-  values (file_maintenance_request.tenant, file_maintenance_request.unit_id, file_maintenance_request.lease_id, trim(file_maintenance_request.title),
-    nullif(trim(file_maintenance_request.description), ''), coalesce(file_maintenance_request.priority, 'normal'), auth.uid())
-  returning * into v_row;
-  perform "better_supabase".emit_event('maintenance_request.filed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'unitId', v_row."unit_id", 'leaseId', v_row."lease_id", 'priority', v_row."priority", 'status', v_row."status"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leases');
-  perform better_supabase.audit_event(
-    event_type => 'maintenance_request.filed',
-    category => 'data',
-    target_type => 'maintenance_request',
-    record_id => v_row."id"::text,
-    target_label => v_row."title",
-    summary => 'filed a maintenance request',
-    tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'unitId', v_row."unit_id", 'leaseId', v_row."lease_id", 'priority', v_row."priority", 'status', v_row."status")
-  );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'unitId', v_row."unit_id", 'leaseId', v_row."lease_id", 'title', v_row."title", 'description', v_row."description", 'priority', v_row."priority", 'status', v_row."status", 'reportedBy', v_row."reported_by", 'assigneeId', v_row."assignee_id", 'resolvedAt', v_row."resolved_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
-end;
-$$;
-revoke execute on function "better_supabase"."file_maintenance_request"(uuid, uuid, text, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."file_maintenance_request"(uuid, uuid, text, text, text, uuid) to authenticated, service_role;
-
--- Moves a maintenance request along (open, in_progress, resolved,
--- cancelled), reprioritizes it or assigns it to a member. Null keeps a value.
-create or replace function "better_supabase"."update_maintenance_request"(request_id uuid, status text default null, priority text default null, assignee_id uuid default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."maintenance_requests"%rowtype;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = update_maintenance_request.request_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
-    raise exception 'no such maintenance request you can change' using errcode = 'P0002', hint = 'MAINTENANCE_NOT_FOUND';
-  end if;
-  if update_maintenance_request.status is not null and update_maintenance_request.status not in ('open', 'in_progress', 'resolved', 'cancelled') then
-    raise exception 'status is open, in_progress, resolved or cancelled' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  if update_maintenance_request.priority is not null and update_maintenance_request.priority not in ('low', 'normal', 'high', 'urgent') then
-    raise exception 'priority is low, normal, high or urgent' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  if update_maintenance_request.assignee_id is not null and not exists (
-    select 1 from "public"."memberships" y
-    where y."organization_id" = v_row."tenant_id" and y."user_id" = update_maintenance_request.assignee_id
-  ) then
-    raise exception 'the assignee is not a member of this organization' using errcode = '22023', hint = 'MAINTENANCE_INVALID';
-  end if;
-  update "better_supabase"."maintenance_requests" x set
-      "status" = coalesce(update_maintenance_request.status, x."status"),
-      "priority" = coalesce(update_maintenance_request.priority, x."priority"),
-      "assignee_id" = coalesce(update_maintenance_request.assignee_id, x."assignee_id"),
-      "resolved_at" = case when coalesce(update_maintenance_request.status, x."status") = 'resolved' then coalesce(x."resolved_at", now()) end,
-      "updated_at" = now()
-    where x."id" = v_row."id"
-    returning * into v_row;
-  perform "better_supabase".emit_event('maintenance_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'unitId', v_row."unit_id", 'leaseId', v_row."lease_id", 'priority', v_row."priority", 'status', v_row."status"), 'maintenance-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leases');
-  perform better_supabase.audit_event(
-    event_type => 'maintenance_request.updated',
-    category => 'data',
-    target_type => 'maintenance_request',
-    record_id => v_row."id"::text,
-    target_label => v_row."title",
-    summary => 'updated a maintenance request',
-    tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'unitId', v_row."unit_id", 'leaseId', v_row."lease_id", 'priority', v_row."priority", 'status', v_row."status")
-  );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'unitId', v_row."unit_id", 'leaseId', v_row."lease_id", 'title', v_row."title", 'description', v_row."description", 'priority', v_row."priority", 'status', v_row."status", 'reportedBy', v_row."reported_by", 'assigneeId', v_row."assignee_id", 'resolvedAt', v_row."resolved_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
-end;
-$$;
-revoke execute on function "better_supabase"."update_maintenance_request"(uuid, text, text, uuid) from public, anon;
-grant execute on function "better_supabase"."update_maintenance_request"(uuid, text, text, uuid) to authenticated, service_role;
-
--- Maintenance requests, newest first: every one with leases.read, else the
--- ones the caller filed.
-create or replace function "better_supabase"."list_maintenance_requests"(tenant uuid, unit_id uuid default null, lease_id uuid default null, status text default null, page_size integer default 100)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_maintenance_requests.tenant, 'leases.read'), false));
-begin
-  if not (v_all or coalesce(better_supabase.can('tenant', list_maintenance_requests.tenant, 'leases.maintain'), false)) then
-    raise exception 'not allowed to read maintenance requests' using errcode = '42501', hint = 'LEASES_FORBIDDEN';
-  end if;
-  return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'unitId', q."unit_id", 'leaseId', q."lease_id", 'title', q."title", 'description', q."description", 'priority', q."priority", 'status', q."status", 'reportedBy', q."reported_by", 'assigneeId', q."assignee_id", 'resolvedAt', q."resolved_at", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."created_at" desc, q."id"), '[]'::jsonb)
-    from (
-      select * from "better_supabase"."maintenance_requests" x
-      where x."tenant_id" = list_maintenance_requests.tenant
-        and (v_all or x."reported_by" = auth.uid())
-        and (list_maintenance_requests.unit_id is null or x."unit_id" = list_maintenance_requests.unit_id)
-        and (list_maintenance_requests.lease_id is null or x."lease_id" = list_maintenance_requests.lease_id)
-        and (list_maintenance_requests.status is null or x."status" = list_maintenance_requests.status)
-      order by x."created_at" desc, x."id"
-      limit least(greatest(coalesce(list_maintenance_requests.page_size, 100), 1), 1000)
-    ) q
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."list_maintenance_requests"(uuid, uuid, uuid, text, integer) from public, anon;
-grant execute on function "better_supabase"."list_maintenance_requests"(uuid, uuid, uuid, text, integer) to authenticated, service_role;
-
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.
 create or replace function "better_supabase"."leases_subject_merge"(subject_table text, keep text, drop text)
@@ -820,7 +651,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.maintenance_requests' then array['maintenance_request'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['policy'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['policy'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
     update "better_supabase"."lease_agreements" x set "party_id" = v_keep where x."party_type" = v_type and x."party_id" = v_drop;
   end loop;
 end;
@@ -932,33 +763,6 @@ set search_path = ''
 as $$ select "better_supabase"."list_lease_charges"($1, $2) $$;
 revoke execute on function "api"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "api"."list_lease_charges"(uuid, integer) to authenticated, service_role;
-
-create or replace function "api"."file_maintenance_request"(tenant uuid, unit_id uuid, title text, description text default null, priority text default 'normal', lease_id uuid default null)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."file_maintenance_request"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."file_maintenance_request"(uuid, uuid, text, text, text, uuid) from public, anon;
-grant execute on function "api"."file_maintenance_request"(uuid, uuid, text, text, text, uuid) to authenticated, service_role;
-
-create or replace function "api"."update_maintenance_request"(request_id uuid, status text default null, priority text default null, assignee_id uuid default null)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."update_maintenance_request"($1, $2, $3, $4) $$;
-revoke execute on function "api"."update_maintenance_request"(uuid, text, text, uuid) from public, anon;
-grant execute on function "api"."update_maintenance_request"(uuid, text, text, uuid) to authenticated, service_role;
-
-create or replace function "api"."list_maintenance_requests"(tenant uuid, unit_id uuid default null, lease_id uuid default null, status text default null, page_size integer default 100)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."list_maintenance_requests"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."list_maintenance_requests"(uuid, uuid, uuid, text, integer) from public, anon;
-grant execute on function "api"."list_maintenance_requests"(uuid, uuid, uuid, text, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

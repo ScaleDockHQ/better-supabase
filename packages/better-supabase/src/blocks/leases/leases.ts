@@ -36,14 +36,6 @@ export type LeaseStatus = "draft" | "active" | "ended" | "terminated";
 
 export type RentFrequency = "weekly" | "monthly" | "quarterly" | "yearly";
 
-export type MaintenancePriority = "low" | "normal" | "high" | "urgent";
-
-export type MaintenanceStatus =
-  | "open"
-  | "in_progress"
-  | "resolved"
-  | "cancelled";
-
 export interface LeasesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 >
@@ -172,44 +164,6 @@ export interface PostDueRentOptions {
   readonly maxRows?: number;
 }
 
-export interface MaintenanceRequest {
-  readonly id: string;
-  readonly organizationId: string;
-  readonly unitId: string;
-  readonly leaseId?: string;
-  readonly title: string;
-  readonly description?: string;
-  readonly priority: MaintenancePriority;
-  readonly status: MaintenanceStatus;
-  readonly reportedBy?: string;
-  readonly assigneeId?: string;
-  readonly resolvedAt?: Temporal.Instant;
-  readonly createdAt: Temporal.Instant;
-  readonly updatedAt: Temporal.Instant;
-}
-
-export interface MaintenanceRequestInput {
-  readonly unitId: string;
-  readonly title: string;
-  readonly description?: string;
-  /** Default `normal`. */
-  readonly priority?: MaintenancePriority;
-  readonly leaseId?: string;
-}
-
-export interface MaintenanceUpdate {
-  readonly status?: MaintenanceStatus;
-  readonly priority?: MaintenancePriority;
-  readonly assigneeId?: string;
-}
-
-export interface MaintenanceListOptions {
-  readonly unitId?: string;
-  readonly leaseId?: string;
-  readonly status?: MaintenanceStatus;
-  readonly pageSize?: number;
-}
-
 export interface Leases<F extends object = Record<never, never>> {
   /** Creates a draft lease. Needs `leases.manage`. */
   create(input: LeaseInput<F>): AsyncResult<Lease<F>>;
@@ -243,19 +197,6 @@ export interface Leases<F extends object = Record<never, never>> {
     leaseId: string,
     options?: { readonly pageSize?: number },
   ): AsyncResult<readonly LeaseCharge[]>;
-  /** Needs `leases.maintain` or `leases.manage`. */
-  fileMaintenance(
-    input: MaintenanceRequestInput,
-  ): AsyncResult<MaintenanceRequest>;
-  /** Needs `leases.manage`. */
-  updateMaintenance(
-    requestId: string,
-    update: MaintenanceUpdate,
-  ): AsyncResult<MaintenanceRequest>;
-  /** Every request with `leases.read`, else the ones the caller filed. */
-  listMaintenance(
-    options?: MaintenanceListOptions,
-  ): AsyncResult<readonly MaintenanceRequest[]>;
 }
 
 function optional<K extends string, V>(
@@ -340,28 +281,6 @@ function chargeOf(value: unknown): LeaseCharge {
     amount: moneyOf(row["amount"], row["currency"], "amount"),
     transactionId: textOf(row["transactionId"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
-  };
-}
-
-function maintenanceOf(value: unknown, fn: string): MaintenanceRequest {
-  const row = recordOf(value, fn);
-
-  return {
-    id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
-    unitId: textOf(row["unitId"]),
-    title: textOf(row["title"]),
-    // SAFETY: the SQL check constraint limits priority to these values.
-    priority: textOf(row["priority"]) as MaintenancePriority,
-    // SAFETY: the SQL check constraint limits status to these values.
-    status: textOf(row["status"]) as MaintenanceStatus,
-    createdAt: requiredInstant(row["createdAt"], "createdAt"),
-    updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
-    ...optional("leaseId", optionalText(row["leaseId"])),
-    ...optional("description", optionalText(row["description"])),
-    ...optional("reportedBy", optionalText(row["reportedBy"])),
-    ...optional("assigneeId", optionalText(row["assigneeId"])),
-    ...optional("resolvedAt", optionalInstant(row["resolvedAt"], "resolvedAt")),
   };
 }
 
@@ -518,49 +437,6 @@ export function createLeases<
         "list_lease_charges",
         { lease_id: leaseId, page_size: list.pageSize ?? null },
         (value) => recordsOf(value, "list_lease_charges").map(chargeOf),
-      ),
-    fileMaintenance: (input) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "file_maintenance_request",
-          {
-            tenant: organizationId,
-            unit_id: input.unitId,
-            title: input.title,
-            description: input.description ?? null,
-            priority: input.priority ?? "normal",
-            lease_id: input.leaseId ?? null,
-          },
-          (value) => maintenanceOf(value, "file_maintenance_request"),
-        ),
-      ),
-    updateMaintenance: (requestId, update) =>
-      call(
-        "update_maintenance_request",
-        {
-          request_id: requestId,
-          status: update.status ?? null,
-          priority: update.priority ?? null,
-          assignee_id: update.assigneeId ?? null,
-        },
-        (value) => maintenanceOf(value, "update_maintenance_request"),
-      ),
-    listMaintenance: (list = {}) =>
-      tenant().andThen((organizationId) =>
-        call(
-          "list_maintenance_requests",
-          {
-            tenant: organizationId,
-            unit_id: list.unitId ?? null,
-            lease_id: list.leaseId ?? null,
-            status: list.status ?? null,
-            page_size: list.pageSize ?? null,
-          },
-          (value) =>
-            recordsOf(value, "list_maintenance_requests").map((row) =>
-              maintenanceOf(row, "list_maintenance_requests"),
-            ),
-        ),
       ),
   };
 

@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { uniqueContributions } from "../contributions.ts";
 import { columnRef } from "../shared.ts";
 
 const ENTITY = /^[a-z][a-z0-9_]*$/;
@@ -82,20 +83,62 @@ function tenantSource(where: string, value: unknown): TenantColumn | undefined {
   return { ...columnRef(`${where}.column`, column), key };
 }
 
+/**
+ * The configured entities, then the defaults blocks contribute for entities the
+ * app leaves out.
+ */
 export function sequences(ctx: BlockSqlContext): readonly SequenceEntity[] {
   const raw = ctx.option("entities");
 
-  if (raw === undefined) {
-    return [];
-  }
-
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+  if (
+    raw !== undefined &&
+    (typeof raw !== "object" || raw === null || Array.isArray(raw))
+  ) {
     throw new TypeError(
       "blocks.numbering.options.entities must be an object of entity name to { period, format }",
     );
   }
 
-  return Object.entries(raw).map(([name, entry]) => entity(name, entry));
+  const configured = Object.entries(raw ?? {}).map(([name, entry]) =>
+    entity(name, entry),
+  );
+
+  const named = new Set(configured.map((item) => item.name));
+
+  return [
+    ...configured,
+    ...uniqueContributions(
+      "numbering",
+      ctx
+        .contributions("numbering")
+        .filter((contribution) => !named.has(contribution.entity)),
+      (contribution) => contribution.entity,
+    ).map((contribution) => entity(contribution.entity, contribution.entry)),
+  ];
+}
+
+/**
+ * The entry of `name` in a numbering instance: the app's configuration, else
+ * the default a block contributes.
+ */
+export function sequenceEntry(
+  numbering: BlockSqlContext,
+  name: string,
+): Readonly<Record<string, unknown>> | undefined {
+  const raw = numbering.option("entities");
+
+  const configured =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw)
+      ? recordOf(raw)[name]
+      : undefined;
+
+  if (typeof configured === "object" && configured !== null) {
+    return recordOf(configured);
+  }
+
+  return numbering
+    .contributions("numbering")
+    .find((contribution) => contribution.entity === name)?.entry;
 }
 
 function entity(name: string, entry: unknown): SequenceEntity {

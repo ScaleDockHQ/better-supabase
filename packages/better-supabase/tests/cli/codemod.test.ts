@@ -504,6 +504,14 @@ export const remove = bsb.sectionAction(attachmentsBlock, "remove");
     expect(review[0]?.message).toContain("bsb.record");
   });
 
+  it("lists the removed leases maintenance calls for review", () => {
+    const source = `await leases.fileMaintenance({ unitId, title: "Tap" });
+`;
+
+    const { review } = applyCodemod(v015, source);
+    expect(review[0]?.message).toContain("tasks instance");
+  });
+
   it("moves block query keys into the bsb key space", () => {
     const source = `queryClient.invalidateQueries({ queryKey: ["bs-block", "tasks"] });
 const owner = query.meta?.bsBlock;

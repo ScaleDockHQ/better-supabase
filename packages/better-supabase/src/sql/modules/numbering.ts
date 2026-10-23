@@ -659,6 +659,30 @@ function periodTriggers(ctx: BlockSqlContext, item: SequenceEntity): string {
     .join("\n");
 }
 
+/** The sequences table, also created by the upgrades that seed it. */
+export function sequencesTable(ctx: BlockSqlContext): string {
+  if (!ctx.manages) {
+    return "";
+  }
+
+  const table = ctx.table("sequences");
+  const tenant = ctx.col("sequences", "tenant");
+  const entity = ctx.col("sequences", "entity");
+  const period = ctx.col("sequences", "period");
+
+  return `create table if not exists ${table} (
+  ${tenant} ${ctx.idType} not null,
+  ${entity} text not null,
+  ${period} text not null default '',
+  ${ctx.col("sequences", "lastNumber")} bigint not null,
+  ${ctx.col("sequences", "createdAt")} timestamptz not null default now(),
+  ${ctx.col("sequences", "updatedAt")} timestamptz not null default now(),
+  primary key (${tenant}, ${entity}, ${period})
+);
+${lockTable(table)}
+`;
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -669,7 +693,6 @@ function build(ctx: BlockSqlContext): string {
   const entityCol = ctx.col("sequences", "entity");
   const period = ctx.col("sequences", "period");
   const last = ctx.col("sequences", "lastNumber");
-  const createdAt = ctx.col("sequences", "createdAt");
   const updatedAt = ctx.col("sequences", "updatedAt");
   const fn = ctx.fn("next_number");
   const items = sequences(ctx);
@@ -680,19 +703,7 @@ function build(ctx: BlockSqlContext): string {
     at: "next_number.at",
   });
 
-  const tables = ctx.manages
-    ? `create table if not exists ${table} (
-  ${tenant} ${ctx.idType} not null,
-  ${entityCol} text not null,
-  ${period} text not null default '',
-  ${last} bigint not null,
-  ${createdAt} timestamptz not null default now(),
-  ${updatedAt} timestamptz not null default now(),
-  primary key (${tenant}, ${entityCol}, ${period})
-);
-${lockTable(table)}
-`
-    : "";
+  const tables = sequencesTable(ctx);
 
   const triggers = items
     .filter((item) => item.table !== undefined && item.column !== undefined)

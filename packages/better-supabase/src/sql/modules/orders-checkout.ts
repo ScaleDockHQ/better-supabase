@@ -9,7 +9,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import { moveStock } from "./inventory-stock.ts";
+import { locationsOf, moveStock } from "./inventory-stock.ts";
 import {
   amountOf,
   asService,
@@ -112,7 +112,8 @@ function reserveLines(ctx: BlockSqlContext, minutes: number): string {
   const inventory = ctx.of("inventory");
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
-  const l = columns(inventory, "locations");
+  const locations = locationsOf(inventory);
+  const l = locations.col;
   const lv = columns(inventory, "levels");
   const ol = columns(ctx, "orderLines");
 
@@ -126,9 +127,9 @@ function reserveLines(ctx: BlockSqlContext, minutes: number): string {
   loop
     continue when not v_line.tracked;
     select loc.${l("id")} into v_location
-    from ${inventory.table("locations")} loc
+    from ${locations.table} loc
     left join ${inventory.table("levels")} s on s.${lv("location")} = loc.${l("id")} and s.${lv("variant")} = v_line.variant
-    where loc.${l("tenant")} = v_cart.tenant and loc.${l("active")} and (place_order.location is null or loc.${l("id")} = place_order.location)
+    where loc.${l("tenant")} = v_cart.tenant and ${locations.active("loc")} and (place_order.location is null or loc.${l("id")} = place_order.location)
     order by (coalesce(s.${lv("available")}, 0) >= v_line.quantity) desc, coalesce(s.${lv("available")}, 0) desc, loc.${l("code")}
     limit 1;
     if v_location is null then

@@ -1,9 +1,9 @@
 -- The leases module on the fixture's access contract: the owner (…00a1) of
 -- Acme (…0001) lets a unit to the customer Road Runner (…a001), posts rent
 -- once per period on the ledger, records a payment, renews and terminates the
--- lease. The member (…00a2) files a maintenance request but can't read leases.
+-- lease. The member (…00a2) can't read leases.
 begin;
-select plan(20);
+select plan(18);
 
 select set_config(
   'request.jwt.claims',
@@ -111,14 +111,6 @@ select set_config(
   '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
   true
 );
-select is(
-  better_supabase.file_maintenance_request(
-    '00000000-0000-4000-8000-000000000001', current_setting('test.unit')::uuid, 'Leaking tap',
-    lease_id => current_setting('test.lease')::uuid
-  ) ->> 'status',
-  'open',
-  'the member files a maintenance request on the unit'
-);
 select throws_ok(
   format($$select better_supabase.get_lease(%L)$$, current_setting('test.lease')),
   'P0002',
@@ -142,11 +134,6 @@ select set_config(
   'request.jwt.claims',
   '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
   true
-);
-select is(
-  jsonb_array_length(better_supabase.list_maintenance_requests('00000000-0000-4000-8000-000000000001', current_setting('test.unit')::uuid)),
-  1,
-  'the owner sees the request on the unit'
 );
 select set_config('test.ended', better_supabase.terminate_lease(
   current_setting('test.lease')::uuid, '2026-04-01', 'moved out', deposit_deduction => 50000
