@@ -545,6 +545,18 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Overrides per environment, keyed by name. Picked by --env, $BETTER_SUPABASE_ENV, or ci when $CI is set.",
   },
+  "$defs.moduleConfig.block": {
+    description:
+      "The block this entry installs. Defaults to the key; any other key is a second instance of the block it names.",
+  },
+  "$defs.moduleConfig.on": {
+    description:
+      "The record types an attachable block attaches to, as names or keyed by name with settings. Defaults to every record type.",
+  },
+  "$defs.moduleConfig.uses": {
+    description:
+      "Dependency block to the instance it uses, needed when that dependency is installed more than once.",
+  },
   "$defs.moduleConfig.ownership": { default: "managed" },
   "$defs.moduleConfig.schema": { default: "better_supabase" },
   "$defs.moduleConfig.owner": {

@@ -124,7 +124,13 @@ function blocksSchema(description: unknown): {
         { type: "array", items: { enum: modules } },
         {
           type: "object",
-          additionalProperties: false,
+          // Any other key is an instance that names its block.
+          additionalProperties: {
+            $ref: "#/$defs/moduleConfig",
+            type: "object",
+            required: ["block"],
+            properties: { block: { enum: modules } },
+          },
           properties: Object.fromEntries(
             modules.map((module) => [
               module,

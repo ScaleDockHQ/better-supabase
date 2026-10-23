@@ -1,5 +1,7 @@
 import type { BlockNameRegistry, TablesOf } from "../blocks/name-registry.ts";
+import type { BlockConfigOf, BlockName, InstanceOn } from "./blocks.ts";
 import type { AppOnDeleteAction } from "./types/app-tables.ts";
+import type { BlockInput } from "./types/groups.ts";
 
 /**
  * A logical table of a block the registry knows, as `tables` columns reference
@@ -85,14 +87,42 @@ type RoleReferences<C> = [RolesOf<C>] extends [never]
       };
     };
 
+type BlocksOf<C> = C extends { readonly blocks: infer B extends object }
+  ? B extends readonly string[]
+    ? Record<never, never>
+    : B
+  : Record<never, never>;
+
+/** The instance keys a literal config declares in `blocks`. */
+export type InstanceNames<C> = keyof BlocksOf<C> & string;
+
+/**
+ * Each named instance checked against the block it names in `block`, and every
+ * `uses` value against the config's instances.
+ */
+type InstanceReferences<C> = {
+  readonly blocks?: {
+    readonly [K in keyof BlocksOf<C>]?: (BlocksOf<C>[K] extends {
+      readonly block: infer B extends BlockName;
+    }
+      ? BlockInput<BlockConfigOf<B>>
+      : unknown) & {
+      readonly on?: InstanceOn;
+      readonly uses?: Readonly<Record<string, InstanceNames<C>>>;
+    };
+  };
+};
+
 /**
  * What `defineConfig` checks a literal config against: block tables in `tables`
- * references, app table names, bucket names in `gen.storagePaths`, and the role
- * names other blocks take from `blocks.permissions.roles`.
+ * references, app table names, bucket names in `gen.storagePaths`, the role
+ * names other blocks take from `blocks.permissions.roles`, and each named
+ * instance's options and `uses`.
  */
 export type ConfigReferences<C> = {
   readonly tables?: AppTableReferences<C>;
   readonly gen?: {
     readonly storagePaths?: Readonly<Record<string, BucketName<C>>>;
   };
-} & RoleReferences<C>;
+} & RoleReferences<C> &
+  InstanceReferences<C>;

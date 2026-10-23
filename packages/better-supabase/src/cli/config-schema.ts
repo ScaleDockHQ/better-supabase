@@ -83,6 +83,11 @@ const entityName = v.pipe(
 );
 
 const blockEntries = {
+  block: v.optional(v.string()),
+  on: v.optional(
+    v.union([strings, v.record(v.string(), v.record(v.string(), v.unknown()))]),
+  ),
+  uses: v.optional(stringRecord),
   ownership: v.optional(v.picklist(["managed", "adopt", "custom"])),
   schema: v.optional(v.string()),
   tables: v.optional(v.record(v.string(), v.nullable(v.string()))),

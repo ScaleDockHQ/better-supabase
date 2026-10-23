@@ -26,6 +26,7 @@ import {
   resolveExposeFunction,
 } from "./expose.ts";
 import { flattenConfig } from "./groups.ts";
+import { blocksByName, resolveInstances } from "./instances.ts";
 
 function entitlementsOf(
   config: EntitlementsConfig = {},
@@ -88,12 +89,16 @@ function blocksOf(
   blocks: BetterSupabaseConfig["blocks"],
   sql: SqlConfig = {},
   provider: boolean,
-): Pick<ResolvedConfig, "blocks" | "blockNames"> {
+): Pick<ResolvedConfig, "blocks" | "blockNames" | "instances"> {
   const config = blocks ?? [];
-  const blockNames = isBlockList(config) ? config : Object.keys(config);
+  const instances = resolveInstances(config);
+
+  const blockNames = [
+    ...new Set(Object.values(instances).map((instance) => instance.block)),
+  ];
 
   const resolved = withSqlDefaults(
-    isBlockList(config) ? {} : config,
+    isBlockList(config) ? {} : blocksByName(config, instances),
     blockNames,
     sql,
   );
@@ -103,7 +108,7 @@ function blocksOf(
     !blockNames.includes("permissions") ||
     resolved.permissions?.model !== undefined
   ) {
-    return { blocks: resolved, blockNames };
+    return { blocks: resolved, blockNames, instances };
   }
 
   return {
@@ -112,6 +117,7 @@ function blocksOf(
       permissions: { ...resolved.permissions, model: "provider" },
     },
     blockNames,
+    instances,
   };
 }
 

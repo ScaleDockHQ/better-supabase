@@ -37,6 +37,28 @@ uses, such as [list queries](/docs/platform/list),
 [storage](/docs/platform/storage) and [realtime topics](/docs/platform/realtime),
 are not blocks and keep their top-level subpaths.
 
+## Instances
+
+Each key in `blocks` is an instance. The key names the block by default; any
+other key installs a second instance of the block in its `block` setting, with
+its own tables and the same options as the first:
+
+```ts
+blocks: {
+  pipelines: {},
+  "hiring-pipelines": { block: "pipelines", on: ["candidates"] },
+  tasks: { uses: { pipelines: "pipelines" } },
+}
+```
+
+`on` lists the record types an attachable block attaches to. `uses` picks the
+instance of a dependency a block works with; it is required when that
+dependency has more than one instance, and its keys are the block's
+dependencies. Core blocks, such as `memberships`, `permissions`, `outbox` and
+`audit`, install once under their own name. The config check lists every
+unknown block, repeated core block, unknown `uses` key and missing `uses`
+together.
+
 ## Connections
 
 A block's TypeScript side runs its SQL functions through a connection you

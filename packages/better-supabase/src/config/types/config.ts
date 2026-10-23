@@ -4,6 +4,7 @@ import type { Casing } from "../../schema/types.ts";
 import type { AuthorizationProvider } from ".././authorization.ts";
 import type { AnyBlocksConfig, BlocksConfig } from "../blocks.ts";
 import type { ExposeConfig, ExposeRole, ResolvedExpose } from "../expose.ts";
+import type { ResolvedInstance } from "../instances.ts";
 import type { AppTablesConfig } from "./app-tables.ts";
 import type {
   ClaimsConfig,
@@ -252,8 +253,10 @@ export interface ResolvedConfig {
   readonly preset?: string | PresetSpec;
   /** `blocks` with `sql.schema` and `sql.api` applied, keyed by block name. */
   readonly blocks: AnyBlocksConfig;
-  /** The installed blocks, in config order. */
+  /** The installed blocks, in config order, each once. */
   readonly blockNames: readonly string[];
+  /** Every install of a block, keyed by its key in `blocks`. */
+  readonly instances: Readonly<Record<string, ResolvedInstance>>;
   /** `appTables`, checked; empty without any. */
   readonly appTables: AppTablesConfig;
   readonly sql: ResolvedSqlConfig;
