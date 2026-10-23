@@ -7,7 +7,7 @@ import {
   flatRateCarrier,
   shipmentInputSchema,
   shipmentsBlock,
-  shipmentsSection,
+  shipmentsBinding,
   shipmentSectionInputSchema,
   trackingEventInputSchema,
 } from "../../../src/blocks/shipments/index.ts";
@@ -721,11 +721,11 @@ describe("shipments block", () => {
 
     const subject = { type: "order", id: "o1" };
 
-    const rows = await shipmentsSection
+    const rows = await shipmentsBinding
       .load(shipments, subject, undefined)
       .orThrow();
 
-    await shipmentsSection.writes.create
+    await shipmentsBinding.writes.create
       .run(shipments, subject, {
         from: FROM,
         to: TO,
@@ -733,7 +733,7 @@ describe("shipments block", () => {
       })
       .orThrow();
 
-    const cancelled = await shipmentsSection.writes.cancel
+    const cancelled = await shipmentsBinding.writes.cancel
       .run(shipments, subject, { id: "s1" })
       .orThrow();
 

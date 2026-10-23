@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDispatch,
   dispatchBlock,
-  dispatchSection,
+  dispatchBinding,
   workOrderInputSchema,
   workOrderPartInputSchema,
   workOrderSectionInputSchema,
@@ -503,7 +503,7 @@ describe("dispatch block", () => {
     expect(dispatchBlock.name).toBe("dispatch");
     expect(dispatchBlock.sql).toEqual(["dispatch"]);
     expect(dispatchBlock.recipes).toEqual(["dispatch-board", "technician-day"]);
-    expect(Object.keys(dispatchBlock.sections)).toEqual(["dispatch"]);
+    expect(dispatchBlock.record).toBeDefined();
   });
 
   it("validates the inputs with the bounds the SQL checks", async () => {
@@ -546,15 +546,15 @@ describe("dispatch block", () => {
 
     const subject = { type: "customer", id: "c1" };
 
-    const rows = await dispatchSection
+    const rows = await dispatchBinding
       .load(dispatch, subject, undefined)
       .orThrow();
 
-    await dispatchSection.writes.create
+    await dispatchBinding.writes.create
       .run(dispatch, subject, { title: "Fix" })
       .orThrow();
 
-    const cancelled = await dispatchSection.writes.cancel
+    const cancelled = await dispatchBinding.writes.cancel
       .run(dispatch, subject, { id: "w1" })
       .orThrow();
 

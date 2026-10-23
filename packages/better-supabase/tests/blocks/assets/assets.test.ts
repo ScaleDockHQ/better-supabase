@@ -5,7 +5,7 @@ import type { AssetLocationPatch } from "../../../src/blocks/assets/index.ts";
 import {
   assetsBlock,
   assetsEvents,
-  assetsSection,
+  assetsBinding,
   createAssets,
 } from "../../../src/blocks/assets/index.ts";
 
@@ -589,12 +589,12 @@ describe("createAssets", () => {
   });
 });
 
-describe("assetsSection", () => {
+describe("assetsBinding", () => {
   it("loads the assets a record holds", async () => {
     const fake = fakeTransport({ list_assets: [ASSET] });
     const assets = createAssets({ transport: fake.transport });
 
-    const rows = await assetsSection
+    const rows = await assetsBinding
       .load(assets, { type: "parties", id: "p1" }, undefined)
       .orThrow();
 
@@ -605,9 +605,9 @@ describe("assetsSection", () => {
     });
   });
 
-  it("is the block's only section and listens to asset events", () => {
-    expect(assetsBlock.sections).toEqual({ assets: assetsSection });
-    expect(assetsSection.events).toEqual(["asset.*"]);
+  it("is the block's record binding and listens to asset events", () => {
+    expect(assetsBlock.record).toBe(assetsBinding);
+    expect(assetsBinding.events).toEqual(["asset.*"]);
     expect(assetsEvents.types).toContain("asset.assigned");
   });
 });

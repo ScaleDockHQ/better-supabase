@@ -6,7 +6,6 @@ import type {
   ResolvedConfig,
 } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
-import type { Framework } from "../project/detect.ts";
 
 import { CliError, errorText } from "../core/errors.ts";
 import { importPath } from "../core/io.ts";
@@ -15,16 +14,14 @@ import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
-import { detectProject } from "../project/detect.ts";
 import {
   emitBlockConfig,
   generatorBlocks,
   schemaExtensions,
 } from "./blocks.ts";
 import { emitMeta, emitModule, metaPaths } from "./emit.ts";
-import { emitFeatures } from "./features.ts";
 import { buildModel, generatorModel } from "./model.ts";
-import { emitNavigation } from "./navigation.ts";
+import { emitRecords } from "./records.ts";
 
 export interface RenderOptions {
   /**
@@ -34,11 +31,6 @@ export interface RenderOptions {
   readonly runtimeImport?: string;
   /** Writes the metadata into the main module, so it stands alone on stdout. */
   readonly inlineMeta?: boolean;
-  /**
-   * The frameworks the record features get bindings for. Defaults to the ones
-   * the project's dependencies show.
-   */
-  readonly frameworks?: readonly Framework[];
   /**
    * Whether the schema carries the installed blocks' repository extensions and
    * the `validation` extension. `false` emits a bare `defineSchema(meta)`, for
@@ -126,12 +118,7 @@ export async function render(
     files.push(blockConfig);
   }
 
-  if (config.generateFeatures) {
-    const frameworks =
-      options.frameworks ?? (await detectProject(config.root)).frameworks;
-
-    files.push(...emitFeatures(config, frameworks), ...emitNavigation(config));
-  }
+  files.push(...emitRecords(config));
 
   const owners = new Map(
     files.map((file) => [resolve(config.root, file.path), "gen"]),

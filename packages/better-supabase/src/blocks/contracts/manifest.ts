@@ -5,12 +5,12 @@ import { defineBlock } from "../define-block.ts";
 import { createContracts } from "./contracts.ts";
 import { contractsEvents } from "./events.ts";
 import { contractsSqlOptions } from "./options.ts";
+import { contractsBinding } from "./record-binding.ts";
 import {
   contractChangesSchema,
   contractInputSchema,
   obligationInputSchema,
 } from "./schemas.ts";
-import { contractsSection } from "./section.ts";
 
 /** The `contracts` block's manifest (ADR 0029). */
 export const contractsBlock: BlockOf<
@@ -19,7 +19,7 @@ export const contractsBlock: BlockOf<
   ContractsEvents,
   Record<never, never>,
   never,
-  { readonly contracts: typeof contractsSection }
+  typeof contractsBinding
 > = defineBlock({
   name: "contracts",
   sql: ["contracts"],
@@ -30,7 +30,7 @@ export const contractsBlock: BlockOf<
     obligation: { input: obligationInputSchema },
   },
   create: createContracts,
-  sections: { contracts: contractsSection },
+  record: contractsBinding,
   recipes: ["contract-renewals"],
   category: "crm",
 });

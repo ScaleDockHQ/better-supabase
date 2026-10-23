@@ -206,21 +206,20 @@ never add a new block to one.
   and turns an input that changes often (a range, the subjects on screen)
   into an action such as `setRange` instead of a new controller.
 
-## Record sections
+## Record bindings
 
-- A block that owns part of a record page declares it with `defineSection` in
-  `src/blocks/<name>/section.ts` and puts it on the manifest's `sections`.
-  Section names are global across the app; on a clash the first block wins,
-  so name a section after the block.
-- A section write (`writes.<name>`) takes `{ input, run, permission? }`. Its
-  input is a schema of plain JSON: `recordServer` exposes it as a Server
-  Action, so a Temporal value or a class can't cross it.
-- `pnpm catalog` records each section's writes in the catalog, and
-  `gen` reads them to name the generated actions (`<write><Type><Section>`).
-  Add a write, then run `pnpm catalog` and the features golden test
-  (`tests/cli/gen/features.test.ts`).
-- A section whose block needs more than the transport (attachments needs
-  `storage`) gets it from the shared options `recordServer` and
+- A block that owns part of a record page declares it with
+  `defineRecordBinding` in `src/blocks/<name>/record-binding.ts` and puts it
+  on the manifest's `record`. A block has one binding, named by its key in
+  the config, so two instances get two bindings.
+- A binding write (`writes.<name>`) takes `{ input, run, permission? }`. Its
+  input is a schema of plain JSON: `bsb.record(...).actions` exposes it as a
+  Server Action, so a Temporal value or a class can't cross it.
+- `pnpm catalog` records each binding's writes in the catalog (`record`).
+  Add a write, then run `pnpm catalog` and the records golden test
+  (`tests/cli/gen/records.test.ts`).
+- A binding whose block needs more than the transport (attachments needs
+  `storage`) gets it from the shared options `bsb.record` and
   `createRecordProvider` pass to every client. Add new needs there, not as a
   custom action in an example.
 

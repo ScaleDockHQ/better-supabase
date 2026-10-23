@@ -5,8 +5,8 @@ import { defineBlock } from "../define-block.ts";
 import { createAdmissionPasses } from "./admission-passes.ts";
 import { admissionPassesEvents } from "./events.ts";
 import { admissionPassesSqlOptions } from "./options.ts";
+import { admissionPassesBinding } from "./record-binding.ts";
 import { passInputSchema } from "./schemas.ts";
-import { admissionPassesSection } from "./section.ts";
 
 /** The `passes` block's manifest (ADR 0029). */
 export const admissionPassesBlock: BlockOf<
@@ -15,7 +15,7 @@ export const admissionPassesBlock: BlockOf<
   AdmissionPassesEvents,
   Record<never, never>,
   never,
-  { readonly passes: typeof admissionPassesSection }
+  typeof admissionPassesBinding
 > = defineBlock({
   name: "admission-passes",
   sql: ["admission-passes"],
@@ -23,6 +23,6 @@ export const admissionPassesBlock: BlockOf<
   events: admissionPassesEvents,
   schemas: { pass: { input: passInputSchema } },
   create: createAdmissionPasses,
-  sections: { passes: admissionPassesSection },
+  record: admissionPassesBinding,
   category: "scheduling",
 });

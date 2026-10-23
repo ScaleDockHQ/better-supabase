@@ -868,54 +868,6 @@ describe("createNext", () => {
     ]);
   });
 
-  it("invalidates the record's section after a section action succeeds", async () => {
-    mocks.headers = new Headers({
-      authorization: `Bearer ${await signer.sign({ sub: USER })}`,
-    });
-    mocks.updateTag.mockClear();
-
-    const comments = {
-      create: (subject: { type: string; id: string }, body: string) =>
-        AsyncResult.from(() =>
-          Promise.resolve(
-            body === ""
-              ? {
-                  ok: false as const,
-                  data: null,
-                  error: dbError("invalid_input", "Empty"),
-                }
-              : ok({ id: "c1", subject, body }),
-          ),
-        ),
-    };
-
-    const addComment = bsb.sectionAction(() => comments, "create", {
-      input: v.object({ customerId: v.string(), body: v.string() }),
-      section: "comments",
-      subject: ({ customerId }) => ({ type: "customer", id: customerId }),
-      args: ({ customerId, body }) => [
-        { type: "customer", id: customerId },
-        body,
-      ],
-    });
-
-    expect(await addComment({ customerId: "7", body: "Hi" })).toMatchObject({
-      ok: true,
-      data: { id: "c1" },
-    });
-    expect(mocks.updateTag.mock.calls).toEqual([
-      ["bsb:record:customer:7#comments"],
-      ["bsb:record:customer:7"],
-    ]);
-
-    mocks.updateTag.mockClear();
-
-    expect(await addComment({ customerId: "7", body: "" })).toMatchObject({
-      ok: false,
-    });
-    expect(mocks.updateTag).not.toHaveBeenCalled();
-  });
-
   it("runs actions with validation, FormData and serializable results", async () => {
     const save = bsb.action(
       {

@@ -53,7 +53,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { snapshotCustomerVersions } from "@/lib/supabase/features/customer/customer-actions";
+import { snapshotCustomerVersions } from "@/features/customers/customer-record-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, VersionRow } from "../customer-record-queries";

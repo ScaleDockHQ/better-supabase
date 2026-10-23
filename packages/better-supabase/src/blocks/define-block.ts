@@ -3,7 +3,7 @@ import type { BlockContext } from "./create-blocks.ts";
 import type { BlockSchemas } from "./entity-schema.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
-import type { AnySection, SectionMap } from "./sections.ts";
+import type { AnyRecordBinding } from "./record-bindings.ts";
 
 /** Where a block sits in the catalog and in presets, in catalog order. */
 export const BLOCK_CATEGORIES = [
@@ -75,7 +75,7 @@ export interface BlockDefinition<
   M extends EventMap,
   C extends BlockConsumes,
   P extends PortName,
-  S extends SectionMap = Nothing,
+  R extends AnyRecordBinding | undefined = undefined,
 > {
   readonly name: Name;
   /** The SQL modules (`BlockSql` keys) this block installs. */
@@ -105,10 +105,11 @@ export interface BlockDefinition<
    */
   readonly invalidates?: BlockInvalidates;
   /**
-   * The parts of a record page the block owns (`defineSection`), by name, for
-   * `loadSections` and `createRecordController`.
+   * What the block shows and does on one record (`defineRecordBinding`), for
+   * `loadBindings`, `createRecordController` and the generated
+   * `records/<type>.ts`.
    */
-  readonly sections?: S;
+  readonly record?: R;
   /**
    * The export of `better-supabase/blocks/<name>` that builds the block's
    * repository extension (`trashExtension`). `gen` passes it to the schema when
@@ -137,7 +138,7 @@ export interface Block<
   M extends EventMap = Nothing,
   C extends BlockConsumes = Nothing,
   P extends PortName = never,
-  S extends SectionMap = Nothing,
+  R extends AnyRecordBinding | undefined = undefined,
 > {
   readonly apiVersion: 1;
   readonly name: Name;
@@ -158,8 +159,8 @@ export interface Block<
    * method of the block stale.
    */
   readonly invalidates: BlockInvalidates;
-  /** The parts of a record page the block owns, by name. */
-  readonly sections: S;
+  /** What the block shows and does on one record, if anything. */
+  readonly record: R;
   /** The export that builds the block's repository extension, if any. */
   readonly extension: string | undefined;
   /**
@@ -171,7 +172,7 @@ export interface Block<
    * This block with `settings` merged into the options `createBlocks` passes
    * it.
    */
-  with(settings: Partial<Options>): Block<Name, Options, Client, M, C, P, S>;
+  with(settings: Partial<Options>): Block<Name, Options, Client, M, C, P, R>;
   /**
    * This block built by `create` instead, keeping its SQL, events and ports:
    * for a creator's type parameters (`notificationsBlock.using((options) =>
@@ -182,7 +183,7 @@ export interface Block<
    */
   using<Next>(
     create: (options: UsingOptions<C>) => Next,
-  ): Block<Name, UsingOptions<C>, Next, M, C, P, S>;
+  ): Block<Name, UsingOptions<C>, Next, M, C, P, R>;
 }
 
 /** Any block, for constraints. */
@@ -200,7 +201,7 @@ export interface AnyBlock {
   readonly recipes: readonly string[];
   readonly schemas?: BlockSchemas;
   readonly invalidates?: BlockInvalidates;
-  readonly sections?: Readonly<Record<string, AnySection>>;
+  readonly record?: AnyRecordBinding | undefined;
   readonly extension?: string | undefined;
   readonly settings: object;
   with(settings: never): AnyBlock;
@@ -217,8 +218,8 @@ export type BlockOf<
   M extends EventMap = Nothing,
   C extends BlockConsumes = Nothing,
   P extends PortName = never,
-  S extends SectionMap = Nothing,
-> = Block<Name, Parameters<Create>[0], ReturnType<Create>, M, C, P, S>;
+  R extends AnyRecordBinding | undefined = undefined,
+> = Block<Name, Parameters<Create>[0], ReturnType<Create>, M, C, P, R>;
 
 /** The client a block's creator returns. */
 export type ClientOf<B> = B extends {
@@ -235,11 +236,11 @@ export function defineBlock<
   M extends EventMap = Nothing,
   const C extends BlockConsumes = Nothing,
   P extends PortName = never,
-  const S extends SectionMap = Nothing,
+  const R extends AnyRecordBinding | undefined = undefined,
 >(
-  definition: BlockDefinition<Name, Options, Client, M, C, P, S>,
-): Block<Name, Options, Client, M, C, P, S> {
-  const { create, consumes, provides, sections, ...rest } = definition;
+  definition: BlockDefinition<Name, Options, Client, M, C, P, R>,
+): Block<Name, Options, Client, M, C, P, R> {
+  const { create, consumes, provides, record, ...rest } = definition;
 
   return blockOf(
     {
@@ -251,9 +252,9 @@ export function defineBlock<
       // `createBlocks` passes it; a block without `provides` provides
       // nothing, which is `ProvidedPorts<never>` when `P` is left to its default.
       provides: (provides ?? {}) as ProvidedPorts<P>,
-      // SAFETY: a block without `sections` has none, which is `Nothing` when
-      // `S` is left to its default.
-      sections: sections ?? ({} as S),
+      // SAFETY: a block without `record` has none, which is `undefined` when
+      // `R` is left to its default.
+      record: record as R,
     },
     create,
     {},
@@ -265,14 +266,14 @@ interface BlockParts<
   M extends EventMap,
   C extends BlockConsumes,
   P extends PortName,
-  S extends SectionMap,
+  R extends AnyRecordBinding | undefined,
 > extends Omit<
-  BlockDefinition<Name, never, never, M, C, P, S>,
-  "create" | "consumes" | "provides" | "sections"
+  BlockDefinition<Name, never, never, M, C, P, R>,
+  "create" | "consumes" | "provides" | "record"
 > {
   readonly consumes: C;
   readonly provides: ProvidedPorts<P>;
-  readonly sections: S;
+  readonly record: R;
 }
 
 function blockOf<
@@ -282,12 +283,12 @@ function blockOf<
   M extends EventMap,
   C extends BlockConsumes,
   P extends PortName,
-  S extends SectionMap,
+  R extends AnyRecordBinding | undefined,
 >(
-  parts: BlockParts<Name, M, C, P, S>,
+  parts: BlockParts<Name, M, C, P, R>,
   create: ((options: Options) => Client) | undefined,
   settings: object,
-): Block<Name, Options, Client, M, C, P, S> {
+): Block<Name, Options, Client, M, C, P, R> {
   return {
     apiVersion: 1,
     name: parts.name,
@@ -302,7 +303,7 @@ function blockOf<
     recipes: parts.recipes ?? [],
     schemas: parts.schemas ?? {},
     invalidates: parts.invalidates ?? {},
-    sections: parts.sections,
+    record: parts.record,
     extension: parts.extension,
     settings,
     with: (more) => blockOf(parts, create, { ...settings, ...more }),

@@ -46,10 +46,10 @@ export { tasksBlock } from "./manifest.ts";
 
 export {
   workItemChecklistOptimistic,
-  workItemChecklistSection,
-} from "./section.ts";
+  workItemChecklistBinding,
+} from "./record-binding.ts";
 
-export type { WorkItemChecklistOptimisticAction } from "./section.ts";
+export type { WorkItemChecklistOptimisticAction } from "./record-binding.ts";
 
 export {
   workItemChangeSchema,

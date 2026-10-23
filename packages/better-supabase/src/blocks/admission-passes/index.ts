@@ -49,9 +49,9 @@ export {
 } from "./options.ts";
 
 export {
-  admissionPassesSection,
+  admissionPassesBinding,
   type AdmissionPassesWrites,
-} from "./section.ts";
+} from "./record-binding.ts";
 
 export {
   passInputSchema,

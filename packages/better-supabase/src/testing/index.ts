@@ -206,9 +206,9 @@ export { testNotificationChannel } from "./notification-channel.ts";
 
 export type { TestNotificationChannelOptions } from "./notification-channel.ts";
 
-export { testSection } from "./section.ts";
+export { testRecordBinding } from "./record-binding.ts";
 
-export type { TestSectionOptions } from "./section.ts";
+export type { TestRecordBindingOptions } from "./record-binding.ts";
 
 export {
   testWebhookSecretStore,

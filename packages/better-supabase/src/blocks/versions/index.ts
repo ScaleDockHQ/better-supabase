@@ -35,7 +35,7 @@ export type { VersionsEvents } from "./events.ts";
 
 export {
   versionInput,
-  versionsSection,
+  versionsBinding,
   type VersionInput,
   type VersionsWrites,
-} from "./section.ts";
+} from "./record-binding.ts";

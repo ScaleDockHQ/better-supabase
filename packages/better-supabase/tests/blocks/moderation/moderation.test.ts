@@ -4,7 +4,7 @@ import {
   createModeration,
   moderationBlock,
   moderationEvents,
-  moderationSection,
+  moderationBinding,
 } from "../../../src/blocks/moderation/index.ts";
 
 const AT = "2026-10-22T10:00:00Z";
@@ -336,7 +336,7 @@ describe("createModeration", () => {
   });
 });
 
-describe("moderationSection", () => {
+describe("moderationBinding", () => {
   it("loads a record's moderation item", async () => {
     const fake = fakeTransport({ moderation_item: ITEM });
 
@@ -345,13 +345,13 @@ describe("moderationSection", () => {
       tenant: "org-1",
     });
 
-    const item = await moderationSection
+    const item = await moderationBinding
       .load(moderation, { type: "comment", id: "c1" }, undefined)
       .orThrow();
 
     expect(item).toMatchObject({ status: "hidden", reports: [], actions: [] });
-    expect(moderationBlock.sections).toEqual({ moderation: moderationSection });
-    expect(moderationSection.events).toEqual([
+    expect(moderationBlock.record).toBe(moderationBinding);
+    expect(moderationBinding.events).toEqual([
       "moderation_report.created",
       "moderation_item.decided",
     ]);

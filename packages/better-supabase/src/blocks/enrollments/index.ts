@@ -32,7 +32,7 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { enrollmentsBlock } from "./manifest.ts";
 
-export { enrollmentsSection } from "./section.ts";
+export { enrollmentsBinding } from "./record-binding.ts";
 
 export { enrollmentsEvents } from "./events.ts";
 

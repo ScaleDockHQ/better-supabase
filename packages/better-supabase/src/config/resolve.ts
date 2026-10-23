@@ -272,7 +272,7 @@ export function resolveConfig(
     databaseTypesOutput: output.replace(/[^/]+$/, "database.types.ts"),
     postgrestVersion:
       config.postgrestVersion ?? CONFIG_DEFAULTS.postgrestVersion,
-    generateFeatures: config.generateFeatures ?? true,
+    recordTypes: config.recordTypes ?? true,
     json: config.json ?? {},
     codecs: {
       timestamptz:

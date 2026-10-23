@@ -56,13 +56,31 @@ const REMOVED_KEYS: ReadonlyMap<string, string> = new Map([
   ],
 ]);
 
+const RECORD_TYPES_MOVED =
+  "renamed to `gen.recordTypes` in 0.15; run `better-supabase codemod 0.15`";
+
 /** Keys of the flat 0.14 config in one config block. */
 function movedGroupIssues(prefix: string, block: unknown): string[] {
   if (!isRecord(block)) {
     return [];
   }
 
+  const gen = block["gen"];
+
+  const genIssues =
+    isRecord(gen) && "generateFeatures" in gen
+      ? [`${prefix}gen.generateFeatures: ${RECORD_TYPES_MOVED}`]
+      : [];
+
   return Object.keys(block).flatMap((key) => {
+    if (key === "generateFeatures") {
+      return [`${prefix}${key}: ${RECORD_TYPES_MOVED}`];
+    }
+
+    if (key === "gen") {
+      return genIssues;
+    }
+
     const removed = REMOVED_KEYS.get(key);
 
     if (removed !== undefined) {

@@ -7342,11 +7342,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "attachments": [
-          "remove"
-        ]
-      },
+      "record": [
+        "remove"
+      ],
       "events": {
         "type": "AttachmentsEvents",
         "types": [
@@ -8149,12 +8147,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
-      "sections": {
-        "comments": [
-          "add",
-          "remove"
-        ]
-      }
+      "record": [
+        "add",
+        "remove"
+      ]
     },
     {
       "name": "connectors",
@@ -8875,9 +8871,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "LedgerTransactionInput"
         }
       ],
-      "sections": {
-        "ledger": []
-      },
+      "record": [],
       "events": {
         "type": "LedgerEvents",
         "types": [
@@ -8974,9 +8968,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AssetStatus"
         }
       ],
-      "sections": {
-        "assets": []
-      },
+      "record": [],
       "events": {
         "type": "AssetsEvents",
         "types": [
@@ -9019,9 +9011,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ScoreModelVersion"
         }
       ],
-      "sections": {
-        "scores": []
-      },
+      "record": [],
       "events": {
         "type": "ScoresEvents",
         "types": [
@@ -9051,9 +9041,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ModerationItemDetail"
         }
       ],
-      "sections": {
-        "moderation": []
-      },
+      "record": [],
       "events": {
         "type": "ModerationEvents",
         "types": [
@@ -9117,9 +9105,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "EnrollmentStep"
         }
       ],
-      "sections": {
-        "enrollments": []
-      },
+      "record": [],
       "events": {
         "type": "EnrollmentsEvents",
         "types": [
@@ -9306,12 +9292,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "guests": [
-          "grant",
-          "revoke"
-        ]
-      },
+      "record": [
+        "grant",
+        "revoke"
+      ],
       "events": {
         "type": "GuestsEvents",
         "types": [
@@ -9530,12 +9514,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "passes": [
-          "issue",
-          "revoke"
-        ]
-      },
+      "record": [
+        "issue",
+        "revoke"
+      ],
       "events": {
         "type": "AdmissionPassesEvents",
         "types": [
@@ -9645,12 +9627,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "billableTime": [
-          "setRate",
-          "invoice"
-        ]
-      },
+      "record": [
+        "setRate",
+        "invoice"
+      ],
       "events": {
         "type": "BillableTimeEvents",
         "types": [
@@ -9941,9 +9921,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "leases": []
-      },
+      "record": [],
       "events": {
         "type": "LeasesEvents",
         "types": [
@@ -10648,9 +10626,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "giving": []
-      },
+      "record": [],
       "events": {
         "type": "DonationsEvents",
         "types": [
@@ -10942,12 +10918,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "dispatch": [
-          "create",
-          "cancel"
-        ]
-      },
+      "record": [
+        "create",
+        "cancel"
+      ],
       "events": {
         "type": "DispatchEvents",
         "types": [
@@ -11202,12 +11176,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "shipments": [
-          "create",
-          "cancel"
-        ]
-      },
+      "record": [
+        "create",
+        "cancel"
+      ],
       "events": {
         "type": "ShipmentsEvents",
         "types": [
@@ -11614,9 +11586,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "contracts": []
-      },
+      "record": [],
       "events": {
         "type": "ContractsEvents",
         "types": [
@@ -16431,12 +16401,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "UnlinkRelationInput"
         }
       ],
-      "sections": {
-        "relations": [
-          "link",
-          "unlink"
-        ]
-      },
+      "record": [
+        "link",
+        "unlink"
+      ],
       "events": {
         "type": "RelationsEvents",
         "types": [
@@ -16843,12 +16811,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ShareLinksWrites"
         }
       ],
-      "sections": {
-        "shareLinks": [
-          "create",
-          "revoke"
-        ]
-      },
+      "record": [
+        "create",
+        "revoke"
+      ],
       "events": {
         "type": "ShareLinksEvents",
         "types": [
@@ -16921,11 +16887,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         }
       ],
-      "sections": {
-        "sla": [
-          "start"
-        ]
-      },
+      "record": [
+        "start"
+      ],
       "events": {
         "type": "SlaEvents",
         "types": [
@@ -17084,12 +17048,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         }
       ],
-      "sections": {
-        "tags": [
-          "apply",
-          "remove"
-        ]
-      },
+      "record": [
+        "apply",
+        "remove"
+      ],
       "events": {
         "type": "TagsEvents",
         "types": [
@@ -17436,12 +17398,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "VersionsWrites"
         }
       ],
-      "sections": {
-        "versions": [
-          "snapshot",
-          "restore"
-        ]
-      },
+      "record": [
+        "snapshot",
+        "restore"
+      ],
       "events": {
         "type": "VersionsEvents",
         "types": [
@@ -17907,9 +17867,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       },
-      "sections": {
-        "checklist": []
-      },
+      "record": [],
       "events": {
         "type": "TasksEvents",
         "types": [

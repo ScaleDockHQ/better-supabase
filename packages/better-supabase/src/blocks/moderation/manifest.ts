@@ -5,7 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { moderationEvents } from "./events.ts";
 import { createModeration } from "./moderation.ts";
 import { moderationSqlOptions } from "./options.ts";
-import { moderationSection } from "./section.ts";
+import { moderationBinding } from "./record-binding.ts";
 
 /** The `moderation` block's manifest (ADR 0029). */
 export const moderationBlock: BlockOf<
@@ -14,13 +14,13 @@ export const moderationBlock: BlockOf<
   ModerationEvents,
   Record<never, never>,
   never,
-  { readonly moderation: typeof moderationSection }
+  typeof moderationBinding
 > = defineBlock({
   name: "moderation",
   sql: ["moderation"],
   options: { moderation: moderationSqlOptions },
   events: moderationEvents,
   create: createModeration,
-  sections: { moderation: moderationSection },
+  record: moderationBinding,
   category: "collaboration",
 });

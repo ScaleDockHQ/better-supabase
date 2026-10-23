@@ -12,7 +12,10 @@ import { defineBlock } from "../../src/blocks/define-block.ts";
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
 import { BetterSupabaseProvider } from "../../src/react/hooks.ts";
 import { createRecordProvider } from "../../src/react/record.ts";
-import { defineRecordFeature, defineSection } from "../../src/records/index.ts";
+import {
+  defineRecordType,
+  defineRecordBinding,
+} from "../../src/records/index.ts";
 import { renderHook } from "../fixtures/hook-runtime.ts";
 import { flush, resolved } from "../fixtures/ports.ts";
 
@@ -50,28 +53,26 @@ const notesBlock = defineBlock({
   sql: ["notes"],
   category: "collaboration",
   create: (): Notes => notes,
-  sections: {
-    notes: defineSection({
-      permissions: { read: "read", write: "create" },
-      load: (client: Notes, subject) => client.list(subject),
-      writes: {
-        add: {
-          input: entitySchema<{ readonly body: string }>({
-            title: "NoteInput",
-            fields: { body: { kind: "string", minLength: 1 } },
-          }),
-          run: (
-            client: Notes,
-            subject: RecordRef,
-            input: { readonly body: string },
-          ) => client.add(subject, input.body),
-        },
+  record: defineRecordBinding({
+    permissions: { read: "read", write: "create" },
+    load: (client: Notes, subject) => client.list(subject),
+    writes: {
+      add: {
+        input: entitySchema<{ readonly body: string }>({
+          title: "NoteInput",
+          fields: { body: { kind: "string", minLength: 1 } },
+        }),
+        run: (
+          client: Notes,
+          subject: RecordRef,
+          input: { readonly body: string },
+        ) => client.add(subject, input.body),
       },
-    }),
-  },
+    },
+  }),
 });
 
-const feature = defineRecordFeature({
+const feature = defineRecordType({
   type: "customer",
   blocks: { notes: notesBlock },
 });
@@ -92,13 +93,13 @@ const client = {
 } as unknown as ClientLike;
 
 describe("createRecordProvider", () => {
-  it("shows the server's sections, then loads them as plain data", async () => {
+  it("shows the server's bindings, then loads them as plain data", async () => {
     const view = renderHook(() => {
       void BetterSupabaseProvider({ client });
       void RecordProvider({
         id: "c1",
         initial: {
-          sections: { notes: { kind: "ok", data: [] } },
+          bindings: { notes: { kind: "ok", data: [] } },
           can: { notes: { read: true, add: false } },
         },
       });
@@ -106,11 +107,11 @@ describe("createRecordProvider", () => {
       return useRecord();
     }, undefined);
 
-    expect(view.result.state.sections.notes).toEqual({ kind: "ok", data: [] });
+    expect(view.result.state.bindings.notes).toEqual({ kind: "ok", data: [] });
     expect(view.result.state.can.notes.add).toBe(false);
 
     await flush();
-    expect(view.result.state.sections.notes).toEqual({
+    expect(view.result.state.bindings.notes).toEqual({
       kind: "ok",
       data: [{ id: "n1", at: "2026-10-21T10:00:00Z" }],
     });
@@ -119,7 +120,7 @@ describe("createRecordProvider", () => {
     view.unmount();
   });
 
-  it("runs a write on the client and loads its section again", async () => {
+  it("runs a write on the client and loads its binding again", async () => {
     const view = renderHook(() => {
       void BetterSupabaseProvider({ client });
       void RecordProvider({ id: "c1" });
@@ -138,7 +139,7 @@ describe("createRecordProvider", () => {
       data: { id: "n2", at: "2026-10-21T10:00:00Z" },
     });
     await flush();
-    expect(view.result.state.sections.notes).toMatchObject({
+    expect(view.result.state.bindings.notes).toMatchObject({
       kind: "ok",
       data: [{ id: "n1" }, { id: "n2" }],
     });

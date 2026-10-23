@@ -31,9 +31,9 @@ export type { RelationsEvents } from "./events.ts";
 
 export {
   relationInput,
-  relationsSection,
+  relationsBinding,
   unlinkRelationInput,
   type RelationInput,
   type RelationsWrites,
   type UnlinkRelationInput,
-} from "./section.ts";
+} from "./record-binding.ts";

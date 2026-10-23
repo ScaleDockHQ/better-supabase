@@ -35,7 +35,7 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { guestsBlock } from "./manifest.ts";
 
-export { guestsSection, type GuestsWrites } from "./section.ts";
+export { guestsBinding, type GuestsWrites } from "./record-binding.ts";
 
 export {
   guestGrantSchema,

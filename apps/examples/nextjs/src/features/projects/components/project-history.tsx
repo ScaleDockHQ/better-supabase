@@ -23,12 +23,14 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { snapshotProjectVersions } from "@/lib/supabase/features/project/project-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { ProjectHistoryField, ProjectVersion } from "../project-types";
 
-import { restoreProjectFields } from "../project-actions";
+import {
+  restoreProjectFields,
+  snapshotProjectVersions,
+} from "../project-actions";
 import { PROJECT_HISTORY_FIELDS } from "../project-types";
 
 // #region recipe:record-history

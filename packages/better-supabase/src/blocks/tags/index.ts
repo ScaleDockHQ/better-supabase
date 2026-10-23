@@ -2,7 +2,7 @@ export type {
   TagRefInput,
   TagsOptimisticAction,
   TagsWrites,
-} from "./section.ts";
+} from "./record-binding.ts";
 
 export {
   createTags,
@@ -25,7 +25,7 @@ export {
 
 export { tagsBlock } from "./manifest.ts";
 
-export { tagRefInput, tagsOptimistic, tagsSection } from "./section.ts";
+export { tagRefInput, tagsOptimistic, tagsBinding } from "./record-binding.ts";
 
 export { tagsEvents } from "./events.ts";
 

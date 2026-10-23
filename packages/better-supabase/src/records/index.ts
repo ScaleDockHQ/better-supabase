@@ -40,33 +40,32 @@ export type {
 } from "./timeline.ts";
 
 export type {
-  LoadedSections,
-  LoadSectionsOptions,
-  SectionBlocks,
-  SectionCheck,
-  SectionName,
-  SectionNamed,
-  SectionSource,
-} from "./sections.ts";
+  LoadedBindings,
+  LoadBindingsOptions,
+  BindingBlocks,
+  BindingCheck,
+  BindingName,
+  BindingOf,
+  BindingSource,
+} from "./bindings.ts";
 
 export type {
-  AnySection,
-  Section,
-  SectionData,
-  SectionDefinition,
-  SectionMap,
-  SectionOptions,
-  SectionPermissions,
-  SectionResult,
-  SectionWrite,
-  SectionWriteInput,
-  SectionWriteName,
-  SectionWriteOutput,
-  SectionWrites,
-  AnySectionWrite,
-  SectionRowInput,
+  AnyRecordBinding,
+  RecordBinding,
+  RecordBindingData,
+  RecordBindingDefinition,
+  RecordBindingOptions,
+  RecordBindingPermissions,
+  RecordBindingResult,
+  RecordBindingWrite,
+  RecordBindingWriteInput,
+  RecordBindingWriteName,
+  RecordBindingWriteOutput,
+  RecordBindingWrites,
+  AnyRecordBindingWrite,
+  RecordRowInput,
   TimelineItem,
-} from "../blocks/sections.ts";
+} from "../blocks/record-bindings.ts";
 
 export type {
   RecordSummary,
@@ -79,48 +78,48 @@ export type {
 } from "../blocks/permissions/permissions-controller.ts";
 
 export type {
-  FeatureBlocks,
-  FeaturePermissions,
-  FeatureWriteInput,
-  FeatureWriteOutput,
+  RecordTypeBlocks,
+  RecordTypePermissions,
+  RecordTypeWriteInput,
+  RecordTypeWriteOutput,
   Plain,
-  PlainSection,
-  PlainSections,
+  PlainBinding,
+  PlainBindings,
   RecordCan,
-  RecordFeature,
-  RecordFeatureSpec,
+  RecordType,
+  RecordTypeSpec,
   RecordWriteInput,
-  SectionWritesOf,
-} from "./feature.ts";
+  BindingWritesOf,
+} from "./record-type.ts";
 
 export { createRecordController } from "./controller.ts";
 
 export {
-  defineRecordFeature,
-  findSectionWrite,
+  defineRecordType,
+  findBindingWrite,
   plainData,
   recordCan,
   recordPermissionKeys,
   recordSubject,
   recordWriteInput,
-} from "./feature.ts";
+} from "./record-type.ts";
 
-export { countSection, loadSections, sectionCan } from "./sections.ts";
+export { countBinding, loadBindings, bindingCan } from "./bindings.ts";
 
 export { defineRecordList } from "./list.ts";
 
-export { loadTimeline, timelineSections } from "./timeline.ts";
+export { loadTimeline, timelineBindings } from "./timeline.ts";
 
 export { loadMyWork } from "./my-work.ts";
 
 export { recordForm } from "./record-form.ts";
 
 export {
-  defineSection,
-  sectionEventMatches,
-  sectionRowInput,
-  sectionWrite,
-} from "../blocks/sections.ts";
+  defineRecordBinding,
+  recordEventMatches,
+  recordRowInput,
+  recordBindingWrite,
+} from "../blocks/record-bindings.ts";
 
 export {
   can,

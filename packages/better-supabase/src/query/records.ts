@@ -2,41 +2,41 @@ import type { QueryClient, SkipToken } from "@tanstack/query-core";
 
 import type { PermissionSet } from "../blocks/permissions/permissions-controller.ts";
 import type {
-  SectionData,
-  SectionOptions,
-  SectionResult,
-} from "../blocks/sections.ts";
+  RecordBindingData,
+  RecordBindingOptions,
+  RecordBindingResult,
+} from "../blocks/record-bindings.ts";
 import type { EventHub } from "../core/events.ts";
 import type { AsyncResult, Result } from "../core/result.ts";
 import type {
-  FeatureBlocks,
-  FeatureWriteInput,
-  FeatureWriteOutput,
-  RecordCan,
-  RecordFeature,
-  SectionWritesOf,
-} from "../records/feature.ts";
+  BindingName,
+  BindingOf,
+  BindingSource,
+} from "../records/bindings.ts";
 import type {
-  SectionName,
-  SectionNamed,
-  SectionSource,
-} from "../records/sections.ts";
+  RecordTypeBlocks,
+  RecordTypeWriteInput,
+  RecordTypeWriteOutput,
+  RecordCan,
+  RecordType,
+  BindingWritesOf,
+} from "../records/record-type.ts";
 import type {
   MutationOptionsOf,
   QueriesOptions,
   QueryOptionsOf,
 } from "./queries.ts";
 
-import { sectionEventMatches } from "../blocks/sections.ts";
+import { recordEventMatches } from "../blocks/record-bindings.ts";
 import { DbException } from "../core/errors.ts";
+import { findBinding, loadBindings } from "../records/bindings.ts";
 import {
-  featureWrites,
+  bindingWrites,
   recordCan,
   recordPermissionKeys,
   recordSubject,
-  runSectionWrite,
-} from "../records/feature.ts";
-import { findSection, loadSections } from "../records/sections.ts";
+  runBindingWrite,
+} from "../records/record-type.ts";
 import { keyPart } from "./queries.ts";
 
 /** The first key part of every record query. */
@@ -45,43 +45,49 @@ const RECORD_KEY = "bsb-record";
 /** The key part of a record's `can` query. */
 const CAN_KEY = "$can";
 
-/** Query options for each section of a feature, by section name. */
-export type RecordSectionQueries<B extends FeatureBlocks, N extends string> = {
+/** Query options for each binding of a record type, by binding name. */
+export type RecordBindingQueries<
+  B extends RecordTypeBlocks,
+  N extends string,
+> = {
   readonly [S in N]: (
     id: string | SkipToken,
-    options?: SectionOptions<SectionNamed<B, S>>,
-  ) => QueryOptionsOf<SectionData<SectionNamed<B, S>>>;
+    options?: RecordBindingOptions<BindingOf<B, S>>,
+  ) => QueryOptionsOf<RecordBindingData<BindingOf<B, S>>>;
 };
 
-/** Mutation options for each write of each section, by section and write. */
-export type RecordWriteMutations<B extends FeatureBlocks, N extends string> = {
+/** Mutation options for each write of each binding, by binding and write. */
+export type RecordWriteMutations<
+  B extends RecordTypeBlocks,
+  N extends string,
+> = {
   readonly [S in N]: {
-    readonly [W in SectionWritesOf<B, S>]: (
+    readonly [W in BindingWritesOf<B, S>]: (
       id: string,
     ) => MutationOptionsOf<
-      FeatureWriteInput<B, S, W>,
-      FeatureWriteOutput<B, S, W>
+      RecordTypeWriteInput<B, S, W>,
+      RecordTypeWriteOutput<B, S, W>
     >;
   };
 };
 
 export interface RecordQueries<
   T extends string,
-  B extends FeatureBlocks,
+  B extends RecordTypeBlocks,
   N extends string,
 > {
-  /** Prefix of every key of this feature's queries. */
+  /** Prefix of every key of this record type's queries. */
   readonly $key: readonly [typeof RECORD_KEY, T];
-  /** The key of one record's queries, or of one of its sections. */
-  key(id: string, section?: N): readonly unknown[];
-  /** Query options per section, keyed `["bsb-record", type, id, section]`. */
-  readonly sections: RecordSectionQueries<B, N>;
+  /** The key of one record's queries, or of one of its bindings. */
+  key(id: string, binding?: N): readonly unknown[];
+  /** Query options per binding, keyed `["bsb-record", type, id, binding]`. */
+  readonly bindings: RecordBindingQueries<B, N>;
   /**
-   * Mutation options per section write; each one makes the section's queries of
+   * Mutation options per binding write; each one makes the binding's queries of
    * that record stale.
    */
   readonly writes: RecordWriteMutations<B, N>;
-  /** What the caller may do on each section, from the `access` client. */
+  /** What the caller may do on each binding, from the `access` client. */
   can(): QueryOptionsOf<RecordCan<B, N>>;
 }
 
@@ -113,40 +119,40 @@ async function unwrap<T>(result: PromiseLike<Result<T>>): Promise<T> {
 }
 
 /**
- * TanStack Query bindings of a generated feature, for apps that load records on
- * the client (Vite, Expo, TanStack Start): query options per section, mutation
- * options per section write, and the caller's `can` flags. Pass the block
- * clients keyed like the feature's blocks, such as `blocks(supabase)` from
- * `lib/blocks.ts`. A section that fails throws a `DbException`, like
- * `blockQueries`.
+ * TanStack Query bindings of a generated record type, for apps that load
+ * records on the client (Vite, Expo, TanStack Start): query options per
+ * binding, mutation options per binding write, and the caller's `can` flags.
+ * Pass the block clients keyed like the record type's blocks, such as
+ * `blocks(supabase)` from `lib/blocks.ts`. A binding that fails throws a
+ * `DbException`, like `blockQueries`.
  *
  * ```ts
- * const customer = recordQueries(customerFeature, clients);
- * const comments = useQuery(customer.sections.comments(id));
+ * const customer = recordQueries(customerRecord, clients);
+ * const comments = useQuery(customer.bindings.comments(id));
  * const add = useMutation(customer.writes.comments.add(id));
  * ```
  */
 export function recordQueries<
   T extends string,
-  B extends FeatureBlocks,
-  N extends SectionName<B>,
+  B extends RecordTypeBlocks,
+  N extends BindingName<B>,
 >(
-  feature: RecordFeature<T, B> & { readonly sections: readonly N[] },
+  feature: RecordType<T, B> & { readonly bindings: readonly N[] },
   clients: object,
   options: RecordQueriesOptions = {},
 ): RecordQueries<T, B, N> {
   const prefix = [RECORD_KEY, feature.type] as const;
-  const names: readonly N[] = feature.sections;
+  const names: readonly N[] = feature.bindings;
 
-  const source: SectionSource<B> = { blocks: feature.blocks, clients };
+  const source: BindingSource<B> = { blocks: feature.blocks, clients };
 
-  const keyOf = (id: string, section?: string): readonly unknown[] =>
-    section === undefined ? [...prefix, id] : [...prefix, id, section];
+  const keyOf = (id: string, binding?: string): readonly unknown[] =>
+    binding === undefined ? [...prefix, id] : [...prefix, id, binding];
 
   const stale =
     options.staleTime === undefined ? {} : { staleTime: options.staleTime };
 
-  const section =
+  const binding =
     (name: N) =>
     (id: string | SkipToken, given?: unknown): QueryOptionsOf<unknown> => {
       const skip = typeof id !== "string";
@@ -157,23 +163,24 @@ export function recordQueries<
         ...(given === undefined ? [] : [keyPart(given)]),
       ]);
 
-      // SAFETY: the key is tagged with the section's data, which `queryFn`
+      // SAFETY: the key is tagged with the binding's data, which `queryFn`
       // resolves to.
       return {
         queryKey: queryKey as QueryOptionsOf<unknown>["queryKey"],
         queryFn: skip
           ? id
           : async () => {
-              const loaded: Readonly<Record<string, SectionResult<unknown>>> =
-                await loadSections(
-                  source,
-                  recordSubject(feature, id),
-                  [name],
-                  // SAFETY: `given` is the options the section's `load` takes.
-                  given === undefined
-                    ? {}
-                    : { options: { [name]: given } as never },
-                );
+              const loaded: Readonly<
+                Record<string, RecordBindingResult<unknown>>
+              > = await loadBindings(
+                source,
+                recordSubject(feature, id),
+                [name],
+                // SAFETY: `given` is the options the binding's `load` takes.
+                given === undefined
+                  ? {}
+                  : { options: { [name]: given } as never },
+              );
 
               const result = loaded[name];
 
@@ -194,7 +201,7 @@ export function recordQueries<
       mutationKey: [...prefix, id, name, writeName],
       mutationFn: (input) =>
         unwrap(
-          runSectionWrite(
+          runBindingWrite(
             feature,
             clients,
             name,
@@ -207,16 +214,16 @@ export function recordQueries<
         context.client.invalidateQueries({ queryKey: keyOf(id, name) }),
     });
 
-  // SAFETY: one query option per section and one mutation option per write,
-  // as `RecordSectionQueries` and `RecordWriteMutations` map them.
+  // SAFETY: one query option per binding and one mutation option per write,
+  // as `RecordBindingQueries` and `RecordWriteMutations` map them.
   return {
     $key: prefix,
     key: keyOf,
-    sections: Object.fromEntries(
-      names.map((name) => [name, section(name)]),
+    bindings: Object.fromEntries(
+      names.map((name) => [name, binding(name)]),
     ) as never,
     writes: Object.fromEntries(
-      featureWrites(feature).map(([name, writes]) => [
+      bindingWrites(feature).map(([name, writes]) => [
         name,
         Object.fromEntries(
           writes.map((writeName) => [writeName, write(name, writeName)]),
@@ -244,27 +251,27 @@ export function recordQueries<
 }
 
 /**
- * Makes a feature's section queries stale when a block event that the section
- * lists in `events` arrives on `source.events`, for every record of the
- * feature. Returns a function that stops listening.
+ * Makes a record type's binding queries stale when a block event that the
+ * binding lists in `events` arrives on `source.events`, for every record of the
+ * record type. Returns a function that stops listening.
  */
 export function invalidateOnRecordEvents(
   queryClient: QueryClient,
   source: { readonly events: EventHub },
-  feature: Pick<RecordFeature, "blocks" | "type"> & {
-    readonly sections: readonly string[];
+  feature: Pick<RecordType, "blocks" | "type"> & {
+    readonly bindings: readonly string[];
   },
 ): () => void {
-  const patterns = feature.sections.map(
+  const patterns = feature.bindings.map(
     (name) =>
-      [name, findSection(feature.blocks, name)?.section.events ?? []] as const,
+      [name, findBinding(feature.blocks, name)?.binding.events ?? []] as const,
   );
 
   return source.events.on("block", (event) => {
     const names = new Set(
       patterns
         .filter(([, events]) =>
-          events.some((pattern) => sectionEventMatches(pattern, event.type)),
+          events.some((pattern) => recordEventMatches(pattern, event.type)),
         )
         .map(([name]) => name),
     );

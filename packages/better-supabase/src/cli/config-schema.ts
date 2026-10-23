@@ -548,7 +548,7 @@ const FLAT = {
   ),
   output: v.optional(v.string()),
   postgrestVersion: v.optional(v.string()),
-  generateFeatures: v.optional(v.boolean()),
+  recordTypes: v.optional(v.boolean()),
   json: v.optional(
     v.record(
       v.string(),
@@ -914,7 +914,7 @@ const ENTRIES = {
         "output",
         "casing",
         "postgrestVersion",
-        "generateFeatures",
+        "recordTypes",
         "tables",
         "json",
         "codecs",

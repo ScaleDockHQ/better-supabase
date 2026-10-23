@@ -22,9 +22,9 @@ export const coursesBlock: BlockOf<
     course_lesson: { input: courseLessonInputSchema },
   },
   create: createCourses,
-  // No record section: learners are users, and generated record pages attach
-  // block sections to the other subjects. An app's course page mounts
-  // courseLearnersSection itself.
+  // No record binding: learners are users, and generated record pages attach
+  // block bindings to the other subjects. An app's course page mounts
+  // courseLearnersBinding itself.
   category: "content",
   recipes: ["course-outline", "lesson-player"],
 });

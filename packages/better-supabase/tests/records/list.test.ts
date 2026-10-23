@@ -9,11 +9,11 @@ import { defineBlock } from "../../src/blocks/define-block.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
 import {
-  defineRecordFeature,
+  defineRecordType,
   defineRecordList,
-  defineSection,
+  defineRecordBinding,
   loadTimeline,
-  timelineSections,
+  timelineBindings,
 } from "../../src/records/index.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -51,48 +51,52 @@ const notesBlock = defineBlock({
   name: "notes",
   sql: ["notes"],
   category: "collaboration",
-  sections: {
-    notes: defineSection({
-      permissions: { read: "read" },
-      load: (client: Notes, subject) => client.list(subject),
-      count: (client: Notes, subjects) => client.counts(subjects),
-      timeline: (notes) =>
-        notes.map((note) => ({
-          id: note.id,
-          kind: "note",
-          at: note.at,
-          ...(note.by === undefined ? {} : { actor: note.by }),
-          row: note,
-        })),
-    }),
-  },
+  record: defineRecordBinding({
+    permissions: { read: "read" },
+    load: (client: Notes, subject) => client.list(subject),
+    count: (client: Notes, subjects) => client.counts(subjects),
+    timeline: (notes) =>
+      notes.map((note) => ({
+        id: note.id,
+        kind: "note",
+        at: note.at,
+        ...(note.by === undefined ? {} : { actor: note.by }),
+        row: note,
+      })),
+  }),
 });
 
 const labelsBlock = defineBlock({
   name: "labels",
   sql: ["labels"],
   category: "collaboration",
-  sections: {
-    labels: defineSection({
-      permissions: { read: "view" },
-      load: (client: Labels, subject) => client.of(subject),
-    }),
-    stars: defineSection({
-      permissions: { read: "view" },
-      load: () => resolved(0),
-      column: (_client: Labels, subjects) =>
-        resolved(
-          Object.fromEntries(
-            subjects.map((subject) => [`${subject.type}:${subject.id}`, 5]),
-          ),
-        ),
-    }),
-  },
+  record: defineRecordBinding({
+    permissions: { read: "view" },
+    load: (client: Labels, subject) => client.of(subject),
+  }),
 });
 
-const feature = defineRecordFeature({
+const starsBinding = defineRecordBinding({
+  permissions: { read: "view" },
+  load: () => resolved(0),
+  column: (_client: Labels, subjects) =>
+    resolved(
+      Object.fromEntries(
+        subjects.map((subject) => [`${subject.type}:${subject.id}`, 5]),
+      ),
+    ),
+});
+
+const starsBlock = defineBlock({
+  name: "stars",
+  sql: ["labels"],
+  category: "collaboration",
+  record: starsBinding,
+});
+
+const feature = defineRecordType({
   type: "customer",
-  blocks: { notes: notesBlock, labels: labelsBlock },
+  blocks: { notes: notesBlock, labels: labelsBlock, stars: starsBlock },
   permissions: { labels: { view: "labels.view" } },
 });
 
@@ -131,7 +135,7 @@ describe("defineRecordList", () => {
     const { db } = database([{ id: "c1" }, { id: "c2" }]);
 
     const page = await list
-      .load({ db, clients: { notes, labels } }, { q: "acme" })
+      .load({ db, clients: { notes, labels, stars: labels } }, { q: "acme" })
       .orThrow();
 
     expect(page.query).toMatchObject({ q: "acme", sort: "name" });
@@ -164,7 +168,7 @@ describe("defineRecordList", () => {
       .load(
         {
           db,
-          clients: { notes, labels },
+          clients: { notes, labels, stars: labels },
           permissions: { tenant: "t", keys: [] },
         },
         undefined,
@@ -174,7 +178,7 @@ describe("defineRecordList", () => {
     expect(hidden.rows[0]?.cells.labels).toEqual({ kind: "hidden" });
 
     const settled = await list
-      .load({ db, clients: { notes, labels } }, undefined)
+      .load({ db, clients: { notes, labels, stars: labels } }, undefined)
       .orThrow();
 
     expect(settled.rows[0]?.cells.labels).toMatchObject({
@@ -187,7 +191,10 @@ describe("defineRecordList", () => {
     const { db } = database([{ id: "c1" }]);
 
     expect(
-      await list.load({ db, clients: { notes, labels } }, { sort: "nope" }),
+      await list.load(
+        { db, clients: { notes, labels, stars: labels } },
+        { sort: "nope" },
+      ),
     ).toMatchObject({ ok: false, error: { kind: "validation" } });
 
     const page = await list.load({ db, clients: {} }, undefined).orThrow();
@@ -198,7 +205,7 @@ describe("defineRecordList", () => {
     });
   });
 
-  it("counts only sections that count, and takes a custom id", async () => {
+  it("counts only bindings that count, and takes a custom id", async () => {
     const counted = defineRecordList(feature, customers, {
       columns: { labels: "count" },
       id: (row) => `x-${row.id}`,
@@ -207,7 +214,7 @@ describe("defineRecordList", () => {
     const { db } = database([{ id: "c1" }]);
 
     const page = await counted
-      .load({ db, clients: { notes, labels } }, undefined)
+      .load({ db, clients: { notes, labels, stars: labels } }, undefined)
       .orThrow();
 
     expect(page.rows[0]?.subject.id).toBe("x-c1");
@@ -226,19 +233,16 @@ describe("defineRecordList", () => {
     };
 
     const sparse = {
-      ...labelsBlock,
-      sections: {
-        ...labelsBlock.sections,
-        stars: { ...labelsBlock.sections.stars, column: () => resolved({}) },
-      },
+      ...starsBlock,
+      record: { ...starsBinding, column: () => resolved({}) },
     };
 
     const page = await defineRecordList(
-      defineRecordFeature({ type: "customer", blocks: { labels: sparse } }),
+      defineRecordType({ type: "customer", blocks: { stars: sparse } }),
       rows,
       { columns: { stars: "data" } },
     )
-      .load({ db: {}, clients: { labels } }, undefined)
+      .load({ db: {}, clients: { stars: labels } }, undefined)
       .orThrow();
 
     expect(page.rows.map((row) => row.subject.id)).toEqual(["7", ""]);
@@ -247,16 +251,20 @@ describe("defineRecordList", () => {
 });
 
 describe("loadTimeline", () => {
-  const source = { blocks: feature.blocks, clients: { notes, labels } };
+  const source = {
+    blocks: feature.blocks,
+    clients: { notes, labels, stars: labels },
+  };
+
   const subject = { type: "customer", id: "c2" } as const;
 
-  it("merges every timeline section, newest first", async () => {
-    expect(timelineSections(feature.blocks)).toEqual(["notes"]);
+  it("merges every timeline binding, newest first", async () => {
+    expect(timelineBindings(feature.blocks)).toEqual(["notes"]);
 
     const timeline = await loadTimeline(source, subject);
 
     expect(
-      timeline.entries.map((entry) => [entry.section, entry.id, entry.actor]),
+      timeline.entries.map((entry) => [entry.binding, entry.id, entry.actor]),
     ).toEqual([
       ["notes", "n2", "u1"],
       ["notes", "n1", undefined],
@@ -267,7 +275,7 @@ describe("loadTimeline", () => {
     ).toHaveLength(1);
   });
 
-  it("skips a hidden or failing section", async () => {
+  it("skips a hidden or failing binding", async () => {
     const hidden = await loadTimeline(source, subject, { can: () => false });
 
     expect(hidden).toEqual({
@@ -283,14 +291,14 @@ describe("loadTimeline", () => {
         clients: { notes: { ...notes, list: broken } },
       },
       subject,
-      { sections: ["notes", "labels"] },
+      { bindings: ["notes", "labels"] },
     );
 
     expect(failing.skipped["notes"]).toMatchObject({ kind: "error" });
     expect(failing.skipped["labels"]).toMatchObject({ kind: "error" });
   });
 
-  it("orders entries at the same time by section and id", async () => {
+  it("orders entries at the same time by binding and id", async () => {
     const same = at("2026-10-03T00:00:00Z");
 
     const twins: Notes = {
@@ -310,17 +318,17 @@ describe("loadTimeline", () => {
     expect(timeline.entries.map((entry) => entry.id)).toEqual(["a", "b"]);
   });
 
-  it("adds nothing for a section without a timeline", async () => {
+  it("adds nothing for a binding without a timeline", async () => {
     const bare = defineBlock({
       name: "bare",
       sql: ["bare"],
       category: "collaboration",
     });
 
-    expect(timelineSections({ bare, ...feature.blocks })).toEqual(["notes"]);
+    expect(timelineBindings({ bare, ...feature.blocks })).toEqual(["notes"]);
 
     const timeline = await loadTimeline(source, subject, {
-      sections: ["labels"],
+      bindings: ["labels"],
     });
 
     expect(timeline).toEqual({ entries: [], skipped: {} });

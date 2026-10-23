@@ -4,7 +4,7 @@ import type { LedgerEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { ledgerEvents } from "./events.ts";
 import { createLedger } from "./ledger.ts";
-import { ledgerSection } from "./section.ts";
+import { ledgerBinding } from "./record-binding.ts";
 
 /** The `ledger` block's manifest (ADR 0029). */
 export const ledgerBlock: BlockOf<
@@ -13,13 +13,13 @@ export const ledgerBlock: BlockOf<
   LedgerEvents,
   Record<never, never>,
   never,
-  { readonly ledger: typeof ledgerSection }
+  typeof ledgerBinding
 > = defineBlock({
   name: "ledger",
   sql: ["ledger"],
   options: {},
   events: ledgerEvents,
   create: createLedger,
-  sections: { ledger: ledgerSection },
+  record: ledgerBinding,
   category: "commerce",
 });

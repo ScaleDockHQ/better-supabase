@@ -5,7 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { createAssets } from "./assets.ts";
 import { assetsEvents } from "./events.ts";
 import { assetsSqlOptions } from "./options.ts";
-import { assetsSection } from "./section.ts";
+import { assetsBinding } from "./record-binding.ts";
 
 /** The `assets` block's manifest (ADR 0029). */
 export const assetsBlock: BlockOf<
@@ -14,13 +14,13 @@ export const assetsBlock: BlockOf<
   AssetsEvents,
   Record<never, never>,
   never,
-  { readonly assets: typeof assetsSection }
+  typeof assetsBinding
 > = defineBlock({
   name: "assets",
   sql: ["assets"],
   options: { assets: assetsSqlOptions },
   events: assetsEvents,
   create: createAssets,
-  sections: { assets: assetsSection },
+  record: assetsBinding,
   category: "work",
 });

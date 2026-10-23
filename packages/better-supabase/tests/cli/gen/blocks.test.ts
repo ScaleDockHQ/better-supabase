@@ -425,7 +425,7 @@ describe("schemaExtensions", () => {
 
     const snapshot = await loadFixtureSnapshot();
 
-    const main = (await renderFiles(config, snapshot, { frameworks: [] })).find(
+    const main = (await renderFiles(config, snapshot, {})).find(
       (file) => file.path === "src/db/generated.ts",
     )?.contents;
 
@@ -441,7 +441,7 @@ describe("schemaExtensions", () => {
     );
 
     const bare = (
-      await renderFiles(config, snapshot, { frameworks: [], extensions: false })
+      await renderFiles(config, snapshot, { extensions: false })
     ).find((file) => file.path === "src/db/generated.ts")?.contents;
 
     expect(bare).toContain(

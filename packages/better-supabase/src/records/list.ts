@@ -1,30 +1,33 @@
 import type { PermissionSet } from "../blocks/permissions/permissions-controller.ts";
-import type { SectionData, SectionResult } from "../blocks/sections.ts";
+import type {
+  RecordBindingData,
+  RecordBindingResult,
+} from "../blocks/record-bindings.ts";
 import type { ValidationIssue } from "../core/errors.ts";
 import type { FilterField } from "../list/filter-query.ts";
 import type { ListParseOptions, ListSearchParams } from "../list/list-query.ts";
 import type { RecordRef } from "../schema/types.ts";
-import type { FeatureBlocks, RecordCan, RecordFeature } from "./feature.ts";
-import type { SectionName, SectionNamed } from "./sections.ts";
+import type { BindingName, BindingOf } from "./bindings.ts";
+import type { RecordTypeBlocks, RecordCan, RecordType } from "./record-type.ts";
 
 import { dbError } from "../core/errors.ts";
 import { AsyncResult, ok } from "../core/result.ts";
-import { recordCan, recordSubject } from "./feature.ts";
-import { findSection } from "./sections.ts";
+import { findBinding } from "./bindings.ts";
+import { recordCan, recordSubject } from "./record-type.ts";
 
 /**
- * How a section fills a list column: `count` is how many rows it has (the
- * section's `count`, one query for the page), `data` its rows (its `column`, or
+ * How a binding fills a list column: `count` is how many rows it has (the
+ * binding's `count`, one query for the page), `data` its rows (its `column`, or
  * one `load` per row in one wave).
  */
 export type RecordListColumn = "count" | "data";
 
-/** The value a section's column holds for one row. */
+/** The value a binding's column holds for one row. */
 export type RecordListCell<
-  B extends FeatureBlocks,
+  B extends RecordTypeBlocks,
   S extends string,
   C extends RecordListColumn,
-> = C extends "count" ? number : SectionData<SectionNamed<B, S>>;
+> = C extends "count" ? number : RecordBindingData<BindingOf<B, S>>;
 
 /**
  * The list query a record list runs: a `defineListQuery` definition, or
@@ -44,28 +47,28 @@ export interface RecordListQuery<
   filterFields(): FilterField[];
 }
 
-/** What `defineRecordList` takes besides the feature and the list query. */
+/** What `defineRecordList` takes besides the record type and the list query. */
 export interface RecordListSpec<
   N extends string,
   Cols extends { readonly [K in N]?: RecordListColumn },
   Row,
 > {
-  /** The sections shown as list columns, and how each one fills its cell. */
+  /** The bindings shown as list columns, and how each one fills its cell. */
   readonly columns?: Cols;
   /** The record id of a row. Default: its `id`. */
   readonly id?: (row: Row) => string;
 }
 
-/** One row of a record list with its section cells. */
+/** One row of a record list with its binding cells. */
 export interface RecordListRow<Row, Cells> {
   readonly subject: RecordRef;
   readonly row: Row;
   readonly cells: Cells;
 }
 
-/** The cells of one row, by section name, each one settled. */
-export type RecordListCells<B extends FeatureBlocks, Cols> = {
-  readonly [S in keyof Cols & string]: SectionResult<
+/** The cells of one row, by binding name, each one settled. */
+export type RecordListCells<B extends RecordTypeBlocks, Cols> = {
+  readonly [S in keyof Cols & string]: RecordBindingResult<
     RecordListCell<B, S, Cols[S] & RecordListColumn>
   >;
 };
@@ -79,7 +82,7 @@ export interface RecordListPage<Q, P, Row, Cells, Can> {
   readonly rows: readonly RecordListRow<Row, Cells>[];
   /** The fields the list's filter tree may name, for ReUI Filters. */
   readonly filterFields: readonly FilterField[];
-  /** What the caller may do on each section, for bulk actions and columns. */
+  /** What the caller may do on each binding, for bulk actions and columns. */
   readonly can: Can;
 }
 
@@ -87,28 +90,28 @@ export interface RecordListPage<Q, P, Row, Cells, Can> {
 export interface RecordListSource {
   /** The repositories the list query runs against (`ctx.db`). */
   readonly db: object;
-  /** The feature's block clients, keyed like its blocks. */
+  /** The record type's block clients, keyed like its blocks. */
   readonly clients: object;
   /**
    * The caller's keys, for the `can` flags and hidden columns. `undefined`
-   * allows every section and leaves RLS to decide.
+   * allows every binding and leaves RLS to decide.
    */
   readonly permissions?: PermissionSet | null;
 }
 
 /**
- * A subject's list page: the list query, the sections shown as columns, and the
- * feature that owns them.
+ * A subject's list page: the list query, the bindings shown as columns, and the
+ * record type that owns them.
  */
 export interface RecordList<
   T extends string,
-  B extends FeatureBlocks,
-  N extends SectionName<B>,
+  B extends RecordTypeBlocks,
+  N extends BindingName<B>,
   Q,
   P extends { readonly items: readonly unknown[] },
   Cols,
 > {
-  readonly feature: RecordFeature<T, B> & { readonly sections: readonly N[] };
+  readonly feature: RecordType<T, B> & { readonly bindings: readonly N[] };
   readonly list: RecordListQuery<Q, P>;
   readonly columns: Cols;
   /**
@@ -132,7 +135,7 @@ export interface RecordList<
 }
 
 /**
- * `subjectKey` from `core/block-subjects.ts`, the key `countSection` and
+ * `subjectKey` from `core/block-subjects.ts`, the key `countBinding` and
  * `column` results use. Inlined so the records entry doesn't load the block
  * helpers.
  */
@@ -186,13 +189,13 @@ function loadEach(
 }
 
 function columnOf(
-  blocks: FeatureBlocks,
+  blocks: RecordTypeBlocks,
   clients: object,
   name: string,
   mode: RecordListColumn,
   subjects: readonly RecordRef[],
 ): Column {
-  const found = findSection(blocks, name);
+  const found = findBinding(blocks, name);
 
   // SAFETY: a read of one key of the built blocks.
   const client = (clients as Readonly<Record<string, unknown>>)[
@@ -201,23 +204,26 @@ function columnOf(
 
   if (found === undefined || client === undefined) {
     return AsyncResult.err(
-      dbError("invalid_request", `Section "${name}" has no block client`),
+      dbError(
+        "invalid_request",
+        `Record binding "${name}" has no block client`,
+      ),
     );
   }
 
   type Many = (client: unknown, subjects: readonly RecordRef[]) => Column;
 
-  // SAFETY: the section's hooks take the client its block's creator made.
-  const count = found.section.count as Many | undefined;
+  // SAFETY: the binding's hooks take the client its block's creator made.
+  const count = found.binding.count as Many | undefined;
   // SAFETY: as for `count`.
-  const column = found.section.column as Many | undefined;
+  const column = found.binding.column as Many | undefined;
   // SAFETY: as for `count`; a column loads each row without options.
-  const load = found.section.load as Load;
+  const load = found.binding.load as Load;
 
   if (mode === "count") {
     return count === undefined
       ? AsyncResult.err(
-          dbError("unsupported", `Section "${name}" can't count rows`),
+          dbError("unsupported", `Record binding "${name}" can't count rows`),
         )
       : count(client, subjects);
   }
@@ -228,14 +234,13 @@ function columnOf(
 }
 
 /**
- * A subject's list page over the sections of its record feature: `load` parses
- * the URL state, runs the list query, and fills each section column for the
- * whole page (a comment count, the tags) in one wave, with the caller's `can`
- * flags.
+ * A subject's list page over the bindings of its record type: `load` parses the
+ * URL state, runs the list query, and fills each binding column for the whole
+ * page (a comment count, the tags) in one wave, with the caller's `can` flags.
  *
  * ```ts
  * export const customerRecordList = defineRecordList(
- *   customerFeature,
+ *   customerRecord,
  *   customerList,
  *   { columns: { comments: "count", tags: "data" } },
  * );
@@ -243,8 +248,8 @@ function columnOf(
  */
 export function defineRecordList<
   T extends string,
-  B extends FeatureBlocks,
-  N extends SectionName<B>,
+  B extends RecordTypeBlocks,
+  N extends BindingName<B>,
   Q,
   P extends { readonly items: readonly unknown[] },
   const Cols extends { readonly [K in N]?: RecordListColumn } = Record<
@@ -252,11 +257,11 @@ export function defineRecordList<
     never
   >,
 >(
-  feature: RecordFeature<T, B> & { readonly sections: readonly N[] },
+  feature: RecordType<T, B> & { readonly bindings: readonly N[] },
   list: RecordListQuery<Q, P>,
   spec: RecordListSpec<N, Cols, P["items"][number]> = {},
 ): RecordList<T, B, N, Q, P, Cols> {
-  // SAFETY: without `columns` the list shows no section, which is `Cols` at its
+  // SAFETY: without `columns` the list shows no binding, which is `Cols` at its
   // default.
   const columns = spec.columns ?? ({} as Cols);
   const idOf = spec.id ?? rowId;
@@ -303,7 +308,7 @@ export function defineRecordList<
                 readonly [
                   string,
                   RecordListColumn,
-                  SectionResult<Readonly<Record<string, unknown>>>,
+                  RecordBindingResult<Readonly<Record<string, unknown>>>,
                 ]
               > => {
                 if (flags[name]?.read === false) {
@@ -332,7 +337,7 @@ export function defineRecordList<
           return AsyncResult.ok({
             query: parsed.value,
             page: rest,
-            // SAFETY: one cell per column, holding the value its section gave
+            // SAFETY: one cell per column, holding the value its binding gave
             // the row, as `RecordListCells` types them.
             rows: listed.map(({ row, subject }) => {
               const key = subjectKey(subject);

@@ -14,6 +14,7 @@ import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
 import { customerAttachments } from "./customer-attachments";
+import { customerPage } from "./customer-record";
 
 const Id = v.pipe(v.string(), v.uuid());
 const SUBJECT = "customer";
@@ -23,6 +24,17 @@ const SUBJECT = "customer";
 export async function retryCustomerRecord(): Promise<void> {
   refresh();
 }
+
+export const linkCustomerRelations = customerPage.actions.relations.link;
+
+export const unlinkCustomerRelations = customerPage.actions.relations.unlink;
+
+export const revokeCustomerShareLinks = customerPage.actions.shareLinks.revoke;
+
+export const removeCustomerAttachments =
+  customerPage.actions.attachments.remove;
+
+export const snapshotCustomerVersions = customerPage.actions.versions.snapshot;
 
 // #region share links
 

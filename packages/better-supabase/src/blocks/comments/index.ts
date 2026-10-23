@@ -1,4 +1,7 @@
-export type { CommentsOptimisticAction, CommentsWrites } from "./section.ts";
+export type {
+  CommentsOptimisticAction,
+  CommentsWrites,
+} from "./record-binding.ts";
 
 export {
   type Comment,
@@ -36,7 +39,7 @@ export type { Author } from "../../core/block-authors.ts";
 
 export { commentsBlock } from "./manifest.ts";
 
-export { commentsOptimistic, commentsSection } from "./section.ts";
+export { commentsOptimistic, commentsBinding } from "./record-binding.ts";
 
 export {
   type CommentDraft,

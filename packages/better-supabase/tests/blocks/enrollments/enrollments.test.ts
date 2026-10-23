@@ -4,7 +4,7 @@ import {
   createEnrollments,
   enrollmentsBlock,
   enrollmentsEvents,
-  enrollmentsSection,
+  enrollmentsBinding,
 } from "../../../src/blocks/enrollments/index.ts";
 
 const AT = "2026-10-22T10:00:00Z";
@@ -293,7 +293,7 @@ describe("createEnrollments", () => {
   });
 });
 
-describe("enrollmentsSection", () => {
+describe("enrollmentsBinding", () => {
   it("loads a record's enrollments", async () => {
     const fake = fakeTransport({ list_enrollments: [ENROLLMENT] });
 
@@ -302,7 +302,7 @@ describe("enrollmentsSection", () => {
       tenant: "org-1",
     });
 
-    const list = await enrollmentsSection
+    const list = await enrollmentsBinding
       .load(enrollments, { type: "party", id: "pa1" }, undefined)
       .orThrow();
 
@@ -311,10 +311,8 @@ describe("enrollmentsSection", () => {
       subject_type: "party",
       subject_id: "pa1",
     });
-    expect(enrollmentsBlock.sections).toEqual({
-      enrollments: enrollmentsSection,
-    });
-    expect(enrollmentsSection.events).toContain("enrollment.completed");
+    expect(enrollmentsBlock.record).toBe(enrollmentsBinding);
+    expect(enrollmentsBinding.events).toContain("enrollment.completed");
     expect(enrollmentsEvents.types).toContain("enrollment_program.deleted");
   });
 });

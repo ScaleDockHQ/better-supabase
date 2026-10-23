@@ -348,4 +348,10 @@ describe("configIssues for a config written before 0.15", () => {
       "$production.doctor: moved to `tooling.doctor` in 0.15; run `better-supabase codemod 0.15`",
     ]);
   });
+
+  it("names gen.recordTypes for generateFeatures", () => {
+    expect(configIssues({ gen: { generateFeatures: false } })).toContain(
+      "gen.generateFeatures: renamed to `gen.recordTypes` in 0.15; run `better-supabase codemod 0.15`",
+    );
+  });
 });

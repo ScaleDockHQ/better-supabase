@@ -64,7 +64,7 @@ export { shipmentsBlock } from "./manifest.ts";
 
 export { shipmentsSqlOptions, type ShipmentsSqlOptions } from "./options.ts";
 
-export { shipmentsSection, type ShipmentsWrites } from "./section.ts";
+export { shipmentsBinding, type ShipmentsWrites } from "./record-binding.ts";
 
 export {
   shipmentInputSchema,

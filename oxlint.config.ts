@@ -32,7 +32,7 @@ export const ignorePatterns: string[] = [
   "**/generated.meta.*",
   "**/generated-*.ts",
   "**/database.types.ts",
-  "**/lib/supabase/features/**",
+  "**/lib/supabase/records/**",
 ];
 
 /**

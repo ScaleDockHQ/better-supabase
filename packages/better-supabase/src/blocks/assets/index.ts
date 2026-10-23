@@ -44,7 +44,7 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { assetsBlock } from "./manifest.ts";
 
-export { assetsSection } from "./section.ts";
+export { assetsBinding } from "./record-binding.ts";
 
 export { assetsEvents } from "./events.ts";
 

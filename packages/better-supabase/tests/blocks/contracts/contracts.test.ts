@@ -5,7 +5,7 @@ import {
   contractChangesSchema,
   contractInputSchema,
   contractsBlock,
-  contractsSection,
+  contractsBinding,
   createContracts,
   obligationInputSchema,
 } from "../../../src/blocks/contracts/index.ts";
@@ -506,7 +506,7 @@ describe("contracts block", () => {
     const t = fieldsTransport({ list_contracts: () => [MINIMAL] });
     const contracts = createContracts({ transport: t });
 
-    const loaded = await contractsSection.load(contracts, PARTY, undefined);
+    const loaded = await contractsBinding.load(contracts, PARTY, undefined);
 
     expect(loaded.ok ? loaded.data.map((row) => row.id) : []).toEqual(["k2"]);
     expect(t.calls[0]?.[1]).toMatchObject({

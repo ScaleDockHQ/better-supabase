@@ -16,7 +16,7 @@ export type { ShareLinksEvents } from "./events.ts";
 
 export {
   shareLinkInput,
-  shareLinksSection,
+  shareLinksBinding,
   type ShareLinkInput,
   type ShareLinksWrites,
-} from "./section.ts";
+} from "./record-binding.ts";

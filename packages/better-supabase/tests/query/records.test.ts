@@ -12,7 +12,10 @@ import {
   invalidateOnRecordEvents,
   recordQueries,
 } from "../../src/query/records.ts";
-import { defineRecordFeature, defineSection } from "../../src/records/index.ts";
+import {
+  defineRecordType,
+  defineRecordBinding,
+} from "../../src/records/index.ts";
 import { failed, resolved } from "../fixtures/ports.ts";
 
 interface Note {
@@ -49,41 +52,39 @@ const notesBlock = defineBlock({
   category: "collaboration",
   create: (): Notes => notesClient(),
   events: { types: ["note.added"] },
-  sections: {
-    notes: defineSection({
-      permissions: { read: "read", write: "create" },
-      events: ["note.*"],
-      load: (client: Notes, subject) => client.list(subject),
-      writes: {
-        add: {
-          input: entitySchema<{ readonly body: string }>({
-            title: "NoteInput",
-            fields: { body: { kind: "string", minLength: 1 } },
-          }),
-          run: (
-            client: Notes,
-            subject: RecordRef,
-            input: { readonly body: string },
-          ) => client.add(subject, input.body),
-        },
+  record: defineRecordBinding({
+    permissions: { read: "read", write: "create" },
+    events: ["note.*"],
+    load: (client: Notes, subject) => client.list(subject),
+    writes: {
+      add: {
+        input: entitySchema<{ readonly body: string }>({
+          title: "NoteInput",
+          fields: { body: { kind: "string", minLength: 1 } },
+        }),
+        run: (
+          client: Notes,
+          subject: RecordRef,
+          input: { readonly body: string },
+        ) => client.add(subject, input.body),
       },
-    }),
-  },
+    },
+  }),
 });
 
-const feature = defineRecordFeature({
+const feature = defineRecordType({
   type: "customer",
   blocks: { notes: notesBlock },
   permissions: { notes: { read: "notes.read", create: "notes.create" } },
 });
 
 describe("recordQueries", () => {
-  it("makes query options per section, keyed by type, id and section", async () => {
+  it("makes query options per binding, keyed by type, id and binding", async () => {
     const notes = notesClient();
     const queries = recordQueries(feature, { notes });
     const queryClient = new QueryClient();
 
-    const options = queries.sections.notes("c1");
+    const options = queries.bindings.notes("c1");
     expect(options.queryKey).toEqual(["bsb-record", "customer", "c1", "notes"]);
     await expect(queryClient.query(options)).resolves.toEqual([
       { id: "n1", body: "First" },
@@ -95,23 +96,23 @@ describe("recordQueries", () => {
       "c1",
       "notes",
     ]);
-    expect(queries.sections.notes(skipToken).queryFn).toBe(skipToken);
+    expect(queries.bindings.notes(skipToken).queryFn).toBe(skipToken);
     expectTypeOf(options.queryKey).not.toBeAny();
   });
 
-  it("throws a DbException when a section fails", async () => {
+  it("throws a DbException when a binding fails", async () => {
     const queries = recordQueries(feature, { notes: notesClient() });
 
     await expect(
-      new QueryClient().query(queries.sections.notes("bad")),
+      new QueryClient().query(queries.bindings.notes("bad")),
     ).rejects.toMatchObject({ error: { message: "No notes" } });
   });
 
-  it("runs a write and makes the section stale", async () => {
+  it("runs a write and makes the binding stale", async () => {
     const notes = notesClient();
     const queries = recordQueries(feature, { notes });
     const queryClient = new QueryClient();
-    await queryClient.query(queries.sections.notes("c1"));
+    await queryClient.query(queries.bindings.notes("c1"));
 
     const mutation = queries.writes.notes.add("c1");
     const row = await mutation.mutationFn({ body: "Second" });
@@ -157,7 +158,7 @@ describe("recordQueries options", () => {
       { scope: "org", staleTime: 1000 },
     );
 
-    const options = queries.sections.notes("c1", { pageSize: 5 } as never);
+    const options = queries.bindings.notes("c1", { pageSize: 5 } as never);
     expect(options.queryKey).toEqual([
       "bsb-record",
       "customer",
@@ -191,11 +192,11 @@ describe("recordQueries options", () => {
 });
 
 describe("invalidateOnRecordEvents", () => {
-  it("makes the matching section of every record stale", async () => {
+  it("makes the matching binding of every record stale", async () => {
     const queries = recordQueries(feature, { notes: notesClient() });
     const queryClient = new QueryClient();
     const events = new EventHub();
-    await queryClient.query(queries.sections.notes("c1"));
+    await queryClient.query(queries.bindings.notes("c1"));
 
     const stop = invalidateOnRecordEvents(queryClient, { events }, feature);
     emitBlockEvent(events, "note.added", {});
@@ -208,7 +209,7 @@ describe("invalidateOnRecordEvents", () => {
     });
   });
 
-  it("ignores events no section lists", () => {
+  it("ignores events no binding lists", () => {
     const queryClient = new QueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const events = new EventHub();

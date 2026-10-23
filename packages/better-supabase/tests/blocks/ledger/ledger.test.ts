@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createLedger, ledgerMoney } from "../../../src/blocks/ledger/index.ts";
-import { ledgerSection } from "../../../src/blocks/ledger/section.ts";
+import { ledgerBinding } from "../../../src/blocks/ledger/record-binding.ts";
 import { money } from "../../../src/commerce/money.ts";
 
 const AT = "2026-10-22T10:00:00Z";
@@ -588,7 +588,7 @@ describe("createLedger", () => {
     const fake = fakeTransport({ list_ledger_accounts: [ACCOUNT] });
     const ledger = createLedger({ transport: fake.transport });
 
-    const accounts = await ledgerSection
+    const accounts = await ledgerBinding
       .load(ledger, { type: "party", id: "p1" }, undefined)
       .orThrow();
 

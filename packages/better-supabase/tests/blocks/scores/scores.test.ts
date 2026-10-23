@@ -6,7 +6,7 @@ import {
   createScores,
   scoresBlock,
   scoresEvents,
-  scoresSection,
+  scoresBinding,
 } from "../../../src/blocks/scores/index.ts";
 
 const AT = "2026-10-22T10:00:00Z";
@@ -397,18 +397,18 @@ describe("createScores", () => {
   });
 });
 
-describe("scoresSection", () => {
+describe("scoresBinding", () => {
   it("loads a record's current scores", async () => {
     const fake = fakeTransport({ subject_scores: [SCORE] });
     const scores = createScores({ transport: fake.transport, tenant: "org-1" });
 
-    const rows = await scoresSection
+    const rows = await scoresBinding
       .load(scores, { type: "lead", id: "l1" }, undefined)
       .orThrow();
 
     expect(rows).toHaveLength(1);
-    expect(scoresBlock.sections).toEqual({ scores: scoresSection });
-    expect(scoresSection.events).toEqual(["score.changed"]);
+    expect(scoresBlock.record).toBe(scoresBinding);
+    expect(scoresBinding.events).toEqual(["score.changed"]);
     expect(scoresEvents.types).toContain("score.changed");
   });
 });

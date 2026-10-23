@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  invalidateSection,
+  invalidateBinding,
   recordTag,
-  sectionTag,
+  bindingTag,
 } from "../../src/next/records.ts";
 
 const mocks = vi.hoisted(() => ({
@@ -33,13 +33,13 @@ describe("record cache tags", () => {
     expect(recordTag(customer, { tenant: "org1" })).toBe(
       "bsb:record@org1:customer:42",
     );
-    expect(sectionTag(customer, "comments", { tenant: "org1" })).toBe(
+    expect(bindingTag(customer, "comments", { tenant: "org1" })).toBe(
       "bsb:record@org1:customer:42#comments",
     );
   });
 
   it("invalidates the section and the record with updateTag in an action", () => {
-    invalidateSection(customer, "tags", { tenant: "org1" });
+    invalidateBinding(customer, "tags", { tenant: "org1" });
 
     expect(mocks.updateTag.mock.calls).toEqual([
       ["bsb:record@org1:customer:42#tags"],
@@ -52,7 +52,7 @@ describe("record cache tags", () => {
       throw new Error("not in an action");
     });
 
-    invalidateSection(customer, "tags", { revalidate: "max" });
+    invalidateBinding(customer, "tags", { revalidate: "max" });
 
     expect(mocks.revalidateTag.mock.calls).toEqual([
       ["bsb:record:customer:42#tags", "max"],

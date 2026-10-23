@@ -34,7 +34,7 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { moderationBlock } from "./manifest.ts";
 
-export { moderationSection } from "./section.ts";
+export { moderationBinding } from "./record-binding.ts";
 
 export { moderationEvents } from "./events.ts";
 

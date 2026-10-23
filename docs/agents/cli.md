@@ -53,17 +53,18 @@ has to keep.
 - Text meant to be copied (`next` commands, docs, skills, file headers) says
   `better-supabase`, never `bsb`.
 
-## Generated features
+## Generated record types
 
-`gen` writes `features/<subject>/` next to the main module
-(`src/cli/gen/features.ts`) when `generateFeatures` is on and a section
-block is installed. The framework list comes from `detectProject`, so a test
-passes `frameworks` to `render` instead of writing a `package.json`. The
-files are ignored by oxlint and oxfmt (`**/lib/supabase/features/**`), so
+`gen` writes `records/<type>.ts` next to the main module
+(`src/cli/gen/records.ts`) when `gen.recordTypes` is on and a block with a
+`record` binding is installed. The files are framework-neutral: the app
+passes the record type to `bsb.record`, `createRecordProvider` or
+`recordQueries`. They are ignored by oxlint and oxfmt
+(`**/lib/supabase/records/**`), so
 keep them valid without the formatter: no `object` parameters and no aliased
 methods, which the examples' typecheck catches. After a change, run
 `pnpm build` in the package and `pnpm exec better-supabase gen` in
-`apps/examples/nextjs`, the one example with section blocks.
+`apps/examples/nextjs`, the one example with record binding blocks.
 
 ## Docs
 

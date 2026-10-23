@@ -30,11 +30,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SubjectLink } from "@/features/subjects/components/subject-link";
 import {
   linkCustomerRelations,
   unlinkCustomerRelations,
-} from "@/lib/supabase/features/customer/customer-actions";
+} from "@/features/customers/customer-record-actions";
+import { SubjectLink } from "@/features/subjects/components/subject-link";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {

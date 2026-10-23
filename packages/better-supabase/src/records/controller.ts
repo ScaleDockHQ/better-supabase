@@ -1,5 +1,5 @@
 import type { AuthPort, Controller } from "../blocks/controller.ts";
-import type { SectionResult } from "../blocks/sections.ts";
+import type { RecordBindingResult } from "../blocks/record-bindings.ts";
 import type {
   RecordSummary,
   RecordSummaryOptions,
@@ -10,45 +10,45 @@ import type { SubscriptionStatus } from "../realtime/index.ts";
 import type { TopicPort } from "../realtime/watch-topic.ts";
 import type { RecordRef } from "../schema/types.ts";
 import type {
-  LoadedSections,
-  LoadSectionsOptions,
-  SectionBlocks,
-  SectionName,
-  SectionSource,
-} from "./sections.ts";
+  LoadedBindings,
+  LoadBindingsOptions,
+  BindingBlocks,
+  BindingName,
+  BindingSource,
+} from "./bindings.ts";
 
 import { defineController, whileSignedIn } from "../blocks/controller.ts";
-import { sectionEventMatches } from "../blocks/sections.ts";
-import { findSection, loadSections } from "./sections.ts";
+import { recordEventMatches } from "../blocks/record-bindings.ts";
+import { findBinding, loadBindings } from "./bindings.ts";
 
 export interface RecordControllerOptions<
-  B extends SectionBlocks,
-  N extends SectionName<B>,
-> extends LoadSectionsOptions<B, N> {
-  readonly source: SectionSource<B>;
+  B extends BindingBlocks,
+  N extends BindingName<B>,
+> extends LoadBindingsOptions<B, N> {
+  readonly source: BindingSource<B>;
   readonly auth: AuthPort;
   readonly ports: { readonly topic: TopicPort };
   /** The record to follow; nothing loads without one. */
   readonly subject: RecordRef | null;
-  readonly sections: readonly N[];
+  readonly bindings: readonly N[];
   /**
    * The one private topic that hears of changes to the record, such as a
-   * broadcast of its block events. A message whose event a section lists in
-   * `events` loads that section again; any other message loads every section.
-   * Default `null`: sections load again on `refresh` only.
+   * broadcast of its block events. A message whose event a binding lists in
+   * `events` loads that binding again; any other message loads every binding.
+   * Default `null`: bindings load again on `refresh` only.
    */
   readonly topic?: string | null;
   /**
    * The subjects client, to load `record_summary` (title, counts, unread) next
-   * to the sections.
+   * to the bindings.
    */
   readonly summary?: Pick<Subjects, "summary">;
   readonly summaryOptions?: RecordSummaryOptions;
 }
 
-export interface RecordSnapshot<B extends SectionBlocks, N extends string> {
-  /** Each section settled; `undefined` until the first load. */
-  readonly sections: Partial<LoadedSections<B, N>> | undefined;
+export interface RecordSnapshot<B extends BindingBlocks, N extends string> {
+  /** Each binding settled; `undefined` until the first load. */
+  readonly bindings: Partial<LoadedBindings<B, N>> | undefined;
   /** The record's title, counts and unread state, with `summary`. */
   readonly summary: RecordSummary | undefined;
   readonly status: SubscriptionStatus;
@@ -57,30 +57,30 @@ export interface RecordSnapshot<B extends SectionBlocks, N extends string> {
 }
 
 export interface RecordActions<N extends string> {
-  /** Loads the named sections again, or every section and the summary. */
+  /** Loads the named bindings again, or every binding and the summary. */
   readonly refresh: (names?: readonly N[]) => Promise<void>;
 }
 
 export type RecordController<
-  B extends SectionBlocks,
+  B extends BindingBlocks,
   N extends string,
 > = Controller<RecordSnapshot<B, N>, RecordActions<N>>;
 
 /**
- * One record page's sections for the signed-in user over one realtime
- * subscription (ADR 0030): it loads them with `loadSections`, and loads a
- * section again when `topic` carries one of its events.
+ * One record page's bindings for the signed-in user over one realtime
+ * subscription (ADR 0030): it loads them with `loadBindings`, and loads a
+ * binding again when `topic` carries one of its events.
  */
 export function createRecordController<
-  B extends SectionBlocks,
-  const N extends SectionName<B>,
+  B extends BindingBlocks,
+  const N extends BindingName<B>,
 >(options: RecordControllerOptions<B, N>): RecordController<B, N> {
-  const { source, subject, sections } = options;
+  const { source, subject, bindings } = options;
   const topic = options.topic ?? null;
 
   return defineController<RecordSnapshot<B, N>, RecordActions<N>>(
     {
-      sections: undefined,
+      bindings: undefined,
       summary: undefined,
       status: "closed",
       error: undefined,
@@ -98,7 +98,7 @@ export function createRecordController<
 
         const result = await options.summary.summary(
           subject,
-          sections,
+          bindings,
           options.summaryOptions,
         );
 
@@ -127,8 +127,8 @@ export function createRecordController<
           }),
         );
 
-        const loaded: Readonly<Record<string, SectionResult<unknown>>> =
-          await loadSections(source, subject, names, options);
+        const loaded: Readonly<Record<string, RecordBindingResult<unknown>>> =
+          await loadBindings(source, subject, names, options);
 
         const current = names.filter(
           (name) => tickets.get(name) === mine.get(name),
@@ -139,9 +139,9 @@ export function createRecordController<
         }
 
         state.set((snapshot) => ({
-          // SAFETY: each entry is the settled result of the section it names.
-          sections: {
-            ...snapshot.sections,
+          // SAFETY: each entry is the settled result of the binding it names.
+          bindings: {
+            ...snapshot.bindings,
             ...Object.fromEntries(current.map((name) => [name, loaded[name]])),
           },
         }));
@@ -149,18 +149,18 @@ export function createRecordController<
 
       const refresh = async (names?: readonly N[]): Promise<void> => {
         await (names === undefined
-          ? Promise.all([loadNamed(sections), loadSummary()])
+          ? Promise.all([loadNamed(bindings), loadSummary()])
           : loadNamed(names));
       };
 
       const stale = (event: string): readonly N[] => {
-        const matching = sections.filter((name) =>
-          (findSection(source.blocks, name)?.section.events ?? []).some(
-            (pattern) => sectionEventMatches(pattern, event),
+        const matching = bindings.filter((name) =>
+          (findBinding(source.blocks, name)?.binding.events ?? []).some(
+            (pattern) => recordEventMatches(pattern, event),
           ),
         );
 
-        return matching.length === 0 ? sections : matching;
+        return matching.length === 0 ? bindings : matching;
       };
 
       return {

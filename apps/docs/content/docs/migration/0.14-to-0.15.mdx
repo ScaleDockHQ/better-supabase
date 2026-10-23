@@ -371,3 +371,38 @@ meta is `{ bsTables: [instance] }` instead of `bsBlock`. One matcher,
 `invalidateTables`, makes table and instance queries stale, and it takes the
 methods to narrow to. The 0.15 codemod rewrites `"bs-block"` literals and
 lists `bsBlock` reads for review.
+
+## Record sections become record bindings
+
+A block has one `record` binding instead of a `sections` map, and the binding
+takes the block's key in your config, so a second instance gets its own
+binding. `gen` writes one framework-neutral file per record type,
+`records/<type>.ts` with `<type>Record`, instead of the `features/<subject>/`
+folder, and no longer writes `navigation.generated.ts` or
+`commands.generated.ts`. `gen.generateFeatures` is now `gen.recordTypes`.
+
+```ts title="src/features/customers/customer-record.ts"
+// Before
+import { customerRecord } from "@/lib/supabase/features/customer/customer-server";
+export const removeAttachment = bsb.sectionAction(/* ... */);
+// After
+import { customerRecord } from "@/lib/supabase/records/customer";
+export const customerPage = bsb.record(customerRecord);
+export const removeCustomerAttachments =
+  customerPage.actions.attachments.remove;
+```
+
+`recordServer` and `bsb.sectionAction` are gone: `bsb.record(type)` returns
+`load`, `timeline`, `actions` and `tags`. `load` takes `bindings` instead of
+`sections`, its view and the controller snapshot hold `bindings`, and a
+timeline entry names its `binding`. Build the client provider with
+`createRecordProvider(customerRecord)`, and pass the record type to
+`recordQueries`, whose factories live under `bindings`.
+
+`better-supabase codemod 0.15` renames `generateFeatures`, the section
+exports (`defineSection` to `defineRecordBinding`, `commentsSection` to
+`commentsBinding`, `loadSections` to `loadBindings`, `sectionTag` to
+`bindingTag`, `testSection` to `testRecordBinding` and the rest), and lists
+the feature imports, `recordServer` and `sectionAction` calls for review. A
+config that still sets `generateFeatures` fails with the key to use. See
+[Record bindings](/docs/blocks/records).

@@ -1,0 +1,75 @@
+import type { EntitySchema } from "../entity-schema.ts";
+import type {
+  RecordBinding,
+  RecordRowInput,
+  RecordBindingWrite,
+} from "../record-bindings.ts";
+import type {
+  RestoreResult,
+  SnapshotResult,
+  Version,
+  VersionListOptions,
+  Versions,
+} from "./versions.ts";
+
+import { entitySchema } from "../entity-schema.ts";
+import { defineRecordBinding, recordRowInput } from "../record-bindings.ts";
+
+/** What recording a version from a record page takes. */
+export interface VersionInput {
+  readonly label?: string;
+}
+
+/** The input schema of the versions binding's `snapshot`. */
+export const versionInput: EntitySchema<VersionInput> =
+  entitySchema<VersionInput>({
+    title: "VersionInput",
+    fields: { label: { kind: "string", optional: true, minLength: 1 } },
+  });
+
+/** The writes of the versions binding. */
+export type VersionsWrites = {
+  /** Records a version of the record from its configured columns. */
+  readonly snapshot: RecordBindingWrite<Versions, VersionInput, SnapshotResult>;
+  /** Restores the record to one of its versions. */
+  readonly restore: RecordBindingWrite<Versions, RecordRowInput, RestoreResult>;
+};
+
+/** A record's versions, newest first, without content. */
+export const versionsBinding: RecordBinding<
+  Versions,
+  readonly Version[],
+  VersionListOptions,
+  never,
+  VersionsWrites
+> = defineRecordBinding({
+  permissions: { read: "read", write: "create" },
+  module: "versions",
+  load: (client: Versions, subject, options?: VersionListOptions) =>
+    client.list(subject, options),
+  timeline: (versions) =>
+    versions.map((version) => ({
+      id: version.id,
+      kind: "version",
+      at: version.createdAt,
+      ...(version.createdBy === undefined ? {} : { actor: version.createdBy }),
+      row: version,
+    })),
+  events: ["version.*"],
+  writes: {
+    snapshot: {
+      input: versionInput,
+      run: (client: Versions, subject, input: VersionInput) =>
+        client.snapshot(
+          subject,
+          input.label === undefined ? {} : { label: input.label },
+        ),
+    },
+    restore: {
+      permission: "restore",
+      input: recordRowInput,
+      run: (client: Versions, _subject, { id }: RecordRowInput) =>
+        client.restore(id),
+    },
+  },
+});

@@ -184,12 +184,12 @@ export function useErrorMessage() {
 
 ## Record pages
 
-`createRecordProvider(feature)` returns a `RecordProvider` and a `useRecord`
-hook for one [record feature](/docs/blocks/records#generated-features). The
+`createRecordProvider(customerRecord)` returns a `RecordProvider` and a
+`useRecord` hook for one
+[generated record type](/docs/blocks/records#generated-record-types). The
 provider takes the record's `id`, the `initial` view the server loaded, the
 `writes` (Server Actions) and a realtime `topic`; `useRecord()` returns
-`{ state, actions, meta }`. `gen` writes the provider for each subject, so
-you rarely call it yourself.
+`{ state, actions, meta }`.
 
 ## Server session
 
