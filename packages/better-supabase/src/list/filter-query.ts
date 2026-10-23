@@ -325,6 +325,89 @@ export function filterFieldsOf(
   });
 }
 
+const TEXT_TYPES = new Set([
+  "text",
+  "varchar",
+  "citext",
+  "bpchar",
+  "char",
+  "name",
+]);
+
+const JSON_TYPES = new Set(["json", "jsonb"]);
+
+function columnFilterType(column: ColumnMeta): FilterFieldType | undefined {
+  if (column.array === true) {
+    return "multiselect";
+  }
+
+  if (JSON_TYPES.has(column.type)) {
+    return undefined;
+  }
+
+  if (column.type === "bool") {
+    return "boolean";
+  }
+
+  if (NUMBER_TYPES.has(column.type)) {
+    return "number";
+  }
+
+  if (DATE_TYPES.has(column.type)) {
+    return "date";
+  }
+
+  return column.enum === undefined && TEXT_TYPES.has(column.type)
+    ? "text"
+    : "select";
+}
+
+const tableFields = new WeakMap<TableMeta, readonly FilterFieldInfo[]>();
+
+/**
+ * One filter field per column a filter tree can name in a `where`: text,
+ * number, date, boolean, enum (`select`) and array (`multiselect`) columns,
+ * keyed by the column's model key. JSON columns are left out.
+ */
+export function tableFilterFields(
+  table: TableMeta,
+): readonly FilterFieldInfo[] {
+  const cached = tableFields.get(table);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const filters: Record<string, ListFilterConfig> = {};
+
+  for (const [key, column] of Object.entries(table.columns)) {
+    const type = columnFilterType(column);
+
+    if (type !== undefined) {
+      filters[key] = { type };
+    }
+  }
+
+  const fields = filterFieldsOf(table, filters);
+  tableFields.set(table, fields);
+
+  return fields;
+}
+
+/**
+ * A filter tree, as a `where` may be: a root group with a combinator and its
+ * rules.
+ */
+export function isFilterQuery(value: unknown): value is FilterQuery {
+  return (
+    isRecord(value) &&
+    value["type"] === "group" &&
+    (value["combinator"] === "and" || value["combinator"] === "or") &&
+    typeof value["id"] === "string" &&
+    Array.isArray(value["rules"])
+  );
+}
+
 export interface FilterLimits {
   readonly maxDepth: number;
   readonly maxRules: number;

@@ -47,6 +47,27 @@ const REMOVED_NAMES: readonly { pattern: RegExp; replacement: string }[] = [
     replacement:
       "the block's React hooks from the registry (`npx shadcn add @better-supabase/use-<block>`), or `useBlockController(create<Block>Controller, options)` from `better-supabase/vue`, `/svelte` or `/solid`",
   },
+  {
+    pattern: /["']better-supabase\/powersync\/react["']|\buseWatch\b/,
+    replacement:
+      "`engine: powersyncEngine(database, { connector })` on the client and the generated data hooks; `useSyncStatus()` and `useConflicts()` come from `better-supabase/react`",
+  },
+  {
+    pattern: /\bsqliteTables\b/,
+    replacement:
+      "`powersyncEngine(database)`, which refreshes the hooks that read a changed table",
+  },
+  {
+    pattern: /["']better-supabase\/expo-sqlite["']|\bexpoSqliteExecutor\b/,
+    replacement:
+      "`sqliteEngine(expoSqliteDatabase(db))` from `better-supabase/sqlite`, passed as the client's `engine`",
+  },
+  {
+    pattern:
+      /["']better-supabase\/tanstack-db\/supabase["']|\bsupabaseCollection\b/,
+    replacement:
+      "`collectionOptions` from `better-supabase/tanstack-db`, with `tanstackDbEngine({ collections })` and `live: realtimeChanges(...)` for Realtime",
+  },
 ];
 
 function lineAt(text: string, index: number): number {

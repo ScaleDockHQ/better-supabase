@@ -14,9 +14,11 @@ export type {
   SqliteContextLike,
 } from "./executor.ts";
 
-export { sqliteTables, watch } from "./watch.ts";
+export { powersyncEngine } from "./engine.ts";
 
-export type { WatchOptions } from "./watch.ts";
+export type { PowerSyncEngineOptions } from "./engine.ts";
+
+export type { SyncStatusLike } from "./sync.ts";
 
 export {
   compileSqlite,

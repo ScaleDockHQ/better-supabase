@@ -57,6 +57,19 @@ export type {
   UploadPort,
 } from "./ports.ts";
 
+export { liveEngine, memoryEngine } from "../bindings/data-engine.ts";
+
+export type {
+  DataChanges,
+  DataEngine,
+  DataEngineOptions,
+  DataEntry,
+  DataSync,
+  DataSyncState,
+  LiveEngineOptions,
+  LocalTablesOption,
+} from "../bindings/data-engine.ts";
+
 export { defineController, whileSignedIn } from "../blocks/controller.ts";
 
 export type {
@@ -124,8 +137,9 @@ export interface ClientOptions {
    */
   readonly organization?: BindClientOptions["organization"];
   /**
-   * Where the data hooks cache their reads: `queryEngine(queryClient)` from
-   * `better-supabase/query`, or one in memory by default.
+   * Where the data hooks keep their reads: `queryEngine(queryClient)` from
+   * `better-supabase/query`, an engine over a local database, or one in memory
+   * by default.
    */
   readonly engine?: BindClientOptions["engine"];
 }

@@ -17,8 +17,6 @@ import {
   fromSqliteError,
   postgrestTimestamp,
   powersyncExecutor,
-  sqliteTables,
-  watch,
 } from "../../src/powersync/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { testExecutor } from "../../src/testing/kits/executor.ts";
@@ -683,11 +681,6 @@ describe("lists on SQLite", () => {
   });
 });
 
-const tick = (): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
-
 /** A server stand-in that records what reaches it. */
 function serverStub(rows: readonly Record<string, unknown>[] = []) {
   const ops: string[] = [];
@@ -797,160 +790,6 @@ describe("powersyncExecutor with a fallback", () => {
     });
 
     expect(result.error).toMatchObject({ kind: "network" });
-  });
-
-  it("reruns a fallback read in watch only when a watched local table changes", async () => {
-    const { db, client, server } = withFallback([{ id: "c1", locations: [] }]);
-
-    const stop = watch(
-      db,
-      () =>
-        client.customers.list({
-          where: { name: { search: "acme" } },
-          include: { locations: true },
-        }),
-      {
-        tables: sqliteTables(betterSupabase, ["customers"]),
-        onResult: () => undefined,
-        structuralSharing: false,
-      },
-    );
-
-    await tick();
-    expect(server.ops).toHaveLength(1);
-    await client.customers.create({ organizationId: ORG, name: "Local" });
-    await tick();
-    expect(server.ops).toHaveLength(2);
-    stop();
-  });
-});
-
-describe("watch", () => {
-  it("reruns the query when a watched table changes", async () => {
-    const { db, client } = setup();
-    const results: number[] = [];
-
-    const stop = watch(db, () => client.tags.count(), {
-      tables: sqliteTables(betterSupabase, ["tags"]),
-      onResult: (result) => {
-        if (result.ok) {
-          results.push(result.data);
-        }
-      },
-    });
-
-    await tick();
-    await client.tags.create({ organizationId: ORG, name: "a" });
-    await client.customers.create({ organizationId: ORG, name: "A" });
-    await tick();
-    stop();
-    await client.tags.create({ organizationId: ORG, name: "b" });
-    await tick();
-    expect(results).toEqual([0, 1]);
-  });
-
-  it("keeps unchanged rows' identity and skips results that changed nothing", async () => {
-    const { db, client } = setup();
-    await client.tags.create({ organizationId: ORG, name: "a" });
-    const results: (readonly { readonly name: string }[])[] = [];
-    let rerun: (() => void) | undefined;
-    const onChange = db.onChange!.bind(db);
-    vi.spyOn(db, "onChange").mockImplementation((handler, options) => {
-      rerun = () => void handler.onChange({ changedTables: ["tags"] });
-
-      return onChange(handler, options);
-    });
-
-    const stop = watch(
-      db,
-      () => client.tags.list({ orderBy: { name: "asc" } }),
-      {
-        tables: sqliteTables(betterSupabase, ["tags"]),
-        onResult: (result) => {
-          if (result.ok) {
-            results.push(result.data);
-          }
-        },
-      },
-    );
-
-    await tick();
-    rerun?.();
-    await tick();
-    expect(results).toHaveLength(1);
-    await client.tags.create({ organizationId: ORG, name: "b" });
-    await tick();
-    stop();
-    expect(results).toHaveLength(2);
-    expect(results[1]?.[0]).toBe(results[0]?.[0]);
-    expect(results[1]?.[1]?.name).toBe("b");
-  });
-
-  it("returns new objects every run without structural sharing", async () => {
-    const { db, client } = setup();
-    await client.tags.create({ organizationId: ORG, name: "a" });
-    const results: unknown[] = [];
-
-    const stop = watch(db, () => client.tags.list(), {
-      tables: sqliteTables(betterSupabase, ["tags"]),
-      structuralSharing: false,
-      onResult: (result) => results.push(result.data),
-    });
-
-    await tick();
-    await client.tags.create({ organizationId: ORG, name: "b" });
-    await tick();
-    stop();
-    expect(results).toHaveLength(2);
-    expect((results[1] as unknown[])[0]).not.toBe((results[0] as unknown[])[0]);
-  });
-
-  it("never starts with an aborted signal and detaches from it on stop", async () => {
-    const { db } = setup();
-
-    const query = vi.fn(() =>
-      Promise.resolve({ ok: true as const, data: 1, error: null }),
-    );
-
-    const onResult = vi.fn();
-    const onChange = vi.spyOn(db, "onChange");
-
-    const stop = watch(db, query, {
-      tables: [],
-      onResult,
-      signal: AbortSignal.abort(),
-    });
-
-    await tick();
-    expect(query).not.toHaveBeenCalled();
-    expect(onChange).not.toHaveBeenCalled();
-    stop();
-
-    const controller = new AbortController();
-    const remove = vi.spyOn(controller.signal, "removeEventListener");
-    watch(db, query, { tables: [], onResult, signal: controller.signal })();
-    expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
-  });
-
-  it("names tables the way the executor's tableName does", () => {
-    expect(
-      sqliteTables(betterSupabase, ["customerTags"], {
-        tableName: (table) => `local_${table.name}`,
-      }),
-    ).toEqual(["local_customer_tags"]);
-  });
-
-  it("needs onChange and known tables", () => {
-    const { db } = setup();
-    const plain: PowerSyncDatabaseLike = { ...db };
-    delete plain.onChange;
-    expect(() =>
-      watch(plain, () => Promise.resolve({ ok: true, data: 1, error: null }), {
-        tables: [],
-        onResult: () => {},
-      }),
-    ).toThrow(/onChange/);
-    expect(() => sqliteTables(betterSupabase, ["nope"])).toThrow(/nope/);
   });
 });
 

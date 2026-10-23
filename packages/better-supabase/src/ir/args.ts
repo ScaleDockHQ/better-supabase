@@ -1,3 +1,4 @@
+import type { FilterQuery } from "../list/filter-query.ts";
 import type {
   AnyModels,
   Relations,
@@ -153,6 +154,15 @@ export type WhereInput<M extends AnyModels, T extends keyof M> = {
   readonly OR?: readonly WhereInput<M, T>[];
   readonly NOT?: WhereInput<M, T>;
 };
+
+/**
+ * What a read's `where` takes: the object form, or a filter tree from ReUI's
+ * Filters (`FilterQuery` from `better-supabase/list`), checked against the
+ * table's columns.
+ */
+export type WhereArg<M extends AnyModels, T extends keyof M> =
+  | WhereInput<M, T>
+  | FilterQuery;
 
 /**
  * A `where` you build one statement at a time: `const where:
@@ -329,7 +339,7 @@ export interface ListArgs<
   M extends AnyModels,
   T extends keyof M,
 > extends ReadArgs<M, T> {
-  readonly where?: WhereInput<M, T>;
+  readonly where?: WhereArg<M, T>;
   readonly orderBy?: OrderByArg<M, T>;
   readonly limit?: number;
   readonly offset?: number;
@@ -348,7 +358,7 @@ export interface CountArgs<
   M extends AnyModels,
   T extends keyof M,
 > extends RequestArgs {
-  readonly where?: WhereInput<M, T>;
+  readonly where?: WhereArg<M, T>;
   readonly mode?: "exact" | "planned" | "estimated";
 }
 
@@ -356,7 +366,7 @@ export interface AggregateArgs<
   M extends AnyModels,
   T extends keyof M,
 > extends RequestArgs {
-  readonly where?: WhereInput<M, T>;
+  readonly where?: WhereArg<M, T>;
   /** One result per distinct combination; without it, one result. */
   readonly groupBy?: SelectArg<M, T>;
   /** The number of rows (per group). */

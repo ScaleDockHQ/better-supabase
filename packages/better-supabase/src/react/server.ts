@@ -42,6 +42,10 @@ import type {
   useSignedUrl as clientUseSignedUrl,
   useUpload as clientUseUpload,
 } from "./storage.ts";
+import type {
+  useConflicts as clientUseConflicts,
+  useSyncStatus as clientUseSyncStatus,
+} from "./sync.ts";
 
 export {
   BetterSupabaseProvider,
@@ -253,6 +257,20 @@ export const useImage: typeof clientUseImage = clientOnly("useImage");
 
 /** The `react-server` build of `useUpload`: upload from a Client Component. */
 export const useUpload: typeof clientUseUpload = clientOnly("useUpload");
+
+/**
+ * The `react-server` build of `useSyncStatus`: the local database syncs in the
+ * client.
+ */
+export const useSyncStatus: typeof clientUseSyncStatus =
+  clientOnly("useSyncStatus");
+
+/**
+ * The `react-server` build of `useConflicts`: refused changes live in the
+ * client.
+ */
+export const useConflicts: typeof clientUseConflicts =
+  clientOnly("useConflicts");
 
 /**
  * The `react-server` build of `createHooks`: importing a module that creates

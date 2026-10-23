@@ -1,19 +1,17 @@
-import { useConflicts, useWatch } from "better-supabase/powersync/react";
-import { useDebouncedSearch } from "better-supabase/react";
+import { useConflicts, useDebouncedSearch } from "better-supabase/react";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Button, Text, TextInput, View } from "react-native";
 
-import { connector } from "../lib/powersync/connector";
-import { customerTables, local, powersync } from "../lib/powersync/database";
+import { useCustomerPage } from "../lib/customer-page";
 import { signOut } from "../lib/push";
-import { customerColumns, customerList } from "../lists";
+import { customerList } from "../lists";
 import { CustomerRows } from "./customer-rows";
 import { UnreadBadge } from "./unread-badge";
 
 /**
- * IOS and Android: the same list over the synced SQLite database, rerun on
- * every change.
+ * IOS and Android: the same list over the synced SQLite database, read again
+ * when a synced or local change touches `customers`.
  */
 export function CustomerList() {
   const search = useDebouncedSearch();
@@ -24,14 +22,8 @@ export function CustomerList() {
       ? { ...customerList.defaults, page }
       : { ...customerList.defaults, q: search.term, page };
 
-  const list = useWatch({
-    db: powersync,
-    query: () => customerList.run(local, query, { select: customerColumns }),
-    tables: customerTables,
-    deps: [search.term, page],
-  });
-
-  const conflicts = useConflicts(connector);
+  const list = useCustomerPage(query);
+  const conflicts = useConflicts();
 
   const onSearch = (value: string) => {
     search.setValue(value);

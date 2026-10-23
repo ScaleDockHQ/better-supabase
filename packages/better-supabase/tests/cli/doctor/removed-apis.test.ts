@@ -92,6 +92,29 @@ describe("BS418", () => {
     ).toEqual([expect.stringContaining("@better-supabase/use-<block>")]);
   });
 
+  it.each([
+    [
+      'import { useWatch } from "better-supabase/powersync/react";',
+      "powersyncEngine",
+    ],
+    [
+      'import { sqliteTables } from "better-supabase/powersync";',
+      "powersyncEngine",
+    ],
+    [
+      'import { expoSqliteExecutor } from "better-supabase/expo-sqlite";',
+      "expoSqliteDatabase",
+    ],
+    [
+      'import { supabaseCollection } from "better-supabase/tanstack-db/supabase";',
+      "tanstackDbEngine",
+    ],
+  ])("points %s at its engine", (text, replacement) => {
+    expect(check([{ path: "src/db.ts", text }])).toEqual([
+      expect.stringContaining(replacement),
+    ]);
+  });
+
   it("passes code on the 0.15 names", () => {
     expect(
       check([

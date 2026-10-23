@@ -290,9 +290,6 @@ catalogs:
     '@supabase-labs/middleware-openfeature':
       specifier: 0.2.0
       version: 0.2.0
-    '@supabase-labs/tanstack-db':
-      specifier: 0.1.0
-      version: 0.1.0
     '@supabase/config':
       specifier: 0.11.1
       version: 0.11.1
@@ -329,9 +326,6 @@ catalogs:
     '@tailwindcss/postcss':
       specifier: 4.3.3
       version: 4.3.3
-    '@tanstack/db':
-      specifier: 0.15.0
-      version: 0.15.0
     '@tanstack/query-core':
       specifier: 5.104.4
       version: 5.104.4
@@ -1754,9 +1748,6 @@ importers:
       '@supabase-labs/middleware-openfeature':
         specifier: 'catalog:'
         version: 0.2.0(typescript@7.0.2)
-      '@supabase-labs/tanstack-db':
-        specifier: 'catalog:'
-        version: 0.1.0(@opentelemetry/api@1.9.1)(typescript@7.0.2)
       '@supabase/config':
         specifier: 'catalog:'
         version: 0.11.1(@effect/platform-node@4.0.5(effect@4.0.5)(redis@6.3.0(@opentelemetry/api@1.9.1)))(effect@4.0.5)
@@ -1778,9 +1769,6 @@ importers:
       '@t3-oss/env-core':
         specifier: 'catalog:'
         version: 0.13.11(arktype@2.2.8)(typescript@7.0.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
-      '@tanstack/db':
-        specifier: 'catalog:'
-        version: 0.15.0(typescript@7.0.2)
       '@tanstack/query-core':
         specifier: 'catalog:'
         version: 5.104.4
@@ -4625,6 +4613,7 @@ packages:
   '@opentelemetry/sdk-trace-base@2.12.0':
     resolution: {integrity: sha512-JOERgZCxRM06FEJ5kEWxlSRChah6MmXDx3KwCruqEv/iEyLkTokCSemf2y1w8oIHtfrr8EVTpzebq/31vn2Cpg==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 
@@ -6814,9 +6803,6 @@ packages:
       typescript:
         optional: true
 
-  '@supabase-labs/tanstack-db@0.1.0':
-    resolution: {integrity: sha512-4KccEP0NsmhwzTUw9g+1izvsLdIWXLIOKFP6ycoK1XI42vgiCAvGseXGllGp/ZPwddt5H15pKFJXoJ4uWskAFw==}
-
   '@supabase/auth-js@2.118.0':
     resolution: {integrity: sha512-xWfPXyhS2KDSfAneMtI6p/tBnbdiz/5vaRKXEqUfzfC9WCniKr2Ds5o5G7RIGig0bom4z6wUY9zaV07WDVTfnQ==}
     engines: {node: '>=22.0.0'}
@@ -7350,42 +7336,12 @@ packages:
   '@tailwindcss/postcss@4.3.3':
     resolution: {integrity: sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg==}
 
-  '@tanstack/db-ivm@0.1.26':
-    resolution: {integrity: sha512-Td2HbR68RfpMPv4zyMNQk83z/5gTjGl/I1LA/07A26LXMEPGh+hTsNbfPSr5YPZhq6KXX9lDFjDzv3Qz3DjV5w==}
-    peerDependencies:
-      typescript: '>=4.7'
-
-  '@tanstack/db-ivm@0.2.0':
-    resolution: {integrity: sha512-AuMuGzVdWR5qzJPRYajmrUp95vMo0duvMZ0zBjMOvaI9rkh2GHZWCsJ/p7s81UN4Lep6HHJjahnYUF+XVL0+AQ==}
-    peerDependencies:
-      typescript: '>=4.7'
-
-  '@tanstack/db@0.12.3':
-    resolution: {integrity: sha512-Plm3nLRSv0S4xY9sGvWPuQ10QiBoMRYjEJmvLCgjz4Sog6ypjIDMVeUByiRSmDHfKj7na2u4NF7T/HshwHEvDw==}
-    peerDependencies:
-      typescript: '>=4.7'
-
-  '@tanstack/db@0.15.0':
-    resolution: {integrity: sha512-truZ/WWSS48goC3JlxR2dbjSxYcVfwLtA8Z8xexvayR8HG1Jii040rS+PKUs+C50QGNfUQo5jWQUZ+lERZYeQw==}
-    peerDependencies:
-      typescript: '>=4.7'
-
   '@tanstack/history@1.162.5':
     resolution: {integrity: sha512-w1+YvwmTkwt5n8yUqEH3IWZ9DsmorCZW/EQ3KYHnqEgIkOZpH54NvW6/Epq3Dzb8H0ifIeYX8PExvrNLIH5FIA==}
     engines: {node: '>=20.19'}
 
-  '@tanstack/pacer-lite@0.2.2':
-    resolution: {integrity: sha512-eQ1MyLKCHyXiH7NbdmB80W77OhiMgGBUb+qDx/8WMGbwg5Lf/NlfD0TfNYAqY77i8V3AxoDoYdICrQE5ADw4Yw==}
-    engines: {node: '>=18'}
-
   '@tanstack/query-core@5.104.4':
     resolution: {integrity: sha512-nU4Yrb8Sjn0DeVb7PKG9uiepNavys3yoxy1FX0hViY4/P6Ng/mBje2SMl7i9812rtyHKtHyqiaC/td6GkI8StA==}
-
-  '@tanstack/query-db-collection@1.4.2':
-    resolution: {integrity: sha512-i26s+m60qoCYOX3CesPBNuFWayPOS7KM1mMlOGeQ5gLO9+bh/wyrSEwPab6NmMrFQMO5qTC8LViQ0+w4tsB07w==}
-    peerDependencies:
-      '@tanstack/query-core': ^5.0.0
-      typescript: '>=4.7'
 
   '@tanstack/react-query@5.104.4':
     resolution: {integrity: sha512-YD5QkvUNy8Ey3LbOy2vwL97JjoYycwDv++cWAibTe+9BLYvl3c09XpYp5dZ2VcxcguwoDhGF+utYJYb79RB36w==}
@@ -10664,10 +10620,6 @@ packages:
 
   fraction.js@5.3.4:
     resolution: {integrity: sha512-1X1NTtiJphryn/uLQz3whtY6jK3fTqoE3ohKs0tT+Ujr1W59oopxmoEh7Lu5p6vBaPbgoM0bzveAW4Qi5RyWDQ==}
-
-  fractional-indexing@3.4.0:
-    resolution: {integrity: sha512-8J3glhz2rrpKG6KmI7wmJo3zH1VjeOpN+vTJSw1fOyO+Viqq3zX6/5NGh6oaZB2qIAYdOYuu5Dz9xp4faOO0Pg==}
-    engines: {node: ^14.13.1 || >=16.0.0}
 
   framer-motion@14.3.0:
     resolution: {integrity: sha512-d8WCrU0ZQn7ukKMykCsDyIOwb/taZeDqqrDBK0du5GO0AO/ynz8fdR/LIIz9Pyy3n3tGwrneR+n0egyrrLa3fw==}
@@ -14177,9 +14129,6 @@ packages:
   sort-keys@1.1.2:
     resolution: {integrity: sha512-vzn8aSqKgytVik0iwdBEi+zevbTYZogewTUM6dtpmGwEcdzbub/TX4bCzRhebDCRC3QzXgJsLRKB2V/Oof7HXg==}
     engines: {node: '>=0.10.0'}
-
-  sorted-btree@1.8.1:
-    resolution: {integrity: sha512-395+XIP+wqNn3USkFSrNz7G3Ss/MXlZEqesxvzCRFwL14h6e8LukDHdLBePn5pwbm5OQ9vGu8mDyz2lLDIqamQ==}
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
@@ -20826,18 +20775,6 @@ snapshots:
     optionalDependencies:
       typescript: 7.0.2
 
-  '@supabase-labs/tanstack-db@0.1.0(@opentelemetry/api@1.9.1)(typescript@7.0.2)':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@supabase/postgrest-js': 2.118.0
-      '@supabase/supabase-js': 2.118.0(@opentelemetry/api@1.9.1)
-      '@tanstack/db': 0.15.0(typescript@7.0.2)
-      '@tanstack/query-core': 5.104.4
-      '@tanstack/query-db-collection': 1.4.2(@tanstack/query-core@5.104.4)(typescript@7.0.2)
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-      - typescript
-
   '@supabase/auth-js@2.118.0':
     dependencies:
       tslib: 2.8.1
@@ -21302,43 +21239,9 @@ snapshots:
       postcss: 8.5.30
       tailwindcss: 4.3.3
 
-  '@tanstack/db-ivm@0.1.26(typescript@7.0.2)':
-    dependencies:
-      fractional-indexing: 3.4.0
-      sorted-btree: 1.8.1
-      typescript: 7.0.2
-
-  '@tanstack/db-ivm@0.2.0(typescript@7.0.2)':
-    dependencies:
-      fractional-indexing: 3.4.0
-      typescript: 7.0.2
-
-  '@tanstack/db@0.12.3(typescript@7.0.2)':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@tanstack/db-ivm': 0.1.26(typescript@7.0.2)
-      '@tanstack/pacer-lite': 0.2.2
-      typescript: 7.0.2
-
-  '@tanstack/db@0.15.0(typescript@7.0.2)':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@tanstack/db-ivm': 0.2.0(typescript@7.0.2)
-      '@tanstack/pacer-lite': 0.2.2
-      typescript: 7.0.2
-
   '@tanstack/history@1.162.5': {}
 
-  '@tanstack/pacer-lite@0.2.2': {}
-
   '@tanstack/query-core@5.104.4': {}
-
-  '@tanstack/query-db-collection@1.4.2(@tanstack/query-core@5.104.4)(typescript@7.0.2)':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@tanstack/db': 0.12.3(typescript@7.0.2)
-      '@tanstack/query-core': 5.104.4
-      typescript: 7.0.2
 
   '@tanstack/react-query@5.104.4(@types/react@19.3.0)(react@19.3.1)':
     dependencies:
@@ -25259,8 +25162,6 @@ snapshots:
   forwarded@0.2.0: {}
 
   fraction.js@5.3.4: {}
-
-  fractional-indexing@3.4.0: {}
 
   framer-motion@14.3.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
@@ -29895,8 +29796,6 @@ snapshots:
   sort-keys@1.1.2:
     dependencies:
       is-plain-obj: 1.1.0
-
-  sorted-btree@1.8.1: {}
 
   source-map-js@1.2.2: {}
 

@@ -3,6 +3,7 @@ import type {
   SqliteDatabaseLike,
   SqliteExecutorOptions,
 } from "../sqlite/executor.ts";
+import type { SyncStatusLike } from "./sync.ts";
 
 import { sqliteExecutor } from "../sqlite/executor.ts";
 
@@ -24,11 +25,11 @@ export interface PowerSyncDatabaseLike extends SqliteDatabaseLike {
     },
     options?: { tables?: string[]; throttleMs?: number; signal?: AbortSignal },
   ): () => void;
-  /** The sync status `watch`'s `refresh` reads to skip runs while offline. */
-  readonly currentStatus?: { readonly connected: boolean };
-  /** Status updates; `watch`'s `refresh.onReconnect` listens to them. */
+  /** The sync status `useSyncStatus()` reads. */
+  readonly currentStatus?: SyncStatusLike;
+  /** Status updates; the engine reads again after a reconnect. */
   registerListener?(listener: {
-    statusChanged?: (status: { readonly connected: boolean }) => void;
+    statusChanged?: (status: SyncStatusLike) => void;
   }): () => void;
 }
 

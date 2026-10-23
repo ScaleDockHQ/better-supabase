@@ -1,41 +1,31 @@
-import { createClient } from "@supabase/supabase-js";
-import {
-  autoRefreshOnForeground,
-  createNativeClient,
-  nativePorts,
-  secureStorage,
-} from "better-supabase/client/native";
+import { createNativeClient, nativePorts } from "better-supabase/client/native";
+import { powersyncEngine } from "better-supabase/powersync";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
-import * as SecureStore from "expo-secure-store";
-import { AppState } from "react-native";
 
 import { betterSupabase } from ".";
 import { blockConfig } from "../blocks";
+import { connector } from "../powersync/connector";
+import { powersync } from "../powersync/database";
+import { supabase } from "./supabase.native";
 
-export const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL,
-  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  {
-    auth: {
-      storage: secureStorage(SecureStore),
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  },
-);
-
-// supabase-js can't tell when a React Native app is in the background.
-autoRefreshOnForeground(supabase, AppState);
+export { supabase } from "./supabase.native";
 
 /**
- * Writes go to PostgREST as the signed-in user, so RLS applies. The ports give
- * the block hooks (`useNotifications` and the rest) their React Native deep
- * links, push token and uploads, and `blocks` the schema they call.
+ * `bsb.db` and the data hooks read and write the PowerSync database for the
+ * synced `customers` table, offline too; PowerSync uploads the writes through
+ * `connector`. Every other table, and what SQLite can't run, goes to PostgREST
+ * as the signed-in user. The ports give the block hooks (`useNotifications` and
+ * the rest) their React Native deep links, push token and uploads, and `blocks`
+ * the schema they call.
  */
 export const bsb = createNativeClient(betterSupabase, supabase, {
   blocks: blockConfig,
+  engine: powersyncEngine(powersync, {
+    connector,
+    local: ["customers"],
+    tables: { "customer-pages": ["customers"] },
+  }),
   ports: nativePorts({
     supabase,
     linking: Linking,
