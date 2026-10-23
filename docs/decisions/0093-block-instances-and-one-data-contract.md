@@ -118,7 +118,11 @@ and may turn off, edit or reset but not remove, and the conversions are
 actions of the target block (`tasks.from_conversation`,
 `employees.from_application`, `orders.from_quote`); the booking to
 engagement flow goes because the ADR 0090 trigger already does it. Blocks
-declare their timers in the manifest and run as `block_ticks` jobs. Workflow
+declare their timers in the manifest and run as `block_ticks` jobs, the
+content publish timer included, so no block schedules pg_cron itself.
+Presets turn defaults on through the automations block's `enable` and
+`disable` options (`erp` enables quote to order) and install the automations
+and queue blocks their defaults and timers need. Workflow
 definitions lose their event triggers: an automation's `workflow` action
 starts them, so workflows are durable code and not a second trigger system. Preset codes give way
 to the design JSON (ADR 0040, ADR 0058): the config's `preset` takes a name

@@ -9,7 +9,6 @@ const WHERE = "blocks.content.options";
 
 const TYPE = /^[a-z][a-z0-9_-]{0,62}$/;
 const LOCALE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
-const CRON = /^\S+( \S+){4}$/;
 
 /** The statuses an entry moves through. */
 export const CONTENT_STATUSES = [
@@ -107,23 +106,6 @@ const contentTypes = (ctx: BlockSqlContext): readonly string[] =>
 /** `options.locales`; the first is the default. */
 const contentLocales = (ctx: BlockSqlContext): readonly string[] =>
   keysOf(ctx, "locales", ["en"], LOCALE, "locale");
-
-/** `options.publishSchedule`, or undefined when it is empty. */
-export function publishSchedule(ctx: BlockSqlContext): string | undefined {
-  const schedule = ctx.text("publishSchedule", "*/5 * * * *").trim();
-
-  if (schedule === "") {
-    return undefined;
-  }
-
-  if (!CRON.test(schedule)) {
-    throw new TypeError(
-      `${WHERE}.publishSchedule must be a cron expression of five fields, or empty`,
-    );
-  }
-
-  return schedule;
-}
 
 /** Whether publishing goes through approvals; throws when it can't. */
 function requiresApproval(ctx: BlockSqlContext): boolean {

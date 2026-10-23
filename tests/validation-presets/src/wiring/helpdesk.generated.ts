@@ -12,6 +12,7 @@ import { commentsBlock } from "better-supabase/blocks/comments";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
 import { inboxBlock } from "better-supabase/blocks/inbox";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { knowledgeBlock } from "better-supabase/blocks/knowledge";
 import { messagingBlock } from "better-supabase/blocks/messaging";
 import { timelineBlock } from "better-supabase/blocks/timeline";
@@ -21,6 +22,7 @@ import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
+import { automationsBlock } from "better-supabase/blocks/automations";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { searchBlock } from "better-supabase/blocks/search";
 import { settingsBlock } from "better-supabase/blocks/settings";
@@ -43,6 +45,7 @@ export const blockSet = defineBlocks(blockConfig, {
   enrollments: enrollmentsBlock,
   entitlements: entitlementsBlock,
   inbox: inboxBlock,
+  queue: queueBlock,
   knowledge: knowledgeBlock,
   messaging: messagingBlock,
   timeline: timelineBlock,
@@ -52,6 +55,7 @@ export const blockSet = defineBlocks(blockConfig, {
   outbox: outboxBlock,
   pipelines: pipelinesBlock,
   profiles: profilesBlock,
+  automations: automationsBlock,
   savedViews: savedViewsBlock,
   search: searchBlock,
   settings: settingsBlock,

@@ -51,7 +51,9 @@ its own.
 Published entries reach the site through `content.published` and
 `content.listPublished`, which the `anon` role may call and which return only
 public fields ([public reads](/docs/blocks/content#public-reads)). A
-scheduled entry goes live on the pg_cron job that `publishSchedule` sets.
+scheduled entry goes live on the content block's `publish` timer, which the
+preset's queue runs (`blockSchedules` and `blockTickHandler`, in the
+[block timers](/docs/blocks/queue#block-timers) section).
 
 To publish without review, turn the approval off:
 

@@ -10,6 +10,13 @@ export type AutomationsSqlOptions = {
   readonly maxDepth?: number;
   /** The most actions one rule may run. */
   readonly maxActions?: number;
+  /**
+   * Keys of default automations the blocks ship turned off, such as
+   * `quotes.quote_to_order`, to ship turned on.
+   */
+  readonly enable?: readonly string[];
+  /** Keys of default automations to ship turned off. */
+  readonly disable?: readonly string[];
 };
 
 export const automationsSqlOptions: BlockOptionsSchema<AutomationsSqlOptions> =
@@ -17,4 +24,6 @@ export const automationsSqlOptions: BlockOptionsSchema<AutomationsSqlOptions> =
     maxConditions: option.number({ default: 50 }),
     maxDepth: option.number({ default: 4 }),
     maxActions: option.number({ default: 20 }),
+    enable: option.strings({ default: [] }),
+    disable: option.strings({ default: [] }),
   });

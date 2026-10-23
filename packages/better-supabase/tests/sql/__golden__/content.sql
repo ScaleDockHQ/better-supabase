@@ -531,7 +531,7 @@ $$;
 revoke execute on function "better_supabase"."content_entry_approved"(uuid) from public, anon, authenticated;
 
 -- Publishes the scheduled entries whose time has come, at most 500 a call,
--- and returns how many. pg_cron calls it on options.publishSchedule.
+-- and returns how many. The content block's publish timer calls it.
 create or replace function "better_supabase"."publish_due_content_entries"()
 returns integer
 language plpgsql
@@ -647,17 +647,6 @@ grant select on better_supabase.blocks to service_role;
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Publishes scheduled content entries when pg_cron is installed.
-do $$
-begin
-  if pg_catalog.to_regnamespace('cron') is not null then
-    perform cron.schedule('better-supabase-content-publish', '*/5 * * * *', 'select "better_supabase"."publish_due_content_entries"()');
-  else
-    raise notice 'pg_cron is not installed: call "better_supabase"."publish_due_content_entries"() on a schedule to publish scheduled content entries';
-  end if;
-end;
-$$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('content', 1, 'managed')
@@ -1261,7 +1250,7 @@ $$;
 revoke execute on function "better_supabase"."content_entry_approved"(uuid) from public, anon, authenticated;
 
 -- Publishes the scheduled entries whose time has come, at most 500 a call,
--- and returns how many. pg_cron calls it on options.publishSchedule.
+-- and returns how many. The content block's publish timer calls it.
 create or replace function "better_supabase"."publish_due_content_entries"()
 returns integer
 language plpgsql
@@ -1377,17 +1366,6 @@ grant select on better_supabase.blocks to service_role;
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Publishes scheduled content entries when pg_cron is installed.
-do $$
-begin
-  if pg_catalog.to_regnamespace('cron') is not null then
-    perform cron.schedule('better-supabase-content-publish', '*/5 * * * *', 'select "better_supabase"."publish_due_content_entries"()');
-  else
-    raise notice 'pg_cron is not installed: call "better_supabase"."publish_due_content_entries"() on a schedule to publish scheduled content entries';
-  end if;
-end;
-$$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('content', 1, 'managed')
@@ -1929,7 +1907,7 @@ $$;
 revoke execute on function "app_private"."content_entry_approved"(uuid) from public, anon, authenticated;
 
 -- Publishes the scheduled entries whose time has come, at most 500 a call,
--- and returns how many. pg_cron calls it on options.publishSchedule.
+-- and returns how many. The content block's publish timer calls it.
 create or replace function "app_private"."publish_due_content_entries"()
 returns integer
 language plpgsql
@@ -2045,17 +2023,6 @@ grant select on better_supabase.blocks to service_role;
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Publishes scheduled content entries when pg_cron is installed.
-do $$
-begin
-  if pg_catalog.to_regnamespace('cron') is not null then
-    perform cron.schedule('better-supabase-content-publish', '*/5 * * * *', 'select "app_private"."publish_due_content_entries"()');
-  else
-    raise notice 'pg_cron is not installed: call "app_private"."publish_due_content_entries"() on a schedule to publish scheduled content entries';
-  end if;
-end;
-$$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('content', 1, 'managed')
@@ -2595,7 +2562,7 @@ $$;
 revoke execute on function "better_supabase"."content_entry_approved"(uuid) from public, anon, authenticated;
 
 -- Publishes the scheduled entries whose time has come, at most 500 a call,
--- and returns how many. pg_cron calls it on options.publishSchedule.
+-- and returns how many. The content block's publish timer calls it.
 create or replace function "better_supabase"."publish_due_content_entries"()
 returns integer
 language plpgsql
@@ -2823,17 +2790,6 @@ grant select on better_supabase.blocks to service_role;
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
-
--- Publishes scheduled content entries when pg_cron is installed.
-do $$
-begin
-  if pg_catalog.to_regnamespace('cron') is not null then
-    perform cron.schedule('better-supabase-content-publish', '*/5 * * * *', 'select "better_supabase"."publish_due_content_entries"()');
-  else
-    raise notice 'pg_cron is not installed: call "better_supabase"."publish_due_content_entries"() on a schedule to publish scheduled content entries';
-  end if;
-end;
-$$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('content', 1, 'managed')

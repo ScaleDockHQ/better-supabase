@@ -13472,7 +13472,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "content_entry.published",
           "content_entry.archived"
         ]
-      }
+      },
+      "schedules": [
+        {
+          "name": "publish",
+          "cron": "*/5 * * * *",
+          "runs": "publishDue()",
+          "description": "Publishes the scheduled entries whose time has come."
+        }
+      ]
     },
     {
       "name": "drive",

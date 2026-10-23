@@ -395,6 +395,10 @@ blocks: {
 | `maxConditions` | `50`    | the most conditions one rule may hold           |
 | `maxDepth`      | `4`     | how deep groups nest, the root group counting 1 |
 | `maxActions`    | `20`    | the most actions one rule may run               |
+| `enable`        | `[]`    | default automation keys to ship turned on       |
+| `disable`       | `[]`    | default automation keys to ship turned off      |
+
+`enable` and `disable` take the keys of the [default automations](#default-automations), such as `quotes.quote_to_order`, and change whether a new organization's copy starts on. `disable` wins when a key is in both. The `erp` preset enables `quotes.quote_to_order`.
 
 ## Errors
 

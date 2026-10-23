@@ -22,11 +22,6 @@ export type ContentSqlOptions = {
    * another member with `content.publish`.
    */
   readonly publishPolicy?: unknown;
-  /**
-   * The pg_cron schedule that publishes scheduled entries. Default every five
-   * minutes; empty turns it off.
-   */
-  readonly publishSchedule?: string;
 };
 
 export const contentSqlOptions: BlockOptionsSchema<ContentSqlOptions> =
@@ -35,5 +30,4 @@ export const contentSqlOptions: BlockOptionsSchema<ContentSqlOptions> =
     locales: option.strings({ default: ["en"] }),
     requireApproval: option.boolean({ default: false }),
     publishPolicy: option.unknown(),
-    publishSchedule: option.string({ default: "*/5 * * * *" }),
   });

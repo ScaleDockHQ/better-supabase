@@ -213,7 +213,7 @@ $$;
 revoke execute on function ${fn("content_entry_approved")}(uuid) from public, anon, authenticated;
 
 -- Publishes the scheduled entries whose time has come, at most 500 a call,
--- and returns how many. pg_cron calls it on options.publishSchedule.
+-- and returns how many. The content block's publish timer calls it.
 create or replace function ${fn("publish_due_content_entries")}()
 returns integer
 language plpgsql

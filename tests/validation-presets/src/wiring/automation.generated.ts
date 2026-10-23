@@ -16,6 +16,7 @@ import { onboardingBlock } from "better-supabase/blocks/onboarding";
 import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { profilesBlock } from "better-supabase/blocks/profiles";
+import { automationsBlock } from "better-supabase/blocks/automations";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { teamsBlock } from "better-supabase/blocks/teams";
 import { webhooksBlock } from "better-supabase/blocks/webhooks";
@@ -39,6 +40,7 @@ export const blockSet = defineBlocks(blockConfig, {
   organizations: organizationsBlock,
   outbox: outboxBlock,
   profiles: profilesBlock,
+  automations: automationsBlock,
   settings: settingsBlock,
   teams: teamsBlock,
   webhooks: webhooksBlock,

@@ -1,6 +1,6 @@
 ---
 title: ERP
-description: The erp preset installs parties, a catalog, stock by location, quotes priced from the catalog, orders that invoice when paid, employees with time and leave, and expenses.
+description: The erp preset installs parties, a catalog, stock by location, quotes priced from the catalog that become orders when accepted, orders that invoice when paid, employees with time and leave, and expenses.
 ---
 
 The `erp` preset is for a small ERP in the style of Odoo or NetSuite: sell
@@ -39,6 +39,7 @@ whatever they require:
 | [leave](/docs/blocks/leave)                 | Leave requests and balances                          |
 | [expenses](/docs/blocks/expenses)           | Expense reports with receipts, policies and approval |
 | [saved-views](/docs/blocks/saved-views)     | Saved filters for each list                          |
+| [automations](/docs/blocks/automations)     | The default automations, which members can edit      |
 
 ## How the blocks connect
 
@@ -48,6 +49,12 @@ config:
 - A quote line that names a catalog variant takes its price and title when
   it leaves them out ([quotes](/docs/blocks/quotes)). A line with no price
   for the quote's currency fails with `LINES_INVALID`.
+- An accepted quote becomes an order: the preset turns on the
+  `quotes.quote_to_order` default automation, which ships turned off
+  ([default automations](/docs/blocks/automations#default-automations)).
+  Register `orders.from_quote` in the rules consumer's action registry, or
+  turn it off with `disable: ["quotes.quote_to_order"]` in the automations
+  options.
 - A paid order creates, issues and pays an invoice and returns its id
   ([orders](/docs/blocks/orders)). Orders paid before invoices was installed
   have no invoice.

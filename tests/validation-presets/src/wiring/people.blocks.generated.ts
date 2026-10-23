@@ -16,6 +16,7 @@ import type { HiringEvents } from "better-supabase/blocks/hiring";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
+import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
@@ -36,6 +37,7 @@ import { organizationsBlock as organizationsBlockInstance } from "better-supabas
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { automationsBlock as automationsBlockInstance } from "better-supabase/blocks/automations";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
@@ -117,6 +119,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  automations: {
+    schema: "better_supabase",
+    options: {},
+  },
   settings: {
     schema: "better_supabase",
     options: {},
@@ -169,6 +175,7 @@ export const blocks = {
   outbox: outboxBlockInstance,
   pipelines: pipelinesBlockInstance,
   profiles: profilesBlockInstance,
+  automations: automationsBlockInstance,
   settings: settingsBlockInstance,
   subjects: subjectsBlockInstance,
   teams: teamsBlockInstance,
@@ -194,6 +201,12 @@ export const permissions = {
     view: "audit.read",
     viewAll: "audit.read",
     revert: "audit.revert",
+  },
+  automations: {
+    read: "rules.read",
+    edit: "rules.edit",
+    publish: "rules.publish",
+    admin: "rules.admin",
   },
   billing: {
     read: "billing.read",
@@ -285,13 +298,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "employees.read" | "employees.view_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "employees.read" | "employees.view_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CalendarEvents & DocumentsEvents & EnrollmentsEvents & EmployeesEvents & HiringEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & SettingsEvents & TeamsEvents & TimeTrackingEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CalendarEvents & DocumentsEvents & EnrollmentsEvents & EmployeesEvents & HiringEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & AutomationsEvents & SettingsEvents & TeamsEvents & TimeTrackingEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -377,6 +390,11 @@ export const blockEvents: Events<BlockEvents> = {
     "pipeline_stage.saved",
     "platform_setting.reset",
     "platform_setting.updated",
+    "rule.disabled",
+    "rule.enabled",
+    "rule.matched",
+    "rule.removed",
+    "rule.saved",
     "scorecard.submitted",
     "team.archived",
     "team.created",
@@ -476,6 +494,11 @@ export const blockEventSchemas = {
   "pipeline_stage.saved": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "rule.disabled": true,
+  "rule.enabled": true,
+  "rule.matched": true,
+  "rule.removed": true,
+  "rule.saved": true,
   "scorecard.submitted": true,
   "team.archived": true,
   "team.created": true,

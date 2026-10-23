@@ -20,6 +20,7 @@ import { organizationsBlock } from "better-supabase/blocks/organizations";
 import { outboxBlock } from "better-supabase/blocks/outbox";
 import { pipelinesBlock } from "better-supabase/blocks/pipelines";
 import { profilesBlock } from "better-supabase/blocks/profiles";
+import { automationsBlock } from "better-supabase/blocks/automations";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
 import { teamsBlock } from "better-supabase/blocks/teams";
@@ -46,6 +47,7 @@ export const blockSet = defineBlocks(blockConfig, {
   outbox: outboxBlock,
   pipelines: pipelinesBlock,
   profiles: profilesBlock,
+  automations: automationsBlock,
   settings: settingsBlock,
   subjects: subjectsBlock,
   teams: teamsBlock,

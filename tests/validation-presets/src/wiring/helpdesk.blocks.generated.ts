@@ -38,6 +38,7 @@ import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
+import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SlaEvents } from "better-supabase/blocks/sla";
@@ -52,6 +53,7 @@ import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/c
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
 import { inboxBlock as inboxBlockInstance } from "better-supabase/blocks/inbox";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { knowledgeBlock as knowledgeBlockInstance } from "better-supabase/blocks/knowledge";
 import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
 import { timelineBlock as timelineBlockInstance } from "better-supabase/blocks/timeline";
@@ -61,6 +63,7 @@ import { organizationsBlock as organizationsBlockInstance } from "better-supabas
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { automationsBlock as automationsBlockInstance } from "better-supabase/blocks/automations";
 import { savedViewsBlock as savedViewsBlockInstance } from "better-supabase/blocks/saved-views";
 import { searchBlock as searchBlockInstance } from "better-supabase/blocks/search";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
@@ -116,6 +119,10 @@ export const blockConfig = {
       topic: "inbox",
     },
   },
+  queue: {
+    schema: "better_supabase",
+    options: {},
+  },
   knowledge: {
     schema: "better_supabase",
     options: {},
@@ -153,6 +160,10 @@ export const blockConfig = {
     options: {},
   },
   profiles: {
+    schema: "better_supabase",
+    options: {},
+  },
+  automations: {
     schema: "better_supabase",
     options: {},
   },
@@ -301,6 +312,7 @@ export const blocks = {
   enrollments: enrollmentsBlockInstance,
   entitlements: entitlementsBlockInstance,
   inbox: inboxBlockInstance,
+  queue: queueBlockInstance,
   knowledge: knowledgeBlockInstance,
   messaging: messagingBlockInstance,
   timeline: timelineBlockInstance,
@@ -310,6 +322,7 @@ export const blocks = {
   outbox: outboxBlockInstance,
   pipelines: pipelinesBlockInstance,
   profiles: profilesBlockInstance,
+  automations: automationsBlockInstance,
   "saved-views": savedViewsBlockInstance,
   search: searchBlockInstance,
   settings: settingsBlockInstance,
@@ -339,6 +352,12 @@ export const permissions = {
     view: "audit.read",
     viewAll: "audit.read",
     revert: "audit.revert",
+  },
+  automations: {
+    read: "rules.read",
+    edit: "rules.edit",
+    publish: "rules.publish",
+    admin: "rules.admin",
   },
   billing: {
     read: "billing.read",
@@ -450,13 +469,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "tickets.manage" | "tickets.read" | "tickets.write" | "views.read" | "views.share";
+export type PermissionKey = "activity.read" | "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "members.invite" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "tickets.manage" | "tickets.read" | "tickets.write" | "views.read" | "views.share";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & InboxEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & SavedViewsEvents & SettingsEvents & SlaEvents & TagsEvents & TeamsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & InboxEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SlaEvents & TagsEvents & TeamsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -537,6 +556,11 @@ export const blockEvents: Events<BlockEvents> = {
     "pipeline_stage.saved",
     "platform_setting.reset",
     "platform_setting.updated",
+    "rule.disabled",
+    "rule.enabled",
+    "rule.matched",
+    "rule.removed",
+    "rule.saved",
     "saved_view.deleted",
     "saved_view.saved",
     "sla.breached",
@@ -640,6 +664,11 @@ export const blockEventSchemas = {
   "pipeline_stage.saved": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "rule.disabled": true,
+  "rule.enabled": true,
+  "rule.matched": true,
+  "rule.removed": true,
+  "rule.saved": true,
   "saved_view.deleted": true,
   "saved_view.saved": true,
   "sla.breached": true,

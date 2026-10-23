@@ -12,12 +12,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { contentFunctions } from "./content-functions.ts";
 import { contentPublishFunctions } from "./content-publish.ts";
-import {
-  CONTENT_STATUSES,
-  contentSql,
-  publishSchedule,
-  SLUG,
-} from "./content-sql.ts";
+import { CONTENT_STATUSES, contentSql, SLUG } from "./content-sql.ts";
 
 const ENTRY_PAYLOAD = [
   "organizationId",
@@ -56,13 +51,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_content_entry_publish", "after_content_entry_publish"],
-  options: [
-    "types",
-    "locales",
-    "requireApproval",
-    "publishPolicy",
-    "publishSchedule",
-  ],
+  options: ["types", "locales", "requireApproval", "publishPolicy"],
   tables: {
     entries: {
       name: "content_entries",
@@ -158,28 +147,6 @@ ${contentFunctions(ctx)}
 ${contentPublishFunctions(ctx)}`;
 }
 
-/** Schedules publish_due_content_entries when pg_cron is installed. */
-function data(ctx: BlockSqlContext): string {
-  const schedule = ctx.mode === "custom" ? undefined : publishSchedule(ctx);
-
-  if (schedule === undefined) {
-    return "";
-  }
-
-  const due = ctx.fn("publish_due_content_entries");
-
-  return `-- Publishes scheduled content entries when pg_cron is installed.
-do $$
-begin
-  if pg_catalog.to_regnamespace('cron') is not null then
-    perform cron.schedule('better-supabase-content-publish', ${sqlString(schedule)}, ${sqlString(`select ${due}()`)});
-  else
-    raise notice 'pg_cron is not installed: call ${due.replaceAll("'", "")}() on a schedule to publish scheduled content entries';
-  end if;
-end;
-$$;`;
-}
-
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "create_content_entry", args: ["{id}", "jsonb"], returns: "jsonb" },
@@ -234,5 +201,4 @@ export const CONTENT: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
-  data,
 };
