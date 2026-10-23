@@ -32,6 +32,11 @@ const mocks = vi.hoisted(() => ({ headers: new Headers() }));
 
 vi.mock(import("next/headers.js"), () => ({
   headers: () => Promise.resolve(mocks.headers),
+  cookies: () =>
+    Promise.resolve(
+      // SAFETY: a bearer-token action only awaits the jar and never reads it.
+      { getAll: () => [], set: () => undefined } as never,
+    ),
 }));
 
 vi.mock(import("next/cache.js"), () => ({
