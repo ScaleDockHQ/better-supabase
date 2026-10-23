@@ -50,7 +50,7 @@ const NAMES: BlockSqlNames = {
       primary: true,
     },
   },
-  options: ["dimensions", "type", "textSearch", "embedQueue"],
+  options: ["dimensions", "type", "textSearch", "embedQueue", "ingestQueue"],
   tables: {
     documents: {
       name: "knowledge_documents",
@@ -157,6 +157,14 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (!QUEUE.test(queue)) {
     throw new TypeError(
       "blocks.knowledge.options.embedQueue must be a lowercase queue name of at most 47 characters",
+    );
+  }
+
+  const ingestQueue = ctx.text("ingestQueue", "knowledge_ingest");
+
+  if (!QUEUE.test(ingestQueue)) {
+    throw new TypeError(
+      "blocks.knowledge.options.ingestQueue must be a lowercase queue name of at most 47 characters",
     );
   }
 
@@ -582,7 +590,45 @@ as $$
 $$;
 ${serviceGrant(`${fn("pending_knowledge_documents")}(integer)`)}
 
--- Clears the embeddings of a tenant's documents (all tenants when null)
+${
+  files && ctx.installed("queue")
+    ? `-- Creates a pending document for a ready ai-files file and enqueues its
+-- ingestion on options.ingestQueue: the job reads the file, extracts its
+-- text and writes the chunks, which enqueues their embedding.
+create or replace function ${fn("queue_knowledge_file")}(
+  tenant ${id},
+  file_id uuid,
+  title text default null,
+  scope text default 'user',
+  scope_id uuid default null,
+  source text default null,
+  metadata jsonb default '{}',
+  owner uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_name text;
+  v_document jsonb;
+begin
+  select x.${files.col("files", "filename")} into v_name from ${files.table("files")} x
+  where x.${files.col("files", "id")} = queue_knowledge_file.file_id and x.${files.col("files", "tenant")} = queue_knowledge_file.tenant;
+  if not found then
+    ${raise("file % not found", "P0002", "AI_FILE_NOT_FOUND", "queue_knowledge_file.file_id")}
+  end if;
+  v_document := ${fn("create_knowledge_document")}(queue_knowledge_file.tenant, coalesce(queue_knowledge_file.title, v_name), queue_knowledge_file.scope, queue_knowledge_file.scope_id, queue_knowledge_file.file_id, coalesce(queue_knowledge_file.source, v_name), queue_knowledge_file.metadata, queue_knowledge_file.owner);
+  ${ctx.enqueue(ingestQueue, `jsonb_build_object('document_id', v_document ->> 'id')`, `'knowledge-ingest:' || (v_document ->> 'id')`)}
+  return v_document;
+end;
+$$;
+${userGrant(`${fn("queue_knowledge_file")}(${id}, uuid, text, text, uuid, text, jsonb, uuid)`)}
+
+`
+    : ""
+}-- Clears the embeddings of a tenant's documents (all tenants when null)
 -- that another model embedded, so the worker embeds them again.
 create or replace function ${fn("reembed_knowledge")}(tenant ${id} default null, model text default null)
 returns integer
@@ -615,11 +661,19 @@ export const KNOWLEDGE: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Knowledge",
   description:
-    "Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed.",
+    "Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.",
   requires: ["memberships", "permissions", "vector-search"],
   integrates: ["ai-chat", "ai-files", "queue"],
   target: "schema",
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "With ai-files and jobs, queue_knowledge_file creates a pending document for a file and enqueues its ingestion on options.ingestQueue (default knowledge_ingest).",
+      sql: () => "",
+    },
+  ],
   names: NAMES,
   build,
 };

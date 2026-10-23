@@ -40,6 +40,7 @@ import { COMMENTS } from "./modules/comments.ts";
 import { CONTROLS } from "./modules/compliance.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
 import { PARTIES } from "./modules/contacts.ts";
+import { CONTENT } from "./modules/content.ts";
 import { CONTRACTS } from "./modules/contracts.ts";
 import { COURSES } from "./modules/courses.ts";
 import { ACTOR } from "./modules/created-by.ts";
@@ -371,6 +372,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(LEAD_SCORING),
       built(POSTS),
       built(FIELD_ENCRYPTION),
+      built(CONTENT),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

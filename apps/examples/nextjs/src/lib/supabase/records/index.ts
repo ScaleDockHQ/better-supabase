@@ -5,6 +5,7 @@ export { bookingRecord } from "./booking.ts";
 export { calendarEventRecord } from "./calendar-event.ts";
 export { channelRecord } from "./channel.ts";
 export { companyRecord } from "./company.ts";
+export { contentEntryRecord } from "./content-entry.ts";
 export { controlRecord } from "./control.ts";
 export { courseRecord } from "./course.ts";
 export { customerRecord } from "./customer.ts";

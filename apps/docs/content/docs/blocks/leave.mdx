@@ -57,6 +57,10 @@ A request can't overlap another pending or approved request of the member (`LEAV
 | `rejected`  | the approval request was rejected or expired               |
 | `cancelled` | the requester or a manager cancelled it                    |
 
+With the [employees block](/docs/blocks/employees) installed, every request
+has an `employee_id` column: the employee behind the requester, kept in step
+by triggers like time entries' (see [employees](/docs/blocks/employees#time-and-leave)).
+
 Approvers decide with the approvals client, where the request's subject type is `leave_request`:
 
 ```ts

@@ -10,6 +10,7 @@ export type AttachmentsSqlOptions = {
   readonly allowedMimeTypes?: readonly string[];
   readonly path?: string;
   readonly scanBuckets?: readonly string[];
+  readonly publicBuckets?: readonly string[];
   readonly extraColumns?: unknown;
 };
 
@@ -21,5 +22,6 @@ export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
     allowedMimeTypes: option.strings({ default: [] }),
     path: option.string({ default: "{organization_id}/attachments/{id}" }),
     scanBuckets: option.strings({ default: [] }),
+    publicBuckets: option.strings({ default: [], client: true }),
     extraColumns: option.unknown(),
   });

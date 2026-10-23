@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_97_quotes.sql
 -- better-supabase module: quotes
--- @bsb-block quotes@1 managed
--- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals.
+-- @bsb-block quotes@2 managed
+-- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -675,6 +675,6 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('quotes', 1, 'managed')
+values ('quotes', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

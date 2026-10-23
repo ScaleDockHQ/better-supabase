@@ -26,7 +26,12 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { BUCKET, bucketOptions } from "./attachments-bucket.ts";
+import {
+  BUCKET,
+  bucketInsert,
+  bucketOptions,
+  publicBucketsOf,
+} from "./attachments-bucket.ts";
 import {
   ATTACHMENTS_CONTRIBUTES,
   attachmentsContract,
@@ -92,6 +97,7 @@ const NAMES: BlockSqlNames = {
     "allowedMimeTypes",
     "path",
     "scanBuckets",
+    "publicBuckets",
     "extraColumns",
   ],
   tables: {
@@ -392,6 +398,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   ];
 
   const bucketList = buckets.map(sqlString).join(", ");
+  publicBucketsOf(ctx, buckets);
   const extras = ctx.extraColumns("attachments", RESERVED);
 
   const json = (row: string): string =>
@@ -1015,7 +1022,7 @@ grant execute on function ${fn("get_attachment")}(uuid) to authenticated, servic
 grant execute on function ${fn("delete_attachment")}(uuid) to authenticated, service_role;`;
 }
 
-// An existing bucket keeps its settings.
+// An existing bucket keeps its size limit and MIME types.
 function data(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -1040,18 +1047,7 @@ function data(ctx: BlockSqlContext): string {
     }
   }
 
-  const values = [...rows].map(([id, types]) => {
-    const mimeArray =
-      types.length === 0
-        ? "null"
-        : `array[${types.map(sqlString).join(", ")}]::text[]`;
-
-    return `(${sqlString(id)}, ${sqlString(id)}, false, ${String(maxSize)}, ${mimeArray})`;
-  });
-
-  return `insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ${values.join(",\n  ")}
-on conflict (id) do nothing;`;
+  return bucketInsert(ctx, rows, maxSize);
 }
 
 export const ATTACHMENTS: BlockSqlDefinition = {
@@ -1067,12 +1063,12 @@ export const ATTACHMENTS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Attachments",
   description:
-    "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job.",
+    "Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.",
   requires: ["memberships", "permissions"],
   integrates: ["profiles"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -1091,6 +1087,12 @@ export const ATTACHMENTS: BlockSqlDefinition = {
       from: 3,
       description:
         "Files keep versions (replace_attachment, restore_attachment_version) and a width, height and page count; create_attachment takes them after metadata.",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "options.publicBuckets makes chosen attachment buckets public, and the data file sets each bucket's public flag on every run.",
       sql: () => "",
     },
   ],

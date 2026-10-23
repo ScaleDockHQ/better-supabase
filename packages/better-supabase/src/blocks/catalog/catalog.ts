@@ -5,7 +5,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
-import type { BlockOptions } from "../shared.ts";
+import type { BlockOptions, CursorPageOptions } from "../shared.ts";
 
 import { money } from "../../commerce/money.ts";
 import {
@@ -23,8 +23,10 @@ import {
   blockCall,
   enumOrThrow,
   instantArg,
+  instantOf,
   isRecord,
   optionalText,
+  pageOf,
   recordOf,
   recordsOf,
   textOf,
@@ -190,6 +192,95 @@ export interface SavedCollection {
   readonly kind: "manual" | "rule";
 }
 
+export interface ChannelInput {
+  /** Updates this channel; creates one when left out. */
+  readonly id?: string;
+  /** Lower-case letters, digits and hyphens, unique per organization. */
+  readonly key: string;
+  readonly name: string;
+  /** The ISO 4217 code the channel sells in. */
+  readonly currency?: string;
+  /** The price list its prices come from; base prices when left out. */
+  readonly priceListId?: string;
+  /** Default `true` for a new channel; an update keeps it when left out. */
+  readonly active?: boolean;
+}
+
+export interface SavedChannel {
+  readonly id: string;
+  readonly key: string;
+  readonly active: boolean;
+}
+
+export interface LocaleOptions {
+  /**
+   * A language tag. A locale the catalog doesn't list falls back to its
+   * language, then to the default locale (`options.locales[0]`).
+   */
+  readonly locale?: string;
+}
+
+/** `cursor` is the `slug` of the previous page's last product. */
+export interface ChannelProductsOptions
+  extends LocaleOptions, CursorPageOptions<string> {}
+
+export interface ChannelProduct {
+  readonly id: string;
+  readonly slug: string;
+  /** `draft`, `active`, `archived`, or a state a state machine adds. */
+  readonly status: string;
+  readonly kind?: ProductKind;
+  /** The locale the text is in. */
+  readonly locale: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly listedAt: Temporal.Instant;
+}
+
+/** A product's text in one locale; a key left out falls back to the default. */
+export interface ProductTranslation {
+  readonly title?: string;
+  readonly description?: string;
+}
+
+export interface LocalizedVariant {
+  readonly id: string;
+  readonly sku: string;
+  readonly title?: string;
+}
+
+export interface LocalizedProduct {
+  readonly id: string;
+  readonly slug: string;
+  readonly locale: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly variants: readonly LocalizedVariant[];
+}
+
+export interface ProductMediaInput {
+  /** Shows the file for one variant of the product. */
+  readonly variantId?: string;
+  /** Alt text keyed by configured locale. */
+  readonly alt?: Readonly<Record<string, string>>;
+}
+
+export interface SavedProductMedia {
+  readonly id: string;
+  readonly position: number;
+}
+
+export interface ProductMedia {
+  readonly id: string;
+  readonly attachmentId: string;
+  readonly variantId?: string;
+  /** From 0, in display order. */
+  readonly position: number;
+  /** The alt text in the requested locale, or the default locale's. */
+  readonly alt?: string;
+  readonly altByLocale: Readonly<Record<string, string>>;
+}
+
 /** `F` is the extra product fields `options.fields` describes. */
 export interface Catalog<F extends object = Record<never, never>> {
   /** Keys besides the input's own are the product's extra columns. */
@@ -286,6 +377,82 @@ export interface Catalog<F extends object = Record<never, never>> {
     organizationId: string,
     published: boolean,
   ): AsyncResult<boolean>;
+  /** Creates a sales channel, or updates the one `input.id` names. */
+  saveChannel(
+    organizationId: string,
+    input: ChannelInput,
+  ): AsyncResult<SavedChannel>;
+  /** Deletes a channel and its listings. */
+  deleteChannel(channelId: string): AsyncResult<boolean>;
+  /** Lists products on a channel. Resolves to how many were new there. */
+  listOnChannel(
+    channelId: string,
+    productIds: readonly string[],
+  ): AsyncResult<number>;
+  /** Takes products off a channel. Resolves to how many were listed. */
+  unlistFromChannel(
+    channelId: string,
+    productIds: readonly string[],
+  ): AsyncResult<number>;
+  /** The products listed on a channel by slug, 100 a page (500 at most). */
+  channelProducts(
+    channelId: string,
+    options?: ChannelProductsOptions,
+  ): AsyncResult<readonly ChannelProduct[]>;
+  /**
+   * The variant's price in the channel's currency and price list; null when the
+   * channel has no currency or the variant no price.
+   */
+  channelPrice(
+    channelId: string,
+    variantId: string,
+    options?: { readonly at?: Temporal.Instant },
+  ): AsyncResult<Price | null>;
+  /**
+   * Sets a product's text in a locale other than the default. An empty
+   * translation removes it. Resolves to whether one is stored.
+   */
+  setProductTranslation(
+    productId: string,
+    locale: string,
+    translation: ProductTranslation,
+  ): AsyncResult<boolean>;
+  /** Sets a variant's title in a locale; null removes the translation. */
+  setVariantTranslation(
+    variantId: string,
+    locale: string,
+    title: string | null,
+  ): AsyncResult<boolean>;
+  /** A product's text and its variants' titles in a locale, with fallback. */
+  productText(
+    productId: string,
+    options?: LocaleOptions,
+  ): AsyncResult<LocalizedProduct | null>;
+  /**
+   * Adds an attachment of the product or one of its variants to the product's
+   * media, last. Needs the attachments block.
+   */
+  addProductMedia(
+    productId: string,
+    attachmentId: string,
+    input?: ProductMediaInput,
+  ): AsyncResult<SavedProductMedia>;
+  /** Replaces a media item's variant and alt text. */
+  updateProductMedia(
+    mediaId: string,
+    input: ProductMediaInput,
+  ): AsyncResult<boolean>;
+  /** Puts the product's media in this order; it lists every item once. */
+  reorderProductMedia(
+    productId: string,
+    mediaIds: readonly string[],
+  ): AsyncResult<boolean>;
+  /** Removes a media item; the attachment stays. */
+  removeProductMedia(mediaId: string): AsyncResult<boolean>;
+  productMedia(
+    productId: string,
+    options?: LocaleOptions,
+  ): AsyncResult<readonly ProductMedia[]>;
 }
 
 function productOf(value: unknown): SavedProduct {
@@ -326,6 +493,89 @@ function priceOf(value: unknown): Price | null {
   };
 }
 
+function countOf(value: unknown): number {
+  const count = typeof value === "number" ? value : Number(textOf(value));
+
+  if (!Number.isInteger(count)) {
+    throw new TypeError(
+      `set_channel_listing returned ${JSON.stringify(value)}`,
+    );
+  }
+
+  return count;
+}
+
+function textsOf(value: unknown): Readonly<Record<string, string>> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, entry]) =>
+      typeof entry === "string" ? [[key, entry]] : [],
+    ),
+  );
+}
+
+function channelProductOf(row: Record<string, unknown>): ChannelProduct {
+  const description = optionalText(row["description"]);
+
+  const kind =
+    row["kind"] === null || row["kind"] === undefined
+      ? undefined
+      : enumOrThrow(row["kind"], PRODUCT_KINDS, "product kind");
+
+  return {
+    id: textOf(row["id"]),
+    slug: textOf(row["slug"]),
+    status: textOf(row["status"]),
+    ...(kind === undefined ? {} : { kind }),
+    locale: textOf(row["locale"]),
+    title: textOf(row["title"]),
+    ...(description === undefined ? {} : { description }),
+    listedAt: instantOf(row["listedAt"]),
+  };
+}
+
+function localizedOf(value: unknown): LocalizedProduct | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const description = optionalText(value["description"]);
+
+  return {
+    id: textOf(value["id"]),
+    slug: textOf(value["slug"]),
+    locale: textOf(value["locale"]),
+    title: textOf(value["title"]),
+    ...(description === undefined ? {} : { description }),
+    variants: recordsOf(value["variants"], "product_text").map((entry) => {
+      const title = optionalText(entry["title"]);
+
+      return {
+        id: textOf(entry["id"]),
+        sku: textOf(entry["sku"]),
+        ...(title === undefined ? {} : { title }),
+      };
+    }),
+  };
+}
+
+function mediaOf(row: Record<string, unknown>): ProductMedia {
+  const variantId = optionalText(row["variantId"]);
+  const alt = optionalText(row["alt"]);
+
+  return {
+    id: textOf(row["id"]),
+    attachmentId: textOf(row["attachmentId"]),
+    ...(variantId === undefined ? {} : { variantId }),
+    position: Number(row["position"]),
+    ...(alt === undefined ? {} : { alt }),
+    altByLocale: textsOf(row["altByLocale"]),
+  };
+}
+
 function variantArgs(
   productId: string,
   variantId: string | null,
@@ -345,8 +595,8 @@ function variantArgs(
 }
 
 /**
- * Products, variants, prices, categories and collections over the `catalog` SQL
- * module.
+ * Products, variants, prices, categories, collections, sales channels,
+ * translations and product media over the `catalog` SQL module.
  */
 export function createCatalog<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -617,6 +867,136 @@ export function createCatalog<
         "publish_storefront",
         { tenant: organizationId, published },
         (value) => value === true,
+      ),
+    saveChannel: (organizationId, input) =>
+      call(
+        "save_catalog_channel",
+        {
+          tenant: organizationId,
+          channel: input.id ?? null,
+          key: input.key,
+          name: input.name,
+          currency: input.currency ?? null,
+          price_list: input.priceListId ?? null,
+          active: input.active ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "save_catalog_channel");
+
+          return {
+            id: textOf(row["id"]),
+            key: textOf(row["key"]),
+            active: row["active"] === true,
+          };
+        },
+      ),
+    deleteChannel: (channelId) =>
+      call(
+        "delete_catalog_channel",
+        { channel: channelId },
+        (value) => value === true,
+      ),
+    listOnChannel: (channelId, productIds) =>
+      call(
+        "set_channel_listing",
+        { channel: channelId, products: productIds, listed: true },
+        countOf,
+      ),
+    unlistFromChannel: (channelId, productIds) =>
+      call(
+        "set_channel_listing",
+        { channel: channelId, products: productIds, listed: false },
+        countOf,
+      ),
+    channelProducts: (channelId, listOptions = {}) => {
+      const { limit, cursor } = pageOf(listOptions);
+
+      return call(
+        "channel_products",
+        {
+          channel: channelId,
+          locale: listOptions.locale ?? null,
+          page_size: limit ?? null,
+          after: cursor ?? null,
+        },
+        (value) => recordsOf(value, "channel_products").map(channelProductOf),
+      );
+    },
+    channelPrice: (channelId, variantId, priceOptions = {}) =>
+      call(
+        "channel_price",
+        {
+          channel: channelId,
+          variant: variantId,
+          as_of: instantArg(priceOptions.at) ?? null,
+        },
+        priceOf,
+      ),
+    setProductTranslation: (productId, locale, translation) =>
+      call(
+        "set_product_translation",
+        {
+          product: productId,
+          locale,
+          title: translation.title ?? null,
+          description: translation.description ?? null,
+        },
+        (value) => value === true,
+      ),
+    setVariantTranslation: (variantId, locale, title) =>
+      call(
+        "set_variant_translation",
+        { variant: variantId, locale, title },
+        (value) => value === true,
+      ),
+    productText: (productId, textOptions = {}) =>
+      call(
+        "product_text",
+        { product: productId, locale: textOptions.locale ?? null },
+        localizedOf,
+      ),
+    addProductMedia: (productId, attachmentId, input = {}) =>
+      call(
+        "add_product_media",
+        {
+          product: productId,
+          attachment: attachmentId,
+          variant: input.variantId ?? null,
+          alt: input.alt ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "add_product_media");
+
+          return { id: textOf(row["id"]), position: Number(row["position"]) };
+        },
+      ),
+    updateProductMedia: (mediaId, input) =>
+      call(
+        "update_product_media",
+        {
+          media: mediaId,
+          variant: input.variantId ?? null,
+          alt: input.alt ?? null,
+        },
+        (value) => value === true,
+      ),
+    reorderProductMedia: (productId, mediaIds) =>
+      call(
+        "reorder_product_media",
+        { product: productId, media: mediaIds },
+        (value) => value === true,
+      ),
+    removeProductMedia: (mediaId) =>
+      call(
+        "remove_product_media",
+        { media: mediaId },
+        (value) => value === true,
+      ),
+    productMedia: (productId, mediaOptions = {}) =>
+      call(
+        "product_media",
+        { product: productId, locale: mediaOptions.locale ?? null },
+        (value) => recordsOf(value, "product_media").map(mediaOf),
       ),
   };
 

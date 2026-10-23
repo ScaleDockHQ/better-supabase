@@ -139,7 +139,7 @@ describe("ai-chat module", () => {
 
   it("upgrades run states and moves harness sandboxes from version 1", () => {
     const [plan] = upgradePlan([{ module: "ai-chat", version: 1 }]);
-    expect(plan!.to).toBe(3);
+    expect(plan!.to).toBe(4);
     const sql = plan!.steps.map((step) => step.sql).join("\n");
     expect(sql).toContain("when 'error' then 'failed' else 'cancelled' end");
     expect(sql).toContain("a.attname = 'status'");
@@ -287,5 +287,22 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
     expect(withProvider(true)).toMatch(
       /is distinct from \(select auth\.uid\(\)\) and coalesce\(\(authz\.can_approve/,
     );
+  });
+
+  it("records token usage on the usage block's meters", () => {
+    expect(body()).not.toContain("record_usage");
+    const sql = withModules(["usage"]);
+    expect(sql).toContain('"better_supabase"."record_usage"(');
+    expect(sql).toContain("'ai.input_tokens'");
+    expect(sql).toContain("'ai.output_tokens'");
+
+    const off = renderBlocks(["usage", "ai-chat"], {
+      modules: { "ai-chat": { options: { meterUsage: false } } },
+    })
+      .filter((file) => file.module === "ai-chat")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(off).not.toContain("record_usage");
   });
 });

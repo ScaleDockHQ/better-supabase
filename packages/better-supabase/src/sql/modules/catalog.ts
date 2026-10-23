@@ -16,6 +16,13 @@ import {
   schemaPreamble,
 } from "../shared.ts";
 import {
+  catalogLocales,
+  channelContract,
+  channelModuleFunctions,
+  channelStorefrontTables,
+  channelTables,
+} from "./catalog-channels.ts";
+import {
   SLUG,
   optionFunctions,
   productExtras,
@@ -114,7 +121,7 @@ const NAMES: BlockSqlNames = {
     "before_price_set",
     "after_price_set",
   ],
-  options: ["storefront", "extraColumns"],
+  options: ["storefront", "extraColumns", "locales"],
   tables: {
     products: {
       name: "products",
@@ -272,6 +279,80 @@ const NAMES: BlockSqlNames = {
       lifecycle: tenantExport,
       optionalTable: true,
       columns: { tenant: "tenant_id", publishedAt: "published_at" },
+    },
+    channels: {
+      name: "catalog_channels",
+      lifecycle: tenantExport,
+      optionalTable: true,
+      adoptOnlyWhenMapped: true,
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        key: "key",
+        name: "name",
+        currency: "currency",
+        priceList: "price_list_id",
+        active: "active",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+      optional: ["currency", "priceList"],
+    },
+    channelProducts: {
+      name: "catalog_channel_products",
+      lifecycle: tenantExport,
+      optionalTable: true,
+      adoptOnlyWhenMapped: true,
+      columns: {
+        tenant: "tenant_id",
+        channel: "channel_id",
+        product: "product_id",
+        listedAt: "listed_at",
+      },
+    },
+    productTranslations: {
+      name: "product_translations",
+      lifecycle: tenantExport,
+      optionalTable: true,
+      adoptOnlyWhenMapped: true,
+      columns: {
+        tenant: "tenant_id",
+        product: "product_id",
+        locale: "locale",
+        title: "title",
+        description: "description",
+        updatedAt: "updated_at",
+      },
+      optional: ["description"],
+    },
+    variantTranslations: {
+      name: "product_variant_translations",
+      lifecycle: tenantExport,
+      optionalTable: true,
+      adoptOnlyWhenMapped: true,
+      columns: {
+        tenant: "tenant_id",
+        variant: "variant_id",
+        locale: "locale",
+        title: "title",
+        updatedAt: "updated_at",
+      },
+    },
+    media: {
+      name: "product_media",
+      lifecycle: tenantExport,
+      optionalTable: true,
+      adoptOnlyWhenMapped: true,
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        product: "product_id",
+        variant: "variant_id",
+        attachment: "attachment_id",
+        position: "position",
+        alt: "alt",
+        createdAt: "created_at",
+      },
     },
   },
   migrations: [
@@ -454,6 +535,7 @@ create table if not exists ${t("storefronts")} (
 );
 ${lockTable(t("storefronts"), { read: true })}
 ${read("storefronts")}
+${channelTables(ctx, names)}
 `;
 }
 
@@ -510,6 +592,7 @@ function storefrontPolicies(ctx: BlockSqlContext, names: Names): string {
       "collectionProducts",
       `${c("collectionProducts", "product")} in (select ${names.fn("storefront_products")}())`,
     ],
+    ...channelStorefrontTables(ctx, names),
   ];
 
   const on = storefrontOption(ctx);
@@ -546,12 +629,14 @@ function build(ctx: BlockSqlContext): string {
   };
 
   storefrontOption(ctx);
+  catalogLocales(ctx);
 
   return `${schemaPreamble(ctx)}
 -- Products with options, variants and prices in minor units, plus
--- categories, collections, price lists and an optional public storefront.
+-- categories, collections, price lists, sales channels, translations,
+-- product media and an optional public storefront.
 ${currencyMinorUnitsFunction(names.fn("currency_minor_units"))}
-${tables(ctx, names)}${productFunctions(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}
+${tables(ctx, names)}${productFunctions(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}
 ${ctx.hasTable("storefronts") ? storefrontPolicies(ctx, names) : ""}
 `;
 }
@@ -690,6 +775,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           },
         ]
       : []),
+    ...channelContract(ctx),
   ];
 }
 
@@ -698,14 +784,22 @@ export const CATALOG: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Catalog",
   description:
-    "Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.",
+    "Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.",
   requires: ["memberships", "permissions"],
   before: "search",
-  integrates: ["outbox", "state-machine", "inventory"],
+  integrates: ["outbox", "state-machine", "inventory", "attachments"],
   target: "schema",
   modes: ["managed", "adopt", "custom"],
-  version: 2,
+  version: 3,
   names: NAMES,
+  upgrades: [
+    {
+      from: 2,
+      description:
+        "Sales channels with product listings, translations per locale and, with attachments, product media.",
+      sql: () => "",
+    },
+  ],
   contract,
   build,
 };

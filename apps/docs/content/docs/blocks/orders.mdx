@@ -138,6 +138,13 @@ idempotency key `order:<id>:payment`, so calling `checkout` again for the
 same cart returns the same order and the same payment. A free order is paid
 at once.
 
+With the [invoices block](/docs/blocks/invoices) installed, the payment that
+marks an order paid also creates its invoice: one line per order line (the
+title and quantity, the net amount and the tax rate it was charged), a
+shipping line, issued today and paid in full by the order's payment. The
+order's invoice number is that invoice's identifier, and `record_payment`
+returns its `invoiceId`.
+
 ### Payment events
 
 Route the provider's webhook to `orders.webhook`. It verifies the delivery,

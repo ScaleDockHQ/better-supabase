@@ -188,6 +188,12 @@ begin
         from "better_supabase"."calendar_events" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
+    when 'content_entry' then
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."summary"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."content_entries" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'customer' then
       select s."organization_id", s."name"::text, null, '/customers/' || s."id"::text
         into v_tenant, v_title, v_body, v_url
@@ -364,6 +370,13 @@ begin
   if search_reindex.subject_type is null or search_reindex.subject_type = 'calendar_event' then
     for v_id in select s."id"::text from "better_supabase"."calendar_events" s loop
       if "better_supabase"."search_refresh"('calendar_event', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'content_entry' then
+    for v_id in select s."id"::text from "better_supabase"."content_entries" s loop
+      if "better_supabase"."search_refresh"('content_entry', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;

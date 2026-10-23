@@ -114,6 +114,22 @@ one chunk. `reembed({ model })` marks documents embedded by another model
 extracts text, JSON, XML and YAML; pass `extract` to `createKnowledge` for
 PDFs and other formats.
 
+With the jobs block installed, `ingest.queue(organizationId, fileId)` moves
+that work off the request: it creates a pending document for the file and
+enqueues it on `knowledge_ingest` (the `ingestQueue` option). Register
+`knowledge.ingestJob()` as that queue's handler on the server; it reads the
+file, extracts its text and writes the chunks, which enqueues their
+embedding. The handler runs as the service role, so give `createKnowledge`
+an AI files client with a service transport. The last failed attempt marks
+the document `failed`.
+
+```ts
+const handlers = {
+  knowledge_ingest: knowledge.ingestJob(),
+  knowledge_embed: knowledge.embedJob(),
+};
+```
+
 ## Search
 
 ```ts

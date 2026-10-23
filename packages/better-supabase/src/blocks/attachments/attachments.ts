@@ -63,6 +63,11 @@ export interface AttachmentBucket {
     options?: { download?: string | boolean; transform?: TransformOptions },
   ): PromiseLike<StorageReply<{ readonly signedUrl: string }>>;
   download(path: string): PromiseLike<StorageReply<Blob>>;
+  /** Used by `publicUrl`, for files in `options.publicBuckets`. */
+  getPublicUrl?(
+    path: string,
+    options?: { download?: string | boolean; transform?: TransformOptions },
+  ): { readonly data: { readonly publicUrl: string } };
   remove(paths: string[]): PromiseLike<StorageReply<unknown>>;
   /** Used by `put`, which uploads from the server. */
   upload?(
@@ -113,6 +118,11 @@ export interface AttachmentsOptions<
    * `blocks.generated.ts`. Default `true`.
    */
   readonly requireScan?: boolean;
+  /**
+   * `blocks.attachments.options.publicBuckets`, which `defineBlocks` passes
+   * from `blocks.generated.ts`: the buckets `publicUrl` serves. Default none.
+   */
+  readonly publicBuckets?: readonly string[];
   /** Lifetime of a signed download URL in seconds. Default 300. */
   readonly downloadTtl?: number;
 }
@@ -220,8 +230,15 @@ export interface AttachmentImages<V extends string = never> {
     readonly public: false;
     readonly variants: Readonly<Record<V, TransformOptions>>;
   };
-  /** Attachments are private: an `invalid_request` error. */
-  publicUrl(target: Attachment | string): Result<string>;
+  /**
+   * The public URL of an image in one of `options.publicBuckets`, resized by
+   * `transform`. Any other file, or a target given by id, is an
+   * `invalid_request` error with hint `ATTACHMENT_PRIVATE`.
+   */
+  publicUrl(
+    target: Attachment | string,
+    options?: { readonly transform?: ImageTransform<V> },
+  ): Result<string>;
   /**
    * A signed URL of the image resized by `transform`. `ATTACHMENT_NOT_SCANNED`
    * until the scan passes, `ATTACHMENT_NOT_IMAGE` for a file that is not
@@ -283,6 +300,15 @@ export interface Attachments<F extends object = Record<never, never>> {
       readonly version?: number;
     },
   ): AsyncResult<AttachmentDownload<F>>;
+  /**
+   * The public URL of a file in one of `options.publicBuckets`, which Storage
+   * serves without a signed URL. A file in a private bucket is an
+   * `invalid_request` error with hint `ATTACHMENT_PRIVATE`.
+   */
+  publicUrl(
+    attachment: Attachment,
+    options?: { readonly as?: string | boolean },
+  ): Result<string>;
   /**
    * Deletes every version's file, then the record (the uploader, or
    * `attachments.manage`).
@@ -563,6 +589,31 @@ export function createAttachments<
         );
   };
 
+  const publicBuckets: ReadonlySet<string> = new Set(options.publicBuckets);
+
+  const publicUrl = (
+    attachment: Attachment,
+    url: { download?: string | boolean; transform?: TransformOptions } = {},
+  ): Result<string> => {
+    const target = bucket(attachment);
+
+    if (!publicBuckets.has(attachment.bucket) || !target.getPublicUrl) {
+      return err(
+        dbError("invalid_request", "The file's bucket is not public", {
+          hint: "ATTACHMENT_PRIVATE",
+        }),
+      );
+    }
+
+    const blocked = gate(attachment);
+
+    if (blocked !== undefined) {
+      return err(blocked);
+    }
+
+    return ok(target.getPublicUrl(attachment.path, url).data.publicUrl);
+  };
+
   const listVersions = (
     id: string,
   ): AsyncResult<readonly AttachmentVersion[]> =>
@@ -717,6 +768,8 @@ export function createAttachments<
           ),
         ),
     versions: listVersions,
+    publicUrl: (attachment, url = {}) =>
+      publicUrl(attachment, url.as === undefined ? {} : { download: url.as }),
     restore: (id, version) =>
       call(
         "restore_attachment_version",
@@ -728,12 +781,25 @@ export function createAttachments<
       variants = {} as Readonly<Record<V, TransformOptions>>,
     ): AttachmentImages<V> => ({
       bucket: { id: "attachments", public: false, variants },
-      publicUrl: () =>
-        err(
-          dbError("invalid_request", "Attachments have no public URL", {
-            hint: "ATTACHMENT_PRIVATE",
-          }),
-        ),
+      publicUrl: (target, url = {}) => {
+        if (typeof target === "string") {
+          return err(
+            dbError("invalid_request", "A public URL needs the attachment", {
+              hint: "ATTACHMENT_PRIVATE",
+            }),
+          );
+        }
+
+        let transform: TransformOptions | undefined;
+
+        try {
+          transform = transformFor("attachments", variants, url.transform);
+        } catch (cause) {
+          return err(toDbError(cause));
+        }
+
+        return publicUrl(target, transform === undefined ? {} : { transform });
+      },
       signedUrl: (target, url = {}) =>
         (typeof target === "string"
           ? find(target)

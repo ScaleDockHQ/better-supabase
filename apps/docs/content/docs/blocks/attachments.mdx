@@ -57,6 +57,22 @@ nobody scanned are served too (an `infected` one never is). The client reads
 from this config, so `defineBlocks` passes it to `createAttachments` and you
 never repeat it (see [the generated config](/docs/blocks/create-blocks#the-generated-config)).
 
+`publicBuckets` lists buckets that Storage serves without a signed URL, for
+media on a public page such as a product photo or an article image. The
+module creates those buckets as public and keeps every other bucket private,
+so removing a bucket from the list makes it private again on the next
+`better-supabase add`. A public bucket needs `requireScan: false`, because
+Storage serves its files before any scan could run. `attachments.publicUrl(attachment)`
+and `images.publicUrl(attachment, { transform })` return the URL; a file in
+a private bucket returns `ATTACHMENT_PRIVATE`, and an infected one
+`ATTACHMENT_NOT_SCANNED`.
+
+```ts title="better-supabase.config.ts"
+attachments: {
+  options: { publicBuckets: ["attachments"], requireScan: false },
+},
+```
+
 ### Subjects and buckets
 
 `subjects` maps each subject type to its table, as in the

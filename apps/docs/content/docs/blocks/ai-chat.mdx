@@ -95,6 +95,15 @@ unless that one is older than `staleAfter`. The writer appends to the
 `runs.release` ends the run with its status and usage. `runs.stop` sets the
 stream's cancel flag; the writer sees it on its next append.
 
+With the [usage block](/docs/blocks/usage) installed, `runs.release`
+records the run's tokens on two meters: `ai.input_tokens` and
+`ai.output_tokens` (the `inputMeter` and `outputMeter` options), once per
+run, keyed by the run so a retried release counts nothing twice. With a
+`meters` catalog on usage, only the meters it names are recorded. If the app
+already meters tokens itself (`meterTelemetry` or `usageEntries` from
+`better-supabase/ai-sdk`), set `meterUsage: false` so they are not counted
+twice.
+
 A run is `queued`, `running`, `cancel_requested`, `completed`, `failed` or
 `cancelled`. AI tasks and workflow runs use the same names, and
 `FINAL_RUN_STATES` from `better-supabase/blocks` lists the three final

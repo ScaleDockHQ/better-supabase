@@ -326,8 +326,13 @@ export interface BlockNameRegistry {
       readonly "collections": "id" | "tenant" | "title" | "slug" | "kind" | "rule" | "createdAt" | "updatedAt";
       readonly "collectionProducts": "tenant" | "collection" | "product" | "rank";
       readonly "storefronts": "tenant" | "publishedAt";
+      readonly "channels": "id" | "tenant" | "key" | "name" | "currency" | "priceList" | "active" | "createdAt" | "updatedAt";
+      readonly "channelProducts": "tenant" | "channel" | "product" | "listedAt";
+      readonly "productTranslations": "tenant" | "product" | "locale" | "title" | "description" | "updatedAt";
+      readonly "variantTranslations": "tenant" | "variant" | "locale" | "title" | "updatedAt";
+      readonly "media": "id" | "tenant" | "product" | "variant" | "attachment" | "position" | "alt" | "createdAt";
     };
-    readonly functions: "add_to_collection" | "currency_minor_units" | "delete_category" | "delete_collection" | "delete_price" | "delete_price_list" | "delete_product" | "delete_product_option" | "delete_variant" | "move_category" | "publish_storefront" | "rank_variant" | "remove_from_collection" | "save_category" | "save_collection" | "save_price_list" | "save_product" | "save_product_option" | "save_variant" | "set_price" | "set_product_categories" | "set_product_status" | "storefront_products" | "storefront_tenants" | "variant_price";
+    readonly functions: "add_to_collection" | "channel_price" | "channel_products" | "currency_minor_units" | "delete_catalog_channel" | "delete_category" | "delete_collection" | "delete_price" | "delete_price_list" | "delete_product" | "delete_product_option" | "delete_variant" | "move_category" | "product_text" | "publish_storefront" | "rank_variant" | "remove_from_collection" | "save_catalog_channel" | "save_category" | "save_collection" | "save_price_list" | "save_product" | "save_product_option" | "save_variant" | "set_channel_listing" | "set_price" | "set_product_categories" | "set_product_status" | "set_product_translation" | "set_variant_translation" | "storefront_products" | "storefront_tenants" | "variant_price";
     readonly actions: "manage" | "read";
     readonly hooks: "before_product_save" | "after_product_save" | "before_variant_save" | "after_variant_save" | "before_price_set" | "after_price_set";
     readonly entities: {
@@ -438,6 +443,18 @@ export interface BlockNameRegistry {
       readonly "person": "id" | "tenant_id" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner_user_id" | "user_id" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: never;
+  };
+  readonly "content": {
+    readonly tables: {
+      readonly "entries": "id" | "tenant" | "type" | "locale" | "slug" | "title" | "summary" | "body" | "status" | "publishAt" | "publishedAt" | "author" | "translationGroup" | "cover" | "approval" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "archive_content_entry" | "content_entry_approved" | "content_entry_go_live" | "create_content_entry" | "get_content_entry" | "list_content_entries" | "public_content_entries" | "public_content_entry" | "publish_content_entry" | "publish_due_content_entries" | "schedule_content_entry" | "update_content_entry";
+    readonly actions: "read" | "write" | "publish";
+    readonly hooks: "before_content_entry_publish" | "after_content_entry_publish";
+    readonly entities: {
+      readonly "content_entry": "id" | "tenant_id" | "type" | "locale" | "slug" | "title" | "summary" | "body" | "status" | "publish_at" | "published_at" | "author_id" | "translation_group_id" | "cover_attachment_id" | "approval_id" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "content_entry";
   };
   readonly "contracts": {
     readonly tables: {

@@ -68,6 +68,8 @@ const NO_FIELDS: readonly string[] = [
   // Comments are messages, so app columns go on blocks.messaging.options.extraColumns;
   // a comment task only links a message to a work item.
   "comments",
+  // An entry's fields live in the JSON body its editor writes.
+  "content",
   // The block is itself the app's extra fields.
   "custom-fields",
   // Export and deletion requests are the module's bookkeeping, not app records.

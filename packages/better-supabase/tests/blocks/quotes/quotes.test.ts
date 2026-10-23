@@ -150,6 +150,35 @@ describe("quotes block", () => {
     });
   });
 
+  it("leaves a catalog line's price and title to the database", async () => {
+    const t = transport({
+      set_quote_lines: () => ({
+        listTotal: "5000",
+        discountTotal: "0",
+        subtotal: "5000",
+        taxTotal: "0",
+        total: "5000",
+        currency: "EUR",
+      }),
+    });
+
+    const quotes = createQuotes({ transport: t });
+    await quotes
+      .setLines("q1", [
+        { product: { type: "product_variant", id: "v1" }, quantity: 2 },
+        { description: "Setup", unitAmount: eur(1000n) },
+      ])
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toEqual({
+      parent: "q1",
+      lines: [
+        { product: { type: "product_variant", id: "v1" }, quantity: 2 },
+        { description: "Setup", unitAmount: "1000", currency: "EUR" },
+      ],
+    });
+  });
+
   it("serves the customer's page and answers", async () => {
     const t = transport({
       public_quote: () => ({

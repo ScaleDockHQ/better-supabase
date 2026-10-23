@@ -9,7 +9,12 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { Line, LineInput, Totals } from "../sales-lines.ts";
+import type {
+  CatalogLineInput,
+  Line,
+  LineInput,
+  Totals,
+} from "../sales-lines.ts";
 import type { RecordRef } from "../sales-shared.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
@@ -21,7 +26,7 @@ import {
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { amountsError, moneyOf, unknownCurrency } from "../money-codec.ts";
-import { lineArg, lineOf, totalsOf } from "../sales-lines.ts";
+import { lineAmounts, lineArg, lineOf, totalsOf } from "../sales-lines.ts";
 import { attrsArg, compact, plainDate, refOf } from "../sales-shared.ts";
 import {
   applyTemporal,
@@ -37,7 +42,12 @@ import {
   bigintOf,
 } from "../shared.ts";
 
-export type { Line, LineInput, Totals } from "../sales-lines.ts";
+export type {
+  CatalogLineInput,
+  Line,
+  LineInput,
+  Totals,
+} from "../sales-lines.ts";
 
 export type { RecordRef } from "../sales-shared.ts";
 
@@ -132,15 +142,24 @@ export interface PublicQuote {
   readonly lines: readonly Line[];
 }
 
+/**
+ * A quote line. With the catalog block installed, a line can name a product
+ * variant and take its price in the quote's currency and its title.
+ */
+export type QuoteLineInput = LineInput | CatalogLineInput;
+
 export interface Quotes<F extends object = Record<never, never>> {
   create(
     organizationId: string,
     input: QuoteInput<F> & { readonly title: string },
-    lines?: readonly LineInput[],
+    lines?: readonly QuoteLineInput[],
   ): AsyncResult<Quote<F>>;
   /** Changes a draft, or a quote with changes requested. */
   update(quoteId: string, input: QuoteInput<F>): AsyncResult<Quote<F>>;
-  setLines(quoteId: string, lines: readonly LineInput[]): AsyncResult<Totals>;
+  setLines(
+    quoteId: string,
+    lines: readonly QuoteLineInput[],
+  ): AsyncResult<Totals>;
   /** Sends it: resolves to the quote and the link token, returned only now. */
   send(
     quoteId: string,
@@ -320,7 +339,7 @@ export function createQuotes<
 
   const client: Quotes<F> = {
     create: (organizationId, input, lines) => {
-      const amounts = (lines ?? []).map((line) => line.unitAmount);
+      const amounts = lineAmounts(lines ?? []);
       const invalid = amountsError(input.currency, amounts);
 
       if (invalid !== undefined) {
@@ -356,10 +375,7 @@ export function createQuotes<
             ),
           ),
     setLines: (quoteId, lines) => {
-      const invalid = amountsError(
-        undefined,
-        lines.map((line) => line.unitAmount),
-      );
+      const invalid = amountsError(undefined, lineAmounts(lines));
 
       return invalid === undefined
         ? call(

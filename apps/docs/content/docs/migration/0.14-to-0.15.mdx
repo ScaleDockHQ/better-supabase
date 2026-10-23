@@ -621,6 +621,24 @@ repository also takes a filter tree from a list query or a saved view. See
 [Data hooks](/docs/frontend/data-hooks#engines),
 [PowerSync](/docs/repository/powersync) and [SQLite](/docs/repository/sqlite).
 
+## Installed blocks work together
+
+Run `bsb upgrade` after updating. The new migrations change behavior where
+two blocks are installed together:
+
+- With `usage`, `ai-chat` records run tokens on `ai.input_tokens` and
+  `ai.output_tokens`. If the app already meters tokens with
+  `meterTelemetry` or `usageEntries`, set `meterUsage: false` on ai-chat so
+  they are not counted twice.
+- With `invoices`, `orders` creates and pays an invoice for every paid
+  order. Orders paid before the upgrade keep no invoice.
+- With `employees`, time entries and leave requests gain an `employee_id`
+  column, filled for existing rows by the upgrade.
+- The attachments data file now sets each of its buckets' `public` flag on
+  every apply. A bucket you made public by hand in the dashboard turns
+  private again unless you list it in `publicBuckets`, which needs
+  `requireScan: false`.
+
 ## Doctor finds what is left
 
 `better-supabase doctor` reports BS418 for app code that still imports a

@@ -128,6 +128,7 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "after_person_save",
   ],
   activities: ["before_engagement_log", "after_engagement_log"],
+  content: ["before_content_entry_publish", "after_content_entry_publish"],
   collections: [
     "before_collection_create",
     "after_collection_create",

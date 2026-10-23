@@ -55,6 +55,13 @@ const { token } = await quotes.send(quote.id).orThrow();
 
 Unit amounts and totals are `Money` values from [commerce](/docs/concepts/commerce), sent to the database as text so they stay exact past 2^53. Every line must be in the quote's currency (`CURRENCY_MISMATCH`, checked before the database call), and a quote created without a `currency` takes the currency of its lines. An unknown code returns `CURRENCY_INVALID`.
 
+With the [catalog block](/docs/blocks/catalog) installed, a line can name a
+product variant instead of pricing it: `{ product: { type: "product_variant", id }, quantity: 2 }`.
+The database takes the variant's price in the quote's currency (from
+`variant_price`) and its title, or its product's title, when the line has no
+`unitAmount` or `description`. A variant of another organization or without
+a price in that currency fails with `LINES_INVALID`.
+
 `send` needs at least one line (`QUOTE_EMPTY`). It returns the link's token once; only its hash is stored. `revise(quoteId)` makes a new draft with the same number, the next revision, the same lines and a fresh valid-until date, and withdraws the old one unless it was accepted, which also ends its link.
 
 ## The customer's page

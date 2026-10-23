@@ -68,6 +68,15 @@ export function lineItemsSql(
     readonly setter: string;
     /** SQL that refuses the call unless the caller may edit record `v_parent`. */
     readonly guard: string;
+    /**
+     * A line without `unitAmount` or `description` takes them from here: bigint
+     * and text SQL over the line `x.value`, the record's tenant `v_tenant` and
+     * currency `v_currency`.
+     */
+    readonly fallback?: {
+      readonly unitAmount: string;
+      readonly description: string;
+    };
   },
 ): string {
   const t = ctx.table(items.lines);
@@ -176,7 +185,7 @@ for each statement execute function better_supabase.${trigger}();
 -- Replaces a record's lines with lines: a list of { description, quantity,
 -- unitAmount (minor units as text), currency, discountBps, taxRateBps,
 -- taxCode, product: { type, id } }. A line's currency must be the record's.
--- Returns the record's totals as text, with its currency.
+-- Returns the record's totals as text, with its currency.${options.fallback ? "\n-- A line without unitAmount or description takes them from its product." : ""}
 create or replace function ${fn}(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -202,8 +211,8 @@ begin
   delete from ${t} l where l.${c("parent")} = v_parent;
   begin
     insert into ${t} (${c("tenant")}, ${c("parent")}, ${c("productType")}, ${c("productId")}, ${c("description")}, ${c("quantity")}, ${c("unitAmount")}, ${c("discountBps")}, ${c("taxRateBps")}, ${c("taxCode")}, ${c("position")})
-    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', x.value ->> 'description',
-      coalesce((x.value ->> 'quantity')::numeric, 1), (x.value ->> 'unitAmount')::bigint,
+    select v_tenant, v_parent, x.value -> 'product' ->> 'type', x.value -> 'product' ->> 'id', ${options.fallback ? `coalesce(x.value ->> 'description', ${options.fallback.description})` : "x.value ->> 'description'"},
+      coalesce((x.value ->> 'quantity')::numeric, 1), ${options.fallback ? `coalesce((x.value ->> 'unitAmount')::bigint, ${options.fallback.unitAmount})` : "(x.value ->> 'unitAmount')::bigint"},
       coalesce((x.value ->> 'discountBps')::integer, 0), coalesce((x.value ->> 'taxRateBps')::integer, 0),
       x.value ->> 'taxCode', x.ordinality::integer
     from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x;
@@ -221,6 +230,36 @@ $$;
 revoke execute on function ${fn}(uuid, jsonb) from public, anon;
 grant execute on function ${fn}(uuid, jsonb) to authenticated, service_role;
 `;
+}
+
+/**
+ * The `fallback` of a line that names a catalog variant (`product: { type:
+ * "product_variant", id }`, with the catalog's entity renames): the variant's
+ * price in the record's currency and its title, or its product's. A variant of
+ * another tenant gives neither. The caller lists `catalog` in `integrates`.
+ */
+export function catalogLineFallback(ctx: BlockSqlContext): {
+  readonly unitAmount: string;
+  readonly description: string;
+} {
+  const catalog = ctx.of("catalog");
+  const v = (column: string): string => catalog.col("variants", column);
+  const pr = (column: string): string => catalog.col("products", column);
+  const type = sqlString(catalog.naming.rename("product_variant"));
+
+  const variant = (select: string): string =>
+    `(select ${select} from ${catalog.table("variants")} v where x.value -> 'product' ->> 'type' = ${type} and v.${v("id")} = (x.value -> 'product' ->> 'id')::uuid and v.${v("tenant")} = v_tenant)`;
+
+  const title = catalog.has("variants", "title")
+    ? `coalesce(v.${v("title")}, (select p.${pr("title")} from ${catalog.table("products")} p where p.${pr("id")} = v.${v("product")}))`
+    : `(select p.${pr("title")} from ${catalog.table("products")} p where p.${pr("id")} = v.${v("product")})`;
+
+  return {
+    unitAmount: variant(
+      `(${catalog.fn("variant_price")}(v.${v("id")}, v_currency) ->> 'amount')::bigint`,
+    ),
+    description: variant(title),
+  };
 }
 
 /** The totals columns of a record table, as `create table` lines. */

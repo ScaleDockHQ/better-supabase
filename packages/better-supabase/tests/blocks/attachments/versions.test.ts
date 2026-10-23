@@ -52,7 +52,10 @@ const version = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-function setup(results: Record<string, unknown>) {
+function setup(
+  results: Record<string, unknown>,
+  extra: { readonly publicBuckets?: readonly string[] } = {},
+) {
   const calls: [string, Record<string, unknown>][] = [];
   const storageCalls: unknown[][] = [];
 
@@ -82,6 +85,11 @@ function setup(results: Record<string, unknown>) {
           error: null,
         });
       },
+      getPublicUrl: (path: string, options?: unknown) => {
+        storageCalls.push(["public", bucket, path, options]);
+
+        return { data: { publicUrl: `https://s/public/${path}` } };
+      },
       download: () => Promise.resolve({ data: new Blob(), error: null }),
       remove: (paths: string[]) => {
         storageCalls.push(["remove", paths]);
@@ -96,6 +104,7 @@ function setup(results: Record<string, unknown>) {
     transport,
     storage,
     tenant: "org-1",
+    ...extra,
   });
 
   return { attachments, calls, storageCalls };
@@ -277,6 +286,53 @@ describe("attachment previews", () => {
 
     await images.signedUrl(attachment, { ttl: "hour" }).orThrow();
     expect(storageCalls.at(-1)?.[2]).toBe(3600);
+  });
+
+  it("serves files of a public bucket by their public URL", async () => {
+    const { attachments, storageCalls } = setup(
+      { get_attachment: row() },
+      { publicBuckets: ["attachments"] },
+    );
+
+    const attachment = await attachments.get("a1").orThrow();
+
+    expect(attachments.publicUrl(attachment)).toMatchObject({
+      ok: true,
+      data: "https://s/public/org-1/attachments/a1",
+    });
+
+    const images = attachments.images({ thumb: { width: 160 } });
+
+    expect(images.publicUrl(attachment, { transform: "thumb" }).ok).toBe(true);
+    expect(storageCalls.at(-1)).toEqual([
+      "public",
+      "attachments",
+      "org-1/attachments/a1",
+      { transform: { width: 160 } },
+    ]);
+    expect(images.publicUrl("a1")).toMatchObject({
+      ok: false,
+      error: { hint: "ATTACHMENT_PRIVATE" },
+    });
+
+    const infected = await setup(
+      { get_attachment: row({ status: "infected" }) },
+      { publicBuckets: ["attachments"] },
+    )
+      .attachments.get("a1")
+      .orThrow();
+
+    expect(attachments.publicUrl(infected)).toMatchObject({
+      ok: false,
+      error: { hint: "ATTACHMENT_NOT_SCANNED" },
+    });
+
+    const closed = setup({ get_attachment: row() });
+
+    expect(closed.attachments.publicUrl(attachment)).toMatchObject({
+      ok: false,
+      error: { hint: "ATTACHMENT_PRIVATE" },
+    });
   });
 
   it("refuses files that are not scanned, not images, or an unknown variant", async () => {

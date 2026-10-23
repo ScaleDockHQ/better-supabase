@@ -10,14 +10,13 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { sqlString } from "../../core/template.ts";
-import {
-  addExtraColumns,
-  replaceColumnCheck,
-  schemaPreamble,
-  lockTable,
-} from "../shared.ts";
+import { addExtraColumns, schemaPreamble, lockTable } from "../shared.ts";
 import { aiChatDurable } from "./ai-chat-durable.ts";
-import { AI_RUN_STATES, aiChatFunctions } from "./ai-chat-functions.ts";
+import {
+  AI_RUN_STATES,
+  aiChatFunctions,
+  upgradeRunStates,
+} from "./ai-chat-functions.ts";
 import {
   sandboxFunctions,
   sandboxTable,
@@ -278,6 +277,9 @@ const NAMES: BlockSqlNames = {
     "temporaryTtl",
     "staleAfter",
     "sandboxIdleAfter",
+    "meterUsage",
+    "inputMeter",
+    "outputMeter",
     "extraColumns",
   ],
   tables: {
@@ -1014,29 +1016,6 @@ function contract(): readonly BlockSqlContractFunction[] {
   ];
 }
 
-// Version 1 ended runs done, error or stopped; version 2 uses the words
-// ai-schedules and workflow runs use.
-function upgradeRunStates(ctx: BlockSqlContext): string {
-  const runs = ctx.table("runs");
-  const status = ctx.col("runs", "status");
-
-  return `${replaceColumnCheck({
-    table: runs,
-    column: status,
-    name: "ai_runs_status_check",
-    expression: `${status} in (${AI_RUN_STATES}, 'done', 'error', 'stopped')`,
-  })}
-update ${runs} set ${status} = case ${status}
-  when 'done' then 'completed' when 'error' then 'failed' else 'cancelled' end
-where ${status} in ('done', 'error', 'stopped');
-${replaceColumnCheck({
-  table: runs,
-  column: status,
-  name: "ai_runs_status_check",
-  expression: `${status} in (${AI_RUN_STATES})`,
-})}`;
-}
-
 export const AI_CHAT: BlockSqlDefinition = {
   contributes: AI_CHAT_CONTRIBUTES,
   name: "ai-chat",
@@ -1045,10 +1024,16 @@ export const AI_CHAT: BlockSqlDefinition = {
   description:
     "Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.",
   requires: ["memberships", "permissions", "streams"],
-  integrates: ["entitlements", "ai-keys", "approvals", "data-lifecycle"],
+  integrates: [
+    "entitlements",
+    "ai-keys",
+    "approvals",
+    "data-lifecycle",
+    "usage",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   names: NAMES,
   upgrades: [
     {
@@ -1062,6 +1047,12 @@ export const AI_CHAT: BlockSqlDefinition = {
       from: 2,
       description:
         "purge_ai_chats skips temporary chats under a data-lifecycle legal hold.",
+      sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "With usage, release_ai_chat_stream records each run's input and output tokens on the ai.input_tokens and ai.output_tokens meters (options.meterUsage, inputMeter, outputMeter).",
       sql: () => "",
     },
   ],

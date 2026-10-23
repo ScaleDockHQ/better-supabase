@@ -1028,6 +1028,11 @@
       "types": "./dist/blocks/posts/index.d.ts",
       "default": "./dist/blocks/posts/index.js"
     },
+    "./blocks/content": {
+      "@better-supabase/source": "./src/blocks/content/index.ts",
+      "types": "./dist/blocks/content/index.d.ts",
+      "default": "./dist/blocks/content/index.js"
+    },
     "./blocks/contracts": {
       "@better-supabase/source": "./src/blocks/contracts/index.ts",
       "types": "./dist/blocks/contracts/index.d.ts",
@@ -1860,6 +1865,10 @@
       "./blocks/posts": {
         "types": "./dist/blocks/posts/index.d.ts",
         "default": "./dist/blocks/posts/index.js"
+      },
+      "./blocks/content": {
+        "types": "./dist/blocks/content/index.d.ts",
+        "default": "./dist/blocks/content/index.js"
       },
       "./blocks/contracts": {
         "types": "./dist/blocks/contracts/index.d.ts",

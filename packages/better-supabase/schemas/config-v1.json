@@ -1793,6 +1793,7 @@
               "compliance",
               "connectors",
               "contacts",
+              "content",
               "contracts",
               "courses",
               "created-by",
@@ -1947,6 +1948,7 @@
                   "compliance",
                   "connectors",
                   "contacts",
+                  "content",
                   "contracts",
                   "courses",
                   "created-by",
@@ -2153,6 +2155,9 @@
             },
             "contacts": {
               "$ref": "#/$defs/blocks/contacts"
+            },
+            "content": {
+              "$ref": "#/$defs/blocks/content"
             },
             "contracts": {
               "$ref": "#/$defs/blocks/contracts"
@@ -3633,6 +3638,18 @@
                 "type": "number",
                 "default": 600
               },
+              "meterUsage": {
+                "type": "boolean",
+                "default": true
+              },
+              "inputMeter": {
+                "type": "string",
+                "default": "ai.input_tokens"
+              },
+              "outputMeter": {
+                "type": "string",
+                "default": "ai.output_tokens"
+              },
               "extraColumns": {}
             }
           }
@@ -3831,6 +3848,13 @@
                 "default": "{organization_id}/attachments/{id}"
               },
               "scanBuckets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "publicBuckets": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -4041,7 +4065,14 @@
                 "type": "string",
                 "default": "private"
               },
-              "extraColumns": {}
+              "extraColumns": {},
+              "locales": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["en"]
+              }
             }
           }
         }
@@ -4151,6 +4182,41 @@
               "companyLifecycles": {},
               "personLifecycles": {},
               "extraColumns": {}
+            }
+          }
+        }
+      },
+      "content": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "types": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["page", "post"]
+              },
+              "locales": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["en"]
+              },
+              "requireApproval": {
+                "type": "boolean",
+                "default": false
+              },
+              "publishPolicy": {},
+              "publishSchedule": {
+                "type": "string",
+                "default": "*/5 * * * *"
+              }
             }
           }
         }
@@ -4821,6 +4887,10 @@
               "embedQueue": {
                 "type": "string",
                 "default": "knowledge_embed"
+              },
+              "ingestQueue": {
+                "type": "string",
+                "default": "knowledge_ingest"
               }
             }
           }

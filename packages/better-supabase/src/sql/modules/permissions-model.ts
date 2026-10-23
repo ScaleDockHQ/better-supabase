@@ -98,6 +98,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "courses.*",
     "sequences.*",
     "posts.*",
+    "content.*",
   ],
   member: [
     "organization.read",
@@ -196,6 +197,8 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "sequences.enroll",
     "posts.read",
     "posts.write",
+    "content.read",
+    "content.write",
     "messages.read",
     "messages.send",
     "channels.create",
@@ -488,6 +491,9 @@ export const OPERATIONS = {
   "posts.write": "posts.write",
   "posts.moderate": "posts.moderate",
   "posts.manage": "posts.manage",
+  "content.read": "content.read",
+  "content.write": "content.write",
+  "content.publish": "content.publish",
   "messaging.read": "messages.read",
   "messaging.send": "messages.send",
   "messaging.moderate": "messages.moderate",
@@ -769,6 +775,7 @@ export const MODULE_PERMISSION_SCOPES: {
   enrichment: { read: "tenant", run: "tenant" },
   forecasts: { read: "tenant", snapshot: "tenant" },
   "field-history": { read: "tenant" },
+  content: { read: "tenant", write: "tenant", publish: "tenant" },
 };
 
 export function accessModel(ctx: BlockSqlContext): AccessModel {

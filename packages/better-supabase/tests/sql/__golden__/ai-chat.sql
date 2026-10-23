@@ -1,6 +1,6 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_47_ai_chat.sql
 -- better-supabase module: ai-chat
--- @bsb-block ai-chat@3 managed
+-- @bsb-block ai-chat@4 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2323,13 +2323,13 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-chat', 3, 'managed')
+values ('ai-chat', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_47_ai_chat.sql
 -- better-supabase module: ai-chat
--- @bsb-block ai-chat@3 managed
+-- @bsb-block ai-chat@4 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3393,6 +3393,10 @@ as $$
 declare
   v_status text := coalesce(release_ai_chat_stream.status, 'completed');
   v_found boolean := false;
+  v_run uuid;
+  v_usage jsonb;
+  v_owner uuid;
+  v_tenant uuid;
 begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the server saves replies' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
@@ -3407,7 +3411,19 @@ begin
     "error" = release_ai_chat_stream.error,
     "cost_micro_usd" = coalesce(release_ai_chat_stream.cost_micro_usd, x."cost_micro_usd"),
     "ended_at" = coalesce(x."ended_at", now())
-  where x."chat_id" = release_ai_chat_stream.chat and x."stream_id" = release_ai_chat_stream.stream;
+  where x."chat_id" = release_ai_chat_stream.chat and x."stream_id" = release_ai_chat_stream.stream
+  returning x."id", x."usage", x."owner_id" into v_run, v_usage, v_owner;
+  if v_run is not null and jsonb_typeof(v_usage) = 'object' then
+    select x."organization_id" into v_tenant from "better_supabase"."ai_chats" x where x."id" = release_ai_chat_stream.chat;
+    if v_tenant is not null then
+    if jsonb_typeof(v_usage -> 'inputTokens') = 'number' and (v_usage -> 'inputTokens')::numeric > 0 then
+      perform "better_supabase"."record_usage"(v_tenant, 'ai.input_tokens', (v_usage -> 'inputTokens')::numeric, 'ai_run:' || v_run || ':' || 'inputTokens', 'ai-chat', jsonb_build_object('chatId', release_ai_chat_stream.chat, 'runId', v_run), v_owner);
+    end if;
+    if jsonb_typeof(v_usage -> 'outputTokens') = 'number' and (v_usage -> 'outputTokens')::numeric > 0 then
+      perform "better_supabase"."record_usage"(v_tenant, 'ai.output_tokens', (v_usage -> 'outputTokens')::numeric, 'ai_run:' || v_run || ':' || 'outputTokens', 'ai-chat', jsonb_build_object('chatId', release_ai_chat_stream.chat, 'runId', v_run), v_owner);
+    end if;
+    end if;
+  end if;
   update "better_supabase"."ai_chats" x set "active_stream_id" = null, "active_run_id" = null, "updated_at" = now()
   where x."id" = release_ai_chat_stream.chat and x."active_stream_id" = release_ai_chat_stream.stream
   returning true into v_found;
@@ -4706,13 +4722,13 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-chat', 3, 'managed')
+values ('ai-chat', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_47_ai_chat.sql
 -- better-supabase module: ai-chat
--- @bsb-block ai-chat@3 managed
+-- @bsb-block ai-chat@4 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7037,13 +7053,13 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-chat', 3, 'managed')
+values ('ai-chat', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_47_ai_chat.sql
 -- better-supabase module: ai-chat
--- @bsb-block ai-chat@3 managed
+-- @bsb-block ai-chat@4 managed
 -- Chats, projects and a branching message tree in the canonical AI message format, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9849,6 +9865,6 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-chat', 3, 'managed')
+values ('ai-chat', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

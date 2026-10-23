@@ -1,6 +1,6 @@
 ---
 title: Catalog
-description: Products, options and variants, prices in bigint minor units per currency and price list, categories, collections and a public storefront switch.
+description: Products, options and variants, prices in bigint minor units per currency and price list, categories, collections, sales channels, translations, product media and a public storefront switch.
 ---
 
 `catalog` stores what an organization sells. A product has options (size,
@@ -152,6 +152,119 @@ await catalog
   .orThrow();
 ```
 
+## Channels
+
+A channel is a place the catalog sells through: a web shop, a marketplace or
+a point of sale. Each one has a key, a currency and an optional price list,
+and lists the products it sells:
+
+```ts
+const web = await catalog
+  .saveChannel(organizationId, {
+    key: "web-de",
+    name: "Web shop Germany",
+    currency: "EUR",
+    priceListId: retailListId,
+  })
+  .orThrow();
+
+await catalog.listOnChannel(web.id, [shirt.id]).orThrow();
+
+const listed = await catalog
+  .channelProducts(web.id, { locale: "de", limit: 50 })
+  .orThrow();
+// [{ id, slug, status, kind, locale: "de", title, description, listedAt }]
+
+const price = await catalog.channelPrice(web.id, variantId).orThrow();
+```
+
+The key is lower-case letters, digits and hyphens, unique per organization
+(`CATALOG_CHANNEL_KEY_INVALID`, `CATALOG_CHANNEL_TAKEN`). `listOnChannel` and
+`unlistFromChannel` resolve to how many listings they added or removed, and
+a product that isn't in the channel's organization fails with
+`CATALOG_PRODUCT_NOT_FOUND`. `channelProducts` returns the listed products in
+slug order, 100 per page by default and at most 500, with `cursor` for the
+next page.
+
+`channelPrice` resolves the variant's price in the channel's currency through
+`variantPrice`, so a channel with a price list gets the list price when one is
+valid and the base price otherwise. A channel without a currency returns
+`null`. Deleting a channel removes its listings, and deleting a price list
+clears it on the channels that used it.
+
+## Locales and translations
+
+The `locales` option lists the languages the catalog is written in, as
+language tags. The first one is the default, and its text stays on the
+product and variant themselves:
+
+```ts title="better-supabase.config.ts"
+blocks: { catalog: { options: { locales: ["en", "de", "pt-BR"] } } },
+```
+
+```ts
+await catalog
+  .setProductTranslation(shirt.id, "de", {
+    title: "Leinenhemd",
+    description: "Aus reinem Leinen.",
+  })
+  .orThrow();
+await catalog.setVariantTranslation(variantId, "de", "Klein").orThrow();
+
+const text = await catalog.productText(shirt.id, { locale: "de-AT" }).orThrow();
+// { id, slug, locale: "de", title: "Leinenhemd", description, variants: [{ id, sku, title }] }
+```
+
+A read takes any locale and resolves it to a configured one: the locale
+itself, then its language (`de-AT` reads `de`), then the default. A field the
+translation leaves empty falls back to the default text, so a partial
+translation still reads as a whole product. A translation for a locale that
+isn't configured fails with `CATALOG_LOCALE_INVALID`, and one for the default
+locale fails with `CATALOG_LOCALE_DEFAULT`; update the product instead.
+Setting every field to `null` removes the translation. The default is
+`["en"]`, and a locale list with a tag twice is refused when the SQL renders.
+
+Options, option values, categories and collections are not translated yet.
+
+## Product media
+
+With [attachments](/docs/blocks/attachments) installed, a product keeps an
+ordered list of images and other files, each with alt text per locale and an
+optional variant it shows:
+
+```ts
+const file = await attachments
+  .put(
+    { type: "product", id: shirt.id },
+    { name: "front.jpg", mimeType: "image/jpeg", size: image.byteLength },
+    image,
+  )
+  .orThrow();
+
+const media = await catalog
+  .addProductMedia(shirt.id, file.id, {
+    alt: { en: "Linen shirt, front", de: "Leinenhemd, vorne" },
+  })
+  .orThrow();
+// { id, position: 0 }
+
+await catalog.reorderProductMedia(shirt.id, [media.id, otherId]).orThrow();
+
+const gallery = await catalog
+  .productMedia(shirt.id, { locale: "de" })
+  .orThrow();
+// [{ id, attachmentId, variantId, position, alt: "Leinenhemd, vorne", altByLocale }]
+```
+
+The attachment must belong to the product or one of its variants
+(`CATALOG_MEDIA_ATTACHMENT_NOT_FOUND`), and a file appears in a product's
+media once (`CATALOG_MEDIA_TAKEN`). Alt text keys are configured locales
+with 1 to 1000 characters (`CATALOG_MEDIA_ALT_INVALID`). `reorderProductMedia`
+takes every media item of the product once (`CATALOG_MEDIA_ORDER_INVALID`),
+and `removeProductMedia` closes the gap it leaves. Deleting the attachment
+removes its media item. `updateProductMedia` changes the variant and the alt
+text.
+
 ## Storefront
 
 Set the `storefront` option to `public` to let anyone read the published
@@ -166,6 +279,12 @@ With it, `anon` can read the active products of organizations that called
 categories and collections, and their base prices (prices without a price
 list). Price lists stay private. The default, `private`, adds no `anon`
 policies.
+
+The storefront also reads active channels and their listings, translations
+and product media. `channelProducts`, `channelPrice`, `productText` and
+`productMedia` are granted to `anon`, and they return only what these
+policies allow. A media row names its attachment; the file itself stays
+behind the attachments block's own policies.
 
 ## Subjects
 
@@ -203,6 +322,11 @@ In `adopt` mode, map `products`, `variants` and `prices` to your tables. Every
 other table is optional: set it to `null` and the functions that need it are
 left out. Columns such as `description`, `barcode`, `compareAt` or
 `validFrom` can also be `null`.
+
+The tables added in version 3 (`channels`, `channelProducts`,
+`productTranslations`, `variantTranslations` and `media`) exist in adopt mode
+only when you map them, so an adopted catalog that upgrades gets no new
+tables until it asks for them.
 
 ## Not included
 

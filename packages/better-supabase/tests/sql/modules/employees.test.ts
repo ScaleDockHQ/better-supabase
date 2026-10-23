@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const body = (
   modules: readonly string[],
@@ -142,5 +143,36 @@ describe("employees module", () => {
     expect(
       body(["employees"], { modules: { employees: { mode: "custom" } } }),
     ).not.toContain("create_employee");
+  });
+
+  it("keys time entries to employees with time-tracking", () => {
+    expect(body(["employees"])).not.toContain(
+      "add column if not exists employee_id",
+    );
+    const sql = body(["approvals", "time-tracking", "employees"]);
+    expect(sql).toContain(
+      'alter table "better_supabase"."time_entries" add column if not exists employee_id uuid references "better_supabase"."employees" ("id") on delete set null;',
+    );
+    expect(sql).toContain(
+      'create trigger bsb_time_entries_employee before insert or update of "user_id" on "better_supabase"."time_entries"',
+    );
+    expect(sql).toContain(
+      'create trigger bsb_time_entries_employee_sync after insert or update of "user_id" on "better_supabase"."employees"',
+    );
+    expect(sql).not.toMatch(/^update /m);
+
+    const plan = upgradePlan([
+      { module: "approvals", version: 99 },
+      { module: "time-tracking", version: 99 },
+      { module: "employees", version: 1 },
+    ]).find((entry) => entry.module === "employees");
+
+    const upgrade = plan?.steps[0]?.sql ?? "";
+    expect(upgrade).toContain(
+      'alter table "better_supabase"."time_entries" disable trigger bsb_time_entry_guard;',
+    );
+    expect(upgrade).toContain(
+      'update "better_supabase"."time_entries" t set employee_id',
+    );
   });
 });

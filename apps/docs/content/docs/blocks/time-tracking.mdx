@@ -45,6 +45,12 @@ A rate is a `Money` value from `better-supabase/commerce`: an hourly amount in m
 
 An entry's `subject` is a `RecordRef`, `{ type, id }`, or none; an entry without one returns `subject: undefined`. The SQL functions take it as `subject_type` and `subject_id` and fail with `TIME_SUBJECT_INVALID` when a caller passes only one of them. With a subject, the caller must be able to read the record, through its registration in [`config.records`](/docs/blocks/sql#subject-registry) or the block's `on`. Entries stay when their record is deleted, so billed time keeps its history.
 
+With the [employees block](/docs/blocks/employees) installed, every entry
+has an `employee_id` column: the employee of the organization behind the
+entry's member, or null for a member who isn't one. Triggers set it when an
+entry is written and when an employee's account changes, so payroll and
+HR reports join time to employees without matching users by hand.
+
 `list` returns the caller's entries, newest first. `from` and `to` select the entries that overlap that range, `subject` selects one record's time, and `userId` or `everyone: true` read other members' entries with `time_tracking.read`.
 
 ## Timesheets and approvals

@@ -317,4 +317,23 @@ describe("attachments module", () => {
         .join("\n"),
     ).not.toContain("create or replace function");
   });
+
+  it("makes the listed buckets public only without the scan gate", () => {
+    expect(sqlOf(["attachments"])).toContain(
+      "on conflict (id) do update set public = excluded.public",
+    );
+
+    const sql = sqlOf(["attachments"], {
+      publicBuckets: ["attachments"],
+      requireScan: false,
+    });
+
+    expect(sql).toContain("'attachments', 'attachments', true");
+    expect(() =>
+      sqlOf(["attachments"], { publicBuckets: ["attachments"] }),
+    ).toThrow("needs requireScan: false");
+    expect(() =>
+      sqlOf(["attachments"], { publicBuckets: ["other"], requireScan: false }),
+    ).toThrow("is not one of the attachment buckets");
+  });
 });

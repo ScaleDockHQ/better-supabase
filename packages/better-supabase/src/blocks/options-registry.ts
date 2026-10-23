@@ -24,6 +24,7 @@ import type { CommentsSqlOptions } from "./comments/options.ts";
 import type { ComplianceSqlOptions } from "./compliance/options.ts";
 import type { ConnectorsSqlOptions } from "./connectors/options.ts";
 import type { ContactsSqlOptions } from "./contacts/options.ts";
+import type { ContentSqlOptions } from "./content/options.ts";
 import type { ContractsSqlOptions } from "./contracts/options.ts";
 import type { CoursesSqlOptions } from "./courses/options.ts";
 import type { CreatedBySqlOptions } from "./created-by/options.ts";
@@ -150,6 +151,7 @@ import { commentsSqlOptions } from "./comments/options.ts";
 import { complianceSqlOptions } from "./compliance/options.ts";
 import { connectorsSqlOptions } from "./connectors/options.ts";
 import { contactsSqlOptions } from "./contacts/options.ts";
+import { contentSqlOptions } from "./content/options.ts";
 import { contractsSqlOptions } from "./contracts/options.ts";
 import { coursesSqlOptions } from "./courses/options.ts";
 import { createdBySqlOptions } from "./created-by/options.ts";
@@ -348,6 +350,7 @@ export interface BlockOptionsRegistry {
   readonly pgtap: None;
   readonly pipelines: PipelinesSqlOptions;
   readonly posts: PostsSqlOptions;
+  readonly content: ContentSqlOptions;
   readonly profiles: ProfilesSqlOptions;
   readonly promotions: PromotionsSqlOptions;
   readonly push: PushSqlOptions;
@@ -498,6 +501,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   pgtap: NO_OPTIONS,
   pipelines: pipelinesSqlOptions,
   posts: postsSqlOptions,
+  content: contentSqlOptions,
   profiles: profilesSqlOptions,
   promotions: promotionsSqlOptions,
   push: pushSqlOptions,

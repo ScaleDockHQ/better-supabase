@@ -9,6 +9,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
 import {
   addExtraColumns,
   extraFieldsArg,
@@ -322,8 +323,12 @@ create policy ${ctx.naming.rename("leave_requests_read")} on ${requests} for sel
         and r.${q("type")} = ${type} and ${period("r")} = ${year}
         and ${pendingIn("r", "p")}), 0)`;
 
+  const employeeKey = ctx.installed("employees")
+    ? employeeKeySql(ctx.of("employees"), { owner: ctx, table: "requests" })
+    : "";
+
   return `${schemaPreamble(ctx)}
-${tables}${leaveLedgerFunctions(ctx, { isMember, pending })}
+${tables}${employeeKey}${leaveLedgerFunctions(ctx, { isMember, pending })}
 -- The working days (options.workingDays) from one date to another, inclusive.
 create or replace function ${fn("leave_working_days")}(starts_on date, ends_on date)
 returns integer
@@ -661,18 +666,30 @@ export const LEAVE: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Leave",
   description:
-    "Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover.",
+    "Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member.",
   requires: ["memberships", "permissions", "approvals", "ledger"],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "employees"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "Leave balances move onto the ledger block: each member gets an account per type and year, every leave_ledger row becomes a ledger transaction, and leave_ledger is dropped.",
       sql: leaveLedgerUpgrade,
+    },
+    {
+      from: 2,
+      description:
+        "With employees, leave requests gain employee_id, backfilled and kept current by triggers.",
+      sql: (ctx) =>
+        ctx.installed("employees")
+          ? employeeKeyBackfillSql(ctx.of("employees"), {
+              owner: ctx,
+              table: "requests",
+            })
+          : "",
     },
   ],
   names: NAMES,

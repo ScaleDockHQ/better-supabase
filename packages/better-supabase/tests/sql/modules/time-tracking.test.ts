@@ -160,7 +160,7 @@ describe("time-tracking module", () => {
       { module: "time-tracking", version: 1 },
     ]).find((entry) => entry.module === "time-tracking");
 
-    expect(plan?.to).toBe(2);
+    expect(plan?.to).toBe(3);
     const sql = plan?.steps[0]?.sql ?? "";
     expect(sql).toContain(
       `alter table "better_supabase"."time_entries" add column if not exists "rate_currency" text;`,

@@ -926,6 +926,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ai-keys",
         "approvals",
         "data-lifecycle",
+        "usage",
         "share-links"
       ],
       "manifest": "ai-chat",
@@ -2323,7 +2324,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "state-machine",
-        "inventory"
+        "inventory",
+        "attachments"
       ],
       "manifest": "catalog",
       "scopes": [
@@ -2581,7 +2583,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "inventory",
         "promotions",
         "numbering",
-        "state-machine"
+        "state-machine",
+        "invoices"
       ],
       "manifest": "orders",
       "scopes": [
@@ -3512,7 +3515,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "numbering",
         "deals",
-        "relations"
+        "relations",
+        "catalog"
       ],
       "manifest": "quotes",
       "scopes": [
@@ -3889,7 +3893,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "relations",
-        "hiring"
+        "hiring",
+        "time-tracking"
       ],
       "manifest": "employees",
       "scopes": [
@@ -4184,6 +4189,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
+        "employees",
         "approvals"
       ],
       "manifest": "leave",
@@ -6606,6 +6612,79 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "field-encryption"
     },
     {
+      "name": "content",
+      "title": "Content",
+      "category": "content",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "approvals",
+        "versions",
+        "attachments",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "content",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "content_entry": {
+            "table": "entries",
+            "singular": "content_entry",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "summary"
+                ]
+              }
+            }
+          }
+        },
+        "tables": {
+          "entries": {
+            "name": "content_entries",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "type": "type",
+              "locale": "locale",
+              "slug": "slug",
+              "title": "title",
+              "summary": "summary",
+              "body": "body",
+              "status": "status",
+              "publishAt": "publish_at",
+              "publishedAt": "published_at",
+              "author": "author_id",
+              "translationGroup": "translation_group_id",
+              "cover": "cover_attachment_id",
+              "approval": "approval_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "content.read",
+          "write": "content.write",
+          "publish": "content.publish"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -7991,16 +8070,37 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "ChannelProduct"
+        },
+        {
+          "name": "ChannelProductsOptions"
+        },
+        {
+          "name": "LocalizedProduct"
+        },
+        {
           "name": "ProductInput"
         },
         {
           "name": "ProductKind"
         },
         {
+          "name": "ProductMedia"
+        },
+        {
+          "name": "ProductMediaInput"
+        },
+        {
           "name": "ProductStatus"
         },
         {
+          "name": "ProductTranslation"
+        },
+        {
           "name": "SavedProduct"
+        },
+        {
+          "name": "SavedProductMedia"
         }
       ],
       "entitySchemas": {
@@ -13143,6 +13243,156 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "content",
+      "sql": [
+        "content"
+      ],
+      "category": "content",
+      "client": {
+        "export": "contentBlock",
+        "subpath": "better-supabase/blocks/content"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "ContentEntry"
+        },
+        {
+          "name": "ContentEntryEventData"
+        },
+        {
+          "name": "ContentEntryInput"
+        },
+        {
+          "name": "ContentEntryUpdate"
+        },
+        {
+          "name": "PublishedContentEntry"
+        }
+      ],
+      "entitySchemas": {
+        "content_entry": {
+          "input": {
+            "title": "ContentEntryInput",
+            "fields": {
+              "type": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "description": "One of `options.types`."
+              },
+              "locale": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 2,
+                "maxLength": 35,
+                "description": "One of `options.locales`; default the first."
+              },
+              "slug": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "summary": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 2000
+              },
+              "body": {
+                "kind": "json",
+                "optional": true,
+                "description": "The editor's JSON document, an object or a list."
+              },
+              "coverAttachmentId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "translationOf": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ContentEntryInput",
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "description": "One of `options.types`."
+                },
+                "locale": {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 35,
+                  "description": "One of `options.locales`; default the first."
+                },
+                "slug": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "summary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                },
+                "body": {
+                  "description": "The editor's JSON document, an object or a list."
+                },
+                "coverAttachmentId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "translationOf": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "type",
+                "slug",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ContentEvents",
+        "types": [
+          "content_entry.created",
+          "content_entry.updated",
+          "content_entry.publish_requested",
+          "content_entry.scheduled",
+          "content_entry.unscheduled",
+          "content_entry.published",
+          "content_entry.archived"
+        ]
+      }
+    },
+    {
       "name": "drive",
       "sql": [
         "drive",
@@ -16138,6 +16388,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "QuoteLineInput"
+        },
+        {
           "name": "Quotes",
           "fields": true
         },
@@ -18009,6 +18262,25 @@ export const PRESET_CATALOG: PresetCatalog = {
       "targets": [
         "@lib/jobs.ts",
         "~/app/api/jobs/drain/route.ts"
+      ]
+    },
+    {
+      "name": "ai-chat-next",
+      "title": "AI chat routes (Next.js)",
+      "blocks": [
+        "ai-chat"
+      ],
+      "frameworks": [
+        "next"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "targets": [
+        "@lib/assistant.ts",
+        "~/app/api/chat/route.ts",
+        "~/app/api/chat/[id]/stream/route.ts",
+        "~/app/api/chat/[id]/stop/route.ts"
       ]
     },
     {

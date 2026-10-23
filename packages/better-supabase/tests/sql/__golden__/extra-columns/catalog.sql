@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_69_catalog.sql
 -- better-supabase module: catalog
--- @bsb-block catalog@2 managed
--- Products with options, variants and prices in minor units, price lists, a category tree, collections and an optional public storefront.
+-- @bsb-block catalog@3 managed
+-- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -42,7 +42,8 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Products with options, variants and prices in minor units, plus
--- categories, collections, price lists and an optional public storefront.
+-- categories, collections, price lists, sales channels, translations,
+-- product media and an optional public storefront.
 create or replace function "better_supabase"."currency_minor_units"(code text)
 returns integer
 language sql
@@ -268,6 +269,76 @@ grant select on "better_supabase"."storefronts" to authenticated;
 grant all on "better_supabase"."storefronts" to service_role;
 drop policy if exists storefronts_read on "better_supabase"."storefronts";
 create policy storefronts_read on "better_supabase"."storefronts" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."catalog_channels" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "key" text not null check ("key" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "name" text not null check (length("name") between 1 and 200),
+  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "price_list_id" uuid references "better_supabase"."price_lists" ("id") on delete set null,
+  "active" boolean not null default true,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "key")
+);
+create index if not exists catalog_channels_price_list_idx on "better_supabase"."catalog_channels" ("price_list_id");
+alter table "better_supabase"."catalog_channels" enable row level security;
+revoke all on "better_supabase"."catalog_channels" from anon, authenticated;
+grant select on "better_supabase"."catalog_channels" to authenticated;
+grant all on "better_supabase"."catalog_channels" to service_role;
+drop policy if exists catalog_channels_read on "better_supabase"."catalog_channels";
+create policy catalog_channels_read on "better_supabase"."catalog_channels" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."catalog_channel_products" (
+  "tenant_id" uuid not null,
+  "channel_id" uuid not null references "better_supabase"."catalog_channels" ("id") on delete cascade,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "listed_at" timestamptz not null default now(),
+  primary key ("channel_id", "product_id")
+);
+create index if not exists catalog_channel_products_product_idx on "better_supabase"."catalog_channel_products" ("product_id");
+alter table "better_supabase"."catalog_channel_products" enable row level security;
+revoke all on "better_supabase"."catalog_channel_products" from anon, authenticated;
+grant select on "better_supabase"."catalog_channel_products" to authenticated;
+grant all on "better_supabase"."catalog_channel_products" to service_role;
+drop policy if exists catalog_channel_products_read on "better_supabase"."catalog_channel_products";
+create policy catalog_channel_products_read on "better_supabase"."catalog_channel_products" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_translations" (
+  "tenant_id" uuid not null,
+  "product_id" uuid not null references "better_supabase"."products" ("id") on delete cascade,
+  "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "title" text check (length("title") between 1 and 500),
+  "description" text,
+  "updated_at" timestamptz not null default now(),
+  primary key ("product_id", "locale")
+);
+alter table "better_supabase"."product_translations" enable row level security;
+revoke all on "better_supabase"."product_translations" from anon, authenticated;
+grant select on "better_supabase"."product_translations" to authenticated;
+grant all on "better_supabase"."product_translations" to service_role;
+drop policy if exists product_translations_read on "better_supabase"."product_translations";
+create policy product_translations_read on "better_supabase"."product_translations" for select to authenticated
+using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
+
+create table if not exists "better_supabase"."product_variant_translations" (
+  "tenant_id" uuid not null,
+  "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
+  "locale" text not null check ("locale" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "title" text check (length("title") between 1 and 500),
+  "updated_at" timestamptz not null default now(),
+  primary key ("variant_id", "locale")
+);
+alter table "better_supabase"."product_variant_translations" enable row level security;
+revoke all on "better_supabase"."product_variant_translations" from anon, authenticated;
+grant select on "better_supabase"."product_variant_translations" to authenticated;
+grant all on "better_supabase"."product_variant_translations" to service_role;
+drop policy if exists product_variant_translations_read on "better_supabase"."product_variant_translations";
+create policy product_variant_translations_read on "better_supabase"."product_variant_translations" for select to authenticated
 using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
@@ -1293,6 +1364,300 @@ $$;
 revoke execute on function "better_supabase"."publish_storefront"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."publish_storefront"(uuid, boolean) to authenticated, service_role;
 
+-- Creates a sales channel (channel null) or updates one. A channel has a
+-- key, unique per organization, and optionally a currency and a price list
+-- its prices come from.
+create or replace function "better_supabase"."save_catalog_channel"(tenant uuid, channel uuid, key text, name text, currency text, price_list uuid, active boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_id uuid := save_catalog_channel.channel;
+  v_active boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_catalog_channel.tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if save_catalog_channel.key is null or save_catalog_channel.key !~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' then
+    raise exception 'the channel key must be lower-case letters, digits and hyphens' using errcode = '22023', hint = 'CATALOG_CHANNEL_KEY_INVALID';
+  end if;
+  if save_catalog_channel.currency is not null and "better_supabase"."currency_minor_units"(save_catalog_channel.currency) is null then
+    raise exception 'not an ISO 4217 currency code' using errcode = '22023', hint = 'CATALOG_CURRENCY_INVALID';
+  end if;
+  if save_catalog_channel.price_list is not null and not exists (select 1 from "better_supabase"."price_lists" x where x."id" = save_catalog_channel.price_list and x."tenant_id" = save_catalog_channel.tenant) then
+    raise exception 'price list not found' using errcode = 'P0002', hint = 'CATALOG_PRICE_LIST_NOT_FOUND';
+  end if;
+  begin
+    if v_id is null then
+      insert into "better_supabase"."catalog_channels" as x ("tenant_id", "key", "name", "currency", "price_list_id", "active")
+      values (save_catalog_channel.tenant, save_catalog_channel.key, save_catalog_channel.name, save_catalog_channel.currency, save_catalog_channel.price_list, coalesce(save_catalog_channel.active, true))
+      returning x."id", x."active" into v_id, v_active;
+    else
+      update "better_supabase"."catalog_channels" x set "key" = save_catalog_channel.key, "name" = save_catalog_channel.name, "currency" = save_catalog_channel.currency, "price_list_id" = save_catalog_channel.price_list, "active" = coalesce(save_catalog_channel.active, x."active"), "updated_at" = now()
+      where x."id" = v_id and x."tenant_id" = save_catalog_channel.tenant
+      returning x."active" into v_active;
+      if not found then
+        raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
+      end if;
+    end if;
+  exception when unique_violation then
+    raise exception 'another channel has this key' using errcode = '23505', hint = 'CATALOG_CHANNEL_TAKEN';
+  end;
+  return jsonb_build_object('id', v_id, 'key', save_catalog_channel.key, 'active', v_active);
+end;
+$$;
+revoke execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."save_catalog_channel"(uuid, uuid, text, text, text, uuid, boolean) to authenticated, service_role;
+
+-- Deletes a channel and its listings.
+create or replace function "better_supabase"."delete_catalog_channel"(channel uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."catalog_channels" x where x."id" = delete_catalog_channel.channel;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."catalog_channels" x where x."id" = delete_catalog_channel.channel;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_catalog_channel"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_catalog_channel"(uuid) to authenticated, service_role;
+
+-- The price a variant sells at on a channel: variant_price in the channel's
+-- currency and price list. Null when the channel has no currency.
+create or replace function "better_supabase"."channel_price"(channel uuid, variant uuid, as_of timestamptz default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select "better_supabase"."variant_price"($2, k."currency", k."price_list_id", $3)
+  from "better_supabase"."catalog_channels" k
+  where k."id" = $1 and k."currency" is not null
+$$;
+revoke execute on function "better_supabase"."channel_price"(uuid, uuid, timestamptz) from public;
+grant execute on function "better_supabase"."channel_price"(uuid, uuid, timestamptz) to anon, authenticated, service_role;
+
+-- Lists products on a channel (listed true) or takes them off it. Returns
+-- how many listings changed.
+create or replace function "better_supabase"."set_channel_listing"(channel uuid, products uuid[], listed boolean)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."catalog_channels" x where x."id" = set_channel_listing.channel for update;
+  if v_tenant is null then
+    raise exception 'channel not found' using errcode = 'P0002', hint = 'CATALOG_CHANNEL_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if exists (
+    select 1 from unnest(coalesce(set_channel_listing.products, '{}'::uuid[])) i
+    where not exists (select 1 from "better_supabase"."products" x where x."id" = i and x."tenant_id" = v_tenant)
+  ) then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if coalesce(set_channel_listing.listed, true) then
+    insert into "better_supabase"."catalog_channel_products" ("tenant_id", "channel_id", "product_id")
+    select distinct v_tenant, set_channel_listing.channel, i from unnest(coalesce(set_channel_listing.products, '{}'::uuid[])) i
+    on conflict do nothing;
+  else
+    delete from "better_supabase"."catalog_channel_products" x
+    where x."channel_id" = set_channel_listing.channel
+      and x."product_id" = any (coalesce(set_channel_listing.products, '{}'::uuid[]));
+  end if;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."set_channel_listing"(uuid, uuid[], boolean) from public, anon;
+grant execute on function "better_supabase"."set_channel_listing"(uuid, uuid[], boolean) to authenticated, service_role;
+
+-- The products listed on a channel by slug, with their text in locale
+-- (the default text where a translation is missing). after is the last
+-- slug of the previous page. Runs as the caller, so the read policies
+-- decide what it sees.
+create or replace function "better_supabase"."channel_products"(channel uuid, locale text default null, page_size integer default null, after text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(item order by slug collate "C"), '[]'::jsonb)
+  from (
+    select jsonb_build_object(
+      'id', p."id",
+      'slug', p."slug",
+      'status', p."status",
+      'kind', p."kind",
+      'locale', (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end),
+      'title', coalesce(t."title", p."title"),
+      'description', coalesce(t."description", p."description"),
+      'listedAt', l."listed_at"
+    ) as item, p."slug" as slug
+    from "better_supabase"."catalog_channel_products" l
+    join "better_supabase"."products" p on p."id" = l."product_id"
+    left join "better_supabase"."product_translations" t on t."product_id" = p."id" and t."locale" = (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end)
+    where l."channel_id" = $1
+      and ($4 is null or p."slug" collate "C" > $4 collate "C")
+    order by p."slug" collate "C"
+    limit least(greatest(coalesce($3, 100), 1), 500)
+  ) items
+$$;
+revoke execute on function "better_supabase"."channel_products"(uuid, text, integer, text) from public;
+grant execute on function "better_supabase"."channel_products"(uuid, text, integer, text) to anon, authenticated, service_role;
+
+-- Sets a product's title and description in a locale other than the
+-- default. Null text falls back to the default text; both null removes the
+-- translation. Returns whether one is stored.
+create or replace function "better_supabase"."set_product_translation"(product uuid, locale text, title text, description text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = set_product_translation.product for update;
+  if v_tenant is null then
+    raise exception 'product not found' using errcode = 'P0002', hint = 'CATALOG_PRODUCT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_product_translation.locale is null or not (set_product_translation.locale = any ('{en}'::text[])) then
+    raise exception 'the locale is not one of blocks.catalog.options.locales' using errcode = '22023', hint = 'CATALOG_LOCALE_INVALID';
+  end if;
+  if set_product_translation.locale = 'en' then
+    raise exception 'the default locale''s text lives on the record itself' using errcode = '22023', hint = 'CATALOG_LOCALE_DEFAULT';
+  end if;
+  if set_product_translation.title is not null and length(set_product_translation.title) not between 1 and 500 then
+    raise exception 'a title has 1 to 500 characters' using errcode = '22023', hint = 'CATALOG_TITLE_INVALID';
+  end if;
+  if set_product_translation.title is null and set_product_translation.description is null then
+    delete from "better_supabase"."product_translations" x
+    where x."product_id" = set_product_translation.product and x."locale" = set_product_translation.locale;
+    return false;
+  end if;
+  insert into "better_supabase"."product_translations" as x ("tenant_id", "product_id", "locale", "title", "description")
+  values (v_tenant, set_product_translation.product, set_product_translation.locale, set_product_translation.title, set_product_translation.description)
+  on conflict ("product_id", "locale") do update
+    set "title" = excluded."title", "description" = excluded."description", "updated_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_product_translation"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."set_product_translation"(uuid, text, text, text) to authenticated, service_role;
+
+-- Sets a variant's title in a locale other than the default; a null title
+-- removes the translation. Returns whether one is stored.
+create or replace function "better_supabase"."set_variant_translation"(variant uuid, locale text, title text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id" into v_tenant from "better_supabase"."product_variants" x where x."id" = set_variant_translation.variant for update;
+  if v_tenant is null then
+    raise exception 'variant not found' using errcode = 'P0002', hint = 'CATALOG_VARIANT_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
+    raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
+  end if;
+  if set_variant_translation.locale is null or not (set_variant_translation.locale = any ('{en}'::text[])) then
+    raise exception 'the locale is not one of blocks.catalog.options.locales' using errcode = '22023', hint = 'CATALOG_LOCALE_INVALID';
+  end if;
+  if set_variant_translation.locale = 'en' then
+    raise exception 'the default locale''s text lives on the record itself' using errcode = '22023', hint = 'CATALOG_LOCALE_DEFAULT';
+  end if;
+  if set_variant_translation.title is not null and length(set_variant_translation.title) not between 1 and 500 then
+    raise exception 'a title has 1 to 500 characters' using errcode = '22023', hint = 'CATALOG_TITLE_INVALID';
+  end if;
+  if set_variant_translation.title is null then
+    delete from "better_supabase"."product_variant_translations" x
+    where x."variant_id" = set_variant_translation.variant and x."locale" = set_variant_translation.locale;
+    return false;
+  end if;
+  insert into "better_supabase"."product_variant_translations" as x ("tenant_id", "variant_id", "locale", "title")
+  values (v_tenant, set_variant_translation.variant, set_variant_translation.locale, set_variant_translation.title)
+  on conflict ("variant_id", "locale") do update
+    set "title" = excluded."title", "updated_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_variant_translation"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."set_variant_translation"(uuid, text, text) to authenticated, service_role;
+
+-- A product's text and its variants' titles in locale: the locale itself,
+-- then its language, then the default locale's text on the product. Runs
+-- as the caller, so the read policies decide what it sees.
+create or replace function "better_supabase"."product_text"(product uuid, locale text default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'id', p."id",
+    'slug', p."slug",
+    'locale', (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end),
+    'title', coalesce(t."title", p."title"),
+    'description', coalesce(t."description", p."description"),
+    'variants', coalesce((
+      select jsonb_agg(jsonb_build_object('id', w."id", 'sku', w."sku", 'title', coalesce((select y."title" from "better_supabase"."product_variant_translations" y where y."variant_id" = w."id" and y."locale" = (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end)), w."title")) order by w."rank" collate "C", w."id")
+      from "better_supabase"."product_variants" w where w."product_id" = p."id"
+    ), '[]'::jsonb)
+  )
+  from "better_supabase"."products" p
+  left join "better_supabase"."product_translations" t on t."product_id" = p."id" and t."locale" = (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end)
+  where p."id" = $1
+$$;
+revoke execute on function "better_supabase"."product_text"(uuid, text) from public;
+grant execute on function "better_supabase"."product_text"(uuid, text) to anon, authenticated, service_role;
+
 drop policy if exists products_storefront on "better_supabase"."products";
 drop policy if exists product_options_storefront on "better_supabase"."product_options";
 drop policy if exists product_option_values_storefront on "better_supabase"."product_option_values";
@@ -1303,6 +1668,10 @@ drop policy if exists categories_storefront on "better_supabase"."categories";
 drop policy if exists product_categories_storefront on "better_supabase"."product_categories";
 drop policy if exists product_collections_storefront on "better_supabase"."product_collections";
 drop policy if exists collection_products_storefront on "better_supabase"."collection_products";
+drop policy if exists catalog_channels_storefront on "better_supabase"."catalog_channels";
+drop policy if exists catalog_channel_products_storefront on "better_supabase"."catalog_channel_products";
+drop policy if exists product_translations_storefront on "better_supabase"."product_translations";
+drop policy if exists product_variant_translations_storefront on "better_supabase"."product_variant_translations";
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1326,6 +1695,6 @@ grant select on better_supabase.blocks to service_role;
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('catalog', 2, 'managed')
+values ('catalog', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -8,6 +8,6 @@
 create extension if not exists "btree_gist" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('time-tracking', 2, 'managed')
+values ('time-tracking', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
