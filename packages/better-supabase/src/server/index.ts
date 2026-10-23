@@ -289,6 +289,15 @@ export {
 
 export { passwordGrant, safeRedirectPath } from "../auth/sign-in.ts";
 
+export { subscribeAuthzVersions } from "./authz-versions.ts";
+
+export type {
+  AuthzVersionChannel,
+  AuthzVersionClient,
+  AuthzVersionSubscription,
+  SubscribeAuthzVersionsOptions,
+} from "./authz-versions.ts";
+
 export type { PasswordGrantOptions } from "../auth/sign-in.ts";
 
 export type {

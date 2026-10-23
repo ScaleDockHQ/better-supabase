@@ -11,12 +11,15 @@ const mocks = vi.hoisted(() => ({ jar: new Map<string, string>() }));
 vi.mock(import("next/headers.js"), () => ({
   headers: () => Promise.resolve(new Headers()),
   cookies: () =>
-    Promise.resolve({
-      getAll: () => [...mocks.jar].map(([name, value]) => ({ name, value })),
-      set: (name: string, value: string) => {
-        mocks.jar.set(name, value);
-      },
-    }),
+    Promise.resolve(
+      // SAFETY: signIn reads only getAll and set from the cookie jar.
+      {
+        getAll: () => [...mocks.jar].map(([name, value]) => ({ name, value })),
+        set: (name: string, value: string) => {
+          mocks.jar.set(name, value);
+        },
+      } as never,
+    ),
 }));
 
 vi.mock(import("next/cache.js"), () => ({

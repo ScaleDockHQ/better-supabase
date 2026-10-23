@@ -18,6 +18,8 @@ const session = <C extends object>(claims: C): AuthSession<C> => ({
   user: { id: "u1" },
   claims: { sub: "u1", ...claims },
   expiresAt: null,
+  issuedAt: null,
+  authzVersion: null,
   aal: "aal1",
   anonymous: false,
   amr: [],
