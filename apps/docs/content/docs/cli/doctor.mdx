@@ -1581,6 +1581,17 @@ Doctor warns when the provider declares a `team` (or `teams`) scope, one of
 those blocks is installed, and the template is unset. Set `teamIdsOf` to a
 set-returning call with `{user}`, such as `provider.team_ids_of({user})`.
 
+### BS418
+
+**Warning: code uses an API that 0.15 renamed or removed.** Doctor reads the
+app sources in `doctor.sources` for imports of a renamed block subpath
+(`better-supabase/blocks/work-items`), a built-in plugin subpath
+(`better-supabase/plugins/soft-delete`), an export named after a renamed
+block (`workItemsBlock`), and the record feature, leases maintenance and pass
+credit APIs that 0.15 removed. Run `better-supabase codemod 0.15` for the
+renames, and use the replacement the finding names for the removed APIs. The
+[0.14 to 0.15 guide](/docs/migration/0.14-to-0.15) lists each one.
+
 ## Env files
 
 ### BS501

@@ -40,6 +40,7 @@ import { MODULE_RULES } from "./modules.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { REALTIME_RULES } from "./realtime.ts";
+import { REMOVED_API_RULES } from "./removed-apis.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
 import {
@@ -1058,6 +1059,7 @@ export const RULES: readonly Rule[] = [
   ...SCHEMA_DESIGN_RULES,
   ...HOOK_RULES,
   ...COOKIE_RULES,
+  ...REMOVED_API_RULES,
   ...AUTHORIZATION_RULES,
   ...LIVE_RULES,
   ...MODULE_RULES,
