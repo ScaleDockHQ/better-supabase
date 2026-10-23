@@ -4,6 +4,7 @@ import {
   BLOCK_EXPORT_RENAMES,
   BLOCK_SUBPATH_RENAMES,
   PLUGIN_SUBPATH_RENAMES,
+  SPEC_SUBPATH_RENAMES,
 } from "../codemod-block-renames.ts";
 
 const SPECIFIER = /from\s+["']better-supabase\/([\w./-]+)["']/g;
@@ -32,6 +33,11 @@ const REMOVED_NAMES: readonly { pattern: RegExp; replacement: string }[] = [
     replacement: "`credits(passId)` on the ledger",
   },
   {
+    pattern: /\.blockRouter\(/,
+    replacement:
+      "`bsb.router(defineApi(betterSupabase, options))`, which routes every block instance and table",
+  },
+  {
     pattern: /\brequireTenant\b/,
     replacement: "`requireOrganization` (`bsb codemod 0.15` renames it)",
   },
@@ -56,6 +62,10 @@ function renamedSubpath(subpath: string): string | undefined {
     const to = PLUGIN_SUBPATH_RENAMES[subpath];
 
     return to ? `better-supabase/${to}` : "better-supabase";
+  }
+
+  if (Object.hasOwn(SPEC_SUBPATH_RENAMES, subpath)) {
+    return `better-supabase/${SPEC_SUBPATH_RENAMES[subpath]}`;
   }
 
   return undefined;
@@ -127,7 +137,7 @@ export const REMOVED_API_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Code uses an API that 0.15 renamed or removed",
     description:
-      "0.15 renamed blocks and their subpaths, turned the built-in plugins into block extensions and replaced record features with record types. `better-supabase codemod 0.15` rewrites the renames; the removed APIs need the replacement the finding names.",
+      "0.15 renamed blocks and their subpaths, turned the built-in plugins into block extensions, moved the OpenAPI, AsyncAPI, Arazzo and Overlay subpaths into `better-supabase/spec` and replaced record features with record types. `better-supabase codemod 0.15` rewrites the renames; the removed APIs need the replacement the finding names.",
     check: removedApis,
   },
 ];

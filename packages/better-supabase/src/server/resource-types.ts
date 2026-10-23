@@ -12,7 +12,7 @@ import type {
   TableMeta,
   Update,
 } from "../schema/types.ts";
-import type { ResourceOperation } from "../spec/model.ts";
+import type { ResourceOperation, TableVerb } from "../spec/model.ts";
 import type {
   ResourceActionSpec,
   ResourceDescription,
@@ -196,6 +196,15 @@ export interface ResourceHandler<Ref = string> {
     operation: ResourceOperation,
     input?: ResourceInput,
   ): Promise<Result<unknown>>;
+  /**
+   * Runs one contract verb (`page`, `count`, `aggregate`, `upsert`) with its
+   * arguments, as `POST /<table>/<verb>` does. Resolves to a `Result`.
+   */
+  verb(
+    db: object,
+    verb: TableVerb,
+    input?: ResourceInput,
+  ): Promise<Result<unknown>>;
   /** Runs one action by name. Resolves to a `Result`. */
   action(
     db: object,
@@ -213,9 +222,9 @@ export interface ResourceHandler<Ref = string> {
     options?: RespondOptions,
   ): Promise<Response>;
   /**
-   * Serves the collection (`[]`), an item (`[id]`) or an action path (`[id,
-   * "send"]`), below the resource's own path. A string is split on `/` and
-   * decoded.
+   * Serves the collection (`[]`), an item (`[id]`), a verb (`POST ["count"]`)
+   * or an action path (`[id, "send"]`), below the resource's own path. A string
+   * is split on `/` and decoded.
    */
   serve(
     request: Request,

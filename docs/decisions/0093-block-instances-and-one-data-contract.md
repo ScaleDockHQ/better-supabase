@@ -98,7 +98,12 @@ The per-framework block folders go; widget logic stays as headless
 controllers and the wrappers become registry items, which are the only UI
 path. The library writes no pages: `scaffold screens` goes, and an app builds
 its screens from the UI recipes and the data hooks. `defineApi` includes every instance and table, oRPC becomes its
-implementation, and the specs live under `better-supabase/spec`. Flows
+implementation, and the specs live under `better-supabase/spec`. Each table
+gets the contract verbs `page`, `count`, `aggregate` and `upsert` as
+`POST /<table>/<verb>` next to its CRUD routes, and each instance gets one
+`POST /<instance>/<method>` per client method, found by building the client
+with a transport that refuses every call. `bsb.router(api)` serves that same
+model as oRPC procedures, so `blockRouter` and `scaffold api` go. Flows
 become default automations with one trigger (the outbox event), one action
 registry (ADR 0046) and one scheduler on the queue. Preset codes give way
 to the design JSON (ADR 0040, ADR 0058): the config's `preset` takes a name

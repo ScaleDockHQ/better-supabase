@@ -16,19 +16,8 @@ export type BlockArgsOf<C, K extends BlockMethodName<C>> = C[K] extends (
   : never;
 
 /**
- * What one call of a block method takes as a single value: its argument, or the
- * tuple of its arguments when it has more than one.
- */
-export type BlockInputOf<C, K extends BlockMethodName<C>> = BlockArgsOf<
-  C,
-  K
->["length"] extends 0 | 1
-  ? BlockArgsOf<C, K>[0]
-  : BlockArgsOf<C, K>;
-
-/**
  * Calls `method` with `input` as one value: an array is spread when the method
- * takes more than one argument, as `BlockInputOf` describes.
+ * takes more than one argument.
  */
 export function callWithInput(
   client: object,

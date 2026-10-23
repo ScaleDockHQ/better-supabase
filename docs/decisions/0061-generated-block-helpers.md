@@ -41,7 +41,8 @@ the library adds helpers that read them:
   `createBlockQuery`, `createBlockMutation` and `useBlockQuery`,
   `useBlockMutation`, `useBlockEvent` for React, Vue, Svelte and Solid;
   `bs.blockAction` in `better-supabase/next`; `bs.blockRouter` in
-  `better-supabase/orpc`.
+  `better-supabase/orpc` (removed in 0.15: `bsb.router(defineApi(...))` serves
+  every block instance, ADR 0093).
 - **More generators:** `nuqs()` writes search param parsers, a cache, a loader
   and a serializer per table. `factories()` writes typed factories per table
   and per block entity, with `defineFactory` and `factoryTime` in

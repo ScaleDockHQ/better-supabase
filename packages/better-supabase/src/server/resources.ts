@@ -50,7 +50,11 @@ function serves(
     return true;
   }
 
-  return segments.length === 1 && handler.keyParam !== undefined;
+  return (
+    segments.length === 1 &&
+    (handler.keyParam !== undefined ||
+      handler.plan.verbs.some((verb) => verb === segments[0]))
+  );
 }
 
 /**

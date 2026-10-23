@@ -11,14 +11,20 @@ import type {
   VersionOf,
 } from "./format.ts";
 import type { ApiModel } from "./model.ts";
-import type { ApiOptions, ApiSource } from "./options.ts";
+import type {
+  ApiOptions,
+  ApiSource,
+  BlockApiDescription,
+  ResourceInput,
+} from "./options.ts";
 
 import { openapiFormat } from "../openapi/format.ts";
-import { buildApiModel } from "./build.ts";
+import { publishedBlocks } from "./build-blocks.ts";
+import { buildApiModel, publishedResources } from "./build.ts";
 
 /**
  * Applies Overlay documents in order to a rendered document and reports what it
- * found. `better-supabase/overlay` provides one: `(doc, overlays) =>
+ * found. `better-supabase/spec` provides one: `(doc, overlays) =>
  * applyOverlays(doc, overlays, { jsonpath })`.
  */
 export type OverlayEngine = (
@@ -75,6 +81,15 @@ export interface DefineApiOptions<Ref = string> extends ApiOptions<Ref> {
 
 export interface Api {
   readonly model: ApiModel;
+  /** The prefix of every path, from `basePath`; `""` without one. */
+  readonly basePath: string;
+  /**
+   * The tables it publishes and how, by app key, for the server that serves
+   * them (`createOrpc().router(api)`).
+   */
+  readonly resources: Readonly<Record<string, ResourceInput<unknown>>>;
+  /** The block instances it publishes and how, by instance key. */
+  readonly blocks: Readonly<Record<string, BlockApiDescription<unknown>>>;
   /** Findings while building the model. */
   readonly diagnostics: readonly SpecDiagnostic[];
   /**
@@ -122,6 +137,14 @@ interface Lowered {
  *   info: { title: "CRM API", version: "1.0.0" },
  *   resources: { customers: { list: customerList } },
  * });
+ * ```
+ *
+ * Without `resources` it publishes every table, and without `blocks` every
+ * block instance `betterSupabase.blocks(set)` registered:
+ *
+ * ```ts
+ * const api = defineApi(betterSupabase, { info, basePath: "/api" });
+ * export const { procedures } = bsb.router(api, { meta: openapi });
  * const { document } = api.openapi({ version: "3.2" });
  * ```
  */
@@ -206,7 +229,7 @@ export function defineApi<Ref = string>(
 
       if (!engine) {
         throw new TypeError(
-          "better-supabase/spec: overlays need applyOverlays (from better-supabase/overlay)",
+          "better-supabase/spec: overlays need applyOverlays (from better-supabase/spec)",
         );
       }
 
@@ -230,6 +253,9 @@ export function defineApi<Ref = string>(
 
   return {
     model: built.model,
+    basePath: (options.basePath ?? "").replace(/\/$/, ""),
+    resources: publishedResources(source.meta, options),
+    blocks: publishedBlocks(source.options?.blocks, options.blocks),
     diagnostics: built.diagnostics,
     render,
     openapi<V extends OpenApiVersion = "3.1">(

@@ -158,6 +158,7 @@ describe("buildApiModel: dataApi", () => {
     const built = buildApiModel(betterSupabase, {
       info,
       supabaseUrl,
+      resources: false,
       requirePermissions: true,
       dataApi: { tables: ["customers"] },
     });
@@ -169,6 +170,7 @@ describe("buildApiModel: dataApi", () => {
     const built = buildApiModel(betterSupabase, {
       info,
       supabaseUrl,
+      resources: false,
       dataApi: { operations: { notes: ["select"] } },
     });
 
@@ -283,6 +285,7 @@ describe("buildApiModel: dataApi", () => {
   it("reports unknown tables and functions and a missing project URL", () => {
     const built = buildApiModel(betterSupabase, {
       info,
+      resources: false,
       dataApi: { tables: ["nope"], functions: ["missing"] },
     });
 

@@ -136,7 +136,7 @@ describe("Plugin.describe", () => {
 
     const { model, diagnostics } = defineApi(base.use(plugin), {
       info,
-      resources: { notes: { operations: ["list", "get"] } },
+      resources: { notes: { operations: ["list", "get"], verbs: false } },
     });
 
     expect(diagnostics).toEqual([]);

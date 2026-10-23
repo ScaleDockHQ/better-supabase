@@ -13,6 +13,7 @@ import type {
   OperationSource,
   ResourceOperation,
   SecurityRequirement,
+  TableVerb,
 } from "./model.ts";
 import type { ApiOptions, ResourceInput } from "./options.ts";
 import type { ErrorResponse, ResourcePlan } from "./resource.ts";
@@ -83,6 +84,14 @@ const OPERATION_STATUSES: Readonly<
   get: [401, 403, 404],
   update: [400, 401, 403, 404, 409, 422],
   delete: [401, 403, 404, 409],
+};
+
+/** The error statuses each contract verb can answer with. */
+const VERB_STATUSES: Readonly<Record<TableVerb, readonly number[]>> = {
+  page: [400, 401, 403],
+  count: [400, 401, 403],
+  aggregate: [400, 401, 403],
+  upsert: [400, 401, 403, 409, 422],
 };
 
 /**
@@ -597,6 +606,7 @@ function resourceScope<Ref>(
 
   const names = new Set<string>([
     ...plan.operations,
+    ...plan.verbs,
     ...plan.actions.map((action) => action.name),
   ]);
 
@@ -918,6 +928,86 @@ function addAction<Ref>(
   );
 }
 
+const VERB_ARGUMENTS: Readonly<Record<TableVerb, string>> = {
+  page: "The page arguments of `db.<table>.page()`: `where`, `orderBy`, `size` with `page`, `offset` with `limit`, or `after`.",
+  count: "The arguments of `db.<table>.count()`, such as `where`.",
+  aggregate:
+    "The arguments of `db.<table>.aggregate()`: the aggregates and `groupBy`.",
+  upsert: "A row to insert or update, or an array of rows.",
+};
+
+function addVerb<Ref>(scope: ResourceScope<Ref>, verb: TableVerb): void {
+  const {
+    plan,
+    tableKey,
+    components,
+    componentFor,
+    rowName,
+    collection,
+    errors,
+    add,
+  } = scope;
+
+  const { prefix, usedErrors } = scope.ctx;
+  const row = schemaRef(rowName);
+  const insert = schemaRef(components.Insert ?? componentFor("Insert"));
+
+  const body: JsonSchema =
+    verb === "upsert"
+      ? { oneOf: [insert, { type: "array", items: insert }] }
+      : { type: "object" };
+
+  const output: JsonSchema = (() => {
+    switch (verb) {
+      case "page": {
+        return pageSchema(row, plan.pagination === "cursor");
+      }
+
+      case "count": {
+        return { type: "integer", minimum: 0 };
+      }
+
+      case "aggregate": {
+        return {};
+      }
+
+      case "upsert": {
+        return { oneOf: [row, { type: "array", items: row }] };
+      }
+
+      default: {
+        const unknown: never = verb;
+        throw new TypeError(`Unknown verb ${String(unknown)}`);
+      }
+    }
+  })();
+
+  add(
+    verb,
+    { kind: "verb", owner: "table", name: tableKey, verb },
+    "post",
+    `${collection}/${verb}`,
+    {
+      summary: `${verb[0]!.toUpperCase()}${verb.slice(1)} ${tableKey}`,
+      extensions: { [`${prefix}verb`]: verb },
+      parameters: [],
+      requestBody: {
+        required: verb === "upsert",
+        description: VERB_ARGUMENTS[verb],
+        content: jsonContent(body),
+      },
+      responses: {
+        "200": jsonResponse(output, "The result."),
+        ...usedErrors(
+          errors,
+          VERB_STATUSES[verb],
+          plan.permissions[verb] !== undefined,
+        ),
+      },
+    },
+  );
+}
+
 /** Adds one resource's components, tag and operations to the build. */
 export function buildResource<Ref>(
   ctx: BuildContext<Ref>,
@@ -928,6 +1018,10 @@ export function buildResource<Ref>(
 
   for (const operation of scope.plan.operations) {
     addTableOperation(scope, operation);
+  }
+
+  for (const verb of scope.plan.verbs) {
+    addVerb(scope, verb);
   }
 
   for (const action of scope.plan.actions) {

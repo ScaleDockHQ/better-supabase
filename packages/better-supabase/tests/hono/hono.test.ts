@@ -137,7 +137,15 @@ describe("createHono", () => {
 
   it("only mounts item routes for single-column keys", () => {
     const routes = bsb.resource("customers").routes.map((route) => route.path);
-    expect(routes).toEqual(["/", "/:id", "/*"]);
+    expect(routes).toEqual([
+      "/",
+      "/page",
+      "/count",
+      "/aggregate",
+      "/upsert",
+      "/:id",
+      "/*",
+    ]);
     expect(() => bsb.resource("nope" as never)).toThrow('Unknown table "nope"');
   });
 });
@@ -253,7 +261,16 @@ describe("authorizer", () => {
           },
         })
         .routes.map((route) => route.path),
-    ).toEqual(["/", "/ping", "/:id", "/*"]);
+    ).toEqual([
+      "/",
+      "/ping",
+      "/page",
+      "/count",
+      "/aggregate",
+      "/upsert",
+      "/:id",
+      "/*",
+    ]);
   });
 
   it("matches through the shared resource router", async () => {

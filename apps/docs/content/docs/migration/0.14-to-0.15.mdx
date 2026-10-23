@@ -518,14 +518,82 @@ better-supabase no longer writes pages. The files an earlier
 table's generated data hooks (`useTasks`, `useTask`) and start from the
 `record-*` [UI recipes](/docs/registry/ui-recipes#app-tables). Running
 `bsb scaffold screens` now exits with a message that points there.
-`scaffold api` is unchanged.
+
+## One API layer
+
+`defineApi` now publishes every table and every block instance unless you
+say otherwise. If you passed `resources`, only those tables stay published,
+so nothing changes there; without it, every table appears. Each table also
+gets the contract verbs `page`, `count`, `aggregate` and `upsert` as
+`POST /<table>/<verb>`, and `defineResource` and `bsb.resource` serve them.
+Pass `verbs: false` to a resource to keep the 0.14 routes, `resources: false`
+or `blocks: false` to leave a whole group out, and an action path that
+collides with a verb (such as `POST /count`) needs another path.
+
+`bsb.blockRouter` is removed. Serve the same model the document describes
+with `bsb.router(api)`:
+
+```ts
+// before
+const tasks = bsb.blockRouter(({ db }) => db.tasks, {
+  name: "tasks",
+  methods: ["list", "create"],
+  meta: (route) => openapi({ method: route.method, path: route.path }),
+});
+
+// after
+const api = defineApi(betterSupabase, {
+  info,
+  resources: false,
+  blocks: { tasks: { verbs: ["list", "create"] } },
+});
+const { procedures } = bsb.router(api, { meta: openapi });
+```
+
+A method that takes more than one argument still takes a JSON array. See
+[Serve the API](/docs/frameworks/orpc#serve-the-api).
+
+## `scaffold api` is removed
+
+`bsb scaffold api`, the `scaffold` group, the `tooling.scaffold` config key
+and the `scaffold` step of `gen` are gone, because `bsb.router(api)` serves
+the API without a generated module. Delete `lib/api.generated.ts` and the
+route files `scaffold api` wrote, serve the router instead, and delete the
+`scaffold` key from `better-supabase.config.ts`; a config that still sets it
+fails to load with that message.
+
+## Spec renderers live in `better-supabase/spec`
+
+The `better-supabase/openapi`, `better-supabase/asyncapi`,
+`better-supabase/arazzo` and `better-supabase/overlay` subpaths are removed.
+Import the same names from `better-supabase/spec`:
+
+```ts
+// before
+import { createOpenApi } from "better-supabase/openapi";
+import { createAsyncApi } from "better-supabase/asyncapi";
+
+// after
+import { createAsyncApi, createOpenApi } from "better-supabase/spec";
+```
+
+`better-supabase codemod 0.15` rewrites these imports.
+
+## Adapter tiers
+
+Next.js, Hono, Expo Router, SvelteKit, TanStack Start and React Router are
+supported adapters, with the full test matrix and an example app. Astro,
+Edge Functions, Elysia, H3, Nuxt, NestJS, Node and SolidStart are community
+adapters with a smoke test. Nothing is removed and no import changes; see
+[adapter tiers](/docs/frameworks#adapter-tiers) before you pick one for a new
+app.
 
 ## Doctor finds what is left
 
 `better-supabase doctor` reports BS418 for app code that still imports a
 renamed block subpath or plugin subpath, an export named after a renamed
-block, or a record feature, leases maintenance or pass credit API that 0.15
-removed. A config key that moved fails to load with its new place, so after
+block, a spec subpath, a `blockRouter` call, or a record feature, leases
+maintenance or pass credit API that 0.15 removed. A config key that moved fails to load with its new place, so after
 the codemod a clean doctor run means nothing from 0.14 is left.
 
 ## Upgrade order
