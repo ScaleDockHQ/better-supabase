@@ -483,7 +483,9 @@ Create it once at module scope, never per request or per cache scope, and
 hand it to the server:
 
 ```ts title="src/lib/supabase/server.ts"
+import "server-only";
 import { createNext } from "better-supabase/next";
+import { betterSupabase } from "./index";
 import { versions } from "./authz";
 
 export const bsb = createNext(betterSupabase, { versions });
