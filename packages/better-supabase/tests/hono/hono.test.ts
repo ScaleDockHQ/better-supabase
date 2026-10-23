@@ -13,6 +13,7 @@ import { createHono, defineAction } from "../../src/hono/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { expiredRequest } from "../fixtures/instant-sessions.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 
@@ -364,5 +365,53 @@ describe("createHono options", () => {
     const second = createHono(definition, { server: first });
     // oxlint-disable-next-line typescript/unbound-method -- compares the shared function, never calls it.
     expect(second.contextFor).toBe(first.contextFor);
+  });
+});
+
+describe("instant sessions", () => {
+  const refresh = vi.fn<typeof fetch>(
+    async () => new Response(null, { status: 500 }),
+  );
+
+  const bsb = createHono(defineSupabase(schema), {
+    env,
+    auth: { jwks: signer.jwks, fetch: refresh },
+  });
+
+  type Env = HonoEnv<Models, Functions, unknown>;
+
+  const app = new Hono<Env>()
+    .use("*", bsb.middleware({ allow: ["user", "anon"] }))
+    .get("/two", async (c) => {
+      const loader = async () => {
+        const ctx = await bsb.contextFromSession(c.var.snapshot);
+
+        return ctx.auth.kind === "user" ? ctx.auth.user.id : null;
+      };
+
+      return c.json(await Promise.all([loader(), loader()]));
+    })
+    .get("/notes", (c) => c.json({ kind: c.var.auth.kind }));
+
+  it("verifies once for two loaders in one request", async () => {
+    const verify = vi.spyOn(crypto.subtle, "verify");
+    const token = await signer.sign({ sub: USER });
+
+    const response = await app.request("/two", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(await response.json()).toEqual([USER, USER]);
+    expect(verify).toHaveBeenCalledOnce();
+    verify.mockRestore();
+  });
+
+  it("never refreshes an expired cookie on a prefetch", async () => {
+    const response = await app.request(
+      await expiredRequest("https://app.test/notes", true),
+    );
+
+    expect(await response.json()).toEqual({ kind: "anon" });
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

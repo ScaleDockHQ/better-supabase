@@ -109,6 +109,20 @@ export interface RequestMemo {
   once<T>(key: string, load: () => Promise<T>): Promise<T>;
 }
 
+/**
+ * Runs `evaluate`, passing the runtime only when there is one, so authorizers
+ * written before it see the call they always did.
+ */
+async function evaluateWith<Ref>(
+  authorizer: Authorizer<Ref>,
+  request: AuthorizationRequest<Ref>,
+  runtime: AuthorizerRuntime | undefined,
+): Promise<AuthorizationOutcome> {
+  return runtime
+    ? authorizer.evaluate(request, runtime)
+    : authorizer.evaluate(request);
+}
+
 /** Whether `value` is a `RequestMemo`. */
 export function isRequestMemo(value: unknown): value is RequestMemo {
   return (
@@ -358,7 +372,8 @@ export async function checkPermission<Ref>(
   const { subject, context } = requestOf(options.context);
 
   try {
-    const outcome = await authorizer.evaluate(
+    const outcome = await evaluateWith(
+      authorizer,
       { subject, action: permission, resource: options.resource, context },
       options.runtime,
     );
@@ -402,11 +417,11 @@ export async function checkEach<Ref>(
 
   try {
     const outcomes = authorizer.evaluations
-      ? await authorizer.evaluations(requests, runtime)
+      ? await (runtime
+          ? authorizer.evaluations(requests, runtime)
+          : authorizer.evaluations(requests))
       : await Promise.all(
-          requests.map((request) =>
-            Promise.resolve(authorizer.evaluate(request, runtime)),
-          ),
+          requests.map((request) => evaluateWith(authorizer, request, runtime)),
         );
 
     return requests.map(

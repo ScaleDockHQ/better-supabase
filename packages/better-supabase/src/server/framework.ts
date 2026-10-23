@@ -1,3 +1,4 @@
+import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type {
@@ -10,6 +11,7 @@ import type { RefusalRedirects } from "./refusal.ts";
 import type { AllowedCaller } from "./respond.ts";
 import type { BetterServer, ServerOptions } from "./server-types.ts";
 
+import { snapshotOf } from "../auth/snapshot.ts";
 import { toSession } from "../auth/view.ts";
 import { withBetterSupabase } from "./composite.ts";
 
@@ -62,6 +64,12 @@ export type FrameworkLocals<
 > = BetterSupabaseContributions<M, F, E, C, P, B> & {
   /** The caller as plain data, safe to return from a loader to the browser. */
   readonly session: AuthSession<C, P>;
+  /**
+   * The verified user for `bsb.contextFromSession()`, which builds a context
+   * with no second verification. Holds the access token: never return it to the
+   * browser. `null` for anyone but a signed-in user.
+   */
+  readonly snapshot: SessionSnapshot<C> | null;
 };
 
 /**
@@ -122,7 +130,11 @@ export function localsOf<
   // SAFETY: frameworkEntry contributes exactly BetterSupabaseContributions for this server.
   const base = contributions as BetterSupabaseContributions<M, F, E, C, P, B>;
 
-  return { ...base, session: toSession(base.bsb.auth) };
+  return {
+    ...base,
+    session: toSession(base.bsb.auth),
+    snapshot: snapshotOf(base.bsb.auth),
+  };
 }
 
 interface WaitUntilHost {

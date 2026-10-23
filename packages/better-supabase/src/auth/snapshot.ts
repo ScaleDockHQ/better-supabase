@@ -48,6 +48,8 @@ export function authzVersionOf(claims: Claims): number | null {
 
 const branded = new WeakSet<object>();
 
+const sources = new WeakMap<object, AuthState>();
+
 /**
  * Whether `value` is a snapshot this process built from a verified token. A
  * snapshot that crossed serialization, or was built by hand, is not.
@@ -77,8 +79,20 @@ export function snapshotOf<C, P>(
   });
 
   branded.add(snapshot);
+  sources.set(snapshot, auth);
 
   return snapshot;
+}
+
+/**
+ * The verified auth state a branded snapshot was built from, or `undefined` for
+ * a snapshot this process didn't build.
+ */
+export function authOfSnapshot<C, P>(
+  snapshot: SessionSnapshot<C>,
+): AuthState<C, P> | undefined {
+  // SAFETY: snapshotOf stores the AuthState<C, P> it built SessionSnapshot<C> from.
+  return sources.get(snapshot) as AuthState<C, P> | undefined;
 }
 
 /**

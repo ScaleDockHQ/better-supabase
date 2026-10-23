@@ -20,7 +20,7 @@ import { DbException } from "../core/db-exception.ts";
 import { toProblem } from "../core/problem.ts";
 import { unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
-import { refreshFor } from "../server/refresh.ts";
+import { isPrefetch, refreshFor } from "../server/refresh.ts";
 import { defaultExpose, guard, respond } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
@@ -48,7 +48,8 @@ export interface ExpoContextOptions
   extends Omit<ContextOptions, "refresh">, GuardOptions {
   /**
    * Refresh an expired cookie session and write the new cookies with
-   * `setResponseHeaders`. Defaults to true; bearer tokens never refresh. When
+   * `setResponseHeaders`. Defaults to true; bearer tokens and prefetches never
+   * refresh, so parallel prefetches never race on the refresh token. When
    * `bsb.middleware()` already ran for the request, the context reads the
    * session it refreshed and never calls Auth again, whatever this option
    * says.
@@ -124,9 +125,9 @@ export interface BetterExpo<
     options?: MiddlewareOptions,
   ): (request: Request, params?: ExpoParams) => Promise<Response>;
   /**
-   * `+middleware.ts`: refreshes an expired cookie session once per request,
-   * before loaders run, and redirects refused callers when `redirectTo` is
-   * set.
+   * `+middleware.ts`: refreshes an expired cookie session once per request
+   * (never on a prefetch), before loaders run, and redirects refused callers
+   * when `redirectTo` is set.
    */
   middleware(options?: ExpoMiddlewareOptions): MiddlewareFunction;
 }
@@ -261,11 +262,11 @@ export function createExpo<
     const { allow, aal, scopes, refresh = true, ...rest } = contextOptions;
     const handoff = handedOff(incoming);
 
+    const resolved = toRequest(incoming);
+
     const ctx = await server.context(
-      handoff
-        ? withCookie(toRequest(incoming), handoff.cookie)
-        : toRequest(incoming),
-      { ...rest, refresh: handoff ? false : refresh },
+      handoff ? withCookie(resolved, handoff.cookie) : resolved,
+      { ...rest, refresh: !handoff && refresh && !isPrefetch(resolved) },
     );
 
     writeHeaders(ctx);
@@ -338,7 +339,9 @@ export function createExpo<
         const resolved = toRequest(incoming);
 
         const ctx = await server.context(resolved, {
-          refresh: refreshFor(middlewareOptions.refresh, resolved) ?? true,
+          refresh:
+            refreshFor(middlewareOptions.refresh, resolved) ??
+            !isPrefetch(resolved),
         });
 
         const url = new URL(incoming.url);

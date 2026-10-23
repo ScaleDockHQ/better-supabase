@@ -6,6 +6,7 @@ import { HTTPException } from "hono/http-exception";
 import { routePath } from "hono/route";
 
 import type { AuthState } from "../auth/resolve.ts";
+import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
@@ -25,6 +26,7 @@ import type {
   SharedServer,
 } from "../server/server-types.ts";
 
+import { snapshotOf } from "../auth/snapshot.ts";
 import { toSession } from "../auth/view.ts";
 import { honoMiddleware } from "../bridges/hono.ts";
 import { dbErrorOf } from "../core/errors.ts";
@@ -79,6 +81,11 @@ export interface HonoEnv<
     readonly auth: AuthState<C, P>;
     /** The caller as plain data, safe to return in a response. */
     readonly session: AuthSession<C, P>;
+    /**
+     * The verified user for `bsb.contextFromSession()`. Holds the access token:
+     * never return it in a response.
+     */
+    readonly snapshot: SessionSnapshot<C> | null;
     /** The active tenant: `ServerOptions.tenant`, then the tenant claim. */
     readonly tenant: string | undefined;
   };
@@ -322,6 +329,7 @@ export function createHono<
           c.set("db", bsb.db);
           c.set("auth", bsb.auth);
           c.set("session", toSession(bsb.auth));
+          c.set("snapshot", snapshotOf(bsb.auth));
           c.set("tenant", tenant);
         },
       );

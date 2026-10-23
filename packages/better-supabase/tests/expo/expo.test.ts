@@ -267,4 +267,43 @@ describe("createExpo", () => {
     expect(failed.status).toBe(500);
     expect(await failed.text()).not.toContain("boom");
   });
+
+  it("verifies once for two loaders in one request", async () => {
+    const verify = vi.spyOn(crypto.subtle, "verify");
+
+    const request = new Request("https://app.test/two", {
+      headers: { cookie: await sessionCookie(3600, "r-two") },
+    });
+
+    const loader = async () => {
+      const ctx = await bsb.contextFromSession(await bsb.snapshot(request));
+
+      return ctx.auth.kind === "user" ? ctx.auth.user.id : null;
+    };
+
+    expect(await Promise.all([loader(), loader()])).toEqual([USER, USER]);
+    expect(verify).toHaveBeenCalledOnce();
+    verify.mockRestore();
+  });
+
+  it("never refreshes an expired cookie on a prefetch", async () => {
+    const cookie = await sessionCookie(-60, "r-prefetch");
+
+    const headers = {
+      cookie,
+      "sec-fetch-dest": "document",
+      "sec-fetch-mode": "navigate",
+    };
+
+    await bsb.middleware()(
+      immutable("https://app.test/prefetch", {
+        ...headers,
+        "sec-purpose": "prefetch",
+      }),
+    );
+    expect(refreshed).not.toHaveBeenCalled();
+
+    await bsb.middleware()(immutable("https://app.test/prefetch", headers));
+    expect(refreshed).toHaveBeenCalledOnce();
+  });
 });

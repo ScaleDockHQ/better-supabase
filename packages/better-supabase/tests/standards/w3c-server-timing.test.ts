@@ -61,19 +61,19 @@ describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
     expect(value).toMatch(HEADER);
   });
 
-  it("next.proxy({ serverTiming: true }) emits bsb-proxy and bsb-verify with non-negative durations", async () => {
+  it("next.proxy({ serverTiming: true }) emits the total, auth and phase entries with non-negative durations", async () => {
     const response = await bsb.proxy(page(), { serverTiming: true });
     const header = response.headers.get("server-timing")!;
     expect(header).toMatch(HEADER);
     const values = metrics(header);
-    expect([...values.keys()]).toEqual(["bsb-proxy", "bsb-verify"]);
+    expect([...values.keys()]).toEqual(["bsb-proxy", "bsb-auth", "bsb-parse"]);
 
     for (const dur of values.values()) {
       expect(dur).toBeGreaterThanOrEqual(0);
     }
 
     expect(values.get("bsb-proxy")!).toBeGreaterThanOrEqual(
-      values.get("bsb-verify")!,
+      values.get("bsb-auth")!,
     );
   });
 
@@ -90,7 +90,8 @@ describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
     expect([...metrics(header).keys()]).toEqual([
       "app",
       "bsb-proxy",
-      "bsb-verify",
+      "bsb-auth",
+      "bsb-parse",
     ]);
   });
 

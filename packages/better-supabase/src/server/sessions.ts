@@ -4,7 +4,7 @@ import type { AuthzVersionCache } from "../core/authorizer.ts";
 import type { ServerSessions } from "./server-types.ts";
 
 import { requestToken } from "../auth/resolve.ts";
-import { sessionMemo, snapshotOf } from "../auth/snapshot.ts";
+import { authOfSnapshot, sessionMemo, snapshotOf } from "../auth/snapshot.ts";
 import { dbError } from "../core/errors.ts";
 
 /** A memoized session: the verified user and the snapshot handed out for it. */
@@ -13,8 +13,29 @@ interface VerifiedSession<C, P> {
   readonly snapshot: SessionSnapshot<C>;
 }
 
-/** The placeholder URL of the request a snapshot's token is verified on. */
-const SNAPSHOT_URL = "http://snapshot.invalid/";
+const ANON = { kind: "anon", reason: "none" } as const;
+
+/**
+ * The verified state behind a snapshot this process built, `anon` once it
+ * expired, and `invalid` for a forged or deserialized one.
+ */
+function authFor<C, P>(session: SessionSnapshot<C>): AuthState<C, P> {
+  const source = authOfSnapshot<C, P>(session);
+
+  if (!source) {
+    return {
+      kind: "invalid",
+      reason: "token",
+      error: dbError("unauthorized", "The session snapshot is invalid"),
+    };
+  }
+
+  if (session.expiresAt !== null && session.expiresAt * 1000 <= Date.now()) {
+    return { kind: "anon", reason: "expired" };
+  }
+
+  return source;
+}
 
 export interface SessionsOptions<C, P, Ctx> {
   readonly resolve: (
@@ -90,40 +111,13 @@ export function serverSessions<C, P, Ctx, Opts extends object>(
     return found?.snapshot ?? null;
   };
 
-  const verifyToken = async (
-    token: string,
-  ): Promise<VerifiedSession<C, P> | null> => {
-    const load = async (): Promise<VerifiedSession<C, P> | null> => {
-      const resolution = await options.resolve(
-        new Request(SNAPSHOT_URL, {
-          headers: { authorization: `Bearer ${token}` },
-        }),
-        { refresh: false, cookies: false },
-      );
-
-      return verified(resolution.auth, token);
-    };
-
-    return memo ? memo.get(token, load) : load();
-  };
-
-  const contextFromSession = async (
+  const contextFromSession = (
     session: SessionSnapshot<C> | null,
     contextOptions?: Opts,
   ): Promise<Ctx> => {
-    const found = session ? await verifyToken(session.accessToken) : null;
+    const auth = session ? authFor<C, P>(session) : ANON;
 
-    const auth: AuthState<C, P> = session
-      ? found && found.auth.user.id === session.userId
-        ? found.auth
-        : {
-            kind: "invalid",
-            reason: "token",
-            error: dbError("unauthorized", "The session snapshot is invalid"),
-          }
-      : { kind: "anon", reason: "none" };
-
-    return options.contextFor(auth, contextOptions ?? {});
+    return Promise.resolve(options.contextFor(auth, contextOptions ?? {}));
   };
 
   const evict = (userId: string): void => {

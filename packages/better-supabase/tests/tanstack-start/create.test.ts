@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ok } from "../../src/core/result.ts";
 import { createTanStackStart } from "../../src/tanstack-start/index.ts";
+import { expiredRequest } from "../fixtures/instant-sessions.ts";
 import {
   betterSupabase,
   env,
@@ -75,5 +76,47 @@ describe("createTanStackStart", () => {
 
   it("require fails without the middleware", async () => {
     await expect(bsb.require({} as never)).rejects.toThrow(/middleware/);
+  });
+
+  it("verifies once for two loaders in one request", async () => {
+    const verify = vi.spyOn(crypto.subtle, "verify");
+
+    const loader = async (context: Context) => {
+      const { snapshot } = await bsb.require(context);
+      const ctx = await bsb.contextFromSession(snapshot);
+
+      return ctx.auth.kind === "user" ? ctx.auth.user.id : null;
+    };
+
+    const users = await serve(await requestAs({ role: "member" }), (context) =>
+      Promise.all([loader(context), loader(context)]),
+    );
+
+    expect(users).toEqual([USER, USER]);
+    expect(verify).toHaveBeenCalledOnce();
+    verify.mockRestore();
+  });
+
+  it("never refreshes an expired cookie on a prefetch", async () => {
+    const refresh = vi.fn<typeof fetch>(
+      async () => new Response(null, { status: 500 }),
+    );
+
+    const prefetching = createTanStackStart(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks, fetch: refresh },
+      prefetchJwks: false,
+    });
+
+    const load = async (prefetch: boolean) =>
+      prefetching.middleware({
+        request: await expiredRequest("https://app.test/notes", prefetch),
+        next: async () => new Response(null),
+      });
+
+    await load(true);
+    expect(refresh).not.toHaveBeenCalled();
+    await load(false);
+    expect(refresh).toHaveBeenCalledWith();
   });
 });
