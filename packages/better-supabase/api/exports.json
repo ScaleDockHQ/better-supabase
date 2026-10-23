@@ -8036,6 +8036,42 @@
       "RpcClient"
     ]
   },
+  "./blocks/content": {
+    "values": [
+      "contentBlock",
+      "contentEntryInputSchema",
+      "contentEvents",
+      "contentSqlOptions",
+      "createContent",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Content",
+      "ContentApprovalStatus",
+      "ContentBody",
+      "ContentEntry",
+      "ContentEntryEventData",
+      "ContentEntryInput",
+      "ContentEntryUpdate",
+      "ContentEvents",
+      "ContentFilter",
+      "ContentOptions",
+      "ContentSqlOptions",
+      "ContentStatus",
+      "ContentTranslation",
+      "PublishedContentEntry",
+      "PublishedContentFilter",
+      "RpcClient"
+    ]
+  },
   "./blocks/contracts": {
     "values": [
       "contractChangesSchema",

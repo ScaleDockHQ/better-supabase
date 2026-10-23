@@ -83,6 +83,7 @@ import {
   MessagesSquareIcon,
   MonitorSmartphoneIcon,
   NetworkIcon,
+  NewspaperIcon,
   PackageIcon,
   PaperclipIcon,
   PencilRulerIcon,
@@ -177,6 +178,7 @@ export const BLOCK_ICONS = {
   "share-links": Link2Icon,
   reactions: SmilePlusIcon,
   posts: MessageSquareQuoteIcon,
+  content: NewspaperIcon,
   guests: UserKeyIcon,
   // Notifications & messaging
   notifications: BellIcon,

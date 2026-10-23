@@ -29,6 +29,7 @@ import { commentsBlock } from "./comments/manifest.ts";
 import { complianceBlock } from "./compliance/manifest.ts";
 import { connectorsBlock } from "./connectors/manifest.ts";
 import { contactsBlock } from "./contacts/manifest.ts";
+import { contentBlock } from "./content/manifest.ts";
 import { contractsBlock } from "./contracts/manifest.ts";
 import { coursesBlock } from "./courses/manifest.ts";
 import { createdByBlock } from "./created-by/manifest.ts";
@@ -197,6 +198,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   sequencesBlock,
   leadScoringBlock,
   postsBlock,
+  contentBlock,
   driveBlock,
   employeesBlock,
   activitiesBlock,

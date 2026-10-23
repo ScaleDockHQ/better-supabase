@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_142_rls_guard.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
@@ -51,7 +51,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_142_rls_guard.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
@@ -69,7 +69,7 @@ values ('rls-guard', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_142_rls_guard.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
@@ -122,7 +122,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_142_rls_guard.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
@@ -140,7 +140,7 @@ values ('rls-guard', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_142_rls_guard.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
@@ -193,7 +193,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_142_rls_guard.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
@@ -211,7 +211,7 @@ values ('rls-guard', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_142_rls_guard.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
@@ -264,7 +264,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_142_rls_guard.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_143_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block-data rls-guard
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`

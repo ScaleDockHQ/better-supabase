@@ -27,6 +27,7 @@ import type { commentsBlock } from "../../src/blocks/comments/manifest.ts";
 import type { complianceBlock } from "../../src/blocks/compliance/manifest.ts";
 import type { connectorsBlock } from "../../src/blocks/connectors/manifest.ts";
 import type { contactsBlock } from "../../src/blocks/contacts/manifest.ts";
+import type { contentBlock } from "../../src/blocks/content/manifest.ts";
 import type { contractsBlock } from "../../src/blocks/contracts/manifest.ts";
 import type { coursesBlock } from "../../src/blocks/courses/manifest.ts";
 import type { BlocksEventMap } from "../../src/blocks/create-blocks.ts";
@@ -217,6 +218,7 @@ export type AllBlocks = {
   readonly sequences: typeof sequencesBlock;
   readonly "lead-scoring": typeof leadScoringBlock;
   readonly posts: typeof postsBlock;
+  readonly content: typeof contentBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

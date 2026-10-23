@@ -444,6 +444,18 @@ export interface BlockNameRegistry {
     };
     readonly primary: never;
   };
+  readonly "content": {
+    readonly tables: {
+      readonly "entries": "id" | "tenant" | "type" | "locale" | "slug" | "title" | "summary" | "body" | "status" | "publishAt" | "publishedAt" | "author" | "translationGroup" | "cover" | "approval" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "archive_content_entry" | "content_entry_approved" | "content_entry_go_live" | "create_content_entry" | "get_content_entry" | "list_content_entries" | "public_content_entries" | "public_content_entry" | "publish_content_entry" | "publish_due_content_entries" | "schedule_content_entry" | "update_content_entry";
+    readonly actions: "read" | "write" | "publish";
+    readonly hooks: "before_content_entry_publish" | "after_content_entry_publish";
+    readonly entities: {
+      readonly "content_entry": "id" | "tenant_id" | "type" | "locale" | "slug" | "title" | "summary" | "body" | "status" | "publish_at" | "published_at" | "author_id" | "translation_group_id" | "cover_attachment_id" | "approval_id" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "content_entry";
+  };
   readonly "contracts": {
     readonly tables: {
       readonly "contracts": "id" | "tenant" | "title" | "description" | "counterpartyType" | "counterpartyId" | "owner" | "status" | "value" | "currency" | "startsOn" | "endsOn" | "autoRenew" | "renewalMonths" | "noticeDays" | "renewedCount" | "signatureRequest" | "signedAt" | "terminatedAt" | "terminationReason" | "createdBy" | "createdAt" | "updatedAt";
