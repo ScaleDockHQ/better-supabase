@@ -340,7 +340,7 @@ const BLOCK_GROUPS = {
   people: ["people", "scheduling"],
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
-const GROUP_OF = new Map(
+const GROUP_OF = new Map<string, string>(
   Object.entries(BLOCK_GROUPS).flatMap(([group, categories]) =>
     categories.map((category) => [category, group] as const),
   ),
