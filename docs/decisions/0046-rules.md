@@ -1,6 +1,6 @@
 # 0046: Store tenant rules as filter trees with action references
 
-- Status: accepted
+- Status: accepted, amended by 0093 (one action registry: `defineAction`, `createActionRegistry`)
 - Date: 2026-10-19
 
 ## Context

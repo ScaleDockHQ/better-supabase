@@ -382,8 +382,9 @@ An update that changes only `updated_at` emits nothing. `gen blocks` writes
 `createOutbox`, and `appTableEventSchemas`, which documents them in the
 AsyncAPI document through `defineApi({ events: { blocks: appTableEventSchemas } })`.
 To react to the events, consume them with
-[`createRuleSink`](/docs/blocks/automations#run-rules-from-events) or
-[`workflows.sink()`](/docs/blocks/workflow-editor#start-from-outbox-events).
+[`createRuleSink`](/docs/blocks/automations#run-rules-from-events); an
+automation's `workflow` action
+[starts a workflow](/docs/blocks/workflow-editor#start-from-outbox-events).
 The decision is ADR 0048.
 
 ## History

@@ -78,7 +78,6 @@
   "blocks/feature-flags",
   "blocks/field-encryption",
   "blocks/field-history",
-  "blocks/flows",
   "blocks/forecasts",
   "blocks/forms",
   "blocks/goals",

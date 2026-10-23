@@ -112,7 +112,15 @@ gets the contract verbs `page`, `count`, `aggregate` and `upsert` as
 with a transport that refuses every call. `bsb.router(api)` serves that same
 model as oRPC procedures, so `blockRouter` and `scaffold api` go. Flows
 become default automations with one trigger (the outbox event), one action
-registry (ADR 0046) and one scheduler on the queue. Preset codes give way
+registry (ADR 0046) and one scheduler on the queue. A block ships its
+default automations as rows in `rule_defaults` that each organization copies
+and may turn off, edit or reset but not remove, and the conversions are
+actions of the target block (`tasks.from_conversation`,
+`employees.from_application`, `orders.from_quote`); the booking to
+engagement flow goes because the ADR 0090 trigger already does it. Blocks
+declare their timers in the manifest and run as `block_ticks` jobs. Workflow
+definitions lose their event triggers: an automation's `workflow` action
+starts them, so workflows are durable code and not a second trigger system. Preset codes give way
 to the design JSON (ADR 0040, ADR 0058): the config's `preset` takes a name
 or an object with the conventions that differ and the blocks, a design
 carries it in its own `preset` key (format 7), a design file is that JSON,

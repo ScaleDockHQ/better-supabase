@@ -369,6 +369,56 @@ const result = await jobs
 Definitions take the same `timeZone`, `memberships` and `context` as `schedule`;
 one without a tenant gets the `memberships` option.
 
+#### Block timers
+
+Blocks that act on time declare their timers in the manifest, and they all run
+from this scheduler. `blockSchedules(blocks)` turns them into job schedules
+named `block:<block>.<name>` on the `block_ticks` queue, and
+`blockTickHandler` runs the handler named `<block>.<name>` for each tick. A
+tick without a handler, or a handler that returns a failed `Result`, throws,
+so the queue retries it and the dead letter shows it.
+
+| Timer               | Cron         | Handler                                                          |
+| ------------------- | ------------ | ---------------------------------------------------------------- |
+| `sla.check`         | every minute | `sla.check()`: warnings and breaches of running clocks           |
+| `sequences.run-due` | every minute | `sequences.runDue()`: sends the steps whose wait ended           |
+| `ai-schedules.tick` | every minute | `aiSchedules.tick()`: runs the due AI tasks                      |
+| `workflows.tick`    | every minute | `schedules.tick()` and `admission.tick()` of the workflows block |
+
+```ts title="lib/jobs.ts"
+import {
+  BLOCK_SCHEDULE_PREFIX,
+  BLOCK_TICKS_QUEUE,
+  blockSchedules,
+  blockTickHandler,
+  blockTickSchema,
+  createQueue,
+} from "better-supabase/blocks/queue";
+import { sequencesBlock } from "better-supabase/blocks/sequences";
+import { slaBlock } from "better-supabase/blocks/sla";
+
+export const jobs = createQueue({
+  sql: postgres.admin,
+  queues: { [BLOCK_TICKS_QUEUE]: blockTickSchema },
+});
+
+// On deploy: one schedule per timer of the installed blocks.
+await jobs
+  .ensureSchedules(blockSchedules([slaBlock, sequencesBlock]), {
+    prefix: BLOCK_SCHEDULE_PREFIX,
+  })
+  .orThrow();
+
+export const ticks = blockTickHandler({
+  "sla.check": () => blocks.sla.check(),
+  "sequences.run-due": () => blocks.sequences.runDue(),
+});
+```
+
+Pass `ticks` as the `block_ticks` handler of the [drain route](#drain-route).
+Reminders don't need a timer: each reminder is a job on its own queue, due at
+its time.
+
 #### Schedules from SQL
 
 Under the drain scheduler, a database trigger or function can schedule a job
