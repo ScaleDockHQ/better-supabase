@@ -2012,12 +2012,18 @@ importers:
       '@supabase/supabase-js':
         specifier: 'catalog:'
         version: 2.118.0(@opentelemetry/api@1.9.1)
+      '@tanstack/query-core':
+        specifier: 'catalog:'
+        version: 5.104.4
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
       '@types/react':
         specifier: 'catalog:'
         version: 19.3.0
+      '@valibot/to-json-schema':
+        specifier: 'catalog:'
+        version: 1.8.0(valibot@1.5.0(typescript@7.0.2))
       better-supabase:
         specifier: workspace:*
         version: link:../better-supabase
@@ -2048,6 +2054,9 @@ importers:
       shadcn:
         specifier: 'catalog:'
         version: 4.22.0(supports-color@8.1.1)
+      temporal-polyfill:
+        specifier: 'catalog:'
+        version: 1.0.6
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
