@@ -5,7 +5,10 @@ import type { SvelteKitHelpers } from "../../src/sveltekit/index.ts";
 import { DbException, dbError } from "../../src/core/errors.ts";
 import { ok } from "../../src/core/result.ts";
 import { createSvelteKit } from "../../src/sveltekit/index.ts";
-import { expiredRequest } from "../fixtures/instant-sessions.ts";
+import {
+  countResolutions,
+  expiredRequest,
+} from "../fixtures/instant-sessions.ts";
 import {
   betterSupabase,
   env,
@@ -138,7 +141,7 @@ describe("createSvelteKit", () => {
   });
 
   it("verifies once for two loaders in one request", async () => {
-    const verify = vi.spyOn(crypto.subtle, "verify");
+    const resolutions = countResolutions(betterSupabase);
     const request = await requestAs({ role: "member" });
 
     const users = await withEvent(request, async (event) => {
@@ -153,8 +156,8 @@ describe("createSvelteKit", () => {
     });
 
     expect(users).toEqual([USER, USER]);
-    expect(verify).toHaveBeenCalledOnce();
-    verify.mockRestore();
+    expect(resolutions.count()).toBe(1);
+    resolutions.stop();
   });
 
   it("never refreshes an expired cookie on a prefetch", async () => {
@@ -181,6 +184,6 @@ describe("createSvelteKit", () => {
     await load(true);
     expect(refresh).not.toHaveBeenCalled();
     await load(false);
-    expect(refresh).toHaveBeenCalledWith();
+    expect(refresh).toHaveBeenCalledOnce();
   });
 });

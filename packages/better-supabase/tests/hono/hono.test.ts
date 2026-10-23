@@ -13,7 +13,10 @@ import { createHono, defineAction } from "../../src/hono/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
-import { expiredRequest } from "../fixtures/instant-sessions.ts";
+import {
+  countResolutions,
+  expiredRequest,
+} from "../fixtures/instant-sessions.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 
@@ -373,7 +376,9 @@ describe("instant sessions", () => {
     async () => new Response(null, { status: 500 }),
   );
 
-  const bsb = createHono(defineSupabase(schema), {
+  const definition = defineSupabase(schema);
+
+  const bsb = createHono(definition, {
     env,
     auth: { jwks: signer.jwks, fetch: refresh },
   });
@@ -394,7 +399,7 @@ describe("instant sessions", () => {
     .get("/notes", (c) => c.json({ kind: c.var.auth.kind }));
 
   it("verifies once for two loaders in one request", async () => {
-    const verify = vi.spyOn(crypto.subtle, "verify");
+    const resolutions = countResolutions(definition);
     const token = await signer.sign({ sub: USER });
 
     const response = await app.request("/two", {
@@ -402,8 +407,8 @@ describe("instant sessions", () => {
     });
 
     expect(await response.json()).toEqual([USER, USER]);
-    expect(verify).toHaveBeenCalledOnce();
-    verify.mockRestore();
+    expect(resolutions.count()).toBe(1);
+    resolutions.stop();
   });
 
   it("never refreshes an expired cookie on a prefetch", async () => {

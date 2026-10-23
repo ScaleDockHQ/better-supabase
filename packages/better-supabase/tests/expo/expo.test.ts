@@ -9,6 +9,7 @@ import { err, ok } from "../../src/core/result.ts";
 import { createExpo } from "../../src/expo/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
+import { countResolutions } from "../fixtures/instant-sessions.ts";
 
 const written = vi.hoisted(() => ({ headers: new Headers() }));
 
@@ -269,7 +270,7 @@ describe("createExpo", () => {
   });
 
   it("verifies once for two loaders in one request", async () => {
-    const verify = vi.spyOn(crypto.subtle, "verify");
+    const resolutions = countResolutions(betterSupabase);
 
     const request = new Request("https://app.test/two", {
       headers: { cookie: await sessionCookie(3600, "r-two") },
@@ -282,8 +283,8 @@ describe("createExpo", () => {
     };
 
     expect(await Promise.all([loader(), loader()])).toEqual([USER, USER]);
-    expect(verify).toHaveBeenCalledOnce();
-    verify.mockRestore();
+    expect(resolutions.count()).toBe(1);
+    resolutions.stop();
   });
 
   it("never refreshes an expired cookie on a prefetch", async () => {

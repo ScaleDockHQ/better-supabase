@@ -5,7 +5,10 @@ import type { ReactRouterArgs } from "../../src/react-router/index.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { createReactRouter } from "../../src/react-router/index.ts";
-import { expiredRequest } from "../fixtures/instant-sessions.ts";
+import {
+  countResolutions,
+  expiredRequest,
+} from "../fixtures/instant-sessions.ts";
 import {
   betterSupabase,
   env,
@@ -127,7 +130,7 @@ describe("createReactRouter", () => {
   });
 
   it("verifies once for two loaders in one request", async () => {
-    const verify = vi.spyOn(crypto.subtle, "verify");
+    const resolutions = countResolutions(betterSupabase);
 
     const loader = bsb.loader({}, async (_args, locals) => {
       const ctx = await bsb.contextFromSession(locals.snapshot);
@@ -140,8 +143,8 @@ describe("createReactRouter", () => {
     );
 
     expect(users).toEqual([USER, USER]);
-    expect(verify).toHaveBeenCalledOnce();
-    verify.mockRestore();
+    expect(resolutions.count()).toBe(1);
+    resolutions.stop();
   });
 
   it("never refreshes an expired cookie on a prefetch", async () => {
@@ -168,6 +171,6 @@ describe("createReactRouter", () => {
     await load(true);
     expect(refresh).not.toHaveBeenCalled();
     await load(false);
-    expect(refresh).toHaveBeenCalledWith();
+    expect(refresh).toHaveBeenCalledOnce();
   });
 });

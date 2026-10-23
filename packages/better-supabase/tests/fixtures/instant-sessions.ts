@@ -1,3 +1,5 @@
+import type { EventName, EventHandler } from "../../src/core/events.ts";
+
 import { writeSession } from "../../src/auth/session.ts";
 import { signer, USER } from "./test-server.ts";
 
@@ -41,4 +43,20 @@ export async function expiredRequest(
   }
 
   return new Request(url, { headers });
+}
+
+/**
+ * Counts session resolutions: the server emits one `auth` event each time it
+ * resolves a request's credentials. Call the returned `stop` when done.
+ */
+export function countResolutions(definition: {
+  on<K extends EventName>(name: K, handler: EventHandler<K>): () => void;
+}): { readonly count: () => number; readonly stop: () => void } {
+  let seen = 0;
+
+  const stop = definition.on("auth", () => {
+    seen += 1;
+  });
+
+  return { count: () => seen, stop };
 }
