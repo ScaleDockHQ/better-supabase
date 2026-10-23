@@ -101,11 +101,11 @@ function keysOf(
 }
 
 /** `options.types`: the entry types, such as `page` and `post`. */
-export const contentTypes = (ctx: BlockSqlContext): readonly string[] =>
+const contentTypes = (ctx: BlockSqlContext): readonly string[] =>
   keysOf(ctx, "types", ["page", "post"], TYPE, "type");
 
 /** `options.locales`; the first is the default. */
-export const contentLocales = (ctx: BlockSqlContext): readonly string[] =>
+const contentLocales = (ctx: BlockSqlContext): readonly string[] =>
   keysOf(ctx, "locales", ["en"], LOCALE, "locale");
 
 /** `options.publishSchedule`, or undefined when it is empty. */
@@ -126,7 +126,7 @@ export function publishSchedule(ctx: BlockSqlContext): string | undefined {
 }
 
 /** Whether publishing goes through approvals; throws when it can't. */
-export function requiresApproval(ctx: BlockSqlContext): boolean {
+function requiresApproval(ctx: BlockSqlContext): boolean {
   if (!ctx.flag("requireApproval", false)) {
     return false;
   }

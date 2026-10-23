@@ -38,7 +38,7 @@ export function catalogLocales(ctx: BlockSqlContext): readonly string[] {
  * Whether a table added after version 2 exists: always when managed, and when
  * the app maps it on an adopted catalog.
  */
-export function catalogTable(ctx: BlockSqlContext, table: string): boolean {
+function catalogTable(ctx: BlockSqlContext, table: string): boolean {
   return (
     ctx.hasTable(table) &&
     (ctx.manages || ctx.config.tables[table] !== undefined)
@@ -46,7 +46,7 @@ export function catalogTable(ctx: BlockSqlContext, table: string): boolean {
 }
 
 /** Product media needs the attachments module's table. */
-export function mediaOn(ctx: BlockSqlContext): boolean {
+function mediaOn(ctx: BlockSqlContext): boolean {
   return (
     catalogTable(ctx, "media") &&
     ctx.installed("attachments") &&
