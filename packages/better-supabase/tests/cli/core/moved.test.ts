@@ -90,6 +90,16 @@ describe("movedCommand", () => {
 
     expect(error?.code).toBe("unknown_command");
     expect(error?.message).toContain('"scaffold screens" was removed in 0.15');
-    expect(movedCommand(["scaffold", "api"])).toBeUndefined();
+  });
+
+  it("points scaffold api and the bare scaffold group at defineApi", () => {
+    const api = movedCommand(["scaffold", "api", "--framework", "hono"]);
+    const group = movedCommand(["scaffold"]);
+
+    expect(api?.code).toBe("unknown_command");
+    expect(api?.message).toContain('"scaffold api" was removed in 0.15');
+    expect(api?.message).toContain("createOrpc(betterSupabase).router(api)");
+    expect(group?.message).toContain('"scaffold" was removed in 0.15');
+    expect(movedCommand(["spec", "emit"])).toBeUndefined();
   });
 });

@@ -35,7 +35,7 @@ is no separate CLI package to add.
 3. Apply it with `supabase db reset` (or `supabase migration up`).
 4. Run `pnpm better-supabase gen`, then fix the type errors it surfaces. It
    also runs every other generator the config sets up (`upgrade`, `spec
-   emit`, the seed client, `scaffold api`); set `gen.tasks` to change the
+   emit`, the seed client); set `gen.tasks` to change the
    list. Put flags you would repeat in `better-supabase.config.ts` (with a
    `$ci` block for CI) instead of on the command line.
 5. Run `pnpm better-supabase doctor` and fix every error it reports (RLS off,

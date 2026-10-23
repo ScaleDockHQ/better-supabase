@@ -8,7 +8,6 @@
     "dev",
     "db",
     "spec",
-    "scaffold",
     "doctor",
     "config",
     "codemod",

@@ -826,3 +826,50 @@ describe("defineResource permissions", () => {
     ).toThrow("forOperation");
   });
 });
+
+describe("defineResource verbs", () => {
+  it("serves POST /<verb> next to the item routes", async () => {
+    const { db, queries } = fakeDb();
+    const customers = defineResource(betterSupabase, "customers");
+
+    const count = await customers.serve(
+      request("/customers/count", json("POST", {})),
+      db,
+      "/count",
+    );
+
+    expect(count.status).toBe(200);
+    expect(await count.json()).toBe(1);
+    expect(queries.at(-1)).toMatchObject({ kind: "select" });
+
+    const invalid = await customers.serve(
+      request("/customers/page", json("POST", [1])),
+      db,
+      "/page",
+    );
+
+    expect(invalid.status).toBe(400);
+
+    const upserted = await customers.verb(db, "upsert", {
+      data: { id: "c1", name: "Acme", organizationId: "o1" },
+    });
+
+    expect(upserted).toMatchObject({ ok: true });
+  });
+
+  it("drops upsert when write hooks shape the row", () => {
+    const customers = defineResource(betterSupabase, "customers", {
+      hooks: { beforeCreate: (_ctx, data) => ok(data) },
+    });
+
+    expect(customers.plan.verbs).toEqual(["page", "count", "aggregate"]);
+    expect(
+      planResource(betterSupabase.meta, "customers", {
+        operations: ["list", "get"],
+      }).verbs,
+    ).toEqual(["page", "count", "aggregate"]);
+    expect(
+      planResource(betterSupabase.meta, "customers", { verbs: false }).verbs,
+    ).toEqual([]);
+  });
+});

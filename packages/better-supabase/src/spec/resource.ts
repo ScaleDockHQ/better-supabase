@@ -4,6 +4,7 @@ import type {
   JsonObject,
   ResourceOperation,
   SecurityRequirement,
+  TableVerb,
 } from "./model.ts";
 import type { StandardLike } from "./schemas.ts";
 
@@ -49,6 +50,12 @@ export interface ErrorResponse {
 export interface ResourceDescription<Ref = string> {
   /** Defaults to every operation for tables, `list` and `get` for views. */
   readonly operations?: readonly ResourceOperation[];
+  /**
+   * The contract verbs served as `POST /<table>/<verb>`. Defaults to `page`,
+   * `count` and `aggregate`, plus `upsert` for a table with a primary key that
+   * serves both `create` and `update`; `false` serves none.
+   */
+  readonly verbs?: false | readonly TableVerb[];
   /** Filters, search and sorts for `list`, from `defineListQuery`. */
   readonly list?: {
     readonly openapi: readonly unknown[];
@@ -77,12 +84,12 @@ export interface ResourceDescription<Ref = string> {
   readonly output?: Partial<Readonly<Record<ResourceOperation, StandardLike>>>;
   readonly actions?: Readonly<Record<string, ResourceActionSpec<Ref>>>;
   /**
-   * The permission of each operation. `true` asks the authorizer
-   * (`forOperation`) for every enabled operation.
+   * The permission of each operation and verb. `true` asks the authorizer
+   * (`forOperation`) for every enabled operation and verb.
    */
   readonly permissions?:
     | true
-    | Partial<Readonly<Record<ResourceOperation, Ref>>>;
+    | Partial<Readonly<Record<ResourceOperation | TableVerb, Ref>>>;
   /** Overrides the model's security for this resource; `[]` makes it public. */
   readonly security?: readonly SecurityRequirement[];
   /** The shared error responses. Defaults to the API's `errors`. */
@@ -107,6 +114,8 @@ export interface ResourcePlan<Ref = string> {
   readonly table: string;
   readonly meta: TableMeta;
   readonly operations: readonly ResourceOperation[];
+  /** The contract verbs served as `POST /<table>/<verb>`. */
+  readonly verbs: readonly TableVerb[];
   /**
    * Name of the key parameter, or `undefined` for tables without a
    * single-column key.
@@ -122,12 +131,21 @@ export interface ResourcePlan<Ref = string> {
 
 const ACTION_NAME = /^[A-Za-z][A-Za-z0-9_]*$/u;
 
+/** Every contract verb a table can serve, in the order the spec lists them. */
+export const TABLE_VERBS: readonly TableVerb[] = [
+  "page",
+  "count",
+  "aggregate",
+  "upsert",
+];
+
 const RESERVED: ReadonlySet<string> = new Set([
   "list",
   "get",
   "create",
   "update",
   "delete",
+  ...TABLE_VERBS,
 ]);
 
 function planAction<Ref>(
@@ -194,6 +212,19 @@ export function planResource<Ref = string>(
       ? ["list", "get"]
       : ["list", "get", "create", "update", "delete"]);
 
+  const verbs: readonly TableVerb[] =
+    description.verbs === false
+      ? []
+      : (description.verbs ??
+        TABLE_VERBS.filter(
+          (verb) =>
+            verb !== "upsert" ||
+            (meta.kind !== "view" &&
+              meta.primaryKey.length > 0 &&
+              operations.includes("create") &&
+              operations.includes("update")),
+        ));
+
   const keyParam =
     meta.primaryKey.length === 1 ? meta.primaryKey[0] : undefined;
 
@@ -208,6 +239,20 @@ export function planResource<Ref = string>(
     ([name, action]) => planAction(table, name, action, keyParam),
   );
 
+  for (const action of actions) {
+    const [segment, ...rest] = action.segments;
+
+    if (
+      action.method === "POST" &&
+      rest.length === 0 &&
+      verbs.some((verb) => verb === segment)
+    ) {
+      throw new TypeError(
+        `${table}.actions.${action.name}: POST ${action.path} is the ${segment} verb; pick another path or leave ${segment} out of verbs`,
+      );
+    }
+  }
+
   const permissions: Record<string, Ref> = {};
 
   if (description.permissions === true) {
@@ -217,7 +262,7 @@ export function planResource<Ref = string>(
       );
     }
 
-    for (const operation of operations) {
+    for (const operation of [...operations, ...verbs]) {
       // SAFETY: forOperation returns the authorizer's own reference type, Ref.
       const ref = authorizer.forOperation(table, operation) as Ref | undefined;
 
@@ -243,6 +288,7 @@ export function planResource<Ref = string>(
     table,
     meta,
     operations,
+    verbs,
     keyParam,
     pagination,
     maxPageSize: description.maxPageSize ?? 200,

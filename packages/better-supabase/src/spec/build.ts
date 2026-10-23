@@ -1,3 +1,4 @@
+import type { DbBlockSource } from "../core/db-blocks.ts";
 import type { AnyPlugin, PluginDescribeApi } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 import type { BuildContext, ServedTable } from "./build-resource.ts";
@@ -10,9 +11,15 @@ import type {
   ModelResponse,
   OperationSource,
 } from "./model.ts";
-import type { ApiOptions, ApiSource, BuiltModel } from "./options.ts";
+import type {
+  ApiOptions,
+  ApiSource,
+  BuiltModel,
+  ResourceInput,
+} from "./options.ts";
 
 import { isPlainObject } from "../core/clone.ts";
+import { buildBlocks, READ_VERBS } from "./build-blocks.ts";
 import {
   buildResource,
   createBuildContext,
@@ -37,54 +44,85 @@ const READ_METHODS: ReadonlySet<HttpMethod> = new Set<HttpMethod>([
 
 const modelCache = new WeakMap<
   SchemaMeta,
-  WeakMap<object, WeakMap<object, BuiltModel>>
+  WeakMap<object, WeakMap<object, WeakMap<object, BuiltModel>>>
 >();
 
 const NO_PLUGINS: readonly AnyPlugin[] = [];
+const NO_BLOCKS: object = {};
+
+/** One `WeakMap` level of the model cache, created on first use. */
+function level<K extends object, V>(
+  map: WeakMap<K, V>,
+  key: K,
+  empty: () => V,
+): V {
+  let value = map.get(key);
+
+  if (value === undefined) {
+    value = empty();
+    map.set(key, value);
+  }
+
+  return value;
+}
 
 /**
- * Builds the version-neutral API model once per metadata, plugin list and
- * options object. Formats lower it to each version; `defineApi` wraps it.
+ * Builds the version-neutral API model once per metadata, plugin list, block
+ * set and options object. Formats lower it to each version; `defineApi` wraps
+ * it.
  */
 export function buildApiModel<Ref = string>(
   source: ApiSource,
   options: ApiOptions<Ref>,
 ): BuiltModel {
   const plugins = source.plugins ?? NO_PLUGINS;
-  let byPlugins = modelCache.get(source.meta);
+  const blocks = source.options?.blocks;
 
-  if (!byPlugins) {
-    byPlugins = new WeakMap();
-    modelCache.set(source.meta, byPlugins);
+  const byOptions = level(
+    level(
+      level(modelCache, source.meta, () => new WeakMap()),
+      plugins,
+      () => new WeakMap(),
+    ),
+    blocks ?? NO_BLOCKS,
+    () => new WeakMap<object, BuiltModel>(),
+  );
+
+  return level(byOptions, options, () =>
+    build(source.meta, plugins, blocks, options),
+  );
+}
+
+/** The tables `options.resources` publishes: every table unless it says so. */
+export function publishedResources<Ref>(
+  meta: SchemaMeta,
+  options: ApiOptions<Ref>,
+): Readonly<Record<string, ResourceInput<Ref>>> {
+  if (options.resources === false) {
+    return {};
   }
 
-  let byOptions = byPlugins.get(plugins);
-
-  if (!byOptions) {
-    byOptions = new WeakMap();
-    byPlugins.set(plugins, byOptions);
-  }
-
-  let built = byOptions.get(options);
-
-  if (!built) {
-    built = build(source.meta, plugins, options);
-    byOptions.set(options, built);
-  }
-
-  return built;
+  return (
+    options.resources ??
+    Object.fromEntries(Object.keys(meta.tables).map((key) => [key, true]))
+  );
 }
 
 function build<Ref>(
   meta: SchemaMeta,
   plugins: readonly AnyPlugin[],
+  blocks: DbBlockSource | undefined,
   options: ApiOptions<Ref>,
 ): BuiltModel {
   const ctx = createBuildContext(meta, options);
 
-  for (const [key, input] of Object.entries(options.resources ?? {})) {
+  for (const [key, input] of Object.entries(
+    publishedResources(meta, options),
+  )) {
     buildResource(ctx, key, input);
   }
+
+  buildBlocks(ctx, blocks, options.blocks);
 
   for (const [index, route] of (options.routes ?? []).entries()) {
     buildRoute(ctx, route, index);
@@ -320,7 +358,9 @@ function validateOperations<Ref>(ctx: BuildContext<Ref>): void {
         operation.source.kind === "resource"
           ? operation.source.operation !== "list" &&
             operation.source.operation !== "get"
-          : !READ_METHODS.has(operation.method);
+          : operation.source.kind === "verb"
+            ? !READ_VERBS.has(operation.source.verb)
+            : !READ_METHODS.has(operation.method);
 
       if (writes && operation.permission === undefined) {
         report({
@@ -423,6 +463,34 @@ function finalizeModel<Ref>(
   return { model, diagnostics };
 }
 
+/** An operation's name within its resource: the operation, verb or action. */
+function operationName(operation: ServedTable["operations"][number]): string {
+  switch (operation.source.kind) {
+    case "action": {
+      return operation.source.action;
+    }
+
+    case "resource": {
+      return operation.source.operation;
+    }
+
+    case "verb": {
+      return operation.source.verb;
+    }
+
+    case "data-api":
+    case "route":
+    case "fragment": {
+      return operation.id;
+    }
+
+    default: {
+      const unknown: never = operation.source;
+      throw new TypeError(`Unknown operation source ${String(unknown)}`);
+    }
+  }
+}
+
 function describeApi(
   meta: SchemaMeta,
   prefix: string,
@@ -469,22 +537,11 @@ function describeApi(
     extensionPrefix: prefix,
     resources: [...served.values()].map((entry) => ({
       table: entry.table,
-      operations: entry.operations.map((operation) =>
-        operation.source.kind === "action"
-          ? operation.source.action
-          : operation.source.kind === "resource"
-            ? operation.source.operation
-            : operation.id,
-      ),
+      operations: entry.operations.map(operationName),
     })),
     addParameter(table, parameter, names): void {
       for (const operation of served.get(table)?.operations ?? []) {
-        const name =
-          operation.source.kind === "action"
-            ? operation.source.action
-            : operation.source.kind === "resource"
-              ? operation.source.operation
-              : operation.id;
+        const name = operationName(operation);
 
         if (names && !names.includes(name)) {
           continue;

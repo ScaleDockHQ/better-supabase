@@ -595,6 +595,21 @@ const items = createTasks(db);
 `);
   });
 
+  it("moves the renderer subpath imports to better-supabase/spec", () => {
+    const source = `import { createOpenApi } from "better-supabase/openapi";
+import type { AsyncApiOptions } from "better-supabase/asyncapi";
+import { defineWorkflow } from 'better-supabase/arazzo';
+import { applyOverlays, loadJsonPath } from "better-supabase/overlay";
+`;
+
+    expect(applyCodemod(v015, source).text)
+      .toBe(`import { createOpenApi } from "better-supabase/spec";
+import type { AsyncApiOptions } from "better-supabase/spec";
+import { defineWorkflow } from 'better-supabase/spec';
+import { applyOverlays, loadJsonPath } from "better-supabase/spec";
+`);
+  });
+
   it("moves the plugin imports onto the blocks, lint and the root", () => {
     const source = `import { tenant } from "better-supabase/plugins/tenant";
 import { softDelete } from "better-supabase/plugins/soft-delete";

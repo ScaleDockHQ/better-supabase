@@ -1,13 +1,20 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import type { JsonPathEngine, Overlay } from "../../overlay/index.ts";
-import type { OverlayEngine, SpecDiagnostic } from "../../spec/index.ts";
+import type {
+  JsonPathEngine,
+  Overlay,
+  OverlayEngine,
+  SpecDiagnostic,
+} from "../../spec/index.ts";
 import type { SpecEntry } from "./entry.ts";
 import type { SpecTarget } from "./targets.ts";
 
-import { applyOverlays, loadJsonPath } from "../../overlay/index.ts";
-import { serializeDocument } from "../../spec/index.ts";
+import {
+  applyOverlays,
+  loadJsonPath,
+  serializeDocument,
+} from "../../spec/index.ts";
 import { errorText } from "../core/errors.ts";
 import { VERSION } from "../version.ts";
 import { readCachedRender, sha256, writeCachedRender } from "./cache.ts";

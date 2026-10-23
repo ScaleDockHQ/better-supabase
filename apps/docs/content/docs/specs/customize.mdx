@@ -21,10 +21,12 @@ into the version-neutral model, so every OpenAPI version gets it.
 
 ## Resources
 
-`resources` maps a table's app key to `true` (every operation, `list` and
-`get` for views), to a description, or to a resource an adapter serves
-(anything with a `plan`, such as the handler `defineResource` returns). A
-key the schema doesn't have throws.
+Without `resources`, the API publishes every table with its defaults. A map
+publishes only the tables it names, and `false` publishes none. Each key is a
+table's app key, mapped to `true` (every operation, `list` and `get` for
+views), to a description, or to a resource an adapter serves (anything with a
+`plan`, such as the handler `defineResource` returns). A key the schema
+doesn't have throws.
 
 ```ts
 defineApi(betterSupabase, {
@@ -44,6 +46,7 @@ defineApi(betterSupabase, {
 | Field                     | Default                              | What it does                                                  |
 | ------------------------- | ------------------------------------ | ------------------------------------------------------------- |
 | `operations`              | all five, `list` and `get` for views | Which of `list`, `get`, `create`, `update` and `delete` exist |
+| `verbs`                   | see below                            | The contract verbs, or `false` for none                       |
 | `list`                    | `after` and `size`                   | A `defineListQuery`, whose filters become query parameters    |
 | `pagination`              | `cursor`, `offset` without a key     | `cursor` (`after`, `size`) or `offset` (`page`, `size`)       |
 | `maxPageSize`             | 200                                  | The `maximum` of `size`; its `default` is 50                  |
@@ -57,6 +60,43 @@ defineApi(betterSupabase, {
 `list` is `GET /<table>`, `create` is `POST /<table>` (201), `get`, `update`
 (`PATCH`) and `delete` (204) are on `/<table>/{key}`. The components are
 `<Table>Row`, `<Table>Insert`, `<Table>Update` and `<Table>Page`.
+
+The contract verbs are `POST /<table>/<verb>` with the repository method's
+arguments as the JSON body: `page`, `count` and `aggregate` for every
+resource, and `upsert` for a table with a primary key that serves `create`
+and `update`. Their operation ids are `pageCustomers`, `countCustomers` and
+so on. A write hook (`beforeCreate`, `beforeUpdate`) on `defineResource`
+drops `upsert`, because an upsert would skip it. An action can't take a
+verb's path while that verb is served.
+
+## Block instances
+
+Without `blocks`, the API publishes every instance
+`betterSupabase.blocks(set)` registered. Each method of the instance's
+client becomes `POST /<instance>/<method>`, and each method of a sub-client
+`POST /<instance>/<member>/<method>`, with the operation id
+`<instance>.<method>`. A method that takes more than one argument takes them
+as a JSON array. Helpers that are no calls, such as route handlers and
+sinks, stay out.
+
+```ts
+defineApi(betterSupabase, {
+  info: { title: "CRM API", version: "1.0.0" },
+  blocks: {
+    tasks: {
+      verbs: ["list", "get", "create", "complete"],
+      tag: "Tasks",
+      permissions: { complete: "tasks.complete" },
+    },
+  },
+});
+```
+
+A map publishes only the instances it names, and `false` publishes none.
+`verbs` limits the methods, `path` and `tag` replace `/<instance>` and the
+instance key, and `permissions` names the permission for each method. With
+`requirePermissions`, every method except `list`, `page`, `get`, `count` and
+`aggregate` needs one.
 
 Every resource operation carries `x-better-supabase-table` (the
 schema-qualified table) and `x-better-supabase-operation`. `extensionPrefix`

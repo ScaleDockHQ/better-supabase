@@ -3,6 +3,12 @@ title: Edge Functions
 description: Fetch handlers for Supabase Edge Functions, Deno, Bun and Workers.
 ---
 
+<Callout title="Community adapter">
+  This is a community adapter. It ships with every release and has a smoke test,
+  but the full test matrix and new guides target the supported adapters. See
+  [adapter tiers](/docs/frameworks#adapter-tiers).
+</Callout>
+
 ```ts title="supabase/functions/api/server.ts"
 import { createEdge } from "better-supabase/edge";
 import { betterSupabase } from "../_shared/supabase.ts";

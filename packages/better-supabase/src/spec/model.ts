@@ -9,6 +9,12 @@ export type JsonObject = Readonly<Record<string, unknown>>;
 
 export type ResourceOperation = "list" | "get" | "create" | "update" | "delete";
 
+/**
+ * A contract verb a table serves as `POST /<table>/<verb>`, next to its REST
+ * operations.
+ */
+export type TableVerb = "page" | "count" | "aggregate" | "upsert";
+
 /** HTTP methods an operation can use; `query` is an OpenAPI 3.2 method. */
 export type HttpMethod =
   | "get"
@@ -90,6 +96,16 @@ export type OperationSource =
       /** The function's key, for `rpc`. */
       readonly function?: string;
       readonly operation: DataApiOperation | "rpc";
+    }
+  | {
+      readonly kind: "verb";
+      /** `table` for an app table, `block` for a block instance. */
+      readonly owner: "table" | "block";
+      /** The table's app key or the block instance's key. */
+      readonly name: string;
+      /** The instance's sub-client the verb lives on, such as `chats`. */
+      readonly member?: string;
+      readonly verb: string;
     }
   | { readonly kind: "route" }
   | { readonly kind: "fragment" };

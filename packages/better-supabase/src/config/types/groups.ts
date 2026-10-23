@@ -32,7 +32,6 @@ import type {
   IntegrationName,
   KeysConfig,
   OpenApiConfig,
-  ScaffoldConfig,
   SkillsConfig,
   SpecsConfig,
 } from "./tooling.ts";
@@ -233,13 +232,12 @@ export interface ApiConfig {
   readonly specs?: SpecsConfig;
 }
 
-/** Project tooling: doctor, env files, keys, skills and scaffolds. */
+/** Project tooling: doctor, env files, keys and skills. */
 export interface ToolingConfig {
   readonly doctor?: DoctorConfig;
   readonly env?: EnvFileConfig;
   readonly keys?: KeysConfig;
   readonly skills?: SkillsConfig;
-  readonly scaffold?: ScaffoldConfig;
 }
 
 /** `better-supabase.config.ts`, grouped by what each key configures. */

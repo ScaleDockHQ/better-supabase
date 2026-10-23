@@ -73,6 +73,8 @@ never limits it. RLS still decides the rows: the token's `sub` is the user.
 | H3 2, Nitro 3                                   | `toH3(entries)` from `better-supabase/h3`                                                               | `event.context.db`, `guard(options)`                                                       |
 | TanStack Start, SvelteKit, React Router, Elysia | `withBetterSupabase(server)` in a bridge: `toTanStackStart`, `toSvelteKit`, `toReactRouter`, `toElysia` | the framework's context (`context.db`, `locals.db`, `context.get(key).db`)                 |
 
+Next.js, Hono, Expo Router, SvelteKit, TanStack Start and React Router are supported adapters; Edge Functions, Node, NestJS, Astro, SolidStart, Nuxt, H3 and Elysia are community adapters with a smoke test, so prefer a supported one for a new app ([adapter tiers](https://bettersupabase.com/docs/frameworks#adapter-tiers)).
+
 Never use `@supabase/server/adapters/*` (deprecated, removed 2026-12-01).
 
 Don't build error JSON by hand; errors become Problem Details.
@@ -83,6 +85,14 @@ Don't build error JSON by hand; errors become Problem Details.
 list, get, create, update and delete, with validation and paging (`{ items, page }`).
 `createOpenApi(betterSupabase, { resources })` describes the same routes, and
 `better-supabase spec emit openapi --check` keeps `openapi.json` in sync.
+Each resource also serves `POST /<table>/page`, `/count`, `/aggregate` and
+`/upsert` with the repository method's arguments as the body.
+
+For one API over every table and block instance, use
+`defineApi(betterSupabase, { info, basePath })` from `better-supabase/spec`
+and serve it with `bsb.router(api, { meta: openapi })` from `createOrpc`.
+Without `resources` and `blocks` it publishes everything; a map publishes
+only the keys it names. Block methods are `POST /<instance>/<method>`.
 
 Pass `pagination: "cursor"` to a resource, `defineListQuery` or an MCP table
 for lists that clients read page by page: the list takes `after` instead of

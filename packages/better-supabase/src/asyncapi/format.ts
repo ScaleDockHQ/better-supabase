@@ -722,9 +722,7 @@ function lowerAsyncApi(
   });
 
   if (!isAsyncApiDocument(document)) {
-    throw new TypeError(
-      "better-supabase/asyncapi: lowering lost a required field",
-    );
+    throw new TypeError("better-supabase/spec: lowering lost a required field");
   }
 
   return document;

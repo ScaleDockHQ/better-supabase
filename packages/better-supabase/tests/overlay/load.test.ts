@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { loadJsonPath } from "../../src/overlay/index.ts";
+import { loadJsonPath } from "../../src/spec/index.ts";
 
 describe("loadJsonPath", () => {
   it("loads jsonpath-rfc9535 once and returns normalized paths", async () => {

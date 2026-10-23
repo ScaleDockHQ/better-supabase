@@ -3,7 +3,8 @@ title: AsyncAPI
 description: Render an AsyncAPI 3.0 or 3.1 document for Realtime table changes, broadcast topics, CloudEvents, outgoing webhooks and the events actions emit, from the same model as OpenAPI.
 ---
 
-`better-supabase/asyncapi` renders the events side of the model
+`asyncapiFormat` from `better-supabase/spec` renders the events side of the
+model
 [`defineApi`](/docs/specs) builds: Realtime table change signals and
 broadcast topics on the Supabase Realtime websocket, CloudEvents for row and
 block events, outgoing webhooks, and the events HTTP actions emit. The
@@ -12,8 +13,7 @@ document goes through the same pipeline as OpenAPI (`transform`,
 permission and a table's row schema are the same in both documents.
 
 ```ts title="src/api/asyncapi.ts"
-import { asyncapiFormat } from "better-supabase/asyncapi";
-import { defineApi } from "better-supabase/spec";
+import { asyncapiFormat, defineApi } from "better-supabase/spec";
 import { betterSupabase } from "../lib/supabase";
 
 export const api = defineApi(betterSupabase, {
@@ -69,7 +69,7 @@ every diagnostic with severity `error`; the warnings and info findings go to
 `onDiagnostic`.
 
 ```ts title="scripts/asyncapi.ts"
-import { createAsyncApi } from "better-supabase/asyncapi";
+import { createAsyncApi } from "better-supabase/spec";
 import { betterSupabase } from "../src/lib/supabase";
 
 const document = createAsyncApi(betterSupabase, {
@@ -143,8 +143,7 @@ document and the Realtime policies come from the same definition.
 name, and skips its other exports:
 
 ```ts title="src/api/asyncapi.ts"
-import { topicsFrom } from "better-supabase/asyncapi";
-import { defineApi } from "better-supabase/spec";
+import { defineApi, topicsFrom } from "better-supabase/spec";
 import { betterSupabase } from "../lib/supabase";
 import * as topics from "../realtime/topics";
 

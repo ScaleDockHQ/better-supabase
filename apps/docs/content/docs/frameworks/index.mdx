@@ -30,3 +30,19 @@ page for your framework; a framework without an adapter can use a bridge or
 | [SolidStart](/docs/frameworks/solid-start)                 | Middleware for queries, actions and API routes                              |
 | [MCP servers](/docs/frameworks/mcp)                        | Tools from your tables and your own code, running as the signed-in user     |
 | [Other frameworks](/docs/frameworks/other)                 | A bridge for any framework, or your own adapter with `handle()`             |
+
+## Adapter tiers
+
+Every adapter ships in each release and keeps working. They differ in how
+much testing and documentation they get
+([ADR 0094](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0094-supported-and-community-adapters.md)).
+
+| Tier      | Adapters                                                                      | What it gets                                                                                                       |
+| --------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Supported | Next.js, Hono, Expo Router, SvelteKit, TanStack Start, React Router           | The full test matrix (unit and conformance tests, type tests, an example app), every guide, and triaged issues     |
+| Community | Astro, Edge Functions, Elysia, H3, Nuxt and Nitro 2, NestJS, Node, SolidStart | A smoke test that serves one request, a docs page with a community note, and fixes that may lag the supported tier |
+
+New guides and features land on the supported adapters first. An adapter
+moves between the tiers when its usage changes: a community adapter that
+many apps run moves up, and a supported adapter that few apps run moves down
+in a minor release, with a changeset.

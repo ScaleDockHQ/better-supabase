@@ -19,7 +19,7 @@ import {
 import { err } from "../../src/core/result.ts";
 import { createEdge } from "../../src/edge/index.ts";
 import { createHono } from "../../src/hono/index.ts";
-import { PROBLEM_SCHEMA } from "../../src/openapi/index.ts";
+import { PROBLEM_SCHEMA } from "../../src/spec/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 

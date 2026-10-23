@@ -112,8 +112,6 @@ export type {
   KeysConfig,
   MigrationSafetyConfig,
   OpenApiConfig,
-  ScaffoldApiConfig,
-  ScaffoldConfig,
   SkillsAgent,
   SkillsConfig,
 } from "./types/tooling.ts";

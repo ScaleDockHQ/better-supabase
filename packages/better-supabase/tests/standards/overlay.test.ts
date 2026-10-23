@@ -4,14 +4,14 @@ import type { Overlay } from "../../src/overlay/types.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
+import { defineApi } from "../../src/spec/api.ts";
 import {
   applyOverlay,
   defineOverlay,
   expandReusableActions,
   loadJsonPath,
   overlayFromDiff,
-} from "../../src/overlay/index.ts";
-import { defineApi } from "../../src/spec/api.ts";
+} from "../../src/spec/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { problems, validatorFor } from "./validator.ts";
 

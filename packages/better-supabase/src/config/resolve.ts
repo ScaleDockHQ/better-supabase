@@ -407,7 +407,6 @@ export function resolveConfig(
         ? {}
         : { prefix: config.env.prefix }),
     },
-    scaffold: config.scaffold ?? {},
     integrations: config.integrations ?? [],
     skills: config.skills ?? {},
     keys: config.keys ?? {},

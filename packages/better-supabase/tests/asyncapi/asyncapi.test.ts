@@ -2,26 +2,26 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { describe, expect, it } from "vitest";
 
-import type {
-  BlockEventSchema,
-  BlockEventSchemas,
-} from "../../src/asyncapi/index.ts";
 import type { AnyAsyncApiDocument } from "../../src/asyncapi/types.ts";
 import type { ImpersonationEvents } from "../../src/blocks/impersonation/events.ts";
 import type { SupportEventData } from "../../src/core/block-events.ts";
 import type { SpecDiagnostic } from "../../src/spec/format.ts";
+import type {
+  BlockEventSchema,
+  BlockEventSchemas,
+} from "../../src/spec/index.ts";
 import type { ApiModel } from "../../src/spec/model.ts";
 
-import {
-  asyncapiFormat,
-  createAsyncApi,
-  topicsFrom,
-} from "../../src/asyncapi/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { defineTopic } from "../../src/realtime/topic.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { defineApi } from "../../src/spec/api.ts";
+import {
+  asyncapiFormat,
+  createAsyncApi,
+  topicsFrom,
+} from "../../src/spec/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { opaque, refsIn, standard } from "../spec/helpers.ts";
 import { problems, validatorFor } from "../standards/validator.ts";

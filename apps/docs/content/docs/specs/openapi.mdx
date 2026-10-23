@@ -94,7 +94,7 @@ OpenAPI 3.0 schema object, after the fragments are merged:
 | `$ref` with sibling keywords                   | `allOf` with the `$ref`                 |
 | keywords 3.0 doesn't have                      | left out                                |
 
-`toOpenApi30Schema(schema)` from `better-supabase/openapi` is that
+`toOpenApi30Schema(schema)` from `better-supabase/spec` is that
 rewrite, for schemas you serve yourself.
 
 ## 3.3 preview
@@ -125,7 +125,7 @@ one, and report `preview-only` (severity `info`).
 ## Types
 
 `OpenApi30Document`, `OpenApi31Document`, `OpenApi32Document` and
-`OpenApi33PreviewDocument` from `better-supabase/openapi` type each version,
+`OpenApi33PreviewDocument` from `better-supabase/spec` type each version,
 and `OpenApiDocument<V>` picks one by version. `transform` and the result of
 `api.openapi({ version })` use them, so a field another version doesn't
 have is a type error.

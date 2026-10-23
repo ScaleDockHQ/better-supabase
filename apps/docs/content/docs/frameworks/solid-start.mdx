@@ -3,6 +3,12 @@ title: SolidStart
 description: Run better-supabase as SolidStart middleware and read the caller in queries, actions and API routes.
 ---
 
+<Callout title="Community adapter">
+  This is a community adapter. It ships with every release and has a smoke test,
+  but the full test matrix and new guides target the supported adapters. See
+  [adapter tiers](/docs/frameworks#adapter-tiers).
+</Callout>
+
 `createSolidStart(betterSupabase, options)` from `better-supabase/solid-start`
 returns the server with SolidStart helpers. Pass `getRequestEvent` from
 `solid-js/web` so the helpers find the request inside server functions:

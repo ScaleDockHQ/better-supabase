@@ -2517,10 +2517,10 @@
         "tasks": {
           "type": "array",
           "items": {
-            "enum": ["types", "sql", "spec", "seed", "scaffold", "env"],
+            "enum": ["types", "sql", "spec", "seed", "env"],
             "type": "string"
           },
-          "description": "The steps gen runs, in order. Without a list: types, plus sql, spec, seed and scaffold when the project uses them. env runs only when listed."
+          "description": "The steps gen runs, in order. Without a list: types, plus sql, spec and seed when the project uses them. env runs only when listed."
         },
         "watchInterval": {
           "type": "number",
@@ -2899,37 +2899,6 @@
                 "type": "string"
               },
               "description": "Agent folders skills install writes to. Defaults to the ones the project has, else agents."
-            }
-          },
-          "additionalProperties": false
-        },
-        "scaffold": {
-          "type": "object",
-          "properties": {
-            "api": {
-              "type": "object",
-              "properties": {
-                "framework": {
-                  "enum": ["hono", "next"],
-                  "type": "string"
-                },
-                "tables": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "name": {
-                  "type": "string",
-                  "default": "api"
-                },
-                "basePath": {
-                  "type": "string",
-                  "default": "/api"
-                }
-              },
-              "additionalProperties": false,
-              "description": "What better-supabase scaffold api writes; the scaffold gen step keeps its generated file current."
             }
           },
           "additionalProperties": false

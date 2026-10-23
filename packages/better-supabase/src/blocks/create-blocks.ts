@@ -10,7 +10,11 @@ import type {
 import type { BlockOptions } from "../core/block-helpers.ts";
 import type { BlockHooks } from "../core/block-hooks.ts";
 import type { BlockNaming } from "../core/block-names.ts";
-import type { DbTransportSource } from "../core/block-transport.ts";
+import type {
+  BlockTransport,
+  DbTransportSource,
+} from "../core/block-transport.ts";
+import type { BlockInstanceSurface } from "../core/db-blocks.ts";
 import type { EventHub } from "../core/events.ts";
 import type { CredentialProvider } from "../credentials/provider.ts";
 import type { EventSink } from "../events/cloud-event.ts";
@@ -198,6 +202,11 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
     fn: string,
     args: Readonly<Record<string, unknown>>,
   ): Promise<unknown>;
+  /**
+   * One instance's methods and input schemas, for `defineApi`; `undefined` when
+   * its client can't be built without a database.
+   */
+  describe(key: string): BlockInstanceSurface | undefined;
   /** `onBlockEvent` typed by these blocks' events and the app's. */
   on<const P extends BlockEventPattern<M>>(
     betterSupabase: { readonly events: EventHub },
@@ -240,6 +249,8 @@ export function defineBlocks<
     (entry) => entry.api !== undefined,
   )?.api;
 
+  const surfaces = new Map<string, BlockInstanceSurface | undefined>();
+
   return {
     blocks,
     instances: Object.keys(blocks).filter(created),
@@ -262,8 +273,80 @@ export function defineBlocks<
       blockBuilder(clientContext(db, { config, ...options }), blocks).build(
         String(key),
       ) as never,
+    describe: (key) => {
+      if (!surfaces.has(key)) {
+        surfaces.set(key, describeInstance(config, blocks, key));
+      }
+
+      return surfaces.get(key);
+    },
     on: (betterSupabase, pattern, handler) =>
       onBlockEvent(betterSupabase, events, pattern, handler),
+  };
+}
+
+/**
+ * Client functions that are wiring, not calls: route and webhook handlers,
+ * outbox sinks, job definitions, signers and sync checks.
+ */
+const NOT_VERBS =
+  /^(?:sink|handler|job|webhook|signer|transmitter|receiver|partnerApi|isApiKey)$|[a-z](?:Route|Response|Sink|Job)$/u;
+
+const NO_TRANSPORT: BlockTransport = {
+  call: () =>
+    Promise.reject(new TypeError("better-supabase: describe() has no db")),
+};
+
+function methodsOf(client: object): string[] {
+  return Object.entries(client).flatMap(([name, value]) =>
+    typeof value === "function" && !NOT_VERBS.test(name) ? [name] : [],
+  );
+}
+
+/** Builds a client that can't call anything and reads its methods. */
+function describeInstance(
+  config: GeneratedBlocks,
+  blocks: BlockMap,
+  key: string,
+): BlockInstanceSurface | undefined {
+  const block = blocks[key];
+
+  if (block?.create === undefined) {
+    return undefined;
+  }
+
+  let client: unknown;
+
+  try {
+    client = blockBuilder(
+      { config, transport: NO_TRANSPORT, tenant: () => undefined },
+      blocks,
+    ).build(key);
+  } catch {
+    return undefined;
+  }
+
+  if (!isRecord(client)) {
+    return undefined;
+  }
+
+  const members: Record<string, readonly string[]> = {};
+
+  for (const [name, value] of Object.entries(client)) {
+    if (isRecord(value) && !NOT_VERBS.test(name)) {
+      const methods = methodsOf(value);
+
+      if (methods.length > 0) {
+        members[name] = methods;
+      }
+    }
+  }
+
+  return {
+    block: block.name,
+    methods: methodsOf(client),
+    members,
+    schemas: block.schemas ?? {},
   };
 }
 

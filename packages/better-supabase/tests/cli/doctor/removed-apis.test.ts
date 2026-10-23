@@ -45,6 +45,20 @@ describe("BS418", () => {
     ]);
   });
 
+  it.each(["openapi", "asyncapi", "arazzo", "overlay"])(
+    "points better-supabase/%s at better-supabase/spec",
+    (subpath) => {
+      expect(
+        check([
+          {
+            path: "src/api.ts",
+            text: `import { applyOverlays } from "better-supabase/${subpath}";`,
+          },
+        ]),
+      ).toEqual([expect.stringContaining("renamed to `better-supabase/spec`")]);
+    },
+  );
+
   it("points removed record feature APIs at record types", () => {
     expect(
       check([

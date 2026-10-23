@@ -1,4 +1,5 @@
 import type { Authorizer } from "../core/authorizer.ts";
+import type { DbBlockSource } from "../core/db-blocks.ts";
 import type { AnyPlugin } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 import type { DataApiOptions } from "./data-api.ts";
@@ -33,7 +34,31 @@ import type { StandardLike } from "./schemas.ts";
 export interface ApiSource {
   readonly meta: SchemaMeta;
   readonly plugins?: readonly AnyPlugin[];
+  /** The block instances `betterSupabase.blocks(set)` registered. */
+  readonly options?: { readonly blocks?: DbBlockSource | undefined };
 }
+
+/** How `defineApi` publishes one block instance. */
+export interface BlockApiDescription<Ref = string> {
+  /**
+   * The client methods to serve, contract verbs (`list`, `create`, `attach`)
+   * and domain verbs (`issue`, `approve`) alike; `chats.list` names one on a
+   * sub-client. Defaults to every method.
+   */
+  readonly verbs?: readonly string[];
+  /** Path of the instance below `basePath`. Defaults to `/<instance key>`. */
+  readonly path?: string;
+  /** Defaults to the instance key. */
+  readonly tag?: string;
+  readonly description?: string;
+  /** The permission of each verb, by the names `verbs` takes. */
+  readonly permissions?: Readonly<Record<string, Ref>>;
+  /** Overrides the model's security for this instance; `[]` makes it public. */
+  readonly security?: readonly SecurityRequirement[];
+}
+
+/** A block instance: its description, or `true` for the defaults. */
+export type BlockApiInput<Ref = string> = BlockApiDescription<Ref> | true;
 
 /**
  * A resource: its description, `true` for the defaults, or a handler that
@@ -134,8 +159,19 @@ export interface ApiOptions<Ref = string> {
   readonly basePath?: string;
   /** Tags listed before the resource tags, with summaries and parents. */
   readonly tags?: readonly ModelTag[];
-  /** Tables to publish, by app key. */
-  readonly resources?: Readonly<Record<string, ResourceInput<Ref>>>;
+  /**
+   * Tables to publish, by app key. Defaults to every table with the default
+   * operations; an object publishes only the tables it lists, and `false`
+   * publishes none.
+   */
+  readonly resources?: false | Readonly<Record<string, ResourceInput<Ref>>>;
+  /**
+   * Block instances to publish, by key, each as `POST /<instance>/<verb>` per
+   * client method. Defaults to every instance `betterSupabase.blocks(set)`
+   * registered; an object publishes only the instances it lists, and `false`
+   * publishes none.
+   */
+  readonly blocks?: false | Readonly<Record<string, BlockApiInput<Ref>>>;
   readonly routes?: readonly RouteSpec<Ref>[];
   /**
    * Tables and functions to document as the Supabase Data API (`/rest/v1`),

@@ -51,10 +51,6 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "spec validate",
     () => import("./commands/spec.ts").then((m) => m.specValidateCommand),
   ],
-  [
-    "scaffold api",
-    () => import("./commands/scaffold.ts").then((m) => m.scaffoldApiCommand),
-  ],
   ["mcp", () => import("./commands/mcp.ts").then((m) => m.mcpCommand)],
   [
     "skills list",

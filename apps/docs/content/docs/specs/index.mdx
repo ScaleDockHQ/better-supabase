@@ -7,7 +7,10 @@ description: Describe your API once with defineApi, then render OpenAPI 3.0, 3.1
 schema metadata, the plugins and the resources you serve. Each document
 format renders that model: OpenAPI 3.0, 3.1, 3.2 and `3.3-preview` today. You
 describe the API once, and every version describes the same paths, schemas
-and errors as the routes your adapter serves.
+and errors as the routes your adapter serves. It is the one entry for API
+documents: it also exports the OpenAPI, AsyncAPI, Arazzo and Overlay renderers
+(`createOpenApi`, `createAsyncApi`, `createArazzo`, `applyOverlays` and the
+formats), so every import on these pages comes from `better-supabase/spec`.
 
 ```ts title="src/api/spec.ts"
 import { defineApi } from "better-supabase/spec";
@@ -62,14 +65,14 @@ from the checks that run on the finished document. A version the format
 doesn't have throws. [OpenAPI versions](/docs/specs/openapi) lists what each
 version renders differently.
 
-`createOpenApi(betterSupabase, options)` from `better-supabase/openapi` is
+`createOpenApi(betterSupabase, options)` from `better-supabase/spec` is
 the one-call form for scripts and the CLI. It takes the same options plus
 `version`, `transform`, `overlays` and `onDiagnostic`, returns the document,
 and throws a `TypeError` that lists every diagnostic with severity `error`.
 The other diagnostics go to `onDiagnostic`.
 
 ```ts title="scripts/openapi.ts"
-import { createOpenApi } from "better-supabase/openapi";
+import { createOpenApi } from "better-supabase/spec";
 
 const document = createOpenApi(betterSupabase, {
   info: { title: "CRM API", version: "1.0.0" },
@@ -157,11 +160,13 @@ documents to files and check them in CI, use
   presets, naming, `extend`, custom routes, fragments, `enrich` and plugins.
 - [OpenAPI versions](/docs/specs/openapi): what 3.0, 3.1, 3.2 and the 3.3
   preview render.
-- [AsyncAPI](/docs/specs/asyncapi): `better-supabase/asyncapi`, for Realtime
-  channels, CloudEvents and webhooks.
-- [Arazzo](/docs/specs/arazzo): `better-supabase/arazzo`, for workflows over
+- [AsyncAPI](/docs/specs/asyncapi): `asyncapiFormat` and `createAsyncApi`,
+  for Realtime channels, CloudEvents and webhooks.
+- [Arazzo](/docs/specs/arazzo): `arazzoFormat`, `createArazzo` and
+  `defineWorkflow`, for workflows over
   the OpenAPI and AsyncAPI documents.
-- [Overlays](/docs/specs/overlay): `better-supabase/overlay`.
+- [Overlays](/docs/specs/overlay): `defineOverlay`, `applyOverlays` and
+  `overlayFromDiff`.
 - [Reference UIs](/docs/specs/reference-ui): `specReference` and
   `scalarPreset`, for an interactive reference page.
 - [Diagnostics](/docs/specs/diagnostics): every code, its severity and its

@@ -37,7 +37,6 @@ import { createHono } from "better-supabase/hono";
 import { defineListQuery } from "better-supabase/list";
 import { createNext, nextCache, requireAal } from "better-supabase/next";
 import { createImageLoader } from "better-supabase/next/image";
-import { createOpenApi } from "better-supabase/openapi";
 import { createOrpc } from "better-supabase/orpc";
 import { otel } from "better-supabase/otel";
 import { createPostgres, postgresExecutor } from "better-supabase/postgres";
@@ -50,6 +49,7 @@ import {
   impersonatorOf,
   PRIMARY_COOKIE,
 } from "better-supabase/server";
+import { createOpenApi } from "better-supabase/spec";
 import { defineBucket, defineBuckets } from "better-supabase/storage";
 import {
   defineSeed,

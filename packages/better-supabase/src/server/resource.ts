@@ -5,7 +5,7 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { RepositoryOf } from "../core/repository-types.ts";
 import type { Result } from "../core/result.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
-import type { ResourceOperation } from "../spec/model.ts";
+import type { ResourceOperation, TableVerb } from "../spec/model.ts";
 import type {
   ResourceContext,
   ResourceHandler,
@@ -22,7 +22,7 @@ import { isRecord } from "../core/guards.ts";
 import { methodNotAllowed } from "../core/problem.ts";
 import { err, ok } from "../core/result.ts";
 import { validate } from "../core/standard.ts";
-import { matchAction, planResource } from "../spec/resource.ts";
+import { matchAction, planResource, TABLE_VERBS } from "../spec/resource.ts";
 import { runHandler, runHook, settled } from "./resource-execute.ts";
 import {
   actionFits,
@@ -69,10 +69,17 @@ export function defineResource<
     );
   }
 
+  // An upsert would skip the hooks that rewrite inserts and updates.
+  const writeHooks =
+    options.hooks?.beforeCreate !== undefined ||
+    options.hooks?.beforeUpdate !== undefined;
+
   const plan = planResource<Ref>(
     betterSupabase.meta,
     table,
-    options,
+    writeHooks && options.verbs === undefined
+      ? { ...options, verbs: TABLE_VERBS.filter((verb) => verb !== "upsert") }
+      : options,
     authorizer,
   );
 
@@ -507,6 +514,103 @@ export function defineResource<
     }
   };
 
+  const verb = async (
+    db: object,
+    name: TableVerb,
+    input: ResourceInput = {},
+  ): Promise<Result<unknown>> => {
+    const repository = repositoryOf(db);
+
+    if (!plan.verbs.includes(name)) {
+      return err(dbError("forbidden", `${name} is not enabled for ${table}`));
+    }
+
+    const ctx = ctxOf(db, input);
+
+    if (name === "upsert") {
+      const rows = Array.isArray(input.data) ? input.data : [input.data];
+      const values: unknown[] = [];
+
+      for (const row of rows) {
+        const body = asObject(row);
+
+        if (!body.ok) {
+          return body;
+        }
+
+        const data = options.input?.create
+          ? await validate(options.input.create, body.data, "data")
+          : body;
+
+        if (!data.ok) {
+          return data;
+        }
+
+        values.push(data.data);
+      }
+
+      const data = Array.isArray(input.data) ? values : values[0];
+      const permitted = await permit("upsert", db, resourceOf(undefined, data));
+
+      if (!permitted.ok) {
+        return permitted;
+      }
+
+      const allowed = await authorize(ctx, "upsert", { data });
+
+      if (!allowed.ok) {
+        return allowed;
+      }
+
+      // SAFETY: the resource erases table generics; each row was checked as
+      // an object (and against the create schema when there is one).
+      return settled(repository.upsert(data as never, extra as never));
+    }
+
+    const args = input.data ?? {};
+
+    if (!isRecord(args)) {
+      return err(
+        dbError("invalid_input", `Expected an object of ${name} arguments`),
+      );
+    }
+
+    const permitted = await permit(name, db, { type: table });
+
+    if (!permitted.ok) {
+      return permitted;
+    }
+
+    const allowed = await authorize(ctx, name, { query: args });
+
+    if (!allowed.ok) {
+      return allowed;
+    }
+
+    switch (name) {
+      case "page": {
+        // SAFETY: the resource erases table generics; the repository checks
+        // the page arguments and answers a DbError for invalid ones.
+        return settled(repository.page({ ...args, ...extra } as never));
+      }
+
+      case "count": {
+        // SAFETY: as for page, the repository checks the filter.
+        return settled(repository.count(args));
+      }
+
+      case "aggregate": {
+        // SAFETY: as for page, the repository checks the aggregate arguments.
+        return settled(repository.aggregate(args as never));
+      }
+
+      default: {
+        const unknown: never = name;
+        throw new TypeError(`Unknown verb ${String(unknown)}`);
+      }
+    }
+  };
+
   const action = async (
     db: object,
     name: string,
@@ -662,6 +766,25 @@ export function defineResource<
       }
     }
 
+    const verbName = plan.verbs.find((candidate) => candidate === segments[0]);
+
+    if (
+      actions &&
+      segments.length === 1 &&
+      verbName &&
+      (request.method === "POST" || !keyParam)
+    ) {
+      if (request.method !== "POST") {
+        return [methodNotAllowed(["POST"])];
+      }
+
+      const body = await readJson(request);
+
+      return [
+        body.ok ? await verb(db, verbName, { data: body.data, request }) : body,
+      ];
+    }
+
     if (segments.length === 0) {
       if (request.method === "GET" && has("list")) {
         return [
@@ -735,6 +858,7 @@ export function defineResource<
     maxPageSize,
     plan,
     execute,
+    verb,
     action,
     handle(request, db, id, respondOptions = {}) {
       return reply(

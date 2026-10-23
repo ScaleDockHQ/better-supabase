@@ -5,12 +5,12 @@ description: Keep changes to a generated OpenAPI or AsyncAPI document in Overlay
 
 An [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) is a list
 of actions that change a document: each action selects nodes with an RFC 9535
-JSONPath `target` and updates, copies or removes them. `better-supabase/overlay`
+JSONPath `target` and updates, copies or removes them. `better-supabase/spec`
 writes and applies overlays, so descriptions, examples and vendor fields you
 add by hand survive the next generation.
 
 ```ts title="lib/overlays.ts"
-import { defineOverlay } from "better-supabase/overlay";
+import { defineOverlay } from "better-supabase/spec";
 
 export const docs = defineOverlay({
   info: { title: "CRM docs", version: "1.0.0" },
@@ -32,8 +32,7 @@ implementation: `loadJsonPath()` loads the optional `jsonpath-rfc9535` peer,
 or you pass your own `{ paths(document, expression) }`.
 
 ```ts title="lib/api.ts"
-import { applyOverlays, loadJsonPath } from "better-supabase/overlay";
-import { defineApi } from "better-supabase/spec";
+import { applyOverlays, defineApi, loadJsonPath } from "better-supabase/spec";
 import { docs } from "./overlays";
 import { betterSupabase } from "./supabase";
 

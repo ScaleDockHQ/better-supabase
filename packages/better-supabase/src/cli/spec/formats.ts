@@ -1,8 +1,10 @@
 import type { AnyDocumentFormat } from "../../spec/index.ts";
 
-import { arazzoFormat } from "../../arazzo/index.ts";
-import { asyncapiFormat } from "../../asyncapi/index.ts";
-import { openapiFormat } from "../../openapi/index.ts";
+import {
+  arazzoFormat,
+  asyncapiFormat,
+  openapiFormat,
+} from "../../spec/index.ts";
 import { isRecord } from "../guards.ts";
 
 /**

@@ -28,10 +28,41 @@ export interface DbBlockSource {
     args: Readonly<Record<string, unknown>>,
   ): Promise<unknown>;
   /**
+   * What one instance's client serves, for `defineApi`: its methods and the
+   * input schemas of its entities. `undefined` when the client can't be built
+   * without a database.
+   */
+  describe?(key: string): BlockInstanceSurface | undefined;
+  /**
    * Types only, never set: the clients by property, which `BlockSetClients`
    * reads.
    */
   readonly $clients?: object;
+}
+
+/** One block instance's client, as `DbBlockSource.describe` reports it. */
+export interface BlockInstanceSurface {
+  /** The block's name, such as `comments`. */
+  readonly block: string;
+  /** The client's async methods: contract verbs and domain verbs. */
+  readonly methods: readonly string[];
+  /** The methods of each sub-client, such as `chats` on ai-chat. */
+  readonly members: Readonly<Record<string, readonly string[]>>;
+  /**
+   * Standard Schemas (with Standard JSON Schema) of what the client takes, by
+   * entity key: `input` for create, `change` for update, `listFilter` for
+   * list.
+   */
+  readonly schemas: Readonly<
+    Record<
+      string,
+      {
+        readonly input?: unknown;
+        readonly change?: unknown;
+        readonly listFilter?: unknown;
+      }
+    >
+  >;
 }
 
 /** The clients a `DbBlockSource` puts on every `Db`, by property. */

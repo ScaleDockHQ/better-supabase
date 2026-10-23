@@ -182,7 +182,6 @@
   "cli/init",
   "cli/mcp",
   "cli/presets",
-  "cli/scaffold",
   "cli/spec",
   "concepts",
   "concepts/better-result",

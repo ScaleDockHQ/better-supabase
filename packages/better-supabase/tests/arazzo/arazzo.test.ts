@@ -1,11 +1,14 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import type { SpecDiagnostic } from "../../src/spec/format.ts";
 import type {
   AnyArazzoDocument,
   ResourceOperationIds,
-} from "../../src/arazzo/index.ts";
-import type { SpecDiagnostic } from "../../src/spec/format.ts";
+} from "../../src/spec/index.ts";
 
+import { defineSupabase } from "../../src/core/define.ts";
+import { SPEC_PINS } from "../../src/core/spec-pins.ts";
+import { defineApi } from "../../src/spec/api.ts";
 import {
   arazzoFormat,
   authWorkflow,
@@ -14,10 +17,7 @@ import {
   createThenGetWorkflows,
   defineWorkflow,
   paginationWorkflows,
-} from "../../src/arazzo/index.ts";
-import { defineSupabase } from "../../src/core/define.ts";
-import { SPEC_PINS } from "../../src/core/spec-pins.ts";
-import { defineApi } from "../../src/spec/api.ts";
+} from "../../src/spec/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { opaque, standard } from "../spec/helpers.ts";
 import { problems, validatorFor } from "../standards/validator.ts";

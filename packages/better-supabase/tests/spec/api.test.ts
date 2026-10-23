@@ -27,8 +27,15 @@ describe("defineApi", () => {
       "createCustomers",
       "updateCustomers",
       "deleteCustomers",
+      "pageCustomers",
+      "countCustomers",
+      "aggregateCustomers",
+      "upsertCustomers",
       "listNotes",
       "getNotes",
+      "pageNotes",
+      "countNotes",
+      "aggregateNotes",
     ]);
   });
 
@@ -184,7 +191,7 @@ describe("defineApi", () => {
     expect(result).toMatchObject({
       format: "count",
       version: "1",
-      document: { operations: 7 },
+      document: { operations: 14 },
       fileName: "count-1.json",
     });
     const preview = api.render(counter, { version: "2-preview" });

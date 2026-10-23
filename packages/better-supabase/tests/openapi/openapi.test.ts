@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { defineListQuery } from "../../src/list/index.ts";
-import { createOpenApi } from "../../src/openapi/index.ts";
+import { createOpenApi } from "../../src/spec/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
@@ -49,8 +49,15 @@ describe("createOpenApi", () => {
     expect(Object.keys(doc.paths)).toEqual([
       "/api/customers",
       "/api/customers/{id}",
+      "/api/customers/page",
+      "/api/customers/count",
+      "/api/customers/aggregate",
+      "/api/customers/upsert",
       "/api/notes",
       "/api/notes/{id}",
+      "/api/notes/page",
+      "/api/notes/count",
+      "/api/notes/aggregate",
     ]);
     expect(Object.keys(doc.paths["/api/customers"]!)).toEqual(["get", "post"]);
     expect(Object.keys(doc.paths["/api/customers/{id}"]!)).toEqual([

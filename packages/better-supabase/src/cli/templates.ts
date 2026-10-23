@@ -236,7 +236,7 @@ export default defineConfig({${
       : `\n  blocks: ${literal(grouped["blocks"])},`
   }
   // \`better-supabase gen\` runs every task this file sets up: types, then
-  // sql, spec, seed and scaffold when they are configured. Pin the list with
+  // sql, spec and seed when they are configured. Pin the list with
   // \`tasks: ['types', 'sql', 'spec']\` in \`gen\`.
   ${
     keys.migrationSince === undefined

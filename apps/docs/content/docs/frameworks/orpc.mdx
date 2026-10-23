@@ -54,40 +54,56 @@ On runtimes that stop the invocation after the response, pass `waitUntil` to
 [event sink sends](/docs/standards/events#sends-after-the-response) a
 procedure started.
 
-## Block routers
+## Serve the API
 
-`bsb.blockRouter(client, options)` exposes block methods as procedures behind
-`middleware()`, one per name in `methods`. The client is built per request
-from the caller's context, so the block runs as the caller. A method that
-takes more than one argument takes them as a tuple, and each procedure's
-input and output are typed from the method.
+`bsb.router(api, options)` turns a [`defineApi`](/docs/specs/resources) model
+into oRPC procedures, so the document and the server come from one
+definition. Without `resources` and `blocks`, the API publishes every table
+and every block instance `betterSupabase.blocks(set)` registered:
 
-```ts title="src/router.ts"
+```ts title="src/api.ts"
 import { openapi } from "@orpc/openapi";
+import { OpenAPIHandler } from "@orpc/openapi/fetch";
+import { os } from "@orpc/server";
+import { createOrpc, type OrpcRequestContext } from "better-supabase/orpc";
+import { defineApi } from "better-supabase/spec";
 
-const tasks = bsb.blockRouter(({ db }) => db.tasks, {
-  name: "tasks",
-  methods: ["list", "create", "update"],
-  guard: { requireOrganization: true },
-  tags: ["Tasks"],
-  meta: (route) => openapi({ method: route.method, path: route.path }),
+import { betterSupabase } from "./lib/supabase";
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM API", version: "1.0.0" },
+  basePath: "/api",
 });
 
-export const router = { tasks: tasks.procedures, health };
+const bsb = createOrpc(betterSupabase);
+
+const { procedures } = bsb.router(api, {
+  guard: { requireOrganization: true },
+  meta: openapi,
+});
+
+export const handle = bsb.fetchHandler(
+  new OpenAPIHandler(os.$context<OrpcRequestContext>().router(procedures)),
+);
 ```
 
-| Option    | What it does                                                                          |
-| --------- | ------------------------------------------------------------------------------------- |
-| `name`    | The path segment and operation id prefix: `POST /tasks/create`, `tasks.create`        |
-| `methods` | The block methods to expose                                                           |
-| `schemas` | Input schemas by method, such as the generated `taskInput`, validated before the call |
-| `guard`   | The `middleware()` options every procedure runs behind, `permission` included         |
-| `tags`    | Tags for the documented routes                                                        |
-| `meta`    | Route metadata per procedure, such as `openapi` from `@orpc/openapi`                  |
+Each table gets its CRUD routes plus the contract verbs `page`, `count`,
+`aggregate` and `upsert` as `POST /<table>/<verb>`. Each block instance gets
+`POST /<instance>/<method>` for every method of its client, and
+`POST /<instance>/<member>/<method>` for its sub-clients. A method that
+takes more than one argument takes them as a JSON array. The client runs as
+the caller, so RLS applies.
 
-`tasks.routes` lists the same routes for
-[`routes`](/docs/specs/customize#routes) of `defineApi`, so the OpenAPI document
-describes them. A failed call becomes an `ORPCError` with the `DbError` as
+| Option      | What it does                                                                        |
+| ----------- | ----------------------------------------------------------------------------------- |
+| `guard`     | The `middleware()` options every procedure runs behind, `permission` included       |
+| `meta`      | Route metadata per procedure, such as `openapi` from `@orpc/openapi`                |
+| `resources` | `defineResource` handlers by table key, to reuse hooks or actions you defined there |
+
+`routes` lists the method, path and operation id of every procedure, and they
+match the operations of `api.openapi()`. A block write takes the permission
+in `blocks.<instance>.permissions` of `defineApi`, decided by the
+`authorizer`. A failed call becomes an `ORPCError` with the `DbError` as
 Problem Details, as `bsb.unwrap` does.
 
 ## Entry arrays with `toOrpc`

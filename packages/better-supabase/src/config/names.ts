@@ -1,12 +1,5 @@
 /** The steps `better-supabase gen` runs, in the order it runs them. */
-export const GEN_TASKS = [
-  "types",
-  "sql",
-  "spec",
-  "seed",
-  "scaffold",
-  "env",
-] as const;
+export const GEN_TASKS = ["types", "sql", "spec", "seed", "env"] as const;
 
 /** Glue `better-supabase init` and `add` write for a framework or runtime. */
 export const INTEGRATION_NAMES = [

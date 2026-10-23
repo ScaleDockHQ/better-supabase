@@ -3,7 +3,7 @@ title: AsyncAPI
 description: An AsyncAPI 3.0 or 3.1 document for Realtime table changes, broadcast topics, CloudEvents and webhooks, rendered from the same API model as OpenAPI.
 ---
 
-`better-supabase/asyncapi` describes the events your app sends and receives:
+`createAsyncApi` from `better-supabase/spec` describes the events your app sends and receives:
 Realtime table change signals and broadcast topics on the Supabase Realtime
 websocket, CloudEvents for row and block events, outgoing webhooks, and the
 events HTTP operations emit. It reads the same API model as the
@@ -11,7 +11,7 @@ events HTTP operations emit. It reads the same API model as the
 table's row schema are the same in both.
 
 ```ts title="lib/asyncapi.ts"
-import { createAsyncApi } from "better-supabase/asyncapi";
+import { createAsyncApi } from "better-supabase/spec";
 import { betterSupabase } from "./supabase";
 
 export const asyncapi = createAsyncApi(betterSupabase, {

@@ -36,7 +36,6 @@ import type {
   IntegrationName,
   KeysConfig,
   OpenApiConfig,
-  ScaffoldConfig,
   SkillsConfig,
   SpecOutputConfig,
   SpecsConfig,
@@ -193,7 +192,6 @@ export interface FlatConfig {
   /** What `better-supabase gen` runs. */
   readonly gen?: GenConfig;
   readonly env?: EnvFileConfig;
-  readonly scaffold?: ScaffoldConfig;
   /**
    * The integrations `init` and `add` wrote; `add` without a name sets up the
    * ones that have no files yet.
@@ -287,7 +285,6 @@ export interface ResolvedConfig {
    */
   readonly gen: GenConfig;
   readonly env: { readonly output: string; readonly prefix?: string };
-  readonly scaffold: ScaffoldConfig;
   readonly integrations: readonly IntegrationName[];
   readonly skills: SkillsConfig;
   readonly keys: KeysConfig;

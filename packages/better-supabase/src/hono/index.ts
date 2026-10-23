@@ -440,6 +440,7 @@ export function createHono<
           (action) =>
             `/${action.segments.map((segment) => (segment.startsWith("{") ? `:${keyParam}` : segment)).join("/")}`,
         ),
+        ...resource.plan.verbs.map((verb) => `/${verb}`),
         ...(keyParam ? [`/:${keyParam}`] : []),
         "/*",
       ];

@@ -5,12 +5,9 @@ import type {
   Overlay10,
   Overlay11,
   Overlay12,
-} from "../../src/overlay/index.ts";
+} from "../../src/spec/index.ts";
 
-import {
-  defineOverlay,
-  expandReusableActions,
-} from "../../src/overlay/index.ts";
+import { defineOverlay, expandReusableActions } from "../../src/spec/index.ts";
 
 const info = { title: "Public API", version: "1.0.0" };
 
