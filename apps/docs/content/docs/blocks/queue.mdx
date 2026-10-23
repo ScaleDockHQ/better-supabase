@@ -378,12 +378,13 @@ named `block:<block>.<name>` on the `block_ticks` queue, and
 tick without a handler, or a handler that returns a failed `Result`, throws,
 so the queue retries it and the dead letter shows it.
 
-| Timer               | Cron         | Handler                                                          |
-| ------------------- | ------------ | ---------------------------------------------------------------- |
-| `sla.check`         | every minute | `sla.check()`: warnings and breaches of running clocks           |
-| `sequences.run-due` | every minute | `sequences.runDue()`: sends the steps whose wait ended           |
-| `ai-schedules.tick` | every minute | `aiSchedules.tick()`: runs the due AI tasks                      |
-| `workflows.tick`    | every minute | `schedules.tick()` and `admission.tick()` of the workflows block |
+| Timer               | Cron               | Handler                                                          |
+| ------------------- | ------------------ | ---------------------------------------------------------------- |
+| `sla.check`         | every minute       | `sla.check()`: warnings and breaches of running clocks           |
+| `sequences.run-due` | every minute       | `sequences.runDue()`: sends the steps whose wait ended           |
+| `ai-schedules.tick` | every minute       | `aiSchedules.tick()`: runs the due AI tasks                      |
+| `workflows.tick`    | every minute       | `schedules.tick()` and `admission.tick()` of the workflows block |
+| `content.publish`   | every five minutes | `content.publishDue()`: publishes the scheduled entries now due  |
 
 ```ts title="lib/jobs.ts"
 import {

@@ -20,4 +20,12 @@ export const contentBlock: BlockOf<
   schemas: { content_entry: { input: contentEntryInputSchema } },
   create: createContent,
   category: "content",
+  schedules: [
+    {
+      name: "publish",
+      cron: "*/5 * * * *",
+      runs: "publishDue()",
+      description: "Publishes the scheduled entries whose time has come.",
+    },
+  ],
 });

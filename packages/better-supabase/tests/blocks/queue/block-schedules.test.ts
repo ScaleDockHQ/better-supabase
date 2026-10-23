@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { contentBlock } from "../../../src/blocks/content/index.ts";
 import {
   BLOCK_TICKS_QUEUE,
   blockSchedules,
@@ -40,6 +41,17 @@ describe("blockSchedules", () => {
         cron: "0 3 * * *",
         queue: BLOCK_TICKS_QUEUE,
         payload: { block: "reports", name: "nightly" },
+      },
+    ]);
+  });
+
+  it("publishes the due content entries every five minutes", () => {
+    expect(blockSchedules([contentBlock])).toEqual([
+      {
+        name: "block:content.publish",
+        cron: "*/5 * * * *",
+        queue: BLOCK_TICKS_QUEUE,
+        payload: { block: "content", name: "publish" },
       },
     ]);
   });

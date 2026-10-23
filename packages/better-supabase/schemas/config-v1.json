@@ -3965,6 +3965,20 @@
               "maxActions": {
                 "type": "number",
                 "default": 20
+              },
+              "enable": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "disable": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
               }
             }
           }
@@ -4212,11 +4226,7 @@
                 "type": "boolean",
                 "default": false
               },
-              "publishPolicy": {},
-              "publishSchedule": {
-                "type": "string",
-                "default": "*/5 * * * *"
-              }
+              "publishPolicy": {}
             }
           }
         }

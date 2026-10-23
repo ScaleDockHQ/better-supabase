@@ -27,6 +27,7 @@ import { outboxBlock } from "better-supabase/blocks/outbox";
 import { contactsBlock } from "better-supabase/blocks/contacts";
 import { profilesBlock } from "better-supabase/blocks/profiles";
 import { quotesBlock } from "better-supabase/blocks/quotes";
+import { automationsBlock } from "better-supabase/blocks/automations";
 import { savedViewsBlock } from "better-supabase/blocks/saved-views";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
@@ -61,6 +62,7 @@ export const blockSet = defineBlocks(blockConfig, {
   contacts: contactsBlock,
   profiles: profilesBlock,
   quotes: quotesBlock,
+  automations: automationsBlock,
   savedViews: savedViewsBlock,
   settings: settingsBlock,
   subjects: subjectsBlock,

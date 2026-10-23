@@ -28,6 +28,7 @@ import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/c
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { contentBlock as contentBlockInstance } from "better-supabase/blocks/content";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
@@ -87,6 +88,10 @@ export const blockConfig = {
     options: {},
   },
   entitlements: {
+    schema: "better_supabase",
+    options: {},
+  },
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -169,6 +174,7 @@ export const blocks = {
   enrollments: enrollmentsBlockInstance,
   content: contentBlockInstance,
   entitlements: entitlementsBlockInstance,
+  queue: queueBlockInstance,
   messaging: messagingBlockInstance,
   notifications: notificationsBlockInstance,
   onboarding: onboardingBlockInstance,

@@ -16,6 +16,7 @@ import { sequencesBlock } from "better-supabase/blocks/sequences";
 import { leadScoringBlock } from "better-supabase/blocks/lead-scoring";
 import { activitiesBlock } from "better-supabase/blocks/activities";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
+import { queueBlock } from "better-supabase/blocks/queue";
 import { messagingBlock } from "better-supabase/blocks/messaging";
 import { timelineBlock } from "better-supabase/blocks/timeline";
 import { mailSyncBlock } from "better-supabase/blocks/mail-sync";
@@ -57,6 +58,7 @@ export const blockSet = defineBlocks(blockConfig, {
   leadScoring: leadScoringBlock,
   activities: activitiesBlock,
   entitlements: entitlementsBlock,
+  queue: queueBlock,
   messaging: messagingBlock,
   timeline: timelineBlock,
   mailSync: mailSyncBlock,

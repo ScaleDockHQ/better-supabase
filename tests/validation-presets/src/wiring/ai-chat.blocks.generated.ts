@@ -23,6 +23,7 @@ import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
 import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { knowledgeBlock as knowledgeBlockInstance } from "better-supabase/blocks/knowledge";
 import { memoryBlock as memoryBlockInstance } from "better-supabase/blocks/memory";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
@@ -76,6 +77,10 @@ export const blockConfig = {
     options: {},
   },
   entitlements: {
+    schema: "better_supabase",
+    options: {},
+  },
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -155,6 +160,7 @@ export const blocks = {
   billing: billingBlockInstance,
   enrollments: enrollmentsBlockInstance,
   entitlements: entitlementsBlockInstance,
+  queue: queueBlockInstance,
   knowledge: knowledgeBlockInstance,
   memory: memoryBlockInstance,
   notifications: notificationsBlockInstance,

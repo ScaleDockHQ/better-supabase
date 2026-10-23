@@ -22,7 +22,7 @@ import { instancePrefix } from "../config/instances.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { composeNames } from "../core/entity-naming.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
-import { defaultRuleRow } from "./default-rule-row.ts";
+import { defaultRuleRow, shipsEnabled } from "./default-rule-row.ts";
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
@@ -1443,7 +1443,7 @@ export function createModuleContext(
         rules,
         instance,
         (name) => entityNaming.rename(name),
-        spec,
+        { ...spec, enabled: shipsEnabled(rules, spec) },
       );
     },
     entitlements,

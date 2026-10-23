@@ -11,6 +11,7 @@ import type { ConnectorsEvents } from "better-supabase/blocks/connectors";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
+import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
@@ -29,6 +30,7 @@ import { onboardingBlock as onboardingBlockInstance } from "better-supabase/bloc
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { automationsBlock as automationsBlockInstance } from "better-supabase/blocks/automations";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 import { webhooksBlock as webhooksBlockInstance } from "better-supabase/blocks/webhooks";
@@ -99,6 +101,10 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
+  automations: {
+    schema: "better_supabase",
+    options: {},
+  },
   settings: {
     schema: "better_supabase",
     options: {},
@@ -152,6 +158,7 @@ export const blocks = {
   organizations: organizationsBlockInstance,
   outbox: outboxBlockInstance,
   profiles: profilesBlockInstance,
+  automations: automationsBlockInstance,
   settings: settingsBlockInstance,
   teams: teamsBlockInstance,
   webhooks: webhooksBlockInstance,
@@ -173,6 +180,12 @@ export const permissions = {
     view: "audit.read",
     viewAll: "audit.read",
     revert: "audit.revert",
+  },
+  automations: {
+    read: "rules.read",
+    edit: "rules.edit",
+    publish: "rules.publish",
+    admin: "rules.admin",
   },
   billing: {
     read: "billing.read",
@@ -242,13 +255,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "webhooks.manage" | "webhooks.read" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
+export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "webhooks.manage" | "webhooks.read" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & ConnectorsEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & TeamsEvents & WebhooksEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & ConnectorsEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & AutomationsEvents & SettingsEvents & TeamsEvents & WebhooksEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -308,6 +321,11 @@ export const blockEvents: Events<BlockEvents> = {
     "organization_setting.updated",
     "platform_setting.reset",
     "platform_setting.updated",
+    "rule.disabled",
+    "rule.enabled",
+    "rule.matched",
+    "rule.removed",
+    "rule.saved",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -382,6 +400,11 @@ export const blockEventSchemas = {
   "organization_setting.updated": true,
   "platform_setting.reset": true,
   "platform_setting.updated": true,
+  "rule.disabled": true,
+  "rule.enabled": true,
+  "rule.matched": true,
+  "rule.removed": true,
+  "rule.saved": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,

@@ -5,17 +5,6 @@
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- Publishes scheduled content entries when pg_cron is installed.
-do $$
-begin
-  if pg_catalog.to_regnamespace('cron') is not null then
-    perform cron.schedule('better-supabase-content-publish', '*/5 * * * *', 'select "better_supabase"."publish_due_content_entries"()');
-  else
-    raise notice 'pg_cron is not installed: call "better_supabase"."publish_due_content_entries"() on a schedule to publish scheduled content entries';
-  end if;
-end;
-$$;
-
 insert into better_supabase.blocks (name, version, mode)
 values ('content', 1, 'managed')
 on conflict (name) do update

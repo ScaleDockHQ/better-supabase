@@ -88,11 +88,16 @@ await content.schedule(post.id, null).orThrow(); // back to draft
 ```
 
 `publish(id)` sets an entry live now. `schedule(id, at)` sets it live at a
-future time; pg_cron runs `publish_due_content_entries` on
-`options.publishSchedule` (every five minutes by default) and publishes the
-entries whose time has come. With an empty schedule, call
-`content.publishDue()` from your own job with the service role. To publish a
-published entry again at a new time, archive it first.
+future time. The block's `publish` timer (every five minutes) publishes the
+entries whose time has come: schedule it with the other
+[block timers](/docs/blocks/queue#block-timers) and run it with the service
+role's client.
+
+```ts title="src/lib/jobs.ts"
+const run = blockTickHandler({ "content.publish": () => content.publishDue() });
+```
+
+To publish a published entry again at a new time, archive it first.
 
 ### With approval
 
@@ -147,7 +152,6 @@ blocks: {
 | `locales`         | `["en"]`           | the locales entries are written in; the first is the default     |
 | `requireApproval` | `false`            | publishing opens an approvals request; needs the approvals block |
 | `publishPolicy`   | one approver       | the approvals policy a publish request follows                   |
-| `publishSchedule` | `"*/5 * * * *"`    | the pg_cron schedule for scheduled entries; empty turns it off   |
 
 The `before_content_entry_publish` and `after_content_entry_publish` hooks
 run around every publish, from the button, the approval or the schedule.

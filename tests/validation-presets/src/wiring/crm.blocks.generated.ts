@@ -40,6 +40,7 @@ import { sequencesBlock as sequencesBlockInstance } from "better-supabase/blocks
 import { leadScoringBlock as leadScoringBlockInstance } from "better-supabase/blocks/lead-scoring";
 import { activitiesBlock as activitiesBlockInstance } from "better-supabase/blocks/activities";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
 import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
 import { timelineBlock as timelineBlockInstance } from "better-supabase/blocks/timeline";
 import { mailSyncBlock as mailSyncBlockInstance } from "better-supabase/blocks/mail-sync";
@@ -119,6 +120,10 @@ export const blockConfig = {
     options: {},
   },
   entitlements: {
+    schema: "better_supabase",
+    options: {},
+  },
+  queue: {
     schema: "better_supabase",
     options: {},
   },
@@ -248,6 +253,7 @@ export const blocks = {
   "lead-scoring": leadScoringBlockInstance,
   activities: activitiesBlockInstance,
   entitlements: entitlementsBlockInstance,
+  queue: queueBlockInstance,
   messaging: messagingBlockInstance,
   timeline: timelineBlockInstance,
   "mail-sync": mailSyncBlockInstance,

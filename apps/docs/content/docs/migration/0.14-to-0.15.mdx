@@ -730,12 +730,35 @@ is the event type, whose conditions replace `config.when`, and whose action is
 `{ kind: "workflow", config: { definition } }`; register
 `workflowAction(builder)` in the action registry.
 
-The timers of the SLA, sequences, AI schedules and workflows blocks run from
-the queue: schedule them with
+The timers of the SLA, sequences, AI schedules, workflows and content blocks
+run from the queue: schedule them with
 `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
 and drain the `block_ticks` queue with `blockTickHandler`
 ([Block timers](/docs/blocks/queue#block-timers)). A cron route that already
-calls `sla.check()` or `sequences.runDue()` keeps working.
+calls `sla.check()` or `sequences.runDue()` keeps working. The content
+block's `publishSchedule` option is removed: its pg_cron job gives way to the
+`content.publish` timer, so add `"content.publish": () => content.publishDue()`
+to the tick handler.
+
+## Presets turn on their default automations
+
+The presets whose blocks feed each other now install the automations block:
+`helpdesk` opens a ticket for each new conversation, `people` preboards each
+hired candidate, `erp` orders each accepted quote, and `automation` starts
+its workflows from automations. The presets with block timers or file
+ingestion (`crm`, `helpdesk`, `cms`, `itsm`, `claims`, `ai`, `ai-chat` and
+`ai-agents`) now install the queue. Run `bsb upgrade` after the upgrade, and
+register the actions the wiring checklist lists.
+
+The automations block takes `enable` and `disable`, lists of default
+automation keys that change whether a new organization's copy starts on:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  preset: "erp",
+  blocks: { automations: { options: { disable: ["quotes.quote_to_order"] } } },
+});
+```
 
 ## Blocks declare their wiring
 

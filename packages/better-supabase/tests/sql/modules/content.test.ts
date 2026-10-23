@@ -57,14 +57,13 @@ describe("content module", () => {
     );
   });
 
-  it("refuses invalid types, locales and schedules", () => {
+  it("refuses invalid types and locales", () => {
     expect(() => render({ types: [] })).toThrow(/types must name/);
     expect(() => render({ types: ["Blog Post"] })).toThrow(/not a valid type/);
     expect(() => render({ locales: ["english"] })).toThrow(
       /not a valid locale/,
     );
     expect(() => render({ locales: ["en", "en"] })).toThrow(/twice/);
-    expect(() => render({ publishSchedule: "hourly" })).toThrow(/five fields/);
   });
 
   it("publishes directly unless requireApproval is on", () => {
@@ -134,14 +133,8 @@ describe("content module", () => {
     );
   });
 
-  it("schedules due entries with pg_cron unless the schedule is empty", () => {
-    expect(render()).toContain(
-      `cron.schedule('better-supabase-content-publish', '*/5 * * * *'`,
-    );
-    expect(render({ publishSchedule: "0 * * * *" })).toContain(
-      `cron.schedule('better-supabase-content-publish', '0 * * * *'`,
-    );
-    expect(render({ publishSchedule: "" })).not.toContain("cron.schedule");
+  it("leaves the publish timer to the block schedules", () => {
+    expect(render()).not.toContain("cron.schedule");
   });
 
   it("keeps the internal publish functions away from every API role", () => {
