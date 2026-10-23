@@ -4,12 +4,11 @@ export {
   createRuleSink,
   createAutomationsAdmin,
   evaluateRule,
+  eventTarget,
   ruleOf,
   ruleRecordFields,
   type Rule,
   type RuleAction,
-  type RuleActionCall,
-  type RuleActionHandler,
   type RuleActionOutcome,
   type RuleDispatcher,
   type RuleDispatcherOptions,
@@ -17,6 +16,7 @@ export {
   type RuleInput,
   type RuleListOptions,
   type RuleMatch,
+  type RuleRun,
   type Automations,
   type AutomationsAdmin,
   type RulesAdminOptions,
@@ -76,6 +76,33 @@ export {
   webhookAction,
   workflowAction,
 } from "./actions.ts";
+
+export {
+  defineConversionAction,
+  type ConversionClients,
+  type ConversionContext,
+  type ConversionOutcome,
+  type ConversionRef,
+  type ConversionRelations,
+  type ConversionSpec,
+} from "./conversion.ts";
+
+export {
+  actionKey,
+  createActionRegistry,
+  defineAction,
+  type Action,
+  type ActionCall,
+  type ActionContext,
+  type ActionDescriptor,
+  type ActionHandler,
+  type ActionInfo,
+  type ActionOrigin,
+  type ActionRef,
+  type ActionRegistry,
+  type ActionSpec,
+  type DefaultAutomation,
+} from "../../core/automation.ts";
 
 export {
   automationsEvents,

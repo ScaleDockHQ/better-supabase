@@ -84,3 +84,5 @@ export { inboxBlock } from "./manifest.ts";
 export { inboxEvents } from "./events.ts";
 
 export type { InboxEvents } from "./events.ts";
+
+export { CONVERSATION_TO_TASK, INBOX_AUTOMATIONS } from "./automations.ts";

@@ -115,6 +115,28 @@ describe("BS418", () => {
     ]);
   });
 
+  it("points flows at default automations", () => {
+    expect(
+      check([
+        {
+          path: "src/outbox.ts",
+          text: 'import { createFlows, conversationToWorkItem } from "better-supabase/flows";',
+        },
+      ]),
+    ).toEqual([expect.stringContaining("default automations")]);
+  });
+
+  it("points workflow event triggers at automations", () => {
+    expect(
+      check([
+        {
+          path: "src/outbox.ts",
+          text: "await builder.triggers.onEvent(event);",
+        },
+      ]),
+    ).toEqual([expect.stringContaining("`workflow` action")]);
+  });
+
   it("passes code on the 0.15 names", () => {
     expect(
       check([

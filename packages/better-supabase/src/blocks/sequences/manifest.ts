@@ -15,6 +15,15 @@ export const sequencesBlock: BlockOf<
   { readonly mailer: "optional" }
 > = defineBlock({
   name: "sequences",
+  schedules: [
+    {
+      name: "run-due",
+      cron: "* * * * *",
+      runs: "runDue()",
+      description:
+        "Sends the due steps of every active enrollment and moves each to its next wait.",
+    },
+  ],
   sql: ["sequences"],
   options: { sequences: sequencesSqlOptions },
   events: sequencesEvents,

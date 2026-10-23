@@ -2,6 +2,7 @@ import type { BlockOf } from "../define-block.ts";
 import type { HiringEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
+import { HIRING_AUTOMATIONS } from "./automations.ts";
 import { hiringEvents } from "./events.ts";
 import { createHiring } from "./hiring.ts";
 import { hiringSqlOptions } from "./options.ts";
@@ -16,4 +17,5 @@ export const hiringBlock: BlockOf<"hiring", typeof createHiring, HiringEvents> =
     create: createHiring,
     category: "people",
     recipes: ["hiring-board"],
+    automations: HIRING_AUTOMATIONS,
   });

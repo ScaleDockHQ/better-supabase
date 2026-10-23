@@ -2,6 +2,7 @@ import type { BlockOf } from "../define-block.ts";
 import type { InboxEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
+import { INBOX_AUTOMATIONS } from "./automations.ts";
 import { inboxEvents } from "./events.ts";
 import { createInbox } from "./inbox.ts";
 import { inboxSqlOptions } from "./options.ts";
@@ -17,4 +18,5 @@ export const inboxBlock: BlockOf<"inbox", typeof createInbox, InboxEvents> =
     client: "inbox",
     category: "messaging",
     recipes: ["inbox-threads"],
+    automations: INBOX_AUTOMATIONS,
   });

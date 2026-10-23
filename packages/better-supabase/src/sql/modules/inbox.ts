@@ -5,8 +5,10 @@ import type {
   BlockSqlUpgrade,
 } from "../module-types.ts";
 
+import { CONVERSATION_TO_TASK } from "../../blocks/inbox/automations.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
+import { shippedAutomation } from "./automation-defaults.ts";
 import { inboxFunctions } from "./inbox-functions.ts";
 import { INBOX_NAMES, inboxSql } from "./inbox-names.ts";
 import { inboxScheduleFunctions } from "./inbox-schedule.ts";
@@ -373,7 +375,14 @@ export const INBOX: BlockSqlDefinition = {
     "messaging",
     "attachments",
   ],
-  integrates: ["queue", "notifications", "reactions", "data-lifecycle"],
+  integrates: [
+    "queue",
+    "notifications",
+    "reactions",
+    "data-lifecycle",
+    "automations",
+    "tasks",
+  ],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
@@ -396,6 +405,11 @@ export const INBOX: BlockSqlDefinition = {
   names: INBOX_NAMES,
   contract,
   build,
+  data: (ctx) =>
+    shippedAutomation(ctx, CONVERSATION_TO_TASK, {
+      module: "tasks",
+      singular: "work_item",
+    }),
   topics: (ctx) => {
     const { topic } = inboxSql(ctx);
 

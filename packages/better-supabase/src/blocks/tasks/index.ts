@@ -60,3 +60,9 @@ export {
 export { tasksEvents } from "./events.ts";
 
 export type { TasksEvents } from "./events.ts";
+
+export {
+  taskFromConversationAction,
+  type TaskFromConversationClients,
+  type TaskFromConversationOptions,
+} from "./actions.ts";

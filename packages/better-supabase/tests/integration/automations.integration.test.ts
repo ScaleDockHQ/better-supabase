@@ -4,7 +4,9 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { FilterQuery, FilterRule } from "../../src/list/index.ts";
 
 import {
+  createActionRegistry,
   createRuleDispatcher,
+  defineAction,
   createAutomations,
   createAutomationsAdmin,
   defineRuleFields,
@@ -376,9 +378,18 @@ describe.skipIf(!live)("rules module", () => {
       ).toEqual([2, 1]);
 
       await s.as(member);
-      expect((await rules.list(tenant).orThrow()).map((r) => r.id)).toEqual([
-        large.id,
-        all.id,
+      const listed = await rules.list(tenant).orThrow();
+      expect(
+        listed.filter((r) => r.defaultKey === undefined).map((r) => r.id),
+      ).toEqual([large.id, all.id]);
+      expect(
+        listed
+          .flatMap((r) => (r.defaultKey === undefined ? [] : [r.defaultKey]))
+          .toSorted(),
+      ).toEqual([
+        "hiring.application_to_employee",
+        "inbox.conversation_to_task",
+        "quotes.quote_to_order",
       ]);
       expect(
         (await rules.upsert(tenant, { id: large.id, name: "Mine" })).error
@@ -391,9 +402,31 @@ describe.skipIf(!live)("rules module", () => {
       await s.as(rival);
       expect(await rules.get(large.id).orThrow()).toBeUndefined();
       expect((await rules.list(tenant)).error?.hint).toBe("RULE_FORBIDDEN");
-      expect(await rules.list(other).orThrow()).toEqual([]);
+      expect(
+        (await rules.list(other).orThrow()).filter(
+          (r) => r.defaultKey === undefined,
+        ),
+      ).toEqual([]);
 
       await s.as(owner);
+
+      const shipped = listed.find(
+        (r) => r.defaultKey === "inbox.conversation_to_task",
+      );
+
+      if (shipped === undefined) {
+        throw new Error("The inbox default automation wasn't installed");
+      }
+
+      expect((await rules.remove(shipped.id)).error?.hint).toBe("RULE_DEFAULT");
+      await rules.upsert(tenant, { id: shipped.id, name: "Renamed" }).orThrow();
+      expect((await rules.resetDefault(shipped.id).orThrow()).name).toBe(
+        shipped.name,
+      );
+      expect((await rules.resetDefault(large.id)).error?.hint).toBe(
+        "RULE_NOT_DEFAULT",
+      );
+
       await rules.setEnabled(large.id, true).orThrow();
       await rules
         .upsert(tenant, { id: large.id, stopProcessing: true })
@@ -448,16 +481,24 @@ describe.skipIf(!live)("rules module", () => {
 
       const requested: unknown[] = [];
 
-      const dispatched = await createRuleDispatcher<{ id: string }>({
-        handlers: {
-          "approvals.request": ({ action, context }) => {
-            requested.push([action.config, context.id]);
+      const dispatched = await createRuleDispatcher({
+        actions: createActionRegistry([
+          defineAction({
+            kind: "approvals.request",
+            title: "Request an approval",
+            run: ({ action, context }) => {
+              requested.push([action.config, context.subjectId]);
 
-            return ok("requested");
-          },
-        },
+              return ok("requested");
+            },
+          }),
+        ]),
       })
-        .dispatch([...run, { rule: all, results: {} }], { id: "exp_1" })
+        .dispatch([...run, { rule: all, results: {} }], {
+          organizationId: tenant,
+          subjectType: "expense",
+          subjectId: "exp_1",
+        })
         .orThrow();
 
       expect(requested).toEqual([[{ action: "finance_review" }, "exp_1"]]);

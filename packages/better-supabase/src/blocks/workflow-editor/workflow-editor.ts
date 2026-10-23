@@ -17,7 +17,6 @@ import type {
   WorkflowEditor,
   WorkflowBuilderHooks,
   WorkflowDefinition,
-  WorkflowSinkEvent,
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowVersion,
@@ -41,15 +40,9 @@ import {
   recordOf,
   recordsOf,
   seconds,
-  stringsOf,
   textOf,
 } from "../shared.ts";
-import {
-  diffGraphs,
-  graphOf,
-  triggerMatches,
-  triggerWhenProblem,
-} from "./graph.ts";
+import { diffGraphs, graphOf } from "./graph.ts";
 import { mayPublishRefusal, runAsPublisher } from "./publisher.ts";
 import {
   alertOf,
@@ -73,7 +66,6 @@ export type {
   GraphCompiler,
   GrantInput,
   NodeRunRecord,
-  OutboxLikeEvent,
   PublishOptions,
   RunInput,
   TestRunInput,
@@ -90,7 +82,6 @@ export type {
   WorkflowGrantPrincipal,
   WorkflowNodeRun,
   WorkflowNodeRunStatus,
-  WorkflowSinkEvent,
   WorkflowStepInfo,
   WorkflowTrigger,
   WorkflowTriggerKind,
@@ -476,17 +467,8 @@ export function createWorkflowEditor<
       });
     },
     triggers: {
-      upsert: (input) => {
-        const problem =
-          input.kind === "event"
-            ? triggerWhenProblem(input.config ?? {})
-            : undefined;
-
-        if (problem !== undefined) {
-          return AsyncResult.err(dbError("invalid_input", problem));
-        }
-
-        return call(
+      upsert: (input) =>
+        call(
           "save_workflow_trigger",
           {
             definition: input.definition,
@@ -496,8 +478,7 @@ export function createWorkflowEditor<
             trigger: input.id,
           },
           (value) => triggerOf(recordOf(value, "save_workflow_trigger")),
-        );
-      },
+        ),
       list: (definition) =>
         call("workflow_triggers_list", { definition }, (value) =>
           recordsOf(value, "workflow_triggers_list").map(triggerOf),
@@ -561,45 +542,6 @@ export function createWorkflowEditor<
               { status: started.error.status },
             );
       },
-      onEvent: (event) =>
-        serviceCall(
-          "workflow_event_targets",
-          { type: event.type, tenant: event.tenant },
-          (value) => recordsOf(value, "workflow_event_targets"),
-        ).andThen(async (rows) => {
-          const runs: string[] = [];
-
-          for (const row of rows) {
-            const trigger = triggerOf(recordOf(row["trigger"], "trigger"));
-
-            if (!triggerMatches(trigger.config, event)) {
-              continue;
-            }
-
-            const subject = eventSubject(event, stringsOf(row["subjectTypes"]));
-            const tenant = optionalText(row["tenant"]);
-
-            const started = await runWith(serviceCall, {
-              definition: trigger.definition,
-              input: event.payload ?? {},
-              idempotencyKey: `event:${trigger.id}:${event.id}`,
-              trigger,
-              ...(typeof event.actorId === "string"
-                ? { actor: event.actorId }
-                : {}),
-              ...(tenant === undefined ? {} : { tenant }),
-              ...(subject === undefined ? {} : { subject }),
-            });
-
-            if (!started.ok) {
-              return started;
-            }
-
-            runs.push(started.data);
-          }
-
-          return ok(runs);
-        }),
       syncSchedule: (trigger, tenant) => {
         const cron = trigger.config["cron"];
 
@@ -867,7 +809,6 @@ export function createWorkflowEditor<
       check: (check = {}) =>
         serviceCall("check_workflow_alerts", { batch: check.batch }, Number),
     },
-    sink: () => workflowSink((event) => builder.triggers.onEvent(event)),
   };
 
   return hooked(builder, options);
@@ -941,26 +882,6 @@ function hooked<F extends object>(
       block("nodeRuns"),
     ),
     alerts: withBlockHooks(builder.alerts, hooks.alerts, block("alerts")),
-    sink: () => workflowSink((event) => triggers.onEvent(event)),
-  };
-}
-
-/** The outbox handler `sink()` returns, over a `triggers.onEvent`. */
-function workflowSink(
-  onEvent: WorkflowEditor["triggers"]["onEvent"],
-): (events: readonly WorkflowSinkEvent[]) => Promise<void> {
-  return async (events) => {
-    for (const event of events) {
-      await onEvent({
-        id: event.id,
-        type: event.type,
-        payload: event.payload,
-        ...(typeof event.tenant === "string" ? { tenant: event.tenant } : {}),
-        ...(typeof event.actorId === "string"
-          ? { actorId: event.actorId }
-          : {}),
-      }).orThrow();
-    }
   };
 }
 
@@ -1018,29 +939,6 @@ function startTargetOf(row: Record<string, unknown>): StartTarget {
         ? undefined
         : { type: textOf(subject["type"]), id: textOf(subject["id"]) },
   };
-}
-
-/**
- * A subject event's record (the event's `subjectType` and `subjectId`, else its
- * payload's), when the definition runs on its type.
- */
-function eventSubject(
-  event: {
-    readonly subjectType?: unknown;
-    readonly subjectId?: unknown;
-    readonly payload?: unknown;
-  },
-  subjectTypes: readonly string[],
-): WorkflowSubject | undefined {
-  const payload = isRecord(event.payload) ? event.payload : {};
-  const type = event.subjectType ?? payload["subjectType"];
-  const id = event.subjectId ?? payload["subjectId"];
-
-  return typeof type === "string" &&
-    typeof id === "string" &&
-    subjectTypes.includes(type)
-    ? { type, id }
-    : undefined;
 }
 
 function webhookToken(request: Request): string | undefined {

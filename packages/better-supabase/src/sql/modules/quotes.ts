@@ -8,12 +8,14 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { QuoteNames } from "./quotes-functions.ts";
 
+import { QUOTE_TO_ORDER } from "../../blocks/quotes/automations.ts";
 import {
   lineTableSpec,
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { shippedAutomation } from "./automation-defaults.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { quoteFunctions } from "./quotes-functions.ts";
 
@@ -232,6 +234,8 @@ export const QUOTES: BlockSqlDefinition = {
     "deals",
     "relations",
     "catalog",
+    "automations",
+    "orders",
   ],
   target: "schema",
   modes: ["managed", "custom"],
@@ -247,4 +251,9 @@ export const QUOTES: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  data: (ctx) =>
+    shippedAutomation(ctx, QUOTE_TO_ORDER, {
+      module: "orders",
+      singular: "order",
+    }),
 };

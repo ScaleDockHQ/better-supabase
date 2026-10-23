@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- Tenant-editable rules: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the app runs. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
+-- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -64,9 +64,30 @@ create table if not exists "better_supabase"."rules" (
 create index if not exists rules_trigger_idx on "better_supabase"."rules" ("organization_id", "subject_type", "trigger", "rank");
 create index if not exists rules_created_by_idx on "better_supabase"."rules" ("created_by") where "created_by" is not null;
 create index if not exists rules_updated_by_idx on "better_supabase"."rules" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."rules" add column if not exists "default_key" text;
+create unique index if not exists rules_default_key_idx on "better_supabase"."rules" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."rules" enable row level security;
 revoke all on "better_supabase"."rules" from anon, authenticated;
 grant all on "better_supabase"."rules" to service_role;
+
+-- The automations blocks ship (defineBlock automations). Each organization
+-- gets its own copy in rules the first time its rules run or are listed, and
+-- may turn it off or edit it; reset_default_rule restores the shipped one.
+create table if not exists "better_supabase"."rule_defaults" (
+  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+  "block" text not null,
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null check (length("name") between 1 and 200),
+  "description" text check (length("description") <= 2000),
+  "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
+  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "enabled" boolean not null default true,
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."rule_defaults" enable row level security;
+revoke all on "better_supabase"."rule_defaults" from anon, authenticated;
+grant all on "better_supabase"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
 create table if not exists "better_supabase"."rule_versions" (
@@ -713,7 +734,7 @@ begin
     raise exception 'A rule needs a name of at most 200 characters' using errcode = '22023', hint = 'RULE_INVALID';
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_subject_type);
-  if v_fields = '{}'::jsonb then
+  if v_fields = '{}'::jsonb and v_old."default_key" is null then
     raise exception 'No rule fields for %; sync them first', v_subject_type using errcode = '22023', hint = 'RULE_SUBJECT_UNKNOWN';
   end if;
   perform "better_supabase"."rule_check"(v_conditions, v_fields, 1);
@@ -740,7 +761,7 @@ begin
     and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions and v_old."actions" = v_actions
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
     update "better_supabase"."rules" x set
       "trigger" = v_trigger,
@@ -765,7 +786,7 @@ begin
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -774,7 +795,6 @@ $$;
 create or replace function "better_supabase"."rules_list"(tenant uuid, subject_type text default null, trigger text default null, enabled boolean default null)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
@@ -782,8 +802,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rules_list.tenant, 'rules.read'), false)) then
     raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
+  perform "better_supabase"."install_default_rules"(rules_list.tenant);
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
     from "better_supabase"."rules" x
     where x."organization_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
@@ -808,7 +829,7 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -859,7 +880,7 @@ begin
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
   update "better_supabase"."rules" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
@@ -868,7 +889,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -897,7 +918,7 @@ begin
   end if;
   update "better_supabase"."rules" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -918,6 +939,9 @@ begin
   select * into v_row from "better_supabase"."rules" x where x."id" = remove_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.admin'), false)) then
     return false;
+  end if;
+  if v_row."default_key" is not null then
+    raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'RULE_DEFAULT';
   end if;
   delete from "better_supabase"."rules" x where x."id" = v_row."id";
   null;
@@ -952,7 +976,7 @@ begin
   loop
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -1001,7 +1025,8 @@ $$;
 
 -- For database triggers and jobs (service role): evaluates the enabled rules
 -- for a trigger, logs each one live and returns the matches as
--- matching_rules does.
+-- matching_rules does. A null subject_type tests every rule for the trigger,
+-- each against its own subject type's fields.
 create or replace function "better_supabase"."run_rules"(tenant uuid, subject_type text, trigger text, subject_id text, subject jsonb, time_zone text default 'UTC')
 returns jsonb
 language plpgsql
@@ -1017,21 +1042,97 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
+  perform "better_supabase"."install_default_rules"(run_rules.tenant);
   v_fields := "better_supabase"."rule_field_map"(run_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."rules" x
-    where x."organization_id" = run_rules.tenant and x."subject_type" = run_rules.subject_type
+    where x."organization_id" = run_rules.tenant
+      and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
     order by x."rank" collate "C"
   loop
+    if run_rules.subject_type is null then
+      v_fields := "better_supabase"."rule_field_map"(v_rule."subject_type");
+    end if;
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform "better_supabase"."record_rule_evaluation"(v_rule."id", run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
   return v_matches;
+end;
+$$;
+
+-- Copies the default automations an organization doesn't have yet into its
+-- rules (service role); returns how many it copied.
+create or replace function "better_supabase"."install_default_rules"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  insert into "better_supabase"."rules" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
+  from "better_supabase"."rule_defaults" x
+  where not exists (
+    select 1 from "better_supabase"."rules" y where y."organization_id" = install_default_rules.tenant and y."default_key" = x."key"
+  )
+  on conflict do nothing;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Restores a default automation to what its block ships: trigger, name,
+-- description, conditions, actions and whether it is on. Takes the edit
+-- permission, or publish when the rule is or becomes enabled.
+create or replace function "better_supabase"."reset_default_rule"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."rules";
+  v_default "better_supabase"."rule_defaults";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."rules" x where x."id" = reset_default_rule.id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.read'), false)) then
+    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
+  end if;
+  select * into v_default from "better_supabase"."rule_defaults" x where x."key" = v_row."default_key";
+  if v_default."key" is null then
+    raise exception 'No block ships this rule' using errcode = '22023', hint = 'RULE_NOT_DEFAULT';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.edit'), false) end)) then
+    raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''rules.publish''' else '''rules.edit''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
+  end if;
+  update "better_supabase"."rules" x set
+    "trigger" = v_default."trigger",
+    "name" = v_default."name",
+    "description" = v_default."description",
+    "conditions" = v_default."conditions",
+    "actions" = v_default."actions",
+    "enabled" = v_default."enabled",
+    "stop_processing" = false,
+    "version" = x."version" + 1,
+    "updated_by" = auth.uid(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  insert into "better_supabase"."rule_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  on conflict do nothing;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -1107,6 +1208,8 @@ revoke execute on function "better_supabase"."rank_rule"(uuid, text) from public
 grant execute on function "better_supabase"."rank_rule"(uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."remove_rule"(uuid) from public, anon;
 grant execute on function "better_supabase"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."reset_default_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."record_rule_evaluation"(uuid, text, boolean, jsonb, text) from public, anon;
@@ -1117,6 +1220,8 @@ revoke execute on function "better_supabase"."sync_rule_fields"(text, jsonb) fro
 grant execute on function "better_supabase"."sync_rule_fields"(text, jsonb) to service_role;
 revoke execute on function "better_supabase"."run_rules"(uuid, text, text, text, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."run_rules"(uuid, text, text, text, jsonb, text) to service_role;
+revoke execute on function "better_supabase"."install_default_rules"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1147,7 +1252,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- Tenant-editable rules: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the app runs. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
+-- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1210,9 +1315,30 @@ create table if not exists "better_supabase"."rules" (
 create index if not exists rules_trigger_idx on "better_supabase"."rules" ("organization_id", "subject_type", "trigger", "rank");
 create index if not exists rules_created_by_idx on "better_supabase"."rules" ("created_by") where "created_by" is not null;
 create index if not exists rules_updated_by_idx on "better_supabase"."rules" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."rules" add column if not exists "default_key" text;
+create unique index if not exists rules_default_key_idx on "better_supabase"."rules" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."rules" enable row level security;
 revoke all on "better_supabase"."rules" from anon, authenticated;
 grant all on "better_supabase"."rules" to service_role;
+
+-- The automations blocks ship (defineBlock automations). Each organization
+-- gets its own copy in rules the first time its rules run or are listed, and
+-- may turn it off or edit it; reset_default_rule restores the shipped one.
+create table if not exists "better_supabase"."rule_defaults" (
+  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+  "block" text not null,
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null check (length("name") between 1 and 200),
+  "description" text check (length("description") <= 2000),
+  "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
+  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "enabled" boolean not null default true,
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."rule_defaults" enable row level security;
+revoke all on "better_supabase"."rule_defaults" from anon, authenticated;
+grant all on "better_supabase"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
 create table if not exists "better_supabase"."rule_versions" (
@@ -1859,7 +1985,7 @@ begin
     raise exception 'A rule needs a name of at most 200 characters' using errcode = '22023', hint = 'RULE_INVALID';
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_subject_type);
-  if v_fields = '{}'::jsonb then
+  if v_fields = '{}'::jsonb and v_old."default_key" is null then
     raise exception 'No rule fields for %; sync them first', v_subject_type using errcode = '22023', hint = 'RULE_SUBJECT_UNKNOWN';
   end if;
   perform "better_supabase"."rule_check"(v_conditions, v_fields, 1);
@@ -1886,7 +2012,7 @@ begin
     and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions and v_old."actions" = v_actions
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
     update "better_supabase"."rules" x set
       "trigger" = v_trigger,
@@ -1941,7 +2067,7 @@ begin
     actor_id => auth.uid()
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -1950,7 +2076,6 @@ $$;
 create or replace function "better_supabase"."rules_list"(tenant uuid, subject_type text default null, trigger text default null, enabled boolean default null)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
@@ -1958,8 +2083,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rules_list.tenant, 'rules.read'), false)) then
     raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
+  perform "better_supabase"."install_default_rules"(rules_list.tenant);
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
     from "better_supabase"."rules" x
     where x."organization_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
@@ -1984,7 +2110,7 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -2035,7 +2161,7 @@ begin
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
   update "better_supabase"."rules" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
@@ -2064,7 +2190,7 @@ begin
     actor_id => auth.uid()
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -2093,7 +2219,7 @@ begin
   end if;
   update "better_supabase"."rules" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -2114,6 +2240,9 @@ begin
   select * into v_row from "better_supabase"."rules" x where x."id" = remove_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.admin'), false)) then
     return false;
+  end if;
+  if v_row."default_key" is not null then
+    raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'RULE_DEFAULT';
   end if;
   delete from "better_supabase"."rules" x where x."id" = v_row."id";
   perform "better_supabase".emit_event('rule.removed', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
@@ -2158,7 +2287,7 @@ begin
   loop
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -2207,7 +2336,8 @@ $$;
 
 -- For database triggers and jobs (service role): evaluates the enabled rules
 -- for a trigger, logs each one live and returns the matches as
--- matching_rules does.
+-- matching_rules does. A null subject_type tests every rule for the trigger,
+-- each against its own subject type's fields.
 create or replace function "better_supabase"."run_rules"(tenant uuid, subject_type text, trigger text, subject_id text, subject jsonb, time_zone text default 'UTC')
 returns jsonb
 language plpgsql
@@ -2223,21 +2353,107 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
+  perform "better_supabase"."install_default_rules"(run_rules.tenant);
   v_fields := "better_supabase"."rule_field_map"(run_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."rules" x
-    where x."organization_id" = run_rules.tenant and x."subject_type" = run_rules.subject_type
+    where x."organization_id" = run_rules.tenant
+      and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
     order by x."rank" collate "C"
   loop
+    if run_rules.subject_type is null then
+      v_fields := "better_supabase"."rule_field_map"(v_rule."subject_type");
+    end if;
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform "better_supabase"."record_rule_evaluation"(v_rule."id", run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
   return v_matches;
+end;
+$$;
+
+-- Copies the default automations an organization doesn't have yet into its
+-- rules (service role); returns how many it copied.
+create or replace function "better_supabase"."install_default_rules"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  insert into "better_supabase"."rules" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
+  from "better_supabase"."rule_defaults" x
+  where not exists (
+    select 1 from "better_supabase"."rules" y where y."organization_id" = install_default_rules.tenant and y."default_key" = x."key"
+  )
+  on conflict do nothing;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Restores a default automation to what its block ships: trigger, name,
+-- description, conditions, actions and whether it is on. Takes the edit
+-- permission, or publish when the rule is or becomes enabled.
+create or replace function "better_supabase"."reset_default_rule"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."rules";
+  v_default "better_supabase"."rule_defaults";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."rules" x where x."id" = reset_default_rule.id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.read'), false)) then
+    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
+  end if;
+  select * into v_default from "better_supabase"."rule_defaults" x where x."key" = v_row."default_key";
+  if v_default."key" is null then
+    raise exception 'No block ships this rule' using errcode = '22023', hint = 'RULE_NOT_DEFAULT';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.edit'), false) end)) then
+    raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''rules.publish''' else '''rules.edit''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
+  end if;
+  update "better_supabase"."rules" x set
+    "trigger" = v_default."trigger",
+    "name" = v_default."name",
+    "description" = v_default."description",
+    "conditions" = v_default."conditions",
+    "actions" = v_default."actions",
+    "enabled" = v_default."enabled",
+    "stop_processing" = false,
+    "version" = x."version" + 1,
+    "updated_by" = auth.uid(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  insert into "better_supabase"."rule_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  on conflict do nothing;
+  perform "better_supabase".emit_event('rule.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
+  perform better_supabase.audit_event(
+    event_type => 'rule.saved',
+    category => 'configuration',
+    target_type => 'rule',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"),
+    actor_id => auth.uid()
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -2313,6 +2529,8 @@ revoke execute on function "better_supabase"."rank_rule"(uuid, text) from public
 grant execute on function "better_supabase"."rank_rule"(uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."remove_rule"(uuid) from public, anon;
 grant execute on function "better_supabase"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."reset_default_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."record_rule_evaluation"(uuid, text, boolean, jsonb, text) from public, anon;
@@ -2323,6 +2541,8 @@ revoke execute on function "better_supabase"."sync_rule_fields"(text, jsonb) fro
 grant execute on function "better_supabase"."sync_rule_fields"(text, jsonb) to service_role;
 revoke execute on function "better_supabase"."run_rules"(uuid, text, text, text, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."run_rules"(uuid, text, text, text, jsonb, text) to service_role;
+revoke execute on function "better_supabase"."install_default_rules"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2353,7 +2573,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- Tenant-editable rules: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the app runs. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
+-- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2418,9 +2638,30 @@ create table if not exists "app_private"."rules" (
 create index if not exists rules_trigger_idx on "app_private"."rules" ("organization_id", "subject_type", "trigger", "rank");
 create index if not exists rules_created_by_idx on "app_private"."rules" ("created_by") where "created_by" is not null;
 create index if not exists rules_updated_by_idx on "app_private"."rules" ("updated_by") where "updated_by" is not null;
+alter table "app_private"."rules" add column if not exists "default_key" text;
+create unique index if not exists rules_default_key_idx on "app_private"."rules" ("organization_id", "default_key") where "default_key" is not null;
 alter table "app_private"."rules" enable row level security;
 revoke all on "app_private"."rules" from anon, authenticated;
 grant all on "app_private"."rules" to service_role;
+
+-- The automations blocks ship (defineBlock automations). Each organization
+-- gets its own copy in rules the first time its rules run or are listed, and
+-- may turn it off or edit it; reset_default_rule restores the shipped one.
+create table if not exists "app_private"."rule_defaults" (
+  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+  "block" text not null,
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null check (length("name") between 1 and 200),
+  "description" text check (length("description") <= 2000),
+  "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
+  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "enabled" boolean not null default true,
+  "updated_at" timestamptz not null default now()
+);
+alter table "app_private"."rule_defaults" enable row level security;
+revoke all on "app_private"."rule_defaults" from anon, authenticated;
+grant all on "app_private"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
 create table if not exists "app_private"."rule_versions" (
@@ -3067,7 +3308,7 @@ begin
     raise exception 'A rule needs a name of at most 200 characters' using errcode = '22023', hint = 'RULE_INVALID';
   end if;
   v_fields := "app_private"."rule_field_map"(v_subject_type);
-  if v_fields = '{}'::jsonb then
+  if v_fields = '{}'::jsonb and v_old."default_key" is null then
     raise exception 'No rule fields for %; sync them first', v_subject_type using errcode = '22023', hint = 'RULE_SUBJECT_UNKNOWN';
   end if;
   perform "app_private"."rule_check"(v_conditions, v_fields, 1);
@@ -3094,7 +3335,7 @@ begin
     and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions and v_old."actions" = v_actions
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
     update "app_private"."rules" x set
       "trigger" = v_trigger,
@@ -3119,7 +3360,7 @@ begin
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -3128,7 +3369,6 @@ $$;
 create or replace function "app_private"."rules_list"(tenant uuid, subject_type text default null, trigger text default null, enabled boolean default null)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
@@ -3136,8 +3376,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rules_list.tenant, 'rules.read'), false)) then
     raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
+  perform "app_private"."install_default_rules"(rules_list.tenant);
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
     from "app_private"."rules" x
     where x."organization_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
@@ -3162,7 +3403,7 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -3213,7 +3454,7 @@ begin
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
   update "app_private"."rules" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
@@ -3222,7 +3463,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -3251,7 +3492,7 @@ begin
   end if;
   update "app_private"."rules" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -3272,6 +3513,9 @@ begin
   select * into v_row from "app_private"."rules" x where x."id" = remove_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.admin'), false)) then
     return false;
+  end if;
+  if v_row."default_key" is not null then
+    raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'RULE_DEFAULT';
   end if;
   delete from "app_private"."rules" x where x."id" = v_row."id";
   null;
@@ -3306,7 +3550,7 @@ begin
   loop
     v_result := "app_private"."rule_evaluate"(v_rule."conditions", matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -3355,7 +3599,8 @@ $$;
 
 -- For database triggers and jobs (service role): evaluates the enabled rules
 -- for a trigger, logs each one live and returns the matches as
--- matching_rules does.
+-- matching_rules does. A null subject_type tests every rule for the trigger,
+-- each against its own subject type's fields.
 create or replace function "app_private"."run_rules"(tenant uuid, subject_type text, trigger text, subject_id text, subject jsonb, time_zone text default 'UTC')
 returns jsonb
 language plpgsql
@@ -3371,21 +3616,97 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
+  perform "app_private"."install_default_rules"(run_rules.tenant);
   v_fields := "app_private"."rule_field_map"(run_rules.subject_type);
   for v_rule in
     select * from "app_private"."rules" x
-    where x."organization_id" = run_rules.tenant and x."subject_type" = run_rules.subject_type
+    where x."organization_id" = run_rules.tenant
+      and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
     order by x."rank" collate "C"
   loop
+    if run_rules.subject_type is null then
+      v_fields := "app_private"."rule_field_map"(v_rule."subject_type");
+    end if;
     v_result := "app_private"."rule_evaluate"(v_rule."conditions", run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform "app_private"."record_rule_evaluation"(v_rule."id", run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
   return v_matches;
+end;
+$$;
+
+-- Copies the default automations an organization doesn't have yet into its
+-- rules (service role); returns how many it copied.
+create or replace function "app_private"."install_default_rules"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  insert into "app_private"."rules" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
+  from "app_private"."rule_defaults" x
+  where not exists (
+    select 1 from "app_private"."rules" y where y."organization_id" = install_default_rules.tenant and y."default_key" = x."key"
+  )
+  on conflict do nothing;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Restores a default automation to what its block ships: trigger, name,
+-- description, conditions, actions and whether it is on. Takes the edit
+-- permission, or publish when the rule is or becomes enabled.
+create or replace function "app_private"."reset_default_rule"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."rules";
+  v_default "app_private"."rule_defaults";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."rules" x where x."id" = reset_default_rule.id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.read'), false)) then
+    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
+  end if;
+  select * into v_default from "app_private"."rule_defaults" x where x."key" = v_row."default_key";
+  if v_default."key" is null then
+    raise exception 'No block ships this rule' using errcode = '22023', hint = 'RULE_NOT_DEFAULT';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.edit'), false) end)) then
+    raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''rules.publish''' else '''rules.edit''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
+  end if;
+  update "app_private"."rules" x set
+    "trigger" = v_default."trigger",
+    "name" = v_default."name",
+    "description" = v_default."description",
+    "conditions" = v_default."conditions",
+    "actions" = v_default."actions",
+    "enabled" = v_default."enabled",
+    "stop_processing" = false,
+    "version" = x."version" + 1,
+    "updated_by" = auth.uid(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  insert into "app_private"."rule_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  on conflict do nothing;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -3461,6 +3782,8 @@ revoke execute on function "app_private"."rank_rule"(uuid, text) from public, an
 grant execute on function "app_private"."rank_rule"(uuid, text) to authenticated, service_role;
 revoke execute on function "app_private"."remove_rule"(uuid) from public, anon;
 grant execute on function "app_private"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."reset_default_rule"(uuid) from public, anon;
+grant execute on function "app_private"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "app_private"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;
 grant execute on function "app_private"."matching_rules"(uuid, text, text, jsonb, text) to authenticated, service_role;
 revoke execute on function "app_private"."record_rule_evaluation"(uuid, text, boolean, jsonb, text) from public, anon;
@@ -3471,6 +3794,8 @@ revoke execute on function "app_private"."sync_rule_fields"(text, jsonb) from pu
 grant execute on function "app_private"."sync_rule_fields"(text, jsonb) to service_role;
 revoke execute on function "app_private"."run_rules"(uuid, text, text, text, jsonb, text) from public, anon, authenticated;
 grant execute on function "app_private"."run_rules"(uuid, text, text, text, jsonb, text) to service_role;
+revoke execute on function "app_private"."install_default_rules"(uuid) from public, anon, authenticated;
+grant execute on function "app_private"."install_default_rules"(uuid) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -3501,7 +3826,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- Tenant-editable rules: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the app runs. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
+-- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it overwrites this file.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3564,9 +3889,30 @@ create table if not exists "better_supabase"."rules" (
 create index if not exists rules_trigger_idx on "better_supabase"."rules" ("organization_id", "subject_type", "trigger", "rank");
 create index if not exists rules_created_by_idx on "better_supabase"."rules" ("created_by") where "created_by" is not null;
 create index if not exists rules_updated_by_idx on "better_supabase"."rules" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."rules" add column if not exists "default_key" text;
+create unique index if not exists rules_default_key_idx on "better_supabase"."rules" ("organization_id", "default_key") where "default_key" is not null;
 alter table "better_supabase"."rules" enable row level security;
 revoke all on "better_supabase"."rules" from anon, authenticated;
 grant all on "better_supabase"."rules" to service_role;
+
+-- The automations blocks ship (defineBlock automations). Each organization
+-- gets its own copy in rules the first time its rules run or are listed, and
+-- may turn it off or edit it; reset_default_rule restores the shipped one.
+create table if not exists "better_supabase"."rule_defaults" (
+  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+  "block" text not null,
+  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null check (length("name") between 1 and 200),
+  "description" text check (length("description") <= 2000),
+  "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
+  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "enabled" boolean not null default true,
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."rule_defaults" enable row level security;
+revoke all on "better_supabase"."rule_defaults" from anon, authenticated;
+grant all on "better_supabase"."rule_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
 create table if not exists "better_supabase"."rule_versions" (
@@ -4213,7 +4559,7 @@ begin
     raise exception 'A rule needs a name of at most 200 characters' using errcode = '22023', hint = 'RULE_INVALID';
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_subject_type);
-  if v_fields = '{}'::jsonb then
+  if v_fields = '{}'::jsonb and v_old."default_key" is null then
     raise exception 'No rule fields for %; sync them first', v_subject_type using errcode = '22023', hint = 'RULE_SUBJECT_UNKNOWN';
   end if;
   perform "better_supabase"."rule_check"(v_conditions, v_fields, 1);
@@ -4240,7 +4586,7 @@ begin
     and v_old."description" is not distinct from v_description
     and v_old."conditions" = v_conditions and v_old."actions" = v_actions
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."organization_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
     update "better_supabase"."rules" x set
       "trigger" = v_trigger,
@@ -4265,7 +4611,7 @@ begin
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -4274,7 +4620,6 @@ $$;
 create or replace function "better_supabase"."rules_list"(tenant uuid, subject_type text default null, trigger text default null, enabled boolean default null)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
@@ -4282,8 +4627,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rules_list.tenant, 'rules.read'), false)) then
     raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
+  perform "better_supabase"."install_default_rules"(rules_list.tenant);
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."organization_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
     from "better_supabase"."rules" x
     where x."organization_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
@@ -4308,7 +4654,7 @@ begin
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -4359,7 +4705,7 @@ begin
     raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
-    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
   update "better_supabase"."rules" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
@@ -4368,7 +4714,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -4397,7 +4743,7 @@ begin
   end if;
   update "better_supabase"."rules" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -4418,6 +4764,9 @@ begin
   select * into v_row from "better_supabase"."rules" x where x."id" = remove_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.admin'), false)) then
     return false;
+  end if;
+  if v_row."default_key" is not null then
+    raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'RULE_DEFAULT';
   end if;
   delete from "better_supabase"."rules" x where x."id" = v_row."id";
   null;
@@ -4452,7 +4801,7 @@ begin
   loop
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", matching_rules.subject, v_fields, coalesce(matching_rules.time_zone, 'UTC'), now());
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
@@ -4501,7 +4850,8 @@ $$;
 
 -- For database triggers and jobs (service role): evaluates the enabled rules
 -- for a trigger, logs each one live and returns the matches as
--- matching_rules does.
+-- matching_rules does. A null subject_type tests every rule for the trigger,
+-- each against its own subject type's fields.
 create or replace function "better_supabase"."run_rules"(tenant uuid, subject_type text, trigger text, subject_id text, subject jsonb, time_zone text default 'UTC')
 returns jsonb
 language plpgsql
@@ -4517,21 +4867,97 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
   end if;
+  perform "better_supabase"."install_default_rules"(run_rules.tenant);
   v_fields := "better_supabase"."rule_field_map"(run_rules.subject_type);
   for v_rule in
     select * from "better_supabase"."rules" x
-    where x."organization_id" = run_rules.tenant and x."subject_type" = run_rules.subject_type
+    where x."organization_id" = run_rules.tenant
+      and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
     order by x."rank" collate "C"
   loop
+    if run_rules.subject_type is null then
+      v_fields := "better_supabase"."rule_field_map"(v_rule."subject_type");
+    end if;
     v_result := "better_supabase"."rule_evaluate"(v_rule."conditions", run_rules.subject, v_fields, coalesce(run_rules.time_zone, 'UTC'), now());
     perform "better_supabase"."record_rule_evaluation"(v_rule."id", run_rules.subject_id, (v_result ->> 'matched')::boolean, v_result -> 'results', 'live');
     if (v_result ->> 'matched')::boolean then
-      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at"), 'results', v_result -> 'results'));
+      v_matches := v_matches || jsonb_build_array(jsonb_build_object('rule', jsonb_build_object('id', v_rule."id", 'organizationId', v_rule."organization_id", 'subjectType', v_rule."subject_type", 'trigger', v_rule."trigger", 'name', v_rule."name", 'description', v_rule."description", 'conditions', v_rule."conditions", 'actions', v_rule."actions", 'enabled', v_rule."enabled", 'stopProcessing', v_rule."stop_processing", 'rank', v_rule."rank", 'version', v_rule."version", 'createdBy', v_rule."created_by", 'updatedBy', v_rule."updated_by", 'createdAt', v_rule."created_at", 'updatedAt', v_rule."updated_at", 'defaultKey', v_rule."default_key"), 'results', v_result -> 'results'));
       exit when v_rule."stop_processing";
     end if;
   end loop;
   return v_matches;
+end;
+$$;
+
+-- Copies the default automations an organization doesn't have yet into its
+-- rules (service role); returns how many it copied.
+create or replace function "better_supabase"."install_default_rules"(tenant uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer;
+begin
+  insert into "better_supabase"."rules" ("organization_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
+  from "better_supabase"."rule_defaults" x
+  where not exists (
+    select 1 from "better_supabase"."rules" y where y."organization_id" = install_default_rules.tenant and y."default_key" = x."key"
+  )
+  on conflict do nothing;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+
+-- Restores a default automation to what its block ships: trigger, name,
+-- description, conditions, actions and whether it is on. Takes the edit
+-- permission, or publish when the rule is or becomes enabled.
+create or replace function "better_supabase"."reset_default_rule"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."rules";
+  v_default "better_supabase"."rule_defaults";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."rules" x where x."id" = reset_default_rule.id for update;
+  if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.read'), false)) then
+    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
+  end if;
+  select * into v_default from "better_supabase"."rule_defaults" x where x."key" = v_row."default_key";
+  if v_default."key" is null then
+    raise exception 'No block ships this rule' using errcode = '22023', hint = 'RULE_NOT_DEFAULT';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'rules.edit'), false) end)) then
+    raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''rules.publish''' else '''rules.edit''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
+  end if;
+  update "better_supabase"."rules" x set
+    "trigger" = v_default."trigger",
+    "name" = v_default."name",
+    "description" = v_default."description",
+    "conditions" = v_default."conditions",
+    "actions" = v_default."actions",
+    "enabled" = v_default."enabled",
+    "stop_processing" = false,
+    "version" = x."version" + 1,
+    "updated_by" = auth.uid(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  insert into "better_supabase"."rule_versions" ("rule_id", "version", "organization_id", "name", "conditions", "actions", "saved_by")
+  values (v_row."id", v_row."version", v_row."organization_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
+  on conflict do nothing;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
 $$;
 
@@ -4607,6 +5033,8 @@ revoke execute on function "better_supabase"."rank_rule"(uuid, text) from public
 grant execute on function "better_supabase"."rank_rule"(uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."remove_rule"(uuid) from public, anon;
 grant execute on function "better_supabase"."remove_rule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."reset_default_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."reset_default_rule"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."matching_rules"(uuid, text, text, jsonb, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."record_rule_evaluation"(uuid, text, boolean, jsonb, text) from public, anon;
@@ -4617,6 +5045,8 @@ revoke execute on function "better_supabase"."sync_rule_fields"(text, jsonb) fro
 grant execute on function "better_supabase"."sync_rule_fields"(text, jsonb) to service_role;
 revoke execute on function "better_supabase"."run_rules"(uuid, text, text, text, jsonb, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."run_rules"(uuid, text, text, text, jsonb, text) to service_role;
+revoke execute on function "better_supabase"."install_default_rules"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."install_default_rules"(uuid) to service_role;
 
 -- blocks.automations.api: entry points for the Data API.
 create schema if not exists "api";
@@ -4838,6 +5268,15 @@ as $$ select "better_supabase"."remove_rule"($1) $$;
 revoke execute on function "api"."remove_rule"(uuid) from public, anon;
 grant execute on function "api"."remove_rule"(uuid) to authenticated, service_role;
 
+create or replace function "api"."reset_default_rule"(id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."reset_default_rule"($1) $$;
+revoke execute on function "api"."reset_default_rule"(uuid) from public, anon;
+grant execute on function "api"."reset_default_rule"(uuid) to authenticated, service_role;
+
 create or replace function "api"."matching_rules"(tenant uuid, subject_type text, trigger text, subject jsonb, time_zone text default 'UTC')
 returns jsonb
 language sql
@@ -4882,6 +5321,15 @@ set search_path = ''
 as $$ select "better_supabase"."run_rules"($1, $2, $3, $4, $5, $6) $$;
 revoke execute on function "api"."run_rules"(uuid, text, text, text, jsonb, text) from public, anon, authenticated;
 grant execute on function "api"."run_rules"(uuid, text, text, text, jsonb, text) to service_role;
+
+create or replace function "api"."install_default_rules"(tenant uuid)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."install_default_rules"($1) $$;
+revoke execute on function "api"."install_default_rules"(uuid) from public, anon, authenticated;
+grant execute on function "api"."install_default_rules"(uuid) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

@@ -12,6 +12,15 @@ export const aiSchedulesBlock: BlockOf<
   { readonly notifier: "optional" }
 > = defineBlock({
   name: "ai-schedules",
+  schedules: [
+    {
+      name: "tick",
+      cron: "* * * * *",
+      runs: "tick()",
+      description:
+        "Queues a run for each due AI task and computes its next occurrence.",
+    },
+  ],
   sql: ["ai-schedules"],
   options: { "ai-schedules": aiSchedulesSqlOptions },
   consumes: { notifier: "optional" },

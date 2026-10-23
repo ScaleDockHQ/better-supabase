@@ -35,3 +35,5 @@ export { hiringBlock } from "./manifest.ts";
 export { hiringEvents } from "./events.ts";
 
 export type { HiringEvents } from "./events.ts";
+
+export { APPLICATION_TO_EMPLOYEE, HIRING_AUTOMATIONS } from "./automations.ts";

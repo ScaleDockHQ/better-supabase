@@ -31,6 +31,12 @@ export const tasksBlock: BlockOf<
   record: workItemChecklistBinding,
   category: "work",
   recipes: ["work-item-board", "work-item-grid", "entity-form", "my-work"],
+  actions: [
+    {
+      kind: "tasks.from_conversation",
+      title: "Create a task from the conversation",
+    },
+  ],
   schemas: {
     work_item: {
       input: workItemInputSchema,

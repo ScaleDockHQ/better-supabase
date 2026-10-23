@@ -1,17 +1,16 @@
-import type {
-  RuleFieldSetter,
-  RuleSubjectContext,
-} from "better-supabase/blocks/automations";
+import type { RuleFieldSetter } from "better-supabase/blocks/automations";
 
 import { dbError, err } from "better-supabase";
 import {
+  createActionRegistry,
   createRuleDispatcher,
   createRuleSink,
   createAutomationsAdmin,
+  eventTarget,
   rpcTransport,
   setFieldAction,
 } from "better-supabase/blocks/automations";
-import { conversationToWorkItem, createFlows } from "better-supabase/flows";
+import { taskFromConversationAction } from "better-supabase/blocks/tasks";
 import { connection } from "next/server";
 import * as v from "valibot";
 
@@ -49,8 +48,9 @@ const setTaskField: RuleFieldSetter = async (write) => {
 
 /**
  * Runs the rules on the `task.created`, `task.updated` and `task.deleted`
- * events the `tasks` app table writes to the outbox, and the flows on the
- * inbox's events. Call it every minute from a cron (Vercel Cron sends
+ * events the `tasks` app table writes to the outbox, and the automations the
+ * blocks ship on their own events, such as the inbox's "Open a task for each
+ * new conversation". Call it every minute from a cron (Vercel Cron sends
  * `Authorization: Bearer $CRON_SECRET`).
  */
 export async function GET(request: Request): Promise<Response> {
@@ -59,19 +59,34 @@ export async function GET(request: Request): Promise<Response> {
   const admin = bsb.admin();
   const schema = blockConfig.automations.api;
 
-  const sink = createRuleSink<RuleSubjectContext>({
+  // The inbox's default automation runs `tasks.from_conversation`: a work
+  // item linked `created_from` the conversation, once per conversation.
+  const actions = createActionRegistry([
+    setFieldAction(setTaskField),
+    taskFromConversationAction({
+      clients: (tenant) => {
+        const scoped = admin.$with({ tenant });
+
+        return {
+          inbox: scoped.inbox,
+          relations: scoped.relations,
+          tasks: scoped.$blocks.tasks,
+        };
+      },
+    }),
+  ]);
+
+  const sink = createRuleSink({
     rules: createAutomationsAdmin({
       transport: rpcTransport(admin.$client, { schema }),
       schema,
     }),
-    dispatcher: createRuleDispatcher({
-      handlers: { set_field: setFieldAction(setTaskField) },
-    }),
+    dispatcher: createRuleDispatcher({ actions }),
     load: async (event) => {
       const payload = v.safeParse(TaskEventPayload, event.payload);
 
       if (!event.type.startsWith("task.") || !payload.success) {
-        return;
+        return eventTarget(event);
       }
 
       const { id } = payload.output;
@@ -103,23 +118,8 @@ export async function GET(request: Request): Promise<Response> {
     },
   });
 
-  // Opens a work item for each new inbox conversation, linked to it as
-  // `created_from`. A redelivered event finds the work item and leaves it.
-  const flows = createFlows({
-    flows: [conversationToWorkItem()],
-    clients: (tenant) => {
-      const scoped = admin.$with({ tenant });
-
-      return {
-        inbox: scoped.inbox,
-        relations: scoped.relations,
-        workItems: scoped.$blocks.tasks,
-      };
-    },
-  });
-
   return admin.outbox.relayRoute({
     secret: process.env["CRON_SECRET"],
-    consumers: { rules: sink, flows: flows.sink() },
+    consumers: { rules: sink },
   })(request);
 }

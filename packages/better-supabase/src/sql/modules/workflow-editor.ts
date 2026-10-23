@@ -210,7 +210,6 @@ const WORKFLOW_TRIGGER_KINDS = [
   "manual",
   "webhook",
   "schedule",
-  "event",
   "form",
   "chat",
 ] as const;
@@ -391,7 +390,7 @@ create policy workflow_versions_read on ${v} for select to authenticated
   using (${definitionReadable(cv("definition"))});
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
--- SHA-256 only; schedule, event, form and chat triggers keep their settings
+-- SHA-256 only; schedule, form and chat triggers keep their settings
 -- in config for the app to bind.
 create table if not exists ${t} (
   ${ct("id")} uuid primary key default gen_random_uuid(),
@@ -954,11 +953,6 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "rotate_workflow_webhook_token", args: ["uuid"], returns: "text" },
     { name: "workflow_webhook_target", args: ["text"], returns: "jsonb" },
     {
-      name: "workflow_event_targets",
-      args: ["text", "{id}"],
-      returns: "jsonb",
-    },
-    {
       name: "save_workflow_credential",
       args: ["{id}", "text", "text", "jsonb", "text[]"],
       returns: "jsonb",
@@ -995,13 +989,22 @@ export const WORKFLOW_BUILDER: BlockSqlDefinition = {
   integrates: ["service-accounts", "subjects", "teams"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "Definitions gain subject_types, scope, forked_from, forked_from_version and restricted, versions gain input_schema; workflow_opt_outs and workflow_definition_grants are new; save_workflow_definition, save_workflow_draft, workflow_definitions_list, workflow_start_target and workflow_run_principal take the new arguments, and fork_workflow_definition, set_workflow_opt_out, set_workflow_definition_grant, start_test_run and workflow_subject_start_target are new.",
       sql: () => "",
+    },
+    {
+      from: 2,
+      description:
+        "Event triggers go: an automation with a workflow action starts a definition on an outbox event. Triggers of kind event are deleted and workflow_event_targets is dropped.",
+      sql: (ctx) =>
+        ctx.manages
+          ? `delete from ${ctx.table("triggers")} where ${ctx.col("triggers", "kind")} = 'event';\ndrop function if exists ${ctx.fn("workflow_event_targets")}(text, ${ctx.idType});`
+          : "",
     },
   ],
   names: NAMES,

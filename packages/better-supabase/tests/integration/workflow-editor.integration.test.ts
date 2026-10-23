@@ -239,7 +239,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
     }
   });
 
-  it("runs webhook and event triggers, and syncs schedule triggers", async () => {
+  it("runs webhook triggers and syncs schedule triggers", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -290,14 +290,6 @@ describe.skipIf(!live)("workflow-editor module", () => {
       const token = await builder.triggers.rotateToken(webhook.id).orThrow();
       expect(token).toMatch(/^wfh_[0-9a-f]{48}$/);
 
-      const event = await builder.triggers
-        .upsert({
-          definition: definition.id,
-          kind: "event",
-          config: { type: "contact.created" },
-        })
-        .orThrow();
-
       const schedule = await builder.triggers
         .upsert({
           definition: definition.id,
@@ -310,7 +302,7 @@ describe.skipIf(!live)("workflow-editor module", () => {
         (await builder.triggers.list(definition.id).orThrow()).map(
           (t) => t.kind,
         ),
-      ).toEqual(["webhook", "event", "schedule"]);
+      ).toEqual(["webhook", "schedule"]);
 
       const manual = await builder.triggers
         .upsert({ definition: definition.id, kind: "manual" })
@@ -365,25 +357,6 @@ describe.skipIf(!live)("workflow-editor module", () => {
         ).status,
       ).toBe(405);
 
-      expect(
-        await service.triggers
-          .onEvent({
-            id: "evt_1",
-            type: "contact.created",
-            payload: { id: 1 },
-            tenant,
-          })
-          .orThrow(),
-      ).toEqual(["wrun_3"]);
-      expect(starts[2]).toMatchObject({
-        idempotencyKey: `event:${event.id}:evt_1`,
-      });
-      expect(
-        await service.triggers
-          .onEvent({ id: "evt_2", type: "other", tenant })
-          .orThrow(),
-      ).toEqual([]);
-
       const synced = await service.triggers
         .syncSchedule(schedule, tenant)
         .orThrow();
@@ -403,8 +376,8 @@ describe.skipIf(!live)("workflow-editor module", () => {
           .tick({ start: service.triggers.starter() })
           .orThrow(),
       ).toMatchObject({ started: 1, failed: [] });
-      expect(starts[3]).toMatchObject({ input: { daily: true } });
-      expect(starts[3]?.idempotencyKey).toMatch(
+      expect(starts[2]).toMatchObject({ input: { daily: true } });
+      expect(starts[2]?.idempotencyKey).toMatch(
         new RegExp(`^schedule:${synced.id}:`),
       );
 

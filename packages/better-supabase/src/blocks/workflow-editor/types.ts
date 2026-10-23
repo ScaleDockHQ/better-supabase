@@ -29,7 +29,6 @@ export type WorkflowTriggerKind =
   | "manual"
   | "webhook"
   | "schedule"
-  | "event"
   | "form"
   | "chat";
 
@@ -422,17 +421,6 @@ export interface GrantInput {
   readonly action: WorkflowGrantAction;
 }
 
-export interface OutboxLikeEvent {
-  readonly id: string;
-  readonly type: string;
-  readonly payload?: unknown;
-  readonly tenant?: string | undefined;
-  readonly actorId?: string | undefined;
-  /** A subject event's record; definitions that list its type run on it. */
-  readonly subjectType?: string | undefined;
-  readonly subjectId?: string | undefined;
-}
-
 export interface VersionSaveOptions {
   /**
    * The JSON Schema of the input a run of the version takes. Leave it out to
@@ -558,8 +546,6 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      * `Idempotency-Key` header keys the start. Answers 202 with `{ runId }`.
      */
     webhook(request: Request): Promise<Response>;
-    /** Starts the definitions whose event triggers listen for `event.type`. */
-    onEvent(event: OutboxLikeEvent): AsyncResult<readonly string[]>;
     /**
      * Creates or updates the `workflows` schedule of a schedule trigger (its
      * `config.cron`), named `builder-trigger:<id>`. Uses `service`.
@@ -610,19 +596,4 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      */
     check(options?: { readonly batch?: number }): AsyncResult<number>;
   };
-  /**
-   * An outbox consumer handler that passes each event to `triggers.onEvent`,
-   * for `outbox.consume("workflows", builder.sink())`. It throws when a start
-   * fails, so the outbox retries the event.
-   */
-  sink(): (events: readonly WorkflowSinkEvent[]) => Promise<void>;
-}
-
-/** An outbox row as a consumer hands it over; an `OutboxEvent` fits. */
-export interface WorkflowSinkEvent {
-  readonly id: string;
-  readonly type: string;
-  readonly payload?: unknown;
-  readonly tenant?: string | null;
-  readonly actorId?: string | null;
 }

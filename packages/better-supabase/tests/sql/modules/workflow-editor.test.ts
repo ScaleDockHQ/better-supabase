@@ -161,13 +161,7 @@ describe("workflow-editor module", () => {
     expect(body).toContain(
       `'behind', coalesce(u.version > x."forked_from_version", false)`,
     );
-    const events = body.slice(body.indexOf('"workflow_event_targets"(type'));
-    expect(events).toContain(
-      `or (y."scope" = 'system' and workflow_event_targets.tenant is not null)`,
-    );
-    expect(events).toContain(
-      'select 1 from "better_supabase"."workflow_opt_outs" z',
-    );
+    expect(body).not.toContain('"workflow_event_targets"(type');
   });
 
   it("checks grants on restricted definitions and skips test runs in alerts", () => {

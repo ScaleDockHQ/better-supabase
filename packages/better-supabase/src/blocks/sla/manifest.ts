@@ -17,6 +17,14 @@ export const slaBlock: BlockOf<
   typeof slaBinding
 > = defineBlock({
   name: "sla",
+  schedules: [
+    {
+      name: "check",
+      cron: "* * * * *",
+      runs: "check()",
+      description: "Records the warnings and breaches of the running clocks.",
+    },
+  ],
   sql: ["sla"],
   options: { sla: slaSqlOptions },
   events: slaEvents,

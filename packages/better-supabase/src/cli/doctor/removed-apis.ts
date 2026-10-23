@@ -68,6 +68,27 @@ const REMOVED_NAMES: readonly { pattern: RegExp; replacement: string }[] = [
     replacement:
       "`collectionOptions` from `better-supabase/tanstack-db`, with `tanstackDbEngine({ collections })` and `live: realtimeChanges(...)` for Realtime",
   },
+  {
+    pattern:
+      /["']better-supabase\/flows["']|\b(?:createFlows|defineFlow|conversationToWorkItem|applicationToEmployee|bookingToEngagement|quoteToOrder)\b/,
+    replacement:
+      "the default automations the blocks ship, run by `createRuleSink` with the conversion actions (`taskFromConversationAction`, `employeeFromApplicationAction`, `orderFromQuoteAction`) in `createActionRegistry`; confirmed bookings become engagements through a database trigger",
+  },
+  {
+    pattern: /\b(?:RuleActionHandler|RuleActionCall)\b/,
+    replacement:
+      "`defineAction` and `createActionRegistry([...])`, passed to `createRuleDispatcher({ actions })` (`ActionHandler`, `ActionCall`)",
+  },
+  {
+    pattern: /\bRULE_ACTION_(?:UNKNOWN|INVALID)\b/,
+    replacement: "the hints `ACTION_UNKNOWN` and `ACTION_CONFIG_INVALID`",
+  },
+  {
+    pattern:
+      /\btriggers\.onEvent\b|\b(?:triggerMatches|triggerWhenProblem|OutboxLikeEvent|WorkflowSinkEvent)\b/,
+    replacement:
+      "an automation whose `workflow` action (`workflowAction(builder)`) starts the definition on the outbox event",
+  },
 ];
 
 function lineAt(text: string, index: number): number {
@@ -158,7 +179,7 @@ export const REMOVED_API_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Code uses an API that 0.15 renamed or removed",
     description:
-      "0.15 renamed blocks and their subpaths, turned the built-in plugins into block extensions, moved the OpenAPI, AsyncAPI, Arazzo and Overlay subpaths into `better-supabase/spec` and replaced record features with record types. `better-supabase codemod 0.15` rewrites the renames; the removed APIs need the replacement the finding names.",
+      "0.15 renamed blocks and their subpaths, turned the built-in plugins into block extensions, moved the OpenAPI, AsyncAPI, Arazzo and Overlay subpaths into `better-supabase/spec`, replaced record features with record types and flows with default automations. `better-supabase codemod 0.15` rewrites the renames; the removed APIs need the replacement the finding names.",
     check: removedApis,
   },
 ];

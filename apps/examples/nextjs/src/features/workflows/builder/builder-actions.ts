@@ -157,7 +157,7 @@ export const runDefinition = bsb.action(
   },
 );
 
-const TriggerKind = v.picklist(["manual", "webhook", "schedule", "event"]);
+const TriggerKind = v.picklist(["manual", "webhook", "schedule"]);
 
 export const saveTrigger = bsb.action(
   {
@@ -165,20 +165,14 @@ export const saveTrigger = bsb.action(
       definition: Id,
       kind: TriggerKind,
       cron: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(100))),
-      event: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(200))),
     }),
     requireOrganization: true,
     authorize: (session) => can(session, "workflow.admin"),
   },
-  async ({ definition, kind, cron, event }, { tenant, supabase }) => {
+  async ({ definition, kind, cron }, { tenant, supabase }) => {
     const builder = builderFor(supabase);
 
-    const config =
-      kind === "schedule"
-        ? { cron: cron ?? "0 9 * * *" }
-        : kind === "event"
-          ? { type: event ?? "" }
-          : {};
+    const config = kind === "schedule" ? { cron: cron ?? "0 9 * * *" } : {};
 
     const saved = await builder.triggers.upsert({ definition, kind, config });
 

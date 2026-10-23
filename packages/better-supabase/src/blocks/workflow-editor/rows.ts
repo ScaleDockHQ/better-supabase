@@ -44,7 +44,6 @@ const TRIGGER_KINDS: readonly WorkflowTriggerKind[] = [
   "manual",
   "webhook",
   "schedule",
-  "event",
   "form",
   "chat",
 ];
