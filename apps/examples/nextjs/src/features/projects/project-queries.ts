@@ -6,7 +6,6 @@ import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
 import { getMembers } from "@/features/organization/organization-queries";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import type {
@@ -211,7 +210,7 @@ function historyFields(
 export async function getProjectHistory(
   projectId: string,
 ): Promise<readonly ProjectVersion[] | null> {
-  const [{ bindings }, { supabase, session }] = await Promise.all([
+  const [{ bindings }, { db, session }] = await Promise.all([
     projectPage.load(projectId, {
       bindings: ["versions"],
       options: { versions: { pageSize: HISTORY_LIMIT } },
@@ -229,7 +228,7 @@ export async function getProjectHistory(
     throw new Error(bindings.versions.error.message);
   }
 
-  const { versions } = blocks(supabase, tenant);
+  const { versions } = db;
 
   const loaded = await Promise.all(
     bindings.versions.data.map((version) => versions.get(version.id).orThrow()),
@@ -260,16 +259,14 @@ export async function getTaskViews(): Promise<
   readonly TaskViewOption[] | null
 > {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const views = await blocks(supabase)
-    .savedViews.list(tenant, TASK_LIST)
-    .orThrow();
+  const views = await db.$blocks.savedViews.list(tenant, TASK_LIST).orThrow();
 
   return views.map((view) => {
     const query = view.state.query ?? {};

@@ -161,7 +161,7 @@ describe("bsb.require()", () => {
       }),
       (c) => c.json("ok"),
     )
-    .get("/scoped", bsb.require({ requireTenant: true }), (c) =>
+    .get("/scoped", bsb.require({ requireOrganization: true }), (c) =>
       c.json(c.var.tenant),
     );
 

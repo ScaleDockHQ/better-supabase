@@ -6,7 +6,6 @@ import * as v from "valibot";
 
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -21,11 +20,11 @@ export const createDraftInvoice = bsb.action(
         v.regex(/^\d+(\.\d{1,2})?$/, "Enter an amount such as 190.00"),
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "invoices.write"),
   },
-  async ({ title, amount }, { tenant, supabase, auth }) => {
-    const created = await blocks(supabase).invoices.create(
+  async ({ title, amount }, { tenant, db, auth }) => {
+    const created = await db.invoices.create(
       tenant,
       { title, currency: SHOP_CURRENCY },
       [
@@ -51,11 +50,11 @@ export const createDraftInvoice = bsb.action(
 export const issueInvoice = bsb.action(
   {
     input: v.object({ invoiceId: v.pipe(v.string(), v.uuid()) }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "invoices.write"),
   },
-  async ({ invoiceId }, { supabase, auth }) => {
-    const issued = await blocks(supabase).invoices.issue(invoiceId);
+  async ({ invoiceId }, { db, auth }) => {
+    const issued = await db.invoices.issue(invoiceId);
 
     if (!issued.ok) {
       return issued;

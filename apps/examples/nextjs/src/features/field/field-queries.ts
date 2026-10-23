@@ -12,7 +12,6 @@ import { tenantOf } from "better-supabase/next";
 import { Temporal } from "temporal-polyfill";
 
 import { getMembers } from "@/features/organization/organization-queries";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 /** One work order as the board and the day plan show it. */
@@ -106,7 +105,7 @@ export async function loadDispatchWeek(
   monday: string,
 ): Promise<DispatchWeek | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -117,7 +116,7 @@ export async function loadDispatchWeek(
   const to = from.add({ days: 6 });
 
   const [board, members] = await Promise.all([
-    blocks(supabase, tenant).dispatch.board({ from, to }).orThrow(),
+    db.dispatch.board({ from, to }).orThrow(),
     getMembers(tenant),
   ]);
 
@@ -160,15 +159,15 @@ export async function loadTechnicianDay(
   date: string,
 ): Promise<TechnicianDayPlan | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const day = await blocks(supabase, tenant)
-    .dispatch.technicianDay(Temporal.PlainDate.from(date))
+  const day = await db.dispatch
+    .technicianDay(Temporal.PlainDate.from(date))
     .orThrow();
 
   return {
@@ -186,14 +185,14 @@ export async function loadShipmentTracking(
   selectedId: string | undefined,
 ): Promise<ShipmentTracking | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { shipments } = blocks(supabase, tenant);
+  const { shipments } = db;
   const list = await shipments.list({ limit: 50 }).orThrow();
 
   const rows: ShipmentRow[] = list.map((shipment) => ({

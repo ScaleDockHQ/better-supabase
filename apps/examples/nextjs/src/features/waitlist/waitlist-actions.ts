@@ -3,7 +3,6 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -17,8 +16,8 @@ export const joinWaitlist = bsb.action(
     }),
     allow: ["anon", "user"],
   },
-  async ({ email }, { supabase }) => {
-    const joined = await blocks(supabase).waitlist.join(email.toLowerCase(), {
+  async ({ email }, { db }) => {
+    const joined = await db.waitlist.join(email.toLowerCase(), {
       referrer: "waitlist-page",
     });
 

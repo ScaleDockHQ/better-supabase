@@ -6,7 +6,6 @@ import { money, parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -40,11 +39,11 @@ export const createProduct = bsb.action(
       sku: v.pipe(Text(64), v.toUpperCase()),
       price: Decimal,
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "catalog.manage"),
   },
-  async ({ title, sku, price }, { tenant, supabase, auth }) => {
-    const { catalog } = blocks(supabase);
+  async ({ title, sku, price }, { tenant, db, auth }) => {
+    const { catalog } = db;
     const product = await catalog.createProduct(tenant, { title });
 
     if (!product.ok) {
@@ -81,11 +80,11 @@ export const createProduct = bsb.action(
 export const createMainLocation = bsb.action(
   {
     input: v.object({}),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "inventory.manage"),
   },
-  async (_input, { tenant, supabase, auth }) => {
-    const saved = await blocks(supabase).inventory.saveLocation(tenant, {
+  async (_input, { tenant, db, auth }) => {
+    const saved = await db.inventory.saveLocation(tenant, {
       code: "MAIN",
       name: "Main warehouse",
     });
@@ -113,14 +112,11 @@ export const adjustStock = bsb.action(
       reason: v.picklist(ADJUST_REASONS),
       note: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500))),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "inventory.manage"),
   },
-  async (
-    { variantId, locationId, quantity, reason, note },
-    { supabase, auth },
-  ) => {
-    const adjusted = await blocks(supabase).inventory.adjustStock(
+  async ({ variantId, locationId, quantity, reason, note }, { db, auth }) => {
+    const adjusted = await db.inventory.adjustStock(
       variantId,
       locationId,
       quantity,
@@ -148,7 +144,7 @@ export const createDraftOrder = bsb.action(
       variantId: Id,
       quantity: v.pipe(Count, v.minValue(1), v.maxValue(999)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "orders.manage"),
   },
   async ({ variantId, quantity }, { tenant, supabase, auth }) => {
@@ -175,7 +171,7 @@ export const createDraftOrder = bsb.action(
 export const placeOrder = bsb.action(
   {
     input: v.object({ cartId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "orders.manage"),
   },
   async ({ cartId }, { supabase, auth }) => {
@@ -198,7 +194,7 @@ export const placeOrder = bsb.action(
 export const markOrderPaid = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "orders.manage"),
   },
   async ({ orderId }, { supabase, auth }) => {
@@ -246,7 +242,7 @@ export const markOrderPaid = bsb.action(
 export const cancelOrder = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "orders.manage"),
   },
   async ({ orderId }, { supabase, auth }) => {
@@ -269,7 +265,7 @@ export const cancelOrder = bsb.action(
 export const fulfillOrder = bsb.action(
   {
     input: v.object({ orderId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "orders.manage"),
   },
   async ({ orderId }, { supabase, auth }) => {
@@ -288,7 +284,7 @@ export const fulfillOrder = bsb.action(
 export const shipFulfillment = bsb.action(
   {
     input: v.object({ fulfillmentId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "orders.manage"),
   },
   async ({ fulfillmentId }, { supabase, auth }) => {
@@ -307,7 +303,7 @@ export const shipFulfillment = bsb.action(
 export const deliverFulfillment = bsb.action(
   {
     input: v.object({ fulfillmentId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "orders.manage"),
   },
   async ({ fulfillmentId }, { supabase, auth }) => {
@@ -335,11 +331,11 @@ const Code = v.pipe(
 export const applyPromotionCode = bsb.action(
   {
     input: v.object({ cartId: Id, code: Code }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "orders.manage"),
   },
-  async ({ cartId, code }, { supabase, auth }) => {
-    const applied = await blocks(supabase).promotions.applyCode(cartId, code);
+  async ({ cartId, code }, { db, auth }) => {
+    const applied = await db.promotions.applyCode(cartId, code);
 
     if (!applied.ok) {
       return applied;
@@ -354,11 +350,11 @@ export const applyPromotionCode = bsb.action(
 export const removePromotionCode = bsb.action(
   {
     input: v.object({ cartId: Id, code: Code }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "orders.manage"),
   },
-  async ({ cartId, code }, { supabase, auth }) => {
-    const removed = await blocks(supabase).promotions.removeCode(cartId, code);
+  async ({ cartId, code }, { db, auth }) => {
+    const removed = await db.promotions.removeCode(cartId, code);
 
     if (!removed.ok) {
       return removed;
@@ -385,11 +381,11 @@ export const createPromotionCode = bsb.action(
         ),
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "promotions.manage"),
   },
-  async ({ code, percent }, { tenant, supabase }) => {
-    const { promotions } = blocks(supabase);
+  async ({ code, percent }, { tenant, db }) => {
+    const { promotions } = db;
 
     const promotion = await promotions.savePromotion(tenant, {
       name: `${code} (${percent}% off)`,

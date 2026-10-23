@@ -69,7 +69,7 @@ describe("createAstro", () => {
       const caller = await bsb.require(context);
       expect(caller.db).toBeDefined();
       await expect(
-        bsb.require(context, { requireTenant: true }),
+        bsb.require(context, { requireOrganization: true }),
       ).rejects.toBeInstanceOf(Response);
 
       return new Response(null);

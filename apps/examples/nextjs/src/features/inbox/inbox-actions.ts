@@ -7,7 +7,6 @@ import { after } from "next/server";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import { answerHelp } from "./help-bot";
@@ -34,12 +33,12 @@ function laterInstant(later: Later): Temporal.Instant {
 export const loadConversations = bsb.action(
   {
     input: v.object({ status: ConversationStatus, assignee: AssigneeFilter }),
-    requireTenant: true,
+    requireOrganization: true,
   },
-  async ({ status, assignee }, { tenant, supabase }) => {
+  async ({ status, assignee }, { tenant, db }) => {
     const filter: ConversationFilter = { status, limit: 50 };
 
-    const listed = await blocks(supabase).inbox.conversations.list(
+    const listed = await db.inbox.conversations.list(
       tenant,
       assignee === "anyone" ? filter : { ...filter, assignee },
     );
@@ -54,8 +53,8 @@ export const loadConversations = bsb.action(
  */
 export const loadThread = bsb.action(
   { input: ConversationInput },
-  async ({ conversationId }, { supabase }) => {
-    const { inbox } = blocks(supabase);
+  async ({ conversationId }, { db }) => {
+    const { inbox } = db;
 
     const [conversation, messages] = await Promise.all([
       inbox.conversations.get(conversationId),
@@ -96,8 +95,8 @@ export const loadThread = bsb.action(
 /** One message, for the Realtime ping that names it. */
 export const loadMessage = bsb.action(
   { input: v.object({ messageId: Id }) },
-  async ({ messageId }, { supabase }) => {
-    const message = await blocks(supabase).inbox.messages.get(messageId);
+  async ({ messageId }, { db }) => {
+    const message = await db.inbox.messages.get(messageId);
 
     return message.ok
       ? ok(message.data === null ? null : toMessageRow(message.data))
@@ -108,8 +107,8 @@ export const loadMessage = bsb.action(
 /** A reply to the contact, or with `note` an internal note only staff see. */
 export const reply = bsb.action(
   { input: v.object({ conversationId: Id, body: Body, note: v.boolean() }) },
-  async ({ conversationId, body, note }, { supabase }) => {
-    const { messages } = blocks(supabase).inbox;
+  async ({ conversationId, body, note }, { db }) => {
+    const { messages } = db.inbox;
 
     const sent = note
       ? await messages.note(conversationId, body)
@@ -121,11 +120,10 @@ export const reply = bsb.action(
 
 export const assign = bsb.action(
   { input: v.object({ conversationId: Id, toMe: v.boolean() }) },
-  async ({ conversationId, toMe }, { auth, supabase }) => {
-    const assigned = await blocks(supabase).inbox.conversations.assign(
-      conversationId,
-      { assigneeId: toMe && auth.kind === "user" ? auth.user.id : null },
-    );
+  async ({ conversationId, toMe }, { auth, db }) => {
+    const assigned = await db.inbox.conversations.assign(conversationId, {
+      assigneeId: toMe && auth.kind === "user" ? auth.user.id : null,
+    });
 
     return assigned.ok ? ok(assigned.data.assigneeId) : assigned;
   },
@@ -134,8 +132,8 @@ export const assign = bsb.action(
 /** Hands a bot conversation to staff. */
 export const takeOver = bsb.action(
   { input: ConversationInput },
-  async ({ conversationId }, { supabase }) => {
-    const changed = await blocks(supabase).inbox.conversations.handoff(
+  async ({ conversationId }, { db }) => {
+    const changed = await db.inbox.conversations.handoff(
       conversationId,
       "staff took over",
     );
@@ -146,8 +144,8 @@ export const takeOver = bsb.action(
 
 export const setStatus = bsb.action(
   { input: v.object({ conversationId: Id, resolved: v.boolean() }) },
-  async ({ conversationId, resolved }, { supabase }) => {
-    const { conversations } = blocks(supabase).inbox;
+  async ({ conversationId, resolved }, { db }) => {
+    const { conversations } = db.inbox;
 
     const changed = resolved
       ? await conversations.resolve(conversationId)
@@ -160,8 +158,8 @@ export const setStatus = bsb.action(
 /** Hides the conversation until the time comes; then it opens again. */
 export const snooze = bsb.action(
   { input: v.object({ conversationId: Id, until: Later }) },
-  async ({ conversationId, until }, { supabase }) => {
-    const changed = await blocks(supabase).inbox.conversations.snooze(
+  async ({ conversationId, until }, { db }) => {
+    const changed = await db.inbox.conversations.snooze(
       conversationId,
       laterInstant(until),
     );
@@ -173,9 +171,8 @@ export const snooze = bsb.action(
 /** The caller's replies on the conversation that wait to go out. */
 export const loadScheduled = bsb.action(
   { input: ConversationInput },
-  async ({ conversationId }, { supabase }) => {
-    const listed =
-      await blocks(supabase).inbox.messages.scheduled(conversationId);
+  async ({ conversationId }, { db }) => {
+    const listed = await db.inbox.messages.scheduled(conversationId);
 
     return listed.ok ? ok(listed.data.map(toScheduledRow)) : listed;
   },
@@ -184,8 +181,8 @@ export const loadScheduled = bsb.action(
 /** A reply that goes out later, as the caller, when `publishDue` runs. */
 export const scheduleReply = bsb.action(
   { input: v.object({ conversationId: Id, body: Body, at: Later }) },
-  async ({ conversationId, body, at }, { supabase }) => {
-    const scheduled = await blocks(supabase).inbox.messages.schedule(
+  async ({ conversationId, body, at }, { db }) => {
+    const scheduled = await db.inbox.messages.schedule(
       conversationId,
       { body },
       laterInstant(at),
@@ -197,8 +194,8 @@ export const scheduleReply = bsb.action(
 
 export const cancelScheduled = bsb.action(
   { input: v.object({ scheduledId: Id }) },
-  async ({ scheduledId }, { supabase }) =>
-    blocks(supabase).inbox.messages.cancelScheduled(scheduledId),
+  async ({ scheduledId }, { db }) =>
+    db.inbox.messages.cancelScheduled(scheduledId),
 );
 
 /**
@@ -207,11 +204,12 @@ export const cancelScheduled = bsb.action(
  */
 export const askForHelp = bsb.action(
   { input: v.object({ message: Body }) },
-  async ({ message }, { auth, supabase }) => {
-    const opened = await blocks(supabase).inbox.conversations.open(
-      HELP_INBOX_ID,
-      { subject: message.slice(0, 80), message, botMode: "bot" },
-    );
+  async ({ message }, { auth, db, supabase }) => {
+    const opened = await db.inbox.conversations.open(HELP_INBOX_ID, {
+      subject: message.slice(0, 80),
+      message,
+      botMode: "bot",
+    });
 
     if (!opened.ok) {
       return opened;
@@ -229,8 +227,8 @@ export const askForHelp = bsb.action(
 /** The Help sheet's later messages, as the conversation's contact. */
 export const sendHelp = bsb.action(
   { input: v.object({ conversationId: Id, message: Body }) },
-  async ({ conversationId, message }, { auth, supabase }) => {
-    const sent = await blocks(supabase).inbox.messages.send(conversationId, {
+  async ({ conversationId, message }, { auth, db, supabase }) => {
+    const sent = await db.inbox.messages.send(conversationId, {
       body: message,
     });
 

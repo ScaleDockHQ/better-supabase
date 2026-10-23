@@ -225,7 +225,7 @@ DOM and React Native.
 export const startCheckout = bsb.action(
   {
     input: v.object({ plan: v.string() }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "billing.manage"),
   },
   async ({ plan }, { tenant }) =>

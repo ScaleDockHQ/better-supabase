@@ -2,7 +2,6 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import type { FieldEntity, FieldRow } from "./custom-fields-types";
@@ -20,16 +19,14 @@ async function loadFields(
   entity: FieldEntity,
 ): Promise<readonly FieldRow[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const definitions = await blocks(supabase, tenant)
-    .customFields.listDefinitions(entity)
-    .orThrow();
+  const definitions = await db.customFields.listDefinitions(entity).orThrow();
 
   return definitions.map((definition) => ({
     id: definition.id,

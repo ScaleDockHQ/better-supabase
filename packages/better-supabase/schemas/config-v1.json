@@ -2545,6 +2545,17 @@
         "recordTypes": {
           "type": "boolean"
         },
+        "hooks": {
+          "anyOf": [
+            {
+              "enum": ["react", "vue", "svelte", "solid"],
+              "type": "string"
+            },
+            {
+              "const": false
+            }
+          ]
+        },
         "tables": {
           "type": "object",
           "additionalProperties": {

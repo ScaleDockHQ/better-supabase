@@ -5,6 +5,8 @@ import {
   type GeneratedBlocks,
 } from "better-supabase/blocks";
 import type { TrashEvents } from "better-supabase/blocks/trash";
+import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { trashBlock as trashBlockInstance } from "better-supabase/blocks/trash";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -33,6 +35,17 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * Every installed block instance with a client, under its key, for
+ * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give
+ * a block its ports (`notifications: notificationsBlock.using(...)`).
+ * @public
+ */
+export const blocks = {
+  permissions: permissionsBlockInstance,
+  trash: trashBlockInstance,
+} as const;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,

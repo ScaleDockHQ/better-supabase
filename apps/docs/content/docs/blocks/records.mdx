@@ -145,8 +145,8 @@ record type's blocks; `invalidateOnRecordEvents(queryClient, betterSupabase,
 customerRecord)` makes a binding stale when one of its events arrives:
 
 ```ts
-const customer = recordQueries(customerRecord, blocks(supabase), {
-  access: blocks(supabase).access,
+const customer = recordQueries(customerRecord, bsb.db.$blocks, {
+  access: bsb.db.$blocks.permissions,
 });
 const comments = useQuery(customer.bindings.comments(id));
 const add = useMutation(customer.writes.comments.add(id));
@@ -164,22 +164,20 @@ is a plain function, so a hand-written record type works the same way.
 ## Load a record
 
 `loadBindings(source, subject, names, options?)` takes the manifests and the
-clients built from them, keyed alike, such as `blockSet.blocks` and the
-blocks you built with `blockSet.create(...)`. It runs the bindings in
-parallel and never throws:
+clients built from them, keyed alike, such as `blockSet.blocks` and
+`db.$blocks`. It runs the bindings in parallel and never throws:
 
 ```ts title="src/features/customers/customer-queries.ts"
 import { loadBindings, bindingCan } from "better-supabase/records";
 
-import { blockSet, blocks } from "@/lib/blocks";
+import { blockSet, type AppDb } from "@/lib/supabase";
 import { permissions } from "@/lib/supabase/blocks.generated";
 
-export async function customerBindings(supabase: Client, id: string) {
-  const built = blocks(supabase);
-  const set = await built.access.permissions();
+export async function customerBindings(db: AppDb, id: string) {
+  const set = await db.permissions.permissions();
 
   return loadBindings(
-    { blocks: blockSet.blocks, clients: built },
+    { blocks: blockSet.blocks, clients: db.$blocks },
     { type: "customer", id },
     ["comments", "attachments", "tags"],
     {
@@ -245,7 +243,7 @@ import { createRecordController } from "better-supabase/records";
 import { topicPort } from "better-supabase/realtime";
 
 const record = createRecordController({
-  source: { blocks: blockSet.blocks, clients: blocks(supabase) },
+  source: { blocks: blockSet.blocks, clients: bsb.db.$blocks },
   auth: bsb.auth,
   ports: { topic: topicPort(supabase) },
   subject: { type: "customer", id },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { requireTenant } from "../../src/core/block-tenant.ts";
+import { requireOrganization } from "../../src/core/block-tenant.ts";
 import { currentTenant } from "../../src/core/tenant-source.ts";
 
 describe("currentTenant", () => {
@@ -23,16 +23,16 @@ describe("currentTenant", () => {
   });
 });
 
-describe("requireTenant", () => {
+describe("requireOrganization", () => {
   it("returns the tenant", async () => {
-    expect(await requireTenant(() => "org-1")).toMatchObject({
+    expect(await requireOrganization(() => "org-1")).toMatchObject({
       ok: true,
       data: "org-1",
     });
   });
 
   it("fails with TENANT_REQUIRED when there is none", async () => {
-    const result = await requireTenant(() => undefined);
+    const result = await requireOrganization(() => undefined);
 
     expect(result.ok).toBe(false);
     expect(result.ok ? undefined : result.error).toMatchObject({

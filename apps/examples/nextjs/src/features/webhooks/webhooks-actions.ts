@@ -7,7 +7,6 @@ import * as v from "valibot";
 
 import { requireCaller, sqlResult } from "@/features/developer/postgres";
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -38,7 +37,7 @@ const CreateEndpoint = v.object({
   ),
 });
 
-const manage = { requireTenant: true, authorize: canManage } as const;
+const manage = { requireOrganization: true, authorize: canManage } as const;
 
 function canManage(session: Parameters<typeof can>[0]): boolean {
   return can(session, "webhooks.manage");
@@ -176,8 +175,8 @@ export const deleteWebhookEndpoint = bsb.action(
 /** Queues a `webhook.test` event for one endpoint, outside its filters. */
 export const sendTestWebhook = bsb.action(
   { ...manage, input: v.object({ id: Id }) },
-  async ({ id }, { supabase, auth }) => {
-    const sent = await blocks(supabase).webhooks.dispatch({
+  async ({ id }, { db, auth }) => {
+    const sent = await db.webhooks.dispatch({
       endpointId: id,
       type: "webhook.test",
       data: { message: "A test event from the webhooks settings page" },
@@ -194,8 +193,8 @@ export const sendTestWebhook = bsb.action(
 /** Queues a finished delivery again (`redeliver_webhook`). */
 export const redeliverWebhook = bsb.action(
   { ...manage, input: v.object({ id: Id }) },
-  async ({ id }, { supabase, auth }) => {
-    const queued = await blocks(supabase).webhooks.redeliver(id);
+  async ({ id }, { db, auth }) => {
+    const queued = await db.webhooks.redeliver(id);
 
     if (queued.ok) {
       refreshCaller(auth);

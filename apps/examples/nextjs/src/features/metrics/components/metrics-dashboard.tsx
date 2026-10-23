@@ -37,7 +37,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 import { metrics } from "@/metrics";
 
@@ -66,7 +65,7 @@ async function loadPanels(
   organizationId: string,
 ): Promise<readonly MetricPanel[]> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
+  const { db } = await bsb.cached();
   const until = Temporal.Now.instant();
 
   const range = {
@@ -74,7 +73,7 @@ async function loadPanels(
     until,
   };
 
-  const client = blocks(supabase).metrics;
+  const client = db.metrics;
 
   return Promise.all(
     metrics.map(async ({ key }) => {

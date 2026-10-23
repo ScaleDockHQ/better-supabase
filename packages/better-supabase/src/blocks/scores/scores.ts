@@ -8,7 +8,7 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -353,7 +353,7 @@ function modelArg(input: ScoreModelInput): Record<string, unknown> {
 export function createScores(options: ScoresOptions): Scores {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const client: Scores = {
     saveModel: (input) =>

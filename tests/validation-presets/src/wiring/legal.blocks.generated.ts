@@ -21,6 +21,29 @@ import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
 import type { VersionsEvents } from "better-supabase/blocks/versions";
+import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
+import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
+import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
+import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
+import { documentsBlock as documentsBlockInstance } from "better-supabase/blocks/documents";
+import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledger";
+import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { billableTimeBlock as billableTimeBlockInstance } from "better-supabase/blocks/billable-time";
+import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { signaturesBlock as signaturesBlockInstance } from "better-supabase/blocks/signatures";
+import { invoicesBlock as invoicesBlockInstance } from "better-supabase/blocks/invoices";
+import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
+import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
+import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
+import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
+import { contactsBlock as contactsBlockInstance } from "better-supabase/blocks/contacts";
+import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
+import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
+import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
+import { timeTrackingBlock as timeTrackingBlockInstance } from "better-supabase/blocks/time-tracking";
+import { versionsBlock as versionsBlockInstance } from "better-supabase/blocks/versions";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -133,6 +156,38 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * Every installed block instance with a client, under its key, for
+ * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give
+ * a block its ports (`notifications: notificationsBlock.using(...)`).
+ * @public
+ */
+export const blocks = {
+  permissions: permissionsBlockInstance,
+  "api-keys": apiKeysBlockInstance,
+  approvals: approvalsBlockInstance,
+  audit: auditBlockInstance,
+  billing: billingBlockInstance,
+  documents: documentsBlockInstance,
+  ledger: ledgerBlockInstance,
+  enrollments: enrollmentsBlockInstance,
+  "billable-time": billableTimeBlockInstance,
+  entitlements: entitlementsBlockInstance,
+  signatures: signaturesBlockInstance,
+  invoices: invoicesBlockInstance,
+  notifications: notificationsBlockInstance,
+  onboarding: onboardingBlockInstance,
+  organizations: organizationsBlockInstance,
+  outbox: outboxBlockInstance,
+  contacts: contactsBlockInstance,
+  profiles: profilesBlockInstance,
+  settings: settingsBlockInstance,
+  subjects: subjectsBlockInstance,
+  teams: teamsBlockInstance,
+  "time-tracking": timeTrackingBlockInstance,
+  versions: versionsBlockInstance,
+} as const;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,

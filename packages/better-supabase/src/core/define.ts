@@ -7,6 +7,7 @@ import type {
 } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
 import type { CacheAdapter, CacheTarget } from "./cache.ts";
+import type { BlockSetClients, DbBlockSource, WithExtra } from "./db-blocks.ts";
 import type { BucketRegistry } from "./db-buckets.ts";
 import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
 import type { DbError, ErrorMapper } from "./errors.ts";
@@ -33,6 +34,7 @@ import type { RequestTuning } from "./timeout.ts";
 import { builderFor } from "../ir/build.ts";
 import { batchingExecutor } from "./batch.ts";
 import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
+import { blocksPrototype } from "./db-blocks.ts";
 import { searchTable } from "./db-search.ts";
 import { NO_PLUGINS, isExecutor, keptPlugins } from "./define-plugins.ts";
 import { definitionEvents } from "./diagnostics.ts";
@@ -283,11 +285,44 @@ export class BetterSupabase<
    */
   buckets<const R extends BucketRegistry>(
     registered: R,
-  ): BetterSupabase<M, D, F, E, C, P, R> {
+  ): BetterSupabase<M, D, F, E, C, P, WithExtra<B, "buckets", R>> {
     return new BetterSupabase(
       this.schema,
       this.plugins,
       { ...this.options, buckets: registered },
+      this.events,
+    );
+  }
+
+  /**
+   * Returns a new instance whose every `Db` has the installed block instances
+   * as properties, under their keys in camel case. Each client runs as the
+   * `Db`'s caller and acts in its organization (`db.$context.tenant`), so app
+   * code passes neither a transport nor an organization.
+   *
+   * ```ts
+   * export const betterSupabase = defineSupabase(schema).blocks(
+   *   defineBlocks(blockConfig, blocks),
+   * );
+   * const db = await bsb.db();
+   * await db.tags.list({ kind: "customer" });
+   * ```
+   */
+  blocks<const S extends DbBlockSource>(
+    set: S,
+  ): BetterSupabase<
+    M,
+    D,
+    F,
+    E,
+    C,
+    P,
+    WithExtra<B, "blocks", BlockSetClients<S>>
+  > {
+    return new BetterSupabase(
+      this.schema,
+      this.plugins,
+      { ...this.options, blocks: set },
       this.events,
     );
   }
@@ -944,9 +979,19 @@ export class BetterSupabase<
       });
     }
 
-    this.#tables = tables;
+    const { blocks } = this.options;
 
-    return tables;
+    this.#tables =
+      blocks === undefined
+        ? tables
+        : blocksPrototype(
+            blocks,
+            tables,
+            Object.keys(this.meta.tables),
+            this.events,
+          );
+
+    return this.#tables;
   }
 
   #repository(

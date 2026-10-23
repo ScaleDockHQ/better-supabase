@@ -8,7 +8,6 @@ import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
@@ -59,14 +58,14 @@ export async function loadDirectory(): Promise<
   readonly DirectoryEmployee[] | null
 > {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const chart = await blocks(supabase).employees.orgChart(tenant).orThrow();
+  const chart = await db.employees.orgChart(tenant).orThrow();
 
   return chart.map((employee) => ({
     id: employee.id,
@@ -115,14 +114,14 @@ export async function loadTimesheet(
   week: string,
 ): Promise<TimesheetWeek | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { timeTracking } = blocks(supabase, tenant);
+  const { timeTracking } = db;
 
   const [sheet, running] = await Promise.all([
     timeTracking.timesheet(Temporal.PlainDate.from(week)).orThrow(),
@@ -227,19 +226,17 @@ export interface HiringBoardData {
  */
 export async function loadHiringBoard(): Promise<HiringBoardData | null> {
   "use cache: private";
-  const { session, supabase, db } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { call } = blocks(supabase);
-
   const [jobs, applications, pipelines, customers] = await Promise.all([
-    call("list_jobs", { tenant }),
-    call("list_applications", { tenant }),
-    call("list_pipelines", { tenant, subject_type: "application" }),
+    db.$api("list_jobs", { tenant }),
+    db.$api("list_applications", { tenant }),
+    db.$api("list_pipelines", { tenant, subject_type: "application" }),
     db.customers
       .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
       .orThrow(),

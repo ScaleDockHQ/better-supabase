@@ -27,7 +27,7 @@ export const addProviderKey = bsb.action(
       ),
       apiKey: v.pipe(v.string(), v.trim(), v.minLength(8), v.maxLength(500)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "ai.admin"),
   },
   async ({ provider, name, model, apiKey }, { tenant, supabase }) => {
@@ -65,7 +65,7 @@ export const addProviderKey = bsb.action(
 export const removeProviderKey = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "ai.admin"),
   },
   async ({ id }, { supabase }) => {

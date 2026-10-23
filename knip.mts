@@ -87,6 +87,7 @@ const config: KnipConfig = {
         "src/components/ui/**",
         "src/components/reui/**",
         "src/lib/supabase/records/**",
+        "src/lib/supabase/hooks.ts",
       ],
       // Knip's Playwright plugin finds the specs and the `webServer`
       // command; the setup project is a `testMatch` regex, which it can't read.

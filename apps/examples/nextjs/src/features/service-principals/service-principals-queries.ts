@@ -1,7 +1,6 @@
 import "server-only";
 import { tenantOf } from "better-supabase/next";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 export interface ServicePrincipalRow {
@@ -22,14 +21,14 @@ export async function loadServicePrincipals(): Promise<
   readonly ServicePrincipalRow[] | null
 > {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const listed = await blocks(supabase).servicePrincipals.list(tenant);
+  const listed = await db.serviceAccounts.list(tenant);
 
   if (!listed.ok) {
     throw new Error(listed.error.message);

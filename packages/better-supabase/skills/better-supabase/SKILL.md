@@ -125,9 +125,9 @@ the `better-supabase-auth` skill.
 ## Forms and actions (Next.js)
 
 - Put the permission check in the action's options, not its body:
-  `bsb.action({ input, requireTenant: true, authorize: (session, input) => can(session, "members.invite") }, (input, { db, tenant, session }) => ...)`.
-  `requireTenant` types `tenant` as a string; a refusal is a `forbidden`
-  `ActionResult`. `bsb.route(handler, { requireTenant, authorize })` takes the same.
+  `bsb.action({ input, requireOrganization: true, authorize: (session, input) => can(session, "members.invite") }, (input, { db, tenant, session }) => ...)`.
+  `requireOrganization` types `tenant` as a string; a refusal is a `forbidden`
+  `ActionResult`. `bsb.route(handler, { requireOrganization, authorize })` takes the same.
 - A form: `const form = useActionForm(action, { onSuccess })` from
   `better-supabase/react`, then `<form {...form.formProps}>`, `form.pending`
   and `form.fieldErrors.<field>`. Fields survive a failed submit. Pass

@@ -21,11 +21,11 @@ const ParentId = v.pipe(
 export const createDriveFolder = bsb.action(
   {
     input: v.object({ parentId: ParentId, name: Name }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.create"),
   },
-  async ({ parentId, name }, { tenant, supabase, auth }) => {
-    const folder = await driveOf(supabase).createFolder(tenant, {
+  async ({ parentId, name }, { tenant, db, auth }) => {
+    const folder = await driveOf(db).createFolder(tenant, {
       parentId,
       name,
       conflict: "rename",
@@ -54,11 +54,11 @@ export const startDriveUpload = bsb.action(
       mimeType: v.pipe(v.string(), v.maxLength(255)),
       size: v.pipe(v.number(), v.integer(), v.minValue(1)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.create"),
   },
-  async ({ parentId, name, mimeType, size }, { tenant, supabase }) => {
-    const upload = await driveOf(supabase).upload(tenant, {
+  async ({ parentId, name, mimeType, size }, { tenant, db }) => {
+    const upload = await driveOf(db).upload(tenant, {
       parentId,
       name,
       mimeType: mimeType || "application/octet-stream",
@@ -86,11 +86,11 @@ export const startDriveUpload = bsb.action(
 export const commitDriveUpload = bsb.action(
   {
     input: v.object({ nodeId: Id, attachmentId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.create"),
   },
-  async ({ nodeId, attachmentId }, { supabase, auth }) => {
-    const committed = await driveOf(supabase).commit(nodeId, attachmentId);
+  async ({ nodeId, attachmentId }, { db, auth }) => {
+    const committed = await driveOf(db).commit(nodeId, attachmentId);
 
     if (!committed.ok) {
       return committed;
@@ -106,22 +106,20 @@ export const commitDriveUpload = bsb.action(
 export const abandonDriveUpload = bsb.action(
   {
     input: v.object({ nodeId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.create"),
   },
-  async ({ nodeId }, { supabase }) => driveOf(supabase).delete(nodeId),
+  async ({ nodeId }, { db }) => driveOf(db).delete(nodeId),
 );
 
 export const renameDriveItem = bsb.action(
   {
     input: v.object({ id: Id, name: Name }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.create"),
   },
-  async ({ id, name }, { supabase, auth }) => {
-    const renamed = await driveOf(supabase).rename(id, name, {
-      conflict: "rename",
-    });
+  async ({ id, name }, { db, auth }) => {
+    const renamed = await driveOf(db).rename(id, name, { conflict: "rename" });
 
     if (!renamed.ok) {
       return renamed;
@@ -140,11 +138,11 @@ export const renameDriveItem = bsb.action(
 export const trashDriveItem = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.create"),
   },
-  async ({ id }, { supabase, auth }) => {
-    const trashed = await driveOf(supabase).trash(id);
+  async ({ id }, { db, auth }) => {
+    const trashed = await driveOf(db).trash(id);
 
     if (!trashed.ok) {
       return trashed;
@@ -160,11 +158,11 @@ export const trashDriveItem = bsb.action(
 export const downloadDriveFile = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.read"),
   },
-  async ({ id }, { supabase }) => {
-    const download = await driveOf(supabase).download(id, { as: true });
+  async ({ id }, { db }) => {
+    const download = await driveOf(db).download(id, { as: true });
 
     if (!download.ok) {
       return download;
@@ -178,11 +176,11 @@ export const downloadDriveFile = bsb.action(
 export const requestDriveApproval = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "drive.create"),
   },
-  async ({ id }, { supabase, auth }) => {
-    const requested = await driveOf(supabase).requestApproval(id);
+  async ({ id }, { db, auth }) => {
+    const requested = await driveOf(db).requestApproval(id);
 
     if (!requested.ok) {
       return requested;

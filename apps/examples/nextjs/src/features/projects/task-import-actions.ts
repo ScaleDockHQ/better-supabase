@@ -95,7 +95,7 @@ export interface TaskImportOutcome {
 export const previewTaskImport = bsb.action(
   {
     input: Input,
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "imports.manage"),
   },
   async ({ projectId, csv, mapping }, { tenant, db }) => {
@@ -123,10 +123,10 @@ export const previewTaskImport = bsb.action(
 export const runTaskImport = bsb.action(
   {
     input: Input,
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "imports.manage"),
   },
-  async ({ projectId, csv, mapping }, { tenant, db, supabase, auth }) => {
+  async ({ projectId, csv, mapping }, { tenant, db, auth }) => {
     const definition = appTableImport({
       table: "tasks",
       columns: taskRow(projectId, tenant),
@@ -134,7 +134,7 @@ export const runTaskImport = bsb.action(
       key: ["projectId", "title"],
     });
 
-    const hooks = importRunHooks(supabase, tenant, "tasks", mapping);
+    const hooks = importRunHooks(db, tenant, "tasks", mapping);
 
     try {
       const result = await runImport(definition, csv, mapping, hooks);

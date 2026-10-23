@@ -23,7 +23,7 @@ import type {
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
   blockCall,
@@ -452,7 +452,7 @@ export function createMessaging<
     ? blockCall(options.service, options.schema, options.mappers)
     : call;
 
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
   const fields: BlockFields<F> = blockFields(options.fields, "message fields");
 
   const one = (fn: string, args: Record<string, unknown>) =>

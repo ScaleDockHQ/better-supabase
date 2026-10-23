@@ -10,7 +10,6 @@ import { tenantOf } from "better-supabase/next";
 import { notFound, unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
@@ -71,14 +70,14 @@ export type Loaded<T> =
 /** A failed read throws, so it is never cached and Retry reads again. */
 async function loadForms(): Promise<readonly FormSummary[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const forms = await blocks(supabase).forms.list(tenant).orThrow();
+  const forms = await db.forms.list(tenant).orThrow();
 
   return forms.map((form) => ({
     id: form.id,
@@ -115,8 +114,8 @@ function answerCells(answers: FormSubmission["answers"]) {
 
 async function loadForm(id: string): Promise<FormDetailView | "not-found"> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
-  const { forms } = blocks(supabase);
+  const { db } = await bsb.cached();
+  const { forms } = db;
 
   const [detail, submissions] = await Promise.all([
     forms.get(id),

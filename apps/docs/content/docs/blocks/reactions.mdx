@@ -84,7 +84,7 @@ const emoji = await reactions.customEmoji().orThrow();
 
 ## Realtime
 
-Every change broadcasts `changed` with the `subjectType` and `subjectId` to `reactions:{organizationId}` (`options.topic` renames the prefix). Members with `reactions.read` can join it. `useReactions` from `better-supabase/blocks/reactions/react` loads the subjects on screen and loads them again when one of them changes. It reads the schema and the topic from the `blocks` config passed to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`), so `topic` is only needed to override it (`null` loads without listening), and it acts in the client's tenant: the client's `tenant` option, then the session's tenant claim. It waits while there is no tenant.
+Every change broadcasts `changed` with the `subjectType` and `subjectId` to `reactions:{organizationId}` (`options.topic` renames the prefix). Members with `reactions.read` can join it. `useReactions` from `better-supabase/blocks/reactions/react` loads the subjects on screen and loads them again when one of them changes. It reads the schema and the topic from the `blocks` config passed to the browser client (`createClient(betterSupabase, { blocks: blockConfig })`), so `topic` is only needed to override it (`null` loads without listening), and it acts in the client's tenant: the client's `organization` option, then the session's organization claim. It waits while there is no tenant.
 
 ```tsx
 import { useReactions } from "better-supabase/blocks/reactions/react";

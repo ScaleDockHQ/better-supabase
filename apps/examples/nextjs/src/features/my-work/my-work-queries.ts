@@ -5,7 +5,6 @@ import { tenantOf } from "better-supabase/next";
 import { loadMyWork } from "better-supabase/records";
 import { unstable_rethrow } from "next/navigation";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 export interface MyWorkRow {
@@ -34,16 +33,14 @@ export type Loaded<T> =
  */
 async function loadView(): Promise<MyWorkView | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const work = await loadMyWork(blocks(supabase, tenant).subjects, {
-    tenant,
-  }).orThrow();
+  const work = await loadMyWork(db.subjects, { tenant }).orThrow();
 
   return {
     rows: work.items.map((item) => ({

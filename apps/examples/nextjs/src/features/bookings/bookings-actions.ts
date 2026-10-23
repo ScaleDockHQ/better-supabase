@@ -7,7 +7,6 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -40,21 +39,21 @@ export const setUpBookingPage = bsb.action(
     input: v.object({
       tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "bookings.manage"),
   },
-  async ({ tz }, { tenant, supabase, session, auth }) => {
+  async ({ tz }, { tenant, db, session, auth }) => {
     if (session.kind !== "user") {
       return notSetUp();
     }
 
     const userId = session.user.id;
 
-    if (await findBookingPage(supabase, tenant, userId)) {
+    if (await findBookingPage(db, tenant, userId)) {
       return ok(null);
     }
 
-    const { bookings, calendar } = blocks(supabase);
+    const { bookings, calendar } = db;
     const kind = `person:${userId}`;
     const name = session.user.email ?? "Booking page";
     const resource = await bookings.saveResource(tenant, { name, kind, tz });
@@ -116,23 +115,20 @@ export const saveWeeklyHours = bsb.action(
         v.maxLength(7),
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "bookings.manage"),
   },
-  async ({ hours }, { tenant, supabase, session, auth }) => {
+  async ({ hours }, { tenant, db, session, auth }) => {
     const page =
       session.kind === "user"
-        ? await findBookingPage(supabase, tenant, session.user.id)
+        ? await findBookingPage(db, tenant, session.user.id)
         : null;
 
     if (!page) {
       return notSetUp();
     }
 
-    const saved = await blocks(supabase).bookings.setAvailability(
-      page.resourceId,
-      hours,
-    );
+    const saved = await db.bookings.setAvailability(page.resourceId, hours);
 
     if (!saved.ok) {
       return saved;
@@ -148,21 +144,21 @@ export const saveWeeklyHours = bsb.action(
 export const createBookingLink = bsb.action(
   {
     input: v.object({}),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) =>
       can(session, "bookings.manage") && can(session, "share_links.create"),
   },
-  async (_input, { tenant, supabase, session, auth }) => {
+  async (_input, { tenant, db, session, auth }) => {
     const page =
       session.kind === "user"
-        ? await findBookingPage(supabase, tenant, session.user.id)
+        ? await findBookingPage(db, tenant, session.user.id)
         : null;
 
     if (!page) {
       return notSetUp();
     }
 
-    const created = await blocks(supabase, tenant).shareLinks.create(
+    const created = await db.shareLinks.create(
       { type: BOOKING_SERVICE_SUBJECT, id: page.serviceId },
       { role: "view" },
     );
@@ -190,11 +186,8 @@ export const bookSlot = bsb.action(
     }),
     allow: ["anon", "user"],
   },
-  async (
-    { token, resourceId, startsAt, name, email, notes },
-    { supabase, auth },
-  ) => {
-    const booking = blocks(supabase).bookings.public;
+  async ({ token, resourceId, startsAt, name, email, notes }, { db, auth }) => {
+    const booking = db.bookings.public;
 
     const customer: Writable<BookingCustomer> & {
       name: string;

@@ -129,9 +129,7 @@ items by kind and counts them for tab badges, in one round trip:
 ```ts title="src/features/my-work/my-work-queries.ts"
 import { loadMyWork } from "better-supabase/records";
 
-const work = await loadMyWork(blocks(supabase, tenant).subjects, {
-  tenant,
-}).orThrow();
+const work = await loadMyWork(db.subjects, { tenant }).orThrow();
 
 work.groups.approval; // approvals the caller can decide
 work.counts.assigned; // 3

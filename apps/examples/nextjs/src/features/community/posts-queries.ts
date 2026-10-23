@@ -8,7 +8,6 @@ import type {
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -40,14 +39,14 @@ export interface BoardView {
 /** `null` board: the organization has none yet. */
 async function loadBoard(): Promise<{ board: BoardView | null } | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { posts } = blocks(supabase, tenant);
+  const { posts } = db;
   const [board] = await posts.boards().orThrow();
 
   if (board === undefined) {

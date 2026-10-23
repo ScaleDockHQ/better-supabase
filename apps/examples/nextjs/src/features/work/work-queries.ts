@@ -5,7 +5,6 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 
 import { getMembers } from "@/features/organization/organization-queries";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import type {
@@ -67,14 +66,18 @@ export async function getWorkBoard(
   teamId: string | null,
 ): Promise<WorkBoardData | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { pipelines, workItems } = blocks(supabase);
+  const {
+    pipelines,
+    $blocks: { tasks: workItems },
+  } = db;
+
   const options: Writable<WorkItemListOptions> = { limit: PAGE_SIZE };
 
   if (teamId !== null) {
@@ -103,14 +106,14 @@ export async function getWorkBoard(
 /** The organization's teams, for the team picker. */
 export async function getTeams(): Promise<readonly TeamOption[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const teams = await blocks(supabase).teams.list(tenant).orThrow();
+  const teams = await db.teams.list(tenant).orThrow();
 
   return teams
     .map((team) => ({ id: team.id, name: team.name }))
@@ -179,14 +182,18 @@ export async function getWorkGrid(
   query: WorkGridQuery,
 ): Promise<WorkGridData | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { pipelines, workItems } = blocks(supabase);
+  const {
+    pipelines,
+    $blocks: { tasks: workItems },
+  } = db;
+
   const options: Writable<WorkItemListOptions> = { limit: PAGE_SIZE };
 
   if (query.q !== "") {
@@ -221,15 +228,15 @@ export async function getWorkViews(): Promise<
   readonly SavedViewOption[] | null
 > {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const views = await blocks(supabase)
-    .savedViews.list(tenant, WORK_ITEM_LIST)
+  const views = await db.$blocks.savedViews
+    .list(tenant, WORK_ITEM_LIST)
     .orThrow();
 
   return views.map((view) => {

@@ -8,7 +8,7 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { BlockTenantOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -98,7 +98,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
     id: textOf(recordOf(value, label)["id"]),
   });
 
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const client: CustomFields = {
     listDefinitions: (entity) =>

@@ -1,7 +1,6 @@
 import "server-only";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 const Row = v.object({ name: v.string(), status: v.string() });
@@ -22,9 +21,9 @@ export async function getSharedCustomer(
   token: string,
 ): Promise<SharedCustomer | null> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
+  const { db } = await bsb.cached();
 
-  const link = await blocks(supabase).shareLinks.resolve(token).orThrow();
+  const link = await db.shareLinks.resolve(token).orThrow();
 
   if (link?.subject.type !== "customer") {
     return null;

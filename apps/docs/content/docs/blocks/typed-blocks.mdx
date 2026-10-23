@@ -112,18 +112,13 @@ of a string:
 import * as v from "valibot";
 
 import { bsb } from "@/lib/bsb";
-import { blocks } from "@/lib/blocks";
 import { permissions } from "@/lib/supabase/blocks.generated";
 
-export const renameTask = bsb.blockAction(
-  ({ supabase }) => blocks(supabase).tasks,
-  "update",
-  {
-    input: v.object({ taskId: v.string(), title: v.string() }),
-    permission: permissions["tasks"].write,
-    args: ({ taskId, title }) => [[{ taskId, field: "title", value: title }]],
-  },
-);
+export const renameTask = bsb.blockAction(({ db }) => db.tasks, "update", {
+  input: v.object({ taskId: v.string(), title: v.string() }),
+  permission: permissions["tasks"].write,
+  args: ({ taskId, title }) => [[{ taskId, field: "title", value: title }]],
+});
 ```
 
 `urls.task({ id: task.id })` builds the link to the same row.

@@ -38,7 +38,7 @@ export interface AuthorizeOptions<
   X = ResourceLoaderContext<C, P>,
 > {
   /** Refuse callers without an active tenant, so `ctx.tenant` is a string. */
-  readonly requireTenant?: R;
+  readonly requireOrganization?: R;
   /** Admit only users holding one of these roles at `roleClaim`. */
   readonly roles?: readonly string[];
   /**
@@ -84,7 +84,7 @@ export interface ResourceLoaderContext<C = unknown, P = unknown> {
   readonly tenant: string | undefined;
 }
 
-/** What `requireTenant` and `authorize` add to the context. */
+/** What `requireOrganization` and `authorize` add to the context. */
 export interface AuthorizedContext<C, P, R extends boolean> {
   readonly session: AuthSession<C, P>;
   /**
@@ -218,8 +218,8 @@ async function loadResource(
 }
 
 /**
- * `requireTenant`, `roles`, `permission` and `authorize`, in that order: the
- * session and tenant, or why the caller is refused.
+ * `requireOrganization`, `roles`, `permission` and `authorize`, in that order:
+ * the session and tenant, or why the caller is refused.
  */
 export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
   auth: AuthState<C, P>,
@@ -234,7 +234,7 @@ export async function authorizeCaller<I, C, P, X = ResourceLoaderContext<C, P>>(
 > {
   const session = toSession(auth);
 
-  if (checks.requireTenant && tenant === undefined) {
+  if (checks.requireOrganization && tenant === undefined) {
     return dbError("forbidden", "Choose an organization first", {
       code: "NO_TENANT",
     });

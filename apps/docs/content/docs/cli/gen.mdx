@@ -67,15 +67,20 @@ the same generator behind `supabase gen types typescript`, and writes:
 4. with `blocks` configured, `blocks.generated.ts` next to the main module:
    each installed block's schema, API schema and the options its SQL and
    TypeScript halves share, with the module defaults filled in, for
-   [`defineBlocks(blockConfig, ...)`](/docs/blocks/create-blocks#the-generated-config).
+   [`defineBlocks(blockConfig, ...)`](/docs/blocks/create-blocks#the-generated-config),
+   and `blocks`, each instance's manifest under its key, for
+   [`betterSupabase.blocks()`](/docs/blocks/create-blocks#block-instances-on-db).
    It needs no database, only the config;
 5. with blocks that have a record binding installed, a
    [record type](/docs/blocks/records#generated-record-types) per type in
    `config.records`, in `records/<type>.ts` next to the main module, unless
    `gen.recordTypes` is `false`;
-6. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`,
+6. with `gen.hooks` set, `hooks.ts` next to the main module: a list hook and a
+   record hook per table (`useCustomers`, `useCustomer`) for the
+   [data hooks](/docs/frontend/data-hooks) of that framework;
+7. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`,
    `standardSchema()`);
-7. with `readSets` configured, the `read-sets` SQL module file: one function per
+8. with `readSets` configured, the `read-sets` SQL module file: one function per
    [read set](/docs/repository/read-sets). `gen` imports those modules after
    writing the main module, since they import it.
 

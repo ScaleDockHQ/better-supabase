@@ -6,7 +6,6 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -36,11 +35,11 @@ export const createContact = bsb.action(
       email: Optional,
       domain: Optional,
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "parties.write"),
   },
-  async ({ kind, name, email, domain }, { tenant, supabase, auth }) => {
-    const { parties } = blocks(supabase);
+  async ({ kind, name, email, domain }, { tenant, db, auth }) => {
+    const { contacts: parties } = db.$blocks;
 
     const saved =
       kind === "company"
@@ -61,11 +60,11 @@ export const createContact = bsb.action(
 export const linkPerson = bsb.action(
   {
     input: v.object({ companyId: Id, personId: Id, role: Optional }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "parties.write"),
   },
-  async ({ companyId, personId, role }, { supabase, auth }) => {
-    const linked = await blocks(supabase).parties.linkPerson(
+  async ({ companyId, personId, role }, { db, auth }) => {
+    const linked = await db.$blocks.contacts.linkPerson(
       companyId,
       personId,
       role ? { role } : {},
@@ -91,14 +90,14 @@ export const logActivity = bsb.action(
       title: Name,
       body: Optional,
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "engagements.write"),
   },
   async (
     { subjectType, subjectId, type, title, body },
-    { tenant, supabase, auth },
+    { tenant, db, auth },
   ) => {
-    const logged = await blocks(supabase).engagements.log(
+    const logged = await db.activities.log(
       tenant,
       {
         type,
@@ -137,11 +136,11 @@ const DEFAULT_STAGES = [
 /** Creates the "Sales" deal pipeline with six stages, unless one exists. */
 export const createDefaultPipeline = bsb.action(
   {
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "pipelines.manage"),
   },
-  async (_input, { tenant, supabase, auth }) => {
-    const { pipelines } = blocks(supabase);
+  async (_input, { tenant, db, auth }) => {
+    const { pipelines } = db;
     const existing = await pipelines.list(tenant, "deal");
 
     if (!existing.ok) {
@@ -191,14 +190,14 @@ export const createDeal = bsb.action(
       pipelineId: Id,
       stageId: Id,
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "deals.write"),
   },
   async (
     { name, amount, currency, closeOn, pipelineId, stageId },
-    { tenant, supabase, auth },
+    { tenant, db, auth },
   ) => {
-    const created = await blocks(supabase).deals.create(tenant, {
+    const created = await db.deals.create(tenant, {
       name,
       closeOn: Temporal.PlainDate.from(closeOn),
       amount: parseMoney(amount, currency),
@@ -221,11 +220,11 @@ export const createDeal = bsb.action(
 export const moveDeal = bsb.action(
   {
     input: v.object({ dealId: Id, stageId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "deals.write"),
   },
-  async ({ dealId, stageId }, { supabase, auth }) => {
-    const moved = await blocks(supabase).deals.update([
+  async ({ dealId, stageId }, { db, auth }) => {
+    const moved = await db.deals.update([
       { dealId, field: "stageId", value: stageId },
     ]);
 
@@ -256,12 +255,12 @@ export const createTarget = bsb.action(
       periodStart: IsoDate,
       periodEnd: IsoDate,
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "targets.manage"),
   },
   async (
     { name, metric, goal, currency, periodStart, periodEnd },
-    { tenant, supabase, auth },
+    { tenant, db, auth },
   ) => {
     const amount = metric === "deals.won_amount";
 
@@ -276,7 +275,7 @@ export const createTarget = bsb.action(
       periodEnd: Temporal.PlainDate.from(periodEnd),
     };
 
-    const saved = await blocks(supabase).targets.upsert(
+    const saved = await db.goals.upsert(
       tenant,
       amount
         ? { ...target, goal: parseMoney(goal, currency).amount, currency }
@@ -297,14 +296,11 @@ export const createTarget = bsb.action(
 export const createQuote = bsb.action(
   {
     input: v.object({ title: Name, currency: Currency }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "quotes.write"),
   },
-  async ({ title, currency }, { tenant, supabase, auth }) => {
-    const created = await blocks(supabase).quotes.create(tenant, {
-      title,
-      currency,
-    });
+  async ({ title, currency }, { tenant, db, auth }) => {
+    const created = await db.quotes.create(tenant, { title, currency });
 
     if (!created.ok) {
       return created;
@@ -332,11 +328,11 @@ export const saveQuoteLines = bsb.action(
       currency: Currency,
       lines: v.pipe(v.array(QuoteLine), v.maxLength(100)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "quotes.write"),
   },
-  async ({ quoteId, currency, lines }, { supabase, auth }) => {
-    const saved = await blocks(supabase).quotes.setLines(
+  async ({ quoteId, currency, lines }, { db, auth }) => {
+    const saved = await db.quotes.setLines(
       quoteId,
       lines.map((line) => ({
         description: line.description,
@@ -361,11 +357,11 @@ export const saveQuoteLines = bsb.action(
 export const sendQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "quotes.write"),
   },
-  async ({ quoteId }, { supabase, auth }) => {
-    const sent = await blocks(supabase).quotes.send(quoteId);
+  async ({ quoteId }, { db, auth }) => {
+    const sent = await db.quotes.send(quoteId);
 
     if (!sent.ok) {
       return sent;
@@ -384,11 +380,11 @@ export const decideQuote = bsb.action(
       quoteId: Id,
       decision: v.picklist(["accepted", "rejected", "changes_requested"]),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "quotes.write"),
   },
-  async ({ quoteId, decision }, { supabase, auth }) => {
-    const decided = await blocks(supabase).quotes.decide(quoteId, decision);
+  async ({ quoteId, decision }, { db, auth }) => {
+    const decided = await db.quotes.decide(quoteId, decision);
 
     if (!decided.ok) {
       return decided;
@@ -404,11 +400,11 @@ export const decideQuote = bsb.action(
 export const reviseQuote = bsb.action(
   {
     input: v.object({ quoteId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "quotes.write"),
   },
-  async ({ quoteId }, { supabase, auth }) => {
-    const revised = await blocks(supabase).quotes.revise(quoteId);
+  async ({ quoteId }, { db, auth }) => {
+    const revised = await db.quotes.revise(quoteId);
 
     if (!revised.ok) {
       return revised;

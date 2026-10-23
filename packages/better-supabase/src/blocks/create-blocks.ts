@@ -133,9 +133,31 @@ export type Blocks<B extends BlockMap> = BuiltBlocks<B> & {
   close(): void;
 };
 
+/** `lead-scoring` as `leadScoring`, as `instanceProperty` does at runtime. */
+export type InstanceProperty<S extends string> =
+  S extends `${infer H}-${infer T}`
+    ? `${H}${Capitalize<InstanceProperty<T>>}`
+    : S extends `${infer H}_${infer T}`
+      ? `${H}${Capitalize<InstanceProperty<T>>}`
+      : S;
+
+/** The clients a `BlockSet` puts on every `Db`, by property. */
+export type BlockSetClientMap<B extends BlockMap> = {
+  readonly [K in CreatedKeys<B> & string as InstanceProperty<K>]: ClientOf<
+    B[K]
+  >;
+};
+
 /** A set of blocks and the app's own events, from `defineBlocks`. */
 export interface BlockSet<B extends BlockMap, M extends EventMap> {
   readonly blocks: B;
+  /** The keys of the blocks that have a client. */
+  readonly instances: readonly (CreatedKeys<B> & string)[];
+  /**
+   * Types only, never set: the clients `betterSupabase.blocks(set)` puts on
+   * every `Db`.
+   */
+  readonly $clients?: BlockSetClientMap<B>;
   /** The generated config the blocks are built with. */
   readonly config: GeneratedBlocks;
   /** Every block's events and the app's, typed. */
@@ -167,6 +189,15 @@ export interface BlockSet<B extends BlockMap, M extends EventMap> {
       readonly hooks?: BlockHooks<ClientOf<B[K]>>;
     },
   ): ClientOf<B[K]>;
+  /**
+   * Calls `fn` in the API schema the blocks are wrapped in (`sql.api`), as
+   * `db`'s caller. Rejects with the raw database error.
+   */
+  call(
+    db: BlockClientSource,
+    fn: string,
+    args: Readonly<Record<string, unknown>>,
+  ): Promise<unknown>;
   /** `onBlockEvent` typed by these blocks' events and the app's. */
   on<const P extends BlockEventPattern<M>>(
     betterSupabase: { readonly events: EventHub },
@@ -202,11 +233,30 @@ export function defineBlocks<
   // keys of the map this set declares.
   const events = { types } as Events<BlocksEventMap<B> & MergedEventMap<E>>;
 
+  const created = (key: string): key is CreatedKeys<B> & string =>
+    blocks[key]?.create !== undefined;
+
+  const api = Object.values(config).find(
+    (entry) => entry.api !== undefined,
+  )?.api;
+
   return {
     blocks,
+    instances: Object.keys(blocks).filter(created),
     config,
     events,
     create: (options) => buildBlocks({ ...options, config }, blocks),
+    call: (db, fn, args) => {
+      if (api === undefined) {
+        return Promise.reject(
+          new TypeError(
+            "better-supabase: no block has an API schema (`sql.api`) to call",
+          ),
+        );
+      }
+
+      return dbTransport(db).call(api, fn, args);
+    },
     client: (db, key, options = {}) =>
       // SAFETY: `build(key)` returns the client of the block under `key`.
       blockBuilder(clientContext(db, { config, ...options }), blocks).build(

@@ -23,6 +23,7 @@ import type {
   Update,
 } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
+import type { BlockClientsOf, BlocksHelper, BucketsOf } from "./db-blocks.ts";
 import type { BucketsHelper } from "./db-buckets.ts";
 import type { Executor } from "./executor.ts";
 import type { ApplyExtension, RequestContext } from "./plugin.ts";
@@ -616,4 +617,5 @@ export type Db<
 > = {
   readonly [T in TableKey<M>]: RepositoryOf<M, T, E>;
 } & DbHelpers<M, F, E, C, B> &
-  BucketsHelper<B>;
+  BucketsHelper<BucketsOf<B>> &
+  BlocksHelper<BlockClientsOf<B>, TableKey<M>>;

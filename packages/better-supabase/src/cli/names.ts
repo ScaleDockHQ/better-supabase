@@ -1,8 +1,17 @@
-import type { GenTask, IntegrationName } from "../config/index.ts";
+import type {
+  DataHooksFramework,
+  GenTask,
+  IntegrationName,
+} from "../config/index.ts";
 
 import { GEN_TASKS, INTEGRATION_NAMES } from "../config/index.ts";
 
 export { GEN_TASKS };
+
+export const HOOK_FRAMEWORKS: readonly [
+  DataHooksFramework,
+  ...DataHooksFramework[],
+] = ["react", "vue", "svelte", "solid"];
 
 export const INTEGRATIONS: readonly [IntegrationName, ...IntegrationName[]] =
   INTEGRATION_NAMES;

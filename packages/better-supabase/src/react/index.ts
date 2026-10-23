@@ -55,6 +55,18 @@ export {
   useBlockQuery,
 } from "./block-hooks.ts";
 
+export { defineDataHooks } from "./data-hooks.ts";
+
+export type { DataHooks, DataView } from "./data-hooks.ts";
+
+export type {
+  DataSource,
+  DataState,
+  DataWrites,
+} from "../bindings/data-hooks.ts";
+
+export type { DataEngine, DataEntry } from "../bindings/data-engine.ts";
+
 export type {
   BlockEventSource,
   BlockMutationActions,

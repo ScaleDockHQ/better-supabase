@@ -7,7 +7,6 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -44,7 +43,7 @@ export const createProject = bsb.action(
     input: v.object({
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
   },
   async ({ name }, { tenant, db, auth }) => {
     const created = await db.projects.create(
@@ -86,7 +85,7 @@ export const createTask = bsb.action(
         "The start date is after the due date.",
       ),
     ),
-    requireTenant: true,
+    requireOrganization: true,
   },
   async (task, { tenant, db, auth }) => {
     const created = await db.tasks.create(
@@ -116,10 +115,10 @@ export const moveTask = bsb.action(
       previousId: v.nullable(Id),
       nextId: v.nullable(Id),
     }),
-    requireTenant: true,
+    requireOrganization: true,
   },
-  async ({ id, status, previousId, nextId }, { supabase, auth }) => {
-    const moved = await blocks(supabase).rank.move(TASK_SUBJECT, id, {
+  async ({ id, status, previousId, nextId }, { db, auth }) => {
+    const moved = await db.rank.move(TASK_SUBJECT, id, {
       previous: previousId,
       next: nextId,
       group: status,
@@ -145,7 +144,7 @@ export const runTaskBulkAction = bsb.action(
         ids: v.pipe(v.array(Id), v.minLength(1), v.maxLength(500)),
       }),
     ]),
-    requireTenant: true,
+    requireOrganization: true,
   },
   async (input, { db, auth }) => {
     const where = { id: { in: input.ids } };
@@ -179,11 +178,11 @@ export const setTaskField = bsb.action(
         v.object({ assignee_id: v.nullable(Id) }),
       ]),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "bulk.run"),
   },
-  async ({ ids, values }, { tenant, supabase, auth }) => {
-    const applied = await blocks(supabase).bulk.apply({
+  async ({ ids, values }, { tenant, db, auth }) => {
+    const applied = await db.bulkActions.apply({
       organizationId: tenant,
       subjectType: TASK_SUBJECT,
       rows: ids,
@@ -219,10 +218,10 @@ export const saveTaskView = bsb.action(
       status: v.nullable(TaskStatusSchema),
       projectId: v.nullable(Id),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "views.read"),
   },
-  async ({ name, view, q, status, projectId }, { tenant, supabase, auth }) => {
+  async ({ name, view, q, status, projectId }, { tenant, db, auth }) => {
     const query: TaskViewQuery = {};
     const facets: Record<string, string[]> = {};
 
@@ -242,7 +241,7 @@ export const saveTaskView = bsb.action(
       query.facets = facets;
     }
 
-    const saved = await blocks(supabase).savedViews.upsert({
+    const saved = await db.$blocks.savedViews.upsert({
       organizationId: tenant,
       list: TASK_LIST,
       name,
@@ -263,11 +262,11 @@ export const saveTaskView = bsb.action(
 export const deleteTaskView = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "views.read"),
   },
-  async ({ id }, { supabase, auth }) => {
-    const deleted = await blocks(supabase).savedViews.delete(id);
+  async ({ id }, { db, auth }) => {
+    const deleted = await db.$blocks.savedViews.delete(id);
 
     if (!deleted.ok) {
       return deleted;
@@ -294,11 +293,11 @@ export const restoreProjectFields = bsb.action(
         v.minLength(1),
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "versions.restore"),
   },
-  async ({ projectId, versionId, fields }, { supabase, auth }) => {
-    const { versions } = blocks(supabase);
+  async ({ projectId, versionId, fields }, { db, auth }) => {
+    const { versions } = db;
     const version = await versions.get(versionId);
 
     if (!version.ok) {

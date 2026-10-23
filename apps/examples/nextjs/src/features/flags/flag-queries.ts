@@ -1,7 +1,6 @@
 import { tenantOf } from "better-supabase/next";
 import "server-only";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 /** The flags the app checks; each is evaluated for the active organization. */
@@ -16,18 +15,16 @@ export type FlagKey = (typeof FLAGS)[number];
  */
 export async function getEnabledFlags(): Promise<readonly FlagKey[]> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return [];
   }
 
-  const { call } = blocks(supabase);
-
   const enabled = await Promise.all(
     FLAGS.map(async (key) =>
-      (await call("flag_enabled", { key, tenant })) === true ? key : null,
+      (await db.$api("flag_enabled", { key, tenant })) === true ? key : null,
     ),
   );
 

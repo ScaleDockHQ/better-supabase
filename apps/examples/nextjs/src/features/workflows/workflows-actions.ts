@@ -17,7 +17,6 @@ import { getRun, resumeHook } from "workflow/api";
 import type { Permission } from "@/features/user/user-permissions";
 
 import { can, PERMISSIONS } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import {
@@ -43,7 +42,7 @@ export const startWorkflow = bsb.action(
       workflow: WorkflowName,
       text: v.optional(v.pipe(v.string(), v.maxLength(20_000))),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.run"),
   },
   async ({ workflow, text }, { tenant, auth }) => {
@@ -71,7 +70,7 @@ export const startWorkflow = bsb.action(
 export const requestApproval = bsb.action(
   {
     input: v.object({ amount: v.pipe(v.number(), v.minValue(1)) }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.run"),
   },
   async ({ amount }, { tenant, auth }) => {
@@ -100,7 +99,7 @@ export const requestApproval = bsb.action(
 export const decideApproval = bsb.action(
   {
     input: v.object({ run: v.string(), approved: v.boolean() }),
-    requireTenant: true,
+    requireOrganization: true,
   },
   async ({ run, approved }, { tenant, auth, session }) => {
     if (auth.kind !== "user") {
@@ -136,9 +135,9 @@ export const decideApproval = bsb.action(
 
 /** Marks the run cancelled in the registry, then cancels it in the engine. */
 export const cancelRun = bsb.action(
-  { input: v.object({ run: v.string() }), requireTenant: true },
-  async ({ run }, { supabase }) => {
-    const marked = await blocks(supabase).workflows.runs.requestCancel(run);
+  { input: v.object({ run: v.string() }), requireOrganization: true },
+  async ({ run }, { db }) => {
+    const marked = await db.workflows.runs.requestCancel(run);
 
     if (!marked.ok) {
       return marked;
@@ -166,15 +165,15 @@ export const createSchedule = bsb.action(
       workflow: WorkflowName,
       cron: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "workflow.admin"),
   },
-  async ({ name, workflow, cron }, { tenant, auth, supabase }) => {
+  async ({ name, workflow, cron }, { tenant, auth, db }) => {
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to schedule"));
     }
 
-    const created = await blocks(supabase).workflows.schedules.create({
+    const created = await db.workflows.schedules.create({
       name,
       workflow,
       cron,
@@ -196,13 +195,10 @@ export const createSchedule = bsb.action(
 export const pauseSchedule = bsb.action(
   {
     input: v.object({ id: v.string(), paused: v.boolean() }),
-    requireTenant: true,
+    requireOrganization: true,
   },
-  async ({ id, paused }, { supabase }) => {
-    const updated = await blocks(supabase).workflows.schedules.pause(
-      id,
-      paused,
-    );
+  async ({ id, paused }, { db }) => {
+    const updated = await db.workflows.schedules.pause(id, paused);
 
     if (!updated.ok) {
       return updated;
@@ -215,9 +211,9 @@ export const pauseSchedule = bsb.action(
 );
 
 export const removeSchedule = bsb.action(
-  { input: v.object({ id: v.string() }), requireTenant: true },
-  async ({ id }, { supabase }) => {
-    const removed = await blocks(supabase).workflows.schedules.remove(id);
+  { input: v.object({ id: v.string() }), requireOrganization: true },
+  async ({ id }, { db }) => {
+    const removed = await db.workflows.schedules.remove(id);
 
     if (!removed.ok) {
       return removed;

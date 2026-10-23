@@ -7,7 +7,6 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -46,17 +45,17 @@ export const createWorkOrder = bsb.action(
         "normal",
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "dispatch.manage"),
   },
-  async ({ title, address, priority }, { tenant, supabase, auth }) => {
+  async ({ title, address, priority }, { db, auth }) => {
     const order: Writable<WorkOrderInput> = { title, priority };
 
     if (address !== undefined) {
       order.address = address;
     }
 
-    const created = await blocks(supabase, tenant).dispatch.create(order);
+    const created = await db.dispatch.create(order);
 
     if (!created.ok) {
       return created;
@@ -75,11 +74,11 @@ export const advanceWorkOrder = bsb.action(
       id: v.pipe(v.string(), v.uuid()),
       to: v.picklist(["en_route", "on_site", "done"]),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "dispatch.work"),
   },
-  async ({ id, to }, { tenant, supabase, auth }) => {
-    const moved = await blocks(supabase, tenant).dispatch.setStatus(id, to);
+  async ({ id, to }, { db, auth }) => {
+    const moved = await db.dispatch.setStatus(id, to);
 
     if (!moved.ok) {
       return moved;
@@ -113,12 +112,12 @@ export const createShipment = bsb.action(
         v.maxValue(70_000),
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "shipments.manage"),
   },
   async (
     { name, line1, city, postalCode, country, weightGrams },
-    { tenant, supabase, auth },
+    { db, auth },
   ) => {
     const to: Writable<ShipmentAddress> = { name, line1, city, country };
 
@@ -126,7 +125,7 @@ export const createShipment = bsb.action(
       to.postalCode = postalCode;
     }
 
-    const created = await blocks(supabase, tenant).shipments.create({
+    const created = await db.shipments.create({
       from: WAREHOUSE,
       to,
       packages: [{ weightGrams }],

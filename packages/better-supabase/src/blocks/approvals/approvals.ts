@@ -20,7 +20,7 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectRefOf } from "../../core/block-subjects.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err } from "../../core/result.ts";
 import {
@@ -293,7 +293,7 @@ export function createApprovals<
     "approval request fields",
   );
 
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const one = (
     fn: string,

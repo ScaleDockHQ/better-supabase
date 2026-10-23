@@ -118,8 +118,16 @@ export interface ClientOptions {
    * function names and topics `gen` wrote.
    */
   readonly blocks?: BindClientOptions["blocks"];
-  /** The tenant the block hooks act in; default the session's tenant claim. */
-  readonly tenant?: BindClientOptions["tenant"];
+  /**
+   * The organization `db` and the hooks act in; default the session's
+   * organization claim. Pass a function for one picked in the UI.
+   */
+  readonly organization?: BindClientOptions["organization"];
+  /**
+   * Where the data hooks cache their reads: `queryEngine(queryClient)` from
+   * `better-supabase/query`, or one in memory by default.
+   */
+  readonly engine?: BindClientOptions["engine"];
 }
 
 type UserStorage = NonNullable<
@@ -184,10 +192,11 @@ export function createClient<
   E,
   C = unknown,
   P = unknown,
+  B = unknown,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E, C, P>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: ClientOptions = {},
-): BetterClient<M, F, E, C, P> {
+): BetterClient<M, F, E, C, P, B> {
   const supabase = clientFor(options);
 
   return bindClient(betterSupabase, supabase, {
@@ -196,6 +205,9 @@ export function createClient<
       : { staleTime: options.staleTime }),
     ports: { ...webPorts(), upload: storageUpload(supabase), ...options.ports },
     ...(options.blocks === undefined ? {} : { blocks: options.blocks }),
-    ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
+    ...(options.organization === undefined
+      ? {}
+      : { organization: options.organization }),
+    ...(options.engine === undefined ? {} : { engine: options.engine }),
   });
 }

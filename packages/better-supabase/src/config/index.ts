@@ -127,6 +127,7 @@ export type {
   BlockInput,
   BlocksInput,
   DatabaseConfig,
+  DataHooksFramework,
   EnvironmentConfig,
   FlatConfig,
   GenGroupConfig,

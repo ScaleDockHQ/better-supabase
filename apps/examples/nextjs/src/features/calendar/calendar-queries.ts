@@ -3,7 +3,6 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import { EVENT_SUBJECT } from "./calendar-subjects";
@@ -81,14 +80,14 @@ export interface UpcomingReminders {
  */
 export async function loadUpcomingReminders(): Promise<UpcomingReminders | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { calendar, reminders } = blocks(supabase, tenant);
+  const { calendar, reminders } = db;
   const calendars = await calendar.listCalendars(tenant).orThrow();
 
   if (calendars.length === 0) {
@@ -145,14 +144,14 @@ export async function loadCalendarMonth(
   until: string,
 ): Promise<CalendarMonth | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { calendar } = blocks(supabase);
+  const { calendar } = db;
   const calendars = await calendar.listCalendars(tenant).orThrow();
   const tz = calendars[0]?.tz ?? "UTC";
 

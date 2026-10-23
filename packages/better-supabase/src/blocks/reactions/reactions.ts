@@ -8,7 +8,7 @@ import type { BlockTemporalOptions, BlockTenantOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { bySubjectType } from "../../core/block-subjects.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
   blockCall,
@@ -182,7 +182,7 @@ export function createReactions(options: ReactionsOptions): Reactions {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const client: Reactions = {
     react: (subject, emoji, react = {}) =>

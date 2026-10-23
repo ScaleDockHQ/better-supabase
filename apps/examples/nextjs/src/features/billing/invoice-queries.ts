@@ -7,7 +7,6 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 const INVOICE_STATUSES = [
@@ -53,7 +52,7 @@ export interface InvoiceSummary {
  */
 async function loadInvoices(): Promise<readonly InvoiceSummary[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -62,7 +61,7 @@ async function loadInvoices(): Promise<readonly InvoiceSummary[] | null> {
 
   const rows = v.parse(
     v.array(InvoiceRow),
-    await blocks(supabase).call("billing_invoices", { tenant }),
+    await db.$api("billing_invoices", { tenant }),
   );
 
   return rows.map(({ currency, total, balance, ...row }) => ({

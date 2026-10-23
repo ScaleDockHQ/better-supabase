@@ -115,9 +115,14 @@ describe("createClient", () => {
     expect(currentTenant(browser.tenant)).toBe("org-1");
   });
 
-  it("keeps a tenant the caller passes", () => {
+  it("keeps an organization the caller passes", () => {
     const { client } = capturingClient();
-    const browser = createClient(betterSupabase, { client, tenant: "org-2" });
+
+    const browser = createClient(betterSupabase, {
+      client,
+      organization: "org-2",
+    });
+
     expect(browser.tenant).toBe("org-2");
   });
 
@@ -166,6 +171,7 @@ describe("createClient", () => {
         email: "ada@example.test",
       },
       claims,
+      tenant: "t1",
     });
 
     emit(null);

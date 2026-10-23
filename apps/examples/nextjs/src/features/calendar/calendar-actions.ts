@@ -5,7 +5,6 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -20,11 +19,11 @@ export const addEventReminder = bsb.action(
       eventId: Id,
       offsetMinutes: v.picklist(REMINDER_OFFSETS),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "reminders.manage"),
   },
-  async ({ eventId, offsetMinutes }, { tenant, supabase, auth }) => {
-    const saved = await blocks(supabase, tenant).reminders.upsert(
+  async ({ eventId, offsetMinutes }, { db, auth }) => {
+    const saved = await db.reminders.upsert(
       { type: EVENT_SUBJECT, id: eventId },
       offsetMinutes,
     );
@@ -43,11 +42,11 @@ export const addEventReminder = bsb.action(
 export const removeEventReminder = bsb.action(
   {
     input: v.object({ reminderId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "reminders.manage"),
   },
-  async ({ reminderId }, { supabase, auth }) => {
-    const removed = await blocks(supabase).reminders.remove(reminderId);
+  async ({ reminderId }, { db, auth }) => {
+    const removed = await db.reminders.remove(reminderId);
 
     if (!removed.ok) {
       return removed;
@@ -74,15 +73,11 @@ export const createCalendar = bsb.action(
       name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
       tz: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "calendar.manage"),
   },
-  async ({ name, tz }, { tenant, supabase, auth }) => {
-    const created = await blocks(supabase).calendar.createCalendar(
-      tenant,
-      name,
-      { tz },
-    );
+  async ({ name, tz }, { tenant, db, auth }) => {
+    const created = await db.calendar.createCalendar(tenant, name, { tz });
 
     if (!created.ok) {
       return created;
@@ -116,10 +111,10 @@ export const createEvent = bsb.action(
         "End after the start",
       ),
     ),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "calendar.write"),
   },
-  async (input, { supabase, auth }) => {
+  async (input, { db, auth }) => {
     const day = Temporal.PlainDate.from(input.date);
     const allDay = input.allDay === "on";
 
@@ -132,7 +127,7 @@ export const createEvent = bsb.action(
           })
       ).toInstant();
 
-    const saved = await blocks(supabase).calendar.upsert(input.calendarId, {
+    const saved = await db.calendar.upsert(input.calendarId, {
       title: input.title,
       allDay,
       tz: input.tz,
@@ -165,11 +160,11 @@ export const setWorkingHours = bsb.action(
       }),
       v.check((input) => input.start < input.end, "End after the start"),
     ),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "calendar.read"),
   },
-  async ({ tz, start, end }, { tenant, supabase, auth }) => {
-    const saved = await blocks(supabase).calendar.setWorkingHours(tenant, {
+  async ({ tz, start, end }, { tenant, db, auth }) => {
+    const saved = await db.calendar.setWorkingHours(tenant, {
       tz,
       hours: WORKDAYS.map((weekday) => ({ weekday, start, end })),
     });

@@ -116,6 +116,115 @@ import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
 import type { TasksEvents } from "better-supabase/blocks/tasks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
+import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { accessRequestsBlock as accessRequestsBlockInstance } from "better-supabase/blocks/access-requests";
+import { agentsBlock as agentsBlockInstance } from "better-supabase/blocks/agents";
+import { aiCacheBlock as aiCacheBlockInstance } from "better-supabase/blocks/ai-cache";
+import { aiChatBlock as aiChatBlockInstance } from "better-supabase/blocks/ai-chat";
+import { aiFilesBlock as aiFilesBlockInstance } from "better-supabase/blocks/ai-files";
+import { aiKeysBlock as aiKeysBlockInstance } from "better-supabase/blocks/ai-keys";
+import { aiSchedulesBlock as aiSchedulesBlockInstance } from "better-supabase/blocks/ai-schedules";
+import { announcementsBlock as announcementsBlockInstance } from "better-supabase/blocks/announcements";
+import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
+import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
+import { attachmentsBlock as attachmentsBlockInstance } from "better-supabase/blocks/attachments";
+import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
+import { bookingsBlock as bookingsBlockInstance } from "better-supabase/blocks/bookings";
+import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/blocks/bulk-actions";
+import { calendarBlock as calendarBlockInstance } from "better-supabase/blocks/calendar";
+import { catalogBlock as catalogBlockInstance } from "better-supabase/blocks/catalog";
+import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/comments";
+import { connectorsBlock as connectorsBlockInstance } from "better-supabase/blocks/connectors";
+import { customFieldsBlock as customFieldsBlockInstance } from "better-supabase/blocks/custom-fields";
+import { dataLifecycleBlock as dataLifecycleBlockInstance } from "better-supabase/blocks/data-lifecycle";
+import { dealsBlock as dealsBlockInstance } from "better-supabase/blocks/deals";
+import { documentsBlock as documentsBlockInstance } from "better-supabase/blocks/documents";
+import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledger";
+import { assetsBlock as assetsBlockInstance } from "better-supabase/blocks/assets";
+import { scoresBlock as scoresBlockInstance } from "better-supabase/blocks/scores";
+import { moderationBlock as moderationBlockInstance } from "better-supabase/blocks/moderation";
+import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { guestsBlock as guestsBlockInstance } from "better-supabase/blocks/guests";
+import { admissionPassesBlock as admissionPassesBlockInstance } from "better-supabase/blocks/admission-passes";
+import { billableTimeBlock as billableTimeBlockInstance } from "better-supabase/blocks/billable-time";
+import { leasesBlock as leasesBlockInstance } from "better-supabase/blocks/leases";
+import { expensesBlock as expensesBlockInstance } from "better-supabase/blocks/expenses";
+import { donationsBlock as donationsBlockInstance } from "better-supabase/blocks/donations";
+import { dispatchBlock as dispatchBlockInstance } from "better-supabase/blocks/dispatch";
+import { shipmentsBlock as shipmentsBlockInstance } from "better-supabase/blocks/shipments";
+import { contractsBlock as contractsBlockInstance } from "better-supabase/blocks/contracts";
+import { complianceBlock as complianceBlockInstance } from "better-supabase/blocks/compliance";
+import { incidentsBlock as incidentsBlockInstance } from "better-supabase/blocks/incidents";
+import { coursesBlock as coursesBlockInstance } from "better-supabase/blocks/courses";
+import { sequencesBlock as sequencesBlockInstance } from "better-supabase/blocks/sequences";
+import { leadScoringBlock as leadScoringBlockInstance } from "better-supabase/blocks/lead-scoring";
+import { postsBlock as postsBlockInstance } from "better-supabase/blocks/posts";
+import { driveBlock as driveBlockInstance } from "better-supabase/blocks/drive";
+import { employeesBlock as employeesBlockInstance } from "better-supabase/blocks/employees";
+import { activitiesBlock as activitiesBlockInstance } from "better-supabase/blocks/activities";
+import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { featureFlagsBlock as featureFlagsBlockInstance } from "better-supabase/blocks/feature-flags";
+import { formsBlock as formsBlockInstance } from "better-supabase/blocks/forms";
+import { signaturesBlock as signaturesBlockInstance } from "better-supabase/blocks/signatures";
+import { hiringBlock as hiringBlockInstance } from "better-supabase/blocks/hiring";
+import { importsBlock as importsBlockInstance } from "better-supabase/blocks/imports";
+import { inboxBlock as inboxBlockInstance } from "better-supabase/blocks/inbox";
+import { inventoryBlock as inventoryBlockInstance } from "better-supabase/blocks/inventory";
+import { invoicesBlock as invoicesBlockInstance } from "better-supabase/blocks/invoices";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
+import { rateLimitBlock as rateLimitBlockInstance } from "better-supabase/blocks/queue";
+import { knowledgeBlock as knowledgeBlockInstance } from "better-supabase/blocks/knowledge";
+import { memoryBlock as memoryBlockInstance } from "better-supabase/blocks/memory";
+import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
+import { channelsBlock as channelsBlockInstance } from "better-supabase/blocks/channels";
+import { timelineBlock as timelineBlockInstance } from "better-supabase/blocks/timeline";
+import { mailSyncBlock as mailSyncBlockInstance } from "better-supabase/blocks/mail-sync";
+import { segmentsBlock as segmentsBlockInstance } from "better-supabase/blocks/segments";
+import { assignmentBlock as assignmentBlockInstance } from "better-supabase/blocks/assignment";
+import { enrichmentBlock as enrichmentBlockInstance } from "better-supabase/blocks/enrichment";
+import { fieldHistoryBlock as fieldHistoryBlockInstance } from "better-supabase/blocks/field-history";
+import { forecastsBlock as forecastsBlockInstance } from "better-supabase/blocks/forecasts";
+import { metricsBlock as metricsBlockInstance } from "better-supabase/blocks/metrics";
+import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
+import { numberingBlock as numberingBlockInstance } from "better-supabase/blocks/numbering";
+import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
+import { ordersBlock as ordersBlockInstance } from "better-supabase/blocks/orders";
+import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
+import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
+import { contactsBlock as contactsBlockInstance } from "better-supabase/blocks/contacts";
+import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
+import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { promotionsBlock as promotionsBlockInstance } from "better-supabase/blocks/promotions";
+import { pushBlock as pushBlockInstance } from "better-supabase/blocks/push";
+import { quotesBlock as quotesBlockInstance } from "better-supabase/blocks/quotes";
+import { rankBlock as rankBlockInstance } from "better-supabase/blocks/rank";
+import { reactionsBlock as reactionsBlockInstance } from "better-supabase/blocks/reactions";
+import { relationsBlock as relationsBlockInstance } from "better-supabase/blocks/relations";
+import { remindersBlock as remindersBlockInstance } from "better-supabase/blocks/reminders";
+import { automationsBlock as automationsBlockInstance } from "better-supabase/blocks/automations";
+import { savedViewsBlock as savedViewsBlockInstance } from "better-supabase/blocks/saved-views";
+import { searchBlock as searchBlockInstance } from "better-supabase/blocks/search";
+import { serviceAccountsBlock as serviceAccountsBlockInstance } from "better-supabase/blocks/service-accounts";
+import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
+import { shareLinksBlock as shareLinksBlockInstance } from "better-supabase/blocks/share-links";
+import { signingKeysBlock as signingKeysBlockInstance } from "better-supabase/blocks/signing-keys";
+import { slaBlock as slaBlockInstance } from "better-supabase/blocks/sla";
+import { ssoBlock as ssoBlockInstance } from "better-supabase/blocks/sso";
+import { stateMachineBlock as stateMachineBlockInstance } from "better-supabase/blocks/state-machine";
+import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
+import { tagsBlock as tagsBlockInstance } from "better-supabase/blocks/tags";
+import { goalsBlock as goalsBlockInstance } from "better-supabase/blocks/goals";
+import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
+import { templatesBlock as templatesBlockInstance } from "better-supabase/blocks/templates";
+import { timeTrackingBlock as timeTrackingBlockInstance } from "better-supabase/blocks/time-tracking";
+import { trashBlock as trashBlockInstance } from "better-supabase/blocks/trash";
+import { usageBlock as usageBlockInstance } from "better-supabase/blocks/usage";
+import { versionsBlock as versionsBlockInstance } from "better-supabase/blocks/versions";
+import { waitlistBlock as waitlistBlockInstance } from "better-supabase/blocks/waitlist";
+import { webhooksBlock as webhooksBlockInstance } from "better-supabase/blocks/webhooks";
+import { tasksBlock as tasksBlockInstance } from "better-supabase/blocks/tasks";
+import { workflowEditorBlock as workflowEditorBlockInstance } from "better-supabase/blocks/workflow-editor";
+import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks/workflows";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -840,6 +949,125 @@ export type MaintenanceRequestWatchLevel = RenamedType<WorkItemWatchLevel, Maint
 
 /** @public */
 export type MaintenanceEvents = RenamedEvents<DefaultTasksEvents, MaintenanceRenames>;
+
+/**
+ * Every installed block instance with a client, under its key, for
+ * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give
+ * a block its ports (`notifications: notificationsBlock.using(...)`).
+ * @public
+ */
+export const blocks = {
+  permissions: permissionsBlockInstance,
+  "access-requests": accessRequestsBlockInstance,
+  agents: agentsBlockInstance,
+  "ai-cache": aiCacheBlockInstance,
+  "ai-chat": aiChatBlockInstance,
+  "ai-files": aiFilesBlockInstance,
+  "ai-keys": aiKeysBlockInstance,
+  "ai-schedules": aiSchedulesBlockInstance,
+  announcements: announcementsBlockInstance,
+  "api-keys": apiKeysBlockInstance,
+  approvals: approvalsBlockInstance,
+  attachments: attachmentsBlockInstance,
+  audit: auditBlockInstance,
+  bookings: bookingsBlockInstance,
+  "bulk-actions": bulkActionsBlockInstance,
+  calendar: calendarBlockInstance,
+  catalog: catalogBlockInstance,
+  comments: commentsBlockInstance,
+  connectors: connectorsBlockInstance,
+  "custom-fields": customFieldsBlockInstance,
+  "data-lifecycle": dataLifecycleBlockInstance,
+  deals: dealsBlockInstance,
+  documents: documentsBlockInstance,
+  ledger: ledgerBlockInstance,
+  assets: assetsBlockInstance,
+  scores: scoresBlockInstance,
+  moderation: moderationBlockInstance,
+  enrollments: enrollmentsBlockInstance,
+  guests: guestsBlockInstance,
+  "admission-passes": admissionPassesBlockInstance,
+  "billable-time": billableTimeBlockInstance,
+  leases: leasesBlockInstance,
+  expenses: expensesBlockInstance,
+  donations: donationsBlockInstance,
+  dispatch: dispatchBlockInstance,
+  shipments: shipmentsBlockInstance,
+  contracts: contractsBlockInstance,
+  compliance: complianceBlockInstance,
+  incidents: incidentsBlockInstance,
+  courses: coursesBlockInstance,
+  sequences: sequencesBlockInstance,
+  "lead-scoring": leadScoringBlockInstance,
+  posts: postsBlockInstance,
+  drive: driveBlockInstance,
+  employees: employeesBlockInstance,
+  activities: activitiesBlockInstance,
+  entitlements: entitlementsBlockInstance,
+  "feature-flags": featureFlagsBlockInstance,
+  forms: formsBlockInstance,
+  signatures: signaturesBlockInstance,
+  hiring: hiringBlockInstance,
+  imports: importsBlockInstance,
+  inbox: inboxBlockInstance,
+  inventory: inventoryBlockInstance,
+  invoices: invoicesBlockInstance,
+  queue: queueBlockInstance,
+  "rate-limit": rateLimitBlockInstance,
+  knowledge: knowledgeBlockInstance,
+  memory: memoryBlockInstance,
+  messaging: messagingBlockInstance,
+  channels: channelsBlockInstance,
+  timeline: timelineBlockInstance,
+  "mail-sync": mailSyncBlockInstance,
+  segments: segmentsBlockInstance,
+  assignment: assignmentBlockInstance,
+  enrichment: enrichmentBlockInstance,
+  "field-history": fieldHistoryBlockInstance,
+  forecasts: forecastsBlockInstance,
+  metrics: metricsBlockInstance,
+  notifications: notificationsBlockInstance,
+  numbering: numberingBlockInstance,
+  onboarding: onboardingBlockInstance,
+  orders: ordersBlockInstance,
+  organizations: organizationsBlockInstance,
+  outbox: outboxBlockInstance,
+  contacts: contactsBlockInstance,
+  pipelines: pipelinesBlockInstance,
+  profiles: profilesBlockInstance,
+  promotions: promotionsBlockInstance,
+  push: pushBlockInstance,
+  quotes: quotesBlockInstance,
+  rank: rankBlockInstance,
+  reactions: reactionsBlockInstance,
+  relations: relationsBlockInstance,
+  reminders: remindersBlockInstance,
+  automations: automationsBlockInstance,
+  "saved-views": savedViewsBlockInstance,
+  search: searchBlockInstance,
+  "service-accounts": serviceAccountsBlockInstance,
+  settings: settingsBlockInstance,
+  "share-links": shareLinksBlockInstance,
+  "signing-keys": signingKeysBlockInstance,
+  sla: slaBlockInstance,
+  sso: ssoBlockInstance,
+  "state-machine": stateMachineBlockInstance,
+  subjects: subjectsBlockInstance,
+  tags: tagsBlockInstance,
+  goals: goalsBlockInstance,
+  teams: teamsBlockInstance,
+  templates: templatesBlockInstance,
+  "time-tracking": timeTrackingBlockInstance,
+  trash: trashBlockInstance,
+  usage: usageBlockInstance,
+  versions: versionsBlockInstance,
+  waitlist: waitlistBlockInstance,
+  webhooks: webhooksBlockInstance,
+  tasks: tasksBlockInstance,
+  maintenance: maintenanceBlock,
+  "workflow-editor": workflowEditorBlockInstance,
+  workflows: workflowsBlockInstance,
+} as const;
 
 /**
  * The events `tables.<table>.events` writes to the outbox, for `onBlockEvent` and the sinks.

@@ -19,6 +19,31 @@ import type { StateMachineEvents } from "better-supabase/blocks/state-machine";
 import type { TagsEvents } from "better-supabase/blocks/tags";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
+import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
+import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
+import { attachmentsBlock as attachmentsBlockInstance } from "better-supabase/blocks/attachments";
+import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
+import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
+import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/comments";
+import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
+import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
+import { timelineBlock as timelineBlockInstance } from "better-supabase/blocks/timeline";
+import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
+import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
+import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
+import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
+import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { rankBlock as rankBlockInstance } from "better-supabase/blocks/rank";
+import { remindersBlock as remindersBlockInstance } from "better-supabase/blocks/reminders";
+import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
+import { stateMachineBlock as stateMachineBlockInstance } from "better-supabase/blocks/state-machine";
+import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
+import { tagsBlock as tagsBlockInstance } from "better-supabase/blocks/tags";
+import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
+import { timeTrackingBlock as timeTrackingBlockInstance } from "better-supabase/blocks/time-tracking";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -143,6 +168,40 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * Every installed block instance with a client, under its key, for
+ * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give
+ * a block its ports (`notifications: notificationsBlock.using(...)`).
+ * @public
+ */
+export const blocks = {
+  permissions: permissionsBlockInstance,
+  "api-keys": apiKeysBlockInstance,
+  approvals: approvalsBlockInstance,
+  attachments: attachmentsBlockInstance,
+  audit: auditBlockInstance,
+  billing: billingBlockInstance,
+  comments: commentsBlockInstance,
+  enrollments: enrollmentsBlockInstance,
+  entitlements: entitlementsBlockInstance,
+  queue: queueBlockInstance,
+  messaging: messagingBlockInstance,
+  timeline: timelineBlockInstance,
+  notifications: notificationsBlockInstance,
+  onboarding: onboardingBlockInstance,
+  organizations: organizationsBlockInstance,
+  outbox: outboxBlockInstance,
+  profiles: profilesBlockInstance,
+  rank: rankBlockInstance,
+  reminders: remindersBlockInstance,
+  settings: settingsBlockInstance,
+  "state-machine": stateMachineBlockInstance,
+  subjects: subjectsBlockInstance,
+  tags: tagsBlockInstance,
+  teams: teamsBlockInstance,
+  "time-tracking": timeTrackingBlockInstance,
+} as const;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,

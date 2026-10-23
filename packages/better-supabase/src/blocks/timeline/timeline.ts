@@ -18,7 +18,7 @@ import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import { stripTypePrefix } from "../../events/cloud-event.ts";
 import { defineListQuery } from "../../list/list-query.ts";
 import {
@@ -125,7 +125,7 @@ function activityOf(value: unknown): ActivityEntry {
 export function createTimeline(options: TimelineOptions): Timeline {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const client: Timeline = {
     list: (subject, history = {}) =>

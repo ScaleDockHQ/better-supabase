@@ -21,7 +21,7 @@ export const decideApproval = bsb.action(
       approvalId: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
       approved: v.boolean(),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "ai_chat.create"),
   },
   async ({ chatId, approvalId, approved }, { tenant, auth, supabase }) => {

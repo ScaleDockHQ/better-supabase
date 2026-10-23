@@ -5,7 +5,6 @@ import * as v from "valibot";
 
 import { customerAttachments } from "@/features/customers/customer-attachments";
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import { summaryMessaging, threadSummarizer } from "./chat-summaries";
@@ -25,11 +24,9 @@ export interface ChannelRow {
 
 /** Every channel the caller can see, joined or not. */
 export const browseChannels = bsb.action(
-  { requireTenant: true },
-  async (_input, { tenant, supabase }) => {
-    const listed = await blocks(supabase, tenant).channels.list({
-      browse: true,
-    });
+  { requireOrganization: true },
+  async (_input, { db }) => {
+    const listed = await db.channels.list({ browse: true });
 
     return listed.ok
       ? ok(
@@ -53,11 +50,11 @@ export const createChannel = bsb.action(
       topic: v.pipe(v.string(), v.trim(), v.maxLength(250)),
       visibility: v.picklist(["public", "private"]),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "channels.create"),
   },
-  async ({ name, topic, visibility }, { tenant, supabase }) => {
-    const created = await blocks(supabase, tenant).channels.create({
+  async ({ name, topic, visibility }, { db }) => {
+    const created = await db.channels.create({
       name,
       visibility,
       topic: topic === "" ? undefined : topic,
@@ -68,9 +65,8 @@ export const createChannel = bsb.action(
 );
 
 export const joinChannel = bsb.action(
-  { input: v.object({ channelId: Id }), requireTenant: true },
-  async ({ channelId }, { tenant, supabase }) =>
-    blocks(supabase, tenant).channels.join(channelId),
+  { input: v.object({ channelId: Id }), requireOrganization: true },
+  async ({ channelId }, { db }) => db.channels.join(channelId),
 );
 
 /**
@@ -91,7 +87,7 @@ export const startChatUpload = bsb.action(
         v.maxValue(MAX_FILE_BYTES),
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "messages.send"),
   },
   async ({ conversationId, name, mimeType, size }, { tenant, supabase }) => {
@@ -122,7 +118,7 @@ export const startChatUpload = bsb.action(
 export const confirmChatUpload = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "messages.send"),
   },
   async ({ id }, { supabase }) => {
@@ -146,7 +142,7 @@ export interface ThreadSummaryRow {
 export const summarizeThread = bsb.action(
   {
     input: v.object({ threadId: Id, force: v.optional(v.boolean(), false) }),
-    requireTenant: true,
+    requireOrganization: true,
   },
   async ({ threadId, force }, { tenant, supabase }) => {
     const summary = await summaryMessaging(supabase, tenant).summarize(

@@ -5,7 +5,6 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -26,14 +25,11 @@ export const saveField = bsb.action(
       type: FieldTypeSchema,
       sensitive: v.optional(v.boolean(), false),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "custom_fields.manage"),
   },
-  async (
-    { entity, key, label, type, sensitive },
-    { tenant, supabase, auth },
-  ) => {
-    const saved = await blocks(supabase, tenant).customFields.saveDefinition(
+  async ({ entity, key, label, type, sensitive }, { db, auth }) => {
+    const saved = await db.customFields.saveDefinition(
       entity,
       key,
       label,
@@ -54,11 +50,11 @@ export const saveField = bsb.action(
 export const deleteField = bsb.action(
   {
     input: v.object({ id: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "custom_fields.manage"),
   },
-  async ({ id }, { supabase, auth }) => {
-    const deleted = await blocks(supabase).customFields.deleteDefinition(id);
+  async ({ id }, { db, auth }) => {
+    const deleted = await db.customFields.deleteDefinition(id);
 
     if (!deleted.ok) {
       return deleted;
@@ -81,11 +77,11 @@ export const moveField = bsb.action(
       id: Id,
       direction: v.picklist(["up", "down"]),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "custom_fields.manage"),
   },
-  async ({ entity, id, direction }, { tenant, supabase, auth }) => {
-    const { customFields } = blocks(supabase, tenant);
+  async ({ entity, id, direction }, { db, auth }) => {
+    const { customFields } = db;
     const listed = await customFields.listDefinitions(entity);
 
     if (!listed.ok) {

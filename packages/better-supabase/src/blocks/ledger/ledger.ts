@@ -10,7 +10,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { isCurrency, money } from "../../commerce/money.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { requireTenant } from "../../core/block-tenant.ts";
+import { requireOrganization } from "../../core/block-tenant.ts";
 import {
   applyTemporal,
   bigintOf,
@@ -363,7 +363,7 @@ function holdOf(value: unknown, fn: string): LedgerHold {
 export function createLedger(options: LedgerOptions): Ledger {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
+  const tenant = (): AsyncResult<string> => requireOrganization(options.tenant);
 
   const client: Ledger = {
     openAccount: (input) =>

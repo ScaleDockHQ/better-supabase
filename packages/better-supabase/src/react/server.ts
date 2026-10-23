@@ -7,6 +7,7 @@ import type {
   useBlockMutation as clientUseBlockMutation,
   useBlockQuery as clientUseBlockQuery,
 } from "./block-hooks.ts";
+import type { defineDataHooks as clientDefineDataHooks } from "./data-hooks.ts";
 import type {
   ActionForm,
   ActionHandle,
@@ -215,6 +216,15 @@ export const useBlockEvent: typeof clientUseBlockEvent =
  */
 export const createRecordProvider: typeof clientCreateRecordProvider =
   clientOnly("createRecordProvider");
+
+/**
+ * The `react-server` build of `defineDataHooks`: importing the generated
+ * `hooks.ts` is safe on the server, calling a hook there throws.
+ */
+export const defineDataHooks: typeof clientDefineDataHooks = () => ({
+  useList: clientOnly("useList"),
+  useOne: clientOnly("useOne"),
+});
 
 /**
  * The `react-server` build of `useDebouncedSearch`: read the term from

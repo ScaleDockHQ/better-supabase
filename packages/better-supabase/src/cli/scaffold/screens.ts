@@ -323,7 +323,7 @@ function whereOf(names: Names, extra: string[] = []): string {
 
 function requireCall(names: Names): string {
   return names.tenant
-    ? "const { db, tenant } = await bsb.require({ requireTenant: true });"
+    ? "const { db, tenant } = await bsb.require({ requireOrganization: true });"
     : "const { db } = await bsb.require();";
 }
 
@@ -569,7 +569,7 @@ export default function New${names.component}Page() {
 
 /** Loads the rows each reference picker lists. */
 async function ${names.component}FormLoader() {
-  const { db } = await bsb.require(${names.tenant ? "{ requireTenant: true }" : ""});
+  const { db } = await bsb.require(${names.tenant ? "{ requireOrganization: true }" : ""});
 
   const lists = ${targets.length === 1 ? `await ${loads[0]}` : `await Promise.all([\n    ${loads.join(",\n    ")},\n  ])`};
 

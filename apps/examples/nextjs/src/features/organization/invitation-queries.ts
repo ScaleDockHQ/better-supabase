@@ -1,7 +1,6 @@
 import "server-only";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { Role } from "@/lib/claims";
 import { bsb } from "@/lib/supabase/server";
 
@@ -22,10 +21,10 @@ export async function getInvitationPreview(
   token: string,
 ): Promise<InvitationSummary | null> {
   "use cache: private";
-  const { supabase } = await bsb.cached();
+  const { db } = await bsb.cached();
 
-  const preview = await blocks(supabase)
-    .organizations.previewInvitation(token)
+  const preview = await db.$blocks.organizations
+    .previewInvitation(token)
     .orThrow();
 
   if (!preview) {

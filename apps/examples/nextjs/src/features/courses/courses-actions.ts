@@ -4,7 +4,6 @@ import { ok } from "better-supabase";
 import * as v from "valibot";
 
 import { can } from "@/features/user/user-permissions";
-import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -26,11 +25,11 @@ export const createSampleCourse = bsb.action(
         v.maxLength(10),
       ),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "courses.manage"),
   },
-  async ({ title, lessons }, { supabase, tenant, auth }) => {
-    const { courses } = blocks(supabase, tenant);
+  async ({ title, lessons }, { db, auth }) => {
+    const { courses } = db;
 
     const course = await courses.upsert({
       key: `sample-${crypto.randomUUID().slice(0, 8)}`,
@@ -78,11 +77,11 @@ export const createSampleCourse = bsb.action(
 export const enrollInCourse = bsb.action(
   {
     input: v.object({ courseId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "courses.read"),
   },
-  async ({ courseId }, { supabase, auth }) => {
-    const learner = await blocks(supabase).courses.enroll(courseId);
+  async ({ courseId }, { db, auth }) => {
+    const learner = await db.courses.enroll(courseId);
 
     if (!learner.ok) {
       return learner;
@@ -98,11 +97,11 @@ export const enrollInCourse = bsb.action(
 export const completeLesson = bsb.action(
   {
     input: v.object({ lessonId: Id }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "courses.read"),
   },
-  async ({ lessonId }, { supabase, auth }) => {
-    const learner = await blocks(supabase).courses.complete(lessonId);
+  async ({ lessonId }, { db, auth }) => {
+    const learner = await db.courses.complete(lessonId);
 
     if (!learner.ok) {
       return learner;
@@ -128,11 +127,11 @@ export const submitQuiz = bsb.action(
       lessonId: Id,
       answers: v.record(v.pipe(v.string(), v.maxLength(63)), Answer),
     }),
-    requireTenant: true,
+    requireOrganization: true,
     authorize: (session) => can(session, "courses.read"),
   },
-  async ({ lessonId, answers }, { supabase, auth }) => {
-    const result = await blocks(supabase).courses.submitQuiz(lessonId, answers);
+  async ({ lessonId, answers }, { db, auth }) => {
+    const result = await db.courses.submitQuiz(lessonId, answers);
 
     if (!result.ok) {
       return result;

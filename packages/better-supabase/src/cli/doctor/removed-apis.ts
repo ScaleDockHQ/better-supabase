@@ -31,6 +31,10 @@ const REMOVED_NAMES: readonly { pattern: RegExp; replacement: string }[] = [
     pattern: /\bpass_credit_entries\b/,
     replacement: "`credits(passId)` on the ledger",
   },
+  {
+    pattern: /\brequireTenant\b/,
+    replacement: "`requireOrganization` (`bsb codemod 0.15` renames it)",
+  },
 ];
 
 function lineAt(text: string, index: number): number {

@@ -3,7 +3,6 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 
 import { getMembers } from "@/features/organization/organization-queries";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 import type { ApprovalRow, SubjectOption } from "./approvals-types";
@@ -26,7 +25,7 @@ export type Loaded<T> =
  */
 async function loadQueue(): Promise<ApprovalsQueue | null> {
   "use cache: private";
-  const { session, supabase, db } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
@@ -34,9 +33,7 @@ async function loadQueue(): Promise<ApprovalsQueue | null> {
   }
 
   const [requests, customers, members] = await Promise.all([
-    blocks(supabase, tenant)
-      .approvals.list({ status: "pending", pageSize: 100 })
-      .orThrow(),
+    db.approvals.list({ status: "pending", pageSize: 100 }).orThrow(),
     db.customers
       .list({ select: ["id", "name"], orderBy: { name: "asc" }, limit: 200 })
       .orThrow(),

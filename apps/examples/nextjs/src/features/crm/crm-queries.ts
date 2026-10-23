@@ -6,7 +6,6 @@ import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 /** A loaded region: its data, no active organization, or a failed read. */
@@ -75,14 +74,14 @@ export async function loadContacts(): Promise<
   readonly ContactSummary[] | null
 > {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { parties } = blocks(supabase);
+  const { contacts: parties } = db.$blocks;
 
   const [companies, people] = await Promise.all([
     parties.listCompanies(tenant, { limit: PAGE }).orThrow(),
@@ -115,14 +114,14 @@ export async function loadContact(
   id: string,
 ): Promise<ContactDetailData | undefined | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { parties } = blocks(supabase);
+  const { contacts: parties } = db.$blocks;
   let companyCursor: { name: string; id: string } | undefined;
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -239,15 +238,13 @@ export async function loadTimeline(
   id: string,
 ): Promise<readonly TimelineEntry[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
 
   if (!tenantOf(session)) {
     return null;
   }
 
-  const entries = await blocks(supabase)
-    .engagements.of({ type, id }, { limit: 50 })
-    .orThrow();
+  const entries = await db.activities.of({ type, id }, { limit: 50 }).orThrow();
 
   return entries.map((entry) => ({
     id: entry.id,
@@ -289,14 +286,14 @@ export interface DealBoardData {
 /** The default deal pipeline's columns and its open deals. */
 export async function loadDealBoard(): Promise<DealBoardData | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const { pipelines, deals } = blocks(supabase);
+  const { pipelines, deals } = db;
   const all = await pipelines.list(tenant, "deal").orThrow();
   const pipeline = all.find((item) => item.isDefault) ?? all[0];
 
@@ -360,14 +357,14 @@ export interface TargetRow {
 /** The organization's targets running today, with their progress. */
 export async function loadTargets(): Promise<readonly TargetRow[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const targets = await blocks(supabase).targets.progress(tenant).orThrow();
+  const targets = await db.goals.progress(tenant).orThrow();
 
   return targets.map((target) => ({
     id: target.id,
@@ -479,17 +476,14 @@ function quoteOf(row: v.InferOutput<typeof QuoteRow>): QuoteDetailData {
  */
 export async function loadQuotes(): Promise<readonly QuoteDetailData[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const rows = await blocks(supabase).call("list_quotes", {
-    tenant,
-    page_size: 50,
-  });
+  const rows = await db.$api("list_quotes", { tenant, page_size: 50 });
 
   return v.parse(v.array(QuoteRow), rows).map(quoteOf);
 }
@@ -502,7 +496,7 @@ export async function loadQuote(
   id: string,
 ): Promise<QuoteDetailData | undefined | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
 
   if (!tenantOf(session)) {
     return null;
@@ -510,7 +504,7 @@ export async function loadQuote(
 
   const row = v.parse(
     v.nullish(QuoteRow),
-    await blocks(supabase).call("get_quote", { quote: id }),
+    await db.$api("get_quote", { quote: id }),
   );
 
   return row ? quoteOf(row) : undefined;

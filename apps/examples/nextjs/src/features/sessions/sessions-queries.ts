@@ -1,7 +1,6 @@
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 export interface CurrentSession {
@@ -49,7 +48,7 @@ export type OtherSession = v.InferOutput<typeof OtherSession>;
  */
 export async function getOtherSessions(): Promise<readonly OtherSession[]> {
   "use cache: private";
-  const { auth, supabase } = await bsb.cached();
+  const { auth, db } = await bsb.cached();
 
   if (auth.kind !== "user") {
     return [];
@@ -57,7 +56,7 @@ export async function getOtherSessions(): Promise<readonly OtherSession[]> {
 
   const rows = v.parse(
     v.array(OtherSession),
-    await blocks(supabase).call("list_my_sessions", {}),
+    await db.$api("list_my_sessions", {}),
   );
 
   return rows.filter((row) => !row.current);

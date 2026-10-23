@@ -17,6 +17,25 @@ import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { QuotesEvents } from "better-supabase/blocks/quotes";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
+import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
+import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
+import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
+import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
+import { ledgerBlock as ledgerBlockInstance } from "better-supabase/blocks/ledger";
+import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
+import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { invoicesBlock as invoicesBlockInstance } from "better-supabase/blocks/invoices";
+import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
+import { numberingBlock as numberingBlockInstance } from "better-supabase/blocks/numbering";
+import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
+import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
+import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
+import { contactsBlock as contactsBlockInstance } from "better-supabase/blocks/contacts";
+import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
+import { quotesBlock as quotesBlockInstance } from "better-supabase/blocks/quotes";
+import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
+import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
+import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -111,6 +130,34 @@ export const blockConfig = {
     options: {},
   },
 } as const satisfies GeneratedBlocks;
+
+/**
+ * Every installed block instance with a client, under its key, for
+ * `defineBlocks(blockConfig, { ...blocks, ... })`. Override an entry to give
+ * a block its ports (`notifications: notificationsBlock.using(...)`).
+ * @public
+ */
+export const blocks = {
+  permissions: permissionsBlockInstance,
+  "api-keys": apiKeysBlockInstance,
+  audit: auditBlockInstance,
+  billing: billingBlockInstance,
+  ledger: ledgerBlockInstance,
+  enrollments: enrollmentsBlockInstance,
+  entitlements: entitlementsBlockInstance,
+  invoices: invoicesBlockInstance,
+  notifications: notificationsBlockInstance,
+  numbering: numberingBlockInstance,
+  onboarding: onboardingBlockInstance,
+  organizations: organizationsBlockInstance,
+  outbox: outboxBlockInstance,
+  contacts: contactsBlockInstance,
+  profiles: profilesBlockInstance,
+  quotes: quotesBlockInstance,
+  settings: settingsBlockInstance,
+  subjects: subjectsBlockInstance,
+  teams: teamsBlockInstance,
+} as const;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,

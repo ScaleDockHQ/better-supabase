@@ -1,4 +1,3 @@
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -14,7 +13,7 @@ export async function GET(request: Request): Promise<Response> {
     return new Response(null, { status: 401 });
   }
 
-  const { inbox } = blocks(bsb.admin().$client);
+  const { inbox } = bsb.admin();
   const woken = await inbox.wakeSnoozed().orThrow();
   const published = await inbox.publishDue().orThrow();
 

@@ -60,7 +60,7 @@ export const server = {
   addNote: defineAction({
     accept: "form",
     handler: bsb.action(
-      { input: NoteInput, requireTenant: true },
+      { input: NoteInput, requireOrganization: true },
       (input, { db, tenant }) =>
         db.notes.create({ ...input, tenantId: tenant }),
     ),

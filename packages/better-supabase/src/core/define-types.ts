@@ -1,4 +1,5 @@
 import type { StorageApi } from "../storage/storage-api.ts";
+import type { DbBlockSource } from "./db-blocks.ts";
 import type { BucketRegistry } from "./db-buckets.ts";
 import type { ErrorMapper } from "./errors.ts";
 import type { Executor } from "./executor.ts";
@@ -10,6 +11,8 @@ import type { StatsRecorder } from "./stats.ts";
 export interface SupabaseOptions {
   /** Set by `betterSupabase.buckets()`; read by `db.$buckets`. */
   readonly buckets?: BucketRegistry;
+  /** Set by `betterSupabase.blocks()`; read by the block instances on a `Db`. */
+  readonly blocks?: DbBlockSource;
   /**
    * Clock used by plugins (timestamps, soft delete) and for the `time` of block
    * events on `betterSupabase.events`. Pass it to `createQueue` too.

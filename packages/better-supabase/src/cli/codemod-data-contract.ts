@@ -335,3 +335,21 @@ function apply(text: string, edits: readonly Edit[]): string {
 
   return out + text.slice(cursor);
 }
+
+const REQUIRE_TENANT = /\brequireTenant\b/g;
+
+/**
+ * The data contract moves, then `requireTenant` renamed to
+ * `requireOrganization`.
+ */
+export function rewrite015(text: string): {
+  readonly text: string;
+  readonly review: readonly ReviewLine[];
+} {
+  const result = rewriteDataContract(text);
+
+  return {
+    text: result.text.replaceAll(REQUIRE_TENANT, "requireOrganization"),
+    review: result.review,
+  };
+}

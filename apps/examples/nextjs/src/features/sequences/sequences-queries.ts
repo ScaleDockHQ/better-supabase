@@ -8,7 +8,6 @@ import type {
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -27,14 +26,14 @@ export interface SequenceCard {
 /** A failed read throws, so it is never cached and Retry reads again. */
 async function loadSequences(): Promise<readonly SequenceCard[] | null> {
   "use cache: private";
-  const { session, supabase } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   const tenant = tenantOf(session);
 
   if (!tenant) {
     return null;
   }
 
-  const sequences = await blocks(supabase, tenant).sequences.list().orThrow();
+  const sequences = await db.sequences.list().orThrow();
 
   return sequences.map((sequence) => ({
     id: sequence.id,

@@ -5,7 +5,6 @@ import { workflowStarter } from "better-supabase/workflow-sdk";
 
 import { serviceBuilder } from "@/features/workflows/builder/builder-server";
 import { scheduledWorkflows } from "@/features/workflows/workflow-definitions";
-import { blocks } from "@/lib/blocks";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -59,7 +58,7 @@ export async function GET(request: Request): Promise<Response> {
   );
 
   const admitted = builder.starter(workflowStarter(scheduledWorkflows));
-  const workflows = blocks(bsb.admin().$client).workflows;
+  const workflows = bsb.admin().workflows;
 
   const [schedules, admission] = await Promise.all([
     workflows.schedules.tick({ start: scheduled }).orThrow(),
