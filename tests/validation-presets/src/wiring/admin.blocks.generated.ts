@@ -8,9 +8,9 @@ import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
-import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
+import type { BulkEvents } from "better-supabase/blocks/bulk";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
-import type { FeatureFlagsEvents } from "better-supabase/blocks/feature-flags";
+import type { FlagsEvents } from "better-supabase/blocks/flags";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
@@ -21,10 +21,10 @@ import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api
 import { approvalsBlock as approvalsBlockInstance } from "better-supabase/blocks/approvals";
 import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
 import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
-import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/blocks/bulk-actions";
+import { bulkBlock as bulkBlockInstance } from "better-supabase/blocks/bulk";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
-import { featureFlagsBlock as featureFlagsBlockInstance } from "better-supabase/blocks/feature-flags";
+import { flagsBlock as flagsBlockInstance } from "better-supabase/blocks/flags";
 import { metricsBlock as metricsBlockInstance } from "better-supabase/blocks/metrics";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
 import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
@@ -61,7 +61,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "bulk-actions": {
+  bulk: {
     schema: "better_supabase",
     options: {
       limit: 500,
@@ -75,7 +75,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "feature-flags": {
+  flags: {
     schema: "better_supabase",
     options: {},
   },
@@ -139,10 +139,10 @@ export const blocks = {
   approvals: approvalsBlockInstance,
   audit: auditBlockInstance,
   billing: billingBlockInstance,
-  "bulk-actions": bulkActionsBlockInstance,
+  bulk: bulkBlockInstance,
   enrollments: enrollmentsBlockInstance,
   entitlements: entitlementsBlockInstance,
-  "feature-flags": featureFlagsBlockInstance,
+  flags: flagsBlockInstance,
   metrics: metricsBlockInstance,
   notifications: notificationsBlockInstance,
   onboarding: onboardingBlockInstance,
@@ -179,7 +179,7 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
-  "bulk-actions": {
+  bulk: {
     run: "bulk.run",
   },
   enrollments: {
@@ -187,7 +187,7 @@ export const permissions = {
     enroll: "enrollments.enroll",
     manage: "enrollments.manage",
   },
-  "feature-flags": {
+  flags: {
     manage: "flags.manage",
   },
   invitations: {
@@ -241,7 +241,7 @@ export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.mana
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & BulkActionsEvents & EnrollmentsEvents & FeatureFlagsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & BulkEvents & EnrollmentsEvents & FlagsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

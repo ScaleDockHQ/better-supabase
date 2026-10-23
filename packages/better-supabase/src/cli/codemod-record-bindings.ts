@@ -14,7 +14,7 @@ const BLOCK_BINDINGS = [
   "workItemChecklist",
   "sla",
   "guests",
-  "admissionPasses",
+  "passes",
   "billableTime",
   "courseLearners",
   "contracts",

@@ -7,7 +7,7 @@ import type { BlockSqlContext } from "./context.ts";
  */
 export interface BlockContributions {
   readonly approvals: ApprovalContribution;
-  readonly "bulk-actions": BulkActionContribution;
+  readonly bulk: BulkActionContribution;
   readonly numbering: NumberingContribution;
   readonly pipelines: PipelineContribution;
   readonly "share-links": ShareLinkContribution;

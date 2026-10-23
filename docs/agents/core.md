@@ -93,7 +93,7 @@ without new evidence.
 - **29 `raise exception` sites stay inline.** `raise` can't reproduce them
   byte for byte (multi-line `using`, no errcode, computed hints); its doc
   comment in `src/sql/shared.ts` names the shapes. The inline grants in
-  `rate-limit.ts`, `data-api-grants.ts`, `permissions.ts`, `workflow-sdk.ts`,
+  `rate-limit.ts`, `grants.ts`, `permissions.ts`, `workflow-sdk.ts`,
   `webhooks-out-sql.ts` and `audit-api.ts` differ from `revokeTable` the
   same way.
 - **`functionRoute` takes the name, and `basePath` prefixes it.** The name

@@ -1,0 +1,127 @@
+---
+title: Identities
+description: Link an email address or a chat user to an app user or a contact, through a one-time code the signed-in user issues or a confirmed address.
+---
+
+`identities` maps an email address or a chat user (a Slack, Teams or WhatsApp id) to an app user or a contact. A bot or a mail webhook sees only the platform's id; this table says who that is. An identity with no row is anonymous.
+
+```bash
+better-supabase add identities
+```
+
+```ts
+import {
+  createIdentities,
+  identityResolver,
+} from "better-supabase/blocks/identities";
+```
+
+## How a row is created
+
+A row comes from one of two places. Nobody inserts or updates `identity_links` directly.
+
+1. **Link code.** The signed-in user calls `beginLink(kind, provider)`, which returns a one-time code that expires after 10 minutes. The user hands it to the bot (`/link 3F9A…`). The bot side calls `redeemLink(code, identity)` as the service role, and the row binds the identity the platform reported to the user who issued the code.
+2. **Confirmed address.** A trigger on `auth.users` creates the user's email identity once `email_confirmed_at` is set, and moves it when the address changes. An unconfirmed address creates nothing. Run `backfillVerifiedEmails()` once for users confirmed before you installed the module.
+
+```ts title="app/settings/link-slack/actions.ts"
+"use server";
+
+import {
+  createIdentities,
+  sqlTransport,
+} from "better-supabase/blocks/identities";
+
+export async function linkSlack() {
+  const ctx = await bsb.context();
+  const identities = createIdentities({
+    transport: sqlTransport(ctx.postgres),
+  });
+  const { code } = await identities.beginLink("chat", "slack").orThrow();
+  return `Send "/link ${code}" to @acme-bot in Slack.`;
+}
+```
+
+```ts title="lib/bot.ts"
+import { redeemLink, sqlTransport } from "better-supabase/blocks/identities";
+import { chatIdentityOf } from "better-supabase/chat-sdk";
+
+const service = sqlTransport(postgres.asService());
+
+bot.onSubscribedMessage(async (thread, message) => {
+  const code = /^\/link\s+(\S+)/.exec(message.text)?.[1];
+  if (!code) return;
+  const linked = await redeemLink(
+    service,
+    code,
+    chatIdentityOf(message.author, thread.adapter, teamId),
+  );
+  await thread.post(linked.ok ? "Linked." : "That code is invalid or expired.");
+});
+```
+
+`redeemLink` trusts the identity it is given, so pass only one the platform authenticated: the author of a signed Slack event, or a sender your mail provider verified with DKIM. A code is refused once used, after it expires, when the user issued a newer one for the same kind and provider, and when the kind or provider differs. An identity linked to another user is refused with `IDENTITY_TAKEN`; that user unlinks it first.
+
+## Resolving an identity
+
+`identityResolver(transport)` is a `PrincipalByIdentity`: it returns `{ kind: "user", userId }`, `{ kind: "contact", contactId }` or `null`. Give it a service transport and plug it into the server, or pass it to a chat helper directly.
+
+```ts title="lib/server.ts"
+import {
+  identityResolver,
+  sqlTransport,
+} from "better-supabase/blocks/identities";
+import { createServer, defineAuthorizationHooks } from "better-supabase/server";
+
+export const bsb = createServer(betterSupabase, {
+  authorization: defineAuthorizationHooks({
+    apiVersion: 1,
+    name: "app",
+    identities: {
+      principalByIdentity: identityResolver(sqlTransport(postgres.asService())),
+    },
+  }),
+});
+```
+
+An email lookup is case-insensitive and also matches a row stored without a provider or workspace, so a verified address resolves whichever mail provider reports it. A database error rejects instead of answering `null`, so a linked author is never treated as anonymous during an outage. [Chat SDK identities](/docs/chat-sdk/identities) shows how bot jobs and buttons use the result.
+
+## Calls
+
+| Method                       | Runs as        | SQL function               |
+| ---------------------------- | -------------- | -------------------------- |
+| `beginLink(kind, provider)`  | signed-in user | `begin_identity_link`      |
+| `redeemLink(code, identity)` | service role   | `redeem_identity_link`     |
+| `resolve(identity)`          | service role   | `principal_by_identity`    |
+| `list()`                     | signed-in user | `my_identities`            |
+| `unlink(id)`                 | signed-in user | `unlink_identity`          |
+| `backfillVerifiedEmails()`   | service role   | `backfill_verified_emails` |
+
+`beginLink` and `redeemLink` are also standalone functions that take the transport first.
+
+## Tables and access
+
+| Table                 | Holds                                                                         | `authenticated`                |
+| --------------------- | ----------------------------------------------------------------------------- | ------------------------------ |
+| `identity_links`      | `kind`, `provider`, `value`, `workspace` and one of `user_id` or `contact_id` | reads and deletes its own rows |
+| `identity_link_codes` | the SHA-256 of each code, its expiry and when it was used                     | none                           |
+
+`anon` has no access to either table. `(kind, provider, value, workspace)` is unique, with nulls treated as equal. A check keeps exactly one of `user_id` and `contact_id` set. With the [inbox](/docs/blocks/inbox) installed, `contact_id` references its `contacts` table; the service role writes contact links directly, for example when it mirrors a channel contact.
+
+## Options
+
+| Option           | Default | Effect                                                                       |
+| ---------------- | ------- | ---------------------------------------------------------------------------- |
+| `codeMinutes`    | `10`    | How long a link code stays valid, clamped to 1 to 60                         |
+| `verifiedEmails` | `true`  | `false` drops the `auth.users` trigger; `link_verified_email` stays callable |
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "identities": { options: { codeMinutes: 5 } },
+},
+```
+
+## Hooks
+
+`createIdentities` takes `hooks`, keyed by method name, that run your code
+before and after a call: refuse it with a `DbError`, rewrite its arguments
+or observe the result (see [extending blocks](/docs/extending/blocks#hooks)).

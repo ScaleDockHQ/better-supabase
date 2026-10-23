@@ -550,8 +550,8 @@ describe("generated and module files (BS303, BS304)", () => {
 
     const config: BetterSupabaseConfig = {
       blocks: {
-        "data-api-grants": { options: { fromPolicies: true } },
-        "session-revocation": { options: { policies: true } },
+        grants: { options: { fromPolicies: true } },
+        sessions: { options: { policies: true } },
       },
     };
 
@@ -565,7 +565,7 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(await run("BS304", ctx)).toEqual([]);
 
     const grants = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_13_data_api_grants.sql"),
+      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
       "utf-8",
     );
 
@@ -1106,7 +1106,7 @@ describe("audit registrations of dropped tables (BS322)", () => {
 
 describe("flags past their expiry (BS336)", () => {
   const withExpiry = (extraColumns: Record<string, string>) => ({
-    blocks: { "feature-flags": { options: { extraColumns } } },
+    blocks: { flags: { options: { extraColumns } } },
   });
 
   const live = (
@@ -2384,7 +2384,7 @@ describe("tables without the session policy (BS320)", () => {
 
   it("lists RLS tables without a restrictive session_active() policy", async () => {
     const covered = snapshot((tables) => {
-      // The repo's stack turns blocks['session-revocation'].options.policies on.
+      // The repo's stack turns blocks['sessions'].options.policies on.
       for (const entry of tables) {
         entry.policies = entry.policies.filter(
           (policy) => policy.name !== "bsb_session_active",
@@ -2419,7 +2419,7 @@ describe("tables without the session policy (BS320)", () => {
 
     const findings = await run(
       "BS320",
-      context(covered, {}, { blocks: ["session-revocation"] }),
+      context(covered, {}, { blocks: ["sessions"] }),
     );
 
     expect(findings.map((finding) => finding.target)).toEqual(
@@ -2430,7 +2430,7 @@ describe("tables without the session policy (BS320)", () => {
       object: { kind: "table", schema: "public" },
     });
     expect(findings[0]!.message).toContain(
-      "blocks['session-revocation'].options.exclude",
+      "blocks['sessions'].options.exclude",
     );
   });
 
@@ -2441,11 +2441,7 @@ describe("tables without the session policy (BS320)", () => {
         context(
           base,
           {},
-          {
-            blocks: {
-              "session-revocation": { options: { exclude: ["public.*"] } },
-            },
-          },
+          { blocks: { sessions: { options: { exclude: ["public.*"] } } } },
         ),
       ),
     ).toEqual([]);
@@ -3137,7 +3133,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
           configToml: pgdelta,
           sqlFiles: [
             file(grants.text, "supabase/migrations/1_init.sql"),
-            file(`-- @bsb-block data-api-grants@1 managed\n${grants.text}`),
+            file(`-- @bsb-block grants@1 managed\n${grants.text}`),
           ],
         }),
       ),

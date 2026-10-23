@@ -96,7 +96,7 @@ export async function FeatureFlagList() {
   };
 
   return (
-    <Card data-testid="feature-flags" data-recipe="feature-flag-toggles">
+    <Card data-testid="flags" data-recipe="feature-flag-toggles">
       <CardHeader>
         <CardTitle>{t("Feature flags")}</CardTitle>
         <CardDescription>

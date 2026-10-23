@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOAuthConsent } from "@/hooks/use-session-revocation";
+import { useOAuthConsent } from "@/hooks/use-sessions";
 
 const noSubscription = (): (() => void) => () => undefined;
 

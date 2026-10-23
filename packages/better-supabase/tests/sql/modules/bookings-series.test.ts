@@ -21,9 +21,7 @@ const RECURRING: BlockSqlLayout = {
 const CREDITS: BlockSqlLayout = {
   modules: {
     bookings: { options: { recurring: true } },
-    "admission-passes": {
-      options: { credits: true, creditRefundBefore: "1 day" },
-    },
+    passes: { options: { credits: true, creditRefundBefore: "1 day" } },
   },
 };
 
@@ -85,15 +83,13 @@ describe("bookings recurring option", () => {
 });
 
 describe("passes credits option", () => {
-  const modules = ["organizations", "outbox", "bookings", "admission-passes"];
+  const modules = ["organizations", "outbox", "bookings", "passes"];
 
   it("adds nothing while it is off or without bookings", () => {
-    expect(sqlOf("admission-passes", modules)).not.toContain(
-      "book_with_credit",
-    );
+    expect(sqlOf("passes", modules)).not.toContain("book_with_credit");
     expect(
-      sqlOf("admission-passes", ["organizations", "admission-passes"], {
-        modules: { "admission-passes": { options: { credits: true } } },
+      sqlOf("passes", ["organizations", "passes"], {
+        modules: { passes: { options: { credits: true } } },
       }),
     ).not.toContain("book_with_credit");
   });
@@ -107,7 +103,7 @@ describe("passes credits option", () => {
   });
 
   it("posts credits on the ledger, with the refund trigger and the functions", () => {
-    const sql = sqlOf("admission-passes", modules, CREDITS);
+    const sql = sqlOf("passes", modules, CREDITS);
     expect(sql).not.toContain("pass_credit_entries");
     expect(sql).toContain(`"better_supabase"."ledger_post"(`);
     expect(sql).toContain("'pass-credit:' || ");

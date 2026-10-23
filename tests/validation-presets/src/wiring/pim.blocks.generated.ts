@@ -8,7 +8,7 @@ import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { AttachmentsEvents } from "better-supabase/blocks/attachments";
 import type { AuditEvents } from "better-supabase/blocks/audit";
 import type { BillingEvents } from "better-supabase/blocks/billing";
-import type { BulkActionsEvents } from "better-supabase/blocks/bulk-actions";
+import type { BulkEvents } from "better-supabase/blocks/bulk";
 import type { CatalogEvents } from "better-supabase/blocks/catalog";
 import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
@@ -24,7 +24,7 @@ import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api
 import { attachmentsBlock as attachmentsBlockInstance } from "better-supabase/blocks/attachments";
 import { auditBlock as auditBlockInstance } from "better-supabase/blocks/audit";
 import { billingBlock as billingBlockInstance } from "better-supabase/blocks/billing";
-import { bulkActionsBlock as bulkActionsBlockInstance } from "better-supabase/blocks/bulk-actions";
+import { bulkBlock as bulkBlockInstance } from "better-supabase/blocks/bulk";
 import { catalogBlock as catalogBlockInstance } from "better-supabase/blocks/catalog";
 import { customFieldsBlock as customFieldsBlockInstance } from "better-supabase/blocks/custom-fields";
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
@@ -72,7 +72,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "bulk-actions": {
+  bulk: {
     schema: "better_supabase",
     options: {
       limit: 500,
@@ -170,7 +170,7 @@ export const blocks = {
   attachments: attachmentsBlockInstance,
   audit: auditBlockInstance,
   billing: billingBlockInstance,
-  "bulk-actions": bulkActionsBlockInstance,
+  bulk: bulkBlockInstance,
   catalog: catalogBlockInstance,
   "custom-fields": customFieldsBlockInstance,
   enrollments: enrollmentsBlockInstance,
@@ -215,7 +215,7 @@ export const permissions = {
     manage: "billing.manage",
     viewAll: "billing.read",
   },
-  "bulk-actions": {
+  bulk: {
     run: "bulk.run",
   },
   catalog: {
@@ -298,7 +298,7 @@ export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.ma
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & BulkActionsEvents & CatalogEvents & CustomFieldsEvents & EnrollmentsEvents & ImportsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TagsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & BulkEvents & CatalogEvents & CustomFieldsEvents & EnrollmentsEvents & ImportsEvents & NotificationsEvents & OrganizationsEvents & SavedViewsEvents & SettingsEvents & TagsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

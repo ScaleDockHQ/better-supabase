@@ -140,7 +140,7 @@ The module calls `before_company_save(tenant, company uuid, attrs jsonb)`, `afte
 
 ## Wire it to ReUI
 
-The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filters `search` and lifecycle values passed through, and its bulk owner action calls `savePerson` with `ownerId` per selected row (or the [bulk](/docs/blocks/bulk-actions) block for many at once). Its CSV import maps rows to `savePerson`, and an email that is taken points at the existing record.
+The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filters `search` and lifecycle values passed through, and its bulk owner action calls `savePerson` with `ownerId` per selected row (or the [bulk](/docs/blocks/bulk) block for many at once). Its CSV import maps rows to `savePerson`, and an email that is taken points at the existing record.
 
 ## Errors
 

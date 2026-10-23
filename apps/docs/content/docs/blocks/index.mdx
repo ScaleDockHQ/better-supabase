@@ -91,7 +91,7 @@ whose `uses` names none.
 ### Contributions
 
 Five generic blocks take work from the blocks around them: `approvals`
-(subjects to approve), `bulk-actions` (named actions), `pipelines` (record
+(subjects to approve), `bulk` (named actions), `pipelines` (record
 types with stages), `share-links` (subjects to share) and `subjects` (summary
 counts and my-work rows). The block that has the records declares what it
 gives in its definition's `contributes`, so the generic block never names its
@@ -105,13 +105,13 @@ bulk action unless you point it at one:
 
 ```ts
 blocks: {
-  "bulk-actions": {},
-  rowActions: { block: "bulk-actions" },
+  "bulk": {},
+  rowActions: { block: "bulk" },
   tags: {},
   labels: {
     block: "tags",
     entities: { tag: "label" },
-    uses: { "bulk-actions": "rowActions" },
+    uses: { "bulk": "rowActions" },
   },
 }
 ```
@@ -205,7 +205,7 @@ expose the module schema itself.
 | [Settings](/docs/blocks/settings)                           | `better-supabase/blocks/settings`                                                | `settings`                             |
 | [Usage and quotas](/docs/blocks/usage)                      | `better-supabase/blocks/usage`                                                   | `usage`                                |
 | [Billing](/docs/blocks/billing)                             | `better-supabase/blocks/billing`                                                 | `billing`                              |
-| [Feature flags](/docs/blocks/feature-flags)                 | `better-supabase/blocks/feature-flags`                                           | `flags`                                |
+| [Feature flags](/docs/blocks/flags)                         | `better-supabase/blocks/flags`                                                   | `flags`                                |
 | [Comments](/docs/blocks/comments)                           | `better-supabase/blocks/comments`                                                | `comments`                             |
 | [Activity](/docs/blocks/timeline)                           | `better-supabase/blocks/timeline`                                                | `activity`                             |
 | [Attachments](/docs/blocks/attachments)                     | `better-supabase/blocks/attachments`                                             | `attachments`                          |
@@ -239,7 +239,7 @@ expose the module schema itself.
 | [Rank](/docs/blocks/rank)                                   | `better-supabase/blocks/rank`                                                    | `rank`                                 |
 | [Saved views](/docs/blocks/saved-views)                     | `better-supabase/blocks/saved-views`                                             | `saved-views`                          |
 | [Relations](/docs/blocks/relations)                         | `better-supabase/blocks/relations`                                               | `relations`                            |
-| [Bulk actions](/docs/blocks/bulk-actions)                   | `better-supabase/blocks/bulk-actions`                                            | `bulk`                                 |
+| [Bulk actions](/docs/blocks/bulk)                           | `better-supabase/blocks/bulk`                                                    | `bulk`                                 |
 | [Undo](/docs/blocks/undo)                                   | `better-supabase/blocks/undo`                                                    |                                        |
 | [Search](/docs/blocks/search)                               | `better-supabase/blocks/search`                                                  | `search`                               |
 | [Metrics](/docs/blocks/metrics)                             | `better-supabase/blocks/metrics`                                                 | `metrics`                              |
@@ -255,7 +255,7 @@ expose the module schema itself.
 | [Ledger](/docs/blocks/ledger)                               | `better-supabase/blocks/ledger`                                                  | `ledger`                               |
 | [Assets and locations](/docs/blocks/assets)                 | `better-supabase/blocks/assets`                                                  | `assets`                               |
 | [Guests](/docs/blocks/guests)                               | `better-supabase/blocks/guests`                                                  | `guests`                               |
-| [Passes](/docs/blocks/admission-passes)                     | `better-supabase/blocks/admission-passes`                                        | `passes`                               |
+| [Passes](/docs/blocks/passes)                               | `better-supabase/blocks/passes`                                                  | `passes`                               |
 | [Billable time](/docs/blocks/billable-time)                 | `better-supabase/blocks/billable-time`                                           | `billable-time`                        |
 | [Leases](/docs/blocks/leases)                               | `better-supabase/blocks/leases`                                                  | `leases`                               |
 | [Expenses](/docs/blocks/expenses)                           | `better-supabase/blocks/expenses`                                                | `expenses`                             |
@@ -295,7 +295,7 @@ expose the module schema itself.
 | [Hiring](/docs/blocks/hiring)                               | `better-supabase/blocks/hiring`                                                  | `hiring`                               |
 | [Employees](/docs/blocks/employees)                         | `better-supabase/blocks/employees`                                               | `employees`                            |
 | [Collections](/docs/blocks/collections)                     | `better-supabase/blocks/collections`                                             | `collections`                          |
-| [Identities](/docs/blocks/linked-identities)                | `better-supabase/blocks/linked-identities`                                       | `identities`                           |
+| [Identities](/docs/blocks/identities)                       | `better-supabase/blocks/identities`                                              | `identities`                           |
 | [Service principals](/docs/blocks/service-accounts)         | `better-supabase/blocks/service-accounts`                                        | `service-accounts`                     |
 | [Signing keys](/docs/blocks/signing-keys)                   | `better-supabase/blocks/signing-keys`                                            | `signing-keys`                         |
 | [Shared signals](/docs/blocks/security-events)              | `better-supabase/blocks/security-events`                                         | `security-events`                      |
@@ -346,7 +346,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `realtime-tables`    | none                                                                                         | none                                                                                                      |
 | `jsonb-schemas`      | none                                                                                         | none                                                                                                      |
 | `pgtap`              | none                                                                                         | none                                                                                                      |
-| `data-api-grants`    | none                                                                                         | none                                                                                                      |
+| `grants`             | none                                                                                         | none                                                                                                      |
 | `read-sets`          | none                                                                                         | none                                                                                                      |
 | `mfa`                | none                                                                                         | none                                                                                                      |
 | `entitlements`       | `memberships`                                                                                | `billing`, `organizations`                                                                                |
@@ -359,13 +359,13 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `outbox`             | none                                                                                         | `data-lifecycle`                                                                                          |
 | `notifications`      | `updated-at`                                                                                 | `permissions`, `profiles`, `memberships`, `data-lifecycle`                                                |
 | `webhooks-out`       | `updated-at`                                                                                 | `permissions`, `service-accounts`, `data-lifecycle`                                                       |
-| `session-revocation` | none                                                                                         | none                                                                                                      |
+| `sessions`           | none                                                                                         | none                                                                                                      |
 | `webhooks-in`        | `permissions`, `updated-at`, `webhook-inbox`                                                 | none                                                                                                      |
 | `api-keys`           | `memberships`, `permissions`                                                                 | none                                                                                                      |
 | `settings`           | `memberships`, `permissions`                                                                 | `jsonb-schemas`                                                                                           |
 | `usage`              | `memberships`, `permissions`                                                                 | `entitlements`, `data-lifecycle`                                                                          |
 | `billing`            | `memberships`, `permissions`                                                                 | `organizations`                                                                                           |
-| `feature-flags`      | `memberships`                                                                                | `permissions`, `entitlements`                                                                             |
+| `flags`              | `memberships`                                                                                | `permissions`, `entitlements`                                                                             |
 | `comments`           | `memberships`, `permissions`, `subjects`, `messaging`                                        | `notifications`, `tasks`, `reactions`, `attachments`                                                      |
 | `attachments`        | `memberships`, `permissions`                                                                 | `profiles`, `subjects`                                                                                    |
 | `data-lifecycle`     | `memberships`, `permissions`                                                                 | every installed module                                                                                    |
@@ -392,8 +392,8 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `ai-keys`            | `memberships`, `permissions`                                                                 | `ai-chat`                                                                                                 |
 | `numbering`          | `memberships`, `permissions`                                                                 | `outbox`, `audit`                                                                                         |
 | `teams`              | `memberships`, `permissions`                                                                 | `inbox`, `outbox`, `audit`                                                                                |
-| `tags`               | `memberships`, `permissions`                                                                 | `outbox`, `drive`, `bulk-actions`                                                                         |
-| `state-machine`      | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `approvals`, `bulk-actions`                                                            |
+| `tags`               | `memberships`, `permissions`                                                                 | `outbox`, `drive`, `bulk`                                                                                 |
+| `state-machine`      | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `approvals`, `bulk`                                                                    |
 | `custom-fields`      | `memberships`, `permissions`                                                                 | `outbox`, `field-encryption`, `audit`                                                                     |
 | `share-links`        | `memberships`, `permissions`                                                                 | `outbox`, `versions`                                                                                      |
 | `reminders`          | `memberships`, `permissions`, `queue`                                                        | `notifications`, `outbox`, `subjects`                                                                     |
@@ -401,14 +401,14 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `subjects`           | `permissions`                                                                                | none                                                                                                      |
 | `rank`               | `permissions`, `subjects`                                                                    | `queue`                                                                                                   |
 | `saved-views`        | `memberships`, `permissions`                                                                 | `outbox`, `teams`, `collections`                                                                          |
-| `relations`          | `memberships`, `permissions`                                                                 | `outbox`, `bulk-actions`                                                                                  |
-| `bulk-actions`       | `memberships`, `permissions`                                                                 | `queue`, `outbox`                                                                                         |
+| `relations`          | `memberships`, `permissions`                                                                 | `outbox`, `bulk`                                                                                          |
+| `bulk`               | `memberships`, `permissions`                                                                 | `queue`, `outbox`                                                                                         |
 | `search`             | `memberships`, `permissions`, `subjects`                                                     | `share-links`, `vector-search`                                                                            |
 | `metrics`            | `memberships`, `permissions`                                                                 | `usage`, `queue`                                                                                          |
 | `calendar`           | `memberships`, `permissions`                                                                 | `share-links`, `reminders`, `outbox`, `leave`                                                             |
 | `bookings`           | `memberships`, `permissions`                                                                 | `queue`, `share-links`, `rate-limit`, `calendar`, `reminders`, `outbox`                                   |
 | `versions`           | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `share-links`                                                                          |
-| `trash`              | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `data-lifecycle`, `bulk-actions`                                                       |
+| `trash`              | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `data-lifecycle`, `bulk`                                                               |
 | `reactions`          | `memberships`, `permissions`                                                                 | `outbox`, `messaging`                                                                                     |
 | `approvals`          | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `notifications`, `queue`, `drive`, `teams`, `state-machine`, `subjects`                |
 | `access-requests`    | `memberships`, `permissions`, `approvals`                                                    | `outbox`, `audit`                                                                                         |
@@ -422,7 +422,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `forms`              | `memberships`, `permissions`, `jsonb-schemas`                                                | `custom-fields`, `share-links`, `rate-limit`, `outbox`, `audit`                                           |
 | `signatures`         | `memberships`, `permissions`, `versions`                                                     | `approvals`, `attachments`, `outbox`, `audit`                                                             |
 | `time-tracking`      | `memberships`, `permissions`, `approvals`                                                    | `outbox`, `audit`                                                                                         |
-| `linked-identities`  | none                                                                                         | `inbox`                                                                                                   |
+| `identities`         | none                                                                                         | `inbox`                                                                                                   |
 | `service-accounts`   | `memberships`, `permissions`                                                                 | `audit`                                                                                                   |
 | `templates`          | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `workflow-editor`, `jsonb-schemas`                                                     |
 | `pipelines`          | `memberships`, `permissions`, `subjects`                                                     | `outbox`, `audit`, `state-machine`, `notifications`                                                       |
@@ -436,7 +436,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `goals`              | `memberships`, `permissions`                                                                 | `deals`, `tasks`, `invoices`                                                                              |
 | `hiring`             | `memberships`, `permissions`, `subjects`, `pipelines`                                        | `outbox`, `automations`, `employees`                                                                      |
 | `employees`          | `memberships`, `permissions`                                                                 | `outbox`, `relations`, `hiring`, `time-tracking`                                                          |
-| `collections`        | `memberships`, `permissions`, `subjects`                                                     | `outbox`, `teams`, `bulk-actions`                                                                         |
+| `collections`        | `memberships`, `permissions`, `subjects`                                                     | `outbox`, `teams`, `bulk`                                                                                 |
 | `signing-keys`       | none                                                                                         | `outbox`, `audit`                                                                                         |
 | `security-events`    | none                                                                                         | `webhooks-out`, `outbox`, `audit`                                                                         |
 | `oauth-server`       | none                                                                                         | `outbox`, `audit`                                                                                         |
@@ -451,7 +451,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `scores`             | `memberships`, `permissions`, `automations`                                                  | `reactions`, `outbox`, `audit`                                                                            |
 | `enrollments`        | `memberships`, `permissions`                                                                 | `outbox`, `audit`                                                                                         |
 | `guests`             | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `invoices`, `bookings`, `contacts`                                                     |
-| `admission-passes`   | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `bookings`, `signing-keys`, `ledger`                                                   |
+| `passes`             | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `bookings`, `signing-keys`, `ledger`                                                   |
 | `billable-time`      | `memberships`, `permissions`, `subjects`, `time-tracking`, `invoices`                        | `outbox`, `audit`                                                                                         |
 | `leases`             | `memberships`, `permissions`, `subjects`, `assets`, `ledger`                                 | `outbox`, `audit`                                                                                         |
 | `expenses`           | `memberships`, `permissions`, `approvals`, `ledger`                                          | `outbox`, `audit`, `attachments`                                                                          |

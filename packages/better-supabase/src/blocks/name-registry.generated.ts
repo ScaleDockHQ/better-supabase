@@ -31,20 +31,6 @@ export interface BlockNameRegistry {
     };
     readonly primary: "engagement";
   };
-  readonly "admission-passes": {
-    readonly tables: {
-      readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
-      readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
-    };
-    readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
-    readonly actions: "read" | "manage" | "checkIn";
-    readonly hooks: never;
-    readonly entities: {
-      readonly "pass": "id" | "tenant_id" | "kind" | "holder_user_id" | "holder_name" | "holder_email" | "subject_type" | "subject_id" | "booking_id" | "resource_id" | "uses_allowed" | "uses" | "valid_from" | "valid_until" | "status" | "nonce" | "issued_by" | "created_at" | "updated_at" | "revoked_at";
-      readonly "pass_check_in": "id" | "tenant_id" | "pass_id" | "resource_id" | "booking_id" | "gate" | "method" | "admitted" | "reason" | "checked_in_by" | "created_at";
-    };
-    readonly primary: "pass";
-  };
   readonly "agents": {
     readonly tables: {
       readonly "agents": "id" | "tenant" | "owner" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connectors" | "knowledgeScope" | "starters" | "visibility" | "publishedAt" | "installCount" | "ratingCount" | "ratingSum" | "createdAt" | "updatedAt";
@@ -287,7 +273,7 @@ export interface BlockNameRegistry {
     };
     readonly primary: "booking";
   };
-  readonly "bulk-actions": {
+  readonly "bulk": {
     readonly tables: {
       readonly "runs": "id" | "tenant" | "subjectType" | "action" | "args" | "ids" | "position" | "succeeded" | "failed" | "results" | "status" | "createdBy" | "createdAt" | "finishedAt";
     };
@@ -522,14 +508,6 @@ export interface BlockNameRegistry {
     };
     readonly primary: "field";
   };
-  readonly "data-api-grants": {
-    readonly tables: {};
-    readonly functions: never;
-    readonly actions: never;
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-  };
   readonly "data-lifecycle": {
     readonly tables: {
       readonly "exports": "id" | "subject" | "user" | "tenant" | "status" | "bucket" | "files" | "error" | "requestedBy" | "requestedAt" | "completedAt" | "expiresAt";
@@ -705,19 +683,6 @@ export interface BlockNameRegistry {
     };
     readonly primary: "expense_report";
   };
-  readonly "feature-flags": {
-    readonly tables: {
-      readonly "flags": "key" | "type" | "description" | "variants" | "defaultVariant" | "enabled" | "archived" | "rules" | "rolloutPercentage" | "rolloutVariant" | "updatedAt";
-      readonly "overrides": "id" | "flag" | "tenant" | "user" | "context" | "contextKey" | "variant" | "createdAt";
-    };
-    readonly functions: "delete_flag" | "flag_bucket" | "flag_definitions" | "flag_enabled" | "flag_evaluation" | "list_flags" | "save_flag" | "set_flag_override" | "tenant_ids_with_flag";
-    readonly actions: "manage";
-    readonly hooks: never;
-    readonly entities: {
-      readonly "flag": "key" | "type" | "description" | "variants" | "default_variant" | "enabled" | "archived" | "rules" | "rollout_percentage" | "rollout_variant" | "updated_at";
-    };
-    readonly primary: "flag";
-  };
   readonly "field-encryption": {
     readonly tables: {};
     readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_key" | "field_open" | "field_seal";
@@ -735,6 +700,19 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "flags": {
+    readonly tables: {
+      readonly "flags": "key" | "type" | "description" | "variants" | "defaultVariant" | "enabled" | "archived" | "rules" | "rolloutPercentage" | "rolloutVariant" | "updatedAt";
+      readonly "overrides": "id" | "flag" | "tenant" | "user" | "context" | "contextKey" | "variant" | "createdAt";
+    };
+    readonly functions: "delete_flag" | "flag_bucket" | "flag_definitions" | "flag_enabled" | "flag_evaluation" | "list_flags" | "save_flag" | "set_flag_override" | "tenant_ids_with_flag";
+    readonly actions: "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "flag": "key" | "type" | "description" | "variants" | "default_variant" | "enabled" | "archived" | "rules" | "rollout_percentage" | "rollout_variant" | "updated_at";
+    };
+    readonly primary: "flag";
   };
   readonly "forecasts": {
     readonly tables: {
@@ -776,6 +754,14 @@ export interface BlockNameRegistry {
     };
     readonly primary: "target";
   };
+  readonly "grants": {
+    readonly tables: {};
+    readonly functions: never;
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
   readonly "guests": {
     readonly tables: {
       readonly "guests": "id" | "tenant" | "email" | "name" | "user" | "partyType" | "partyId" | "status" | "tokenHash" | "invitedBy" | "expiresAt" | "acceptedAt" | "revokedAt" | "createdAt" | "updatedAt";
@@ -810,6 +796,17 @@ export interface BlockNameRegistry {
   readonly "idempotency": {
     readonly tables: {};
     readonly functions: never;
+    readonly actions: never;
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
+  };
+  readonly "identities": {
+    readonly tables: {
+      readonly "links": "id" | "kind" | "provider" | "value" | "workspace" | "user" | "contact" | "source" | "createdAt";
+      readonly "codes": "id" | "user" | "kind" | "provider" | "codeHash" | "expiresAt" | "usedAt" | "createdAt";
+    };
+    readonly functions: "backfill_verified_emails" | "begin_identity_link" | "link_verified_email" | "my_identities" | "on_auth_user_email" | "principal_by_identity" | "redeem_identity_link" | "unlink_identity";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -999,17 +996,6 @@ export interface BlockNameRegistry {
       readonly "ledger_hold": "id" | "tenant_id" | "account_id" | "amount" | "status" | "reference_type" | "reference_id" | "expires_at" | "transaction_id" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "ledger_account";
-  };
-  readonly "linked-identities": {
-    readonly tables: {
-      readonly "links": "id" | "kind" | "provider" | "value" | "workspace" | "user" | "contact" | "source" | "createdAt";
-      readonly "codes": "id" | "user" | "kind" | "provider" | "codeHash" | "expiresAt" | "usedAt" | "createdAt";
-    };
-    readonly functions: "backfill_verified_emails" | "begin_identity_link" | "link_verified_email" | "my_identities" | "on_auth_user_email" | "principal_by_identity" | "redeem_identity_link" | "unlink_identity";
-    readonly actions: never;
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
   };
   readonly "mail-sync": {
     readonly tables: {
@@ -1203,6 +1189,20 @@ export interface BlockNameRegistry {
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;
+  };
+  readonly "passes": {
+    readonly tables: {
+      readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
+      readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
+    };
+    readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
+    readonly actions: "read" | "manage" | "checkIn";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "pass": "id" | "tenant_id" | "kind" | "holder_user_id" | "holder_name" | "holder_email" | "subject_type" | "subject_id" | "booking_id" | "resource_id" | "uses_allowed" | "uses" | "valid_from" | "valid_until" | "status" | "nonce" | "issued_by" | "created_at" | "updated_at" | "revoked_at";
+      readonly "pass_check_in": "id" | "tenant_id" | "pass_id" | "resource_id" | "booking_id" | "gate" | "method" | "admitted" | "reason" | "checked_in_by" | "created_at";
+    };
+    readonly primary: "pass";
   };
   readonly "permissions": {
     readonly tables: {
@@ -1498,7 +1498,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "session-revocation": {
+  readonly "sessions": {
     readonly tables: {};
     readonly functions: never;
     readonly actions: never;

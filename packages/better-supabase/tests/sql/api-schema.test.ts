@@ -92,7 +92,7 @@ describe("blocks.<module>.api", () => {
       ["webhooks-in", "incoming_webhook_tenant_ids"],
       ["data-lifecycle", "data_export_object_allowed"],
       ["mfa", "mfa_satisfied"],
-      ["session-revocation", "session_active"],
+      ["sessions", "session_active"],
     ] as const) {
       expect(schemaFile(name, "api")).not.toContain(
         `create or replace function "api"."${helper}"`,
@@ -244,7 +244,7 @@ grant execute on function better_supabase.list_things(uuid, integer, text[]) to 
   });
 
   it("wraps service-role functions for servers that only reach PostgREST", () => {
-    const file = schemaFile("feature-flags", "api");
+    const file = schemaFile("flags", "api");
     expect(file).toContain(
       `create or replace function "api"."flag_definitions"()`,
     );

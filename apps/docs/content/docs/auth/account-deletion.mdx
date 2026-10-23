@@ -75,8 +75,8 @@ pass `createPostgres().admin` or another connection as `postgres`. Service and
 anonymous callers pass through. Nothing calls it on its own: every other
 request keeps verifying the token without a database or Auth round trip.
 
-To enforce the same check in the database, add the `session-revocation` SQL module
-(`better-supabase add session-revocation`) and a restrictive policy on the tables
+To enforce the same check in the database, add the `sessions` SQL module
+(`better-supabase add sessions`) and a restrictive policy on the tables
 that matter. `session_active()` is false once the session is gone or
 expired, or the user is banned or deleted. Wrapped in `(select ...)`, it costs
 one indexed lookup per statement:
@@ -117,7 +117,7 @@ one `bsb_session_active` policy per table in `schemas`, except the
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
-    "session-revocation": {
+    sessions: {
       options: { policies: true, exclude: ["public.pricing_plans"] },
     },
   },

@@ -407,7 +407,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
-  "bulk-actions": (own) => [
+  bulk: (own) => [
     {
       name: "collections.add",
       run: `perform ${own.fn("add_collection_entries")}((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);`,

@@ -1,4 +1,4 @@
-import type { TableGrant } from "./modules/data-api-grants.ts";
+import type { TableGrant } from "./modules/grants.ts";
 
 import { declaredTableColumns } from "./schema-scan.ts";
 

@@ -20,9 +20,7 @@ export default defineConfig({
   preset: "fitness",
   blocks: {
     bookings: { options: { recurring: true } },
-    "admission-passes": {
-      options: { credits: true, creditRefundBefore: "12 hours" },
-    },
+    passes: { options: { credits: true, creditRefundBefore: "12 hours" } },
   },
 });
 ```
@@ -40,7 +38,7 @@ whatever they require:
 | ----------------------------------------- | --------------------------------------------------- |
 | [calendar](/docs/blocks/calendar)         | Instructors' calendars and availability             |
 | [bookings](/docs/blocks/bookings)         | Classes on rooms and instructors, and weekly series |
-| [passes](/docs/blocks/admission-passes)   | Membership passes, class packs and check-in         |
+| [passes](/docs/blocks/passes)             | Membership passes, class packs and check-in         |
 | [signing-keys](/docs/blocks/signing-keys) | The studio's key that signs each pass               |
 | [reminders](/docs/blocks/reminders)       | Reminders before a class                            |
 
@@ -52,7 +50,7 @@ With `recurring`, a weekly class or a standing appointment is one series of
 bookings. With `credits`, a pass with `usesAllowed` is a class pack:
 `bookWithCredit` books the class through the bookings block's slot check and
 takes one credit in the same transaction, and a cancellation before
-`creditRefundBefore` gives the credit back ([passes](/docs/blocks/admission-passes)).
+`creditRefundBefore` gives the credit back ([passes](/docs/blocks/passes)).
 
 ## With ReUI
 

@@ -1,13 +1,13 @@
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { AdmissionPasses } from "../../src/blocks/admission-passes/admission-passes.ts";
 import type { Bookings } from "../../src/blocks/bookings/bookings.ts";
+import type { Passes } from "../../src/blocks/passes/passes.ts";
 import type { Result } from "../../src/core/result.ts";
 import type { TestUser } from "./block-session.ts";
 
-import { createAdmissionPasses } from "../../src/blocks/admission-passes/admission-passes.ts";
 import { createBookings } from "../../src/blocks/bookings/bookings.ts";
+import { createPasses } from "../../src/blocks/passes/passes.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -31,7 +31,7 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   let session: BlockSession;
   let bookings: Bookings;
-  let passes: AdmissionPasses;
+  let passes: Passes;
   let owner: TestUser;
   let member: TestUser;
   let outsider: TestUser;
@@ -48,12 +48,12 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
         "reminders",
         "calendar",
         "bookings",
-        "admission-passes",
+        "passes",
       ],
       {
         modules: {
           bookings: { options: { recurring: true } },
-          "admission-passes": { options: { credits: true } },
+          passes: { options: { credits: true } },
         },
       },
     );
@@ -63,7 +63,7 @@ describe.skipIf(!live)("recurring bookings and class credits", () => {
     org = await session.organization(owner, { member });
     await session.organization(outsider);
     bookings = createBookings({ transport: sqlTransport(session.sql) });
-    passes = createAdmissionPasses({
+    passes = createPasses({
       transport: sqlTransport(session.sql),
       tenant: org,
     });

@@ -41,27 +41,27 @@ describe("block contributions", () => {
 
   it("keeps a renamed instance out unless its uses names the target", () => {
     const files = render({
-      "bulk-actions": {},
+      bulk: {},
       tags: {},
       labels: { block: "tags", entities: { tag: "label" } },
     });
 
-    expect(count(sqlOf(files, "bulk-actions"), "when 'tags.set' then")).toBe(1);
+    expect(count(sqlOf(files, "bulk"), "when 'tags.set' then")).toBe(1);
   });
 
   it("sends a renamed instance to the instance its uses names", () => {
     const files = render({
-      "bulk-actions": {},
-      rowActions: { block: "bulk-actions" },
+      bulk: {},
+      rowActions: { block: "bulk" },
       tags: {},
       labels: {
         block: "tags",
         entities: { tag: "label" },
-        uses: { "bulk-actions": "rowActions" },
+        uses: { bulk: "rowActions" },
       },
     });
 
-    const bulk = sqlOf(files, "bulk-actions");
+    const bulk = sqlOf(files, "bulk");
     const row = sqlOf(files, "rowActions");
 
     expect(bulk).toContain("when 'tags.set' then");

@@ -29,10 +29,10 @@ covers the rest of the OAuth server setup.
 ## The consent page
 
 `useOAuthConsent` (`createOAuthConsentController` in
-`better-supabase/blocks/session-revocation`) reads the request for
+`better-supabase/blocks/sessions`) reads the request for
 `authorization_id`. The React hook is a registry item: install it with
-`npx shadcn add @better-supabase/use-session-revocation`, which writes
-`hooks/use-session-revocation.ts` into the app. Vue, Svelte and Solid run the
+`npx shadcn add @better-supabase/use-sessions`, which writes
+`hooks/use-sessions.ts` into the app. Vue, Svelte and Solid run the
 controller with `useBlockController` from `better-supabase/vue`, `/svelte`
 and `/solid` (see
 [Block controllers](/docs/frontend/block-controllers#vue-svelte-and-solid)).
@@ -43,7 +43,7 @@ then leaves at once:
 ```tsx title="src/features/auth/components/oauth-consent-form.tsx"
 "use client";
 
-import { useOAuthConsent } from "@/hooks/use-session-revocation";
+import { useOAuthConsent } from "@/hooks/use-sessions";
 
 const { request, deciding, error, approve, deny } = useOAuthConsent({
   authorizationId, // from the URL
@@ -75,7 +75,7 @@ In Vue, Svelte and Solid, pass `oauth` to the controller yourself:
 ```vue title="Consent.vue"
 <script setup lang="ts">
 import { useBlockController, useSupabase } from "better-supabase/vue";
-import { createOAuthConsentController } from "better-supabase/blocks/session-revocation";
+import { createOAuthConsentController } from "better-supabase/blocks/sessions";
 
 const props = defineProps<{ authorizationId: string }>();
 const { state, actions } = useBlockController(createOAuthConsentController, {
@@ -95,7 +95,7 @@ const { state, actions } = useBlockController(createOAuthConsentController, {
 ```svelte title="Grants.svelte"
 <script lang="ts">
   import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
-  import { createOAuthGrantsController } from "better-supabase/blocks/session-revocation";
+  import { createOAuthGrantsController } from "better-supabase/blocks/sessions";
 
   const { supabase } = getBetterSupabase();
   const grants = useBlockController(createOAuthGrantsController, {
@@ -108,7 +108,7 @@ const { state, actions } = useBlockController(createOAuthConsentController, {
 
 ```tsx title="Grants.tsx"
 import { useBlockController, useSupabase } from "better-supabase/solid";
-import { createOAuthGrantsController } from "better-supabase/blocks/session-revocation";
+import { createOAuthGrantsController } from "better-supabase/blocks/sessions";
 
 export function Grants() {
   const { state } = useBlockController(createOAuthGrantsController, {
@@ -122,7 +122,7 @@ Without a framework, `createOAuthConsentController` and
 `createOAuthGrantsController` take the same options plus `auth`:
 
 ```ts
-import { createOAuthGrantsController } from "better-supabase/blocks/session-revocation";
+import { createOAuthGrantsController } from "better-supabase/blocks/sessions";
 
 const grants = createOAuthGrantsController({
   oauth: supabase.auth.oauth,

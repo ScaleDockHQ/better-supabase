@@ -495,7 +495,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         create function public.${name}_count() returns integer language sql as $$ select 1 $$;`,
       );
 
-      const [file] = renderBlocks(["data-api-grants"], {
+      const [file] = renderBlocks(["grants"], {
         grants: [
           { table: name, role: "anon", privileges: ["select"] },
           {
@@ -1112,9 +1112,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          insert into public.${name} values (1);`,
       );
 
-      const [file] = renderBlocks(["session-revocation"], {
+      const [file] = renderBlocks(["sessions"], {
         modules: {
-          "session-revocation": {
+          sessions: {
             options: { policies: true, exclude: ["public.other_*"] },
           },
         },

@@ -1765,7 +1765,6 @@
             "enum": [
               "access-requests",
               "activities",
-              "admission-passes",
               "agents",
               "ai-cache",
               "ai-chat",
@@ -1783,7 +1782,7 @@
               "billable-time",
               "billing",
               "bookings",
-              "bulk-actions",
+              "bulk",
               "calendar",
               "catalog",
               "channels",
@@ -1799,7 +1798,6 @@
               "created-by",
               "credentials",
               "custom-fields",
-              "data-api-grants",
               "data-lifecycle",
               "deals",
               "dispatch",
@@ -1813,15 +1811,17 @@
               "enrollments",
               "entitlements",
               "expenses",
-              "feature-flags",
               "field-encryption",
               "field-history",
+              "flags",
               "forecasts",
               "forms",
               "goals",
+              "grants",
               "guests",
               "hiring",
               "idempotency",
+              "identities",
               "impersonation",
               "imports",
               "inbox",
@@ -1835,7 +1835,6 @@
               "leases",
               "leave",
               "ledger",
-              "linked-identities",
               "mail-sync",
               "memberships",
               "memory",
@@ -1850,6 +1849,7 @@
               "orders",
               "organizations",
               "outbox",
+              "passes",
               "permissions",
               "pgtap",
               "pipelines",
@@ -1876,7 +1876,7 @@
               "segments",
               "sequences",
               "service-accounts",
-              "session-revocation",
+              "sessions",
               "settings",
               "share-links",
               "shipments",
@@ -1920,7 +1920,6 @@
                 "enum": [
                   "access-requests",
                   "activities",
-                  "admission-passes",
                   "agents",
                   "ai-cache",
                   "ai-chat",
@@ -1938,7 +1937,7 @@
                   "billable-time",
                   "billing",
                   "bookings",
-                  "bulk-actions",
+                  "bulk",
                   "calendar",
                   "catalog",
                   "channels",
@@ -1954,7 +1953,6 @@
                   "created-by",
                   "credentials",
                   "custom-fields",
-                  "data-api-grants",
                   "data-lifecycle",
                   "deals",
                   "dispatch",
@@ -1968,15 +1966,17 @@
                   "enrollments",
                   "entitlements",
                   "expenses",
-                  "feature-flags",
                   "field-encryption",
                   "field-history",
+                  "flags",
                   "forecasts",
                   "forms",
                   "goals",
+                  "grants",
                   "guests",
                   "hiring",
                   "idempotency",
+                  "identities",
                   "impersonation",
                   "imports",
                   "inbox",
@@ -1990,7 +1990,6 @@
                   "leases",
                   "leave",
                   "ledger",
-                  "linked-identities",
                   "mail-sync",
                   "memberships",
                   "memory",
@@ -2005,6 +2004,7 @@
                   "orders",
                   "organizations",
                   "outbox",
+                  "passes",
                   "permissions",
                   "pgtap",
                   "pipelines",
@@ -2031,7 +2031,7 @@
                   "segments",
                   "sequences",
                   "service-accounts",
-                  "session-revocation",
+                  "sessions",
                   "settings",
                   "share-links",
                   "shipments",
@@ -2071,9 +2071,6 @@
             },
             "activities": {
               "$ref": "#/$defs/blocks/activities"
-            },
-            "admission-passes": {
-              "$ref": "#/$defs/blocks/admission-passes"
             },
             "agents": {
               "$ref": "#/$defs/blocks/agents"
@@ -2126,8 +2123,8 @@
             "bookings": {
               "$ref": "#/$defs/blocks/bookings"
             },
-            "bulk-actions": {
-              "$ref": "#/$defs/blocks/bulk-actions"
+            "bulk": {
+              "$ref": "#/$defs/blocks/bulk"
             },
             "calendar": {
               "$ref": "#/$defs/blocks/calendar"
@@ -2174,9 +2171,6 @@
             "custom-fields": {
               "$ref": "#/$defs/blocks/custom-fields"
             },
-            "data-api-grants": {
-              "$ref": "#/$defs/blocks/data-api-grants"
-            },
             "data-lifecycle": {
               "$ref": "#/$defs/blocks/data-lifecycle"
             },
@@ -2216,14 +2210,14 @@
             "expenses": {
               "$ref": "#/$defs/blocks/expenses"
             },
-            "feature-flags": {
-              "$ref": "#/$defs/blocks/feature-flags"
-            },
             "field-encryption": {
               "$ref": "#/$defs/blocks/field-encryption"
             },
             "field-history": {
               "$ref": "#/$defs/blocks/field-history"
+            },
+            "flags": {
+              "$ref": "#/$defs/blocks/flags"
             },
             "forecasts": {
               "$ref": "#/$defs/blocks/forecasts"
@@ -2234,6 +2228,9 @@
             "goals": {
               "$ref": "#/$defs/blocks/goals"
             },
+            "grants": {
+              "$ref": "#/$defs/blocks/grants"
+            },
             "guests": {
               "$ref": "#/$defs/blocks/guests"
             },
@@ -2242,6 +2239,9 @@
             },
             "idempotency": {
               "$ref": "#/$defs/blocks/idempotency"
+            },
+            "identities": {
+              "$ref": "#/$defs/blocks/identities"
             },
             "impersonation": {
               "$ref": "#/$defs/blocks/impersonation"
@@ -2281,9 +2281,6 @@
             },
             "ledger": {
               "$ref": "#/$defs/blocks/ledger"
-            },
-            "linked-identities": {
-              "$ref": "#/$defs/blocks/linked-identities"
             },
             "mail-sync": {
               "$ref": "#/$defs/blocks/mail-sync"
@@ -2326,6 +2323,9 @@
             },
             "outbox": {
               "$ref": "#/$defs/blocks/outbox"
+            },
+            "passes": {
+              "$ref": "#/$defs/blocks/passes"
             },
             "permissions": {
               "$ref": "#/$defs/blocks/permissions"
@@ -2405,8 +2405,8 @@
             "service-accounts": {
               "$ref": "#/$defs/blocks/service-accounts"
             },
-            "session-revocation": {
-              "$ref": "#/$defs/blocks/session-revocation"
+            "sessions": {
+              "$ref": "#/$defs/blocks/sessions"
             },
             "settings": {
               "$ref": "#/$defs/blocks/settings"
@@ -3553,34 +3553,6 @@
           }
         }
       },
-      "admission-passes": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "checkInOpens": {
-                "type": "string",
-                "default": "1 hour"
-              },
-              "dropInLength": {
-                "type": "string",
-                "default": "2 hours"
-              },
-              "credits": {
-                "type": "boolean",
-                "default": false
-              },
-              "creditRefundBefore": {
-                "type": "string",
-                "default": "12 hours"
-              }
-            }
-          }
-        }
-      },
       "agents": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4037,7 +4009,7 @@
           }
         }
       },
-      "bulk-actions": {
+      "bulk": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
@@ -4321,19 +4293,6 @@
           }
         }
       },
-      "data-api-grants": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "fromPolicies": {}
-            }
-          }
-        }
-      },
       "data-lifecycle": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4583,20 +4542,6 @@
           }
         }
       },
-      "feature-flags": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "contexts": {},
-              "extraColumns": {}
-            }
-          }
-        }
-      },
       "field-encryption": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4616,6 +4561,20 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "flags": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "contexts": {},
+              "extraColumns": {}
+            }
           }
         }
       },
@@ -4658,6 +4617,19 @@
           }
         }
       },
+      "grants": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fromPolicies": {}
+            }
+          }
+        }
+      },
       "guests": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -4694,6 +4666,26 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
+          }
+        }
+      },
+      "identities": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "codeMinutes": {
+                "type": "number",
+                "default": 10
+              },
+              "verifiedEmails": {
+                "type": "boolean",
+                "default": true
+              }
+            }
           }
         }
       },
@@ -4976,26 +4968,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {}
-          }
-        }
-      },
-      "linked-identities": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "codeMinutes": {
-                "type": "number",
-                "default": 10
-              },
-              "verifiedEmails": {
-                "type": "boolean",
-                "default": true
-              }
-            }
           }
         }
       },
@@ -5354,6 +5326,34 @@
               "settle": {
                 "type": "string",
                 "default": "5 seconds"
+              }
+            }
+          }
+        }
+      },
+      "passes": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "checkInOpens": {
+                "type": "string",
+                "default": "1 hour"
+              },
+              "dropInLength": {
+                "type": "string",
+                "default": "2 hours"
+              },
+              "credits": {
+                "type": "boolean",
+                "default": false
+              },
+              "creditRefundBefore": {
+                "type": "string",
+                "default": "12 hours"
               }
             }
           }
@@ -5844,7 +5844,7 @@
           }
         }
       },
-      "session-revocation": {
+      "sessions": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

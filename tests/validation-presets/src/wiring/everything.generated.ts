@@ -18,7 +18,7 @@ import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { auditBlock } from "better-supabase/blocks/audit";
 import { billingBlock } from "better-supabase/blocks/billing";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
-import { bulkActionsBlock } from "better-supabase/blocks/bulk-actions";
+import { bulkBlock } from "better-supabase/blocks/bulk";
 import { calendarBlock } from "better-supabase/blocks/calendar";
 import { catalogBlock } from "better-supabase/blocks/catalog";
 import { collectionsBlock } from "better-supabase/blocks/collections";
@@ -37,7 +37,7 @@ import { scoresBlock } from "better-supabase/blocks/scores";
 import { moderationBlock } from "better-supabase/blocks/moderation";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
 import { guestsBlock } from "better-supabase/blocks/guests";
-import { admissionPassesBlock } from "better-supabase/blocks/admission-passes";
+import { passesBlock } from "better-supabase/blocks/passes";
 import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { leasesBlock } from "better-supabase/blocks/leases";
 import { expensesBlock } from "better-supabase/blocks/expenses";
@@ -56,11 +56,11 @@ import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { activitiesBlock } from "better-supabase/blocks/activities";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
-import { featureFlagsBlock } from "better-supabase/blocks/feature-flags";
+import { flagsBlock } from "better-supabase/blocks/flags";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { hiringBlock } from "better-supabase/blocks/hiring";
-import { linkedIdentitiesBlock } from "better-supabase/blocks/linked-identities";
+import { identitiesBlock } from "better-supabase/blocks/identities";
 import { importsBlock } from "better-supabase/blocks/imports";
 import { inboxBlock } from "better-supabase/blocks/inbox";
 import { inventoryBlock } from "better-supabase/blocks/inventory";
@@ -145,7 +145,7 @@ export const blockSet = defineBlocks(blockConfig, {
   audit: auditBlock,
   billing: billingBlock,
   bookings: bookingsBlock,
-  bulkActions: bulkActionsBlock,
+  bulk: bulkBlock,
   calendar: calendarBlock,
   catalog: catalogBlock,
   collections: collectionsBlock,
@@ -164,7 +164,7 @@ export const blockSet = defineBlocks(blockConfig, {
   moderation: moderationBlock,
   enrollments: enrollmentsBlock,
   guests: guestsBlock,
-  admissionPasses: admissionPassesBlock,
+  passes: passesBlock,
   billableTime: billableTimeBlock,
   leases: leasesBlock,
   expenses: expensesBlock,
@@ -183,11 +183,11 @@ export const blockSet = defineBlocks(blockConfig, {
   employees: employeesBlock,
   activities: activitiesBlock,
   entitlements: entitlementsBlock,
-  featureFlags: featureFlagsBlock,
+  flags: flagsBlock,
   forms: formsBlock,
   signatures: signaturesBlock,
   hiring: hiringBlock,
-  linkedIdentities: linkedIdentitiesBlock,
+  identities: identitiesBlock,
   imports: importsBlock,
   inbox: inboxBlock,
   inventory: inventoryBlock,

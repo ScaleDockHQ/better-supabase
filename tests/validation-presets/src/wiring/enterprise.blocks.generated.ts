@@ -76,7 +76,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "data-api-grants": {
+  grants: {
     schema: "better_supabase",
     options: {},
   },
@@ -106,7 +106,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "session-revocation": {
+  sessions: {
     schema: "better_supabase",
     options: {},
   },

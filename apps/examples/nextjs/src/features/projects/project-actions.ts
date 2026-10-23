@@ -182,7 +182,7 @@ export const setTaskField = bsb.action(
     authorize: (session) => can(session, "bulk.run"),
   },
   async ({ ids, values }, { tenant, db, auth }) => {
-    const applied = await db.bulkActions.apply({
+    const applied = await db.bulk.apply({
       organizationId: tenant,
       subjectType: TASK_SUBJECT,
       rows: ids,

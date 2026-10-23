@@ -17,7 +17,7 @@ const CASES: readonly {
   readonly taken?: string;
 }[] = [
   {
-    module: "feature-flags",
+    module: "flags",
     table: "flags",
     taken: "key",
     writes: [`"region" = case when d -> 'fields' ? 'region'`],

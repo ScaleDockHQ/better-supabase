@@ -4,13 +4,13 @@ import type { FlagClient as MiddlewareFlagClient } from "@supabase-labs/middlewa
 import { ErrorCode, OpenFeature } from "@openfeature/server-sdk";
 import { afterAll, describe, expect, expectTypeOf, it } from "vitest";
 
-import type { FlagDefinition } from "../../src/blocks/feature-flags/index.ts";
+import type { FlagDefinition } from "../../src/blocks/flags/index.ts";
 
 import {
   createFlagClient,
-  createFeatureFlagsProvider,
+  createFlagsProvider,
   flagContext,
-} from "../../src/blocks/feature-flags/index.ts";
+} from "../../src/blocks/flags/index.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 const USER = "8c5a3d3e-0000-4000-8000-000000000001";
@@ -41,10 +41,7 @@ const definitions: readonly FlagDefinition[] = [
   },
 ];
 
-const provider = createFeatureFlagsProvider({
-  definitions,
-  errorCodes: ErrorCode,
-});
+const provider = createFlagsProvider({ definitions, errorCodes: ErrorCode });
 
 await OpenFeature.setProviderAndWait(DOMAIN, provider);
 

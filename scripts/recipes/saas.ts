@@ -7,7 +7,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "sessions-list",
     title: "Sessions list",
-    blocks: ["session-revocation"],
+    blocks: ["sessions"],
     kind: "component",
     description:
       "The caller's signed-in devices with the last activity and a button to end each session.",
@@ -347,7 +347,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "bulk-action-bar",
     title: "Bulk action bar",
-    blocks: ["bulk-actions"],
+    blocks: ["bulk"],
     kind: "component",
     description:
       "A bar over a selection of rows that runs an action on all of them and reports failures.",

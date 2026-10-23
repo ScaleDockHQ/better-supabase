@@ -641,7 +641,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
-  "bulk-actions": (own) => [
+  bulk: (own) => [
     {
       name: "trash.trash",
       run: `perform ${own.fn("trash")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);`,

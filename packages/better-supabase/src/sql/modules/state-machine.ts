@@ -1141,7 +1141,7 @@ function contract(): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
-  "bulk-actions": (own) => [
+  bulk: (own) => [
     {
       name: "stateMachine.transition",
       run: `perform ${own.fn("transition")}(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason');`,

@@ -3180,11 +3180,11 @@
       "StepUpSnapshot"
     ]
   },
-  "./blocks/session-revocation": {
+  "./blocks/sessions": {
     "values": [
       "createOAuthConsentController",
       "createOAuthGrantsController",
-      "sessionRevocationBlock"
+      "sessionsBlock"
     ],
     "types": [
       "OAuthApi",
@@ -3315,28 +3315,23 @@
       "TenantStripeRow"
     ]
   },
-  "./blocks/feature-flags": {
+  "./blocks/flags": {
     "values": [
-      "createFeatureFlags",
-      "createFeatureFlagsProvider",
       "createFlagClient",
+      "createFlags",
+      "createFlagsProvider",
       "dbTransport",
       "evaluateFlag",
-      "featureFlagsBlock",
-      "featureFlagsEvents",
       "flagBucket",
       "flagContext",
       "flagDefinitionsOf",
+      "flagsBlock",
+      "flagsEvents",
       "rpcTransport",
       "sqlTransport"
     ],
     "types": [
       "BlockTransport",
-      "FeatureFlags",
-      "FeatureFlagsEvents",
-      "FeatureFlagsOptions",
-      "FeatureFlagsProvider",
-      "FeatureFlagsProviderOptions",
       "FlagClient",
       "FlagContext",
       "FlagContextOptions",
@@ -3352,6 +3347,11 @@
       "FlagRecord",
       "FlagResolution",
       "FlagRule",
+      "Flags",
+      "FlagsEvents",
+      "FlagsOptions",
+      "FlagsProvider",
+      "FlagsProviderOptions",
       "FlagType",
       "FlagValue",
       "RequestFlagContext"
@@ -5715,25 +5715,25 @@
       "VerifySetOptions"
     ]
   },
-  "./blocks/linked-identities": {
+  "./blocks/identities": {
     "values": [
       "beginLink",
-      "createLinkedIdentities",
+      "createIdentities",
       "dbTransport",
+      "identitiesBlock",
       "identityResolver",
-      "linkedIdentitiesBlock",
       "redeemLink",
       "rpcTransport",
       "sqlTransport"
     ],
     "types": [
       "BlockTransport",
+      "Identities",
+      "IdentitiesOptions",
       "IdentityRef",
       "IdentitySource",
       "IdentityTarget",
       "LinkCode",
-      "LinkedIdentities",
-      "LinkedIdentitiesOptions",
       "LinkedIdentity",
       "PrincipalByIdentity",
       "RedeemedLink"
@@ -5913,20 +5913,20 @@
       "UnlinkResult"
     ]
   },
-  "./blocks/bulk-actions": {
+  "./blocks/bulk": {
     "values": [
-      "bulkActionsBlock",
-      "bulkActionsEvents",
-      "createBulkActions"
+      "bulkBlock",
+      "bulkEvents",
+      "createBulk"
     ],
     "types": [
       "BuiltInBulkAction",
+      "Bulk",
       "BulkActionArgs",
-      "BulkActions",
-      "BulkActionsEvents",
-      "BulkActionsOptions",
       "BulkDrainOptions",
+      "BulkEvents",
       "BulkInput",
+      "BulkOptions",
       "BulkOutcome",
       "BulkProgress",
       "BulkResult",
@@ -7794,16 +7794,16 @@
       "RpcClient"
     ]
   },
-  "./blocks/admission-passes": {
+  "./blocks/passes": {
     "values": [
-      "admissionPassesBinding",
-      "admissionPassesBlock",
-      "admissionPassesEvents",
-      "admissionPassesSqlOptions",
-      "createAdmissionPasses",
+      "createPasses",
       "dbTransport",
       "extendBlock",
       "PASS_TOKEN_TYPE",
+      "passesBinding",
+      "passesBlock",
+      "passesEvents",
+      "passesSqlOptions",
       "passInputSchema",
       "passSectionInputSchema",
       "rpcTransport",
@@ -7812,11 +7812,6 @@
       "wrapTransport"
     ],
     "types": [
-      "AdmissionPasses",
-      "AdmissionPassesEvents",
-      "AdmissionPassesOptions",
-      "AdmissionPassesSqlOptions",
-      "AdmissionPassesWrites",
       "BlockHooks",
       "BlockTransport",
       "BlockTransportMiddleware",
@@ -7830,6 +7825,11 @@
       "PassCreditBookingInput",
       "PassCreditEntry",
       "PassCreditEventData",
+      "Passes",
+      "PassesEvents",
+      "PassesOptions",
+      "PassesSqlOptions",
+      "PassesWrites",
       "PassInput",
       "PassIssuedEventData",
       "PassListOptions",

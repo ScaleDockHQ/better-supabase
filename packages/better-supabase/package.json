@@ -339,10 +339,10 @@
       "types": "./dist/blocks/mfa/index.d.ts",
       "default": "./dist/blocks/mfa/index.js"
     },
-    "./blocks/session-revocation": {
-      "@better-supabase/source": "./src/blocks/session-revocation/index.ts",
-      "types": "./dist/blocks/session-revocation/index.d.ts",
-      "default": "./dist/blocks/session-revocation/index.js"
+    "./blocks/sessions": {
+      "@better-supabase/source": "./src/blocks/sessions/index.ts",
+      "types": "./dist/blocks/sessions/index.d.ts",
+      "default": "./dist/blocks/sessions/index.js"
     },
     "./blocks/settings": {
       "@better-supabase/source": "./src/blocks/settings/index.ts",
@@ -359,10 +359,10 @@
       "types": "./dist/blocks/billing/index.d.ts",
       "default": "./dist/blocks/billing/index.js"
     },
-    "./blocks/feature-flags": {
-      "@better-supabase/source": "./src/blocks/feature-flags/index.ts",
-      "types": "./dist/blocks/feature-flags/index.d.ts",
-      "default": "./dist/blocks/feature-flags/index.js"
+    "./blocks/flags": {
+      "@better-supabase/source": "./src/blocks/flags/index.ts",
+      "types": "./dist/blocks/flags/index.d.ts",
+      "default": "./dist/blocks/flags/index.js"
     },
     "./blocks/timeline": {
       "@better-supabase/source": "./src/blocks/timeline/index.ts",
@@ -731,10 +731,10 @@
       "types": "./dist/blocks/security-events/index.d.ts",
       "default": "./dist/blocks/security-events/index.js"
     },
-    "./blocks/linked-identities": {
-      "@better-supabase/source": "./src/blocks/linked-identities/index.ts",
-      "types": "./dist/blocks/linked-identities/index.d.ts",
-      "default": "./dist/blocks/linked-identities/index.js"
+    "./blocks/identities": {
+      "@better-supabase/source": "./src/blocks/identities/index.ts",
+      "types": "./dist/blocks/identities/index.d.ts",
+      "default": "./dist/blocks/identities/index.js"
     },
     "./blocks/service-accounts": {
       "@better-supabase/source": "./src/blocks/service-accounts/index.ts",
@@ -766,10 +766,10 @@
       "types": "./dist/blocks/relations/index.d.ts",
       "default": "./dist/blocks/relations/index.js"
     },
-    "./blocks/bulk-actions": {
-      "@better-supabase/source": "./src/blocks/bulk-actions/index.ts",
-      "types": "./dist/blocks/bulk-actions/index.d.ts",
-      "default": "./dist/blocks/bulk-actions/index.js"
+    "./blocks/bulk": {
+      "@better-supabase/source": "./src/blocks/bulk/index.ts",
+      "types": "./dist/blocks/bulk/index.d.ts",
+      "default": "./dist/blocks/bulk/index.js"
     },
     "./blocks/search": {
       "@better-supabase/source": "./src/blocks/search/index.ts",
@@ -993,10 +993,10 @@
       "types": "./dist/blocks/guests/index.d.ts",
       "default": "./dist/blocks/guests/index.js"
     },
-    "./blocks/admission-passes": {
-      "@better-supabase/source": "./src/blocks/admission-passes/index.ts",
-      "types": "./dist/blocks/admission-passes/index.d.ts",
-      "default": "./dist/blocks/admission-passes/index.js"
+    "./blocks/passes": {
+      "@better-supabase/source": "./src/blocks/passes/index.ts",
+      "types": "./dist/blocks/passes/index.d.ts",
+      "default": "./dist/blocks/passes/index.js"
     },
     "./blocks/billable-time": {
       "@better-supabase/source": "./src/blocks/billable-time/index.ts",
@@ -1309,9 +1309,9 @@
         "types": "./dist/blocks/mfa/index.d.ts",
         "default": "./dist/blocks/mfa/index.js"
       },
-      "./blocks/session-revocation": {
-        "types": "./dist/blocks/session-revocation/index.d.ts",
-        "default": "./dist/blocks/session-revocation/index.js"
+      "./blocks/sessions": {
+        "types": "./dist/blocks/sessions/index.d.ts",
+        "default": "./dist/blocks/sessions/index.js"
       },
       "./blocks/settings": {
         "types": "./dist/blocks/settings/index.d.ts",
@@ -1325,9 +1325,9 @@
         "types": "./dist/blocks/billing/index.d.ts",
         "default": "./dist/blocks/billing/index.js"
       },
-      "./blocks/feature-flags": {
-        "types": "./dist/blocks/feature-flags/index.d.ts",
-        "default": "./dist/blocks/feature-flags/index.js"
+      "./blocks/flags": {
+        "types": "./dist/blocks/flags/index.d.ts",
+        "default": "./dist/blocks/flags/index.js"
       },
       "./blocks/timeline": {
         "types": "./dist/blocks/timeline/index.d.ts",
@@ -1623,9 +1623,9 @@
         "types": "./dist/blocks/security-events/index.d.ts",
         "default": "./dist/blocks/security-events/index.js"
       },
-      "./blocks/linked-identities": {
-        "types": "./dist/blocks/linked-identities/index.d.ts",
-        "default": "./dist/blocks/linked-identities/index.js"
+      "./blocks/identities": {
+        "types": "./dist/blocks/identities/index.d.ts",
+        "default": "./dist/blocks/identities/index.js"
       },
       "./blocks/service-accounts": {
         "types": "./dist/blocks/service-accounts/index.d.ts",
@@ -1651,9 +1651,9 @@
         "types": "./dist/blocks/relations/index.d.ts",
         "default": "./dist/blocks/relations/index.js"
       },
-      "./blocks/bulk-actions": {
-        "types": "./dist/blocks/bulk-actions/index.d.ts",
-        "default": "./dist/blocks/bulk-actions/index.js"
+      "./blocks/bulk": {
+        "types": "./dist/blocks/bulk/index.d.ts",
+        "default": "./dist/blocks/bulk/index.js"
       },
       "./blocks/search": {
         "types": "./dist/blocks/search/index.d.ts",
@@ -1833,9 +1833,9 @@
         "types": "./dist/blocks/guests/index.d.ts",
         "default": "./dist/blocks/guests/index.js"
       },
-      "./blocks/admission-passes": {
-        "types": "./dist/blocks/admission-passes/index.d.ts",
-        "default": "./dist/blocks/admission-passes/index.js"
+      "./blocks/passes": {
+        "types": "./dist/blocks/passes/index.d.ts",
+        "default": "./dist/blocks/passes/index.js"
       },
       "./blocks/billable-time": {
         "types": "./dist/blocks/billable-time/index.d.ts",

@@ -132,12 +132,12 @@ export async function moduleLayoutFor(
   }
 
   const fromPolicies =
-    resolved.has("data-api-grants") &&
-    config.blocks["data-api-grants"]?.options?.["fromPolicies"] === true;
+    resolved.has("grants") &&
+    config.blocks["grants"]?.options?.["fromPolicies"] === true;
 
   const sessionPolicies =
-    resolved.has("session-revocation") &&
-    config.blocks["session-revocation"]?.options?.["policies"] === true;
+    resolved.has("sessions") &&
+    config.blocks["sessions"]?.options?.["policies"] === true;
 
   const sameTenant = config.blocks["memberships"]?.options?.["sameTenant"];
 

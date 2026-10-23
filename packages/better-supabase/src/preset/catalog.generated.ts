@@ -137,12 +137,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "pgtap"
     },
     {
-      "name": "data-api-grants",
+      "name": "grants",
       "title": "Data API grants",
       "category": "identity",
       "requires": [],
       "integrates": [],
-      "manifest": "data-api-grants"
+      "manifest": "grants"
     },
     {
       "name": "read-sets",
@@ -341,12 +341,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "session-revocation",
+      "name": "sessions",
       "title": "Session revocation",
       "category": "identity",
       "requires": [],
       "integrates": [],
-      "manifest": "session-revocation"
+      "manifest": "sessions"
     },
     {
       "name": "webhooks-in",
@@ -466,7 +466,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "feature-flags",
+      "name": "flags",
       "title": "Feature flags",
       "category": "growth",
       "requires": [
@@ -476,7 +476,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions",
         "entitlements"
       ],
-      "manifest": "feature-flags",
+      "manifest": "flags",
       "scopes": [
         "tenant"
       ],
@@ -1425,7 +1425,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "drive",
-        "bulk-actions"
+        "bulk"
       ],
       "manifest": "tags",
       "scopes": [
@@ -1478,7 +1478,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "approvals",
-        "bulk-actions"
+        "bulk"
       ],
       "manifest": "state-machine",
       "scopes": [
@@ -1746,7 +1746,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "bulk-actions"
+        "bulk"
       ],
       "manifest": "relations",
       "scopes": [
@@ -1785,7 +1785,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "bulk-actions",
+      "name": "bulk",
       "title": "Bulk actions",
       "category": "work",
       "requires": [
@@ -1796,7 +1796,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "queue",
         "outbox"
       ],
-      "manifest": "bulk-actions",
+      "manifest": "bulk",
       "scopes": [
         "tenant"
       ]
@@ -2070,7 +2070,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "data-lifecycle",
-        "bulk-actions"
+        "bulk"
       ],
       "manifest": "trash",
       "scopes": [
@@ -2931,14 +2931,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "linked-identities",
+      "name": "identities",
       "title": "Identities",
       "category": "identity",
       "requires": [],
       "integrates": [
         "inbox"
       ],
-      "manifest": "linked-identities"
+      "manifest": "identities"
     },
     {
       "name": "service-accounts",
@@ -3976,7 +3976,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "teams",
-        "bulk-actions"
+        "bulk"
       ],
       "manifest": "collections",
       "scopes": [
@@ -4730,7 +4730,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "admission-passes",
+      "name": "passes",
       "title": "Passes",
       "category": "scheduling",
       "requires": [
@@ -4744,7 +4744,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "signing-keys",
         "ledger"
       ],
-      "manifest": "admission-passes",
+      "manifest": "passes",
       "scopes": [
         "tenant"
       ],
@@ -7597,19 +7597,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "bulk-actions",
+      "name": "bulk",
       "sql": [
-        "bulk-actions"
+        "bulk"
       ],
       "category": "work",
       "client": {
-        "export": "bulkActionsBlock",
-        "subpath": "better-supabase/blocks/bulk-actions"
+        "export": "bulkBlock",
+        "subpath": "better-supabase/blocks/bulk"
       },
       "consumes": {},
       "provides": [],
       "events": {
-        "type": "BulkActionsEvents",
+        "type": "BulkEvents",
         "types": [
           "bulk_run.completed"
         ]
@@ -9436,33 +9436,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "admission-passes",
+      "name": "passes",
       "sql": [
-        "admission-passes"
+        "passes"
       ],
       "category": "scheduling",
       "client": {
-        "export": "admissionPassesBlock",
-        "subpath": "better-supabase/blocks/admission-passes"
+        "export": "passesBlock",
+        "subpath": "better-supabase/blocks/passes"
       },
       "consumes": {},
       "provides": [],
       "entityTypes": [
-        {
-          "name": "AdmissionPasses"
-        },
-        {
-          "name": "AdmissionPassesEvents"
-        },
-        {
-          "name": "AdmissionPassesOptions"
-        },
-        {
-          "name": "AdmissionPassesSqlOptions"
-        },
-        {
-          "name": "AdmissionPassesWrites"
-        },
         {
           "name": "IssuedPass"
         },
@@ -9492,6 +9477,21 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PassCreditEventData"
+        },
+        {
+          "name": "Passes"
+        },
+        {
+          "name": "PassesEvents"
+        },
+        {
+          "name": "PassesOptions"
+        },
+        {
+          "name": "PassesSqlOptions"
+        },
+        {
+          "name": "PassesWrites"
         },
         {
           "name": "PassInput"
@@ -9647,7 +9647,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "revoke"
       ],
       "events": {
-        "type": "AdmissionPassesEvents",
+        "type": "PassesEvents",
         "types": [
           "pass.issued",
           "pass.revoked",
@@ -14093,34 +14093,18 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": []
     },
     {
-      "name": "feature-flags",
+      "name": "flags",
       "sql": [
-        "feature-flags"
+        "flags"
       ],
       "category": "growth",
       "client": {
-        "export": "featureFlagsBlock",
-        "subpath": "better-supabase/blocks/feature-flags"
+        "export": "flagsBlock",
+        "subpath": "better-supabase/blocks/flags"
       },
       "consumes": {},
       "provides": [],
       "entityTypes": [
-        {
-          "name": "FeatureFlags",
-          "fields": true
-        },
-        {
-          "name": "FeatureFlagsEvents"
-        },
-        {
-          "name": "FeatureFlagsOptions"
-        },
-        {
-          "name": "FeatureFlagsProvider"
-        },
-        {
-          "name": "FeatureFlagsProviderOptions"
-        },
         {
           "name": "FlagClient"
         },
@@ -14169,6 +14153,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "FlagRule"
         },
         {
+          "name": "Flags",
+          "fields": true
+        },
+        {
+          "name": "FlagsEvents"
+        },
+        {
+          "name": "FlagsOptions"
+        },
+        {
+          "name": "FlagsProvider"
+        },
+        {
+          "name": "FlagsProviderOptions"
+        },
+        {
           "name": "FlagType"
         },
         {
@@ -14179,7 +14179,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         }
       ],
       "events": {
-        "type": "FeatureFlagsEvents",
+        "type": "FlagsEvents",
         "types": [
           "flag.saved",
           "flag.deleted",
@@ -14339,9 +14339,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "data-api-grants",
+      "name": "grants",
       "sql": [
-        "data-api-grants"
+        "grants"
       ],
       "category": "identity",
       "client": null,
@@ -14389,14 +14389,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "linked-identities",
+      "name": "identities",
       "sql": [
-        "linked-identities"
+        "identities"
       ],
       "category": "identity",
       "client": {
-        "export": "linkedIdentitiesBlock",
-        "subpath": "better-supabase/blocks/linked-identities"
+        "export": "identitiesBlock",
+        "subpath": "better-supabase/blocks/identities"
       },
       "consumes": {},
       "provides": []
@@ -17091,9 +17091,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "session-revocation",
+      "name": "sessions",
       "sql": [
-        "session-revocation"
+        "sessions"
       ],
       "category": "identity",
       "client": null,
@@ -19024,10 +19024,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "use-session-revocation",
+      "name": "use-sessions",
       "title": "useOAuthConsent, useOAuthGrants",
       "blocks": [
-        "session-revocation"
+        "sessions"
       ],
       "frameworks": [
         "next",
@@ -19041,7 +19041,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "native"
       ],
       "targets": [
-        "@hooks/use-session-revocation.ts"
+        "@hooks/use-sessions.ts"
       ]
     },
     {
