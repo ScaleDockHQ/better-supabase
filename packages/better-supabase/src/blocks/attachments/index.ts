@@ -1,7 +1,7 @@
 export type {
   AttachmentsOptimisticAction,
   AttachmentsWrites,
-} from "./section.ts";
+} from "./record-binding.ts";
 
 export {
   type Attachment,
@@ -43,7 +43,7 @@ export type { Author } from "../../core/block-authors.ts";
 
 export { attachmentsBlock } from "./manifest.ts";
 
-export { attachmentsOptimistic, attachmentsSection } from "./section.ts";
+export { attachmentsOptimistic, attachmentsBinding } from "./record-binding.ts";
 
 export { attachmentsEvents } from "./events.ts";
 

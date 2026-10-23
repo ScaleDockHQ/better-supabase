@@ -38,7 +38,7 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { ledgerBlock } from "./manifest.ts";
 
-export { ledgerSection } from "./section.ts";
+export { ledgerBinding } from "./record-binding.ts";
 
 export { ledgerEvents } from "./events.ts";
 

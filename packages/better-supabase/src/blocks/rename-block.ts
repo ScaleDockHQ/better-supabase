@@ -6,7 +6,7 @@ import type { DbError } from "../core/errors.ts";
 import type { Logger } from "../core/logger.ts";
 import type { AnyBlock, Block, BlockConsumes } from "./define-block.ts";
 import type { PortName } from "./ports.ts";
-import type { AnySection, SectionMap } from "./sections.ts";
+import type { AnyRecordBinding } from "./record-bindings.ts";
 
 import { withBlockHooks } from "../core/block-hooks.ts";
 import { renameKeys } from "../core/block-names.ts";
@@ -463,31 +463,31 @@ interface HookOptions {
 }
 
 /**
- * `section` for a renamed block: it reads the default names, so it gets the
+ * `binding` for a renamed block: it reads the default names, so it gets the
  * original client and its rows come back renamed.
  */
-function renamedSection(
-  section: AnySection,
+function renamedBinding(
+  binding: AnyRecordBinding,
   renamer: Renamer,
   names: EntityNames,
-): AnySection {
-  // SAFETY: a section's functions take the client its block's creator made,
+): AnyRecordBinding {
+  // SAFETY: a binding's functions take the client its block's creator made,
   // which `originalOf` returns, and values it renames back.
-  const load = section.load as (...args: unknown[]) => AsyncResult<unknown>;
+  const load = binding.load as (...args: unknown[]) => AsyncResult<unknown>;
 
   // SAFETY: as for `load`.
-  const count = section.count as
+  const count = binding.count as
     | ((...args: unknown[]) => AsyncResult<Readonly<Record<string, number>>>)
     | undefined;
 
   // SAFETY: as for `load`.
-  const optimistic = section.optimistic as
+  const optimistic = binding.optimistic as
     | ((state: unknown, action: unknown) => unknown)
     | undefined;
 
   return {
-    ...section,
-    events: section.events.map((type) => names.rename(type)),
+    ...binding,
+    events: binding.events.map((type) => names.rename(type)),
     load: (client: never, subject, options: never) =>
       load(renamer.originalOf(client), subject, options).map((data) =>
         renamer.forward(data),
@@ -540,12 +540,10 @@ function renamed(
       ]),
     ),
     provides,
-    sections: Object.fromEntries(
-      Object.entries(block.sections ?? {}).map(([name, section]) => [
-        name,
-        renamedSection(section, renamer, names),
-      ]),
-    ),
+    record:
+      block.record === undefined
+        ? undefined
+        : renamedBinding(block.record, renamer, names),
     create:
       create === undefined
         ? undefined
@@ -590,12 +588,12 @@ export function renameBlock<
   M extends EventMap,
   C extends BlockConsumes,
   P extends PortName,
-  S extends SectionMap,
+  R extends AnyRecordBinding | undefined,
   const N extends BlockNaming | undefined,
 >(
-  block: Block<Name, O, Client, M, C, P, S>,
+  block: Block<Name, O, Client, M, C, P, R>,
   names: N,
-): RenamedBlock<Block<Name, O, Client, M, C, P, S>, RenamesOf<N>>;
+): RenamedBlock<Block<Name, O, Client, M, C, P, R>, RenamesOf<N>>;
 export function renameBlock(
   block: AnyBlock,
   names: BlockNaming | undefined,

@@ -26,7 +26,7 @@ const config: OxfmtConfig = defineConfig({
     ...ignorePatterns,
     "packages/better-supabase/tests/fixtures/generated*",
     "apps/examples/**/lib/supabase/generated.*",
-    "apps/examples/**/lib/supabase/features/**",
+    "apps/examples/**/lib/supabase/records/**",
     "apps/examples/monorepo/runtime/src/generated.*",
     "tests/validation-*/src/**/generated.*",
     // `introspect --check` compares the file byte for byte with its own output.

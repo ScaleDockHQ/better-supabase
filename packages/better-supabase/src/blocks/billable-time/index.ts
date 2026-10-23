@@ -37,7 +37,10 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { billableTimeBlock } from "./manifest.ts";
 
-export { billableTimeSection, type BillableTimeWrites } from "./section.ts";
+export {
+  billableTimeBinding,
+  type BillableTimeWrites,
+} from "./record-binding.ts";
 
 export {
   timeInvoiceSectionInputSchema,

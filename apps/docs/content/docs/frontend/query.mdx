@@ -208,17 +208,16 @@ queries of a block stale when one of its events arrives, such as a
 event in its `invalidates`, or all of its read methods. It returns the
 function that stops listening.
 
-## Record features
+## Record types
 
-`recordQueries(feature, clients, options?)` gives one record page's
-[sections](/docs/blocks/records) the same factories: `sections.<name>(id)`
-query options keyed `["bsb-record", type, id, section]`, `writes.<section>.<write>(id)`
-mutation options that make that section stale, and `can()` from the `permissions`
-client you pass as `options.access`. `gen` writes a `<subject>-queries.ts`
-per [generated feature](/docs/blocks/records#generated-features) when
-`@tanstack/react-query` is installed. `invalidateOnRecordEvents(queryClient,
-betterSupabase, feature)` makes a section stale when one of its events
-arrives.
+`recordQueries(customerRecord, clients, options?)` gives one record page's
+[bindings](/docs/blocks/records) the same factories: `bindings.<name>(id)`
+query options keyed `["bsb-record", type, id, binding]`,
+`writes.<binding>.<write>(id)` mutation options that make that binding stale,
+and `can()` from the `permissions` client you pass as `options.access`. Pass it
+a [generated record type](/docs/blocks/records#generated-record-types).
+`invalidateOnRecordEvents(queryClient, betterSupabase, customerRecord)` makes a
+binding stale when one of its events arrives.
 
 ## Errors
 

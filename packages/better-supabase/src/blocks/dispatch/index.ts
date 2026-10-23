@@ -47,7 +47,7 @@ export { dispatchBlock } from "./manifest.ts";
 
 export { dispatchSqlOptions, type DispatchSqlOptions } from "./options.ts";
 
-export { dispatchSection, type DispatchWrites } from "./section.ts";
+export { dispatchBinding, type DispatchWrites } from "./record-binding.ts";
 
 export {
   workOrderInputSchema,

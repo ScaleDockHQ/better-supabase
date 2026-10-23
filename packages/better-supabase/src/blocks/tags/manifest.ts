@@ -4,7 +4,7 @@ import type { TagsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { tagsEvents } from "./events.ts";
 import { tagsSqlOptions } from "./options.ts";
-import { tagsSection } from "./section.ts";
+import { tagsBinding } from "./record-binding.ts";
 import { createTags } from "./tags.ts";
 
 /** The `tags` block's manifest (ADR 0029). */
@@ -14,14 +14,14 @@ export const tagsBlock: BlockOf<
   TagsEvents,
   Record<never, never>,
   never,
-  { readonly tags: typeof tagsSection }
+  typeof tagsBinding
 > = defineBlock({
   name: "tags",
   sql: ["tags"],
   options: { tags: tagsSqlOptions },
   events: tagsEvents,
   create: createTags,
-  sections: { tags: tagsSection },
+  record: tagsBinding,
   category: "work",
   recipes: ["record-page", "tag-input"],
 });

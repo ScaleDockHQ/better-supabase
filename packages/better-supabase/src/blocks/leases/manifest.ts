@@ -5,8 +5,8 @@ import { defineBlock } from "../define-block.ts";
 import { leasesEvents } from "./events.ts";
 import { createLeases } from "./leases.ts";
 import { leasesSqlOptions } from "./options.ts";
+import { leasesBinding } from "./record-binding.ts";
 import { leaseInputSchema, maintenanceRequestInputSchema } from "./schemas.ts";
-import { leasesSection } from "./section.ts";
 
 /** The `leases` block's manifest (ADR 0029). */
 export const leasesBlock: BlockOf<
@@ -15,7 +15,7 @@ export const leasesBlock: BlockOf<
   LeasesEvents,
   Record<never, never>,
   never,
-  { readonly leases: typeof leasesSection }
+  typeof leasesBinding
 > = defineBlock({
   name: "leases",
   sql: ["leases"],
@@ -26,6 +26,6 @@ export const leasesBlock: BlockOf<
     maintenance_request: { input: maintenanceRequestInputSchema },
   },
   create: createLeases,
-  sections: { leases: leasesSection },
+  record: leasesBinding,
   category: "commerce",
 });

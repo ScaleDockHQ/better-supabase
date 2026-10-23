@@ -16,6 +16,7 @@ import {
   RENAMED_BLOCK_KEYS,
   RENAMED_CONFIG_KEYS,
 } from "../../config/index.ts";
+import { withRecordTypes } from "../codemod-record-bindings.ts";
 import {
   closingIndex,
   configObject,
@@ -510,7 +511,8 @@ export function tidyInline(text: string, open: number): string {
 }
 
 /** `better-supabase.config.ts` with the 0.15 grouping applied. */
-export function groupConfigSource(source: string): ConfigEdit {
+export function groupConfigSource(original: string): ConfigEdit {
+  const source = withRecordTypes(original);
   const open = configObject(mask(source));
 
   if (open === undefined) {
@@ -524,7 +526,8 @@ export function groupConfigSource(source: string): ConfigEdit {
 }
 
 /** {@link groupConfigSource} for a `better-supabase.config.json`. */
-export function groupConfigJson(source: string): ConfigEdit {
+export function groupConfigJson(original: string): ConfigEdit {
+  const source = withRecordTypes(original);
   let config: unknown;
 
   try {

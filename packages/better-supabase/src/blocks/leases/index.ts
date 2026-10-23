@@ -42,7 +42,7 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { leasesBlock } from "./manifest.ts";
 
-export { leasesSection } from "./section.ts";
+export { leasesBinding } from "./record-binding.ts";
 
 export { leaseInputSchema, maintenanceRequestInputSchema } from "./schemas.ts";
 

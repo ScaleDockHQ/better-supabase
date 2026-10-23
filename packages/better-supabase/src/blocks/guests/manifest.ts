@@ -4,8 +4,8 @@ import type { GuestsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { guestsEvents } from "./events.ts";
 import { createGuests } from "./guests.ts";
+import { guestsBinding } from "./record-binding.ts";
 import { guestGrantSchema, guestInviteSchema } from "./schemas.ts";
-import { guestsSection } from "./section.ts";
 
 /** The `guests` block's manifest (ADR 0029). */
 export const guestsBlock: BlockOf<
@@ -14,7 +14,7 @@ export const guestsBlock: BlockOf<
   GuestsEvents,
   Record<never, never>,
   never,
-  { readonly guests: typeof guestsSection }
+  typeof guestsBinding
 > = defineBlock({
   name: "guests",
   sql: ["guests"],
@@ -25,6 +25,6 @@ export const guestsBlock: BlockOf<
     guest_grant: { input: guestGrantSchema },
   },
   create: createGuests,
-  sections: { guests: guestsSection },
+  record: guestsBinding,
   category: "collaboration",
 });

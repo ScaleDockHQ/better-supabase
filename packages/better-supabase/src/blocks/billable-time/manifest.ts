@@ -4,8 +4,8 @@ import type { BillableTimeEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createBillableTime } from "./billable-time.ts";
 import { billableTimeEvents } from "./events.ts";
+import { billableTimeBinding } from "./record-binding.ts";
 import { timeRateInputSchema } from "./schemas.ts";
-import { billableTimeSection } from "./section.ts";
 
 /** The `billable-time` block's manifest (ADR 0029). */
 export const billableTimeBlock: BlockOf<
@@ -14,7 +14,7 @@ export const billableTimeBlock: BlockOf<
   BillableTimeEvents,
   Record<never, never>,
   never,
-  { readonly billableTime: typeof billableTimeSection }
+  typeof billableTimeBinding
 > = defineBlock({
   name: "billable-time",
   sql: ["billable-time"],
@@ -22,6 +22,6 @@ export const billableTimeBlock: BlockOf<
   events: billableTimeEvents,
   schemas: { time_rate: { input: timeRateInputSchema } },
   create: createBillableTime,
-  sections: { billableTime: billableTimeSection },
+  record: billableTimeBinding,
   category: "commerce",
 });

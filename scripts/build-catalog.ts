@@ -535,16 +535,10 @@ function presetManifest(
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("")}Events`;
 
-  const sections = Object.fromEntries(
-    Object.entries(manifest.client === null ? {} : (block.sections ?? {})).map(
-      ([name, section]) => [name, Object.keys(section.writes ?? {})],
-    ),
-  );
-
   const withSections =
-    Object.keys(sections).length === 0
+    manifest.client === null || block.record === undefined
       ? withSchemas
-      : { ...withSchemas, sections };
+      : { ...withSchemas, record: Object.keys(block.record.writes ?? {}) };
 
   return manifest.client !== null &&
     block.events.types.length > 0 &&

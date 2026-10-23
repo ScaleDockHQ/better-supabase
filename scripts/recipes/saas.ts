@@ -303,7 +303,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     blocks: ["comments", "attachments", "versions"],
     kind: "component",
     description:
-      "One record's comments, files and versions merged newest first, from `recordServer(...).timeline`, skipping the sections the caller can't read.",
+      "One record's comments, files and versions merged newest first, from `bsb.record(...).timeline`, skipping the bindings the caller can't read.",
     web: {
       file: `${WEB_APP}/src/features/customers/components/customer-timeline.tsx`,
       components: ["badge", "button", "card", "empty"],

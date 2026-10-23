@@ -13,7 +13,7 @@ import {
   donationsBlock,
   donationsEvents,
   giftInputSchema,
-  givingSection,
+  givingBinding,
   pledgeInputSchema,
 } from "../../../src/blocks/donations/index.ts";
 import { money } from "../../../src/commerce/money.ts";
@@ -1305,7 +1305,7 @@ describe("donations block", () => {
 
     const donations = createDonations({ transport, tenant: "org-1" });
 
-    expect((await givingSection.load(donations, DONOR, undefined)).ok).toBe(
+    expect((await givingBinding.load(donations, DONOR, undefined)).ok).toBe(
       true,
     );
     expect(calls[0]?.[1]).toMatchObject({ donor_type: "contact" });

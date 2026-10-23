@@ -27,7 +27,7 @@ export { invalidateOnRecordEvents, recordQueries } from "./records.ts";
 export type {
   RecordQueries,
   RecordQueriesOptions,
-  RecordSectionQueries,
+  RecordBindingQueries,
   RecordWriteMutations,
 } from "./records.ts";
 

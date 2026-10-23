@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   courseInputSchema,
-  courseLearnersSection,
+  courseLearnersBinding,
   courseLessonInputSchema,
   coursesBlock,
   coursesEvents,
@@ -560,7 +560,7 @@ describe("createCourses", () => {
   });
 });
 
-describe("courseLearnersSection", () => {
+describe("courseLearnersBinding", () => {
   it("loads a course's learners and enrolls through its writes", async () => {
     const fake = fakeTransport({
       list_course_learners: [LEARNER],
@@ -571,15 +571,15 @@ describe("courseLearnersSection", () => {
     const courses = createCourses({ transport: fake.transport });
     const subject = { type: "course", id: "c1" };
 
-    const learners = await courseLearnersSection
+    const learners = await courseLearnersBinding
       .load(courses, subject, undefined)
       .orThrow();
 
     expect(learners).toHaveLength(1);
-    await courseLearnersSection.writes.enroll
+    await courseLearnersBinding.writes.enroll
       .run(courses, subject, { userId: "u2" })
       .orThrow();
-    await courseLearnersSection.writes.unenroll
+    await courseLearnersBinding.writes.unenroll
       .run(courses, subject, {})
       .orThrow();
 
@@ -587,11 +587,11 @@ describe("courseLearnersSection", () => {
       ["enroll_in_course", { course_id: "c1", user_id: "u2" }],
       ["unenroll_from_course", { course_id: "c1", user_id: null }],
     ]);
-    expect(courseLearnersSection.events).toContain("course.*");
+    expect(courseLearnersBinding.events).toContain("course.*");
   });
 
   it("isn't attached to other subjects' record pages", () => {
-    expect(coursesBlock.sections).toEqual({});
+    expect(coursesBlock.record).toBeUndefined();
     expect(coursesBlock.recipes).toEqual(["course-outline", "lesson-player"]);
     expect(coursesEvents.types).toContain("course_certificate.issued");
   });

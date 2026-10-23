@@ -2484,7 +2484,7 @@
           "description": "PostgREST major version written to database.types.ts.",
           "default": "13"
         },
-        "generateFeatures": {
+        "recordTypes": {
           "type": "boolean"
         },
         "tables": {

@@ -13193,7 +13193,7 @@ export async function MyWorkList() {
 
 ## Subject timeline
 
-One record's comments, files and versions merged newest first, from `recordServer(...).timeline`, skipping the sections the caller can't read. It loads its data on the server through the block's client; the [comments](https://bettersupabase.com/blocks/comments), [attachments](https://bettersupabase.com/blocks/attachments), [versions](https://bettersupabase.com/blocks/versions) blocks must be installed (`npx better-supabase add comments attachments versions`). Page: https://bettersupabase.com/recipes/subject-timeline.
+One record's comments, files and versions merged newest first, from `bsb.record(...).timeline`, skipping the bindings the caller can't read. It loads its data on the server through the block's client; the [comments](https://bettersupabase.com/blocks/comments), [attachments](https://bettersupabase.com/blocks/attachments), [versions](https://bettersupabase.com/blocks/versions) blocks must be installed (`npx better-supabase add comments attachments versions`). Page: https://bettersupabase.com/recipes/subject-timeline.
 
 Web, with shadcn components:
 

@@ -6,7 +6,7 @@ import type { RecordRef } from "../../src/schema/types.ts";
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import {
   createRecordController,
-  defineSection,
+  defineRecordBinding,
 } from "../../src/records/index.ts";
 import {
   failed,
@@ -28,25 +28,21 @@ function setup() {
   const notesBlock = defineBlock({
     name: "notes",
     category: "collaboration",
-    sections: {
-      notes: defineSection({
-        permissions: { read: "read" },
-        load: (_client: unknown, subject) => notes(subject),
-        events: ["note.created"],
-      }),
-    },
+    record: defineRecordBinding({
+      permissions: { read: "read" },
+      load: (_client: unknown, subject) => notes(subject),
+      events: ["note.created"],
+    }),
   });
 
   const filesBlock = defineBlock({
     name: "files",
     category: "collaboration",
-    sections: {
-      files: defineSection({
-        permissions: { read: "read" },
-        load: (_client: unknown, subject) => files(subject),
-        events: ["file.*"],
-      }),
-    },
+    record: defineRecordBinding({
+      permissions: { read: "read" },
+      load: (_client: unknown, subject) => files(subject),
+      events: ["file.*"],
+    }),
   });
 
   return {
@@ -68,7 +64,7 @@ const summaryOf = (title: string): RecordSummary => ({
 });
 
 describe("createRecordController", () => {
-  it("loads every section and the summary on one topic", async () => {
+  it("loads every binding and the summary on one topic", async () => {
     const { notes, files, source } = setup();
     const topic = fakeTopic();
     const summary = vi.fn(() => resolved(summaryOf("Acme")));
@@ -78,7 +74,7 @@ describe("createRecordController", () => {
       auth: fakeAuth(),
       ports: { topic: topic.port },
       subject: customer,
-      sections: ["notes", "files"],
+      bindings: ["notes", "files"],
       topic: "record:customer:7",
       summary: { summary },
       summaryOptions: { seenAt: null },
@@ -88,7 +84,7 @@ describe("createRecordController", () => {
 
     await flush();
 
-    expect(view().sections).toEqual({
+    expect(view().bindings).toEqual({
       notes: { kind: "ok", data: ["7"] },
       files: { kind: "ok", data: 2 },
     });
@@ -125,7 +121,7 @@ describe("createRecordController", () => {
     expect(topic.open()).toEqual([]);
   });
 
-  it("keeps the summary error next to the sections", async () => {
+  it("keeps the summary error next to the bindings", async () => {
     const { source } = setup();
 
     const controller = createRecordController({
@@ -133,7 +129,7 @@ describe("createRecordController", () => {
       auth: fakeAuth(),
       ports: { topic: fakeTopic().port },
       subject: customer,
-      sections: ["notes"],
+      bindings: ["notes"],
       summary: { summary: () => failed("gone") },
     });
 
@@ -142,10 +138,10 @@ describe("createRecordController", () => {
     await flush();
 
     expect(view().error?.kind).toBe("not_found");
-    expect(view().sections?.notes?.kind).toBe("ok");
+    expect(view().bindings?.notes?.kind).toBe("ok");
   });
 
-  it("refreshes only the named sections", async () => {
+  it("refreshes only the named bindings", async () => {
     const { notes, files, source } = setup();
 
     const controller = createRecordController({
@@ -153,7 +149,7 @@ describe("createRecordController", () => {
       auth: fakeAuth(),
       ports: { topic: fakeTopic().port },
       subject: customer,
-      sections: ["notes", "files"],
+      bindings: ["notes", "files"],
     });
 
     const { view } = mount(controller);
@@ -167,7 +163,7 @@ describe("createRecordController", () => {
     expect(notes).not.toHaveBeenCalled();
   });
 
-  it("drops a section load a newer load overtook", async () => {
+  it("drops a binding load a newer load overtook", async () => {
     const { notes, source } = setup();
     const slow = held(["old"]);
     notes.mockReturnValueOnce(slow.result);
@@ -177,7 +173,7 @@ describe("createRecordController", () => {
       auth: fakeAuth(),
       ports: { topic: fakeTopic().port },
       subject: customer,
-      sections: ["notes"],
+      bindings: ["notes"],
     });
 
     const { view } = mount(controller);
@@ -186,7 +182,7 @@ describe("createRecordController", () => {
     slow.release();
     await flush();
 
-    expect(view().sections?.notes).toEqual({ kind: "ok", data: ["7"] });
+    expect(view().bindings?.notes).toEqual({ kind: "ok", data: ["7"] });
   });
 
   it("drops a summary a newer load overtook", async () => {
@@ -203,7 +199,7 @@ describe("createRecordController", () => {
       auth: fakeAuth(),
       ports: { topic: fakeTopic().port },
       subject: customer,
-      sections: [],
+      bindings: [],
       summary: { summary },
     });
 
@@ -224,7 +220,7 @@ describe("createRecordController", () => {
       auth: fakeAuth(),
       ports: { topic: fakeTopic().port },
       subject: null,
-      sections: ["notes"],
+      bindings: ["notes"],
       summary: { summary: () => resolved(summaryOf("x")) },
     });
 
@@ -233,7 +229,7 @@ describe("createRecordController", () => {
     await view().refresh();
     await flush();
 
-    expect(view().sections).toBeUndefined();
+    expect(view().bindings).toBeUndefined();
     expect(view().summary).toBeUndefined();
 
     mount(
@@ -242,7 +238,7 @@ describe("createRecordController", () => {
         auth: fakeAuth(SIGNED_OUT),
         ports: { topic: fakeTopic().port },
         subject: customer,
-        sections: ["notes"],
+        bindings: ["notes"],
       }),
     );
     await flush();

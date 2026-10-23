@@ -5,8 +5,8 @@ import { defineBlock } from "../define-block.ts";
 import { createDispatch } from "./dispatch.ts";
 import { dispatchEvents } from "./events.ts";
 import { dispatchSqlOptions } from "./options.ts";
+import { dispatchBinding } from "./record-binding.ts";
 import { workOrderInputSchema, workOrderPartInputSchema } from "./schemas.ts";
-import { dispatchSection } from "./section.ts";
 
 /** The `dispatch` block's manifest (ADR 0029). */
 export const dispatchBlock: BlockOf<
@@ -15,7 +15,7 @@ export const dispatchBlock: BlockOf<
   DispatchEvents,
   Record<never, never>,
   never,
-  { readonly dispatch: typeof dispatchSection }
+  typeof dispatchBinding
 > = defineBlock({
   name: "dispatch",
   sql: ["dispatch"],
@@ -26,7 +26,7 @@ export const dispatchBlock: BlockOf<
     work_order_part: { input: workOrderPartInputSchema },
   },
   create: createDispatch,
-  sections: { dispatch: dispatchSection },
+  record: dispatchBinding,
   category: "work",
   recipes: ["dispatch-board", "technician-day"],
 });

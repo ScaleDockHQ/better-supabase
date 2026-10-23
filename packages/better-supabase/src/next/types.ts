@@ -12,7 +12,9 @@ import type { ReadSet } from "../core/read-set.ts";
 import type { QuerySpec } from "../core/spec.ts";
 import type { TagOptions } from "../core/tags.ts";
 import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
-import type { AnyFunctions, AnyModels, RecordRef } from "../schema/types.ts";
+import type { BindingName } from "../records/bindings.ts";
+import type { RecordType, RecordTypeBlocks } from "../records/record-type.ts";
+import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { AuthOutageHook } from "../server/entries/session.ts";
 import type {
   ActionInput,
@@ -34,6 +36,7 @@ import type {
 } from "../server/server-types.ts";
 import type { SupportStartRequest } from "../server/support.ts";
 import type { DbBudget } from "./collector.ts";
+import type { RecordServer } from "./record.ts";
 import type { NextResourceRoutes, NextResourcesOptions } from "./resources.ts";
 
 export interface NextOptions extends ServerOptions {
@@ -157,14 +160,6 @@ export interface ActionOptions<
 export type BlockActionArgs<S, A, Ctx> = [ActionParsed<S>] extends A
   ? { readonly args?: (input: ActionParsed<S>, ctx: Ctx) => A }
   : { readonly args: (input: ActionParsed<S>, ctx: Ctx) => A };
-
-/** The record and section a `sectionAction` writes to. */
-export interface SectionActionTarget<S, Ctx> {
-  /** The section to invalidate after the write, such as `"comments"`. */
-  readonly section: string;
-  /** The record the write is on, from the validated input. */
-  readonly subject: (input: ActionParsed<S>, ctx: Ctx) => RecordRef;
-}
 
 export interface RouteOptions<
   C = unknown,
@@ -350,50 +345,26 @@ export interface BetterNext<
     input: ActionInput<S>,
   ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>>>;
   /**
-   * A `blockAction` on one record's section: after the write succeeds it
-   * invalidates the section's and the record's cache tags in the caller's
-   * tenant (`invalidateSection`).
+   * One record type's server binding (`defineRecordType`, which `gen` writes to
+   * `records/<type>.ts`): `load` settles each block's binding for a record in a
+   * Server Component, `actions` holds one Server Action per binding write, and
+   * `tags` lists the record's cache tags. Each write drops the binding's and
+   * the record's tags in the caller's organization.
    *
    * ```ts
-   * export const addComment = bsb.sectionAction(
-   *   ({ db }) => blockSet.client(db, "comments"),
-   *   "create",
-   *   {
-   *     input: v.object({ customerId: v.string(), body: v.string() }),
-   *     section: "comments",
-   *     subject: ({ customerId }) => ({
-   *       type: "customer",
-   *       id: customerId,
-   *     }),
-   *     args: ({ customerId, body }) => [
-   *       { type: "customer", id: customerId },
-   *       { body },
-   *     ],
-   *   },
-   * );
+   * const customer = bsb.record(customerRecord);
+   * const { bindings, can } = await customer.load(id, {
+   *   bindings: ["tags"],
+   * });
    * ```
    */
-  sectionAction<
-    Cl extends object,
-    const K extends string,
-    S extends StandardSchemaV1 | undefined = undefined,
-    R extends boolean = false,
+  record<
+    T extends string,
+    RB extends RecordTypeBlocks,
+    N extends BindingName<RB>,
   >(
-    client: (ctx: ServerContext<M, F, E, C, P, B>) => Cl,
-    method: K & BlockMethodName<Cl>,
-    options: ActionOptions<S, C, P, R, Ref, NextResource<M, F, E, C, P, B>> &
-      BlockActionArgs<
-        S,
-        BlockArgsOf<Cl, K & BlockMethodName<Cl>>,
-        ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>
-      > &
-      SectionActionTarget<
-        S,
-        ServerContext<M, F, E, C, P, B> & AuthorizedContext<C, P, R>
-      >,
-  ): (
-    input: ActionInput<S>,
-  ) => Promise<ActionResult<BlockDataOf<Cl, K & BlockMethodName<Cl>>>>;
+    type: RecordType<T, RB> & { readonly bindings: readonly N[] },
+  ): RecordServer<T, RB, N>;
   /**
    * For Server Components: the caller's context, or the Next.js interrupt for a
    * refused caller. `unauthorized` calls `unauthorized()`, `forbidden` calls

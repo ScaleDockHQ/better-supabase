@@ -46,7 +46,7 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { donationsBlock } from "./manifest.ts";
 
-export { givingSection } from "./section.ts";
+export { givingBinding } from "./record-binding.ts";
 
 export {
   donationFundInputSchema,

@@ -53,7 +53,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { revokeCustomerShareLinks } from "@/lib/supabase/features/customer/customer-actions";
+import { revokeCustomerShareLinks } from "@/features/customers/customer-record-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, ShareLinkRow } from "../customer-record-queries";

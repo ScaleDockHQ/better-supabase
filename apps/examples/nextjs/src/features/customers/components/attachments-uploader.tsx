@@ -50,7 +50,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
-import { removeCustomerAttachments } from "@/lib/supabase/features/customer/customer-actions";
+import { removeCustomerAttachments } from "@/features/customers/customer-record-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AttachmentRow, Loaded } from "../customer-record-queries";

@@ -11,6 +11,7 @@ import { blocks } from "@/lib/blocks";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
+import { projectPage } from "./project-record";
 import {
   PROJECT_HISTORY_FIELDS,
   PROJECT_SUBJECT,
@@ -21,6 +22,8 @@ import {
 } from "./project-types";
 
 const Id = v.pipe(v.string(), v.uuid());
+
+export const snapshotProjectVersions = projectPage.actions.versions.snapshot;
 
 /** An empty form field means no value. */
 const OptionalId = v.pipe(

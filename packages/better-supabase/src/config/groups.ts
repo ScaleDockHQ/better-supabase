@@ -27,7 +27,7 @@ export const CONFIG_GROUPS: Readonly<Record<string, readonly string[]>> = {
     "output",
     "casing",
     "postgrestVersion",
-    "generateFeatures",
+    "recordTypes",
     "tables",
     "json",
     "codecs",

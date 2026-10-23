@@ -4,7 +4,7 @@ import type { SlaEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { slaEvents } from "./events.ts";
 import { slaSqlOptions } from "./options.ts";
-import { slaSection } from "./section.ts";
+import { slaBinding } from "./record-binding.ts";
 import { createSla } from "./sla.ts";
 
 /** The `sla` block's manifest (ADR 0029). */
@@ -14,14 +14,14 @@ export const slaBlock: BlockOf<
   SlaEvents,
   Record<never, never>,
   never,
-  { readonly sla: typeof slaSection }
+  typeof slaBinding
 > = defineBlock({
   name: "sla",
   sql: ["sla"],
   options: { sla: slaSqlOptions },
   events: slaEvents,
   create: createSla,
-  sections: { sla: slaSection },
+  record: slaBinding,
   category: "work",
   recipes: ["sla-badges"],
 });

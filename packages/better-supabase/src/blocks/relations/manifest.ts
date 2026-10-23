@@ -4,8 +4,8 @@ import type { RelationsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { relationsEvents } from "./events.ts";
 import { relationsSqlOptions } from "./options.ts";
+import { relationsBinding } from "./record-binding.ts";
 import { createRelations } from "./relations.ts";
-import { relationsSection } from "./section.ts";
 
 /** The `relations` block's manifest (ADR 0029). */
 export const relationsBlock: BlockOf<
@@ -14,14 +14,14 @@ export const relationsBlock: BlockOf<
   RelationsEvents,
   Record<never, never>,
   never,
-  { readonly relations: typeof relationsSection }
+  typeof relationsBinding
 > = defineBlock({
   name: "relations",
   sql: ["relations"],
   options: { relations: relationsSqlOptions },
   events: relationsEvents,
   create: createRelations,
-  sections: { relations: relationsSection },
+  record: relationsBinding,
   category: "work",
   recipes: ["related-items-panel"],
 });

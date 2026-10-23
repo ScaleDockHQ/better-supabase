@@ -486,30 +486,32 @@ A `redirect()` or `notFound()` after a write in `bsb.action()` or
 `bsb.route()` still sets the replica pin cookie and keeps the event sends
 running.
 
-## Record sections
+## Record bindings
 
-A record page's [sections](/docs/blocks/records) have their own cache tags,
-so a write to one section keeps the others cached. The
-[generated features](/docs/blocks/records#generated-features) use them for
-you: `recordServer(bsb, feature)` returns a `load(id, options?)` for Server
-Components and one Server Action per section write, each of which drops its
-section's tags.
+A record page's [bindings](/docs/blocks/records) have their own cache tags,
+so a write to one binding keeps the others cached.
+`bsb.record(customerRecord)` takes a
+[generated record type](/docs/blocks/records#generated-record-types) and
+returns `load(id, options?)` and `timeline(id, options?)` for Server
+Components, `actions`, one Server Action per binding write, each of which
+drops its binding's tags, and `tags(id, tenant?)`, the record tag and each
+binding tag, for your own cached reads.
 
 | Function                                        | Tag                                                                   |
 | ----------------------------------------------- | --------------------------------------------------------------------- |
 | `recordTag(subject, { tenant? })`               | `bsb:record@<tenant>:<type>:<id>`, the header and badges              |
-| `sectionTag(subject, section, { tenant? })`     | the record tag plus `#<section>`                                      |
-| `invalidateSection(subject, section, options?)` | drops both: `updateTag` in a server action, `revalidateTag` elsewhere |
+| `bindingTag(subject, binding, { tenant? })`     | the record tag plus `#<binding>`                                      |
+| `invalidateBinding(subject, binding, options?)` | drops both: `updateTag` in a server action, `revalidateTag` elsewhere |
 
 ```ts title="src/features/customers/customer-queries.ts"
-import { recordTag, sectionTag } from "better-supabase/next";
+import { recordTag, bindingTag } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 async function customerFiles(tenant: string, id: string) {
   "use cache";
   const subject = { type: "customer", id };
   cacheTag(
-    sectionTag(subject, "attachments", { tenant }),
+    bindingTag(subject, "attachments", { tenant }),
     recordTag(subject, { tenant }),
   );
   const result = await loadFiles(tenant, subject);
@@ -518,23 +520,15 @@ async function customerFiles(tenant: string, id: string) {
 }
 ```
 
-`bsb.sectionAction(client, method, options)` is a
-[block action](#block-actions) that also takes the `section` it writes and
-the `subject` it writes to, and calls `invalidateSection` with the request's
-tenant after a successful write:
+Export the actions your UI calls from a `"use server"` file. Each takes
+`{ id, input }`, checks the caller's permission for the write, and calls
+`invalidateBinding` with the request's tenant after a successful write:
 
-```ts title="src/features/customers/customer-actions.ts"
+```ts title="src/features/customers/customer-record-actions.ts"
 "use server";
 
-export const removeAttachment = bsb.sectionAction(
-  ({ supabase }) => customerAttachments(supabase),
-  "remove",
-  {
-    input: v.object({ id: v.string(), customerId: v.string() }),
-    requireTenant: true,
-    section: "attachments",
-    subject: ({ customerId }) => ({ type: "customer", id: customerId }),
-    args: ({ id }) => [id],
-  },
-);
+import { customerPage } from "./customer-record";
+
+export const removeCustomerAttachments =
+  customerPage.actions.attachments.remove;
 ```

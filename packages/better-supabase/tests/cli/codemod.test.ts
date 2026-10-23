@@ -466,6 +466,44 @@ const ref: RecordRef = { type: "customer", id };
 `);
   });
 
+  it("renames generateFeatures to gen.recordTypes", () => {
+    const result = applyCodemod(
+      v015,
+      `export default defineConfig({ generateFeatures: false });\n`,
+      "/app/better-supabase.config.ts",
+    );
+
+    expect(result.text).toContain("recordTypes: false");
+    expect(result.text).not.toContain("generateFeatures");
+  });
+
+  it("renames the record section exports to record bindings", () => {
+    const source = `import { defineSection, loadSections } from "better-supabase/records";
+import { commentsSection } from "better-supabase/blocks/comments";
+
+const notes = defineSection({ load });
+await loadSections(source, subject, ["comments"]);
+`;
+
+    expect(applyCodemod(v015, source).text)
+      .toBe(`import { defineRecordBinding, loadBindings } from "better-supabase/records";
+import { commentsBinding } from "better-supabase/blocks/comments";
+
+const notes = defineRecordBinding({ load });
+await loadBindings(source, subject, ["comments"]);
+`);
+  });
+
+  it("lists record feature imports and sectionAction calls for review", () => {
+    const source = `import { customerRecord } from "@/lib/supabase/features/customer/customer-server";
+export const remove = bsb.sectionAction(attachmentsBlock, "remove");
+`;
+
+    const { review } = applyCodemod(v015, source);
+    expect(review.map((line) => line.line)).toEqual([1, 2]);
+    expect(review[0]?.message).toContain("bsb.record");
+  });
+
   it("moves block query keys into the bsb key space", () => {
     const source = `queryClient.invalidateQueries({ queryKey: ["bs-block", "tasks"] });
 const owner = query.meta?.bsBlock;

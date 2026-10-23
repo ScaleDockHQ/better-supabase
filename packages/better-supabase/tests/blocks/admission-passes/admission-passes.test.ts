@@ -6,7 +6,7 @@ import {
   createAdmissionPasses,
   PASS_TOKEN_TYPE,
   admissionPassesBlock,
-  admissionPassesSection,
+  admissionPassesBinding,
   passInputSchema,
   passSectionInputSchema,
 } from "../../../src/blocks/admission-passes/index.ts";
@@ -566,8 +566,8 @@ describe("passes block", () => {
 
     const subject = { type: "event", id: "e1" };
 
-    await admissionPassesSection.load(passes, subject, undefined);
-    await admissionPassesSection.writes.issue.run(passes, subject, {
+    await admissionPassesBinding.load(passes, subject, undefined);
+    await admissionPassesBinding.writes.issue.run(passes, subject, {
       resourceId: "r1",
     });
 

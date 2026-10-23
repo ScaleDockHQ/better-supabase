@@ -1,28 +1,34 @@
 import "server-only";
-import type { SectionResult } from "better-supabase/records";
+import type { RecordBindingResult } from "better-supabase/records";
 
 import { toDbError } from "better-supabase";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
-import { customerRecord } from "@/lib/supabase/features/customer/customer-server";
 import { bsb } from "@/lib/supabase/server";
+
+import { customerPage } from "./customer-record";
 
 /**
  * What a card on the customer page renders: the rows, or a failed read. The
- * page renders no card for a hidden section.
+ * page renders no card for a hidden binding.
  */
-export type Loaded<T> = Exclude<SectionResult<T>, { readonly kind: "hidden" }>;
+export type Loaded<T> = Exclude<
+  RecordBindingResult<T>,
+  { readonly kind: "hidden" }
+>;
 
-/** A hidden section reads as an empty list on the cards that always render. */
-function visible<T>(result: SectionResult<readonly T[]>): Loaded<readonly T[]> {
+/** A hidden binding reads as an empty list on the cards that always render. */
+function visible<T>(
+  result: RecordBindingResult<readonly T[]>,
+): Loaded<readonly T[]> {
   return result.kind === "hidden" ? { kind: "ok", data: [] } : result;
 }
 
 function mapped<T, U>(
-  result: SectionResult<readonly T[]>,
+  result: RecordBindingResult<readonly T[]>,
   map: (row: T) => U,
-): SectionResult<readonly U[]> {
+): RecordBindingResult<readonly U[]> {
   return result.kind === "ok"
     ? { kind: "ok", data: result.data.map(map) }
     : result;
@@ -48,14 +54,14 @@ export interface ShareLinkRow {
 export async function getShareLinks(
   customerId: string,
 ): Promise<Loaded<readonly ShareLinkRow[]>> {
-  const { sections } = await customerRecord.load(customerId, {
-    sections: ["shareLinks"],
+  const { bindings } = await customerPage.load(customerId, {
+    bindings: ["shareLinks"],
   });
 
   const now = Temporal.Now.instant().epochMilliseconds;
 
   return visible(
-    mapped(sections.shareLinks, (link) => {
+    mapped(bindings.shareLinks, (link) => {
       const expiresAt = epochOrNull(link.expiresAt);
 
       return {
@@ -82,12 +88,12 @@ export interface AttachmentRow {
 /** The customer's files, newest first. */
 export async function getAttachments(
   customerId: string,
-): Promise<SectionResult<readonly AttachmentRow[]>> {
-  const { sections } = await customerRecord.load(customerId, {
-    sections: ["attachments"],
+): Promise<RecordBindingResult<readonly AttachmentRow[]>> {
+  const { bindings } = await customerPage.load(customerId, {
+    bindings: ["attachments"],
   });
 
-  return mapped(sections.attachments, (file) => ({
+  return mapped(bindings.attachments, (file) => ({
     id: file.id,
     name: file.name,
     size: file.size,
@@ -120,13 +126,13 @@ export interface Relations {
 export async function getRelations(
   customerId: string,
 ): Promise<Loaded<Relations>> {
-  const [{ sections }, { db }] = await Promise.all([
-    customerRecord.load(customerId, { sections: ["relations"] }),
+  const [{ bindings }, { db }] = await Promise.all([
+    customerPage.load(customerId, { bindings: ["relations"] }),
     bsb.context(),
   ]);
 
   const links = visible(
-    mapped(sections.relations, (link) => ({
+    mapped(bindings.relations, (link) => ({
       id: link.id,
       kind: link.kind,
       subjectType: link.subject.type,
@@ -169,13 +175,13 @@ export interface VersionRow {
 export async function getVersions(
   customerId: string,
 ): Promise<Loaded<readonly VersionRow[]>> {
-  const { sections } = await customerRecord.load(customerId, {
-    sections: ["versions"],
+  const { bindings } = await customerPage.load(customerId, {
+    bindings: ["versions"],
     options: { versions: { pageSize: 20 } },
   });
 
   return visible(
-    mapped(sections.versions, (version) => ({
+    mapped(bindings.versions, (version) => ({
       id: version.id,
       number: version.number,
       label: version.label ?? null,
@@ -198,12 +204,12 @@ export interface SlaClockRow {
 export async function getSlaClocks(
   customerId: string,
 ): Promise<Loaded<readonly SlaClockRow[]>> {
-  const { sections } = await customerRecord.load(customerId, {
-    sections: ["sla"],
+  const { bindings } = await customerPage.load(customerId, {
+    bindings: ["sla"],
   });
 
   return visible(
-    mapped(sections.sla, (clock) => ({
+    mapped(bindings.sla, (clock) => ({
       id: clock.id,
       metric: clock.metric,
       state: clock.state,
@@ -225,12 +231,12 @@ const TIMELINE_LIMIT = 20;
 
 /**
  * The customer's latest comments, files and versions in one list, newest first.
- * A failed section fails the card only when nothing else loaded.
+ * A failed binding fails the card only when nothing else loaded.
  */
 export async function getTimeline(
   customerId: string,
 ): Promise<Loaded<readonly TimelineRow[]>> {
-  const timeline = await customerRecord.timeline(customerId, {
+  const timeline = await customerPage.timeline(customerId, {
     limit: TIMELINE_LIMIT,
   });
 
@@ -245,7 +251,7 @@ export async function getTimeline(
   return {
     kind: "ok",
     data: timeline.entries.map((entry) => ({
-      id: `${entry.section}:${entry.id}`,
+      id: `${entry.binding}:${entry.id}`,
       kind: entry.kind,
       at: epoch(entry.at),
       actor: entry.actor ?? null,

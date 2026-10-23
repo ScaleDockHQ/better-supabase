@@ -37,7 +37,7 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { contractsBlock } from "./manifest.ts";
 
-export { contractsSection } from "./section.ts";
+export { contractsBinding } from "./record-binding.ts";
 
 export {
   contractChangesSchema,

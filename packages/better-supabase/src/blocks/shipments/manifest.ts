@@ -4,8 +4,8 @@ import type { ShipmentsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { shipmentsEvents } from "./events.ts";
 import { shipmentsSqlOptions } from "./options.ts";
+import { shipmentsBinding } from "./record-binding.ts";
 import { shipmentInputSchema, trackingEventInputSchema } from "./schemas.ts";
-import { shipmentsSection } from "./section.ts";
 import { createShipments } from "./shipments.ts";
 
 /** The `shipments` block's manifest (ADR 0029). */
@@ -15,7 +15,7 @@ export const shipmentsBlock: BlockOf<
   ShipmentsEvents,
   Record<never, never>,
   never,
-  { readonly shipments: typeof shipmentsSection }
+  typeof shipmentsBinding
 > = defineBlock({
   name: "shipments",
   sql: ["shipments"],
@@ -26,7 +26,7 @@ export const shipmentsBlock: BlockOf<
     shipment_tracking_event: { input: trackingEventInputSchema },
   },
   create: createShipments,
-  sections: { shipments: shipmentsSection },
+  record: shipmentsBinding,
   category: "commerce",
   recipes: ["shipment-tracking"],
 });

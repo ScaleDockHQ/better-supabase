@@ -79,10 +79,10 @@ export interface PresetCatalogManifest {
     readonly types: readonly string[];
   };
   /**
-   * The record sections its client adds (`block.sections`) with each one's
-   * write names, which `gen` puts on each subject's record feature.
+   * The write names of its record binding (`block.record`), present when the
+   * block binds to records; `gen` puts the block on each served record type.
    */
-  readonly sections?: Readonly<Record<string, readonly string[]>>;
+  readonly record?: readonly string[];
 }
 
 /** One entity's input schemas, in the block's default names. */

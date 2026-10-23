@@ -35,7 +35,7 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { scoresBlock } from "./manifest.ts";
 
-export { scoresSection } from "./section.ts";
+export { scoresBinding } from "./record-binding.ts";
 
 export { scoresEvents } from "./events.ts";
 

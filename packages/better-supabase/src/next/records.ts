@@ -25,26 +25,26 @@ export function recordTag(
   return `bsb:record${scope}:${subject.type}:${subject.id}`;
 }
 
-/** The cache tag of one section of a record, such as its comments. */
-export function sectionTag(
+/** The cache tag of one binding of a record, such as its comments. */
+export function bindingTag(
   subject: RecordRef,
-  section: string,
+  binding: string,
   options: RecordTagOptions = {},
 ): string {
-  return `${recordTag(subject, options)}#${section}`;
+  return `${recordTag(subject, options)}#${binding}`;
 }
 
 /**
- * Drops the cached section and the record's header, whose counts change with
+ * Drops the cached binding and the record's header, whose counts change with
  * it: `updateTag` in a Server Action, else `revalidateTag`.
  */
-export function invalidateSection(
+export function invalidateBinding(
   subject: RecordRef,
-  section: string,
+  binding: string,
   options: RecordTagOptions & { readonly revalidate?: RevalidateProfile } = {},
 ): void {
   invalidateAll(
-    [sectionTag(subject, section, options), recordTag(subject, options)],
+    [bindingTag(subject, binding, options), recordTag(subject, options)],
     options.revalidate,
   );
 }

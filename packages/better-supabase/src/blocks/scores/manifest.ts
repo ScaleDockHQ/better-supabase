@@ -4,8 +4,8 @@ import type { ScoresEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { scoresEvents } from "./events.ts";
 import { scoresSqlOptions } from "./options.ts";
+import { scoresBinding } from "./record-binding.ts";
 import { createScores } from "./scores.ts";
-import { scoresSection } from "./section.ts";
 
 /** The `scores` block's manifest (ADR 0029). */
 export const scoresBlock: BlockOf<
@@ -14,13 +14,13 @@ export const scoresBlock: BlockOf<
   ScoresEvents,
   Record<never, never>,
   never,
-  { readonly scores: typeof scoresSection }
+  typeof scoresBinding
 > = defineBlock({
   name: "scores",
   sql: ["scores"],
   options: { scores: scoresSqlOptions },
   events: scoresEvents,
   create: createScores,
-  sections: { scores: scoresSection },
+  record: scoresBinding,
   category: "growth",
 });

@@ -33,8 +33,8 @@ export { slaEvents } from "./events.ts";
 export type { SlaEvents } from "./events.ts";
 
 export {
-  slaSection,
+  slaBinding,
   slaStartInput,
   type SlaStartInput,
   type SlaWrites,
-} from "./section.ts";
+} from "./record-binding.ts";

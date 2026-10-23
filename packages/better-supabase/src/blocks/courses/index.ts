@@ -47,7 +47,10 @@ export { coursesBlock } from "./manifest.ts";
 
 export { coursesSqlOptions, type CoursesSqlOptions } from "./options.ts";
 
-export { courseLearnersSection, type CourseLearnersWrites } from "./section.ts";
+export {
+  courseLearnersBinding,
+  type CourseLearnersWrites,
+} from "./record-binding.ts";
 
 export {
   courseInputSchema,

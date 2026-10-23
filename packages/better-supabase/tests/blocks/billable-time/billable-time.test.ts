@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   billableTimeBlock,
-  billableTimeSection,
+  billableTimeBinding,
   createBillableTime,
   timeInvoiceSectionInputSchema,
   timeRateInputSchema,
@@ -367,11 +367,11 @@ describe("billable-time block", () => {
       tenant: "org-1",
     });
 
-    await billableTimeSection.load(time, CUSTOMER, undefined);
-    await billableTimeSection.writes.setRate.run(time, CUSTOMER, {
+    await billableTimeBinding.load(time, CUSTOMER, undefined);
+    await billableTimeBinding.writes.setRate.run(time, CUSTOMER, {
       rate: money(1n, "EUR"),
     });
-    await billableTimeSection.writes.invoice.run(time, CUSTOMER, {
+    await billableTimeBinding.writes.invoice.run(time, CUSTOMER, {
       title: "October",
     });
 

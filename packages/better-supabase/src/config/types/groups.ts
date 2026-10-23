@@ -186,10 +186,10 @@ export interface GenGroupConfig extends GenConfig {
    */
   readonly postgrestVersion?: string;
   /**
-   * Write one record feature per record type into `features/` next to `output`.
-   * Defaults to `true`.
+   * Write one `records/<type>.ts` next to `output` per record type that an
+   * installed block binds to (`defineRecordType`). Defaults to `true`.
    */
-  readonly generateFeatures?: boolean;
+  readonly recordTypes?: boolean;
   /** Overrides per generated table, keyed by `table` or `schema.table`. */
   readonly tables?: Readonly<Record<string, TableConfig>>;
   /** Types for jsonb columns, keyed by `table.column`. */

@@ -86,7 +86,7 @@ export const BLOCK_EXPORT_RENAMES: Readonly<Record<string, string>> = {
   passesEvents: "admissionPassesEvents",
   PassesEvents: "AdmissionPassesEvents",
   PassesOptions: "AdmissionPassesOptions",
-  passesSection: "admissionPassesSection",
+  passesSection: "admissionPassesBinding",
   passesSqlOptions: "admissionPassesSqlOptions",
   PassesSqlOptions: "AdmissionPassesSqlOptions",
   PassesWrites: "AdmissionPassesWrites",
@@ -214,6 +214,12 @@ export const REVIEW_0_15: readonly {
     pattern: /\bbsBlock\b|\bboth provide the\b/,
     message:
       "Block queries share the table key space `['bsb', instance, method, ...args]` and carry `meta.bsTables: [instance]` instead of `bsBlock`; two blocks may provide one port, and a consumer picks one with `blocks.<instance>.uses` or `createBlocks({ ports })`",
+  },
+  {
+    pattern:
+      /\b(?:sectionAction|recordServer|defineRecordFeature)\b|supabase\/features\/|(?:navigation|commands)\.generated/,
+    message:
+      "Record features are record types: import `<type>Record` from `@/lib/supabase/records/<type>`, call `bsb.record(<type>Record)` for `load`, `timeline`, `actions` and `tags` instead of `recordServer` and `bsb.sectionAction`, and read `bindings` instead of `sections`; `gen` no longer writes the features folder, `navigation.generated.ts` or `commands.generated.ts`",
   },
   {
     pattern: /["'`]bs:t:/,

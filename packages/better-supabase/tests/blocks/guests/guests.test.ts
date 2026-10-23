@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { createGuests, guestsBlock } from "../../../src/blocks/guests/index.ts";
+import { guestsBinding } from "../../../src/blocks/guests/record-binding.ts";
 import {
   guestGrantSchema,
   guestInviteSchema,
   guestSectionGrantSchema,
 } from "../../../src/blocks/guests/schemas.ts";
-import { guestsSection } from "../../../src/blocks/guests/section.ts";
 
 const AT = "2026-10-22T10:00:00Z";
 const LATER = "2026-11-22T10:00:00Z";
@@ -347,7 +347,7 @@ describe("createGuests", () => {
   });
 });
 
-describe("guestsSection", () => {
+describe("guestsBinding", () => {
   it("loads a record's grants and runs its writes", async () => {
     const fake = fakeTransport({
       list_guest_grants: [{ ...GRANT, guest: GUEST }],
@@ -358,17 +358,17 @@ describe("guestsSection", () => {
     const guests = createGuests({ transport: fake.transport });
     const invoice = { type: "invoice", id: "i1" };
 
-    const rows = await guestsSection.load(guests, invoice, undefined).orThrow();
-    await guestsSection.writes.grant
+    const rows = await guestsBinding.load(guests, invoice, undefined).orThrow();
+    await guestsBinding.writes.grant
       .run(guests, invoice, { guestId: "g1", actions: ["comment"] })
       .orThrow();
-    await guestsSection.writes.revoke
+    await guestsBinding.writes.revoke
       .run(guests, invoice, { id: "r1" })
       .orThrow();
 
     expect(rows.map((row) => row.id)).toEqual(["r1"]);
-    expect(guestsSection.module).toBe("guests");
-    expect(guestsSection.events).toEqual(["guest_grant.*", "guest.revoked"]);
+    expect(guestsBinding.module).toBe("guests");
+    expect(guestsBinding.events).toEqual(["guest_grant.*", "guest.revoked"]);
     expect(fake.calls.map(([fn]) => fn)).toEqual([
       "list_guest_grants",
       "grant_guest_access",

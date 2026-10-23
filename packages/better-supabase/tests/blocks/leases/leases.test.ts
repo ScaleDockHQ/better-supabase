@@ -6,7 +6,7 @@ import {
   leaseInputSchema,
   leasesBlock,
   leasesEvents,
-  leasesSection,
+  leasesBinding,
   maintenanceRequestInputSchema,
 } from "../../../src/blocks/leases/index.ts";
 import { money } from "../../../src/commerce/money.ts";
@@ -541,7 +541,7 @@ describe("leases block", () => {
     const fake = fakeTransport({ list_leases: [LEASE] });
     const leases = createLeases({ transport: fake.transport, tenant: "org-1" });
 
-    const loaded = await leasesSection.load(leases, CONTACT, undefined);
+    const loaded = await leasesBinding.load(leases, CONTACT, undefined);
 
     expect(loaded.ok).toBe(true);
     expect(fake.calls[0]?.[1]).toMatchObject({

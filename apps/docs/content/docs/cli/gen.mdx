@@ -69,13 +69,10 @@ the same generator behind `supabase gen types typescript`, and writes:
    TypeScript halves share, with the module defaults filled in, for
    [`defineBlocks(blockConfig, ...)`](/docs/blocks/create-blocks#the-generated-config).
    It needs no database, only the config;
-5. with blocks that add record sections installed, a
-   [record feature](/docs/blocks/records#generated-features) per subject in
-   `features/<subject>/` next to the main module, unless `generateFeatures` is
-   `false`. With them, `gen` also writes `navigation.generated.ts` and
-   `commands.generated.ts`: one sidebar item and one command palette entry per
-   subject with a list route (see
-   [Navigation and commands](/docs/blocks/record-lists#navigation-and-commands));
+5. with blocks that have a record binding installed, a
+   [record type](/docs/blocks/records#generated-record-types) per type in
+   `config.records`, in `records/<type>.ts` next to the main module, unless
+   `gen.recordTypes` is `false`;
 6. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`,
    `standardSchema()`);
 7. with `readSets` configured, the `read-sets` SQL module file: one function per

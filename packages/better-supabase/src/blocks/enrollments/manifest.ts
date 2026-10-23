@@ -5,7 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { createEnrollments } from "./enrollments.ts";
 import { enrollmentsEvents } from "./events.ts";
 import { enrollmentsSqlOptions } from "./options.ts";
-import { enrollmentsSection } from "./section.ts";
+import { enrollmentsBinding } from "./record-binding.ts";
 
 /** The `enrollments` block's manifest (ADR 0029). */
 export const enrollmentsBlock: BlockOf<
@@ -14,13 +14,13 @@ export const enrollmentsBlock: BlockOf<
   EnrollmentsEvents,
   Record<never, never>,
   never,
-  { readonly enrollments: typeof enrollmentsSection }
+  typeof enrollmentsBinding
 > = defineBlock({
   name: "enrollments",
   sql: ["enrollments"],
   options: { enrollments: enrollmentsSqlOptions },
   events: enrollmentsEvents,
   create: createEnrollments,
-  sections: { enrollments: enrollmentsSection },
+  record: enrollmentsBinding,
   category: "collaboration",
 });

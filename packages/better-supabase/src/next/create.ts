@@ -68,7 +68,7 @@ import {
   overrideRequestHeaders,
   serverTimingValue,
 } from "./proxy.ts";
-import { invalidateSection } from "./records.ts";
+import { recordServer } from "./record.ts";
 import { resourceRoutes } from "./resources.ts";
 import {
   STATS_URL_HEADER,
@@ -857,35 +857,7 @@ export function createNext<
       return run as never;
     },
 
-    sectionAction: (client, method, sectionOptions) => {
-      const run = next.action(
-        sectionOptions,
-        async (input, ctx): Promise<Result<unknown>> => {
-          const call = methodOf(client(ctx), method);
-
-          // SAFETY: BlockActionArgs makes `args` required unless the method
-          // takes the validated input as its only argument.
-          const args = (sectionOptions.args?.(input, ctx) ?? [
-            input,
-          ]) as readonly unknown[];
-
-          const result = await call(...args);
-
-          if (result.ok) {
-            invalidateSection(
-              sectionOptions.subject(input, ctx),
-              sectionOptions.section,
-              { tenant: ctx.tenant },
-            );
-          }
-
-          return result;
-        },
-      );
-
-      // SAFETY: the method's `Result` carries `BlockDataOf<Cl, K>`.
-      return run as never;
-    },
+    record: (type) => recordServer(next, type),
   });
 
   return next;
