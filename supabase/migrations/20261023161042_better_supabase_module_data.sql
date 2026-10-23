@@ -1,4 +1,4 @@
--- better-supabase add --adopt: the rows and settings of updated-at, audit, invitations, queue, realtime-tables, jsonb-schemas, data-api-grants, read-sets, entitlements, rate-limit, vector-search, organizations, profiles, outbox, notifications, webhooks-out, session-revocation, api-keys, settings, usage, feature-flags, guests, drive, comments, attachments, data-lifecycle, sso, enrollments, onboarding, waitlist, announcements, streams, credentials, workflows, workflow-sdk, workflow-editor, chat-sdk-state, inbox, ai-chat, ai-files, knowledge, memory, agents, connectors, ai-schedules, push, ai-cache, ai-keys, numbering, teams, tags, state-machine, custom-fields, share-links, reminders, imports, subjects, rank, saved-views, relations, bulk-actions, catalog, search, metrics, calendar, bookings, versions, trash, reactions, approvals, access-requests, documents, ledger, inventory, drive-files, orders, promotions, forms, signatures, time-tracking, service-accounts, templates, deals, tasks, tasks, hiring, pipelines, contacts, activities, quotes, invoices, sla, goals, employees, signing-keys, moderation, automations, assets, scores, admission-passes, billable-time, leases, expenses, donations, dispatch, shipments, contracts, compliance, incidents, courses, messaging, channels, timeline, mail-sync, segments, assignment, enrichment, forecasts, field-history, sequences, lead-scoring, posts, field-encryption, which a schema diff skips.
+-- better-supabase add --adopt: the rows and settings of updated-at, audit, invitations, queue, realtime-tables, jsonb-schemas, data-api-grants, read-sets, entitlements, rate-limit, vector-search, organizations, profiles, outbox, notifications, webhooks-out, session-revocation, api-keys, settings, usage, feature-flags, guests, drive, comments, attachments, data-lifecycle, sso, enrollments, onboarding, waitlist, announcements, streams, credentials, workflows, workflow-sdk, workflow-editor, chat-sdk-state, inbox, ai-chat, ai-files, knowledge, memory, agents, connectors, ai-schedules, push, ai-cache, ai-keys, numbering, teams, tags, state-machine, custom-fields, share-links, reminders, imports, subjects, rank, saved-views, relations, bulk-actions, catalog, search, metrics, calendar, bookings, versions, trash, reactions, approvals, access-requests, documents, ledger, inventory, drive-files, orders, promotions, forms, signatures, time-tracking, service-accounts, templates, deals, tasks, tasks, hiring, pipelines, contacts, activities, quotes, invoices, sla, goals, employees, signing-keys, moderation, automations, assets, scores, admission-passes, billable-time, leases, expenses, donations, dispatch, shipments, contracts, compliance, incidents, courses, messaging, channels, timeline, mail-sync, segments, assignment, enrichment, forecasts, field-history, sequences, lead-scoring, posts, field-encryption, content, which a schema diff skips.
 
 -- better-supabase module: updated-at
 -- @bsb-block-data updated-at
@@ -340,10 +340,10 @@ on conflict (name) do update
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('attachments', 'attachments', false, 52428800, null)
-on conflict (id) do nothing;
+on conflict (id) do update set public = excluded.public;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 4, 'managed')
+values ('attachments', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -523,7 +523,7 @@ on conflict (name) do update
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-chat', 3, 'managed')
+values ('ai-chat', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -551,7 +551,7 @@ on conflict (name) do update
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 1, 'managed')
+values ('knowledge', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -803,7 +803,7 @@ on conflict (name) do update
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('catalog', 2, 'managed')
+values ('catalog', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -979,7 +979,7 @@ on conflict (name) do update
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('orders', 1, 'managed')
+values ('orders', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1029,7 +1029,7 @@ on conflict (name) do update
 create extension if not exists "btree_gist" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
-values ('time-tracking', 2, 'managed')
+values ('time-tracking', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1160,7 +1160,7 @@ values ('quotes.quote_to_order', 'quotes', 'quote', 'quote.accepted', 'Order eac
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('quotes', 1, 'managed')
+values ('quotes', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1208,7 +1208,7 @@ on conflict (name) do update
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('employees', 1, 'managed')
+values ('employees', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1561,5 +1561,28 @@ create extension if not exists "pgcrypto" with schema "extensions";
 
 insert into better_supabase.blocks (name, version, mode)
 values ('field-encryption', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: content
+-- @bsb-block-data content
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Publishes scheduled content entries when pg_cron is installed.
+do $$
+begin
+  if pg_catalog.to_regnamespace('cron') is not null then
+    perform cron.schedule('better-supabase-content-publish', '*/5 * * * *', 'select "better_supabase"."publish_due_content_entries"()');
+  else
+    raise notice 'pg_cron is not installed: call "better_supabase"."publish_due_content_entries"() on a schedule to publish scheduled content entries';
+  end if;
+end;
+$$;
+
+insert into better_supabase.blocks (name, version, mode)
+values ('content', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

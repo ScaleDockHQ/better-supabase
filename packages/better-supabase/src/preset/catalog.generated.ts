@@ -868,7 +868,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "queue",
         "notifications",
         "reactions",
-        "data-lifecycle"
+        "data-lifecycle",
+        "automations",
+        "tasks"
       ],
       "manifest": "inbox",
       "scopes": [
@@ -3516,7 +3518,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "deals",
         "relations",
-        "catalog"
+        "catalog",
+        "automations",
+        "orders"
       ],
       "manifest": "quotes",
       "scopes": [
@@ -3793,6 +3797,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
+        "automations",
+        "employees",
         "pipelines"
       ],
       "manifest": "hiring",
@@ -4297,7 +4303,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdBy": "created_by",
               "updatedBy": "updated_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "defaultKey": "default_key"
             }
           }
         },
@@ -13455,6 +13462,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "EmployeeField"
         },
         {
+          "name": "EmployeeFromApplicationClients"
+        },
+        {
+          "name": "EmployeeFromApplicationOptions"
+        },
+        {
           "name": "EmployeeInput",
           "fields": true
         },
@@ -15728,6 +15741,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "OrderBoardQuery"
         },
         {
+          "name": "OrderFromQuoteOptions"
+        },
+        {
           "name": "OrderKitchen"
         },
         {
@@ -16630,12 +16646,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "RuleAction"
         },
         {
-          "name": "RuleActionCall"
-        },
-        {
-          "name": "RuleActionHandler"
-        },
-        {
           "name": "RuleActionOutcome"
         },
         {
@@ -16694,6 +16704,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "RuleNotifier"
+        },
+        {
+          "name": "RuleRun"
         },
         {
           "name": "RulesAdminOptions"
