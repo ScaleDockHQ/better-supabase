@@ -48,12 +48,16 @@ function movedSqlIssues(prefix: string, block: unknown): string[] {
   );
 }
 
+const SCAFFOLD_REMOVED =
+  "removed in 0.15 with `better-supabase scaffold api`; delete it. `defineApi` includes every table and block instance, and `createOrpc(betterSupabase).router(api)` serves it: https://bettersupabase.com/docs/frameworks/orpc#serve-the-api";
+
 /** Top-level keys 0.15 removed, with what replaces them. */
 const REMOVED_KEYS: ReadonlyMap<string, string> = new Map([
   [
     "plugins",
     "removed in 0.15: the updated-at, created-by, trash and memberships blocks carry these columns now; run `better-supabase codemod 0.15`",
   ],
+  ["scaffold", SCAFFOLD_REMOVED],
 ]);
 
 const RECORD_TYPES_MOVED =
@@ -66,10 +70,16 @@ function movedGroupIssues(prefix: string, block: unknown): string[] {
   }
 
   const gen = block["gen"];
+  const tooling = block["tooling"];
 
   const genIssues =
     isRecord(gen) && "generateFeatures" in gen
       ? [`${prefix}gen.generateFeatures: ${RECORD_TYPES_MOVED}`]
+      : [];
+
+  const toolingIssues =
+    isRecord(tooling) && "scaffold" in tooling
+      ? [`${prefix}tooling.scaffold: ${SCAFFOLD_REMOVED}`]
       : [];
 
   return Object.keys(block).flatMap((key) => {
@@ -79,6 +89,10 @@ function movedGroupIssues(prefix: string, block: unknown): string[] {
 
     if (key === "gen") {
       return genIssues;
+    }
+
+    if (key === "tooling") {
+      return toolingIssues;
     }
 
     const removed = REMOVED_KEYS.get(key);

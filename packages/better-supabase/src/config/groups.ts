@@ -40,7 +40,7 @@ export const CONFIG_GROUPS: Readonly<Record<string, readonly string[]>> = {
     "readSets",
   ],
   api: ["openapi", "specs"],
-  tooling: ["doctor", "env", "keys", "skills", "scaffold"],
+  tooling: ["doctor", "env", "keys", "skills"],
 };
 
 /** Top-level keys renamed by the regrouping: the grouped name, then the flat. */

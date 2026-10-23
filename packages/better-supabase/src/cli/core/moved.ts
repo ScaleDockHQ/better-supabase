@@ -6,7 +6,10 @@ interface MovedCommand {
   readonly to: readonly string[];
 }
 
-/** Commands removed in 0.15, with what replaces them. */
+const API_REPLACEMENT =
+  "defineApi includes every table and block instance, and createOrpc(betterSupabase).router(api) serves it: https://bettersupabase.com/docs/frameworks/orpc#serve-the-api";
+
+/** Commands removed in 0.15, with what replaces them, longest path first. */
 const REMOVED_COMMANDS: readonly {
   readonly path: readonly string[];
   readonly replacement: string;
@@ -16,6 +19,8 @@ const REMOVED_COMMANDS: readonly {
     replacement:
       "better-supabase writes no pages. Build them on the generated data hooks and the record-* UI recipes: https://bettersupabase.com/docs/registry/ui-recipes#app-tables",
   },
+  { path: ["scaffold", "api"], replacement: API_REPLACEMENT },
+  { path: ["scaffold"], replacement: API_REPLACEMENT },
 ];
 
 /** Commands renamed in 0.9 and folded in 0.15, longest prefix first. */

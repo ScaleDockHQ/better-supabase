@@ -50,14 +50,12 @@ describe("gen tasks", () => {
   it("adds every task the config sets up, never env", async () => {
     await touch("src/lib/openapi.ts");
     await touch("supabase/seed.ts");
-    expect(
-      configuredTasks(
-        resolved({
-          blocks: ["audit"],
-          tooling: { scaffold: { api: { framework: "hono" } } },
-        }),
-      ),
-    ).toEqual(["types", "sql", "spec", "seed", "scaffold"]);
+    expect(configuredTasks(resolved({ blocks: ["audit"] }))).toEqual([
+      "types",
+      "sql",
+      "spec",
+      "seed",
+    ]);
   });
 
   it("counts realtime.policies as SQL to sync", () => {
@@ -88,7 +86,7 @@ describe("gen tasks", () => {
 
   it("rejects an unknown task", () => {
     expect(parseTasks(["types", "lint"])).toBe(
-      'Unknown gen task "lint". Available: types, sql, spec, seed, scaffold, env.',
+      'Unknown gen task "lint". Available: types, sql, spec, seed, env.',
     );
   });
 
@@ -102,13 +100,13 @@ describe("gen tasks", () => {
       },
     });
 
-    expect(
-      stepInputs(config, ["types", "sql", "spec", "seed", "scaffold", "env"]),
-    ).toEqual([
-      join(root, "src/api.ts"),
-      join(root, "overlay.yaml"),
-      join(root, "supabase/seed.ts"),
-    ]);
+    expect(stepInputs(config, ["types", "sql", "spec", "seed", "env"])).toEqual(
+      [
+        join(root, "src/api.ts"),
+        join(root, "overlay.yaml"),
+        join(root, "supabase/seed.ts"),
+      ],
+    );
   });
 });
 

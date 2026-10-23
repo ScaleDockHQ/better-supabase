@@ -36,7 +36,7 @@ describe("__complete", () => {
       ]),
     );
     expect(top).not.toContain("__complete");
-    expect(await values("s")).toEqual(["skills", "spec", "scaffold"]);
+    expect(await values("s")).toEqual(["skills", "spec"]);
     expect(await values("dev", "")).toEqual(["env", "run", "keys", "stack"]);
     expect(await values("db", "")).toEqual(["query", "diff", "seed"]);
     expect(await values("codemod", "0.")).toEqual([

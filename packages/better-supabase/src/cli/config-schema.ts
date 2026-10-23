@@ -854,18 +854,6 @@ const FLAT = {
       prefix: v.optional(v.string()),
     }),
   ),
-  scaffold: v.optional(
-    v.strictObject({
-      api: v.optional(
-        v.strictObject({
-          framework: v.optional(v.picklist(["hono", "next"])),
-          tables: v.optional(strings),
-          name: v.optional(v.string()),
-          basePath: v.optional(v.string()),
-        }),
-      ),
-    }),
-  ),
   integrations: v.optional(v.array(v.picklist(INTEGRATIONS))),
   skills: v.optional(
     v.strictObject({ agents: v.optional(v.array(v.picklist(SKILLS_AGENTS))) }),
@@ -941,9 +929,7 @@ const ENTRIES = {
   ),
   api: v.optional(v.strictObject(pickEntries(["openapi", "specs"]))),
   tooling: v.optional(
-    v.strictObject(
-      pickEntries(["doctor", "env", "keys", "skills", "scaffold"]),
-    ),
+    v.strictObject(pickEntries(["doctor", "env", "keys", "skills"])),
   ),
 } satisfies { [K in keyof Required<EnvironmentConfig>]: v.GenericSchema };
 

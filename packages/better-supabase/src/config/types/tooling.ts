@@ -66,12 +66,11 @@ export type GenTask = (typeof GEN_TASKS)[number];
 export interface GenConfig {
   /**
    * The steps `better-supabase gen` runs, in this order: `types` (the generated
-   * modules and `generators`), `sql` (`upgrade`), `spec` (`spec emit`), `seed`,
-   * `scaffold` (`scaffold api`, its generated file only) and `env`. Without a
-   * list, `types` runs, plus `sql` when `blocks` or `realtime.policies` is set,
-   * `spec` and `seed` when their entry file exists, and `scaffold` when
-   * `scaffold.api` is set. `env` runs only when listed, because it needs the
-   * local stack. A listed step always runs.
+   * modules and `generators`), `sql` (`upgrade`), `spec` (`spec emit`), `seed`
+   * and `env`. Without a list, `types` runs, plus `sql` when `blocks` or
+   * `realtime.policies` is set, and `spec` and `seed` when their entry file
+   * exists. `env` runs only when listed, because it needs the local stack. A
+   * listed step always runs.
    */
   readonly tasks?: readonly GenTask[];
   /** Milliseconds between checks in `gen --watch` and `spec emit --watch`. */
@@ -89,28 +88,6 @@ export interface EnvFileConfig {
    * prefix. Detected from the framework by default.
    */
   readonly prefix?: string;
-}
-
-export interface ScaffoldApiConfig {
-  /** Detected from `package.json` when the project has exactly one of them. */
-  readonly framework?: "hono" | "next";
-  /** Tables to serve. Defaults to every table and view in the public schema. */
-  readonly tables?: readonly string[];
-  /**
-   * The API module's name: `lib/<name>.ts` and `lib/<name>.generated.ts`.
-   * Defaults to `api`.
-   */
-  readonly name?: string;
-  /** Where the resources are served. Defaults to `/api`. */
-  readonly basePath?: string;
-}
-
-export interface ScaffoldConfig {
-  /**
-   * What `better-supabase scaffold api` writes; the `scaffold` gen step keeps
-   * its generated file current.
-   */
-  readonly api?: ScaffoldApiConfig;
 }
 
 /** An agent folder `better-supabase skills install` writes to. */

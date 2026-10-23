@@ -512,7 +512,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   gen: { description: "What better-supabase gen runs." },
   "gen.tasks": {
     description:
-      "The steps gen runs, in order. Without a list: types, plus sql, spec, seed and scaffold when the project uses them. env runs only when listed.",
+      "The steps gen runs, in order. Without a list: types, plus sql, spec and seed when the project uses them. env runs only when listed.",
   },
   "gen.watchInterval": {
     description:
@@ -526,12 +526,6 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Prefix for browser variables, such as NEXT_PUBLIC_; none for no prefix. Detected from the framework by default.",
   },
-  "tooling.scaffold.api": {
-    description:
-      "What better-supabase scaffold api writes; the scaffold gen step keeps its generated file current.",
-  },
-  "tooling.scaffold.api.name": { default: "api" },
-  "tooling.scaffold.api.basePath": { default: "/api" },
   adapters: { description: "The integrations init and add wrote." },
   "tooling.skills.agents": {
     description:

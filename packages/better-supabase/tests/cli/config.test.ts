@@ -220,6 +220,24 @@ describe("config environments", () => {
     });
   });
 
+  it("points a scaffold key, flat or under tooling, at defineApi", async () => {
+    await writeFile(
+      join(dir, "better-supabase.config.json"),
+      JSON.stringify({
+        scaffold: { api: { framework: "hono" } },
+        $ci: { tooling: { scaffold: { api: { framework: "next" } } } },
+      }),
+    );
+
+    const error = await loadConfig(dir).catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      code: "config_invalid",
+      message: expect.stringMatching(
+        /scaffold: removed in 0\.15 with `better-supabase scaffold api`[\s\S]*\$ci\.tooling\.scaffold: removed in 0\.15/u,
+      ),
+    });
+  });
+
   it("picks --env, then $BETTER_SUPABASE_ENV, then ci in CI", () => {
     expect(
       configEnvironment("staging", { BETTER_SUPABASE_ENV: "x", CI: "1" }),

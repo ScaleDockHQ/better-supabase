@@ -276,7 +276,6 @@ describe("shipped JSON Schemas", () => {
       [["completion", "zsh"], 0, "success"],
       [["gen", "--snapshot", "SNAPSHOT", "--dry-run"], 0, "success"],
       [["spec", "validate"], 1, "error"],
-      [["scaffold", "api", "--dry-run"], 1, "error"],
       [["dev", "keys", "--dry-run"], 0, "success"],
       [["doctor", "--snapshot", "SNAPSHOT"], 1, "error"],
       [["config"], 0, "success"],
@@ -443,9 +442,6 @@ describe("shipped JSON Schemas", () => {
       tooling: {
         env: { output: ".env.development.local", prefix: "NEXT_PUBLIC_" },
         doctor: { only: ["BS100"], format: "sarif", output: "doctor.sarif" },
-        scaffold: {
-          api: { framework: "hono", tables: ["notes"], basePath: "/v1" },
-        },
         skills: { agents: ["cursor"] },
         keys: { output: "supabase/keys.json" },
       },
