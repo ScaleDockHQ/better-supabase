@@ -49,7 +49,7 @@ function doctorCodes(): string[] {
     join(library, "schemas/doctor-report-v1.json"),
   ).properties.findings.items.properties.code.enum;
 
-  const page = readFileSync(join(docs, "cli/doctor.mdx"), "utf-8");
+  const page = readFileSync(join(docs, "(reference)/cli/doctor.mdx"), "utf-8");
 
   const headings = new Set(
     [...page.matchAll(/^### (BS\d{3})$/gmu)].map((match) => match[1]),
@@ -291,13 +291,18 @@ const IGNORED = [
   "**/dist/**",
 ];
 
+/** A docs path with the tab and group folders removed, so it matches the URL. */
+function docsPath(file: string): string {
+  return relative(docs, join(root, file))
+    .split("/")
+    .filter((part) => !/^\(.+\)$/u.test(part))
+    .join("/");
+}
+
 function retiredNames(): string[] {
   const files = [
     ...globSync("apps/docs/content/docs/**/*.mdx", { cwd: root }).filter(
-      (file) =>
-        !RENAMES.some((page) =>
-          relative(docs, join(root, file)).startsWith(page),
-        ),
+      (file) => !RENAMES.some((page) => docsPath(file).startsWith(page)),
     ),
     ...globSync("packages/better-supabase/skills/**/*.md", { cwd: root }),
     ...globSync(".agents/rules/*.mdc", { cwd: root }),

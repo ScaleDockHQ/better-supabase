@@ -1,0 +1,18 @@
+{
+  "title": "CRM",
+  "pages": [
+    "catalog-crm",
+    "contacts",
+    "activities",
+    "mail-sync",
+    "segments",
+    "assignment",
+    "enrichment",
+    "sequences",
+    "forecasts",
+    "deals",
+    "quotes",
+    "goals",
+    "contracts"
+  ]
+}

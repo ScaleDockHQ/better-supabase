@@ -1,0 +1,529 @@
+---
+title: Next.js
+description: Proxy, Server Components, route handlers, server actions and cache tags.
+---
+
+```ts title="src/lib/supabase/server.ts"
+import "server-only";
+import { createNext } from "better-supabase/next";
+import { betterSupabase } from "./index";
+
+export const bsb = createNext(betterSupabase);
+```
+
+`createNext(betterSupabase)` is [`createServer`](/docs/auth/server) plus the Next.js
+pieces below, so `bsb.admin()` and `bsb.actingAs()` work too. It needs Next.js
+16.3 or later.
+
+## Proxy
+
+```ts title="src/proxy.ts"
+import { bsb } from "@/lib/supabase/server";
+
+export const proxy = (request) => bsb.proxy(request);
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp)$).*)",
+  ],
+};
+```
+
+The proxy is the only place sessions are refreshed, and only for page
+loads, client navigations and server actions, never for prefetches. With a
+valid token it does nothing: no auth request, no cookie write. When it does
+refresh, the new cookie is forwarded to the Server Components rendering the
+same request, and the response gets `no-store` headers.
+
+Protect routes with `protect`. Refreshed or cleared cookies are kept on the
+response you return:
+
+```ts
+export const proxy = (request: NextRequest) =>
+  bsb.proxy(request, {
+    protect: (auth, req) =>
+      auth.kind !== "user" && req.nextUrl.pathname.startsWith("/app")
+        ? NextResponse.redirect(new URL("/login", req.url))
+        : undefined,
+  });
+```
+
+To combine the proxy with next-intl or other middleware, use `before` and
+`after` ([composition](/docs/auth/middleware#nextjs-proxy-composition)).
+`serverTiming: true` adds a `Server-Timing` header with the verify and proxy
+durations.
+
+A prefetch never refreshes, so a session whose token expired reaches
+`protect` as `{ kind: "anon", reason: "expired" }`. `expiredPrefetch: "render"`
+skips `protect` for those prefetches, so they render signed out instead of
+caching a redirect to sign-in; the click refreshes the session
+([details](/docs/frameworks/next-cache-components#5-optimistic-redirects-in-the-proxy)).
+The default, `"protect"`, passes them to `protect` like any other request.
+
+### Ended sessions
+
+An access token stays valid until it expires, even after its session is
+signed out elsewhere, revoked or deleted. RLS that checks the session then
+hides every row, and the app looks empty. `endedSession` asks Auth whether
+the session still exists (`GET /auth/v1/user`) on document loads and on the
+paths you list. When Auth answers 401 or 403, the proxy clears the session
+cookies and redirects to `redirect` with `?reason=session_ended`, or
+`?reason=account_banned` when Auth reports the user as banned:
+
+```ts
+export const proxy = (request: NextRequest) =>
+  bsb.proxy(request, {
+    endedSession: { redirect: "/login", paths: ["/"] },
+    protect,
+  });
+```
+
+| Option     | Default                           | Meaning                                                                    |
+| ---------- | --------------------------------- | -------------------------------------------------------------------------- |
+| `paths`    | none                              | Paths checked on client navigations too, such as the page after sign-in    |
+| `redirect` | none                              | Where an ended session goes; without it `protect` gets a signed-out caller |
+| `reasons`  | `session_ended`, `account_banned` | The `reason` query values for `{ ended, banned }` on the redirect          |
+
+Each checked request costs one Auth request, so client navigations, server
+actions and prefetches keep the local token check unless their path is in
+`paths`. A request to `redirect` itself only clears the cookies. When Auth
+cannot be reached or answers with a server error, the session is kept.
+The resolution also carries `sessionEnded` and `sessionEndedReason`
+(`"ended"` or `"banned"`) for a `protect` that renders its own page.
+`endedSession: true` checks document loads without a redirect. Use
+`shouldCheckSession(request, options)` to see whether a request is checked.
+A proxy that does not use `bsb.proxy` can run the same check with
+`sessionStatus` and `clearSessionCookies`
+([details](/docs/auth/sessions#ended-sessions-in-your-own-proxy)).
+
+### Auth outages
+
+When a refresh fails because Auth is unreachable, times out or answers 5xx
+or 429, the proxy calls `onAuthOutage(event, request)`. The event carries
+the `cause` (`"network"`, `"timeout"` or `"status"`), the `status` for a
+status outage, `durationMs`, and `kept`: true when the access token was
+still valid and the caller stays signed in. When `kept` is false, a
+`Response` you return replaces the proxy's response, so a signed-in user
+sees a retry page instead of being sent to sign-in:
+
+```ts
+export const proxy = (request: NextRequest) =>
+  bsb.proxy(request, {
+    protect,
+    onAuthOutage: (event) =>
+      event.kept
+        ? undefined
+        : new Response("Sign-in is temporarily unavailable.", {
+            status: 503,
+            headers: { "retry-after": "10" },
+          }),
+  });
+```
+
+A rejected refresh token is not an outage: the session is cleared and
+`protect` runs as usual. The `refresh` event also carries `reason`,
+`status` and `code` for a failed refresh. `withSession` takes the same
+`onAuthOutage` option outside Next.js.
+
+## Server Components
+
+```tsx
+export default async function Customers() {
+  const { db } = await bsb.context();
+  const customers = await db.customers
+    .list({ select: ["id", "name"] })
+    .orThrow();
+  return <CustomerList customers={customers} />;
+}
+```
+
+`bsb.context()` is memoized per request with React `cache()`, so layouts and
+pages share one context. It verifies the token locally and builds a
+stateless client; no auth call happens during rendering.
+
+`bsb.context({ tenant })` scopes the context to a tenant from the route
+params, in place of the `memberships` resolver, which has no request URL here.
+The tenant gets the same checks as the resolver's
+([the active tenant](/docs/repository/permissions#the-active-tenant)), and each
+tenant gets its own memoized context. `bsb.cached({ tenant })` does the same
+in a private cache; pass the tenant in as an argument of your function.
+
+`bsb.require(options)` is `bsb.context()` for a page only some callers may
+see. It takes the same `allow`, `aal` and `scopes` as `bsb.route()`, plus
+`requireOrganization` and `authorize` (see [server actions](#server-actions)), and
+turns a refusal into the Next.js interrupt: `unauthorized()` renders the
+nearest `unauthorized.tsx`, `forbidden()` the nearest `forbidden.tsx`. Both
+need `experimental.authInterrupts` in `next.config.ts`; without it, a
+refused caller gets `notFound()`.
+
+```tsx title="src/app/settings/audit/page.tsx"
+export default async function AuditPage() {
+  const { db, tenant } = await bsb.require({
+    requireOrganization: true,
+    roles: ["admin"],
+  });
+  const events = await db.auditEvents
+    .list({ where: { organizationId: tenant } })
+    .orThrow();
+  return <AuditLog events={events} />;
+}
+```
+
+`bsb.require()` reads the request, so it keeps the page out of the
+prefetched App Shell. For a page under
+[Cache Components](/docs/frameworks/next-cache-components), check the
+privately cached session instead and call `forbidden()` yourself.
+
+`bsb.liveCount(spec)` counts on the server and returns a serializable
+`{ spec, count }` seed for `useLiveCount`, so a badge renders with its
+number and then stays current over Realtime. See
+[live queries](/docs/frontend/live-queries#counts).
+
+## Session
+
+```ts
+const session = await bsb.session();
+if (session.kind === "user") session.claims.user_role;
+```
+
+`bsb.session()` is the same verification without the clients: an
+`AuthSession` of `user` (with `user`, `claims` and `expiresAt`), `service`,
+`anon` or `invalid`. It never includes the token, so it is safe to return
+from `'use cache: private'` and to pass to Client Components through
+[`SessionProvider`](/docs/frontend/react#server-session). `toSession(auth)`
+converts any `AuthState` the same way, for example inside `bsb.action()`.
+
+Use `bsb.session()` (or `jwtClaims` in a pipeline entry) as the per-request
+check, in place of `supabase.auth.getUser()`. It verifies the token locally
+against the project's JWKS and never calls the Auth server, the check
+`@supabase/ssr` recommends with `getClaims()`. Call `getUser()` only in the
+flows that must see a user the Auth server has revoked or deleted since the
+token was issued, such as changing a password or deleting an account. The
+`user` on the session comes from the claims, so it works with either cookie
+[encoding](/docs/auth/sessions#encoding).
+
+With `cacheComponents` enabled, see [Cache Components](/docs/frameworks/next-cache-components)
+for instant navigations and role-aware menus.
+
+## Route handlers
+
+```ts title="src/app/api/customers/[id]/route.ts"
+export const GET = bsb.route<{ id: string }>((request, { db, params }) =>
+  db.customers.get(params.id, { select: ["id", "name"] }),
+);
+```
+
+- `allow` controls who gets in; the default is `['user']`. Use
+  `['user', 'anon']` for public routes or `['service']` for machine callers.
+  Anonymous users (`signInAnonymously()`) get a 403 with
+  `code: "ANONYMOUS_USER"` unless `allow` lists `'anonymous'`; `'anon'` means
+  no session and never admits them, so a public route that serves guests too
+  uses `['user', 'anonymous', 'anon']`.
+- Return a `Result` or `AsyncResult` (as above, no `await` needed), a plain
+  value, or a `Response`. Errors,
+  thrown `DbException`s and rejected callers become
+  [Problem Details](/docs/auth/problems) responses; a 401 carries a
+  `WWW-Authenticate` challenge. Any other thrown error is a 500 without
+  internal details (unless `exposeErrors`), while `redirect()` and
+  `notFound()` still reach Next.js.
+
+## REST resources
+
+`bsb.resources(map, options)` serves the same REST routes as
+[Hono resources](/docs/frameworks/hono#resources) from one catch-all route.
+It returns a handler for each method:
+
+```ts title="src/app/api/v1/[...path]/route.ts"
+import { defineAction } from "better-supabase/next";
+import { bsb } from "@/lib/supabase/server";
+
+export const { GET, POST, PATCH, PUT, DELETE } = bsb.resources(
+  {
+    customers: {
+      operations: ["list", "get", "update", "delete"],
+      select: ["id", "name", "status", "organizationId"],
+      actions: {
+        archive: defineAction({
+          method: "POST",
+          path: "/{id}/archive",
+          summary: "Archive a customer",
+          handler: (ctx, { id }) =>
+            ctx.db.customers.update(
+              String(id),
+              { status: "archived" },
+              { select: ["id", "status"] },
+            ),
+        }),
+      },
+    },
+  },
+  { basePath: "/api/v1" },
+);
+```
+
+`basePath` is the path of the catch-all route. An unknown path answers 404
+before auth resolves. The options also take the guards of `bsb.route`
+(`allow`, `aal`, `scopes`), and `refresh: true` refreshes an expired session
+cookie (off by default, because the proxy refreshes the routes it matches).
+`permissions` on a resource and `permission` on an action are decided by the
+`authorizer` passed to `createNext`. See [Resources](/docs/specs/resources)
+for hooks, actions and permissions, and [API documents](/docs/specs) to
+serve the matching OpenAPI document.
+
+## Bearer callers
+
+Route handlers serve OAuth clients, agents and other apps that send
+`Authorization: Bearer <token>`. A token from the
+[Supabase OAuth server](https://supabase.com/docs/guides/auth/oauth-server)
+carries `client_id` and `scope`; a token exchanged for an agent carries an
+RFC 8693 `act` chain. The session names who acts for the user:
+
+| Token                                                  | `session.actor`                                | `session.delegation`                       |
+| ------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------ |
+| The user's own                                         | not set                                        | not set                                    |
+| `client_id: 'c1'`, `scope: 'openid customers:read'`    | `{ id: 'c1', kind: 'oauth-client' }`           | `{ scopes: ['openid', 'customers:read'] }` |
+| `act: { sub: 'agent', act: { sub: 'mcp-42' } }`        | `{ id: 'agent', kind: 'oauth-client', chain }` | `{ scopes, chain }`                        |
+| `act: { kind: 'support', sub, session_id, read_only }` | `{ id, kind: 'support', sessionId, readOnly }` | not set                                    |
+| `act: { kind: 'impersonation', sub, reason }`          | `{ id, kind: 'impersonation', reason }`        | not set                                    |
+
+The outermost `sub` is the current actor; nested levels are the actors
+before it, kept on `chain` for the audit log. A support session or an
+impersonated session marks its `act` with `kind` (see
+[impersonation](/docs/auth/impersonation#reading-the-act-claim)). An `act`
+that is not a chain of objects each with a non-empty `sub`, or has another
+`kind`, resolves to `{ kind: 'invalid', reason: 'actor' }` and a 401, never
+to the user alone.
+
+`scopes` on a route limits what a delegated token (an `oauth-client` actor)
+may do. The user's own session is not limited, and neither is a support or
+impersonated session, which acts as the user:
+
+```ts title="src/app/api/customers/[id]/route.ts"
+export const GET = bsb.route<{ id: string }>(
+  (request, { db, params }) =>
+    db.customers.get(params.id, { select: ["id", "name"] }),
+  { scopes: ["customers:read"] },
+);
+```
+
+Bearer callers get [Problem Details](/docs/auth/problems) for every refusal:
+
+| Case                                                     | Status | Header                                                                                          |
+| -------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------- |
+| No token                                                 | 401    | `WWW-Authenticate: Bearer realm="supabase"`                                                     |
+| A token that does not verify, or a malformed `act` chain | 401    | `WWW-Authenticate: Bearer realm="supabase", error="invalid_token"`                              |
+| A delegated token without a scope in `scopes`            | 403    | `WWW-Authenticate: Bearer realm="supabase", error="insufficient_scope", scope="customers:read"` |
+| A row RLS hides from the user                            | 404    | none                                                                                            |
+
+RLS still decides the rows: the token's `sub` is the user, so a client sees
+at most what the user sees. `scopes` is accepted by `bsb.action`, the edge,
+Hono and oRPC guards too.
+
+## Server actions
+
+```ts title="src/app/customers/actions.ts"
+"use server";
+
+export const createCustomer = bsb.action(
+  { input: customerInput }, // any Standard Schema: zod, valibot, arktype
+  (input, { db }) => db.customers.create(input, { select: ["id"] }),
+);
+```
+
+The action accepts a plain object or `FormData`, validates it, and returns a
+serializable `ActionResult`: `{ ok: true, data }` or `{ ok: false, error }`,
+where `error` is a plain `DbError` your form can render (`validation`
+errors carry `issues` with paths). `tenant: (input) => input.organizationId`
+scopes the action's context to a tenant from the validated input.
+[`useActionForm` and `useAction`](/docs/frontend/react#server-actions) call
+it from a Client Component.
+
+`requireOrganization` and `authorize` run after `allow`, `aal` and `scopes`, so
+the permission check sits next to the action instead of at the top of its
+body:
+
+```ts title="src/features/organization/organization-actions.ts"
+export const inviteMember = bsb.action(
+  {
+    input: Invite,
+    requireOrganization: true,
+    authorize: (session, input) => canAssign(session, input.role),
+  },
+  (input, { db, tenant }) =>
+    db.invitations.create({ ...input, organizationId: tenant }),
+);
+```
+
+`canAssign` stands for your own check, for example one your authorization
+provider exports.
+
+- `requireOrganization: true` refuses a caller without an active tenant with a
+  `forbidden` error (`code: "NO_TENANT"`) and types `ctx.tenant` as a
+  `string`. The tenant is the action's `tenant`, then the server's `tenant`
+  resolver, then the tenant claim.
+- `permission` names a permission the `authorizer` passed to `createNext`
+  must grant, checked after `roles` and before `authorize`. The resource the
+  authorizer sees is `{ type: "action", properties: input }` for an action
+  and `{ type: "route" }` for `bsb.route()`; pass `resource: (input, ctx) =>`
+  to load the row it acts on instead (see
+  [Load the resource](/docs/extending/authorizers#load-the-resource)). A
+  denial is `forbidden` with
+  `code: "PERMISSION_DENIED"` (or `APPROVAL_REQUIRED`) and the permission
+  key; without an authorizer, every caller is refused (see
+  [Authorizers](/docs/extending/authorizers)).
+- `authorize(session, input)` gets the `AuthSession` and the validated input
+  (the request, in `bsb.route()`). Returning `false` refuses the caller with
+  `forbidden` (`code: "NOT_AUTHORIZED"`).
+- `ctx.session` is the caller's `AuthSession`, so the body doesn't call
+  `toSession(ctx.auth)` again.
+- `bsb.route(handler, { requireOrganization, authorize })` takes the same options
+  and answers a refusal with a 403 Problem Details response.
+
+Route handlers and actions pass event sink sends they started to `after()`
+from `next/server`, so the function stays alive until the sends finish (see
+[event sinks](/docs/standards/events#sends-after-the-response)).
+
+With `support` in the server options, `bsb.startSupport({ targetUserId, reason })`
+and `bsb.stopSupport()` start and end a [support session](/docs/auth/impersonation)
+from an action: they set or clear its cookie, and every read after that
+renders as the target. `bsb.cached()` reads add a `bsb:support:<id>` tag
+(`supportTag(id)`), so ending the session drops the target's cached pages.
+
+### Block actions
+
+`bsb.blockAction(client, method, options)` is an action that calls one block
+method as the caller. It runs the same guard, validation, `permission` and
+`authorize` checks as `bsb.action`, and its result is typed from the method's
+data. Without `args` the validated input is the method's only argument;
+`args(input, ctx)` returns the arguments when the method takes anything
+else, and TypeScript requires it then.
+
+```ts title="src/app/tasks/actions.ts"
+"use server";
+
+import * as v from "valibot";
+
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+export const createTask = bsb.blockAction(({ db }) => db.tasks, "create", {
+  input: v.object({ title: v.pipe(v.string(), v.minLength(1)) }),
+  requireOrganization: true,
+  permission: permissions["tasks"].write,
+  args: (input, { tenant }) => [tenant, input],
+});
+```
+
+The client is built per call from the request's context, so the block runs
+as the signed-in user. A refused caller, a failed validation and a database
+error all come back as `{ ok: false, error }`, like any other action.
+
+## Cache tags
+
+Every mutation invalidates `bsb:<table>`, its tenant's `bsb:<table>@<tenant>`
+and `bsb:<table>:<id>`: with
+`updateTag` inside server actions (read-your-writes), and with
+`revalidateTag(tag, { expire: 0 })` elsewhere, so the next read after a
+write in a route handler waits for fresh data instead of serving the stale
+entry. Tag your cached reads to match:
+
+```ts
+async function publicPlans() {
+  "use cache";
+  bsb.cacheTag("plans");
+  return bsb
+    .admin()
+    .plans.list({ where: { public: true } })
+    .orThrow();
+}
+```
+
+<Callout title="Caching user data">
+  `"use cache"` functions cannot read cookies or headers. Cache public or
+  service-level reads there. Per-user reads stay on `bsb.context()`, which is
+  already deduplicated per request; with Cache Components, wrap them in `"use
+  cache: private"`
+  ([how](/docs/frameworks/next-cache-components#6-data-derived-from-the-session)).
+</Callout>
+
+### Tenant-scoped tags
+
+A read scoped to one tenant can say so, so a mutation in another tenant
+leaves it cached:
+
+```ts
+async function customerList(tenant: string) {
+  "use cache";
+  const spec = betterSupabase.spec.customers.list({
+    where: { organizationId: tenant },
+  });
+  bsb.cacheTags(spec, { tenant });
+  return bsb.admin().$run(spec).orThrow();
+}
+```
+
+The read is tagged `bsb:customers@<tenant>` and `bsb:customers@*`. A
+mutation invalidates `bsb:customers`, the tag of its tenant (from the
+request context, such as the memberships extension's), or `bsb:customers@*` when it
+has none, and the tags of the rows it changed. Reads without a `tenant` keep
+`bsb:<table>`, which every mutation of the table invalidates, and so does a
+read across tenants (`{ tenant: "*" }`), which carries `bsb:<table>` as well
+as `bsb:<table>@*`. `bsb.cacheTag`
+takes the same option as its third argument, and `tagFor(table, undefined,
+{ tenant })` builds the tag.
+
+Turn invalidation off with `createNext(betterSupabase, { cacheTags: false })`. The
+invalidation is the `nextCache()` [cache adapter](/docs/extending/interfaces#cacheadapter);
+attach others with `betterSupabase.cache(adapter)`. To serve stale entries
+while they revalidate after writes outside an action, turn `cacheTags` off
+and attach `nextCache({ revalidate: "max" })` yourself.
+
+A `redirect()` or `notFound()` after a write in `bsb.action()` or
+`bsb.route()` still sets the replica pin cookie and keeps the event sends
+running.
+
+## Record bindings
+
+A record page's [bindings](/docs/repository/record-bindings) have their own cache tags,
+so a write to one binding keeps the others cached.
+`bsb.record(customerRecord)` takes a
+[generated record type](/docs/repository/record-bindings#generated-record-types) and
+returns `load(id, options?)` and `timeline(id, options?)` for Server
+Components, `actions`, one Server Action per binding write, each of which
+drops its binding's tags, and `tags(id, tenant?)`, the record tag and each
+binding tag, for your own cached reads.
+
+| Function                                        | Tag                                                                   |
+| ----------------------------------------------- | --------------------------------------------------------------------- |
+| `recordTag(subject, { tenant? })`               | `bsb:record@<tenant>:<type>:<id>`, the header and badges              |
+| `bindingTag(subject, binding, { tenant? })`     | the record tag plus `#<binding>`                                      |
+| `invalidateBinding(subject, binding, options?)` | drops both: `updateTag` in a server action, `revalidateTag` elsewhere |
+
+```ts title="src/features/customers/customer-queries.ts"
+import { recordTag, bindingTag } from "better-supabase/next";
+import { cacheTag } from "next/cache";
+
+async function customerFiles(tenant: string, id: string) {
+  "use cache";
+  const subject = { type: "customer", id };
+  cacheTag(
+    bindingTag(subject, "attachments", { tenant }),
+    recordTag(subject, { tenant }),
+  );
+  const result = await loadFiles(tenant, subject);
+  if (!result.ok) throw result.error;
+  return result.data;
+}
+```
+
+Export the actions your UI calls from a `"use server"` file. Each takes
+`{ id, input }`, checks the caller's permission for the write, and calls
+`invalidateBinding` with the request's tenant after a successful write:
+
+```ts title="src/features/customers/customer-record-actions.ts"
+"use server";
+
+import { customerPage } from "./customer-record";
+
+export const removeCustomerAttachments =
+  customerPage.actions.attachments.remove;
+```

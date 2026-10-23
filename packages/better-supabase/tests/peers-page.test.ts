@@ -8,7 +8,10 @@ const [workspace, manifest, page] = await Promise.all([
   readFile(join(repo, "pnpm-workspace.yaml"), "utf-8"),
   readFile(join(repo, "packages/better-supabase/package.json"), "utf-8"),
   readFile(
-    join(repo, "apps/docs/content/docs/getting-started/peers.mdx"),
+    join(
+      repo,
+      "apps/docs/content/docs/(docs)/(get-started)/getting-started/peers.mdx",
+    ),
     "utf-8",
   ),
 ]);

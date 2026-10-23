@@ -14,7 +14,7 @@ import {
 
 const ERRORS_PAGE = readFileSync(
   new URL(
-    "../../../../../apps/docs/content/docs/cli/errors.mdx",
+    "../../../../../apps/docs/content/docs/(reference)/cli/errors.mdx",
     import.meta.url,
   ),
   "utf-8",

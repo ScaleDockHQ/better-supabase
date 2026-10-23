@@ -113,7 +113,7 @@ describe("SQL module event catalog", () => {
 
   it("lists every type on the events docs page", () => {
     const docs = source(
-      "../../../../apps/docs/content/docs/extending/events.mdx",
+      "../../../../apps/docs/content/docs/(reference)/extending/events.mdx",
     );
 
     expect(MAP_TYPES.filter((type) => !docs.includes(`\`${type}\``))).toEqual(

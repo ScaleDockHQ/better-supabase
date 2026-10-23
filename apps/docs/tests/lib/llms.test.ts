@@ -78,6 +78,40 @@ describe("formatLLMIndex", () => {
     );
   });
 
+  it("writes one section per sidebar tab", () => {
+    const tabbed: Root = {
+      name: "Docs",
+      children: [
+        {
+          type: "folder",
+          name: "Docs",
+          root: true,
+          children: [page("Installation", "/docs/getting-started")],
+        },
+        {
+          type: "folder",
+          name: "Blocks",
+          root: true,
+          index: page("Overview", "/docs/blocks"),
+          children: [page("Tags", "/docs/blocks/tags")],
+        },
+      ],
+    };
+
+    expect(formatLLMIndex(tabbed, { ...options, optional: [] })).toContain(
+      [
+        "## Docs",
+        "",
+        "- [Installation](https://bettersupabase.com/docs/getting-started.md)",
+        "",
+        "## Blocks",
+        "",
+        "- [Overview](https://bettersupabase.com/docs/blocks.md)",
+        "- [Tags](https://bettersupabase.com/docs/blocks/tags.md)",
+      ].join("\n"),
+    );
+  });
+
   it("leaves out Optional when there are no optional links", () => {
     expect(formatLLMIndex(tree, { ...options, optional: [] })).not.toContain(
       "## Optional",

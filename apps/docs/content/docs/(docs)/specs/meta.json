@@ -1,0 +1,15 @@
+{
+  "title": "APIs",
+  "pages": [
+    "index",
+    "resources",
+    "customize",
+    "openapi",
+    "asyncapi",
+    "arazzo",
+    "overlay",
+    "reference-ui",
+    "data-api",
+    "diagnostics"
+  ]
+}

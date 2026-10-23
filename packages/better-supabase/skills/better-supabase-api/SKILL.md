@@ -180,7 +180,7 @@ the adapter verifies them against the local JWKS. See the `better-supabase-testi
 
 Docs: https://bettersupabase.com/docs/frameworks.md lists every adapter;
 each has a page such as https://bettersupabase.com/docs/frameworks/hono.md,
-https://bettersupabase.com/docs/repository/powersync.md,
+https://bettersupabase.com/docs/frontend/powersync.md,
 https://bettersupabase.com/docs/blocks/queue.md,
 https://bettersupabase.com/docs/ai-sdk/chat.md,
 https://bettersupabase.com/docs/ai-sdk/workflow.md and

@@ -91,7 +91,57 @@ const config = createNextConfig({
       },
       {
         source: "/docs/repository/expo-sqlite",
-        destination: "/docs/repository/sqlite",
+        destination: "/docs/frontend/sqlite",
+        permanent: true,
+      },
+      {
+        source: "/docs/repository/sqlite",
+        destination: "/docs/frontend/sqlite",
+        permanent: true,
+      },
+      {
+        source: "/docs/repository/powersync",
+        destination: "/docs/frontend/powersync",
+        permanent: true,
+      },
+      {
+        source: "/docs/blocks/flows",
+        destination: "/docs/blocks/automations",
+        permanent: true,
+      },
+      {
+        source: "/docs/cli/scaffold",
+        destination: "/docs/registry",
+        permanent: true,
+      },
+      {
+        source: "/docs/chat-sdk/react",
+        destination: "/docs/chat-sdk",
+        permanent: true,
+      },
+      {
+        source: "/docs/blocks/app-tables",
+        destination: "/docs/repository/tables",
+        permanent: true,
+      },
+      {
+        source: "/docs/blocks/subjects",
+        destination: "/docs/repository/record-types",
+        permanent: true,
+      },
+      {
+        source: "/docs/blocks/records",
+        destination: "/docs/repository/record-bindings",
+        permanent: true,
+      },
+      {
+        source: "/docs/blocks/record-lists",
+        destination: "/docs/repository/record-lists",
+        permanent: true,
+      },
+      {
+        source: "/docs/blocks/permissions",
+        destination: "/docs/repository/permissions",
         permanent: true,
       },
       ...Object.entries(MOVED_PLUGIN_PAGES).map(([from, to]) => ({

@@ -1,0 +1,15 @@
+{
+  "title": "Reference",
+  "description": "The CLI, extension points, standards and the changelog.",
+  "root": true,
+  "pages": [
+    "reference",
+    "cli",
+    "extending",
+    "standards",
+    "supabase-packages",
+    "for-ai-agents",
+    "roadmap",
+    "changelog"
+  ]
+}

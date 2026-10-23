@@ -1,0 +1,971 @@
+---
+title: Jobs, idempotency and webhook inbox
+description: Background jobs on Supabase Queues, safe retries and exactly-once webhook handling on the Postgres you already have.
+---
+
+`better-supabase/blocks/queue` sits on top of the `queue`, `idempotency` and
+`webhook-inbox` [SQL modules](/docs/blocks/sql). It needs a service-role
+connection, such as `createPostgres(...).admin`, because the functions are
+closed to `anon` and `authenticated`. Every call returns a `Result`.
+
+```bash
+better-supabase add queue idempotency webhook-inbox
+```
+
+## Jobs
+
+Jobs run on [Supabase Queues](https://supabase.com/docs/guides/queues)
+(`pgmq`) by default, so queues and messages show up in the dashboard. The
+`jobs` module installs `pgmq` and adds thin `better_supabase.*` functions for
+what pgmq doesn't do itself: lease-safe completion, retries with backoff,
+dead letters, deduplication keys and schedules.
+
+Two module options change where jobs and schedules live. Both keep the same
+functions, so the TypeScript side doesn't change:
+
+| Option                           | Values                       | What it does                                                                                                                                                |
+| -------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `blocks.queue.options.backend`   | `pgmq` (default), `table`    | `table` stores jobs in `better_supabase.job_messages` and claims them with `for update skip locked`, for projects without pgmq                              |
+| `blocks.queue.options.scheduler` | `pg_cron` (default), `drain` | `drain` stores schedules in `better_supabase.job_schedules`, with a time zone each, and the [drain route](#drain-route) enqueues them; pg_cron isn't needed |
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { queue: { options: { backend: "table", scheduler: "drain" } } },
+});
+```
+
+On the pgmq backend, the module's data file also runs `create extension if
+not exists pgmq`, so `better-supabase add --adopt` puts the extension in a
+migration even when the schema diff leaves it out (pg-delta can, because
+pgmq owns its own schema). Doctor warns about an extension no migration
+creates ([BS321](/docs/cli/doctor#bs321)).
+
+Run `better-supabase upgrade` after changing either option. On the table
+backend, completed and dead jobs stay in `job_messages` with `archived_at`
+set. `better_supabase.purge_job_archive(queue, older_than, batch,
+dead_older_than)` deletes completed jobs after `older_than` (7 days) and
+dead letters after `dead_older_than` (30 days) on both backends, so dead
+letters stay around long enough to replay.
+`jobs.purge({ olderThan, deadOlderThan, batch, queues })` calls it for every
+queue `createQueue` declared (or the `queues` given) and returns how many it
+deleted; `jobs.purgeJob(options)` is the same as a job handler. See
+[Retention](/docs/blocks/sql#retention) for the other purges.
+
+Declare queues with a Standard Schema for their payload. `enqueue`
+validates the payload, so a wrong payload is a type error at compile time
+and a `validation` error at runtime. Queue names follow pgmq's rule:
+lowercase letters, digits and underscores.
+
+```ts title="lib/jobs.ts"
+import { createQueue } from "better-supabase/blocks/queue";
+import * as v from "valibot";
+
+export const jobs = createQueue({
+  sql: postgres.admin,
+  queues: {
+    send_email: v.object({
+      to: v.pipe(v.string(), v.email()),
+      template: v.string(),
+    }),
+  },
+});
+
+await jobs.enqueue(
+  "send_email",
+  { to, template: "welcome" },
+  { delay: 300, dedupeKey: `welcome:${userId}` },
+);
+```
+
+`delay` is a whole number of seconds; a fraction or a negative number is a
+`validation` error. To run at a fixed time, pass `runAt` as a
+`Temporal.Instant`. Jobs and inbox messages report `enqueuedAt`,
+`visibleUntil` and `receivedAt` as `Temporal.Instant` too (see
+[Temporal](/docs/concepts/temporal)). The third argument takes `temporal`, for
+runtimes without a global `Temporal`, and `now`, the clock for `runAt` delays
+and schedule runs. Pass the same `now` you give `defineSupabase` so jobs and
+repositories share one clock in tests.
+
+Any number of workers can run side by side: pgmq hides a claimed message for
+the length of its lease.
+
+```ts title="worker.ts"
+const controller = new AbortController();
+await jobs.work(
+  "send_email",
+  async (payload, job, signal) => {
+    await sendEmail(payload, { signal });
+  },
+  { concurrency: 4, lease: 60, signal: controller.signal },
+);
+```
+
+- A job is done when its handler returns; it is archived (`pgmq.a_<queue>`).
+  If the handler throws or returns a failed `Result`, the job is retried
+  with exponential backoff and full jitter: a random wait up to 10s, 20s,
+  40s and so on, at most an hour, so failed jobs don't retry in bursts.
+  `last_error` is kept on the message. After `maxAttempts` (5 by default) it
+  is archived with `dead: true`. A job whose worker died on its last attempt
+  is archived as dead by the next claim instead of running again.
+- `jobs.replay(queue, id)` (SQL `better_supabase.replay_dead_job`) enqueues
+  a dead letter again with its payload, attempts and dedupe key, and removes
+  it from the archive.
+- While a batch runs, a heartbeat keeps extending the lease of every job in
+  it that hasn't finished, including the ones waiting their turn. If a worker
+  crashes, the lease ends and another worker picks the job up. On pgmq the
+  lease is extended with `pgmq.set_vt`. `job.attempts` is pgmq's `read_ct`;
+  a worker whose lease was taken over gets `false` from
+  `complete` instead of finishing someone else's job. When an extension
+  fails or finds the lease gone, the handler's `signal` aborts and the
+  worker neither completes nor fails that job; `onError` gets a `conflict`
+  with code `JOB_LEASE_LOST` and the job counts as failed.
+- An idle worker polls after `pollInterval` (1 second), then doubles the wait
+  after each empty poll up to `maxPollInterval` (30 seconds). The next claimed
+  job resets it.
+- A claim that fails with a `network`, `timeout`, `serialization` or
+  `rate_limited` error is retried up to 3 times, waiting `pollInterval` and
+  then twice as long each time. Any other claim error, or a fourth in a row,
+  stops every lane, and `work` or `drain` rejects with a `TypeError` whose
+  `cause` is the `DbError`.
+- A `dedupeKey` keeps one waiting or running job per key. With
+  `dedupe: "waiting"` it coalesces only onto a job no worker has claimed
+  yet, so a change made while the job runs queues one follow-up instead of
+  being dropped: a debounce per entity. In SQL this is
+  `enqueue_job(..., dedupe_key => key, dedupe_running => false)`.
+- `enqueueOnce(queue, payload, { dedupeKey })` enqueues at most one job per
+  key, ever: a completed or dead job still holds its key, so a retried
+  webhook or a repeated import adds nothing. It returns `{ id, duplicate }`,
+  with the first job's id on a duplicate. In SQL it is
+  `enqueue_job_once(queue, payload, dedupe_key)`.
+- `drain(queue, handler)` works the queue until it is empty, which suits cron
+  and Edge Functions. `claim`, `complete`, `fail` and `extend` are available
+  when you want to drive the queue yourself.
+
+### Queue health
+
+An admin page reads each queue's state with `stats`, pages through dead
+letters with `listDead`, and puts them back with `retryDead`:
+
+```ts
+const stats = await jobs.stats().orThrow();
+// { send_email: { ready, inFlight, delayed, dead, oldestAgeSeconds } }
+
+const dead = await jobs.listDead("send_email", { limit: 50 }).orThrow();
+// [{ id, payload, context, attempts, maxAttempts, lastError, enqueuedAt, diedAt }]
+const next = await jobs
+  .listDead("send_email", { limit: 50, cursor: dead.at(-1)?.id })
+  .orThrow();
+
+await jobs.retryDead("send_email", { ids: [dead[0]!.id] }).orThrow();
+await jobs.retryDead("send_email").orThrow(); // the newest 1000
+```
+
+| Field              | Counts                                                              |
+| ------------------ | ------------------------------------------------------------------- |
+| `ready`            | messages the next claim takes                                       |
+| `inFlight`         | messages a worker holds, or that wait out a retry backoff           |
+| `delayed`          | messages enqueued for later that no worker claimed yet              |
+| `dead`             | dead letters in the archive, until `purge_job_archive` removes them |
+| `oldestAgeSeconds` | the age of the oldest message that isn't done, null when none       |
+
+`stats` takes a list of queue names and defaults to every queue
+`createQueue` declared. `listDead` returns stored payloads without
+validating them, since the schema may have changed since. All three call
+`better_supabase.job_queue_stats`, `list_dead_jobs` and `retry_dead_jobs`,
+so they need a SQL connection or the API transport described in
+[Without a database connection](#without-a-database-connection).
+
+### Actor and tenant
+
+The queue itself runs on a service-role connection, but the work inside a
+handler should run as the user who asked for it, so your RLS policies still
+decide what it can read and write.
+
+Pass the request context to `enqueue` and the job records its actor and
+tenant next to the payload. The tenant is `context.tenant`, the one
+the memberships extension resolved for the connection, or the `tenant_id` claim (then
+`app_metadata.tenant_id`). The handler gets them back as `job.context`, and
+[`bsb.forContext`](/docs/auth/server#explicit-identities) turns that into
+repositories running as that user, in that tenant, over direct Postgres:
+
+```ts
+await jobs.enqueue("send_invoice", { invoiceId }, { context: db.$context });
+
+await jobs.work("send_invoice", async (payload, job) => {
+  const db = await bsb.forContext(job.context).orThrow();
+  const invoice = await db.invoices.get(payload.invoiceId).orThrow();
+  // ...
+});
+```
+
+A job enqueued in a support session or an impersonated session also records
+the session's `act` claim. `forContext` keeps it, so a job enqueued in a
+read-only support session runs read-only, as the same support session.
+
+A job an OAuth or MCP client queues stays limited to what the user granted
+that client. The envelope records the token's `client_id`, `scope`,
+`authorization_details` (RFC 9396) and the full RFC 8693 `act` chain, and
+`forContext` puts them back into the claims the job runs with.
+`ServerOptions.claimsFor` can't set or replace them. The access functions
+(`can`, `member_can`, `tenant_ids_with` and `is_platform`) narrow a delegated
+token on their own: a key counts only when one of the token's scopes maps to
+it (see [Delegated tokens](/docs/repository/permissions#delegated-tokens)), so a
+policy that asks them needs nothing else.
+
+```sql
+create policy "posts: writers" on public.posts
+  for update to authenticated
+  using (organization_id in (select better_supabase.tenant_ids_with('posts.write')));
+```
+
+For a policy that checks the literal OAuth scope instead of a permission,
+`better_supabase.token_scope_allows(scope)` from the `created-by` module is true
+for a token no client acts with, and for a delegated token only when its
+`scope` claim holds the scope.
+
+`forContext(context, { permissions })` caps the work further. The cap is the
+`bsb_permission_cap` claim, a job queued under it keeps it, and a later
+`permissions` only narrows it:
+
+```ts
+await bsb.forContext(job.context, { permissions: ["posts.write"] });
+```
+
+A context whose `act` chain or delegation claims are malformed is refused:
+`enqueue` fails with `forbidden`, and `forContext` refuses a stored one.
+
+#### Tickets
+
+An authorization provider can hand out an opaque ticket that names who a
+job runs as, for example a grant that a user can revoke before the job
+runs. Pass it as `ticket` and the envelope records it:
+
+```ts
+await jobs.enqueue(
+  "export_report",
+  { reportId },
+  { context: db.$context, ticket },
+);
+
+await jobs.work("export_report", async (payload, job) => {
+  const db = await bsb.forContext(job.context).orThrow();
+});
+```
+
+`forContext` resolves a recorded ticket through its `ticket` option, or
+else the provider's `tickets.subject` hook from
+`createServer(bsb, { authorization })`, and runs as the context it returns.
+A ticket without a resolver, a `null` answer and a throw all fail with
+`forbidden`; `forContext` never falls back to the recorded actor or the
+service role.
+
+`forContext` fails with `forbidden` when the job recorded no user, for
+example one enqueued by a cron schedule, and never falls back to the service
+role. Work that no user owns uses `bsb.admin(job.context)` on purpose: it
+stamps `createdBy` and applies the memberships filter, but bypasses RLS, so
+keep it visible in code review. `admin.$with(job.context)` is the same
+service-role connection and does not apply RLS either. See
+[Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
+
+A job enqueued without a tenant runs with a context that has none, so
+the memberships extension applies its `onMissing` (by default the query is left to RLS). Workers
+that handle cross-tenant jobs on purpose pass `allTenants: true` to `work` or
+`drain`; jobs that recorded no tenant then run without the tenant scope, and
+jobs that did keep theirs. `schedule` takes the same `{ context }` as its last
+argument.
+
+### Schedules
+
+`schedule` enqueues a payload on a cron schedule. Scheduling the same name
+again replaces it. A schedule is five cron fields (lists, ranges, steps, and
+names such as `MON-FRI`), a macro (`@hourly`, `@daily`, `@weekly`,
+`@monthly`, `@yearly`) or an interval (`30 seconds`, `5 minutes`). An
+invalid schedule returns an error before anything is written.
+
+```ts
+await jobs.schedule("nightly-digest", "0 3 * * *", "send_email", {
+  to: "team@example.com",
+  template: "digest",
+});
+await jobs.unschedule("nightly-digest");
+```
+
+With the default `pg_cron` scheduler, enable the
+[pg_cron](https://supabase.com/docs/guides/cron) extension first. pg_cron
+reads every schedule in `cron.timezone` (UTC on Supabase), so a `timeZone`
+other than `UTC` returns an error.
+
+With `scheduler: "drain"`, each schedule has its own time zone, and the
+drain route enqueues a run when one is due:
+
+```ts
+await jobs.schedule(
+  "weekday-digest",
+  "0 9 * * MON-FRI",
+  "send_email",
+  { to: "team@example.com", template: "digest" },
+  { timeZone: "Europe/Amsterdam" },
+);
+```
+
+The next run is computed in that zone, so 09:00 stays 09:00 across daylight
+saving changes. A time that a change skips (02:30 on the night clocks move
+forward) runs right after the gap. When the drain route didn't run for a
+while, missed runs collapse into one. `runSchedules()` does the same work
+without the route, and `nextCronRun(cron, timeZone, after)` is exported for
+your own checks.
+
+Under the drain scheduler, a schedule also belongs to a tenant: `tenant` in
+the options, or the tenant of `context`. Each named schedule keeps its own
+cron, time zone and tenant, and its runs record the context, so a handler
+runs for that tenant. A product page reads schedule state with
+`listSchedules`, and tenant deletion removes them all with `unscheduleAll`:
+
+```ts
+await jobs.schedule(
+  `workflow:${definitionId}`,
+  "0 8 * * MON",
+  "run_workflow",
+  { definitionId },
+  { timeZone: "Europe/Amsterdam", context: { tenant: organizationId } },
+);
+
+const schedules = await jobs
+  .listSchedules({ prefix: "workflow:", tenant: organizationId })
+  .orThrow();
+// [{ name, cron, timeZone, queue, tenant, nextRun, lastRun, leasedUntil, createdAt }]
+
+await jobs.unscheduleAll({ tenant: organizationId }).orThrow();
+```
+
+Under pg_cron, `listSchedules` returns pg_cron's jobs with only the name and
+cron, and a schedule with a tenant returns an error.
+
+`ensureSchedules` keeps a whole set in step with a source of truth, such as
+the app's built-in schedules on deploy or a tenant's workflow settings after
+an edit. It writes every definition, removes the schedules under `prefix`
+(and `tenant`, when given) that the set no longer names, and returns both
+lists. Every name must start with the prefix, and every payload and cron is
+checked before anything is written. A definition whose cron and time zone
+didn't change keeps its next run, so a run that is due but not yet drained
+still happens and running it twice changes nothing.
+
+```ts
+const result = await jobs
+  .ensureSchedules(
+    workflows.map((workflow) => ({
+      name: `workflow:${workflow.id}`,
+      cron: workflow.cron,
+      queue: "run_workflow",
+      payload: { definitionId: workflow.id },
+      timeZone: workflow.timeZone,
+    })),
+    { prefix: "workflow:", tenant: organizationId },
+  )
+  .orThrow();
+// { scheduled: ["workflow:..."], removed: ["workflow:..."] }
+```
+
+Definitions take the same `timeZone`, `memberships` and `context` as `schedule`;
+one without a tenant gets the `memberships` option.
+
+#### Block timers
+
+Blocks that act on time declare their timers in the manifest, and they all run
+from this scheduler. `blockSchedules(blocks)` turns them into job schedules
+named `block:<block>.<name>` on the `block_ticks` queue, and
+`blockTickHandler` runs the handler named `<block>.<name>` for each tick. A
+tick without a handler, or a handler that returns a failed `Result`, throws,
+so the queue retries it and the dead letter shows it.
+
+| Timer               | Cron               | Handler                                                          |
+| ------------------- | ------------------ | ---------------------------------------------------------------- |
+| `sla.check`         | every minute       | `sla.check()`: warnings and breaches of running clocks           |
+| `sequences.run-due` | every minute       | `sequences.runDue()`: sends the steps whose wait ended           |
+| `ai-schedules.tick` | every minute       | `aiSchedules.tick()`: runs the due AI tasks                      |
+| `workflows.tick`    | every minute       | `schedules.tick()` and `admission.tick()` of the workflows block |
+| `content.publish`   | every five minutes | `content.publishDue()`: publishes the scheduled entries now due  |
+
+```ts title="lib/jobs.ts"
+import {
+  BLOCK_SCHEDULE_PREFIX,
+  BLOCK_TICKS_QUEUE,
+  blockSchedules,
+  blockTickHandler,
+  blockTickSchema,
+  createQueue,
+} from "better-supabase/blocks/queue";
+import { sequencesBlock } from "better-supabase/blocks/sequences";
+import { slaBlock } from "better-supabase/blocks/sla";
+
+export const jobs = createQueue({
+  sql: postgres.admin,
+  queues: { [BLOCK_TICKS_QUEUE]: blockTickSchema },
+});
+
+// On deploy: one schedule per timer of the installed blocks.
+await jobs
+  .ensureSchedules(blockSchedules([slaBlock, sequencesBlock]), {
+    prefix: BLOCK_SCHEDULE_PREFIX,
+  })
+  .orThrow();
+
+export const ticks = blockTickHandler({
+  "sla.check": () => blocks.sla.check(),
+  "sequences.run-due": () => blocks.sequences.runDue(),
+});
+```
+
+Pass `ticks` as the `block_ticks` handler of the [drain route](#drain-route).
+Reminders don't need a timer: each reminder is a job on its own queue, due at
+its time.
+
+#### Schedules from SQL
+
+Under the drain scheduler, a database trigger or function can schedule a job
+itself with `better_supabase.schedule_job`. Leave out `next_run`: the
+schedule is stored without one, and the next drain computes its first run
+in the schedule's time zone, counted from when it was written, so a run
+that falls between the write and the drain still happens. The app needs no
+job that copies rows into schedules: a trigger on the table that holds the
+cron keeps the schedule current, and the drain route runs it.
+
+```sql title="supabase/schemas/040_reminders.sql"
+create function public.schedule_reminder()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform better_supabase.schedule_job(
+    'reminder:' || new.id,
+    new.cron,
+    'send_reminder',
+    jsonb_build_object('id', new.id),
+    new.time_zone,
+    null,
+    new.organization_id::text
+  );
+  return null;
+end;
+$$;
+
+create trigger schedule_reminder
+  after insert or update of cron, time_zone on public.reminders
+  for each row execute function public.schedule_reminder();
+```
+
+Make the trigger function `security definer`, so a signed-in user's insert
+can write the schedule without access to `better_supabase`. Writing a
+schedule again with the same cron and time zone keeps its next run; a new
+cron or time zone clears it, and the next drain computes the first run of
+the new one. Call `better_supabase.unschedule_job('reminder:' || old.id)`
+from a delete trigger to remove it.
+
+`schedule_job` rejects a schedule that isn't five cron fields, a macro or an
+interval. A cron that passes that check but that the drain can't read (a
+field out of range) stays without a next run, and `listSchedules` shows its
+`nextRun` as null.
+
+#### External schedulers
+
+The drain scheduler needs no database extension: any scheduler that calls the
+drain route on a fixed cadence runs every schedule, whatever their own
+cadences. Call it at least as often as your most frequent schedule, every
+minute for minute-level schedules. Vercel Cron, a GitHub Actions workflow, a
+Kubernetes CronJob or a Supabase Edge Function on a timer all work; each call
+leases the due schedules, so overlapping calls never enqueue a run twice.
+
+#### Three scheduling layers
+
+Three blocks take a cron, and each one is for a different owner. All three
+parse the cron and compute the next run with the same helpers
+(`assertCron` and `nextCronRun`), so a cron and a time zone mean the same
+thing in each.
+
+| Layer                                                  | Who sets it                               | What a run does                                                             |
+| ------------------------------------------------------ | ----------------------------------------- | --------------------------------------------------------------------------- |
+| Job schedules (this block)                             | The app, in code or SQL                   | Enqueues a job with a fixed payload                                         |
+| [Workflow schedules](/docs/blocks/workflows#schedules) | The app, or members with `workflow.admin` | Starts a workflow run, with the idempotency key `schedule:<id>:<fire time>` |
+| [AI tasks](/docs/blocks/ai-schedules)                  | Each user, for their own prompt           | Runs the prompt and logs the chat each run wrote to                         |
+
+Pick the lowest layer that does the job. A nightly cleanup is a job
+schedule. A recurring start of a durable workflow that members can see and
+pause is a workflow schedule. A prompt a user writes and schedules in the
+product is an AI task, which the jobs block then runs.
+
+### Drain route
+
+`drainRoute` turns the queues into an HTTP endpoint for a cron caller such as
+[Vercel Cron](https://vercel.com/docs/cron-jobs). Each call checks the bearer
+secret, enqueues due schedules, then drains each queue in `handlers` until
+they are empty or `budgetMs` (50 seconds by default) is spent. Jobs it
+already claimed still finish.
+
+```ts title="app/api/jobs/drain/route.ts"
+import "server-only";
+
+import { jobs } from "@/lib/jobs";
+
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  budgetMs: 50_000,
+  handlers: { send_email: (payload) => sendEmail(payload) },
+  onError: (error, job) => console.error(error.message, job?.id),
+});
+```
+
+```json title="vercel.json"
+{ "crons": [{ "path": "/api/jobs/drain", "schedule": "* * * * *" }] }
+```
+
+Vercel sends `Authorization: Bearer <CRON_SECRET>`; a request without it gets
+`401`. The response is JSON: `schedules` (runs enqueued), `queues` (the
+succeeded and failed counts per queue), `budgetExhausted` and `errors` (the
+schedule and queue runs that failed as a whole). Keep `budgetMs` below the
+function's maximum duration. `drain` takes the same `budgetMs` when you call
+it yourself.
+
+Nothing calls the route under `next dev` or another local server, so
+outbox relays and queued jobs wait until a deploy. `devDrain` calls it on an
+interval (every minute by default) in development, and `devDrainSecret`
+generates the route's secret when none is set. Call both before the route
+reads the secret, for example in Next.js `instrumentation.ts`:
+
+```ts title="instrumentation.ts"
+import { devDrain, devDrainSecret } from "better-supabase/blocks/queue";
+
+export function register() {
+  if (process.env.NODE_ENV !== "development") return;
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  devDrain({
+    url: `http://localhost:${process.env.PORT ?? "3000"}/api/jobs/drain`,
+    secret: devDrainSecret(process.env),
+  });
+}
+```
+
+`devDrain` sends `GET` with `Authorization: Bearer <secret>`, skips a call
+while the previous one still runs, and reports a failed call or an answer
+other than 2xx to `onError` (`console.warn` by default) without stopping.
+`every` sets the interval in milliseconds; `stop()` or an aborted `signal`
+ends it, and `tick()` calls the route once. `devDrainSecret(env, name)`
+returns `env[name]` (`CRON_SECRET` by default) or writes a random one there.
+
+`monitor` hooks around each authorized drain report to a cron monitor
+without wrapping the route. `onStart` returns a value, such as a check-in
+id, that `onFinish` receives with the result. A hook that throws goes to
+`onError` and never fails the drain.
+
+```ts
+export const GET = jobs.drainRoute({
+  secret: process.env.CRON_SECRET,
+  handlers,
+  monitor: {
+    onStart: () =>
+      Sentry.captureCheckIn({
+        monitorSlug: "jobs-drain",
+        status: "in_progress",
+      }),
+    onFinish: (result, checkInId) =>
+      Sentry.captureCheckIn({
+        checkInId: String(checkInId),
+        monitorSlug: "jobs-drain",
+        status: result.errors > 0 ? "error" : "ok",
+      }),
+  },
+});
+```
+
+### Queue backends
+
+`createQueue` accepts a SQL connection, a Supabase client, or any
+`QueueProvider` (API version 1). `sqlQueueProvider(sql)`,
+`pgmqPublicBackend(client)` and `vercelQueueProvider(client)` are built in; implement the interface to
+put jobs somewhere else, and prove it with `testQueueProvider` from
+[conformance kits](/docs/extending/conformance).
+
+```ts
+import { createQueue, type QueueProvider } from "better-supabase/blocks/queue";
+
+const backend: QueueProvider = myQueue;
+const jobs = createQueue({ backend, queues: { send_email: schema } });
+```
+
+### Vercel Queues
+
+`vercelQueueProvider(client)` stores jobs on [Vercel Queues](https://vercel.com/docs/queues)
+instead of Postgres. Pass a `PollingQueueClient` from `@vercel/queue` (an
+optional peer, range `>=0.8 <0.9`). Queue names are topic names, so they match
+`[A-Za-z0-9_-]+`.
+
+```ts
+import { PollingQueueClient } from "@vercel/queue";
+import { createQueue, vercelQueueProvider } from "better-supabase/blocks/queue";
+
+const jobs = createQueue({
+  backend: vercelQueueProvider(new PollingQueueClient({ region: "iad1" })),
+  queues: { send_email: schema },
+});
+```
+
+`drain` reads with the client's `receive`, which keeps the visibility timeout
+alive while a handler runs, and `fail` redelivers the message after the retry
+delay. Vercel Queues keeps no dead letters and has no schedules, so a message
+past `maxAttempts` is acknowledged and dropped, `stats` and `listDead` are
+absent, and `schedule` needs the SQL backend. Job ids are numbers local to the
+process. The backend passes `testQueueProvider`.
+
+### Without a database connection
+
+Where there's no direct connection, such as an Edge Function without a pooler
+URL, pass a service-role Supabase client instead. Without `schema`, jobs go
+through the `pgmq_public` RPCs, which you turn on in the dashboard under Integrations, Queues, "Expose
+Queues via PostgREST".
+
+```ts
+const jobs = createQueue({
+  client: createClient(url, secretKey),
+  queues: { send_email: schema },
+});
+```
+
+Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
+`work`, with these differences:
+
+- there is no lease check on `complete`;
+- a failed job reappears when its lease ends (`retryIn` is ignored), and
+  there's no heartbeat;
+- `dedupeKey`, `enqueueOnce`, `schedule`, `stats`, `listDead` and
+  `retryDead` return `invalid_request`.
+
+To get the whole API without a direct connection, write wrappers for the
+module into an exposed schema with `blocks.queue.api` and pass an
+`rpcTransport` over a service-role client. `createQueue` detects a transport
+and calls every module function by name, so leases, retries with backoff,
+dedupe keys, schedules, `stats`, `listDead` and `retryDead` all work:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { queue: { api: "api" }, idempotency: { api: "api" } },
+});
+```
+
+```ts
+import { createClient } from "@supabase/supabase-js";
+import {
+  createIdempotency,
+  createQueue,
+  rpcTransport,
+  withLease,
+} from "better-supabase/blocks/queue";
+
+const transport = rpcTransport(createClient(url, secretKey), { schema: "api" });
+const jobs = createQueue({ transport, queues: { send_email: schema } });
+const idempotency = createIdempotency({ transport, schema: "api" });
+await withLease(transport, "nightly-report", run, { schema: "api" });
+```
+
+For jobs alone, `client` with `schema` does the same: `createQueue` builds the
+`rpcTransport` itself and calls the wrappers in that schema. A `client`
+without `schema` stays on `pgmq_public`.
+
+```ts
+const jobs = createQueue({
+  client: createClient(url, secretKey),
+  schema: "api",
+  queues: { send_email: schema },
+});
+```
+
+`createIdempotency` and `withLease` call the functions in `better_supabase`
+unless you pass `schema`, which an `rpcTransport` with its own `schema`
+option ignores. Keep the wrappers service-only: the module functions are
+granted to `service_role`, and the wrappers inherit those grants. Over
+`sqlTransport`, a set-returning function such as `claim_jobs` returns only
+its first row, so pass the SQL client itself there.
+
+## Idempotency keys
+
+`handle` wraps a handler so that a retried request with the same
+`Idempotency-Key` gets the first response back instead of running twice:
+
+```ts
+import { createIdempotency } from "better-supabase/blocks/queue";
+
+const idempotency = createIdempotency({ sql: postgres.admin, ttl: "24 hours" });
+
+export const POST = (request: Request) =>
+  idempotency.handle(request, async () =>
+    Response.json(await createOrder(request), { status: 201 }),
+  );
+```
+
+| Situation                                          | Response                                                 |
+| -------------------------------------------------- | -------------------------------------------------------- |
+| First request                                      | The handler's response, stored                           |
+| Same key and same body                             | The stored response, with `idempotency-replayed: true`   |
+| Same key while the first request is still running  | `409` with `Retry-After`                                 |
+| Same key and a different body                      | `422` with code `IDEMPOTENCY_KEY_REUSED`                 |
+| Handler throws or returns a 5xx                    | The key is released, so the client can retry             |
+| Another request took the key over before the store | `409` with code `IDEMPOTENCY_KEY_LOST` and `Retry-After` |
+
+Pass a service SQL connection as `sql`, or a service-role `transport` such
+as the `rpcTransport` above. `hooks` runs your code around `begin`,
+`extend`, `complete`, `release` and `purge` (see
+[extending blocks](/docs/extending/blocks#hooks)); `handle` calls them
+through the hooks.
+
+The fingerprint is a SHA-256 of the method, path, query string and body.
+The lock (`lock`, one minute by default) is renewed at half its length while
+the handler runs, so a slow handler keeps its key. The lock only runs out
+when the process stops renewing it, for example when it crashes; another
+request with the same key then takes it over. Set
+`required: true` to reject requests that have no key. The error responses
+are Problem Details; pass `problem` to answer in your app's error format
+instead (see [Problem Details](/docs/auth/problems#your-own-error-format)).
+
+Outside HTTP, `begin(key, fingerprint, scope)` returns a `holder` token with
+the `started` state, and `extend(key, holder, scope)`,
+`complete(key, holder, status, body, scope)` and `release(key, holder, scope)`
+need it. Call `extend` before the lock runs out to keep the key for work that
+takes longer; it returns `false` once the lock has run out. A caller whose
+lock ran out may find that another caller took the key over; its `complete`
+and `release` then return `false` and change nothing, so it can't store its
+late result over the new holder's or free a key someone else holds:
+
+```ts
+const started = await idempotency.begin(key, fingerprint).orThrow();
+if (started.state === "started") {
+  const stored = await idempotency
+    .complete(key, started.holder!, 200, result)
+    .orThrow();
+  if (!stored) console.warn("lost the key to another caller");
+}
+```
+
+### Leases
+
+`withLease(sql, key, fn)` runs `fn` while it holds the lease on `key`, so
+work that must not run twice at once (one automation per conversation, one
+mutation per agent run) runs once, and other callers get
+`{ acquired: false }`. The lease holds for `seconds` (60 by default) and is
+released when `fn` ends or throws; for long work, `lease.extend()` moves
+the expiry and returns `false` once the lease was lost:
+
+```ts
+import { withLease } from "better-supabase/blocks/queue";
+
+const outcome = await withLease(
+  postgres.admin,
+  `conversation:${conversationId}`,
+  async (lease) => {
+    await step1();
+    await lease.extend();
+    return step2();
+  },
+  { seconds: 30 },
+).orThrow();
+if (!outcome.acquired) return; // another worker has it
+```
+
+In SQL the same lease is `better_supabase.acquire_lease(key, seconds,
+scope)`, which returns a holder token or null, `extend_lease(key, holder,
+seconds, scope)` and `release_lease(key, holder, scope)`, for the service
+role. An expired lease goes to the next caller, and the former holder's
+`extend_lease` and `release_lease` return false.
+
+## Webhook inbox
+
+The inbox verifies a webhook, stores it once, and returns quickly. A
+worker then processes it, with the same retries as jobs. This way your
+provider never times out, and a redelivered webhook is only handled once.
+
+```ts
+import { createWebhookInbox, sqlTransport } from "better-supabase/blocks/queue";
+
+const inbox = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
+  source: "billing",
+  secrets: process.env.BILLING_WEBHOOK_SECRET!,
+});
+
+export const POST = (request: Request) => inbox.receive(request);
+
+await inbox.process(async (message) => {
+  if (message.type === "invoice.paid") await markPaid(message.payload);
+});
+```
+
+`createWebhookInbox` was called `createInbox` before 0.6, and its types were
+`Inbox`, `InboxOptions` and so on. 0.6 removes the old names;
+`createInbox` from `better-supabase/blocks/inbox` is the conversation inbox
+block.
+
+To keep messages in a table your app already has, adopt it with
+`blocks.webhook-inbox.ownership: "adopt"`; see
+[Adopting your own tables](/docs/blocks/webhooks-in#adopting-your-own-tables).
+
+`secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass
+`verify` to use a provider's own scheme instead. `receive` answers `202` for
+a new message and `200` for a duplicate. A message id is unique per source
+and tenant, so two tenants of one provider can send the same id. A failed
+verification gets a Problem Details response, and a body over `maxBodyBytes`
+(1 MiB by default) gets `413` before it is read in full.
+
+A failed message is retried with exponential backoff until `maxAttempts`
+(8 by default, set per source on `createWebhookInbox`), then marked dead. Each
+message stores the limit it arrived with. The handler sees `attempts` (1 on
+the first) and `maxAttempts`, so it can tell its last attempt, for example
+to notify someone before the message is given up:
+
+```ts
+const crm = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
+  source: "crm",
+  secrets,
+  maxAttempts: 3,
+});
+
+await crm.process(async (message) => {
+  const result = await syncContact(message.payload);
+  if (!result.ok && message.attempts === message.maxAttempts) {
+    await alertOwner(message, result.error);
+  }
+  return result;
+});
+```
+
+A message whose worker died during its last attempt is marked dead by the
+next `process` instead of running again.
+
+`process` runs until no message is ready. In a serverless function, pass
+`budgetMs` so a backlog can't outrun the function's maximum duration: it
+stops claiming once the budget is spent, finishes the messages it already
+claimed, and the next call picks up the rest. `batch` (10) and `lease` (300
+seconds) set how many messages one claim takes and how long they stay with
+the worker. While a handler runs, a heartbeat renews its message's lease
+every half lease. A worker whose lease ran out and was taken by another
+claim can't complete, fail or checkpoint that message: the inbox checks the
+attempt it claimed, and skips a message whose lease it can't renew. The
+handler gets an `AbortSignal` as its second argument, which aborts when a
+renewal fails; the worker then leaves the message for the next claim.
+
+```ts title="app/api/inbox/route.ts"
+export const GET = async () =>
+  Response.json(await inbox.process(handleMessage, { budgetMs: 50_000 }));
+```
+
+A webhook carries no session, so pick the identity in the handler. Look up
+the user and tenant the event belongs to (a Stripe customer id maps to an
+organization and its owner), then run the work with
+`bsb.actingAs(userId, { tenant_id })` so RLS applies:
+
+```ts
+await inbox.process(async (message) => {
+  const owner = await ownerOfCustomer(message.payload.customer);
+  const db = bsb.actingAs(owner.userId, { tenant_id: owner.organizationId });
+  await db.invoices
+    .update(message.payload.invoice, { status: "paid" })
+    .orThrow();
+});
+```
+
+Use `bsb.admin()` only for events no user owns, such as a provider-wide
+status change. See
+[Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
+
+### Per-tenant integrations
+
+Most inboxes serve integrations a tenant connected, so a message can belong to
+a tenant: `tenantOf(payload)` reads it from the payload, and `verify` can
+return it next to the id and payload. `list({ tenant })` shows a tenant's
+messages newest first (an integration's delivery log), and
+`purge({ tenant, olderThan: 0 })` removes them when the tenant goes.
+`purgeWebhookInbox(source, options)` runs the same purge without an inbox,
+over a service SQL connection or a service-role transport, and
+`inbox.purgeJob(options)` returns it as a job handler.
+
+```ts
+const inbox = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
+  source: "chat-provider",
+  secrets: process.env.CHAT_WEBHOOK_SECRET!,
+  tenantOf: (payload) => connectionTenant(payload),
+});
+
+const deliveries = await inbox
+  .list({ tenant: organizationId, status: "dead" })
+  .orThrow();
+```
+
+A provider that pages its deliveries needs progress that survives a retry.
+`message.checkpoint(fields)` merges `fields` into the stored progress while
+the worker holds the message, and the next attempt reads it from
+`message.progress`:
+
+```ts
+await inbox.process(async (message) => {
+  let cursor = message.progress.cursor as string | undefined;
+  do {
+    const page = await provider.fetchPage(message.payload, cursor);
+    await apply(page.items);
+    cursor = page.next;
+    await message.checkpoint({ cursor });
+  } while (cursor);
+});
+```
+
+`inbox.store({ id, payload, type, tenant })` stores an event your code
+already verified, for providers whose SDK verifies and parses in one call:
+
+```ts
+export async function POST(request: Request) {
+  const event = await stripe.webhooks.constructEventAsync(
+    await request.text(),
+    request.headers.get("stripe-signature")!,
+    process.env.STRIPE_WEBHOOK_SECRET!,
+  );
+  const stored = await inbox.store({
+    id: event.id,
+    type: event.type,
+    payload: event,
+  });
+  return stored.ok
+    ? new Response(null, { status: 202 })
+    : new Response(null, { status: 500 });
+}
+```
+
+A source that only `store` fills, such as a chat SDK that verifies its own
+requests, needs neither `secrets` nor `verify`. Its `process`, `list` and
+`purge` work as usual, and `receive` throws a `TypeError`, so an unverified
+request is never stored:
+
+```ts
+const chat = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
+  source: "chat",
+});
+
+await chat.store({ id: event.id, type: event.type, payload: event });
+```
+
+## Your own columns
+
+Add columns to the webhook inbox message table with `blocks.webhook-inbox.options.extraColumns`
+(column name to SQL type), then pass a Standard Schema for them as `fields`.
+`store` validates and writes them, and `list` and the messages `process` hands the handler return them parsed under
+`fields`. The block also takes `hooks` around its methods; see
+[extending blocks](/docs/extending/blocks).
+
+```ts
+import { createWebhookInbox } from "better-supabase/blocks/queue";
+import { z } from "zod";
+
+const client = createWebhookInbox({
+  transport,
+  fields: z.object({ priority: z.enum(["low", "high"]) }),
+});
+```

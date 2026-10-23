@@ -1,0 +1,20 @@
+{
+  "title": "CLI",
+  "pages": [
+    "index",
+    "init",
+    "presets",
+    "gen",
+    "dev",
+    "db",
+    "spec",
+    "doctor",
+    "codemod",
+    "agent-mode",
+    "mcp",
+    "completion",
+    "errors",
+    "---Config---",
+    "config"
+  ]
+}

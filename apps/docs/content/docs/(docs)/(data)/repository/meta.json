@@ -1,0 +1,21 @@
+{
+  "title": "Repository",
+  "pages": [
+    "index",
+    "tables",
+    "record-types",
+    "record-bindings",
+    "record-lists",
+    "permissions",
+    "filtering",
+    "includes",
+    "aggregates",
+    "read-sets",
+    "pagination",
+    "writing",
+    "unique-and-errors",
+    "validation",
+    "guards",
+    "lint"
+  ]
+}

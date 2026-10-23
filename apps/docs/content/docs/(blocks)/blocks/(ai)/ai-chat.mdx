@@ -1,0 +1,437 @@
+---
+title: AI chat
+description: Chats, projects and a branching message tree in a canonical message format, with runs, tool approvals, share links, a model catalog per plan and moderation events.
+---
+
+The `ai-chat` block stores the conversations of an AI assistant: chats and
+projects per user and tenant, a message tree with edits and regenerations
+as branches, the run that writes each answer, tool approvals, share links,
+the models each plan allows and moderation events. It doesn't call a model.
+The [AI SDK adapter](/docs/ai-sdk) generates the answers and stores them
+here; another SDK can do the same through the same methods.
+
+```bash
+better-supabase add ai-chat   # adds tenant, access and streams as well
+```
+
+| Table                  | Holds                                                                                                |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ai_projects`          | Folders of chats with shared instructions, per owner and tenant                                      |
+| `ai_chats`             | `title`, `model`, `visibility`, `pinned`, `archived_at`, `temporary`, the leaf and the active stream |
+| `ai_messages`          | The tree: `parent_id`, `role`, `parts` in the message format below, `native`, `status`               |
+| `ai_runs`              | One row per answer: model, status, token usage, the gateway's generation id and cost, the engine     |
+| `ai_run_steps`         | The progress of a long run, one row per step key                                                     |
+| `ai_harness_sessions`  | What a coding-agent harness keeps per chat: resume state, continue state and a lock (experimental)   |
+| `ai_sandboxes`         | Every sandbox or container a chat or harness started: provider, id, status, idle seconds, last use   |
+| `ai_tool_approvals`    | Approval requests for tool calls and the decision                                                    |
+| `ai_tool_policies`     | `auto`, `ask` or `deny` per tool and tenant                                                          |
+| `ai_pending_inputs`    | Questions a run asks the user, and the answer                                                        |
+| `ai_message_sources`   | Cited sources per message                                                                            |
+| `ai_message_feedback`  | Thumbs up or down per message and user                                                               |
+| `ai_chat_shares`       | Share links, stored as the SHA-256 of the token                                                      |
+| `ai_model_catalog`     | The models the app offers, with pricing and the plans that may use each                              |
+| `ai_moderation_events` | Flags, redactions and blocks with their category and score                                           |
+
+| Permission         | Lets a member                                        | Default roles              |
+| ------------------ | ---------------------------------------------------- | -------------------------- |
+| `ai_chat.read`     | read the tenant's chats shared with the organization | `owner`, `admin`, `member` |
+| `ai_chat.create`   | start chats in the tenant                            | `owner`, `admin`, `member` |
+| `ai_chat.share`    | share a chat with the organization or by link        | `owner`, `admin`, `member` |
+| `ai_chat.moderate` | read the tenant's moderation events                  | `owner`, `admin`           |
+| `ai_chat.admin`    | set tool policies and delete any chat in the tenant  | `owner`, `admin`           |
+
+Private chats are readable by their owner only. Assistant messages, runs,
+approvals and the model catalog are written by the service role, so a
+client can't forge an answer.
+
+## Server
+
+```ts title="lib/ai-chat.ts"
+import { createAiChat, rpcTransport } from "better-supabase/blocks/ai-chat";
+
+export const aiChatFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createAiChat({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+  });
+```
+
+`transport` calls as the user and `service` as the service role. With
+`better-supabase/postgres`, pass `sqlTransport(postgres.asUser(claims))` and
+`sqlTransport(postgres.admin)`.
+
+| Group        | Methods                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------- |
+| `chats`      | `create`, `get`, `list`, `update`, `remove`, `purge` (expired temporary chats)              |
+| `projects`   | `create`, `update`, `list`, `remove`                                                        |
+| `messages`   | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`                           |
+| `runs`       | `claim`, `release`, `stop`, `setCost`, `get`, `list`, `attach`, `steps`, `pendingApprovals` |
+| `sandboxes`  | `register`, `touch`, `forChat`, `list`, `idle`, `finishStop`, `stopIdle`, `idleStopJob`     |
+| `approvals`  | `request`, `decide`, `list`, `setPolicy`, `policies`                                        |
+| `inputs`     | `open`, `answer`                                                                            |
+| `feedback`   | `rate`                                                                                      |
+| `shares`     | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)                         |
+| `models`     | `allowed` (what the tenant's plans allow), `upsert`                                         |
+| `moderation` | `record`, `list`                                                                            |
+
+Every method returns a `Result`. Database errors are `DbError` values, never
+exceptions.
+
+## Branches
+
+`appendUser` stores the user's message under the chat's leaf. Sending the
+same id again is a no-op, and the same id with other parts is an edit,
+stored as a sibling. With `trigger: "regenerate-message"` nothing is stored
+and the leaf moves back, so the next answer becomes a sibling of the old
+one. `path(chatId)` returns the active branch from the root, `siblings`
+the alternatives at one message, and `switchBranch` shows another branch.
+
+## Runs and streams
+
+One answer runs at a time per chat. `runs.claim(chatId, streamId)` is a
+compare-and-set on the chat: it fails while another stream is active,
+unless that one is older than `staleAfter`. The writer appends to the
+[durable stream](/docs/blocks/streams), so a reload resumes the answer, and
+`runs.release` ends the run with its status and usage. `runs.stop` sets the
+stream's cancel flag; the writer sees it on its next append.
+
+With the [usage block](/docs/blocks/usage) installed, `runs.release`
+records the run's tokens on two meters: `ai.input_tokens` and
+`ai.output_tokens` (the `inputMeter` and `outputMeter` options), once per
+run, keyed by the run so a retried release counts nothing twice. With a
+`meters` catalog on usage, only the meters it names are recorded. If the app
+already meters tokens itself (`meterTelemetry` or `usageEntries` from
+`better-supabase/ai-sdk`), set `meterUsage: false` so they are not counted
+twice.
+
+A run is `queued`, `running`, `cancel_requested`, `completed`, `failed` or
+`cancelled`. AI tasks and workflow runs use the same names, and
+`FINAL_RUN_STATES` from `better-supabase/blocks` lists the three final
+ones.
+
+## Tool approvals
+
+`approvals.request` stores a tool call that waits for a decision in
+`ai_tool_approvals`, and `approvals.decide` records it through
+`decide_ai_tool_approval`. The service role may always decide. Otherwise
+the approval's owner, the user whose chat made the call, decides it.
+
+Under the `provider` [access model](/docs/repository/permissions), the provider's
+[`isApprover`](/docs/extending/authorization-providers#approvals) template
+decides instead, with `{kind}` `'ai-tool'`, `{subject}` the tool's name and
+`{tenant}` the chat's tenant. The approval's owner is then always refused
+(`AI_APPROVAL_NOT_FOUND`), so a second person decides every call. A provider
+that still sets the deprecated `canApprove` is read when `isApprover` is
+unset, and there `approvals.distinctApprover: true` refuses the owner. The server side of the same check is the `approverOf`
+[runtime hook](/docs/extending/authorization-providers#runtime-hooks).
+
+With the [approvals](/docs/blocks/approvals#tool-calls-and-support-sessions)
+module installed, every waiting tool call also files an approval request
+(`subjectType` `ai_tool_approval`, action `run`, the call's input in
+`payload`), so the approvals inbox lists it. Approving or rejecting it there
+decides the tool call, and `decide_ai_tool_approval` closes the request. The
+approvers stay the ones above.
+
+## Durable runs
+
+A run's `engine` is `ai-sdk` for an answer written inside the request and
+`workflow` for one that runs as a workflow
+([durable chat](/docs/ai-sdk/workflow)), with the engine's own run id in
+`external_run_id`. `runs` on the chat client reads them:
+
+```ts
+const { runs } = createAiChat({ transport, service: serviceTransport });
+const mine = await runs.list({ active: true }).orThrow();
+const steps = await runs.steps.list(mine[0].id).orThrow();
+const inbox = await runs.pendingApprovals().orThrow();
+```
+
+| Method                       | Does                                                                  |
+| ---------------------------- | --------------------------------------------------------------------- |
+| `get`, `list`                | The caller's runs, or one chat's (`chatId`), newest first             |
+| `attach`                     | Records the engine's run id (service role)                            |
+| `steps.record`, `steps.list` | Records a step by its key (service role); the same key updates it     |
+| `pendingApprovals`           | The caller's undecided approvals across chats, with each chat's title |
+
+Members read the runs and steps of the chats they can read; only the
+service role writes them.
+
+### Harness sessions
+
+A coding-agent harness keeps its state per chat in `ai_harness_sessions`
+through `createHarnessSessions`, on the service role. The block stores the
+harness's resume and continue states as JSON without reading them. `lock`
+keeps two turns from driving one sandbox for `ttlSeconds`, and `save` with a
+`holder` fails with `AI_HARNESS_LOCKED` while another holder has the lock.
+Members can't read the table, not even for their own chats, because resume
+state can hold harness credentials. The store is experimental: its shape
+follows the harnesses as they settle.
+
+`save` with a `sandboxId` registers the session's sandbox in
+`ai_sandboxes` (provider `harness` unless `sandboxProvider` names one), and
+`sandboxId: null` marks it stopped. `load` returns the running sandbox's id,
+so a harness reads and writes `sandboxId` as before. The
+[idle-stop job](#sandboxes) stops harness sandboxes with the rest, skips one
+whose session a turn holds the lock of, and marks the session `stopped` once
+its last sandbox stopped.
+
+## Sandboxes
+
+`ai_sandboxes` holds every sandbox or provider container a chat or a harness
+session started, so one idle-stop job stops all of them. Register each
+sandbox the app starts, and mark it used while it runs:
+
+```ts
+const { sandboxes } = createAiChat({ transport, service: serviceTransport });
+const row = await sandboxes
+  .register(organizationId, {
+    provider: "vercel",
+    sandboxId: sandbox.id,
+    chatId,
+  })
+  .orThrow();
+await sandboxes.touch(row.id);
+```
+
+`forChat(chatId, provider)` returns the chat's running sandbox so the next
+message reuses it. A sandbox started in another tenant is not reused:
+`register` fails with the hint `AI_SANDBOX_FORBIDDEN`. Schedule the idle-stop
+job every few minutes; it claims sandboxes that nobody used for their
+`idleSeconds`, or that passed `expiresAt`, and calls your stopper:
+
+```ts title="jobs.ts"
+import { Sandbox } from "@vercel/sandbox";
+
+export const handlers = {
+  ai_sandbox_idle: sandboxes.idleStopJob((sandbox) =>
+    Sandbox.get({ sandboxId: sandbox.sandboxId }).then((s) => s.stop()),
+  ),
+};
+```
+
+A harness sandbox reaches the stopper with its `harnessId` set. A stopper
+that throws leaves the sandbox running with the error on the row, and the
+next run tries again.
+
+| Option             | Default | Sets                                                         |
+| ------------------ | ------- | ------------------------------------------------------------ |
+| `sandboxIdleAfter` | 600     | Seconds without use before the idle-stop job stops a sandbox |
+
+## Share links
+
+`shares.create(chatId)` returns a token once and stores only its hash. The
+link shows the branch it was made from, frozen at that message.
+`shares.get(token)` reads it without signing in; `revoke` ends it.
+
+## Client
+
+The React hooks are a registry item. Install them with
+`npx shadcn add @better-supabase/use-ai-chat`, which writes
+`hooks/use-ai-chat.ts` into the app.
+
+```tsx title="app/chats/sidebar.tsx"
+"use client";
+
+import { useAiChats } from "@/hooks/use-ai-chat";
+
+export function Sidebar({ organizationId }: { organizationId: string }) {
+  const { items, hasMore, loadMore, create } = useAiChats({ organizationId });
+  // ...
+}
+```
+
+| Hook                          | Returns                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `useAiChats(query)`           | The user's chats, newest first, with `loadMore`, `create`, `update`, `remove` |
+| `useAiChatTree(chatId)`       | The active branch, with `switchBranch` and `step` between siblings            |
+| `useAiModels(organizationId)` | The models the tenant may use, for a model picker                             |
+| `useAiShare(chatId)`          | The chat's share links, with `create` and `revoke`                            |
+
+The list and the tree load again when the private Realtime topics
+`ai-chats:{userId}` and `ai-chat:{chatId}` announce a change
+(`blocks["ai-chat"].options.listTopic` and `topic`). In Server
+Components the hooks throw; call the block on the server instead.
+
+## Vue
+
+`useBlockController` from `better-supabase/vue` runs any of the block's
+controllers (`createAiChatsController`, `createAiChatTreeController`,
+`createAiModelsController` and `createAiShareController`) with its options;
+`auth` and `ports` come from `app.use(betterSupabase(bsb))` unless you pass them. `state` is a
+shallow ref of the snapshot and `actions` are the controller's actions. The
+work starts on mount, and the controller is disposed with the component.
+
+```vue title="Component.vue"
+<script setup lang="ts">
+import { useBlockController, useSupabase } from "better-supabase/vue";
+import {
+  createAiChat,
+  createAiChatsController,
+  rpcTransport,
+} from "better-supabase/blocks/ai-chat";
+
+const { organizationId } = defineProps<{ organizationId: string }>();
+const supabase = useSupabase();
+const { state, actions } = useBlockController(createAiChatsController, {
+  client: createAiChat({ transport: rpcTransport(supabase) }),
+  query: { organizationId },
+});
+</script>
+
+<template>
+  <ul>
+    <li v-for="chat in state.items ?? []" :key="chat.id">{{ chat.title }}</li>
+  </ul>
+  <button @click="actions.loadMore()">Load more</button>
+</template>
+```
+
+## Svelte
+
+`useBlockController` from `better-supabase/svelte` runs any of the block's
+controllers (`createAiChatsController` and the others) with its options;
+`auth` and `ports` come from `setBetterSupabase(bsb)` unless you pass them.
+It returns a readable store of the snapshot, read with `$`, with the
+actions on `.actions`. The work starts on mount, and the controller is
+disposed with the component.
+
+```svelte title="Component.svelte"
+<script lang="ts">
+  import { getBetterSupabase, useBlockController } from "better-supabase/svelte";
+  import {
+    createAiChat,
+    createAiChatsController,
+    rpcTransport,
+  } from "better-supabase/blocks/ai-chat";
+
+  let { organizationId }: { organizationId: string } = $props();
+  const { supabase } = getBetterSupabase();
+  const chats = useBlockController(createAiChatsController, {
+    client: createAiChat({ transport: rpcTransport(supabase) }),
+    query: { organizationId },
+  });
+</script>
+
+<ul>
+  {#each $chats.items ?? [] as chat (chat.id)}
+    <li>{chat.title}</li>
+  {/each}
+</ul>
+<button onclick={() => chats.actions.loadMore()}>Load more</button>
+```
+
+## Solid
+
+`useBlockController` from `better-supabase/solid` runs any of the block's
+controllers (`createAiChatsController` and the others) with its options;
+`auth` and `ports` come from `<BetterSupabaseProvider client={bsb}>` unless
+you pass them. `state()` reads the snapshot through `from`, and `actions`
+are the controller's actions. The work starts on mount, and the controller
+is disposed with the owner.
+
+```tsx title="Component.tsx"
+import { For } from "solid-js";
+import { useBlockController, useSupabase } from "better-supabase/solid";
+import {
+  createAiChat,
+  createAiChatsController,
+  rpcTransport,
+} from "better-supabase/blocks/ai-chat";
+
+export function Component(props: { organizationId: string }) {
+  const supabase = useSupabase();
+  const { state, actions } = useBlockController(createAiChatsController, {
+    client: createAiChat({ transport: rpcTransport(supabase) }),
+    query: { organizationId: props.organizationId },
+  });
+  return (
+    <>
+      <ul>
+        <For each={state().items ?? []}>{(chat) => <li>{chat.title}</li>}</For>
+      </ul>
+      <button onClick={() => actions.loadMore()}>Load more</button>
+    </>
+  );
+}
+```
+
+## Message format
+
+`better-supabase/blocks/ai-chat` defines the message format the AI blocks
+store. A message has an `id`, a `role` (`system`, `user`, `assistant` or
+`tool`), a list of `parts` and optional `metadata`. The format belongs to
+better-supabase, not to one SDK: an adapter for the AI SDK or another SDK
+converts its own messages to these parts and back, so the stored history,
+search and memory work the same whichever SDK wrote them.
+
+```ts
+import {
+  aiMessageSchema,
+  type AiMessage,
+} from "better-supabase/blocks/ai-chat";
+
+const message: AiMessage = {
+  id: "msg_1",
+  role: "assistant",
+  parts: [
+    { type: "text", text: "Here is the invoice." },
+    {
+      type: "tool-call",
+      toolCallId: "call_1",
+      toolName: "getInvoice",
+      input: { id: 42 },
+    },
+  ],
+};
+
+const result = await aiMessageSchema["~standard"].validate(message);
+```
+
+`aiMessageSchema` is a [Standard Schema](https://standardschema.dev), so it
+works anywhere a Zod or Valibot schema does. `isAiMessage(value)` is the
+type guard. An adapter may also keep its own copy of a message in `native`
+(the AI SDK adapter stores the `UIMessage`), and reads it back with
+`path(chatId, { native: true })`.
+
+### Parts
+
+| Type            | Fields                                                                              |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `text`          | `text`, `state` (`streaming` or `done`)                                             |
+| `reasoning`     | `text`, `state`                                                                     |
+| `file`          | `mediaType`, `url`, `filename`                                                      |
+| `tool-call`     | `toolCallId`, `toolName`, `input`, `providerExecuted`                               |
+| `tool-result`   | `toolCallId`, `toolName`, `output`, `isError`                                       |
+| `tool-approval` | `toolCallId`, `approvalId`, `state` (`requested`, `approved` or `denied`), `reason` |
+| `source`        | `sourceType` (`url` or `document`), `id`, `url`, `title`, `mediaType`               |
+| `data`          | `name`, `id`, `data`                                                                |
+| `step`          | `boundary` (`start` or `finish`), `stepId`                                          |
+
+Every part can carry `providerMetadata`, an object the adapter passes
+through unchanged. Unknown fields are rejected. An SDK part with no
+counterpart becomes a `data` part, so a conversion never drops content.
+
+### JSON Schema
+
+The same format is published as JSON Schema 2020-12 at
+`https://unpkg.com/better-supabase/schemas/ai-message-v1.json`
+(`AI_MESSAGE_SCHEMA_ID`). Use it to validate messages outside TypeScript or
+in a `jsonb` check constraint. The version is pinned as
+`SPEC_PINS.aiMessage`; a change to the format ships as a new schema file and
+a new pin, never as an edit to version 1. See [Standards](/docs/standards).
+
+## Your own fields
+
+`blocks.ai-chat.options.extraColumns` adds columns to the `ai_chats` table,
+keyed by column name with their SQL type. Pass `createAiChat` a Standard Schema
+for them as `fields`: `chats.create`, `chats.update` take them next to the block's own keys and
+validate them (a bad value is a `validation` error), and `chats.get`, `chats.list` return them
+parsed. A column the module already uses is refused. See
+[your own fields](/docs/extending/blocks#your-own-fields).
+
+```ts
+const client = createAiChat({
+  transport,
+  fields: z.object({ priority: z.number().int().positive().nullable() }),
+});
+```

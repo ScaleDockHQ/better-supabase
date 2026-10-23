@@ -1,0 +1,143 @@
+---
+title: Guests
+description: Invite clients and contractors by email to read, comment on and upload to the records you grant them, and let a customer see the invoices and bookings of the party they act for. Guests are never members, and no authorization library is involved.
+---
+
+`guests` lets people outside the organization in without making them
+members. You invite a client or contractor by email, they sign in and accept,
+and they reach only the records you grant them: an invoice, a project, a
+booking. A guest who acts for a party (a customer company or person) also
+sees that party's invoices and bookings, which is what a customer portal
+needs.
+
+```bash
+better-supabase add guests
+```
+
+```ts
+import { createGuests } from "better-supabase/blocks/guests";
+```
+
+The module requires `memberships` and `access`. With `outbox` its events are
+recorded, with `audit` every invite and grant is audited, and with
+`invoices`, `bookings` and `parties` a grant can name an invoice, a booking
+or a party. It renders ahead of `comments` so the comments, attachments,
+invoices and bookings policies can let guests in (see
+[ADR 0070](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0070-guest-and-portal-access.md)).
+
+## Tables
+
+| Table          | Holds                                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `guests`       | An invited email in an organization: `name`, the `user_id` once accepted, the party it acts for, `status`, `expires_at`    |
+| `guest_grants` | One record a guest reaches: `subject_type`, `subject_id`, the `actions` (`read`, `comment`, `upload`), and an `expires_at` |
+
+A guest is `invited`, `active` or `revoked`. The invite token is stored as a
+SHA-256 hash and dropped once the guest accepts or is revoked. Members with
+`guests.read` see every row; a guest sees their own guest rows and grants.
+
+## Invite and accept
+
+```ts
+const guests = createGuests({ transport, tenant: organizationId });
+
+const invite = await guests
+  .invite({
+    email: "jane@client.example",
+    name: "Jane",
+    party: { type: "customer", id: customerId },
+  })
+  .orThrow();
+
+await sendInviteEmail(invite.email, `/guest/accept?token=${invite.token}`);
+```
+
+`invite` returns the guest with a one-time `token` for the invite link.
+Inviting the same email again issues a new token, unless the guest has
+already accepted, in which case `token` is `undefined` and only the name and
+party are updated. `expiresAt` makes the invite lapse.
+
+The invitee signs in and calls `accept(token)`. Their confirmed email must
+match the invite, so a forwarded link doesn't let someone else in.
+
+```ts
+await createGuests({ transport }).accept(token).orThrow();
+```
+
+`revoke(guestId)` stops every grant and drops the invite token. Inviting the
+email again restores the guest.
+
+## Grant records
+
+```ts
+await guests
+  .grant(guest.id, { type: "invoice", id: invoiceId }, { actions: ["comment"] })
+  .orThrow();
+```
+
+A grant always includes `read`; `comment` and `upload` add the comments and
+attachments the guest may write. Granting the same record again replaces the
+actions and the expiry. The record must exist in the organization: invoices
+and bookings, and every subject in `config.records`.
+
+| Method                           | Returns                                                     |
+| -------------------------------- | ----------------------------------------------------------- |
+| `grant(guestId, subject, input)` | the grant, with `actions` and `expiresAt`                   |
+| `revokeGrant(grantId)`           | `true` when a grant was removed                             |
+| `grants(subject)`                | the guests who reach a record, each grant with its `guest`  |
+| `list({ status, before })`       | the organization's guests, newest first                     |
+| `mine()`                         | for a guest: each organization, the party, the live grants  |
+| `can(subject, action)`           | whether the caller reaches the record as a guest for action |
+
+The [guests binding](/docs/repository/record-bindings) lists a record's guests on its
+page, with `grant` and `revoke` writes.
+
+## What guests reach
+
+A guest is never a member: `can()` stays false for them, and they don't see
+anything a member query returns. Policies add them through
+`ctx.scope.guest(tenant, type, id, action)` and
+`ctx.scope.guestParty(tenant, type, id)`:
+
+| Module      | A guest reaches                                                                  |
+| ----------- | -------------------------------------------------------------------------------- |
+| comments    | the comments on a record granted `read`, and writes them with `comment`          |
+| attachments | the files on a record granted `read`, and uploads them with `upload`             |
+| invoices    | an invoice granted `read`, and every invoice addressed to the party they act for |
+| bookings    | a booking granted `read`                                                         |
+
+Both checks read the sets `better_supabase.portal_subjects(action)` and
+`better_supabase.portal_parties()`, which Postgres hashes once per statement
+instead of calling per row. Without the `guests` block they render `false`,
+so a layout without guests keeps its policies as they were.
+
+## With an authorization provider
+
+A provider can answer for guests without the block: the optional
+`portalSubjects` and `portalParties` templates in `authorization.functions`
+return the records and parties the caller reaches. With the block installed
+its grants are added to the provider's. See
+[authorization providers](/docs/extending/authorization-providers).
+
+## Errors
+
+| Hint                      | Cause                                                       |
+| ------------------------- | ----------------------------------------------------------- |
+| `GUEST_FORBIDDEN`         | the caller lacks `guests.read` or `guests.manage`           |
+| `GUEST_PARTY_INVALID`     | only one of the party type and id was passed                |
+| `GUEST_PARTY_NOT_FOUND`   | the party doesn't exist in the organization                 |
+| `GUEST_EXPIRES_IN_PAST`   | `expiresAt` isn't in the future                             |
+| `GUEST_SIGN_IN_REQUIRED`  | an anonymous caller tried to accept                         |
+| `GUEST_INVITE_INVALID`    | the token is unknown, used or expired                       |
+| `GUEST_EMAIL_MISMATCH`    | the invite was sent to another email                        |
+| `GUEST_ALREADY_GUEST`     | the caller is already a guest of this organization          |
+| `GUEST_NOT_FOUND`         | no guest with this id in an organization the caller manages |
+| `GUEST_REVOKED`           | invite the guest again before granting access               |
+| `GUEST_ACTION_INVALID`    | actions are `read`, `comment` and `upload`                  |
+| `GUEST_SUBJECT_NOT_FOUND` | the record doesn't exist in the organization                |
+
+## Events
+
+`guest.invited`, `guest.accepted` and `guest.revoked`, and
+`guest_grant.created` and `guest_grant.revoked`. The
+[events page](/docs/extending/events) lists their payloads.

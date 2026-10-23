@@ -97,4 +97,4 @@ collections.
 
 Docs: https://bettersupabase.com/docs/frontend/vue.md (and `solid`,
 `svelte`, `tanstack-db` under `/docs/frontend/`) and
-https://bettersupabase.com/docs/repository/sqlite.md.
+https://bettersupabase.com/docs/frontend/sqlite.md.

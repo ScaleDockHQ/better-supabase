@@ -1,0 +1,314 @@
+---
+title: Record bindings
+description: Load the comments, files and tags of one record page in parallel, each settled, hidden when the caller can't read it, and kept current over one realtime subscription.
+---
+
+A record page, such as a customer, shows parts that different blocks own: a
+comment thread, its files, its tags. Each block declares its part as a
+`record` binding on its manifest, named by the block's key in your config, and
+`better-supabase/records` loads the bindings for one `RecordRef`. Every
+binding settles on its own, so a failed or forbidden binding never takes the
+page down:
+
+| `kind`   | Means                                                      |
+| -------- | ---------------------------------------------------------- |
+| `ok`     | `data` holds the binding's rows                            |
+| `error`  | `error` holds a plain `DbError`; show it with a Retry      |
+| `hidden` | The caller can't read the binding, and no query ran for it |
+
+| Block           | Rows                                  | Writes                | Optimistic reducer      |
+| --------------- | ------------------------------------- | --------------------- | ----------------------- |
+| `comments`      | the thread                            | `add`, `remove`       | `commentsOptimistic`    |
+| `attachments`   | the files, newest first               | `remove`              | `attachmentsOptimistic` |
+| `tags`          | the record's tags                     | `apply`, `remove`     | `tagsOptimistic`        |
+| `share-links`   | the record's share links              | `create`, `revoke`    | none                    |
+| `relations`     | links to and from the record          | `link`, `unlink`      | none                    |
+| `versions`      | the versions, newest first            | `snapshot`, `restore` | none                    |
+| `sla`           | the record's clocks                   | `start`               | none                    |
+| `ledger`        | the record's accounts                 | none                  | none                    |
+| `assets`        | the assets the record holds           | none                  | none                    |
+| `guests`        | the guests who reach the record       | `grant`, `revoke`     | none                    |
+| `passes`        | the passes issued for the record      | `issue`, `revoke`     | none                    |
+| `billable-time` | the record's unbilled time            | `setRate`, `invoice`  | none                    |
+| `contracts`     | the contracts with the record         | none                  | none                    |
+| `dispatch`      | the work orders opened for the record | `create`, `cancel`    | none                    |
+| `shipments`     | the shipments sent for the record     | `create`, `cancel`    | none                    |
+
+The binding takes the block's key in camel case: `shareLinks` for
+`share-links`, and `tickets` for a second `tasks` instance installed as
+`tickets`. A write takes the record's id and the write's input, such as
+`{ id, input: { kind: "relates", target } }` for `relations.link`.
+
+## Generated record types
+
+With a block that has a `record` binding installed, [`gen`](/docs/cli/gen)
+writes one file per record type in `records/` next to the main module. A
+block binds to the record types its `on` names, or to every type in
+`config.records` when it names none; `versions` binds to the types that set
+`versions`. Set `gen.recordTypes: false` in the config to write none. `gen`
+writes no UI: the cards come from the [UI recipes](/docs/registry/ui-recipes).
+
+| File                | Exports                                 |
+| ------------------- | --------------------------------------- |
+| `records/<type>.ts` | `<type>Record`, from `defineRecordType` |
+| `records/index.ts`  | every record type                       |
+
+The files carry the `@generated` header; change the config and run `gen`
+again instead of editing them. The record type is plain data, so the same
+file serves the server, React and TanStack Query.
+
+### In a Server Component
+
+`bsb.record(customerRecord)` returns `load`, `timeline`, `actions` and `tags`
+for the record type. `load(id, options?)` loads the bindings and the caller's
+`can` flags as plain data (Temporal values become ISO strings), so the view
+passes straight to a Client Component. It reads the request, so call it
+outside `"use cache"`:
+
+```ts title="src/features/customers/customer-record.ts"
+import "server-only";
+
+import { customerRecord } from "@/lib/supabase/records/customer";
+import { bsb } from "@/lib/supabase/server";
+
+export const customerPage = bsb.record(customerRecord);
+```
+
+```tsx title="src/app/customers/[id]/page.tsx"
+import { customerPage } from "@/features/customers/customer-record";
+
+export default async function CustomerPage({
+  params,
+}: PageProps<"/customers/[id]">) {
+  const { id } = await params;
+  const view = await customerPage.load(id, {
+    bindings: ["comments", "versions"],
+    options: { versions: { pageSize: 20 } },
+  });
+
+  return (
+    <CustomerRecordProvider id={id} initial={view} topic={`customer:${id}`}>
+      <CommentsCard />
+    </CustomerRecordProvider>
+  );
+}
+```
+
+`customerPage.actions.<binding>.<write>` is a Server Action: export the ones
+your UI calls from a `"use server"` file. Each builds the block's client over
+the caller's `Db` and its `supabase.storage`, runs the write, and drops the
+binding's [cache tags](/docs/frameworks/next#record-bindings). RLS and the
+block's SQL decide what the caller may write; check `can` to hide a button.
+
+```ts title="src/features/customers/customer-record-actions.ts"
+"use server";
+
+import { customerPage } from "./customer-record";
+
+export const addCustomerComment = customerPage.actions.comments.add;
+```
+
+### In a Client Component
+
+`createRecordProvider(customerRecord)` returns `RecordProvider` and
+`useRecord`. `useRecord()` returns `{ state, actions, meta }`: the settled
+bindings and `can` flags, `refresh(names?)`, and `write(binding, write,
+input)`, which runs the Server Action you pass in `writes` and loads that
+binding again:
+
+```tsx
+"use client";
+
+import { createRecordProvider } from "better-supabase/react";
+
+import { customerRecord } from "@/lib/supabase/records/customer";
+
+export const {
+  RecordProvider: CustomerRecordProvider,
+  useRecord: useCustomerRecord,
+} = createRecordProvider(customerRecord);
+
+const { state, actions } = useCustomerRecord();
+const comments = state.bindings.comments;
+
+await actions.write("comments", "add", { body });
+```
+
+Without `writes` the provider runs the writes on the client, over the
+supabase-js client of [`BetterSupabaseProvider`](/docs/frontend/react).
+
+### With TanStack Query
+
+`recordQueries(customerRecord, clients)` returns query options per binding,
+mutation options per write, and `can()`. Pass the block clients keyed like the
+record type's blocks; `invalidateOnRecordEvents(queryClient, betterSupabase,
+customerRecord)` makes a binding stale when one of its events arrives:
+
+```ts
+const customer = recordQueries(customerRecord, bsb.db.$blocks, {
+  access: bsb.db.$blocks.permissions,
+});
+const comments = useQuery(customer.bindings.comments(id));
+const add = useMutation(customer.writes.comments.add(id));
+add.mutate({ body: "Shipped" });
+```
+
+### Vite and Expo
+
+A Vite app runs `gen` like any other and uses the record types with
+`createRecordProvider` and `recordQueries`. An Expo app usually doesn't run
+`gen` itself: in a monorepo, import the record types from the package that
+does, or run `gen` once with `output` inside the Expo app. `defineRecordType`
+is a plain function, so a hand-written record type works the same way.
+
+## Load a record
+
+`loadBindings(source, subject, names, options?)` takes the manifests and the
+clients built from them, keyed alike, such as `blockSet.blocks` and
+`db.$blocks`. It runs the bindings in parallel and never throws:
+
+```ts title="src/features/customers/customer-queries.ts"
+import { loadBindings, bindingCan } from "better-supabase/records";
+
+import { blockSet, type AppDb } from "@/lib/supabase";
+import { permissions } from "@/lib/supabase/blocks.generated";
+
+export async function customerBindings(db: AppDb, id: string) {
+  const set = await db.permissions.permissions();
+
+  return loadBindings(
+    { blocks: blockSet.blocks, clients: db.$blocks },
+    { type: "customer", id },
+    ["comments", "attachments", "tags"],
+    {
+      can: bindingCan(set.ok ? set.data : null, permissions),
+      options: { comments: { limit: 20 } },
+    },
+  );
+}
+```
+
+`bindingCan(permissionSet, permissions)` takes the caller's
+[`PermissionSet`](/docs/repository/permissions) and checks the key each binding's module
+names in the `permissions` constant of `blocks.generated.ts`, so a renamed
+permission still matches. With no set (`null`), every binding that needs a
+key is hidden. Without `can`, every binding loads and RLS decides
+what it returns. Binding names are the block keys in your config, so two
+instances of one block get two bindings.
+
+`countBinding(source, name, subjects)` returns the row count of one binding
+for many records, keyed `type:id`, for a badge on each row of a list. It
+fails with `unsupported` for a binding without `count`.
+
+### With `"use cache"`
+
+A cached function stores what it returns, so a settled `error` would stay
+cached. Call `loadBindings` outside `"use cache"`, or throw on `error` inside
+it so the failure isn't stored, and tag the cached read with
+[`bindingTag`](/docs/frameworks/next#record-bindings) so a write drops it.
+
+## Header and badges
+
+`subjects.summary(subject, sections, { seenAt })` calls `record_summary` and
+returns the record's title and path with a count and an unread flag for each
+binding you name in `sections`, in one round trip. Pass `seenAt`, when the caller last opened the
+record, to get unread state; without it every binding counts as read. It
+counts `comments` and `attachments`; it returns `undefined` when the caller
+can't read the record.
+
+```ts
+const summary = await subjects
+  .summary({ type: "customer", id }, ["comments", "attachments"], {
+    seenAt: lastVisit,
+  })
+  .orThrow();
+
+summary?.counts.comments; // 12
+summary?.unread.attachments; // true
+```
+
+`record_summary` runs as the caller, so the counts are the rows the caller
+can read.
+
+## Keep it current
+
+`createRecordController` loads the bindings, and the summary when you pass
+the subjects client, then listens on one private topic. A message whose event
+a binding lists in its `events` loads that binding again; any other message
+loads every binding. Like the other
+[block controllers](/docs/frontend/block-controllers), it imports no UI code.
+
+```ts title="lib/customer-record.ts"
+import { createRecordController } from "better-supabase/records";
+import { topicPort } from "better-supabase/realtime";
+
+const record = createRecordController({
+  source: { blocks: blockSet.blocks, clients: bsb.db.$blocks },
+  auth: bsb.auth,
+  ports: { topic: topicPort(supabase) },
+  subject: { type: "customer", id },
+  bindings: ["comments", "attachments"],
+  topic: `customer:${id}`,
+  summary: subjects,
+});
+
+record.subscribe(() => {
+  const { bindings, summary } = record.getSnapshot();
+});
+await record.actions.refresh(["comments"]);
+```
+
+## Optimistic writes
+
+Each binding exports a reducer for React's `useOptimistic`, so a pending
+write shows before the server answers:
+
+```tsx
+import { attachmentsOptimistic } from "better-supabase/blocks/attachments";
+
+const [files, applyPending] = useOptimistic(rows, attachmentsOptimistic);
+
+startTransition(async () => {
+  applyPending({ type: "remove", id });
+  await removeAttachment({ id, customerId });
+});
+```
+
+On the server, the `bsb.record(...).actions` Server Actions run the write and
+drop the cached binding.
+
+## Write a binding
+
+`defineRecordBinding` describes the record binding of your own block. It is an
+extension interface (`apiVersion: 1`); put it on the manifest's `record`. A
+block has one binding, named by its key in the config:
+
+```ts title="blocks/work-notes/record-binding.ts"
+import { defineRecordBinding } from "better-supabase/records";
+
+export const workNotesBinding = defineRecordBinding({
+  permissions: { read: "read", write: "create" },
+  load: (client: WorkNotes, subject) => client.list(subject),
+  count: (client: WorkNotes, subjects) => client.countFor(subjects),
+  events: ["work-note.*"],
+});
+
+export const workNotesBlock = defineBlock({
+  name: "work-notes",
+  sql: ["work-notes"],
+  record: workNotesBinding,
+  // ...
+});
+```
+
+| Field         | What it is                                                                           |
+| ------------- | ------------------------------------------------------------------------------------ |
+| `permissions` | The module actions the binding reads and writes with, keys of `permissions.<module>` |
+| `module`      | The SQL module those actions belong to; default the block's first one                |
+| `load`        | The rows for one subject, as an `AsyncResult`                                        |
+| `count`       | Optional: rows per subject, keyed `type:id`                                          |
+| `events`      | The block events that make the binding stale; `*` ends a prefix                      |
+| `optimistic`  | Optional: a reducer for `useOptimistic`                                              |
+
+`testRecordBinding` in `better-supabase/testing` checks a binding against this
+contract ([Conformance](/docs/extending/conformance)).

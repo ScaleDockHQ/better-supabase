@@ -1,0 +1,206 @@
+---
+title: Leases
+description: Let units to parties with rent in bigint minor units, post each rent period on the ledger once, and hold deposits through ledger holds.
+---
+
+`leases` lets units from the [assets](/docs/blocks/assets) block to parties
+such as contacts. Rent posts on the [ledger](/docs/blocks/ledger) once per
+period, so the balance due is a ledger balance and never a second copy.
+Deposits are held through ledger holds while the lease runs. Maintenance
+requests are a [tasks](/docs/blocks/tasks) instance on the unit.
+
+```bash
+better-supabase add leases
+```
+
+```ts
+import { createLeases } from "better-supabase/blocks/leases";
+import { money } from "better-supabase/commerce";
+```
+
+The module requires `tenant`, `access`, `subjects`, `assets` and `ledger`.
+With `outbox` it records the `lease.*` events,
+and with `audit` every change is audited. Amounts are bigint minor units
+([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)),
+and how recurring charges post on the ledger is in
+[ADR 0080](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0080-recurring-charges-on-the-ledger.md).
+
+## Tables
+
+| Table              | Holds                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `lease_agreements` | The unit (an asset), the party (`party_type`, `party_id`), the dates, `rent` and `currency` per `frequency`, the deposit and its hold |
+| `lease_charges`    | One row per rent period posted: the period, the amount and the ledger transaction, unique per lease and period                        |
+
+Members with `leases.read` read every lease and charge of the organization.
+Writes go through the functions, which need `leases.manage`.
+
+## Your own columns
+
+`extraColumns` adds columns to the `lease_agreements` table, and the client's `fields` schema types them.
+
+```ts
+// better-supabase.config.ts
+blocks: {
+  leases: { options: { extraColumns: { cost_center: "text" } } },
+},
+
+// the client
+const leases = createLeases({
+  transport,
+  tenant,
+  fields: v.object({ cost_center: v.optional(v.string()) }),
+});
+```
+
+`create` validates them before the call, and every read that returns a lease parses them under `lease.fields`.
+
+## Create and start a lease
+
+```ts
+const leases = createLeases({ transport, tenant: organizationId });
+
+const lease = await leases
+  .create({
+    unitId,
+    party: { type: "contacts", id: contactId },
+    startsOn: Temporal.PlainDate.from("2026-11-01"),
+    endsOn: Temporal.PlainDate.from("2027-10-31"),
+    rent: money(120_000n, "EUR"),
+    frequency: "monthly",
+    deposit: money(240_000n, "EUR"),
+  })
+  .orThrow();
+
+await leases.activate(lease.id).orThrow();
+```
+
+`create` makes a draft. The party is any record in `config.records`, and the
+deposit is in the rent's currency. `activate` starts the lease: it fails with
+`LEASE_OVERLAP` while another active lease of the unit overlaps the dates,
+posts the deposit on the lease's deposit account and holds it there. A lease
+without `endsOn` runs until it is terminated.
+
+| Method                            | Returns                                        |
+| --------------------------------- | ---------------------------------------------- |
+| `create(input)`                   | the draft lease                                |
+| `activate(leaseId)`               | the active lease, with the deposit held        |
+| `renew(leaseId, renewal)`         | the lease with its new end and rent            |
+| `terminate(leaseId, options)`     | the ended or terminated lease                  |
+| `get(leaseId)`                    | the lease, with `balanceDue` and `depositHeld` |
+| `list({ status, unitId, party })` | leases, newest first                           |
+| `postDueRent({ through })`        | how many rent periods posted                   |
+| `recordPayment(leaseId, input)`   | the payment's transaction and the balance due  |
+| `charges(leaseId)`                | the posted rent periods, newest first          |
+
+## Rent on the ledger
+
+```ts
+const posted = await leases.postDueRent().orThrow();
+
+await leases
+  .recordPayment(lease.id, {
+    amount: money(120_000n, "EUR"),
+    reference: "bank-2026-11-03-0042",
+  })
+  .orThrow();
+```
+
+`postDueRent` posts every period of the organization's active leases that
+starts on or before `through` (default today). Each period posts once: the
+`lease_charges` row is unique per lease and period, and its ledger
+transaction carries the key `leases.rent:<id>:<period start>`. Run it as
+often as you like; a second run posts nothing new, and `maxRows` caps one
+run. The SQL function `post_due_rent` called with the service role and a
+null tenant runs for every organization, which suits a
+[scheduled job](/docs/blocks/queue).
+
+Each lease has a receivable account on the ledger (`leases.rent:<id>`). Rent
+moves an amount from rent income onto it, and `recordPayment` moves a
+payment from it to rent received. `balanceDue` on the lease is that
+account's balance, so a prepayment shows as a negative balance. A payment
+with a `reference` returns the first payment when you record it again.
+
+A period that starts before the lease's end posts in full, even when the
+lease ends partway through it.
+
+## Renew and terminate
+
+```ts
+await leases
+  .renew(lease.id, {
+    endsOn: Temporal.PlainDate.from("2028-10-31"),
+    rent: money(125_000n, "EUR"),
+  })
+  .orThrow();
+
+await leases
+  .terminate(lease.id, {
+    on: Temporal.PlainDate.from("2027-04-30"),
+    reason: "Moved out",
+    depositDeduction: money(15_000n, "EUR"),
+  })
+  .orThrow();
+```
+
+`renew` moves the end of an active lease with a fixed end to a later day.
+A new rent applies to the periods posted from then on. `terminate` ends the
+lease on `on` (default today): its status is `ended` on or after its end and
+`terminated` before. No rent posts for periods from that day. The deposit
+hold is captured for `depositDeduction` into rent income, and the rest goes
+back to the party. A draft is terminated without touching the ledger.
+
+## Maintenance requests
+
+Install a second [tasks](/docs/blocks/tasks) instance for maintenance
+requests, with the unit and the lease as extra columns:
+
+```ts
+// better-supabase.config.ts
+blocks: {
+  maintenance: {
+    block: "tasks",
+    names: { work_item: "maintenance_request" },
+    tables: { projects: null, iterations: null },
+    options: { prefix: "MR", extraColumns: { unit_id: "uuid", lease_id: "uuid" } },
+  },
+},
+```
+
+Its tables are `maintenance_requests`, `maintenance_request_comments` and the
+other tasks tables, its client is `maintenanceBlock`, and its events are
+`maintenance_request.*`. Leases version 2 dropped its own
+`maintenance_requests` table and functions; the upgrade renames the table to
+`maintenance_requests_legacy` so the instance can take the name. Copy the rows
+you keep into the instance before you generate the next schema migration,
+which drops the legacy table.
+
+## Section
+
+The [leases binding](/docs/repository/record-bindings) lists a party's leases on its
+record page, with the rent due and the deposit held.
+
+## Merging parties
+
+When two records merge, the dropped record's leases move to the kept
+record.
+
+## Errors
+
+| Hint                    | Cause                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `LEASES_FORBIDDEN`      | the caller lacks `leases.read` or `leases.manage`                                            |
+| `LEASE_UNIT_INVALID`    | the unit isn't an asset of the organization                                                  |
+| `LEASE_PARTY_INVALID`   | the party isn't a record of the organization in `config.records`                             |
+| `LEASE_TERMS_INVALID`   | the rent isn't above zero, the dates don't make sense, or the deposit is in another currency |
+| `LEASE_DEPOSIT_INVALID` | the deposit deduction is negative or above the deposit                                       |
+| `LEASE_OVERLAP`         | another active lease of the unit overlaps these dates                                        |
+| `LEASE_STATUS_INVALID`  | the lease isn't in a status that allows the change                                           |
+| `LEASE_PAYMENT_INVALID` | the payment isn't above zero                                                                 |
+| `LEASE_NOT_FOUND`       | no lease with this id that the caller can read                                               |
+
+## Events
+
+`lease.created`, `lease.activated`, `lease.renewed`, `lease.terminated`,
+`lease.charged` (one rent period) and `lease.paid`. The
+[events page](/docs/extending/events) lists their payloads.

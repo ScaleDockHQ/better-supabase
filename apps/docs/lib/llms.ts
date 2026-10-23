@@ -109,9 +109,17 @@ function formatNodes(
   return lines;
 }
 
+/** A sidebar tab: a root folder, rendered as its own `##` section. */
+function isRootFolder(node: Node): node is Folder {
+  return (
+    node.type === "folder" && node.root !== undefined && node.root !== false
+  );
+}
+
 /**
  * `llms.txt` in the shape llmstxt.org describes: a title, a summary, prose,
- * then one `##` section per sidebar separator with absolute Markdown links.
+ * then one `##` section per sidebar tab or separator, with absolute Markdown
+ * links.
  */
 export function formatLLMIndex(tree: Root, options: LLMIndexOptions): string {
   const sections: { title: string; nodes: Node[] }[] = [
@@ -121,6 +129,8 @@ export function formatLLMIndex(tree: Root, options: LLMIndexOptions): string {
   for (const node of tree.children) {
     if (node.type === "separator") {
       sections.push({ title: text(node.name), nodes: [] });
+    } else if (isRootFolder(node)) {
+      sections.push({ title: text(node.name), nodes: folderChildren(node) });
     } else {
       sections.at(-1)?.nodes.push(node);
     }

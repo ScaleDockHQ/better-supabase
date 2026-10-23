@@ -1,0 +1,14 @@
+{
+  "title": "Automation",
+  "pages": [
+    "catalog-automation",
+    "queue",
+    "outbox",
+    "workflows",
+    "workflow-sdk",
+    "workflow-editor",
+    "streams",
+    "connectors",
+    "automations"
+  ]
+}

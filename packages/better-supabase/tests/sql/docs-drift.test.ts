@@ -1,12 +1,12 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const repo = join(import.meta.dirname, "../../../..");
-const blocksDocs = join(repo, "apps/docs/content/docs/blocks");
+const blocksDocs = join(repo, "apps/docs/content/docs/(blocks)/blocks");
 
 const KEY = String.raw`(?:blocks\.([a-z][a-z0-9-]*)\.)?(tables|columns)\.([A-Za-z_][A-Za-z0-9_]*)(?:\.([A-Za-z_][A-Za-z0-9_]*))?`;
 
@@ -24,8 +24,21 @@ function modulesOf(page: string): readonly string[] {
   return SQL_MODULES[page] === undefined ? [] : [page];
 }
 
+/** Block pages sit in category folders. `(groups)` are not part of the slug. */
+function blockPages(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+
+    if (statSync(path).isDirectory()) {
+      return name.startsWith("(") ? blockPages(path) : [];
+    }
+
+    return name.endsWith(".mdx") ? [relative(blocksDocs, path)] : [];
+  });
+}
+
 function problemsOf(file: string): string[] {
-  const page = file.slice(0, -".mdx".length);
+  const page = file.slice(file.lastIndexOf("/") + 1, -".mdx".length);
   const text = readFileSync(join(blocksDocs, file), "utf-8");
   const problems: string[] = [];
 
@@ -77,9 +90,7 @@ function problemsOf(file: string): string[] {
 
 describe("block docs drift", () => {
   it("names only logical tables and columns the block's SQL modules declare", () => {
-    const problems = readdirSync(blocksDocs)
-      .filter((file) => file.endsWith(".mdx"))
-      .flatMap((file) => problemsOf(file));
+    const problems = blockPages(blocksDocs).flatMap((file) => problemsOf(file));
 
     expect(problems).toEqual([]);
   });

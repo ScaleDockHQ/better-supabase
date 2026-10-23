@@ -10,7 +10,7 @@ const manifest: { exports: Record<string, unknown> } = JSON.parse(
 const page = (slug: string): string =>
   readFileSync(
     new URL(
-      `../../../../apps/docs/content/docs/frameworks/${slug}.mdx`,
+      `../../../../apps/docs/content/docs/(docs)/frameworks/${slug}.mdx`,
       import.meta.url,
     ),
     "utf-8",

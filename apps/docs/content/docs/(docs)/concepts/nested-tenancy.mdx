@@ -1,0 +1,69 @@
+---
+title: Nested tenancy
+description: Model an organization with environments, projects or workspaces under it, and decide which level the modules treat as the tenant.
+---
+
+Many apps have two levels: an organization that owns billing and members, and
+environments, projects or workspaces under it that own the data. better-supabase
+works per tenant, one id per row. This page says how to pick the level that is
+the tenant, and what each choice means for subjects, the memberships extension and
+`access`.
+
+## Pick the tenant level
+
+The tenant is the level whose id sits in the `organization_id` column of every
+module table, and in the request's tenant claim.
+
+| Choice                    | Module tables hold | Use it when                                                                |
+| ------------------------- | ------------------ | -------------------------------------------------------------------------- |
+| Organization is tenant    | organization ids   | Members share everything in the organization; the lower level is your data |
+| Environment is the tenant | environment ids    | Access, usage, audit and jobs differ per environment                       |
+
+With the first choice nothing is special: leave the lower level to your own
+tables and policies. The rest of this page is about the second.
+
+## The environment as tenant
+
+Declare both levels as scopes of an
+[authorization provider](/docs/extending/authorization-providers#nested-tenancy)
+with `parent`, and set `tenantScope` to the lower one. Built-in roles and
+permission tables have one level only, so nested tenancy needs a provider that
+answers `idsWith` for the environment scope.
+
+The consequences are the same everywhere:
+
+- `can(scope, id, permission)` in the [access](/docs/repository/permissions) module asks
+  the provider for the environments where the caller holds the key. A role on
+  the organization reaches its environments when the provider says so.
+- The [memberships extension](/docs/blocks/memberships) scopes queries to one id, so put
+  the environment id in the claim or pass `{ tenant }` to
+  `betterSupabase.connect` once the caller's membership is checked.
+- Columns named `organization_id` in module tables hold environment ids. Keep
+  the name: renaming it per module would break the generated clients.
+- Anything the organization owns outright, such as the subscription in
+  [billing](/docs/blocks/billing), is stored per tenant, so with environments
+  as tenants each environment has its own customer and subscription. Keep
+  organization-level billing in your own table keyed by the organization.
+
+## Subjects at either level
+
+`config.records` registers record types such as `task` or `deployment` once.
+Each subject names its own `tenant` column, so a subject table can carry the
+environment id while another carries the organization id. Subject checks
+(`can_subject`) use the tenant of the subject's table, so a comment on a task
+asks the environment, and a comment on an organization-level record asks the
+organization.
+
+## What to keep in mind
+
+- One tenant level per module install. Two levels in one module's tables would
+  make every policy ambiguous.
+- Usage meters can be organization-level or environment-level: the tenant is
+  whatever the `usage` module is installed on, and a computed meter's query
+  decides which ids it returns. See
+  [distinct and computed meters](/docs/blocks/usage#distinct-and-computed-meters).
+- The audit log records the tenant of the row. With environments as tenants,
+  `audit()` takes `tenant_path` or `tenant_function` for tables that reach
+  their tenant through another table.
+- Check the tenant against the caller's memberships before you trust it from a
+  URL or body.

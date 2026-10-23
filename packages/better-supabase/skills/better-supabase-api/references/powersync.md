@@ -46,5 +46,5 @@ Never throw for a kind that can't succeed: it blocks the upload queue.
 - `uploadRoute(server.db.attachments, { put: "create" })` for write-once tables: a `PUT` calls `create` and a `conflict` counts as applied (the row is already on the server); a `PATCH` is discarded as `unsupported`.
 - `onError: (error, { phase }) => ...` logs a failed `getSession` (`phase: "credentials"`, kind `unauthorized` or `network`; `fetchCredentials` returns `null`) and uploads that stay queued for a retry (`phase: "upload"`).
 
-Docs: https://bettersupabase.com/docs/repository/powersync.md and
+Docs: https://bettersupabase.com/docs/frontend/powersync.md and
 https://bettersupabase.com/docs/guides/offline-first.md.

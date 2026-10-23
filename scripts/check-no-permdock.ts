@@ -56,8 +56,8 @@ const allowed = new Set([
   "docs/decisions/README.md",
   "packages/better-supabase/CHANGELOG.md",
   "scripts/check-no-permdock.ts",
-  "apps/docs/content/docs/extending/authorization-providers.mdx",
-  "apps/docs/content/docs/migration/0.5-to-0.6.mdx",
+  "apps/docs/content/docs/(reference)/extending/authorization-providers.mdx",
+  "apps/docs/content/docs/(docs)/migration/(older)/0.5-to-0.6.mdx",
 ]);
 
 // Tracked and new files only, so build output such as `tsbuildinfo` is skipped.

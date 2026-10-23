@@ -1,36 +1,4 @@
 {
   "title": "better-supabase",
-  "pages": [
-    "index",
-    "---Getting started---",
-    "getting-started",
-    "---Guides---",
-    "concepts",
-    "repository",
-    "auth",
-    "frameworks",
-    "specs",
-    "frontend",
-    "platform",
-    "blocks",
-    "chat-sdk",
-    "ai-sdk",
-    "eve",
-    "flags-sdk",
-    "build",
-    "testing",
-    "examples",
-    "presets",
-    "registry",
-    "guides",
-    "migration",
-    "---Reference---",
-    "cli",
-    "standards",
-    "supabase-packages",
-    "extending",
-    "for-ai-agents",
-    "roadmap",
-    "changelog"
-  ]
+  "pages": ["(docs)", "(blocks)", "(reference)"]
 }

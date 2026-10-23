@@ -1,0 +1,74 @@
+---
+title: Field encryption
+description: Per-tenant data keys in Supabase Vault that encrypt app table columns and custom fields at rest, with decryption only through definer functions that check scope and can audit each read.
+---
+
+`field-encryption` stores selected values as ciphertext. Each owner (a
+tenant, a user, or the app for tables without a scope) gets one random data
+key in [Supabase Vault](https://supabase.com/docs/guides/database/vault), and
+pgcrypto encrypts the value with AES-256 before the row is written. The key
+never leaves the database, and nothing in your config or repository holds key
+material.
+
+```bash
+better-supabase add field-encryption
+```
+
+Install it, then mark what to encrypt:
+
+- an [app table column](/docs/repository/tables#encrypted-columns) with
+  `encrypted: true`, read back through `public.<table>_reveal`;
+- a [custom field](/docs/blocks/custom-fields#encrypted-fields) with
+  `encryptDefinition(id)`, read back through `readValues`.
+
+Set `auditReads` on either to write a `read` entry to the
+[audit log](/docs/blocks/audit#read-audits) each time a value is decrypted.
+
+## What is stored
+
+A value is stored as `bsf1:` followed by the base64 of the pgcrypto message.
+The data key is a Vault secret named `bs:field-key:<owner>`, where the owner
+is `tenant:<id>`, `user:<id>` or `app`. A key is created on the first write
+of its owner and is never rotated in place.
+
+| Function                                | Who                    | What it does                                            |
+| --------------------------------------- | ---------------------- | ------------------------------------------------------- |
+| `field_encrypt(owner, value)`           | service role           | Encrypts a value with the owner's key, creating the key |
+| `field_decrypt(owner, value)`           | service role           | Decrypts a value; `null` when the key was dropped       |
+| `drop_field_key(owner)`                 | service role           | Deletes the owner's key, which shreds every value       |
+| `field_key`, `field_seal`, `field_open` | nobody through the API | The helpers the definer functions call                  |
+
+Signed-in users can't call any of them. They read plaintext only through the
+definer functions of the table or block that owns the value, which check the
+caller's scope first.
+
+## Shredding
+
+`drop_field_key('tenant:<id>')` deletes the tenant's key from Vault. Every
+value sealed under it then reads as `null`, in the database and in every
+backup taken after the key's Vault row is gone, so dropping the key is how
+you erase a tenant's encrypted data without rewriting rows. It records a
+`field_key.dropped` event and a `security` audit entry with the owner, never
+the key.
+
+## Limits
+
+- There is no searchable equality. The database only sees ciphertext, so an
+  encrypted column can't be part of a unique key, an index, a reference, a
+  search column, a subject title or URL, a rollup or a lookup.
+  Search and compare the values after `reveal` in server code, or keep a
+  separate non-sensitive column for lookups.
+- `text[]` columns, identities and references can't be encrypted. A custom
+  field can be encrypted when its type is `text`, `email` or `url`.
+- A [data export](/docs/blocks/data-lifecycle) copies the stored ciphertext.
+  Reveal the values in server code before you hand an export to a person.
+- The `inline` custom fields layout keeps values on an adopted table and is
+  not encrypted.
+- Row policies you add to an app table yourself don't apply to `reveal`: it
+  checks the table's own scope, the same one its generated policies use.
+- The service role and `postgres` can always decrypt. Encryption at rest
+  protects backups, replicas, logs and a leaked `select`, not a compromised
+  service key.
+
+ADR 0087 records why keys live per owner in Vault and why decryption runs in
+definer functions instead of in TypeScript.

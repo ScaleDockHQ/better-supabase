@@ -1,0 +1,621 @@
+---
+title: Impersonation
+description: Let support staff view the app as a user, read-only by default, with every session recorded and audited.
+---
+
+Support staff sometimes need to see what a user sees, or fix their data the
+way the app would. A support session does this for the whole app: the admin
+picks a user, and every page, action and route renders as that user, under
+their RLS policies, until the session ends or expires. The admin stays signed
+in as themselves the whole time.
+
+## Support sessions
+
+Install the `impersonation` SQL module, then pass a store to `createServer`:
+
+```bash
+npx better-supabase add impersonation
+```
+
+```ts title="src/lib/better-supabase.ts"
+import {
+  createServer,
+  sqlSupportStore,
+  supportSessions,
+} from "better-supabase/server";
+
+export const bsb = createServer(betterSupabase, {
+  env,
+  postgres,
+  support: supportSessions({
+    store: sqlSupportStore(postgres),
+    authorize: ({ admin }) => admin.claims.app_metadata?.role === "support",
+    policy: { ttl: 30 * 60, requireReason: true },
+  }),
+});
+```
+
+Support sessions deny by default. A start needs an `authorize` decision (or
+the [authorization hooks](/docs/extending/authorization-providers#runtime-hooks))
+and a second admin's approval of the request; see
+[Deciding who may start one](#deciding-who-may-start-one) and
+[Approval by a second admin](#approval-by-a-second-admin).
+
+`supportSessions` lives in its own function so apps without support mode
+don't bundle it. The store reads its time values with the `temporal` you pass
+to `defineSupabase`; `sqlSupportStore(postgres, { temporal })` takes its own
+instead. `createNext` takes the same option, and `better-supabase/next`
+exports `supportSessions` too.
+
+The module adds the `support_sessions` and `support_requests` tables and the
+functions `start_support_session`, `end_support_session`,
+`active_support_session`, `list_support_sessions`, `expire_support_sessions`,
+`request_support_session`, `approve_support_request`, `support_request` and
+`approved_support_request`. Starting a session checks
+`is_platform('support.start')` in the database with the admin's own claims, so
+only admins your [access model](/docs/repository/permissions) grants that permission
+can start one. Grant it with a platform permission claim (`"platform_permissions": ["support.*"]`)
+or a platform role in the catalog model.
+
+In Next.js, start and stop the session from server actions:
+
+```ts title="app/admin/users/actions.ts"
+"use server";
+import { bsb } from "@/lib/supabase/server";
+
+export async function viewAs(userId: string, reason: string) {
+  return bsb.startSupport({ targetUserId: userId, reason });
+}
+
+export async function stopViewing() {
+  return bsb.stopSupport();
+}
+```
+
+`startSupport` records the session, sets an HTTP-only `bsb-support` cookie that
+holds the session id, and returns an `ActionResult`. From the next request on,
+`bsb.session()`, `bsb.context()`, actions, routes and `bsb.cached()` all run as
+the target. Ending the session (or its expiry) brings the admin back to their
+own view. Outside Next.js, `bsb.support.start(auth, request)` returns the
+session and the `Set-Cookie` header to send.
+
+### Your own request context
+
+An app that owns its request context (its own `AsyncLocalStorage`, a header
+set by a gateway, or a context object built per request) can keep the
+session id there instead of in the `bsb-support` cookie. Pass `sessionId` to
+read it from the request, or resolve the session yourself:
+
+```ts title="src/server.ts"
+import { supportSessions, sqlSupportStore } from "better-supabase/server";
+
+const support = supportSessions({
+  store: sqlSupportStore(postgres.admin),
+  sessionId: (request) => request.headers.get("x-support-session") ?? undefined,
+});
+
+// Anywhere the app has the admin's auth and its stored session id:
+const active = await server.support.resolve(appContext.supportSessionId, auth);
+const ctx = server.contextFor(auth, active ? { support: active } : {});
+const db = server.dbFor(auth, {}, active ? { support: active } : {});
+```
+
+`support.resolve(sessionId, auth)` runs the same checks as the cookie path: the
+session must belong to the admin in `auth`, still be running, and the
+target's claims must pass the claims schema. It returns `undefined`
+otherwise, so the admin keeps their own view. `dbFor(auth, context, { support })`
+returns the same repositories as `contextFor(auth, { support }).db`, running
+as the target over Postgres.
+
+### What the admin can do
+
+| Policy option   | Default      | Effect                                                                                    |
+| --------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| `ttl`           | `1800`       | Session length in seconds when the request names none                                     |
+| `maxTtl`        | `14400`      | Longest session allowed (`SUPPORT_TTL` above it); the SQL module checks `maxTtl` too      |
+| `requireReason` | `true`       | Refuses a start without a reason (`SUPPORT_REASON_REQUIRED`)                              |
+| `readOnly`      | `"always"`   | Every session is read-only; `"default"` lets the request pass `readOnly: false` for fixes |
+| `approval`      | `"distinct"` | A start needs another admin's approval; `"none"` turns it off                             |
+
+A read-only session runs each transaction with `begin read only`, so any write
+fails with Postgres error `25006`, which a repository or block call returns as
+`forbidden` (code `25006`) with a hint that the connection is read-only. In a support session, `ctx.supabase` and
+`ctx.db.$client` throw: the Data API would only see the admin's own token, so
+everything runs over [Postgres](/docs/auth/postgres) with the target's claims.
+Blocks built on [`dbTransport(ctx.db)`](/docs/blocks/create-blocks#transports)
+follow, and `ctx.storage` reads and writes Storage as the target (see below).
+
+### Storage in a support session
+
+Storage policies read `auth.uid()` from the request's token, and there is no
+token for the target, so `ctx.supabase.storage` can't serve them. In a
+support session, `ctx.storage` reads Storage as the target instead. It has
+the file API of `supabase.storage` (a `StorageApi`), so a
+[connected bucket](/docs/platform/storage#client) and the blocks that take
+`storage` work with it unchanged. `ctx.db.$storage` and `ctx.sql.$storage`
+are the same object, and outside a support session `ctx.db.$storage` is the
+caller's `supabase.storage`, so code that connects buckets through the `Db`
+works in both (`documents` is a `defineBucket` definition):
+
+```ts title="app/files/[...path]/route.ts"
+const ctx = await bsb.context(request);
+const url = await documents
+  .connect(ctx.db.$storage)
+  .signedUrl(path, { ttl: 60 })
+  .orThrow();
+return Response.redirect(url);
+```
+
+Each read runs as the target over Postgres, so the policies on
+`storage.objects` decide what they see:
+
+| Methods                                                    | How they run                                                                                               |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `list`, `listV2`                                           | `storage.search` and `storage.search_v2` as the target, the queries Storage runs, so RLS filters each page |
+| `exists`, `info`                                           | A `storage.objects` read as the target; no Storage request                                                 |
+| `download`, `createSignedUrl`, `createSignedUrls`          | A visibility check as the target, then the service client serves the object                                |
+| `getPublicUrl`                                             | Built by the service client without a check, as it is built without a request                              |
+| `upload`, `update`, `remove`, `copy`, `move`, `purgeCache` | Writes in a writable session, after a dry run as the target (see below); refused in a read-only one        |
+| `createSignedUploadUrl`, `uploadToSignedUrl`               | Signed in a writable session after the same dry run as `upload`; refused in a read-only one                |
+| `claimSignedUpload(bucket, path)`                          | Makes the target the owner of a signed upload and records the session (see below)                          |
+
+A path the target can't see answers like a missing object (`not_found`,
+code `NoSuchKey`), and `exists` returns `false`. Paths are normalised the
+way storage-js normalises them before the check, so the checked object and
+the served one are the same.
+
+In a writable session, each write first runs the row change Storage would
+make for the target's own request, as the target and inside a savepoint that
+is rolled back: an insert for `upload`, an insert with `on conflict do update`
+for `update` and `upload` with `upsert: true`, an update of the name and
+bucket for `move`, a read of the source and an insert of the copy for `copy`,
+and a delete for `remove`. The new row's `owner_id` is the target, so
+policies that compare it with `auth.uid()` decide as they would for the
+target. A refused dry run resolves to Storage's `403` error with the policy's
+message (`forbidden`, code `AccessDenied`), and nothing is written. `remove`
+deletes only the paths the dry run could delete and skips the rest, as
+Storage does. `purgeCache` checks that the target can see the object.
+
+Then the service client performs the write, so the bucket's size limit,
+allowed MIME types and duplicate check apply as usual. The admin Postgres
+connection makes the target the owner of the stored object, and its
+`user_metadata` records `supportSessionId` and `supportAdminId` next to the
+caller's `metadata`. When that update fails, the written object is removed
+(a move is moved back) and the error is returned.
+
+A signed upload takes one more step. `createSignedUploadUrl` runs the same
+dry run as `upload` (an insert, or an upsert with `upsert: true`) and then
+the service client signs the URL. The browser's upload reaches Storage
+without the session, so the stored object has no owner and no session stamp
+until the server claims it. Call `claimReserved(reservation)` on the
+connected bucket, or `claimSignedUpload(bucket, path)` on the `StorageApi`,
+after the upload and before you record the file:
+
+```ts
+// server, in the support session
+const files = bucket.connect(ctx.storage);
+const reservation = await files.reserve(path).orThrow();
+// browser: uploadToSignedUrl(reservation.path, reservation.token, file)
+// server, when the browser reports the upload as done
+await files.claimReserved(reservation).orThrow();
+```
+
+The claim checks again, as the target, that the target may insert an object
+at the path, then the admin connection makes the target the owner of the
+object and adds `supportSessionId` and `supportAdminId` to its
+`user_metadata`. It only claims an object without an owner that was stored
+or replaced after the session started (`updated_at` at or after
+`session.startedAt`), and in a versioned bucket only the current version. An
+older object is `forbidden` (code `AccessDenied`), so the claim can't hand
+the target an export, an import or another file the service role stored
+before the session. A claim of an object the target already owns succeeds
+without stamping it again, one another user owns is `forbidden` (code
+`AccessDenied`), and a missing one is `not_found`. A refused or failed claim
+removes nothing: the claim can't tell the browser's upload from another
+object without an owner on that path, so removing it would let a session
+delete files the target may not delete. The object stays without an owner until a
+[`sweep`](/docs/platform/storage#orphan-sweep) removes it. `uploadToSignedUrl`
+on the server claims what it stores and removes the object when the claim
+fails or is refused. Outside a support session `claimReserved` succeeds
+without a request, since Storage already set the owner from the caller's
+token, so the same code runs in both.
+
+Some edges come from how the claim decides. It rehearses an insert of a row
+that already exists: Postgres checks the insert policy before the unique
+index, so a duplicate key means the target may store the object there.
+
+- The rehearsed row leaves `metadata` (`mimetype`, `size`) and `version`
+  empty, so a policy on those columns can decide differently from the real
+  upload.
+- A policy that refuses when an object with that name already exists
+  refuses the claim with `42501`, even for an upload the target was allowed
+  to make.
+- An upsert reservation is gated by the update policy when the URL is
+  signed. The claim can't check that policy again.
+- Another service-role process can store or update an object without an
+  owner on exactly that path during the session, which moves its
+  `updated_at` past the session's start. The claim can't tell that object
+  from the browser's upload.
+
+A signed upload URL is valid for about two hours. When the claim never
+comes, the object stays without an owner and without the session stamp.
+Remove such objects with [`sweep`](/docs/platform/storage#orphan-sweep) on the bucket.
+
+In a read-only session every write, the signed upload URL and the claim
+resolve to a `403` error with code `SUPPORT_READ_ONLY`. A connected bucket
+maps it to `forbidden`. The blocks work in a writable session too.
+[`attachments.put`](/docs/blocks/attachments) uploads from the server. The
+blocks that hand out a signed upload URL claim the object in their own
+finish step, before it records the upload: `attachments.confirm`,
+[`drive.commit`](/docs/blocks/drive) and
+[`files.confirm`](/docs/blocks/ai-files) of the AI files block. A refused
+claim keeps the record pending and returns the block's error: `forbidden`
+with the hint `ATTACHMENT_FORBIDDEN`, `DRIVE_FORBIDDEN` or
+`AI_FILE_FORBIDDEN`, or `not_found` with `ATTACHMENT_NOT_UPLOADED` or
+`AI_FILE_NOT_UPLOADED` when the object is missing. Outside a support session
+these steps make no extra request.
+
+A public bucket is served to anyone by URL, but its objects are still rows in
+`storage.objects`. When the bucket has no `select` policy that lets the
+target see them, `download`, the signed URLs, `exists` and the listings
+answer as if the objects were missing, while `getPublicUrl` still returns a
+working URL. Add a `select` policy for the bucket when support sessions
+should read it.
+
+`ctx.storage` needs `SUPABASE_SECRET_KEY`. Outside a support session it is
+`undefined`; use `ctx.supabase.storage` there.
+`supportStorage({ admin, sql, adminSql, session, readOnly })` from
+`better-supabase/server` builds the same `StorageApi` from a service-role
+`supabase.storage`, a `SqlClient` that runs as the target (writes need its
+`transaction`), the admin `SqlClient` (`postgres.admin`) and the session's
+`id`, `adminId` and `targetUserId`. Without `adminSql` and `session`, writes,
+signed upload URLs and claims in a writable session resolve to a `403` error
+with code `SUPPORT_STORAGE_WRITES`.
+
+Starting a second session ends the admin's first one. Admins can't start a
+session for themselves (`SUPPORT_SELF`) or from inside another one
+(`SUPPORT_NESTED`).
+
+### Deciding who may start one
+
+`authorize` runs before the store, with the admin's verified auth, the target,
+the reason, `readOnly`, `memberships` and `metadata`. It returns a decision:
+
+| Decision                 | Effect                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `false`, a throw         | Refused with `SUPPORT_FORBIDDEN`                                               |
+| `true`                   | Allowed once another admin approved a request (see below)                      |
+| `{ approvedBy: "<id>" }` | Allowed, and `<id>` is recorded as the approver; the admin's own id is refused |
+
+```ts
+support: supportSessions({
+  store: sqlSupportStore(postgres),
+  authorize: ({ admin, targetUserId }) =>
+    admin.claims.app_metadata?.role === "support" && targetUserId !== OWNER_ID,
+}),
+```
+
+Without `authorize`, the `support.authorize` hook of the
+[authorization hooks](/docs/extending/authorization-providers#runtime-hooks)
+decides. Without either, every start is refused. `authorize: "store"` hands
+the decision to the store alone: the SQL store then checks
+`is_platform('support.start')` and nothing else, so use it only when that
+permission is the whole rule. A start refused by the decision never reaches
+the store.
+
+In SQL, the `before_support_start(admin, target, reason, metadata)` hook can
+refuse a start too, for example when no open ticket names the user. See
+[support sessions](/docs/blocks/sql#impersonation) for the module's names,
+hooks and options.
+
+### Approval by a second admin
+
+With `policy.approval: "distinct"`, the default, one admin asks for a session
+and a different admin approves it before the start:
+
+```ts title="src/admin/support.ts"
+const asked = await server.support
+  .request(auth, { targetUserId, reason: "Ticket 4821: missing invoices" })
+  .orThrow();
+
+// Later, signed in as a second admin:
+await server.support.approve(reviewerAuth, asked.id).orThrow();
+
+// The first admin starts the session; it uses the approved request.
+const { session, cookie } = await server.support
+  .start(auth, { targetUserId, reason: asked.reason })
+  .orThrow();
+```
+
+A start without an approved request fails with `SUPPORT_APPROVAL_REQUIRED`.
+The requester can never approve their own request (`SUPPORT_SELF_APPROVAL`),
+and the SQL module refuses it again in a check constraint, so a client that
+calls the database directly can't skip the second admin. A request stays open
+for the module's `approvalTtl` (1 hour) and starts one session. A read-only
+request never starts a writable session.
+
+`approverOf` in the authorization hooks decides who may approve, with
+`{ kind: "support-session", subject: requestId, requester }`. It is never
+asked about the requester as approver: better-supabase refuses them first. Without it, the SQL store
+checks the approver in the database: the provider's `isApprover` template,
+or `is_platform('support.start')` without a provider. Rename that key with
+`blocks["impersonation"].permissions.approve`.
+
+| Code                           | When                                                       |
+| ------------------------------ | ---------------------------------------------------------- |
+| `SUPPORT_APPROVAL_REQUIRED`    | A start finds no approved, unused request                  |
+| `SUPPORT_SELF_APPROVAL`        | The requester approves, or `approvedBy` names the admin    |
+| `SUPPORT_REQUEST_MISSING`      | `approve` names a request that doesn't exist               |
+| `SUPPORT_REQUEST_DECIDED`      | Another admin already approved the request                 |
+| `SUPPORT_REQUEST_CLOSED`       | The request expired or already started a session           |
+| `SUPPORT_APPROVAL_UNSUPPORTED` | `request` or `approve` on a store without approval methods |
+
+Set `policy.approval: "none"` and the module's `options.approval: "none"`
+together to start without a second admin; the SQL store checks its own
+option. `createNext` has no request or approve helper yet: call them on a
+`createServer` instance, or call `request_support_session` and
+`approve_support_request` as the signed-in admin. A custom store implements
+`request`, `getRequest`, `approve` and `approvedRequest` to support approval.
+
+With the [approvals](/docs/blocks/approvals#tool-calls-and-support-sessions)
+module installed, a request for a tenant also files an approval request
+(`subjectType` `support_request`, action `start`), so it shows up in the
+approvals inbox. Approving it there approves the support request, rejecting
+it closes the support request (`SUPPORT_REQUEST_CLOSED`), and
+`approve_support_request` closes the approval request. The approvers stay
+the ones above.
+
+### The target's claims
+
+The target gets the claims your [custom access token hook](/docs/auth#typed-claims)
+would give them, so tenant and role claims match a real session. Set
+`blocks["impersonation"].options.claimsHook` to the hook function
+(`"public.custom_access_token_hook"`) and `support_target_claims` calls it with
+a synthetic event. Without a hook, the target gets the claims Auth puts in
+every token (`email`, `role`, `app_metadata`, `user_metadata`, `aal1`). Pass
+`claims` in the options to build them in TypeScript instead.
+
+### Showing a banner
+
+`useSupportSession()` from `better-supabase/react` returns the session while
+the admin views the app as someone else, and `undefined` otherwise:
+
+```tsx title="components/support-banner.tsx"
+"use client";
+import { useSupportSession } from "better-supabase/react";
+import { stopViewing } from "@/app/admin/users/actions";
+
+export function SupportBanner() {
+  const support = useSupportSession();
+  if (!support) return null;
+  return (
+    <div role="status">
+      Viewing as {support.targetUserId}
+      {support.readOnly ? " (read-only)" : ""}
+      <button onClick={() => stopViewing()}>Stop</button>
+    </div>
+  );
+}
+```
+
+On the server, `supportOf(session)` returns the same value.
+
+### Events and the audit log
+
+`betterSupabase.on` receives `support.started`, `support.ended` (with `endedBy`: `admin`,
+`expired` or `revoked`) and `support.denied` (with the denial code).
+The SQL module writes `support.started` and `support.ended` to the
+[audit log](/docs/blocks/sql#audit-log) with `support_session_id`,
+`impersonated_by` and `impersonation_reason` set, and every row the admin
+changes in a writable session records the same columns, so you can list
+everything one session did, from its start to its end. A session that
+another staff member revokes keeps the session id in the entry's metadata.
+
+`bsb.support.list(auth, { active: true })` lists running sessions for an
+admin page, and `bsb.support.revoke(auth, id)` ends a session. Both run as the
+caller: the SQL store lists sessions for staff with `support.read`, and ends
+the caller's own session or, with `support.revoke`, anyone's.
+
+### Ending expired sessions
+
+A session stops working the moment it expires, since every request checks
+`expires_at`. Its row stays open until something ends it, so run
+`bsb.support.expire()` on a schedule to close expired sessions and record
+them: the SQL store calls `expire_support_sessions()` over `postgres.admin`,
+which ends each one through `end_support_session(id, 'expired')`, so the
+audit log gets a `support.ended` entry, and `betterSupabase.on` receives `support.ended`
+with `endedBy: "expired"` for each. `expireRoute` serves it to a cron caller
+behind a bearer secret and answers `{ "expired": 2 }`:
+
+```ts title="app/api/cron/support/route.ts"
+import "server-only";
+
+import { bsb } from "@/lib/supabase/server";
+
+export const GET = bsb.support.expireRoute({ secret: process.env.CRON_SECRET });
+```
+
+`expire_support_sessions()` is executable by the service role only. A store
+of your own implements the optional `expire()` method for this; without it,
+`bsb.support.expire()` fails with `SUPPORT_EXPIRE_UNSUPPORTED`.
+
+The SQL module refuses a target who holds platform permissions (the platform
+claim in `app_metadata`, or a platform role), because the admin would gain
+that staff member's reach (`allowPlatformTargets` turns this off). Sessions
+are read-only unless `blocks["impersonation"].options.allowWrites` is true and
+the policy is `readOnly: "default"`. A token that carries an `act` claim never
+has platform permissions, so a support session can't start another one or act
+as staff. Each request checks again that the admin still holds
+`support.start`, and an admin has one active session at a time.
+
+### Bringing your own store
+
+`SupportSessionStore` (`apiVersion: 1`) is the interface behind
+`sqlSupportStore`. Implement `start`, `get`, `end` and `list` (and
+optionally `expire`) to keep sessions somewhere else, and run `testSupportSessionStore` from `better-supabase/testing`
+against it (see [conformance](/docs/extending/conformance)).
+
+## Acting as a user in code
+
+`actingAs` runs repositories as a user for one piece of server code, without a
+session or a cookie. Use it in jobs and scripts:
+
+```ts title="app/admin/actions.ts"
+const db = bsb.actingAs(
+  userId,
+  { tenant_id: organizationId },
+  { actor: admin.id, reason: "Support ticket 4211" },
+);
+await db.invoices.update(id, { status: "void" });
+```
+
+The third argument adds an [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693#section-4.1)
+`act` claim to the session: `{ kind: "impersonation", sub: admin.id, reason }`. Policies still see
+`auth.uid() = userId`. Check who acts first: `actingAs` trusts its caller, so
+only call it after your own admin check.
+
+Jobs run as the user who enqueued them with `bsb.forContext(job.context)`,
+which keeps the impersonating admin when the job was enqueued during
+impersonation. See
+[Jobs, webhooks and agents without a session](/docs/guides/without-a-session).
+
+## What gets recorded
+
+| Where              | What                                                                                                                             |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `audit` SQL module | `audit_events.impersonated_by`, `impersonation_reason` and `support_session_id` on every row the admin changes                   |
+| `actor` SQL module | `track_actor(table, impersonated_by => 'impersonated_by')` stamps the admin on each write; the user's own writes cannot clear it |
+| Repository context | `context.actor.impersonator`, for plugins                                                                                        |
+| In SQL             | `auth.jwt() -> 'act' ->> 'sub'` and `auth.jwt() -> 'act' ->> 'session_id'`, for your own triggers and policies                   |
+
+A policy can also refuse impersonated writes where they make no sense:
+
+```sql
+create policy "no impersonated payouts" on public.payouts
+  as restrictive for insert
+  with check (auth.jwt() -> 'act' is null);
+```
+
+## Why only over Postgres
+
+Support sessions and `actingAs` need [`postgres`](/docs/auth/postgres) in
+`createServer`. They set the claims for the transaction itself, the way
+PostgREST does after checking a token. The Data API has no equivalent:
+
+- PostgREST only trusts tokens signed by the project's JWT signing keys. With
+  asymmetric keys, only the Auth server holds the private key, so the app
+  can't mint a token with an `act` claim.
+- Auth has no impersonation API. A token you could mint (with a legacy
+  shared secret) would be a full session for the user, with no expiry control
+  and no record in Auth's audit log.
+
+So over the Data API, the claims are whatever Auth issued. Run impersonated
+work on the server over Postgres, and keep the admin signed in as themselves.
+
+## Reading the act claim
+
+`act` is the [RFC 8693](https://www.rfc-editor.org/rfc/rfc8693#section-4.1)
+actor claim, which OAuth clients and agent chains carry too. Its `kind`
+says which of them a token is, and `session.actor` and `session.impersonator`
+always agree:
+
+| `act`                                                                             | `session.actor.kind`                       | `session.impersonator` | `session.delegation`            |
+| --------------------------------------------------------------------------------- | ------------------------------------------ | ---------------------- | ------------------------------- |
+| `{ kind: "support", sub, reason, session_id, read_only }`, from a support session | `support`, with `sessionId` and `readOnly` | set                    | never                           |
+| `{ kind: "impersonation", sub, reason }`, from `actingAs`                         | `impersonation`                            | set                    | never                           |
+| `{ kind: "agent", sub, tools, read_only }`, from `agentClaims`                    | `agent`, with `tools`, `readOnly`, `chain` | not set                | the `scope` claim, when set     |
+| no `kind`, from an OAuth client or an agent chain                                 | `oauth-client`, with the `chain`           | not set                | the `scope` claim and the chain |
+| none, with a `client_id` (Supabase's OAuth server)                                | `oauth-client`                             | not set                | the `scope` claim               |
+
+An `oauth-client` actor is limited to the scopes the user delegated, and so
+is an `agent` on a token that carries a `scope`: the `scopes` guard option
+checks a support or impersonated session, and an agent on the user's own
+session, as the user's own, and a read-only support session still blocks
+writes. An agent writes with the user's row level security unless its
+level sets `read_only: true`. An impersonation token is always read-only,
+whatever its `read_only` says; to allow its writes, set the provider's
+`authorization.functions.actorMayWrite` template.
+
+`agentClaims(claims, { agent, tools, readOnly })` from
+`better-supabase/server` puts the agent on top of the user's claims and
+moves any earlier `act` below it. Leave `tools` out to delegate every tool;
+`tools: []` delegates none, and a runtime given the agent as `actor` refuses
+the others (see [Delegated tools](/docs/ai-sdk/agents#delegated-tools)).
+`readOnly: true` writes `read_only: true`.
+An agent run's context carries the level as `run.act`, so a tool passes
+`agentClaims(claims, run.act)` to `asUser` or `forContext` and the audit
+log records the agent as the actor.
+
+`tools` is enforced by the agent runtime only: `createAgentRuntime({ actor })`
+drops and refuses the tools the list doesn't name. The route guards, the
+`scopes` option and row level security don't read it, so a tool that runs
+outside the runtime is limited by the user's rights and the token's `scope`,
+not by `tools`. Other libraries that read the same claim may deny every tool
+the list doesn't name, so pass `tools` explicitly when you mint a token for
+them.
+
+An invalid `act` claim makes the session
+`{ kind: 'invalid', reason: 'actor' }` (code `ACTOR_INVALID`), never the user
+without an actor. `resolveAuth` answers 401, and `toSession` returns the same
+verdict for a hand-built state. The claim is invalid when it is not a chain
+of objects each with a `sub`, has a `kind` other than `support`,
+`impersonation` or `agent`, has a support level without `session_id`, an
+agent level with a `session_id`, an empty tool name or `tools` that is not a
+list, or a support or agent level whose `read_only` is not a boolean.
+
+A support token from 0.5.0, with `session_id` but no `kind`, is invalid too,
+in TypeScript and in `actor_may_write()`. better-supabase refuses it instead
+of reading it as a read-only support session, so an old token can't keep
+working with a guess at its rights. Start a new support session to mint a
+token with `kind: "support"`.
+
+`session.delegation.scopes` leaves out the OpenID Connect identity scopes
+(`openid`, `email`, `profile`, `phone`, `address` and `offline_access`,
+exported as `IDENTITY_SCOPES`), which grant no permission. A token whose
+`scope` names only identity scopes still has a delegation with
+`scopes: []`, so an agent on it passes no `scopes` check instead of getting
+the user's full rights.
+
+`better_supabase.actor_may_write()` decides by the outermost `kind`: a
+support session writes only with `read_only: false`, an agent unless
+`read_only` is `true`, and impersonation or any other `kind` never.
+`read_only` is compared as a JSON boolean, so a string fails closed.
+
+`actorOf(claims)`, `delegationOf(claims)` and `impersonatorOf(claims)` from
+`better-supabase/server` read the same claims anywhere else, without a
+request. `actorOf` returns `{ ok: true, actor }` or
+`{ ok: false, reason: "invalid-chain" }`.
+
+`supabaseClaimFixtures` from `better-supabase/testing` holds a token of each
+kind, with what `toSession` reads from it. `supabaseInvalidClaimFixtures`
+holds the tokens it refuses, each expecting
+`{ kind: "invalid", reason: "actor", code: "ACTOR_INVALID" }`: the 0.5.0
+support token and the malformed levels listed above. Both are plain data, so
+another library can sign and check the same cases:
+
+```ts title="tests/support-banner.test.ts"
+import {
+  supabaseClaimFixtures,
+  supabaseInvalidClaimFixtures,
+} from "better-supabase/testing";
+
+const { claims, expect: read } = supabaseClaimFixtures.supportSessionReadOnly;
+// read.actor: { kind: "support", id, sessionId, readOnly: true, reason }
+
+const legacy = supabaseInvalidClaimFixtures.legacySupportSession;
+// legacy.expect: { kind: "invalid", reason: "actor", code: "ACTOR_INVALID" }
+```
+
+`better-supabase/testing/act-cases.json` (also `actCases` from
+`better-supabase/testing`) lists `act` chains with the verdict for each:
+`valid`, the actor `kind`, `readOnly`, `tools` and what `actor_may_write()`
+returns as `mayWrite`. It is versioned (`version: 1`), so another library
+that parses the same claims can run the same cases:
+
+```ts title="tests/act.test.ts"
+import cases from "better-supabase/testing/act-cases.json" with { type: "json" };
+
+for (const { name, claims, valid } of cases.cases) {
+  test(name, () => expect(myParser(claims).ok).toBe(valid));
+}
+```

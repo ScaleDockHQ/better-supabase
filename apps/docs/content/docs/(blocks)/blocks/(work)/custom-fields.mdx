@@ -1,0 +1,85 @@
+---
+title: Custom fields
+description: Field definitions, options and typed values, with a permission check for sensitive values.
+---
+
+`custom-fields` stores definitions (`entity`, `key`, `label`, `type`, `required`, `sensitive`, `permission`) and one typed value per subject.
+
+```bash
+better-supabase add custom-fields
+```
+
+```ts
+import {
+  CUSTOM_FIELD_TYPES,
+  createCustomFields,
+} from "better-supabase/blocks/custom-fields";
+
+const fields = createCustomFields({ transport, tenant: organizationId });
+const customer = { type: "customer", id: customerId };
+
+const tier = await fields
+  .saveDefinition("customer", "tier", "Tier", "option")
+  .orThrow();
+await fields.setValue(customer, tier.id, "gold").orThrow();
+const values = await fields.readValues(customer).orThrow();
+```
+
+Definitions belong to an entity (`listDefinitions(entity)`,
+`saveDefinition(entity, key, label, type, sensitive?)`), and values to a
+subject, a `RecordRef` (`{ type, id }`): `readValues(subject)` and
+`setValue(subject, definitionId, value)`. Every call acts in the block's
+`tenant`, which `createBlocks` and `createBlockClient` pass from the request;
+a call without one fails with `invalid_request` and the hint
+`TENANT_REQUIRED`.
+
+## Types
+
+`CUSTOM_FIELD_TYPES` lists the types a definition takes. A value is stored as text whatever the type; the type tells the form and the UI what it holds. The names match the [app table formats](/docs/repository/tables), so a field and a column that hold the same thing use the same word.
+
+| Type                                     | Holds                         | Forms field type          |
+| ---------------------------------------- | ----------------------------- | ------------------------- |
+| `text`, `number`, `date`, `bool`, `json` | the value                     | the same name             |
+| `option`                                 | one option value              | `option`                  |
+| `multi_option`                           | a JSON array of option values | `multi`                   |
+| `email`, `url`                           | an address                    | `email`, `url`            |
+| `user`                                   | a user id                     | `text`                    |
+| `rating`                                 | 1 to 5                        | `integer`, bounded 1 to 5 |
+| `currency`                               | an integer of minor units     | `integer`                 |
+
+A [form](/docs/blocks/forms) field that names a `customField` answers with the forms field type in the last column, and a form field's own `min`, `max` or `options` win over the definition's. The check on `type` is named `bsb_field_definitions_type`; `upgrade` drops the inline check an older install created and adds the named one.
+
+A sensitive value is returned only when `can` passes for the field's `permission`, or `custom_fields.sensitive.read` when the field names none. A provider implements field-level grants behind that key.
+
+## Encrypted fields
+
+With the [`field-encryption`](/docs/blocks/field-encryption) block
+installed, `encryptDefinition(id)` stores a `text`, `email` or `url` field's
+values as ciphertext under the tenant's data key, and encrypts the values it
+already has. It needs `custom_fields.manage`, and there is no way back.
+`listDefinitions` reports `encrypted` on each definition. `setValue` and
+`readValues` work as before: the definer functions encrypt on write and
+decrypt for callers that pass `custom_fields.read` (and the sensitive
+permission for a sensitive field).
+
+`options.auditReads: true` writes one `field_value.viewed` entry with the
+category `read` to the [audit log](/docs/blocks/audit#read-audits) for each
+`readValues` call that returns an encrypted or sensitive value, with the
+subject and the value ids. It needs the `audit` block.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "field-encryption": {},
+  "custom-fields": { options: { auditReads: true } },
+},
+```
+
+`options.layout` is `normalized` (the default) or `inline`. Inline layout stores the definition columns on the value row and skips the definitions table, which is how `asset_custom_attributes` is adopted.
+
+## Adopt mode
+
+Map `tables.definitions`, `tables.options` and `tables.values`. Set a column to `null` when the existing table does not have it. For the inline layout, map `values.definition` to `null` and set `layout` to `inline`.
+
+## Order
+
+Field definitions of an entity are ordered by `rank`, a fractional key (see [Rank](/docs/blocks/rank)). A new definition goes after the last one, and `reorderDefinition(id, { previous, next })` moves it between the definitions with those keys. `listDefinitions(entity)` returns an entity's definitions in that order, each with its `rank` key, for callers with `custom_fields.read`. Version 2 of the module replaced the integer `position` column with `rank`: the upgrade backfills keys in the old order and drops `position`. The inline layout has no rank column.

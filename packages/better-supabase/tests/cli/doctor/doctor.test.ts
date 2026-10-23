@@ -2568,7 +2568,7 @@ describe("doctor command", () => {
   it("documents every check", async () => {
     const docs = await readFile(
       new URL(
-        "../../../../../apps/docs/content/docs/cli/doctor.mdx",
+        "../../../../../apps/docs/content/docs/(reference)/cli/doctor.mdx",
         import.meta.url,
       ),
       "utf-8",

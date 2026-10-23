@@ -1,0 +1,65 @@
+---
+title: Field history
+description: Record who changed which column of a record, from what to what, with a Postgres trigger on the columns you name.
+---
+
+The `field-history` block keeps an audit trail per field. You name the
+columns to track for each subject type, and a trigger on that table records
+every change to them: the column, the old and new value, who made it and
+when. Use it for the "amount changed from 40,000 to 48,000 by Ada" line on a
+deal, or to see how often a close date slipped.
+
+```bash
+better-supabase add field-history   # adds tenant, access and subjects as well
+```
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  deals: {},
+  "field-history": {
+    on: {
+      deal: { fields: ["amount", "stage_id", "owner_user_id", "expected_close_on"] },
+      company: { fields: ["owner_user_id", "lifecycle"] },
+    },
+  },
+},
+```
+
+The block has no options. `on` names the columns to track per record type,
+and it tracks nothing without one. Each key must be a [subject](/docs/repository/record-types) type with a tenant
+column, and each column a database name (`stage_id`, not `stageId`). A
+change only writes a row when the value differs, so an update that touches
+other columns records nothing.
+
+| Permission     | Lets a member                | Default roles     |
+| -------------- | ---------------------------- | ----------------- |
+| `history.read` | read the changes of a record | `member`, `admin` |
+
+A member reads a record's history only when they may also read the record.
+
+## Read a record's history
+
+```ts
+import {
+  createFieldHistory,
+  rpcTransport,
+} from "better-supabase/blocks/field-history";
+
+const history = createFieldHistory({ transport: rpcTransport(supabase) });
+
+const changes = await history
+  .of({ type: "deal", id: deal.id }, { field: "amount", limit: 20 })
+  .orThrow();
+
+for (const change of changes) {
+  change.field; // "amount"
+  change.before; // 4000000: the values as JSON
+  change.after;
+  change.changedBy; // undefined for the service role or a job
+}
+```
+
+`of` returns changes newest first, 50 by default and at most 500. Pass the
+`id` of the last change as `before` to read the next page. Values keep their
+JSON form: a number for a numeric column, a string for text, a date or an id,
+and `null` for SQL null.

@@ -37,7 +37,12 @@ import { NATIVE_APP, WEB_APP } from "./recipes/types.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const RECIPES_FILE = join(ROOT, "apps/marketing/lib/recipes.json");
-const DOCS_DIR = join(ROOT, "apps/docs/content/docs/registry/ui-recipes");
+
+const DOCS_DIR = join(
+  ROOT,
+  "apps/docs/content/docs/(blocks)/registry/ui-recipes",
+);
+
 const DOCS_PATH = "/docs/registry/ui-recipes";
 
 const SKILL_FILE = join(
