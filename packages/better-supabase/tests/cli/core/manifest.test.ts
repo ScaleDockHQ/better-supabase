@@ -21,7 +21,7 @@ const DOCS = fileURLToPath(
  * A docs URL mapped to its file, with sidebar route groups left out of the
  * slug.
  */
-const PAGE_FILES = new Map(
+const PAGE_FILES = new Map<string, string>(
   globSync("**/*.mdx", { cwd: DOCS }).map((file) => {
     const slug = file
       .split("/")
