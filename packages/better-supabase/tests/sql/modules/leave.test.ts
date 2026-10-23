@@ -110,4 +110,13 @@ describe("leave module", () => {
       "list_leave_requests",
     ]);
   });
+
+  it("keys requests to employees with employees", () => {
+    expect(sqlOf(BASE)).not.toContain("add column if not exists employee_id");
+    const sql = sqlOf(["approvals", "employees", "leave"]);
+    expect(sql).toContain(
+      'alter table "better_supabase"."leave_requests" add column if not exists employee_id uuid',
+    );
+    expect(sql).toContain("create trigger bsb_leave_requests_employee_sync");
+  });
 });

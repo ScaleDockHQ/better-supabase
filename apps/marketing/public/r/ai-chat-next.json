@@ -1,0 +1,54 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "ai-chat-next",
+  "title": "AI chat routes (Next.js)",
+  "description": "lib/assistant.ts and the app/api/chat routes: the ai-chat block's assistant, the tools it may call, and the routes that send a message, resume its stream and stop it.",
+  "dependencies": [
+    "better-supabase@^0.14.0",
+    "ai",
+    "server-only"
+  ],
+  "files": [
+    {
+      "path": "items/lib/assistant.ts",
+      "content": "import \"server-only\";\nimport type { ToolSet } from \"ai\";\nimport type { AssistantContext } from \"better-supabase/ai-sdk/chat\";\nimport type { AiChat } from \"better-supabase/blocks/ai-chat\";\nimport type { RpcClient } from \"better-supabase/blocks/organizations\";\n\nimport { stepCountIs, streamText } from \"ai\";\nimport { createAssistant } from \"better-supabase/ai-sdk/chat\";\nimport { generatedOptions } from \"better-supabase/blocks\";\nimport { createAiChat } from \"better-supabase/blocks/ai-chat\";\nimport { rpcTransport } from \"better-supabase/blocks/organizations\";\nimport { postgresStreamStore } from \"better-supabase/streams\";\nimport { after } from \"next/server\";\n\nimport { blockConfig } from \"@/lib/supabase/blocks.generated\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** The API schema `gen` wrote for the chat and its streams. */\nconst API_SCHEMA = blockConfig[\"ai-chat\"].api;\n\n/** A model id on the AI Gateway. */\nconst DEFAULT_MODEL = \"openai/gpt-5-mini\";\n\nconst INSTRUCTIONS = \"You are a concise assistant inside this app.\";\n\n/** The service-role transport for what only the server writes. */\nfunction serviceTransport(): ReturnType<typeof rpcTransport> {\n  return rpcTransport(bsb.admin().$client, { schema: API_SCHEMA });\n}\n\n/** The chat block acting as the caller, with service writes on the side. */\nexport function aiChat(supabase: RpcClient): AiChat {\n  return createAiChat({\n    ...generatedOptions(blockConfig[\"ai-chat\"]),\n    transport: rpcTransport(supabase, { schema: API_SCHEMA }),\n    service: serviceTransport(),\n  });\n}\n\n/**\n * The tools the model may call for a member of `organizationId`, built per\n * request so they read as the caller. Add the blocks' tools here, such as\n * `searchTool` from `better-supabase/ai-sdk/embeddings` with the knowledge\n * block, or `memoryTool` from `better-supabase/ai-sdk/memory`.\n */\nexport function assistantTools(\n  _supabase: RpcClient,\n  _organizationId: string,\n): ToolSet {\n  return {};\n}\n\n/** Per request, so `run` uses the caller's tools. */\nconst requestTools = new WeakMap<AssistantContext, ToolSet>();\n\nlet assistantInstance: ReturnType<typeof createAssistant> | undefined;\n\n/** One assistant per process; the stream store writes as the service role. */\nexport function assistant(): ReturnType<typeof createAssistant> {\n  assistantInstance ??= createAssistant({\n    streams: postgresStreamStore({\n      transport: serviceTransport(),\n      schema: API_SCHEMA,\n      wake: \"poll\",\n    }),\n    defaultModel: DEFAULT_MODEL,\n    run: ({ model, messages, abortSignal, providerOptions, context }) =>\n      streamText({\n        model,\n        instructions: INSTRUCTIONS,\n        messages,\n        abortSignal,\n        providerOptions,\n        tools: requestTools.get(context) ?? {},\n        stopWhen: stepCountIs(5),\n      }),\n  });\n\n  return assistantInstance;\n}\n\n/** The per-request context of a signed-in member of `organizationId`. */\nexport function assistantContext(\n  supabase: RpcClient,\n  userId: string,\n  organizationId: string,\n): AssistantContext {\n  const context: AssistantContext = {\n    chats: aiChat(supabase),\n    userId,\n    organizationId,\n    waitUntil: after,\n  };\n\n  requestTools.set(context, assistantTools(supabase, organizationId));\n\n  return context;\n}\n",
+      "type": "registry:lib",
+      "target": "@lib/assistant.ts"
+    },
+    {
+      "path": "items/app/api/chat/route.ts",
+      "content": "import { dbError, err } from \"better-supabase\";\n\nimport { assistant, assistantContext } from \"@/lib/assistant\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** `POST /api/chat`: stores the member's message and streams the answer. */\nexport const POST = bsb.route(\n  (request, { session, tenant, supabase }) =>\n    session.kind === \"user\"\n      ? assistant().respond(\n          request,\n          assistantContext(supabase, session.user.id, tenant),\n        )\n      : err(dbError(\"unauthorized\", \"Sign in to use the assistant\")),\n  { requireOrganization: true },\n);\n",
+      "type": "registry:file",
+      "target": "~/app/api/chat/route.ts"
+    },
+    {
+      "path": "items/app/api/chat/[id]/stream/route.ts",
+      "content": "import { dbError, err } from \"better-supabase\";\n\nimport { assistant, assistantContext } from \"@/lib/assistant\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** `GET /api/chat/[id]/stream`: the running answer from the start, or 204. */\nexport const GET = bsb.route<{ id: string }, true>(\n  (request, { session, tenant, supabase, params }) =>\n    session.kind === \"user\"\n      ? assistant().resume(\n          params.id,\n          assistantContext(supabase, session.user.id, tenant),\n          { signal: request.signal },\n        )\n      : err(dbError(\"unauthorized\", \"Sign in to use the assistant\")),\n  { requireOrganization: true },\n);\n",
+      "type": "registry:file",
+      "target": "~/app/api/chat/[id]/stream/route.ts"
+    },
+    {
+      "path": "items/app/api/chat/[id]/stop/route.ts",
+      "content": "import { dbError, err } from \"better-supabase\";\n\nimport { assistant, assistantContext } from \"@/lib/assistant\";\nimport { bsb } from \"@/lib/supabase/server\";\n\n/** `POST /api/chat/[id]/stop`: ends the running answer; it is stored as stopped. */\nexport const POST = bsb.route<{ id: string }, true>(\n  (_request, { session, tenant, supabase, params }) =>\n    session.kind === \"user\"\n      ? assistant().stop(\n          params.id,\n          assistantContext(supabase, session.user.id, tenant),\n        )\n      : err(dbError(\"unauthorized\", \"Sign in to use the assistant\")),\n  { requireOrganization: true },\n);\n",
+      "type": "registry:file",
+      "target": "~/app/api/chat/[id]/stop/route.ts"
+    }
+  ],
+  "envVars": {
+    "AI_GATEWAY_API_KEY": "replace_me"
+  },
+  "meta": {
+    "block": "ai-chat",
+    "platforms": [
+      "web"
+    ],
+    "frameworks": [
+      "next"
+    ]
+  },
+  "docs": "Needs the ai-chat and streams blocks (`npx better-supabase add ai-chat`), `lib/supabase/blocks.generated.ts` from `npx better-supabase gen`, and an AI Gateway key. Add the blocks' tools in `assistantTools`. Pair it with the `use-ai-chat` hooks on the client. See https://bettersupabase.com/docs/ai-sdk/chat.",
+  "categories": [
+    "route"
+  ],
+  "type": "registry:file"
+}

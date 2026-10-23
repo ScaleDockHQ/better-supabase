@@ -2012,6 +2012,9 @@ importers:
       '@valibot/to-json-schema':
         specifier: 'catalog:'
         version: 1.8.0(valibot@1.5.0(typescript@7.0.2))
+      ai:
+        specifier: 'catalog:'
+        version: 7.0.143(zod@4.6.7)
       better-supabase:
         specifier: workspace:*
         version: link:../better-supabase

@@ -19,6 +19,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@valibot/to-json-schema": "catalog:",
+    "ai": "catalog:",
     "better-supabase": "workspace:*",
     "expo": "catalog:",
     "expo-notifications": "catalog:",

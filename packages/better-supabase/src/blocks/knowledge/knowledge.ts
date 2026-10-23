@@ -698,16 +698,16 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         ),
       file: (organizationId, fileId, document = {}) =>
         readFile(fileId).andThen(({ file, text }) =>
-            fromText(
-              organizationId,
-              {
-                ...document,
-                title: document.title ?? file.filename,
-                fileId: file.id,
-                source: document.source ?? file.filename,
-              },
-              text,
-            ),
+          fromText(
+            organizationId,
+            {
+              ...document,
+              title: document.title ?? file.filename,
+              fileId: file.id,
+              source: document.source ?? file.filename,
+            },
+            text,
+          ),
         ),
     },
     process,

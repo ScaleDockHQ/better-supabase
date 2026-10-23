@@ -288,4 +288,20 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
       /is distinct from \(select auth\.uid\(\)\) and coalesce\(\(authz\.can_approve/,
     );
   });
+
+  it("records token usage on the usage block's meters", () => {
+    expect(body()).not.toContain("record_usage");
+    const sql = withModules(["usage"]);
+    expect(sql).toContain('"better_supabase"."record_usage"(');
+    expect(sql).toContain("'ai.input_tokens'");
+    expect(sql).toContain("'ai.output_tokens'");
+
+    const off = renderBlocks(["usage", "ai-chat"], {
+      modules: { "ai-chat": { options: { meterUsage: false } } },
+    })
+      .filter((file) => file.module === "ai-chat")
+      .map((file) => file.contents)
+      .join("\n");
+    expect(off).not.toContain("record_usage");
+  });
 });

@@ -568,25 +568,6 @@ export function createAttachments<
   const bucket = (attachment: Attachment): AttachmentBucket =>
     options.storage.from(attachment.bucket);
 
-  const publicBuckets: ReadonlySet<string> = new Set(options.publicBuckets);
-
-  const publicUrl = (
-    attachment: Attachment,
-    url: { download?: string | boolean; transform?: TransformOptions } = {},
-  ): Result<string> => {
-    const target = bucket(attachment);
-
-    if (!publicBuckets.has(attachment.bucket) || !target.getPublicUrl) {
-      return err(
-        dbError("invalid_request", "The file's bucket is not public", {
-          hint: "ATTACHMENT_PRIVATE",
-        }),
-      );
-    }
-
-    return ok(target.getPublicUrl(attachment.path, url).data.publicUrl);
-  };
-
   /** Why a file can't be read yet, or `undefined` once it can. */
   const gate = (
     attachment: Pick<Attachment, "status" | "uploadedAt">,
@@ -606,6 +587,31 @@ export function createAttachments<
             : "The file is not scanned yet",
           { hint: "ATTACHMENT_NOT_SCANNED" },
         );
+  };
+
+  const publicBuckets: ReadonlySet<string> = new Set(options.publicBuckets);
+
+  const publicUrl = (
+    attachment: Attachment,
+    url: { download?: string | boolean; transform?: TransformOptions } = {},
+  ): Result<string> => {
+    const target = bucket(attachment);
+
+    if (!publicBuckets.has(attachment.bucket) || !target.getPublicUrl) {
+      return err(
+        dbError("invalid_request", "The file's bucket is not public", {
+          hint: "ATTACHMENT_PRIVATE",
+        }),
+      );
+    }
+
+    const blocked = gate(attachment);
+
+    if (blocked !== undefined) {
+      return err(blocked);
+    }
+
+    return ok(target.getPublicUrl(attachment.path, url).data.publicUrl);
   };
 
   const listVersions = (
@@ -792,10 +798,7 @@ export function createAttachments<
           return err(toDbError(cause));
         }
 
-        return publicUrl(
-          target,
-          transform === undefined ? {} : { transform },
-        );
+        return publicUrl(target, transform === undefined ? {} : { transform });
       },
       signedUrl: (target, url = {}) =>
         (typeof target === "string"

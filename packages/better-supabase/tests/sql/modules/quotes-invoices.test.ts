@@ -80,4 +80,18 @@ describe("invoices module", () => {
       body("invoices", { modules: { invoices: { mode: "custom" } } }),
     ).not.toContain("issue_invoice");
   });
+
+  it("prices a line that names a catalog variant from the catalog", () => {
+    expect(body("quotes")).not.toContain("variant_price");
+    const sql = body("quotes", {}, ["catalog"]);
+    expect(sql).toContain(
+      `coalesce((x.value ->> 'unitAmount')::bigint, (select ("better_supabase"."variant_price"(v."id", v_currency) ->> 'amount')::bigint`,
+    );
+    expect(sql).toContain(
+      `where x.value -> 'product' ->> 'type' = 'product_variant' and v."id" = (x.value -> 'product' ->> 'id')::uuid and v."tenant_id" = v_tenant`,
+    );
+    expect(sql).toContain(
+      "coalesce(x.value ->> 'description', (select coalesce(v.",
+    );
+  });
 });

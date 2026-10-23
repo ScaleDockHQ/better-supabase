@@ -69,9 +69,35 @@ export function totalsOf(
   };
 }
 
+/**
+ * A line that names a catalog product variant and leaves its price, its
+ * description or both to the catalog (quotes with the catalog block).
+ */
+export interface CatalogLineInput extends Omit<
+  LineInput,
+  "description" | "unitAmount"
+> {
+  readonly product: RecordRef;
+  readonly description?: string;
+  readonly unitAmount?: Money;
+}
+
 /** A line as the database reads it: the unit amount as text, with its currency. */
-export const lineArg = (line: LineInput): Record<string, unknown> => ({
-  ...line,
-  unitAmount: amountText(line.unitAmount),
-  currency: line.unitAmount.currency,
-});
+export const lineArg = (
+  line: LineInput | CatalogLineInput,
+): Record<string, unknown> =>
+  line.unitAmount === undefined
+    ? { ...line }
+    : {
+        ...line,
+        unitAmount: amountText(line.unitAmount),
+        currency: line.unitAmount.currency,
+      };
+
+/** The unit amounts a list of lines sets, for the currency checks. */
+export const lineAmounts = (
+  lines: readonly (LineInput | CatalogLineInput)[],
+): readonly Money[] =>
+  lines.flatMap((line) =>
+    line.unitAmount === undefined ? [] : [line.unitAmount],
+  );

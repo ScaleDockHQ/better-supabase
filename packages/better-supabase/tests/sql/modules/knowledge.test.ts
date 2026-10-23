@@ -120,4 +120,15 @@ describe("knowledge module", () => {
       );
     }
   });
+
+  it("queues a file's ingestion with ai-files and jobs", () => {
+    expect(rendered(["ai-files"], { "ai-files": {} })).not.toContain(
+      '"better_supabase"."queue_knowledge_file"(',
+    );
+    const sql = rendered(["ai-files", "queue"], { "ai-files": {}, queue: {} });
+    expect(sql).toContain('"better_supabase"."queue_knowledge_file"(');
+    expect(sql).toContain(
+      `"better_supabase"."enqueue_job"(queue => 'knowledge_ingest'`,
+    );
+  });
 });

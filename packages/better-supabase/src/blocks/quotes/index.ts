@@ -1,4 +1,5 @@
 export {
+  type CatalogLineInput,
   createQuotes,
   type Line,
   type LineInput,
@@ -6,6 +7,7 @@ export {
   type Quote,
   type QuoteDecision,
   type QuoteInput,
+  type QuoteLineInput,
   type Quotes,
   type QuotesOptions,
   type QuoteStatus,

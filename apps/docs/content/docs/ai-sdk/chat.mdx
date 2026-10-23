@@ -11,6 +11,15 @@ with its usage when it ends. The answer also goes to a
 [stream store](/docs/blocks/streams), so a reload or a second tab picks it
 up where it is. `useAssistant` is the client half.
 
+In a Next.js app, the registry item writes the server half for you:
+`lib/assistant.ts` with the assistant and the tools the model may call
+(`assistantTools`, built per request as the caller), and the three routes
+below.
+
+```sh
+npx shadcn@latest add @better-supabase/ai-chat-next
+```
+
 ## Server
 
 ```ts title="lib/assistant.ts"

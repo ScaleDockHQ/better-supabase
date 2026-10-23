@@ -223,6 +223,62 @@ describe("createKnowledge", () => {
     );
   });
 
+  it("queues a file and ingests it in the job", async () => {
+    const { transport, calls } = fakeTransport({
+      queue_knowledge_file: () =>
+        documentRow({ file_id: "f1", chunk_count: 0 }),
+      get_knowledge_document: (args) =>
+        args["document_id"] === "d1"
+          ? documentRow({ file_id: "f1", chunk_count: 0 })
+          : documentRow({ id: "d2", file_id: null }),
+      write_knowledge_chunks: () => documentRow({ file_id: "f1" }),
+      fail_knowledge_document: () => documentRow({ status: "failed" }),
+    });
+
+    const read = vi.fn(() =>
+      AsyncResult.ok({
+        // SAFETY: the block reads only the file's id, name and media type.
+        file: {
+          id: "f1",
+          filename: "notes.md",
+          mediaType: "text/markdown",
+        } as AiFile,
+        data: new TextEncoder().encode("# Notes"),
+      }),
+    );
+
+    // SAFETY: the block calls only files.read.
+    const files = { files: { read } } as unknown as AiFiles;
+    const knowledge = createKnowledge({ transport, files });
+
+    const queued = await knowledge.ingest
+      .queue("o1", "f1", { title: "Notes" })
+      .orThrow();
+
+    expect(queued.fileId).toBe("f1");
+    expect(calls[0]).toMatchObject({
+      fn: "queue_knowledge_file",
+      args: { tenant: "o1", file_id: "f1", title: "Notes" },
+    });
+
+    const handler = knowledge.ingestJob();
+    const signal = new AbortController().signal;
+    // SAFETY: the handler reads only attempts and maxAttempts.
+    const job = (attempts: number) => ({ attempts, maxAttempts: 2 }) as never;
+
+    await handler({ document_id: "d1" }, job(1), signal);
+    expect(read).toHaveBeenCalledWith("f1");
+    expect(calls.at(-1)).toMatchObject({
+      fn: "write_knowledge_chunks",
+      args: { document_id: "d1" },
+    });
+
+    await expect(
+      Promise.resolve(handler({ document_id: "d2" }, job(2), signal)),
+    ).rejects.toThrow("The document has no file");
+    expect(calls.at(-1)?.fn).toBe("fail_knowledge_document");
+  });
+
   it("processes pending chunks in batches until the document is ready", async () => {
     let pending = [
       { idx: 0, content: "a", hash: "ha" },

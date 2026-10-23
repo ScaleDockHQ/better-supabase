@@ -174,4 +174,13 @@ describe("orders module, kitchen", () => {
       ]),
     );
   });
+
+  it("creates an issued, paid invoice for a paid order with invoices", () => {
+    expect(sqlOf(["catalog", "orders"])).not.toContain("create_invoice");
+    const sql = sqlOf(["catalog", "invoices", "orders"]);
+    expect(sql).toContain('"better_supabase"."create_invoice"(');
+    expect(sql).toContain('"better_supabase"."issue_invoice"(');
+    expect(sql).toContain('"better_supabase"."record_invoice_payment"(');
+    expect(sql).toContain("'invoiceId'");
+  });
 });
