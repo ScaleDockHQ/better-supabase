@@ -108,7 +108,8 @@ added after the first release (`format`, `options`, `min`, `max`, `comment`,
 `identity`, or a table's `id`, `unique`, `indexes` or `comment`), `2` for a
 table `subject`, `3` for `rollups` or `lookups`, `4` for `events` or subject
 `versions`, `5` for column `access`, `6` for column `encrypted` or table
-`auditReads`, `7` for `preset`, and `0` otherwise. `DESIGN_FORMAT` is the
+`auditReads`, `7` for `preset`, `8` for a preset object with `instances`,
+and `0` otherwise. `DESIGN_FORMAT` is the
 newest format this release reads; a code with a higher `version` fails with a
 message to update better-supabase instead of losing keys.
 

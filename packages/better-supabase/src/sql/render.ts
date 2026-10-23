@@ -27,6 +27,7 @@ import { entitiesMarker } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
+import { ownerSearchTriggers } from "./modules/search.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
 import { checkModules, resolveBlocks, SQL_MODULES } from "./registry.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
@@ -212,7 +213,14 @@ function moduleFiles(
     ...managed,
   ].join("\n");
 
-  const extra = scoped(module.extras?.(ctx, layout) ?? "");
+  const searchAt = installed.indexOf("search");
+
+  const searchTriggers =
+    searchAt !== -1 && installed.indexOf(module.name) > searchAt
+      ? ownerSearchTriggers(moduleContext("search", layout, installed), ctx)
+      : "";
+
+  const extra = `${scoped(module.extras?.(ctx, layout) ?? "")}${searchTriggers === "" ? "" : `\n${searchTriggers}\n`}`;
   const wrappers = renameIdentifiers(deprecationWrappers(module, ctx), renames);
   const body = scoped(moduleSql(module, ctx, layout).trim());
   module.contract?.(ctx);

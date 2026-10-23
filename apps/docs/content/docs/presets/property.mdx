@@ -25,16 +25,17 @@ and `npx better-supabase add --preset property` adds it to one you have
 The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
 whatever they require:
 
-| Block                                   | Role in the app                                                     |
-| --------------------------------------- | ------------------------------------------------------------------- |
-| [assets](/docs/blocks/assets)           | Sites, buildings and units as a location hierarchy                  |
-| [leases](/docs/blocks/leases)           | Leases on units, rent per period, deposits and maintenance requests |
-| [ledger](/docs/blocks/ledger)           | The receivable account each lease posts its rent and payments to    |
-| [parties](/docs/blocks/contacts)        | Tenants and owners                                                  |
-| [guests](/docs/blocks/guests)           | The tenant portal, limited to the records you grant                 |
-| [comments](/docs/blocks/comments)       | Questions and updates on a lease or a request                       |
-| [attachments](/docs/blocks/attachments) | Signed leases and inspection photos                                 |
-| [reminders](/docs/blocks/reminders)     | Inspections and lease ends                                          |
+| Block                                         | Role in the app                                                  |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| [assets](/docs/blocks/assets)                 | Sites, buildings and units as a location hierarchy               |
+| [leases](/docs/blocks/leases)                 | Leases on units, rent per period and deposits                    |
+| [tasks](/docs/blocks/tasks), as `maintenance` | Maintenance requests on a unit                                   |
+| [ledger](/docs/blocks/ledger)                 | The receivable account each lease posts its rent and payments to |
+| [parties](/docs/blocks/contacts)              | Tenants and owners                                               |
+| [guests](/docs/blocks/guests)                 | The tenant portal, limited to the records you grant              |
+| [comments](/docs/blocks/comments)             | Questions and updates on a lease or a request                    |
+| [attachments](/docs/blocks/attachments)       | Signed leases and inspection photos                              |
+| [reminders](/docs/blocks/reminders)           | Inspections and lease ends                                       |
 
 ## How the blocks connect
 
@@ -45,8 +46,11 @@ ledger hold while the lease runs; `terminate` captures the deduction and
 releases the rest. Run `postDueRent` from a scheduled job or cron route; a
 second run posts nothing new.
 
-`fileMaintenance` opens a request on the unit, which moves from `open`
-through `in_progress` to `resolved`. A tenant is a guest, never a member:
+Maintenance requests are an instance of the tasks block, which the preset
+writes as `blocks.maintenance` with the work item named
+`maintenance_request`. Add a `unit_id` column with
+`blocks.maintenance.options.extraColumns` to tie each request to a unit. Its
+client creates a request and moves it through its statuses. A tenant is a guest, never a member:
 invite them and grant their lease, and they comment on it and upload files
 to it through the comments and attachments blocks. The
 [guests](/docs/blocks/guests#grant-records) page lists which blocks honor a

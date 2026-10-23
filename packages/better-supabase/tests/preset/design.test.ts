@@ -106,7 +106,7 @@ describe("design codes", () => {
     await expect(
       decodeDesign(await deflated(JSON.stringify({ version: 9 }))),
     ).rejects.toThrow(
-      "design: the code needs format 9, and this better-supabase reads up to 7; update better-supabase",
+      "design: the code needs format 9, and this better-supabase reads up to 8; update better-supabase",
     );
   });
 
@@ -457,9 +457,17 @@ describe("designOf", () => {
     });
   });
 
+  it("writes format 8 for a preset with instances", () => {
+    expect(
+      designFormat({
+        preset: { blocks: ["tags"], instances: { labels: { block: "tags" } } },
+      }),
+    ).toBe(8);
+    expect(DESIGN_FORMAT).toBe(8);
+  });
+
   it("writes format 7 for a design with a preset", async () => {
     expect(designFormat({ preset: "crm" })).toBe(7);
-    expect(DESIGN_FORMAT).toBe(7);
     await expect(
       encodeDesign({ preset: "startup" } as unknown as CreateDesign),
     ).rejects.toThrow('preset: "startup" is not a preset name');

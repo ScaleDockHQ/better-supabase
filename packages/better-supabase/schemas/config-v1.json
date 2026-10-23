@@ -80,6 +80,64 @@
               "items": {
                 "type": "string"
               }
+            },
+            "instances": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "block": {
+                    "type": "string"
+                  },
+                  "on": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      }
+                    ]
+                  },
+                  "uses": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "tables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "names": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "options": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "additionalProperties": false
+              }
             }
           },
           "additionalProperties": false
@@ -2956,15 +3014,6 @@
           },
           "description": "Dependency block to the instance it uses, needed when that dependency is installed more than once."
         },
-        "ownership": {
-          "enum": ["managed", "adopt", "custom"],
-          "type": "string",
-          "default": "managed"
-        },
-        "schema": {
-          "type": "string",
-          "default": "better_supabase"
-        },
         "tables": {
           "type": "object",
           "additionalProperties": {
@@ -2977,6 +3026,15 @@
               }
             ]
           }
+        },
+        "ownership": {
+          "enum": ["managed", "adopt", "custom"],
+          "type": "string",
+          "default": "managed"
+        },
+        "schema": {
+          "type": "string",
+          "default": "better_supabase"
         },
         "columns": {
           "type": "object",
@@ -3137,15 +3195,6 @@
             "type": "string"
           }
         },
-        "ownership": {
-          "enum": ["managed", "adopt", "custom"],
-          "type": "string",
-          "default": "managed"
-        },
-        "schema": {
-          "type": "string",
-          "default": "better_supabase"
-        },
         "tables": {
           "type": "object",
           "additionalProperties": {
@@ -3158,6 +3207,15 @@
               }
             ]
           }
+        },
+        "ownership": {
+          "enum": ["managed", "adopt", "custom"],
+          "type": "string",
+          "default": "managed"
+        },
+        "schema": {
+          "type": "string",
+          "default": "better_supabase"
         },
         "columns": {
           "type": "object",

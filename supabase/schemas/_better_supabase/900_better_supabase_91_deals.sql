@@ -1034,6 +1034,11 @@ $$;
 revoke execute on function "better_supabase"."deal_health"(uuid) from public, anon;
 grant execute on function "better_supabase"."deal_health"(uuid) to authenticated, service_role;
 
+drop trigger if exists "bsb_search_deal_index" on "better_supabase"."deals";
+create trigger "bsb_search_deal_index"
+  after insert or delete or update of "id", "tenant_id", "name", "identifier", "note", "archived_at" on "better_supabase"."deals"
+  for each row execute function "better_supabase"."search_index_row"('deal', 'id');
+
 -- blocks.deals.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

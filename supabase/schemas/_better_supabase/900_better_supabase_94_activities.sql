@@ -941,6 +941,11 @@ create trigger bookings_engagement
 after insert or update of "status", "during" on "better_supabase"."bookings"
 for each row execute function "better_supabase"."bsb_booking_engagement"();
 
+drop trigger if exists "bsb_search_engagement_index" on "better_supabase"."engagements";
+create trigger "bsb_search_engagement_index"
+  after insert or delete or update of "id", "tenant_id", "title", "body", "outcome" on "better_supabase"."engagements"
+  for each row execute function "better_supabase"."search_index_row"('engagement', 'id');
+
 -- blocks.activities.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

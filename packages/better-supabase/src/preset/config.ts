@@ -8,7 +8,7 @@ import type {
   BetterSupabaseConfig,
   FlatConfig,
 } from "../config/types/config.ts";
-import type { Preset } from "./fields.ts";
+import type { Preset, PresetInstance } from "./fields.ts";
 import type { ResolvedPreset } from "./resolve.ts";
 
 import { asBlocksConfig } from "../config/blocks.ts";
@@ -137,15 +137,43 @@ export function presetConfig(
     ...(preset.integrations.length === 0
       ? {}
       : { integrations: preset.integrations }),
-    blocks: asBlocksConfig(
-      Object.fromEntries(
-        resolved.blocks.map((block) => [
-          block.name,
-          conventionEntry(block.name, preset),
-        ]),
-      ),
-    ),
+    blocks: asBlocksConfig(instanceEntries(resolved)),
   };
+}
+
+/** A preset instance as a flat `blocks` entry: `names` is `entities` there. */
+function flatInstance(instance: PresetInstance): BlockConfig {
+  const { names, ...rest } = instance;
+
+  return names === undefined ? rest : { ...rest, entities: names };
+}
+
+/**
+ * The `blocks` entries of a resolved preset: each block with its convention
+ * entry, then the preset's instances over them.
+ */
+function instanceEntries(
+  resolved: ResolvedPreset,
+): Record<string, BlockConfig | AccessBlockConfig> {
+  const { preset } = resolved;
+
+  const blocks: Record<string, BlockConfig | AccessBlockConfig> =
+    Object.fromEntries(
+      resolved.blocks.map((block) => [
+        block.name,
+        conventionEntry(block.name, preset),
+      ]),
+    );
+
+  for (const [key, instance] of Object.entries(preset.instances ?? {})) {
+    if (resolved.conflicts.some((conflict) => conflict.block === key)) {
+      continue;
+    }
+
+    blocks[key] = { ...blocks[key], ...flatInstance(instance) };
+  }
+
+  return blocks;
 }
 
 function isBlockList(

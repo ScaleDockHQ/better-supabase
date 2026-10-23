@@ -26,9 +26,16 @@ describe("named presets", () => {
     (name) => {
       const config = defineConfig({ preset: name });
       const resolved = resolvePreset(namedPreset(name));
-      expect(Object.keys(config.blocks ?? {})).toEqual(
-        resolved.blocks.map((block) => block.name),
+      const listed = resolved.blocks.map((block) => block.name);
+
+      const instances = Object.keys(namedPreset(name).instances ?? {}).filter(
+        (key) => !listed.includes(key),
       );
+
+      expect(Object.keys(config.blocks ?? {})).toEqual([
+        ...listed,
+        ...instances,
+      ]);
     },
   );
 
@@ -37,9 +44,11 @@ describe("named presets", () => {
       presetFiles(name, { tests: true }).map((file) => file.module),
     );
 
-    const config = defineConfig({ preset: name });
+    const { instances } = resolveConfig({ preset: name }, "/");
     expect([...rendered].toSorted()).toEqual(
-      Object.keys(config.blocks ?? {}).toSorted(),
+      [
+        ...new Set(Object.values(instances).map((instance) => instance.block)),
+      ].toSorted(),
     );
   });
 

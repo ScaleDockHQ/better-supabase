@@ -241,3 +241,16 @@ snapshot (`vitest run tests/exports.test.ts -u`, then review
   (`tests/integration/<name>.integration.test.ts`, with
   `tests/integration/block-session.ts`).
 - A changeset.
+
+## Presets and instances
+
+- A named preset in `src/preset/presets.ts` lists `blocks` and, for nouns or
+  a second copy of a block, `instances` (`blocks` entries with `block`,
+  `names`, `options`, `tables`, `on` and `uses`). Prefer an instance to a new
+  table that copies another block's.
+- After changing a preset, run `pnpm --filter
+  @better-supabase/validation-presets gen` to refresh its wiring, and update
+  the preset's row and page under `apps/docs/content/docs/presets`.
+- A removed export, subpath or method gets a codemod rename or review hint
+  (`src/cli/codemod-block-renames.ts`) and, when app code can still call it,
+  a pattern in doctor's BS418 (`src/cli/doctor/removed-apis.ts`).

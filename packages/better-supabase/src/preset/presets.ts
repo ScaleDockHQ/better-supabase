@@ -32,7 +32,14 @@ export interface NamedPreset {
   readonly blocks: readonly string[];
   /** The conventions it sets over the defaults, such as a user scope. */
   readonly conventions?: Partial<PresetConventions>;
+  /** The `blocks` entries it writes: its nouns and extra instances. */
+  readonly instances?: Preset["instances"];
 }
+
+/** Tasks named for support work: tickets grouped under issues. */
+const TICKETS: NonNullable<Preset["instances"]> = {
+  tasks: { names: { work_item: "ticket", project: "issue" } },
+};
 
 const SAAS: readonly string[] = [
   "organizations",
@@ -186,6 +193,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "knowledge",
       "search",
     ],
+    instances: TICKETS,
   },
   chat: {
     name: "chat",
@@ -309,6 +317,14 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "attachments",
       "reminders",
     ],
+    instances: {
+      maintenance: {
+        block: "tasks",
+        names: { work_item: "maintenance_request" },
+        tables: { projects: null, iterations: null },
+        options: { prefix: "MR-" },
+      },
+    },
   },
   "field-service": {
     name: "field-service",
@@ -510,6 +526,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "incidents",
       "knowledge",
     ],
+    instances: TICKETS,
   },
   compliance: {
     name: "compliance",
@@ -761,9 +778,14 @@ export function isPresetName(value: unknown): value is PresetName {
 
 /** The named preset as a `Preset`: the default conventions, then its own. */
 export function namedPreset(name: PresetName): Preset {
-  const { blocks, conventions } = PRESETS[name];
+  const { blocks, conventions, instances } = PRESETS[name];
 
-  return { ...DEFAULT_CONVENTIONS, ...conventions, blocks };
+  return {
+    ...DEFAULT_CONVENTIONS,
+    ...conventions,
+    blocks,
+    ...(instances === undefined ? {} : { instances }),
+  };
 }
 
 /** The preset `/create` and `init` start from. */

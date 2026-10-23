@@ -49,6 +49,30 @@ describe("search module", () => {
     );
   });
 
+  it("leaves the index trigger on a later block's table to that block's file", () => {
+    const files = renderBlocks(["search", "tasks"], {
+      subjects: {
+        ...subjects,
+        work_item: {
+          table: "better_supabase.work_items",
+          title: "title",
+          search: {},
+        },
+      },
+    });
+
+    const contents = (module: string) =>
+      files
+        .filter((file) => file.module === module)
+        .map((file) => file.contents)
+        .join("\n");
+
+    expect(contents("search")).not.toContain("bsb_search_work_item_index");
+    expect(contents("tasks")).toContain(
+      `create trigger "bsb_search_work_item_index"`,
+    );
+  });
+
   it("searches as the caller with websearch, prefixes and trigrams", () => {
     const sql = sqlOf();
     expect(sql).toContain("security invoker");

@@ -668,6 +668,11 @@ create trigger "bsb_posts_replied"
   after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
+drop trigger if exists "bsb_search_post_index" on "better_supabase"."posts";
+create trigger "bsb_search_post_index"
+  after insert or delete or update of "id", "tenant_id", "title", "body" on "better_supabase"."posts"
+  for each row execute function "better_supabase"."search_index_row"('post', 'id');
+
 -- blocks.posts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

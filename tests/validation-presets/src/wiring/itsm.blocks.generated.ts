@@ -3,7 +3,31 @@
 import {
   type Events,
   type GeneratedBlocks,
+  renameBlock,
+  type RenamedEvents,
+  type RenamedType,
 } from "better-supabase/blocks";
+import {
+  type ChecklistItem as DefaultChecklistItem,
+  type ChecklistItemInput as DefaultChecklistItemInput,
+  type Iteration as DefaultIteration,
+  type Project,
+  type WorkItem,
+  type WorkItemChange,
+  type WorkItemChangeResult,
+  type WorkItemChecklistOptimisticAction,
+  type WorkItemField,
+  type WorkItemInput,
+  type WorkItemListOptions,
+  type WorkItemNode,
+  type WorkItemRecurrence,
+  type WorkItemRecurrenceSinkOptions,
+  type WorkItemState,
+  type WorkItemWatcher,
+  type WorkItemWatchLevel,
+  type TasksEvents as DefaultTasksEvents,
+  tasksBlock as defaultTasksBlock,
+} from "better-supabase/blocks/tasks";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
 import type { AuditEvents } from "better-supabase/blocks/audit";
@@ -18,7 +42,6 @@ import type { RelationsEvents } from "better-supabase/blocks/relations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SlaEvents } from "better-supabase/blocks/sla";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
-import type { TasksEvents } from "better-supabase/blocks/tasks";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -127,8 +150,91 @@ export const blockConfig = {
   tasks: {
     schema: "better_supabase",
     options: {},
+    names: {
+      entities: [{
+        from: {
+          singular: "work_item",
+          plural: "work_items",
+        },
+        to: {
+          singular: "ticket",
+          plural: "tickets",
+        },
+      }, {
+        from: {
+          singular: "project",
+          plural: "projects",
+        },
+        to: {
+          singular: "issue",
+          plural: "issues",
+        },
+      }],
+    },
   },
 } as const satisfies GeneratedBlocks;
+
+type TasksRenames = (typeof blockConfig)["tasks"]["names"]["entities"];
+
+/**
+ * The `tasks` block under the names `blocks.tasks.entities` gives it.
+ * @public
+ */
+export const tasksBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);
+
+/** @public */
+export type ChecklistItem = RenamedType<DefaultChecklistItem, TasksRenames>;
+
+/** @public */
+export type ChecklistItemInput = RenamedType<DefaultChecklistItemInput, TasksRenames>;
+
+/** @public */
+export type Iteration = RenamedType<DefaultIteration, TasksRenames>;
+
+/** @public */
+export type Issue = RenamedType<Project, TasksRenames>;
+
+/** @public */
+export type Ticket<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, TasksRenames>;
+
+/** @public */
+export type TicketChange<F extends object = Record<never, never>> = RenamedType<WorkItemChange<F>, TasksRenames>;
+
+/** @public */
+export type TicketChangeResult = RenamedType<WorkItemChangeResult, TasksRenames>;
+
+/** @public */
+export type TicketChecklistOptimisticAction = RenamedType<WorkItemChecklistOptimisticAction, TasksRenames>;
+
+/** @public */
+export type TicketField = RenamedType<WorkItemField, TasksRenames>;
+
+/** @public */
+export type TicketInput<F extends object = Record<never, never>> = RenamedType<WorkItemInput<F>, TasksRenames>;
+
+/** @public */
+export type TicketListOptions = RenamedType<WorkItemListOptions, TasksRenames>;
+
+/** @public */
+export type TicketNode = RenamedType<WorkItemNode, TasksRenames>;
+
+/** @public */
+export type TicketRecurrence = RenamedType<WorkItemRecurrence, TasksRenames>;
+
+/** @public */
+export type TicketRecurrenceSinkOptions = RenamedType<WorkItemRecurrenceSinkOptions, TasksRenames>;
+
+/** @public */
+export type TicketState = RenamedType<WorkItemState, TasksRenames>;
+
+/** @public */
+export type TicketWatcher = RenamedType<WorkItemWatcher, TasksRenames>;
+
+/** @public */
+export type TicketWatchLevel = RenamedType<WorkItemWatchLevel, TasksRenames>;
+
+/** @public */
+export type TasksEvents = RenamedEvents<DefaultTasksEvents, TasksRenames>;
 
 /**
  * The permission keys the installed blocks, subjects and app tables check,
@@ -226,17 +332,17 @@ export const permissions = {
     manage: "sla.manage",
   },
   tasks: {
-    read: "work_items.read",
-    write: "work_items.write",
-    manage: "work_items.manage",
+    read: "tickets.read",
+    write: "tickets.write",
+    manage: "tickets.manage",
   },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
   },
-  work_item: {
-    read: "work_items.read",
-    write: "work_items.write",
+  ticket: {
+    read: "tickets.read",
+    write: "tickets.write",
   },
 } as const;
 
@@ -245,7 +351,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "incidents.manage" | "incidents.read" | "incidents.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "teams.manage" | "teams.read" | "work_items.manage" | "work_items.read" | "work_items.write";
+export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "incidents.manage" | "incidents.read" | "incidents.write" | "members.invite" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "teams.manage" | "teams.read" | "tickets.manage" | "tickets.read" | "tickets.write";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -341,13 +447,13 @@ export const blockEvents: Events<BlockEvents> = {
     "team.updated",
     "team_member.added",
     "team_member.removed",
-    "work_item.archived",
-    "work_item.assigned",
-    "work_item.closed",
-    "work_item.created",
-    "work_item.deleted",
-    "work_item.reopened",
-    "work_item.updated",
+    "ticket.archived",
+    "ticket.assigned",
+    "ticket.closed",
+    "ticket.created",
+    "ticket.deleted",
+    "ticket.reopened",
+    "ticket.updated",
   ],
 };
 
@@ -437,13 +543,13 @@ export const blockEventSchemas = {
   "team.updated": true,
   "team_member.added": true,
   "team_member.removed": true,
-  "work_item.archived": true,
-  "work_item.assigned": true,
-  "work_item.closed": true,
-  "work_item.created": true,
-  "work_item.deleted": true,
-  "work_item.reopened": true,
-  "work_item.updated": true,
+  "ticket.archived": true,
+  "ticket.assigned": true,
+  "ticket.closed": true,
+  "ticket.created": true,
+  "ticket.deleted": true,
+  "ticket.reopened": true,
+  "ticket.updated": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

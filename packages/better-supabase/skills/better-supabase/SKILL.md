@@ -83,6 +83,9 @@ stay hidden.
    `Temporal` (see below), `--db-url` is gone, `doctor --format json` is
    `doctor --json`, `BetterResultShape` is `BetterResultValue`, and an
    exhaustive `switch` over the `invalid` auth reason needs an `'actor'` case.
+   For 0.15, follow the upgrade order at the end of
+   https://bettersupabase.com/docs/migration/0.14-to-0.15 and fix each
+   BS418 finding `doctor` reports.
 
 Done when `gen --check`, `doctor` and the typecheck pass.
 
@@ -105,6 +108,19 @@ Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runt
 
 For who the caller is (sessions, claims, OAuth clients, agents, scopes), use
 the `better-supabase-auth` skill.
+
+## Blocks and instances
+
+- Each `blocks` key is an instance. It installs the block named by the key, or
+  by `block`: `labels: { block: "tags" }` installs tags a second time. Rename
+  a block's nouns with `names` (`tasks: { names: { work_item: "ticket" } }`),
+  limit it to record types with `on`, and pick a dependency's instance with
+  `uses`. Never copy a block's table to get a second one.
+- Clients are keyed by instance: `defineBlocks(blockConfig, { labels: tagsBlock })`,
+  and `bsb.record(<type>Record)` from `@/lib/supabase/records/<type>` for a
+  record's timeline, actions and tags.
+- A preset can write instances too (`preset: { blocks, instances }`); your
+  own `blocks` entry for the same key wins.
 
 ## Forms and actions (Next.js)
 

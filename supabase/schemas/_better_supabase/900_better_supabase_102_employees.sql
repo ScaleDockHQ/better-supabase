@@ -767,6 +767,11 @@ $$;
 revoke execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."add_employee_contract"(uuid, jsonb) to authenticated, service_role;
 
+drop trigger if exists "bsb_search_employee_index" on "better_supabase"."employees";
+create trigger "bsb_search_employee_index"
+  after insert or delete or update of "id", "tenant_id", "name", "email", "job_title" on "better_supabase"."employees"
+  for each row execute function "better_supabase"."search_index_row"('employee', 'id');
+
 -- blocks.employees.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;

@@ -1,3 +1,4 @@
+import type { InstanceKeys } from "../config/blocks.ts";
 import type { IntegrationName } from "../config/types/tooling.ts";
 
 import { INTEGRATION_INFO, INTEGRATION_NAMES } from "../config/names.ts";
@@ -280,6 +281,19 @@ export interface Preset extends PresetConventions {
    * adds what they require.
    */
   readonly blocks: readonly string[];
+  /**
+   * `blocks` entries the preset writes: a selected block's names and options
+   * (`tasks: { names: { work_item: "ticket" } }`), or another instance of a
+   * block (`maintenance: { block: "tasks" }`).
+   */
+  readonly instances?: Readonly<Record<string, PresetInstance>>;
+}
+
+/** A `blocks` entry a preset writes, with the keys a config file uses. */
+export interface PresetInstance extends InstanceKeys {
+  readonly names?: Readonly<Record<string, string>>;
+  readonly options?: Readonly<Record<string, unknown>>;
+  readonly tables?: Readonly<Record<string, string | null>>;
 }
 
 /** Every convention at its default. */
