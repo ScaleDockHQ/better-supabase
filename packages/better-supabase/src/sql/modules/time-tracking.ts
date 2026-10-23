@@ -85,7 +85,7 @@ const NAMES: BlockSqlNames = {
     "before_timesheet_submit",
     "after_timesheet_submit",
   ],
-  options: ["subjects", "policy", "timeZone", "extraColumns"],
+  options: ["policy", "timeZone", "extraColumns"],
   tables: {
     entries: {
       name: "time_entries",

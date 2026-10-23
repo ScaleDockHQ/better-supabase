@@ -30,17 +30,14 @@ await reviews
 
 ## Who can review
 
-A product can be reviewed while it is active and either listed on a published public storefront or readable by the caller through `catalog.read`. Any other subject type must be named in `options.subjects` (or the [subject registry](/docs/blocks/sql#subject-registry)), and the reviewer must be a member of the subject's organization who can read the row.
+A product can be reviewed while it is active and either listed on a published public storefront or readable by the caller through `catalog.read`. Any other subject type must be named in `on` (or the [subject registry](/docs/blocks/sql#subject-registry)), and the reviewer must be a member of the subject's organization who can read the row.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
     reviews: {
-      options: {
-        subjects: { course: { table: "public.courses" } },
-        moderation: "post",
-        requirePurchase: true,
-      },
+      on: { course: { table: "public.courses" } },
+      options: { moderation: "post", requirePurchase: true },
     },
   },
 });
@@ -48,7 +45,6 @@ export default defineConfig({
 
 | Option            | Default | What it does                                                              |
 | ----------------- | ------- | ------------------------------------------------------------------------- |
-| `subjects`        | none    | Subject types besides `product`, each with its table                      |
 | `scale`           | `5`     | The highest rating, from 2 to 10                                          |
 | `maxBodyLength`   | `5000`  | The longest body and reply                                                |
 | `moderation`      | `pre`   | `pre` waits for `publish`; `post` publishes at once and moderators reject |

@@ -1323,7 +1323,7 @@ begin
 end;
 $$;
 
--- options.subjects with cascade: deleting a subject row deletes its notifications rows.
+-- on with cascade: deleting a subject row deletes its notifications rows.
 create or replace function "better_supabase"."notifications_subject_deleted"()
 returns trigger
 language plpgsql

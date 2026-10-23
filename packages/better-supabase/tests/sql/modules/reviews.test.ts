@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { entryOf } from "../../fixtures/block-entry.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -17,7 +18,7 @@ const sqlOf = (
 const COMMERCE = ["catalog", "orders", "reviews"];
 
 const options = (value: Record<string, unknown>): Layout => ({
-  modules: { reviews: { options: value } },
+  modules: { reviews: entryOf(value) },
 });
 
 describe("reviews module", () => {
@@ -77,7 +78,7 @@ describe("reviews module", () => {
   it("reviews registered subjects for members of their organization", () => {
     const sql = sqlOf(
       ["reviews"],
-      options({ subjects: { course: { table: "courses" } } }),
+      options({ on: { course: { table: "courses" } } }),
     );
 
     expect(sql).not.toContain("when 'product'");

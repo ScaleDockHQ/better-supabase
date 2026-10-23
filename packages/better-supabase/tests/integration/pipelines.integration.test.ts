@@ -39,31 +39,29 @@ const layout: BlockSqlLayout = {
   },
   modules: {
     pipelines: {
-      options: {
-        subjects: {
-          deal: {
-            enteredAt: "stage_entered_at",
-            amount: "amount",
-            currency: "currency",
-            probability: "probability",
-            owner: "owner_id",
-            categories: { open: "open", won: "success", lost: "failure" },
-            status: {
-              column: "outcome",
-              values: { open: "open", won: "won", lost: "lost" },
-            },
-            stages: [
-              { key: "lead", name: "Lead", category: "open", probability: 10 },
-              {
-                key: "proposal",
-                name: "Proposal",
-                category: "open",
-                probability: 50,
-              },
-              { key: "won", name: "Won", category: "won", probability: 100 },
-              { key: "lost", name: "Lost", category: "lost", probability: 0 },
-            ],
+      on: {
+        deal: {
+          enteredAt: "stage_entered_at",
+          amount: "amount",
+          currency: "currency",
+          probability: "probability",
+          owner: "owner_id",
+          categories: { open: "open", won: "success", lost: "failure" },
+          status: {
+            column: "outcome",
+            values: { open: "open", won: "won", lost: "lost" },
           },
+          stages: [
+            { key: "lead", name: "Lead", category: "open", probability: 10 },
+            {
+              key: "proposal",
+              name: "Proposal",
+              category: "open",
+              probability: 50,
+            },
+            { key: "won", name: "Won", category: "won", probability: 100 },
+            { key: "lost", name: "Lost", category: "lost", probability: 0 },
+          ],
         },
       },
     },

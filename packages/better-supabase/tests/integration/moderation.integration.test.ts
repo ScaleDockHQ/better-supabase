@@ -278,11 +278,7 @@ describe.skipIf(!live)("moderation", () => {
       await s.client.query(PROJECTS);
       await s.install(["organizations", "outbox", "moderation", "reviews"], {
         modules: {
-          reviews: {
-            options: {
-              subjects: { ticket: { table: "public.bsb_mod_tickets" } },
-            },
-          },
+          reviews: { on: { ticket: { table: "public.bsb_mod_tickets" } } },
         },
       });
       const owner = await s.user("owner");

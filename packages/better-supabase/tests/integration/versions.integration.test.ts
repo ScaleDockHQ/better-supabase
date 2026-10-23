@@ -19,16 +19,14 @@ const layout: BlockSqlLayout = {
   },
   modules: {
     versions: {
-      options: {
-        keep: 3,
-        subjects: {
-          doc: {
-            columns: ["title", "body"],
-            freeze: { column: "status", values: ["sent"] },
-          },
-          note: { columns: ["text"], auto: true },
+      on: {
+        doc: {
+          columns: ["title", "body"],
+          freeze: { column: "status", values: ["sent"] },
         },
+        note: { columns: ["text"], auto: true },
       },
+      options: { keep: 3 },
     },
   },
 };

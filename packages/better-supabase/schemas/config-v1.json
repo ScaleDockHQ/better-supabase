@@ -3729,7 +3729,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "policies": {},
               "extraColumns": {}
             }
@@ -3789,7 +3788,6 @@
                 },
                 "default": []
               },
-              "subjects": {},
               "path": {
                 "type": "string",
                 "default": "{organization_id}/attachments/{id}"
@@ -4311,7 +4309,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "topic": {
                 "type": "string",
                 "default": "documents"
@@ -4504,9 +4501,7 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {
-              "subjects": {}
-            }
+            "properties": {}
           }
         }
       },
@@ -4529,7 +4524,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "handlers": {},
               "publicLimit": {},
               "extraColumns": {}
@@ -5042,7 +5036,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "channelDefaults": {},
               "channels": {
                 "type": "array",
@@ -5291,7 +5284,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "extraColumns": {}
             }
           }
@@ -5489,7 +5481,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "topic": {
                 "type": "string",
                 "default": "reactions"
@@ -5529,7 +5520,6 @@
             "additionalProperties": false,
             "properties": {
               "kinds": {},
-              "subjects": {},
               "extraColumns": {}
             }
           }
@@ -5587,7 +5577,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "scale": {
                 "type": "number",
                 "default": 5
@@ -5782,7 +5771,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "extraColumns": {}
             }
           }
@@ -5809,7 +5797,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "extraColumns": {}
             }
           }
@@ -5840,7 +5827,6 @@
             "additionalProperties": false,
             "properties": {
               "businessHours": {},
-              "subjects": {},
               "extraColumns": {}
             }
           }
@@ -5925,7 +5911,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "extraColumns": {}
             }
           }
@@ -5987,7 +5972,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "policy": {},
               "timeZone": {
                 "type": "string",
@@ -6017,7 +6001,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "retentionDays": {
                 "type": "number",
                 "default": 30
@@ -6109,7 +6092,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "subjects": {},
               "keep": {
                 "type": "number",
                 "default": 50
@@ -6178,8 +6160,7 @@
               "secretStorage": {
                 "type": "string",
                 "default": "vault"
-              },
-              "subjects": {}
+              }
             }
           }
         }

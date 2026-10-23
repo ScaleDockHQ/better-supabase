@@ -29,11 +29,7 @@ describe.skipIf(!live)("tags", () => {
            using (better_supabase.has_organization_role(organization_id));`,
       );
       await s.install(["organizations", "tags"], {
-        modules: {
-          tags: {
-            options: { subjects: { project: { table: "bsb_test_projects" } } },
-          },
-        },
+        modules: { tags: { on: { project: { table: "bsb_test_projects" } } } },
       });
       const owner = await s.user("owner");
       const member = await s.user("member");

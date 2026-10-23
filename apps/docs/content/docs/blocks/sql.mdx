@@ -1299,8 +1299,8 @@ restore with `session_replication_role = replica`; its failures also map to
 ## Subject registry
 
 Tags, comments, attachments, reminders and the other modules that attach to
-your rows each take a `subjects` option. Declare the subject types once in
-`config.records`, and every module that you don't give its own `subjects`
+your rows take the record types they attach to from `on`. Declare the types
+once in `config.records`, and every block that you don't give its own `on`
 uses the registry.
 
 ```ts title="better-supabase.config.ts"
@@ -1337,20 +1337,20 @@ export default defineConfig({
 | `search`      | none              | `title` and `body` columns for search                                                   |
 | `rank`        | none              | The rank column and an optional group column (such as `status`) that `move` uses        |
 
-A module's own `subjects` option still works three ways:
+A block's `on` works three ways:
 
-- unset: the module uses every registered type. Modules that need a tenant
+- unset: the block uses every registered type. Blocks that need a tenant
   skip the types with `tenant: false`.
-- a list of names, `subjects: ["task"]`: the module uses those registered
-  types, and an unknown name fails `upgrade`.
-- an object: each entry merges onto the registered one, and the module's
+- a list of names, `on: ["task"]`: the block uses those registered types, and
+  an unknown name fails `gen` (doctor reports it as BS346).
+- an object: each entry merges onto the registered one, and the block's
   keys win. A type the registry lacks needs its own `table`.
 
 `webhooks-in` never falls back to the registry, because its subjects are the
 tables that inbound events write to.
 
 Subject types are lowercase letters, digits and underscores. The
-`notifications` module's own `subjects` keys may also contain hyphens
+`notifications` block's own `on` keys may also contain hyphens
 (`time-off-request`), because its `subject_type` column takes any text.
 
 The `subjects` module installs four functions in the `better_supabase`

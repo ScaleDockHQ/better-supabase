@@ -136,7 +136,7 @@ describe("subjectsOption with the registry", () => {
 
   it("takes a list of registered types", () => {
     const sql = sqlOf(["attachments"], {
-      modules: { attachments: { options: { subjects: ["note"] } } },
+      modules: { attachments: { on: ["note"] } },
     });
 
     expect(sql).toContain(`"public"."notes"`);
@@ -145,9 +145,7 @@ describe("subjectsOption with the registry", () => {
 
   it("merges an object entry onto the registered one", () => {
     const sql = sqlOf(["tags"], {
-      modules: {
-        tags: { options: { subjects: { task: { permission: "tasks.tag" } } } },
-      },
+      modules: { tags: { on: { task: { permission: "tasks.tag" } } } },
     });
 
     expect(sql).toContain(`'tasks.tag'`);
@@ -158,7 +156,7 @@ describe("subjectsOption with the registry", () => {
     expect(() =>
       renderBlocks(["tags"], {
         subjects: SUBJECTS,
-        modules: { tags: { options: { subjects: ["deal"] } } },
+        modules: { tags: { on: ["deal"] } },
       }),
     ).toThrow(/"deal" is not a subject type in config\.records/);
   });

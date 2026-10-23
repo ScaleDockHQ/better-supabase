@@ -89,7 +89,7 @@ const NAMES: BlockSqlNames = {
     "after_form_submission",
     "before_public_form_submission",
   ],
-  options: ["subjects", "handlers", "publicLimit", "extraColumns"],
+  options: ["handlers", "publicLimit", "extraColumns"],
   tables: {
     forms: {
       name: "forms",

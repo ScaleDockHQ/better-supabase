@@ -110,7 +110,7 @@ From 0.11, a subject the block takes from the registry (`config.records`)
 also takes its `upload` and `manage` keys from
 `records.<type>.permissions`. The registry's `read` stays the key for
 reading the subject itself, so set the files' `read` key in
-`blocks.attachments.options.subjects.<type>.permissions`, which also
+`blocks.attachments.on.<type>.permissions`, which also
 overrides the registry's keys one by one.
 
 Without its own keys, a subject's files follow the block-wide keys, so any

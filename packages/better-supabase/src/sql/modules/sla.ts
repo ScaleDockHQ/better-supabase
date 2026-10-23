@@ -23,6 +23,7 @@ import {
 } from "../shared.ts";
 import { subjectInTenant, subjectTenant } from "../subject-check-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { onSettings } from "../subjects.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
 import { workItemType } from "./tasks.ts";
@@ -53,7 +54,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: [],
-  options: ["businessHours", "subjects", "extraColumns"],
+  options: ["businessHours", "extraColumns"],
   tables: {
     policies: {
       name: "sla_policies",
@@ -169,16 +170,10 @@ interface SlaBinding {
 }
 
 function bindings(ctx: BlockSqlContext): readonly SlaBinding[] {
-  const raw = ctx.option("subjects") ?? {};
-
-  if (!isRecord(raw)) {
-    throw new TypeError("blocks.sla.options.subjects must be an object");
-  }
-
   const registry = registeredSubjects(ctx.subjects, ctx.naming);
 
-  return Object.entries(raw).map(([type, entry]) => {
-    const where = `blocks.sla.options.subjects.${type}`;
+  return Object.entries(onSettings(ctx)).map(([type, entry]) => {
+    const where = `blocks.${ctx.instance}.on.${type}`;
     const subject = registry.find((item) => item.type === type);
 
     if (subject?.tenant === undefined) {

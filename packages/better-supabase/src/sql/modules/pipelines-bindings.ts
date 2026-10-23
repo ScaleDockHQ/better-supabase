@@ -6,6 +6,7 @@ import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { onSettings } from "../subjects.ts";
 
 /**
  * The fixed outcomes every stage category maps to. Reports read these, never
@@ -26,7 +27,7 @@ interface StageTemplate {
   readonly probability?: number;
 }
 
-/** One `options.subjects` entry, checked against `config.records`. */
+/** One `on` entry, checked against `config.records`. */
 export interface PipelineBinding {
   readonly type: string;
   readonly subject: RegisteredSubject;
@@ -201,18 +202,13 @@ function statusOf(
 }
 
 /**
- * `options.subjects`, checked: one binding per subject type that runs on
- * pipelines.
+ * `on`, checked: one binding per subject type that runs on pipelines, next to
+ * the ones other blocks contribute.
  */
 export function pipelineBindings(
   ctx: BlockSqlContext,
 ): readonly PipelineBinding[] {
-  const configured = ctx.option("subjects") ?? {};
-
-  if (!isRecord(configured)) {
-    throw new TypeError("blocks.pipelines.options.subjects must be an object");
-  }
-
+  const configured = onSettings(ctx);
   const raw: Record<string, unknown> = {};
   const builtInSubjects: Record<string, SubjectConfig> = {};
 
@@ -240,7 +236,7 @@ export function pipelineBindings(
   );
 
   return Object.entries(raw).map(([type, entry]) => {
-    const where = `blocks.pipelines.options.subjects.${type}`;
+    const where = `blocks.${ctx.instance}.on.${type}`;
     const subject = registry.find((item) => item.type === type);
 
     if (subject === undefined) {

@@ -69,7 +69,6 @@ const EVENTS: BlockSqlEvents<NotificationsEvents> = {
 const NAMES: BlockSqlNames = {
   events: EVENTS,
   options: [
-    "subjects",
     "channelDefaults",
     "channels",
     "createdEvent",
@@ -641,10 +640,10 @@ $$;`;
 }
 
 /**
- * `options.subjects` with `cascade: true`: deleting a subject row deletes its
- * notifications (recipients and deliveries follow by foreign key) and the
- * subscriptions to it. The deletes match the subject's tenant too, so they use
- * indexes that lead with the tenant column.
+ * `on` with `cascade: true`: deleting a subject row deletes its notifications
+ * (recipients and deliveries follow by foreign key) and the subscriptions to
+ * it. The deletes match the subject's tenant too, so they use indexes that lead
+ * with the tenant column.
  */
 function subjectCleanup(ctx: BlockSqlContext, n: NotifyNames): string {
   const subjects = subjectsOption(ctx, [], { tenantless: true, hyphens: true });
@@ -655,7 +654,7 @@ function subjectCleanup(ctx: BlockSqlContext, n: NotifyNames): string {
 
   if (!n.has("events", "subjectType") || !n.has("events", "subjectId")) {
     throw new TypeError(
-      "blocks.notifications.options.subjects with cascade needs the subjectType and subjectId columns of the events table",
+      "blocks.notifications.on with cascade needs the subjectType and subjectId columns of the events table",
     );
   }
 

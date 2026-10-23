@@ -552,7 +552,7 @@ begin
 end;
 $do$;
 
--- options.subjects with cascade: deleting a subject row deletes its reactions rows.
+-- on with cascade: deleting a subject row deletes its reactions rows.
 create or replace function "better_supabase"."reactions_subject_deleted"()
 returns trigger
 language plpgsql

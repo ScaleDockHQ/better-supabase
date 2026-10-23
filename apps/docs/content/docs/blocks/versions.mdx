@@ -33,16 +33,16 @@ subjects: {
 },
 blocks: {
   versions: {
+    on: {
+      quote: {
+        columns: ["title", "lines", "total"],
+        freeze: { column: "status", values: ["sent", "accepted"] },
+      },
+      page: { columns: ["body"], auto: true, apply: "public.apply_page_version" },
+    },
     options: {
       keep: 50,
       debounce: 300,
-      subjects: {
-        quote: {
-          columns: ["title", "lines", "total"],
-          freeze: { column: "status", values: ["sent", "accepted"] },
-        },
-        page: { columns: ["body"], auto: true, apply: "public.apply_page_version" },
-      },
     },
   },
 },

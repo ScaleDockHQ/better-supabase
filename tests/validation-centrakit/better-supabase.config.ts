@@ -357,16 +357,14 @@ export default defineConfig({
       columns: { tags: { rank: null } },
       // CentraKit's provider has no apply permission; tagging needs manage.
       permissions: { apply: "tags.manage" },
-      options: {
-        subjects: {
-          task: {
-            table: "centrakit.tasks",
-            kinds: ["task"],
-            links: {
-              table: "centrakit.task_tags",
-              subject: "task_id",
-              tag: "tag_id",
-            },
+      on: {
+        task: {
+          table: "centrakit.tasks",
+          kinds: ["task"],
+          links: {
+            table: "centrakit.task_tags",
+            subject: "task_id",
+            tag: "tag_id",
           },
         },
       },
@@ -448,20 +446,18 @@ export default defineConfig({
       },
     },
     attachments: {
-      options: {
-        subjects: {
-          task: { table: "centrakit.tasks", idType: "uuid", cascade: true },
-          project: {
-            table: "centrakit.projects",
-            idType: "uuid",
-            scope: "project",
-          },
-          // centrakit.customers checks crm.read, not tenant membership (BS345).
-          customer: {
-            table: "centrakit.customers",
-            idType: "bigint",
-            permissions: { read: "crm.read", upload: "crm.read" },
-          },
+      on: {
+        task: { table: "centrakit.tasks", idType: "uuid", cascade: true },
+        project: {
+          table: "centrakit.projects",
+          idType: "uuid",
+          scope: "project",
+        },
+        // centrakit.customers checks crm.read, not tenant membership (BS345).
+        customer: {
+          table: "centrakit.customers",
+          idType: "bigint",
+          permissions: { read: "crm.read", upload: "crm.read" },
         },
       },
     },

@@ -30,7 +30,7 @@ const layout: BlockSqlLayout = {
   subjects: withBlockSubjects({}, ["contacts", "deals"], {}),
   modules: {
     "field-history": {
-      options: { subjects: { deal: ["amount", "forecast_category"] } },
+      on: { deal: { fields: ["amount", "forecast_category"] } },
     },
   },
 };

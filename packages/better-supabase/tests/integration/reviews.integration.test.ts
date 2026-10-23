@@ -46,10 +46,8 @@ const layout = (reviews: object = {}): BlockSqlLayout => ({
       },
     },
     reviews: {
-      options: {
-        subjects: { ticket: { table: "public.tickets" } },
-        ...reviews,
-      },
+      on: { ticket: { table: "public.tickets" } },
+      options: { ...reviews },
     },
   },
 });

@@ -3,12 +3,15 @@ import { describe, expect, it } from "vitest";
 import { withBlockSubjects } from "../../../src/config/block-subjects.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
+import { entryOf } from "../../fixtures/block-entry.ts";
 
 const sqlOf = (
   names: readonly string[],
   options?: Readonly<Record<string, unknown>>,
 ): string =>
-  renderBlocks(names, { modules: options ? { attachments: { options } } : {} })
+  renderBlocks(names, {
+    modules: options ? { attachments: entryOf(options) } : {},
+  })
     .filter((file) => file.module === "attachments")
     .map((file) => file.contents)
     .join("\n");
@@ -61,7 +64,7 @@ describe("attachments module", () => {
 
   it("lets a subject without a tenant decide its files' access", () => {
     const sql = sqlOf(["attachments"], {
-      subjects: { note: { table: "notes", tenant: false } },
+      on: { note: { table: "notes", tenant: false } },
     });
 
     expect(sql).toContain(
@@ -78,9 +81,7 @@ describe("attachments module", () => {
     expect(() =>
       renderBlocks(["reactions"], {
         modules: {
-          reactions: {
-            options: { subjects: { note: { table: "notes", tenant: false } } },
-          },
+          reactions: { on: { note: { table: "notes", tenant: false } } },
         },
       }),
     ).toThrow(/tenant can't be false/);
@@ -88,7 +89,7 @@ describe("attachments module", () => {
 
   it("takes keys per subject type and checks a subject record's provider scope", () => {
     const sql = sqlOf(["attachments"], {
-      subjects: {
+      on: {
         contract: {
           table: "contracts",
           permissions: { read: "contracts.read", upload: "contracts.edit" },
@@ -107,7 +108,7 @@ describe("attachments module", () => {
     );
     expect(() =>
       sqlOf(["attachments"], {
-        subjects: { contract: { table: "c", permissions: { write: "x" } } },
+        on: { contract: { table: "c", permissions: { write: "x" } } },
       }),
     ).toThrow(/use read, upload and manage/);
 
@@ -115,9 +116,7 @@ describe("attachments module", () => {
       modules: {
         permissions: { model: "provider" },
         attachments: {
-          options: {
-            subjects: { project: { table: "projects", scope: "project" } },
-          },
+          on: { project: { table: "projects", scope: "project" } },
         },
       },
       accessProvider: moduleProvider,
@@ -137,9 +136,7 @@ describe("attachments module", () => {
       renderBlocks(["attachments"], {
         modules: {
           ...(provider ? { permissions: { model: "provider" } } : {}),
-          attachments: {
-            options: { subjects: { project: { table: "projects", scope } } },
-          },
+          attachments: { on: { project: { table: "projects", scope } } },
         },
         ...(provider ? { accessProvider: moduleProvider } : {}),
       });
@@ -167,7 +164,7 @@ describe("attachments module", () => {
             },
           },
         },
-        modules: options ? { attachments: { options } } : {},
+        modules: options ? { attachments: entryOf(options) } : {},
       })
         .filter((file) => file.module === "attachments")
         .map((file) => file.contents)
@@ -184,7 +181,7 @@ describe("attachments module", () => {
     );
 
     const overridden = render({
-      subjects: {
+      on: {
         contract: {
           table: "contracts",
           permissions: { upload: "contracts.upload" },
@@ -217,7 +214,7 @@ describe("attachments module", () => {
     const sql = sqlOf(["attachments"], {
       bucket: "ai",
       scanBuckets: ["x"],
-      subjects: { note: { table: "notes", bucket: "files.v2" } },
+      on: { note: { table: "notes", bucket: "files.v2" } },
     });
 
     expect(sql).toContain("'ai'");
@@ -231,7 +228,7 @@ describe("attachments module", () => {
   it("checks the subject on storage reads when files have subjects", () => {
     const visible = `"better_supabase"."attachment_object_visible"(bucket_id, name)`;
     expect(
-      sqlOf(["attachments"], { subjects: { receipt: { table: "receipts" } } }),
+      sqlOf(["attachments"], { on: { receipt: { table: "receipts" } } }),
     ).toMatch(
       new RegExp(
         `for select to authenticated\\n  using \\([^\\n]*'select'\\) and ${visible.replaceAll(/[.()"]/g, "\\$&")}\\);`,
@@ -244,7 +241,7 @@ describe("attachments module", () => {
     const sql = sqlOf(["attachments"], {
       path: "{organization_id}/{subject_type}/{id}",
       scanBuckets: ["files"],
-      subjects: {
+      on: {
         receipt: {
           table: "receipts",
           bucket: "expenses",
@@ -285,9 +282,9 @@ describe("attachments module", () => {
       ],
       [{ path: "{organization_id}/a b/{id}" }, /may hold letters/],
       [{ scanBuckets: ["Bad Bucket"] }, /is not a bucket id/],
-      [{ subjects: { r: { table: "r", bucket: "B" } } }, /bucket must be/],
+      [{ on: { r: { table: "r", bucket: "B" } } }, /bucket must be/],
       [
-        { subjects: { r: { table: "r", allowedMimeTypes: "x" } } },
+        { on: { r: { table: "r", allowedMimeTypes: "x" } } },
         /allowedMimeTypes must be/,
       ],
     ] as const) {

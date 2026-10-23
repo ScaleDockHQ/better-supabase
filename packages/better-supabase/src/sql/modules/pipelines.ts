@@ -76,7 +76,7 @@ const NAMES: BlockSqlNames = {
     "before_pipeline_stage_change",
     "after_pipeline_stage_change",
   ],
-  options: ["subjects", "extraColumns"],
+  options: ["extraColumns"],
   tables: {
     pipelines: {
       name: "pipelines",

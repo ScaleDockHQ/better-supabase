@@ -66,7 +66,7 @@ export interface PipelineContribution {
   readonly type: string;
   /** The qualified table its records live in. */
   readonly table: string;
-  /** The binding; an app's own `options.subjects` entry is merged over it. */
+  /** The binding; an app's own `on` entry is merged over it. */
   readonly entry: Readonly<Record<string, unknown>>;
 }
 

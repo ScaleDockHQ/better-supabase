@@ -1,7 +1,7 @@
 /**
  * One entity the app's blocks attach to (`subjects.<type>`): a task, a
  * customer, a document. Every subject-bound SQL module reads these entries
- * unless its own `options.subjects` says otherwise. ADR 0020.
+ * unless its own `on` says otherwise. ADR 0020.
  */
 export interface SubjectConfig {
   /** `schema.table`, or a table in `public`. */

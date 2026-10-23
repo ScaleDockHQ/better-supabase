@@ -195,13 +195,13 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
     });
 
   // An endpoint names a subject only when the app asks for it, so the
-  // registry applies to the types options.subjects lists.
+  // registry applies to the types on lists.
   const subjects = subjectsOption(ctx, [], { fallback: false });
   const subjectColumns = has("subjectType") && has("subjectId");
 
   if (subjects.length > 0 && !subjectColumns) {
     throw new TypeError(
-      "blocks.webhooks-in.options.subjects needs the subjectType and subjectId columns of the endpoints table",
+      "blocks.webhooks-in.on needs the subjectType and subjectId columns of the endpoints table",
     );
   }
 
@@ -890,7 +890,7 @@ export const WEBHOOKS_IN: BlockSqlDefinition = {
         },
       },
     },
-    options: ["maxBodyBytes", "secretStorage", "subjects"],
+    options: ["maxBodyBytes", "secretStorage"],
   },
   version: 4,
   upgrades: [

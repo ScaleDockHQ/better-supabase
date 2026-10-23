@@ -292,11 +292,11 @@ export default defineConfig({
     // Old and new values of a deal's amount, stage, owner and close date,
     // and a company's owner and lifecycle stage.
     "field-history": {
-      options: {
-        subjects: {
-          deal: ["amount", "stage_id", "owner_user_id", "expected_close_on"],
-          company: ["owner_user_id", "lifecycle"],
+      on: {
+        deal: {
+          fields: ["amount", "stage_id", "owner_user_id", "expected_close_on"],
         },
+        company: { fields: ["owner_user_id", "lifecycle"] },
       },
     },
     // Tags on customers, edited with the tag input on the customer page. The
@@ -489,9 +489,7 @@ export default defineConfig({
     reminders: {},
     "drive-files": {},
     drive: {},
-    versions: {
-      options: { subjects: { customer: { columns: ["name", "kvk"] } } },
-    },
+    versions: { on: { customer: { columns: ["name", "kvk"] } } },
     "jsonb-schemas": {},
     forms: {},
     imports: {},

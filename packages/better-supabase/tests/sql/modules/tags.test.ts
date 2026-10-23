@@ -16,15 +16,13 @@ describe("tags module", () => {
         tags: {
           mode: "adopt",
           tables: { tags: "public.organization_tags", taggings: null },
-          options: {
-            subjects: {
-              task: {
-                table: "public.tasks",
-                links: {
-                  table: "public.task_tags",
-                  subject: "task_id",
-                  tag: "tag_id",
-                },
+          on: {
+            task: {
+              table: "public.tasks",
+              links: {
+                table: "public.task_tags",
+                subject: "task_id",
+                tag: "tag_id",
               },
             },
           },
@@ -88,18 +86,16 @@ describe("tags module", () => {
           mode: "adopt",
           tables: { tags: "public.labels", taggings: null },
           columns: { tags: { rank: null } },
-          options: {
-            subjects: {
-              task: {
-                table: "public.tasks",
-                kinds: ["label", "topic"],
-                links: {
-                  table: "public.task_labels",
-                  subject: "task_id",
-                  tag: "label_id",
-                  tenant: "org_id",
-                  createdAt: "linked_at",
-                },
+          on: {
+            task: {
+              table: "public.tasks",
+              kinds: ["label", "topic"],
+              links: {
+                table: "public.task_labels",
+                subject: "task_id",
+                tag: "label_id",
+                tenant: "org_id",
+                createdAt: "linked_at",
               },
             },
           },
@@ -123,11 +119,7 @@ describe("tags module", () => {
   ])("rejects kinds given as %s", (_name, kinds) => {
     expect(() =>
       sqlOf({
-        modules: {
-          tags: {
-            options: { subjects: { task: { table: "public.tasks", kinds } } },
-          },
-        },
+        modules: { tags: { on: { task: { table: "public.tasks", kinds } } } },
       }),
     ).toThrow("kinds must be a list of strings");
   });

@@ -1823,7 +1823,7 @@ begin
 end;
 $do$;
 
--- options.subjects with cascade: deleting a subject row deletes its documents rows.
+-- on with cascade: deleting a subject row deletes its documents rows.
 create or replace function "better_supabase"."documents_subject_deleted"()
 returns trigger
 language plpgsql

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { moduleBody } from "../../src/sql/render.ts";
 import { moduleProvider } from "../fixtures/authorization-provider.ts";
+import { entryOf } from "../fixtures/block-entry.ts";
 
 /**
  * The SQL hooks each extensible block calls around its writes, named
@@ -175,12 +176,10 @@ const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
       { key: "orders", table: "orders", measure: "count", timeColumn: "at" },
     ],
   },
-  pipelines: {
-    subjects: { deal: { categories: { open: "open", won: "success" } } },
-  },
+  pipelines: { on: { deal: { categories: { open: "open", won: "success" } } } },
 };
 
-/** The `config.subjects` entries a module's options above name. */
+/** The `config.subjects` entries the entries above name. */
 const SUBJECTS = { deal: { table: "public.deals" } };
 
 const NAMING = /^(before|after)_[a-z]+(_[a-z]+)*$/;
@@ -194,7 +193,7 @@ describe.each(Object.entries(REQUIRED))(
       modules:
         OPTIONS[module] === undefined
           ? {}
-          : { [module]: { options: OPTIONS[module] } },
+          : { [module]: entryOf(OPTIONS[module]) },
       subjects: SUBJECTS,
       accessProvider: moduleProvider,
     });

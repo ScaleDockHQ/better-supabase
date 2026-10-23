@@ -3,6 +3,7 @@ import type {
   BlockMode,
   AnyBlocksConfig,
   BlockScope,
+  InstanceOn,
   ResolvedBlock,
 } from "../config/blocks.ts";
 import type { ResolvedInstance } from "../config/instances.ts";
@@ -330,6 +331,11 @@ export interface BlockSqlContext {
    * instance that installs the module under another name.
    */
   readonly instance: string;
+  /**
+   * `blocks.<instance>.on`: the record types the instance attaches to, as a
+   * list or keyed by type with settings. Unset, it attaches to every one.
+   */
+  readonly on: InstanceOn | undefined;
   readonly mode: BlockMode;
   readonly config: ResolvedBlock;
   /** The quoted schema of the module's functions and managed tables. */
@@ -749,6 +755,12 @@ export function createModuleContext(
   const declared = new Set(names.options);
 
   for (const key of Object.keys(config.options)) {
+    if (key === "subjects") {
+      throw new TypeError(
+        `${where}.options.subjects moved to ${where}.on. Run \`better-supabase upgrade\` to move it.`,
+      );
+    }
+
     if (!declared.has(key)) {
       throw new TypeError(
         `${where}.options: unknown option "${key}". Options: ${[...declared].join(", ") || "none"}`,
@@ -1160,6 +1172,7 @@ export function createModuleContext(
   const context: BlockSqlContext = {
     module,
     instance,
+    on: modules[module]?.on,
     mode: config.mode,
     config,
     schema,

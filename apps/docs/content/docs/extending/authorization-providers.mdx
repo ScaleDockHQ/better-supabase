@@ -48,7 +48,7 @@ instead of calling it with defaults. See the
 | `blocks.permissions.model: "provider"`                                                     | `can()` and the modules' checks call `functions`, at `tenantScope`                |
 | `auth.entitlements.memberships: "provider"`                                                | `has_entitlement` and `entitlement_members()` call `memberIds` and `memberIdsFor` |
 | Bucket and topic `access` policies with `sql`                                              | the `idsWith` and `isPlatform` templates, for any scope in `scopes`               |
-| `options.subjects.<type>.scope` in attachments and comments                                | `idsWith` at that scope, for grants on a single record                            |
+| `on.<type>.scope` in attachments and comments                                              | `idsWith` at that scope, for grants on a single record                            |
 | [API keys](/docs/blocks/api-keys) with `claim`                                             | nothing at runtime; the claim names follow the provider's functions               |
 | `better-supabase add memberships`                                                          | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)      |
 | `better-supabase gen`                                                                      | refuses a bucket or topic key that isn't `sqlComplete: true`                      |

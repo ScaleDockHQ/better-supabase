@@ -94,7 +94,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_relation_link", "after_relation_link"],
-  options: ["kinds", "subjects", "extraColumns"],
+  options: ["kinds", "extraColumns"],
   tables: {
     relations: {
       name: "relations",

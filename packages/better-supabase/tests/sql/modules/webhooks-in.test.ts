@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { modulePermissionKeys } from "../../../src/sql/introspect.ts";
 import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody } from "../../../src/sql/render.ts";
+import { entryOf } from "../../fixtures/block-entry.ts";
 
 describe("webhooks-in module", () => {
   it("stores hashed tokens, hides secrets and checks the access contract", () => {
@@ -203,7 +204,7 @@ describe("webhooks-in module", () => {
               ...columns,
             },
           },
-          options,
+          ...entryOf(options),
         },
       },
     })!;
@@ -237,7 +238,7 @@ describe("webhooks-in module", () => {
       }),
     ).toThrow(/ownership "adopt"/);
     expect(() =>
-      adopted({}, { subjects: { project: { table: "public.projects" } } }),
+      adopted({}, { on: { project: { table: "public.projects" } } }),
     ).toThrow(/subjectType and subjectId/);
     expect(() => adopted({ secretId: null })).toThrow(/secretId/);
     expect(

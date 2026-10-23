@@ -30,7 +30,7 @@ const MODULES = [
 const layoutFor = (signer: string): BlockSqlLayout => ({
   subjects: { contract: { table: "signatures_it.contracts", idType: "uuid" } },
   modules: {
-    versions: { options: { subjects: { contract: { columns: ["body"] } } } },
+    versions: { on: { contract: { columns: ["body"] } } },
     approvals: {
       options: {
         policies: {

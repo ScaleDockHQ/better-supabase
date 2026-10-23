@@ -71,7 +71,7 @@ export interface Version<F extends object = Record<never, never>> {
 export interface SnapshotInput<F extends object = Record<never, never>> {
   /**
    * The content to keep. Leave it out to copy the subject's `columns`
-   * (`blocks.versions.options.subjects.<type>.columns`).
+   * (`blocks.versions.on.<type>.columns`).
    */
   readonly content?: JsonValue;
   readonly label?: string;

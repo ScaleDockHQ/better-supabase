@@ -36,20 +36,20 @@ const layout: BlockSqlLayout = {
   },
   modules: {
     sla: {
+      on: {
+        ticket: {
+          status: "status",
+          priority: "priority",
+          pause: ["waiting"],
+          resolve: ["solved", "closed"],
+        },
+      },
       options: {
         businessHours: {
           timeZone: "Europe/Amsterdam",
           start: "09:00",
           end: "17:00",
           days: [1, 2, 3, 4, 5],
-        },
-        subjects: {
-          ticket: {
-            status: "status",
-            priority: "priority",
-            pause: ["waiting"],
-            resolve: ["solved", "closed"],
-          },
         },
       },
     },

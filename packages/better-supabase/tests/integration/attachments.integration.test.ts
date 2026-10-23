@@ -364,11 +364,8 @@ describe.skipIf(!live)("attachments", () => {
       await s.install(["organizations", "attachments"], {
         modules: {
           attachments: {
-            options: {
-              bucket: BUCKET,
-              requireScan: false,
-              subjects: { case: { table: "bsb_test_cases" } },
-            },
+            on: { case: { table: "bsb_test_cases" } },
+            options: { bucket: BUCKET, requireScan: false },
           },
         },
       });
@@ -445,11 +442,8 @@ describe.skipIf(!live)("attachments", () => {
       await s.install(["organizations", "attachments"], {
         modules: {
           attachments: {
-            options: {
-              bucket: BUCKET,
-              requireScan: false,
-              subjects: { note: { table: "bsb_test_notes", tenant: false } },
-            },
+            on: { note: { table: "bsb_test_notes", tenant: false } },
+            options: { bucket: BUCKET, requireScan: false },
           },
         },
       });
@@ -538,18 +532,18 @@ describe.skipIf(!live)("attachments", () => {
       await s.install(["organizations", "outbox", "attachments"], {
         modules: {
           attachments: {
+            on: {
+              ticket: {
+                table: "bsb_test_tickets",
+                bucket: DOCS,
+                allowedMimeTypes: ["application/pdf"],
+                cascade: true,
+              },
+            },
             options: {
               bucket: BUCKET,
               path: "{organization_id}/{subject_type}/{subject_id}/{id}",
               scanBuckets: [DRIVE],
-              subjects: {
-                ticket: {
-                  table: "bsb_test_tickets",
-                  bucket: DOCS,
-                  allowedMimeTypes: ["application/pdf"],
-                  cascade: true,
-                },
-              },
             },
           },
         },

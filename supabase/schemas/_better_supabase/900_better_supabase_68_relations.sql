@@ -648,7 +648,7 @@ $$;
 revoke execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) from public, anon;
 grant execute on function "better_supabase"."relation_rollup"(uuid, text, text, text, text, text, text) to authenticated, service_role;
 
--- options.subjects with cascade: deleting a subject row deletes its relations rows.
+-- on with cascade: deleting a subject row deletes its relations rows.
 create or replace function "better_supabase"."relations_subject_deleted"()
 returns trigger
 language plpgsql

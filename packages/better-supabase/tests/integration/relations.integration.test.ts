@@ -17,11 +17,7 @@ const layout: BlockSqlLayout = {
   modules: {
     relations: {
       schema: "rel_it",
-      options: {
-        subjects: {
-          task: { table: "rel_it.tasks", idType: "uuid", cascade: true },
-        },
-      },
+      on: { task: { table: "rel_it.tasks", idType: "uuid", cascade: true } },
     },
   },
 };

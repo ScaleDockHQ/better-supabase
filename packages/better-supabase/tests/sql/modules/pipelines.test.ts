@@ -35,7 +35,8 @@ const render = (
     subjects: SUBJECTS,
     modules: {
       ...layout.modules,
-      pipelines: { ...layout.modules?.["pipelines"], options: { subjects } },
+      // SAFETY: the rejection cases pass malformed values on purpose.
+      pipelines: { ...layout.modules?.["pipelines"], on: subjects as never },
     },
   })
     .filter((file) => file.module === "pipelines")
@@ -181,7 +182,7 @@ describe("pipelines module, other layouts", () => {
     const sql = renderBlocks(["pipelines", "notifications"], {
       subjects: SUBJECTS,
       modules: {
-        pipelines: { options: { subjects: { deal: DEAL } } },
+        pipelines: { on: { deal: DEAL } },
         notifications: { tables: { subscriptions: null } },
       },
     })

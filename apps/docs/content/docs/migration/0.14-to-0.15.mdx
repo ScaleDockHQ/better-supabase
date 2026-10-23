@@ -326,3 +326,25 @@ Run `better-supabase upgrade`, then `better-supabase db diff` to write the
 migration; the functions change only in the order of their `case` branches.
 A second instance contributes only when its `uses` names the generic
 instance. See [Contributions](/docs/blocks#contributions).
+
+## Blocks attach to record types through on
+
+The blocks that took `options.subjects` (`attachments`, `tags`, `versions`,
+`trash`, `sla`, `pipelines` and the others) read `on` on the block entry
+instead. `better-supabase upgrade` moves the value; `field-history` lists also
+become `{ fields }`:
+
+```ts title="better-supabase.config.ts"
+// Before
+"field-history": { options: { subjects: { deal: ["amount"] } } },
+tags: { options: { subjects: ["deal"] } },
+// After
+"field-history": { on: { deal: { fields: ["amount"] } } },
+tags: { on: ["deal"] },
+```
+
+A config that still sets `options.subjects` fails to render with the key to
+move. An unset `on` still means every type in `config.records`, and doctor
+(BS346) reports a type in `on` that `config.records` doesn't register. The
+rendered SQL changes only in its comments. See
+[Record types](/docs/blocks#record-types).

@@ -108,7 +108,7 @@ export interface CreateIncomingWebhookInput {
    * `x-signature`.
    */
   readonly signatureHeader?: string;
-  /** The record the endpoint belongs to, a type from `options.subjects`. */
+  /** The record the endpoint belongs to, a type from `on`. */
   readonly subject?: { readonly type: string; readonly id: string };
 }
 

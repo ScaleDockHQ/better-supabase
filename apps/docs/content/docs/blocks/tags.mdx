@@ -147,13 +147,11 @@ Tags run in every [scope](/docs/blocks/sql#scope-and-naming). In `user` scope ea
 tags: {
   ownership: "adopt",
   tables: { tags: "public.organization_tags" },
-  options: {
-    subjects: {
-      task: {
-        table: "public.tasks",
-        kinds: ["task"],
-        links: { table: "public.task_tags", subject: "task_id", tag: "tag_id" },
-      },
+  on: {
+    task: {
+      table: "public.tasks",
+      kinds: ["task"],
+      links: { table: "public.task_tags", subject: "task_id", tag: "tag_id" },
     },
   },
 },

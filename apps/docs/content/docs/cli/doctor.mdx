@@ -1282,9 +1282,17 @@ count against `upload`. A subject with its own read key (`permission`, or
 `permissions.read` in the registry) passes for `read`, since the block checks
 that key on top of `attachments.read`.
 Set `subjects.<type>.permissions.upload` in the registry, or
-`blocks.attachments.options.subjects.<type>.permissions` for `read`, to the
-keys the table checks. See
+`blocks.attachments.on.<type>.permissions` for `read`, to the keys the table
+checks. See
 [permissions per subject](/docs/blocks/attachments#permissions-per-subject).
+
+### BS346
+
+**Warning: block on names an unknown record type.** A block entry's `on`
+lists a type, or has a key, that `config.records` doesn't register. The
+block's SQL refuses such a type when `gen` renders the migration, so doctor
+reports it first. Register the type in `config.records`, or remove it from
+`on`. See [record types](/docs/blocks#record-types).
 
 ## Auth config
 

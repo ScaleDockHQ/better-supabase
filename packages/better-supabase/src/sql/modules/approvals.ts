@@ -92,7 +92,7 @@ const NAMES: BlockSqlNames = {
     "before_approval_decide",
     "after_approval_decide",
   ],
-  options: ["subjects", "policies", "extraColumns"],
+  options: ["policies", "extraColumns"],
   tables: {
     requests: {
       name: "approval_requests",
