@@ -167,40 +167,48 @@ export const ADOPTION_RULES: readonly Rule[] = [
   {
     code: "BS342",
     severity: "error",
-    title: "Adopted enum column the module writes as text",
+    title: "Enum column of the app's that a module writes as text",
     description:
-      "A module in adopt mode writes a text parameter or computed text value into a column the snapshot declares as an enum; string literals are fine. Postgres has no implicit cast from text to an enum, so the module's functions fail when they run. Columns the module casts to their declared type, such as the tags `kind` and the numbering `entity`, may be enums.",
+      "A module writes a text parameter or computed text value into a column of the app's table that the snapshot declares as an enum; string literals are fine. Postgres has no implicit cast from text to an enum, so the module's functions fail when they run. Columns the module casts to their declared type, such as the tags `kind` and the numbering `entity`, may be enums.",
     check: (context) => {
       const { tables } = catalogOf(context);
 
-      return adoptedTables(context.config.blocks).flatMap((adopted) => {
-        const table = tables.find(
-          (entry) =>
-            entry.schema === adopted.schema && entry.name === adopted.table,
-        );
+      // Every table the database has may be the app's; a table a block
+      // created has text columns, so it never reports here.
+      const ownTables = Object.fromEntries(
+        tables.map((table) => [qualified(table), "database"]),
+      );
 
-        if (table === undefined) {
-          return [];
-        }
+      return adoptedTables(context.config.blocks, ownTables).flatMap(
+        (adopted) => {
+          const table = tables.find(
+            (entry) =>
+              entry.schema === adopted.schema && entry.name === adopted.table,
+          );
 
-        return adopted.textColumns.flatMap((logical): FindingInput[] => {
-          const name = adopted.columns[logical];
-          const column = table.columns.find((entry) => entry.name === name);
-
-          if (column?.isEnum !== true || column.isArray) {
+          if (table === undefined) {
             return [];
           }
 
-          const target = `${qualified(table)}.${column.name}`;
+          return adopted.textColumns.flatMap((logical): FindingInput[] => {
+            const name = adopted.columns[logical];
+            const column = table.columns.find((entry) => entry.name === name);
 
-          return [
-            {
-              message: `blocks.${adopted.module} is in adopt mode and writes text into ${target} (${adopted.logical}.${logical}), which is the enum ${column.typeSchema}.${column.udt}. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.`,
-              target,
-            },
-          ];
-        });
-      });
+            if (column?.isEnum !== true || column.isArray) {
+              return [];
+            }
+
+            const target = `${qualified(table)}.${column.name}`;
+
+            return [
+              {
+                message: `blocks.${adopted.module} writes text into ${target} (${adopted.logical}.${logical}), which is the enum ${column.typeSchema}.${column.udt}. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.`,
+                target,
+              },
+            ];
+          });
+        },
+      );
     },
   },
   {

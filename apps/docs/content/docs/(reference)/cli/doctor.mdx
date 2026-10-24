@@ -1232,9 +1232,10 @@ exports with `export: false` or `autoTables.exclude`, or set
 
 ### BS342
 
-**Error: an adopted enum column that the module writes as text.** A module
-in adopt mode writes a text parameter or a computed text value into a column
-that the snapshot declares as an enum; string literals are fine. Postgres has
+**Error: an enum column of the app's that a module writes as text.** A
+module writes a text parameter or a computed text value into a column of a
+table the app already has, and the snapshot declares that column as an enum;
+string literals are fine. Postgres has
 no implicit cast from text to an enum, so the module's functions fail when
 they run. Change the column to text with a check constraint on its values.
 The columns the module casts to their declared type may stay enums: the tags

@@ -127,10 +127,13 @@ export async function moduleLayoutFor(
     ).map((module) => module.name),
   );
 
+  const own = await ownLayout(config);
+
   const adopted = adoptedColumnProblems(
     config.blocks,
     await declarativeTexts(config),
     config.schemas,
+    own.ownTables,
   );
 
   if (adopted.length > 0) {
@@ -204,7 +207,7 @@ export async function moduleLayoutFor(
           ),
         }
       : {}),
-    ...(await ownLayout(config)),
+    ...own,
   };
 }
 

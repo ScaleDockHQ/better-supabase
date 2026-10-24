@@ -185,8 +185,28 @@ create table public.app_events (
         ["public"],
       ),
     ).toEqual([
-      "blocks.outbox is in adopt mode and writes text into public.app_events.type (events.type), which is the enum public.tag_kind. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.",
+      "blocks.outbox writes text into public.app_events.type (events.type), which is the enum public.tag_kind. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.",
     ]);
+
+    expect(
+      adoptedColumnProblems(
+        { outbox: { tables: { events: "public.app_events" } } },
+        files,
+        ["public"],
+        { "public.app_events": "supabase/schemas/events.sql" },
+      ),
+    ).toEqual([
+      "blocks.outbox writes text into public.app_events.type (events.type), which is the enum public.tag_kind. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.",
+    ]);
+
+    expect(
+      adoptedColumnProblems(
+        { tags: { tables: { tags: "public.org_tags" } } },
+        files,
+        ["public"],
+        { "public.org_tags": "supabase/schemas/tags.sql" },
+      ),
+    ).toEqual([]);
   });
 
   it("lists the text columns each adopted table takes without a cast", () => {

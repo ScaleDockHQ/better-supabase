@@ -1,4 +1,6 @@
 import type { AnyBlocksConfig } from "../config/blocks.ts";
+import type { BlockSqlContext } from "./context.ts";
+import type { BlockSqlLayout } from "./module-types.ts";
 
 import { moduleContext } from "./module-context.ts";
 import { SQL_MODULES } from "./registry.ts";
@@ -11,7 +13,10 @@ import {
 } from "./schema-scan.ts";
 import { computedWrites } from "./text-writes.ts";
 
-/** A table an adopt-mode module reads and writes, with the columns it uses. */
+/**
+ * A table of the app's that a module reads and writes (in adopt mode, or one
+ * `ownTables` lists), with the columns it uses.
+ */
 export interface AdoptedTable {
   readonly module: string;
   readonly logical: string;
@@ -21,7 +26,7 @@ export interface AdoptedTable {
   readonly columns: Readonly<Record<string, string>>;
   /**
    * Logical text columns a module writes a computed value into without
-   * `ctx.cast`, so the adopted column must take a text value: an enum there
+   * `ctx.cast`, so the app's column must take a text value: an enum there
    * fails. Columns written only with string literals are left out.
    */
   readonly textColumns: readonly string[];
@@ -49,10 +54,18 @@ function defaultWrites(): ReadonlyMap<string, ReadonlySet<string>> {
 
 function configuredWrites(
   modules: AnyBlocksConfig,
+  ownTables: Readonly<Record<string, string>> | undefined,
 ): ReadonlyMap<string, ReadonlySet<string>> {
   return computedWrites(
     Object.keys(modules)
-      .map((name) => rendered(() => moduleBody(name, { modules })))
+      .map((name) =>
+        rendered(() =>
+          moduleBody(name, {
+            modules,
+            ...(ownTables === undefined ? {} : { ownTables }),
+          }),
+        ),
+      )
       .join("\n"),
   );
 }
@@ -112,41 +125,73 @@ function managedTextColumns(
 }
 
 /**
- * Every table the adopt-mode modules in `modules` use, with the columns their
- * SQL names: mapped to `null` and unused optional columns are left out.
+ * A module's context. An adopted module's context throws on what it refuses; a
+ * managed one's problems are reported when it renders, so it has none here.
+ */
+function contextOf(
+  name: string,
+  layout: BlockSqlLayout & { readonly modules: AnyBlocksConfig },
+  adopted: boolean,
+): BlockSqlContext | undefined {
+  const installed = Object.keys(layout.modules);
+
+  if (adopted) {
+    return moduleContext(name, layout, installed);
+  }
+
+  try {
+    return moduleContext(name, layout, installed);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Every table of the app's that the modules in `modules` use, in adopt mode or
+ * because `ownTables` lists it, with the columns their SQL names: mapped to
+ * `null` and unused optional columns are left out.
  */
 export function adoptedTables(
   modules: AnyBlocksConfig,
+  ownTables?: Readonly<Record<string, string>>,
 ): readonly AdoptedTable[] {
   const tables: AdoptedTable[] = [];
+  const layout = { modules, ...(ownTables === undefined ? {} : { ownTables }) };
 
-  const written = Object.values(modules).some(
-    (config) => config?.mode === "adopt",
-  )
-    ? configuredWrites(modules)
-    : new Map<string, ReadonlySet<string>>();
+  const contexts = Object.keys(modules).flatMap((name) => {
+    const mode = modules[name]?.mode ?? "managed";
 
-  for (const name of Object.keys(modules)) {
-    if ((modules[name]?.mode ?? "managed") !== "adopt") {
-      continue;
+    if (
+      SQL_MODULES[name]?.names?.tables === undefined ||
+      mode === "custom" ||
+      (mode === "managed" && ownTables === undefined)
+    ) {
+      return [];
     }
 
-    const spec = SQL_MODULES[name]?.names?.tables;
+    const ctx = contextOf(name, layout, mode === "adopt");
 
-    if (spec === undefined) {
-      continue;
-    }
+    return ctx !== undefined && ctx.appOwned.length > 0
+      ? [[name, ctx] as const]
+      : [];
+  });
 
-    const ctx = moduleContext(name, { modules }, Object.keys(modules));
-    const unchecked = SQL_MODULES[name]?.adoptOptional?.(ctx) ?? {};
+  const written =
+    contexts.length > 0
+      ? configuredWrites(modules, ownTables)
+      : new Map<string, ReadonlySet<string>>();
+
+  for (const [name, ctx] of contexts) {
+    const spec = SQL_MODULES[name]!.names!.tables;
+
+    const unchecked = ctx.manages
+      ? {}
+      : (SQL_MODULES[name]?.adoptOptional?.(ctx) ?? {});
+
     const text = managedTextColumns(name);
 
     for (const [logical, table] of Object.entries(spec)) {
-      if (
-        !ctx.hasTable(logical) ||
-        (table.adoptOnlyWhenMapped === true &&
-          ctx.config.tables[logical] === undefined)
-      ) {
+      if (!ctx.appOwned.includes(logical)) {
         continue;
       }
 
@@ -180,7 +225,11 @@ export function adoptedTables(
       });
     }
 
-    for (const extra of SQL_MODULES[name]?.adoptSubjectTables?.(ctx) ?? []) {
+    const subjects = ctx.manages
+      ? []
+      : (SQL_MODULES[name]?.adoptSubjectTables?.(ctx) ?? []);
+
+    for (const extra of subjects) {
       const columns: Record<string, string> = {};
 
       for (const [column, physical] of Object.entries(extra.columns)) {
@@ -212,6 +261,7 @@ export function adoptedColumnProblems(
   modules: AnyBlocksConfig,
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
+  ownTables?: Readonly<Record<string, string>>,
 ): readonly string[] {
   const declared = declaredTableColumns(files, schemas);
   const problems: string[] = [];
@@ -287,13 +337,17 @@ export function adoptedColumnProblems(
     }
   }
 
-  return [...problems, ...enumColumnProblems(modules, files, schemas)];
+  return [
+    ...problems,
+    ...enumColumnProblems(modules, files, schemas, ownTables),
+  ];
 }
 
 function enumColumnProblems(
   modules: AnyBlocksConfig,
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
+  ownTables: Readonly<Record<string, string>> | undefined,
 ): readonly string[] {
   const enums = declaredEnums(files);
 
@@ -303,7 +357,7 @@ function enumColumnProblems(
 
   const types = declaredColumnTypes(files, schemas);
 
-  return adoptedTables(modules).flatMap((table) => {
+  return adoptedTables(modules, ownTables).flatMap((table) => {
     const declared = types.get(`${table.schema}.${table.table}`);
 
     if (declared === undefined) {
@@ -334,5 +388,5 @@ function enumColumnProblem(
   column: string,
   type: string,
 ): string {
-  return `blocks.${table.module} is in adopt mode and writes text into ${table.schema}.${table.table}.${column} (${table.logical}.${logical}), which is the enum ${type}. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.`;
+  return `blocks.${table.module} writes text into ${table.schema}.${table.table}.${column} (${table.logical}.${logical}), which is the enum ${type}. Postgres does not cast text to an enum, so the module's functions fail. Change the column to text with a check constraint on its values.`;
 }
