@@ -12,6 +12,7 @@ import type { ExplainRequest, LiveDatabase } from "./live.ts";
 import type { LocalStackCheck } from "./stacks.ts";
 
 import {
+  blockFileState,
   moduleFileVersion,
   blockSqlVersion,
   sameBlockFile,
@@ -22,6 +23,7 @@ import { byCodePoint } from "../compare.ts";
 import { sameText } from "../core/io.ts";
 import { renderFiles } from "../gen/render.ts";
 import { configFor } from "../gen/shared.ts";
+import { orphanedBlockFiles } from "../sql/orphans.ts";
 import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
@@ -778,19 +780,28 @@ const OWN_RULES: readonly Rule[] = [
       const stale: FindingInput[] = [];
       const workflow = workflowOf(context);
 
-      for (const { file, path, current, behind } of await moduleFiles(
-        context,
-      )) {
-        if (behind || sameBlockFile(current, file.contents)) {
+      const states = await moduleFiles(context);
+
+      for (const { file, path, current, behind } of states) {
+        const migrated = workflow === "migrations" && file.kind !== "test";
+        const name = file.instance ?? file.module;
+
+        if (
+          current !== undefined &&
+          !migrated &&
+          blockFileState(current) === "edited"
+        ) {
+          stale.push({
+            message: `${path} (${name}) was edited by hand. Move the change to an override file or a SQL hook, or run \`better-supabase upgrade --force\`.`,
+            target: path,
+            location: { file: path, line: 1 },
+          });
           continue;
         }
 
-        const migrated = workflow === "migrations" && file.kind !== "test";
-
-        const edited =
-          current === undefined || migrated
-            ? ""
-            : ` If you edited it, move the change to \`blocks.${file.instance ?? file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
+        if (behind || sameBlockFile(current, file.contents)) {
+          continue;
+        }
 
         const next =
           file.kind === "data" && !migrated
@@ -798,24 +809,51 @@ const OWN_RULES: readonly Rule[] = [
             : `Run \`better-supabase upgrade\`, then \`${migrationCommand(workflow)}\`.`;
 
         const subject = migrated
-          ? `${file.instance ?? file.module} in ${path} is ${current === undefined ? "missing" : "out of date"}`
-          : `${path} (${file.instance ?? file.module}) is ${current === undefined ? "missing" : "out of date"}`;
+          ? `${name} in ${path} is ${current === undefined ? "missing" : "out of date"}`
+          : `${path} (${name}) is ${current === undefined ? "missing" : "out of date"}`;
 
         if (
-          stale.some(
-            (finding) => finding.message === `${subject}. ${next}${edited}`,
-          )
+          stale.some((finding) => finding.message === `${subject}. ${next}`)
         ) {
           continue;
         }
 
         stale.push({
-          message: `${subject}. ${next}${edited}`,
+          message: `${subject}. ${next}`,
           target: path,
           ...(current === undefined
             ? {}
             : { location: { file: path, line: 1 } }),
         });
+      }
+
+      if (workflow !== "migrations") {
+        const orphans = await orphanedBlockFiles(
+          context.config,
+          {
+            dir: context.config.sql.dir,
+            prefix: context.config.sql.prefix,
+            schemasDir: context.config.sql.dir,
+          },
+          new Set(states.map((state) => state.file.path)),
+        );
+
+        for (const path of orphans) {
+          const current = await readFile(
+            resolve(context.config.root, path),
+            "utf-8",
+          ).catch(() => "");
+
+          const edited = blockFileState(current) === "edited";
+
+          stale.push({
+            message: edited
+              ? `${path} is left from a block that is no longer installed, and it was edited by hand. Move the change out, then delete the file or run \`better-supabase upgrade --force\`.`
+              : `${path} is left from a block that is no longer installed. Run \`better-supabase upgrade\` to remove it.`,
+            target: path,
+            location: { file: path, line: 1 },
+          });
+        }
       }
 
       return stale;

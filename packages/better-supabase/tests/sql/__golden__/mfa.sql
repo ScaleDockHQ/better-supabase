@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_15_mfa.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block mfa@1 managed
+-- @bsb-hash sha256:ad438a67eb4b6debb1ddda12688da8f2cd1471d88deea98c4e14f5fbd656111c
 -- mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -47,12 +48,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_15_mfa.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block-data mfa
+-- @bsb-hash sha256:9d4b5127d519e3599828ad8e00823159b8b2ab5ac1a9e736125a63a738f7c611
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -60,11 +62,12 @@ values ('mfa', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_15_mfa.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block mfa@1 managed
+-- @bsb-hash sha256:ad438a67eb4b6debb1ddda12688da8f2cd1471d88deea98c4e14f5fbd656111c
 -- mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -109,12 +112,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_15_mfa.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block-data mfa
+-- @bsb-hash sha256:9d4b5127d519e3599828ad8e00823159b8b2ab5ac1a9e736125a63a738f7c611
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -122,11 +126,12 @@ values ('mfa', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_15_mfa.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block mfa@1 managed
+-- @bsb-hash sha256:ad438a67eb4b6debb1ddda12688da8f2cd1471d88deea98c4e14f5fbd656111c
 -- mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -171,12 +176,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_15_mfa.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block-data mfa
+-- @bsb-hash sha256:9d4b5127d519e3599828ad8e00823159b8b2ab5ac1a9e736125a63a738f7c611
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -184,11 +190,12 @@ values ('mfa', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_15_mfa.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block mfa@1 managed
+-- @bsb-hash sha256:ebd042c1aa9f594e3728f543ab84cd4a2276de6f9f8cd5e23b47742f4d402385
 -- mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -242,12 +249,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_15_mfa.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_015_mfa.sql
 -- better-supabase module: mfa
 -- @bsb-block-data mfa
+-- @bsb-hash sha256:9d4b5127d519e3599828ad8e00823159b8b2ab5ac1a9e736125a63a738f7c611
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

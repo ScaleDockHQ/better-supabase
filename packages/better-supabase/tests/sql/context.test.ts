@@ -364,7 +364,7 @@ describe("module modes", () => {
     const data = tenant.find((module) => module.kind === "data");
     expect(data).toMatchObject({
       kind: "data",
-      path: "supabase/better-supabase-data/900_better_supabase_04_memberships.sql",
+      path: "supabase/better-supabase-data/900_better_supabase_004_memberships.sql",
     });
     expect(data!.contents).toContain("-- @bsb-block-data memberships\n");
     expect(data!.contents).toContain("values ('memberships', 2, 'managed')");
@@ -377,10 +377,10 @@ describe("module modes", () => {
       )!.path;
 
     expect(dataPath({ dir: "supabase/schemas/_custom/better_supabase" })).toBe(
-      "supabase/better-supabase-data/900_better_supabase_04_memberships.sql",
+      "supabase/better-supabase-data/900_better_supabase_004_memberships.sql",
     );
     expect(dataPath({ dir: "./supabase/schemas/module/" })).toBe(
-      "./supabase/better-supabase-data/900_better_supabase_04_memberships.sql",
+      "./supabase/better-supabase-data/900_better_supabase_004_memberships.sql",
     );
     expect(
       dataPath({
@@ -388,10 +388,10 @@ describe("module modes", () => {
         schemasDir: "supabase/declarative",
       }),
     ).toBe(
-      "supabase/better-supabase-data/900_better_supabase_04_memberships.sql",
+      "supabase/better-supabase-data/900_better_supabase_004_memberships.sql",
     );
     expect(dataPath({ dir: "db/module" })).toBe(
-      "db/better-supabase-data/900_better_supabase_04_memberships.sql",
+      "db/better-supabase-data/900_better_supabase_004_memberships.sql",
     );
     const pgtap = renderBlocks(["pgtap"]);
     expect(pgtap.map((entry) => entry.kind)).toEqual(["test"]);

@@ -3,8 +3,9 @@
 exports[`entitlements with provider memberships > renders the bigint scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
+-- @bsb-hash sha256:ca514c0eb56adc2750889176bb7c86e55f538c9d8ef8366142ddfe1c6340f3a6
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
--- Managed by \`better-supabase add\`; re-running it overwrites this file.
+-- Managed by \`better-supabase add\`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through \`blocks\` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -188,8 +189,9 @@ grant select on better_supabase.blocks to service_role;
 exports[`entitlements with provider memberships > renders the integer scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
+-- @bsb-hash sha256:c2aa925f65651078bc8d2b74988f980365e5dff431108014a9d49376baf5ed27
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
--- Managed by \`better-supabase add\`; re-running it overwrites this file.
+-- Managed by \`better-supabase add\`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through \`blocks\` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -373,8 +375,9 @@ grant select on better_supabase.blocks to service_role;
 exports[`entitlements with provider memberships > renders the text scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
+-- @bsb-hash sha256:eeac57a1e2373b777d09d1ffc525ce2b30980512f83386e9df0cedada6f892c3
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
--- Managed by \`better-supabase add\`; re-running it overwrites this file.
+-- Managed by \`better-supabase add\`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through \`blocks\` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -558,8 +561,9 @@ grant select on better_supabase.blocks to service_role;
 exports[`entitlements with provider memberships > renders the uuid scope id type in every tenant signature 1`] = `
 "-- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
+-- @bsb-hash sha256:a9e4018f462212ed3589955af4366e1b3939c88a70f86ffc8814f4aa70f7fee4
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
--- Managed by \`better-supabase add\`; re-running it overwrites this file.
+-- Managed by \`better-supabase add\`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through \`blocks\` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;

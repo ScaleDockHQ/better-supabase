@@ -23,7 +23,7 @@ import {
   rendersOwnInstance,
 } from "./instance-names.ts";
 import { moduleExtensions } from "./introspect.ts";
-import { entitiesMarker } from "./markers.ts";
+import { entitiesMarker, withBlockHash } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
@@ -150,7 +150,10 @@ export function renderBlocks(
     ),
   ]);
 
-  return [...files, ...appTablesFiles(layout, installed)];
+  return [...files, ...appTablesFiles(layout, installed)].map((file) => ({
+    ...file,
+    contents: withBlockHash(file.contents),
+  }));
 }
 
 function moduleFiles(
@@ -189,7 +192,7 @@ function moduleFiles(
   const title = `-- better-supabase module: ${ctx.instance}`;
 
   const managed = [
-    "-- Managed by `better-supabase add`; re-running it overwrites this file.",
+    "-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.",
     "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
   ];
 

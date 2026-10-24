@@ -483,10 +483,11 @@ describe("appTables SQL errors", () => {
   it("refuses a name a block table already has", () => {
     expect(() =>
       render(["memberships", "organizations", "tags"], {
+        modules: { tags: { schema: "public" } },
         appTables: { tags: {} },
       }),
     ).toThrow(
-      "tables.tags: the tags block already keeps a table named tags; choose another name",
+      "tables.tags: the tags block already keeps public.tags; choose another name",
     );
   });
 
@@ -504,10 +505,34 @@ describe("appTables SQL errors", () => {
   it("refuses the renamed tenant table's name", () => {
     expect(() =>
       render(BLOCKS, {
-        modules: { memberships: { entities: { organization: "workspace" } } },
+        modules: {
+          memberships: { entities: { organization: "workspace" } },
+          organizations: { schema: "public" },
+        },
         appTables: { workspaces: {} },
       }),
-    ).toThrow("the organizations block already keeps a table named workspaces");
+    ).toThrow("the organizations block already keeps public.workspaces");
+  });
+
+  it("allows the same bare name when the block table is in another schema", () => {
+    expect(() =>
+      render(["memberships", "organizations", "tags"], {
+        appTables: { tags: {} },
+      }),
+    ).not.toThrow();
+  });
+
+  it("refuses a name the app's own schema already creates", () => {
+    expect(() =>
+      render(["updated-at"], {
+        appTables: { projects: {} },
+        ownTables: {
+          "public.projects": "supabase/schemas/public/projects.sql",
+        },
+      }),
+    ).toThrow(
+      "tables.projects: public.projects is already created in supabase/schemas/public/projects.sql",
+    );
   });
 
   it("renders the golden SQL of events through the outbox", async () => {

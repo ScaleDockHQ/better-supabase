@@ -278,10 +278,10 @@ describe("doctor command", () => {
 
     expect(findings(loaded).map((finding) => finding.message)).toEqual([
       expect.stringContaining(
-        "supabase/schemas/900_better_supabase_14_read_sets.sql",
+        "supabase/schemas/900_better_supabase_014_read_sets.sql",
       ),
       expect.stringContaining(
-        "supabase/better-supabase-data/900_better_supabase_14_read_sets.sql",
+        "supabase/better-supabase-data/900_better_supabase_014_read_sets.sql",
       ),
     ]);
 

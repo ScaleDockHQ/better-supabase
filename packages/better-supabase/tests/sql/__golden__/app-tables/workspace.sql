@@ -1,8 +1,9 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
+-- @bsb-hash sha256:ca6916f5e65780af6fd46b3de2a6f4eee28a42d1030af8da886d3ffa54745b16
 -- The tables the app owns, from `appTables`, in public.
--- Managed by `better-supabase upgrade`; re-running it overwrites this file.
+-- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
 create table if not exists "public"."projects" (
@@ -72,7 +73,8 @@ alter table "public"."tasks" add constraint "tasks_project_id_fkey" foreign key 
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- Managed by `better-supabase upgrade`; re-running it overwrites this file.
+-- @bsb-hash sha256:4bc9f96ba8e2e6263c2364eb408499a5b622161a765b38bd31c13cd05479c0ec
+-- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
 begin;

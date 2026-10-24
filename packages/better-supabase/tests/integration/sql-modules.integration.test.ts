@@ -58,7 +58,7 @@ const publishableKey =
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
 
 const FIXTURE_SEARCH = new URL(
-  "../../../../supabase/schemas/_better_supabase/900_better_supabase_70_search.sql",
+  "../../../../supabase/schemas/_better_supabase/900_better_supabase_070_search.sql",
   import.meta.url,
 );
 

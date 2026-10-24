@@ -100,7 +100,7 @@ describe("renderBlocks", () => {
       all.find((file) => file.module === "queue")!.path,
     );
     expect(jobs[0]!.path).toMatch(
-      /^supabase\/schemas\/900_better_supabase_\d\d_queue\.sql$/,
+      /^supabase\/schemas\/900_better_supabase_\d{3}_queue\.sql$/,
     );
   });
 
@@ -115,7 +115,7 @@ describe("renderBlocks", () => {
 
   it("honours dir and prefix", () => {
     const [file] = renderBlocks(["audit"], { dir: "schemas/", prefix: "zz" });
-    expect(file!.path).toMatch(/^schemas\/zz_\d\d_audit\.sql$/);
+    expect(file!.path).toMatch(/^schemas\/zz_\d{3}_audit\.sql$/);
   });
 
   it("renders the audit log's tenant column from config and keys rows by their primary key", () => {
@@ -499,7 +499,7 @@ describe("sameBlockFile", () => {
 
     const [file] = renderBlocks(["grants"], moduleLayout(config));
     expect(file!.path).toBe(
-      "supabase/schemas/900_better_supabase_13_grants.sql",
+      "supabase/schemas/900_better_supabase_013_grants.sql",
     );
     expect(file!.contents).toContain(
       [
@@ -753,7 +753,7 @@ describe("sameBlockFile", () => {
 
     const [file] = renderBlocks(["vector-search"], moduleLayout(config));
     expect(file!.path).toBe(
-      "supabase/schemas/900_better_supabase_18_vector_search.sql",
+      "supabase/schemas/900_better_supabase_018_vector_search.sql",
     );
     expect(file!.contents).toContain(
       [

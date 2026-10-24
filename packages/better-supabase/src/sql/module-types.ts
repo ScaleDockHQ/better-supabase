@@ -270,6 +270,11 @@ export interface BlockSqlLayout {
    */
   readonly declaredTables?: readonly string[];
   /**
+   * `schema.table` to the schema file that creates it, so an app table can
+   * refuse a name the app already declared.
+   */
+  readonly ownTables?: Readonly<Record<string, string>>;
+  /**
    * The declared tables with row level security on, for tables `fromPolicies`
    * makes service-only.
    */

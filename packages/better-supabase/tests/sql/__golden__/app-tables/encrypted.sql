@@ -1,8 +1,9 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
+-- @bsb-hash sha256:67c474afdf5cfed06cfc7f8095c0904ee10fddd6f5ab79e4324c58413ad95b6f
 -- The tables the app owns, from `appTables`, in public.
--- Managed by `better-supabase upgrade`; re-running it overwrites this file.
+-- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
 create table if not exists "public"."patients" (
@@ -359,7 +360,8 @@ grant execute on function "public"."keys_reveal"(bigint[]) to authenticated, ser
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- Managed by `better-supabase upgrade`; re-running it overwrites this file.
+-- @bsb-hash sha256:d84e4cd9bdd974841a98ba45aa23a19622b35bdbaf6f38a93344adb848d6a8f6
+-- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
 begin;

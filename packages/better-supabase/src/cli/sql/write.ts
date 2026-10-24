@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { BlockSqlFile, BlockSqlLayout } from "../../sql/index.ts";
-import type { PlannedFile } from "../core/files.ts";
+import type { PlannedFile, Removal } from "../core/files.ts";
 import type { NextStep } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
@@ -18,7 +18,13 @@ import {
   resolveBlocks,
   sameBlockFile,
 } from "../../sql/index.ts";
-import { applyPlan, changeLines } from "../core/files.ts";
+import {
+  applyPlan,
+  changeLines,
+  HAND_EDITED,
+  handEditedError,
+  keepHandEdit,
+} from "../core/files.ts";
 import { enablePgDelta } from "../enable-pgdelta.ts";
 import { sqlPlan } from "../sql-layout.ts";
 import {
@@ -34,6 +40,7 @@ import {
   renderModuleMigration,
   writeLatestMigration,
 } from "./module-migration.ts";
+import { orphanedBlockFiles } from "./orphans.ts";
 
 const MODULE_TEST_MARKER =
   /^-- @(?:bsb-block-test|bs-module-test) ([a-z0-9-]+)$/m;
@@ -117,8 +124,21 @@ export const moduleFile = (file: BlockSqlFile): PlannedFile => ({
   path: file.path,
   contents: file.contents,
   note: file.module,
+  policy: "block",
   same: sameBlockFile,
 });
+
+/** A removal that stays when the file was edited by hand. */
+export const guardedRemoval = (path: string): Removal => ({
+  path,
+  keep: keepHandEdit,
+});
+
+export interface SqlWrite {
+  readonly lines: readonly string[];
+  /** Set when a hand-edited block file was left alone. */
+  readonly error?: string;
+}
 
 export async function write(
   config: ResolvedConfig,
@@ -129,7 +149,7 @@ export async function write(
   only?: readonly string[],
   upgrade: readonly string[] = [],
   former: readonly string[] = [],
-): Promise<string[]> {
+): Promise<SqlWrite> {
   const workflow = sqlWorkflow(config, await readSupabaseToml(config.root));
   const migrations = workflow === "migrations";
   const lines: string[] = [];
@@ -142,25 +162,41 @@ export async function write(
 
   const written = files.filter((file) => !migrations || file.kind === "test");
 
+  const orphans =
+    only === undefined && !migrations
+      ? await orphanedBlockFiles(
+          config,
+          sqlLayout,
+          new Set(files.map((file) => file.path)),
+        )
+      : [];
+
   const applied = await applyPlan(
     sqlPlan(config, {
       regenerate: "better-supabase upgrade",
       files: written.map((file) => moduleFile(file)),
       remove: [
-        ...former,
-        ...(await staleModuleTests(
-          config,
-          only ?? names,
-          sqlLayout,
-          files,
-          only === undefined,
-        )),
-      ],
+        ...new Set([
+          ...former,
+          ...orphans,
+          ...(await staleModuleTests(
+            config,
+            only ?? names,
+            sqlLayout,
+            files,
+            only === undefined,
+          )),
+        ]),
+      ].map((path) => guardedRemoval(path)),
     }),
-    { "dry-run": dryRun },
+    { "dry-run": dryRun, force: args.force === true },
   );
 
   lines.push(...changeLines(applied));
+
+  const edited = applied.changes
+    .filter((change) => change.reason === HAND_EDITED)
+    .map((change) => change.file);
 
   const data =
     !dryRun &&
@@ -189,7 +225,10 @@ export async function write(
 
     lines.push(written.line);
 
-    return lines;
+    return {
+      lines,
+      ...(edited.length === 0 ? {} : { error: handEditedError(edited) }),
+    };
   }
 
   lines.push(...(await writeExtensionsMigration(config, files, dryRun, now)));
@@ -202,7 +241,10 @@ export async function write(
     lines.push(...(await enablePgDelta(config.root, dryRun)));
   }
 
-  return lines;
+  return {
+    lines,
+    ...(edited.length === 0 ? {} : { error: handEditedError(edited) }),
+  };
 }
 
 /** The command that takes the written modules to the database. */

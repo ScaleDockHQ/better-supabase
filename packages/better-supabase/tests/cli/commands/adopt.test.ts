@@ -233,7 +233,7 @@ describe("apply --adopt", () => {
     });
     expect(
       existsSync(
-        join(dir, "supabase/schemas/900_better_supabase_58_teams.sql"),
+        join(dir, "supabase/schemas/900_better_supabase_058_teams.sql"),
       ),
     ).toBe(true);
   });

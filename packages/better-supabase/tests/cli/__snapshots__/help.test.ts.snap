@@ -925,6 +925,7 @@ Arguments
 Options
   --dry-run  Print what would change, with a diff, and write nothing
   --check    Write nothing; exit 1 with a diff when a file would change
+  --force    Overwrite or remove block files that were edited by hand
 
 Global options
   --cwd <dir>            Project directory
@@ -1137,6 +1138,7 @@ Options
   --check            Write nothing; exit 1 when a block is behind its current version or a schema file is stale
   --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
   --dry-run          Show what would be written
+  --force            Overwrite or remove block files that were edited by hand
 
 Global options
   --cwd <dir>            Project directory

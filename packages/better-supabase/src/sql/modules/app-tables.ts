@@ -849,7 +849,11 @@ function tableSql(table: AppTable): string {
     .join("\n");
 }
 
-/** Throws when an app table has the name of a table an installed block keeps. */
+/**
+ * Throws when an app table has the schema-qualified name of a table an
+ * installed block keeps, or of a table the app's own schema files create. The
+ * same bare name in another schema is allowed.
+ */
 function checkBlockTables(
   names: readonly string[],
   layout: BlockSqlLayout,
@@ -866,17 +870,27 @@ function checkBlockTables(
 
     for (const logical of Object.keys(ctx.names.tables)) {
       if (ctx.hasTable(logical)) {
-        taken.set(ctx.tableName(logical).name, module);
+        const table = ctx.tableName(logical);
+        taken.set(`${table.schema}.${table.name}`, module);
       }
     }
   }
 
   for (const name of names) {
-    const module = taken.get(name);
+    const qualified = `${SCHEMA}.${name}`;
+    const module = taken.get(qualified);
 
     if (module !== undefined) {
       throw new TypeError(
-        `tables.${name}: the ${module} block already keeps a table named ${name}; choose another name`,
+        `tables.${name}: the ${module} block already keeps ${qualified}; choose another name`,
+      );
+    }
+
+    const file = layout.ownTables?.[qualified];
+
+    if (file !== undefined) {
+      throw new TypeError(
+        `tables.${name}: ${qualified} is already created in ${file}; choose another name`,
       );
     }
   }
@@ -1129,7 +1143,7 @@ export function appTablesFiles(
   const title = "-- better-supabase module: app-tables";
 
   const managed = [
-    "-- Managed by `better-supabase upgrade`; re-running it overwrites this file.",
+    "-- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.",
     "-- Change it through `appTables` in better-supabase.config.ts.",
   ];
 

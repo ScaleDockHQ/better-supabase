@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_06_reserved_slugs.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
+-- @bsb-hash sha256:ff7f1ac678664160d898a69e550ed2bb36e50dba00c0499ae413ff643265bf12
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -88,12 +89,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_06_reserved_slugs.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block-data reserved-slugs
+-- @bsb-hash sha256:d19561bbaa46e4be9fd7174768200607af3b8662cb004dbea2d3ca5ad6f1010a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.reserved_slugs (slug, reason)
@@ -112,11 +114,12 @@ values ('reserved-slugs', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_06_reserved_slugs.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
+-- @bsb-hash sha256:ff7f1ac678664160d898a69e550ed2bb36e50dba00c0499ae413ff643265bf12
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -202,12 +205,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_06_reserved_slugs.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block-data reserved-slugs
+-- @bsb-hash sha256:d19561bbaa46e4be9fd7174768200607af3b8662cb004dbea2d3ca5ad6f1010a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.reserved_slugs (slug, reason)
@@ -226,11 +230,12 @@ values ('reserved-slugs', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_06_reserved_slugs.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
+-- @bsb-hash sha256:ff7f1ac678664160d898a69e550ed2bb36e50dba00c0499ae413ff643265bf12
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -316,12 +321,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_06_reserved_slugs.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block-data reserved-slugs
+-- @bsb-hash sha256:d19561bbaa46e4be9fd7174768200607af3b8662cb004dbea2d3ca5ad6f1010a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.reserved_slugs (slug, reason)
@@ -340,11 +346,12 @@ values ('reserved-slugs', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_06_reserved_slugs.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block reserved-slugs@1 managed
+-- @bsb-hash sha256:42c871888900c6fbf39e4e08e087a05edfd2ffdc7eab3e595cca6a2e6f423d97
 -- A slug format and length check and a list of reserved words (admin, api, www, ...), enforced by a trigger.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -443,12 +450,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_06_reserved_slugs.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_006_reserved_slugs.sql
 -- better-supabase module: reserved-slugs
 -- @bsb-block-data reserved-slugs
+-- @bsb-hash sha256:d19561bbaa46e4be9fd7174768200607af3b8662cb004dbea2d3ca5ad6f1010a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.reserved_slugs (slug, reason)

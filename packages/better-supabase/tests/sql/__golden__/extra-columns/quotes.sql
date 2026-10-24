@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_97_quotes.sql
+-- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@2 managed
+-- @bsb-hash sha256:3876ca0a9915ba740c9227e7e0f62971852f7efb5e055bf969c3c2fb3ea81d25
 -- Quotes with line items and totals, a revision chain, a public link the customer accepts, rejects or asks changes through, expiry, and quotes from deals. With catalog, a line that names a product variant takes its price and title.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -666,12 +667,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_97_quotes.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block-data quotes
+-- @bsb-hash sha256:674286e00276d573bb5e9535c75295a71bd4980385704186b2dd36283b6a7083
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

@@ -43,7 +43,7 @@ import {
 } from "./module-migration.ts";
 import { layoutFor } from "./providers.ts";
 import {
-  formerBlockPath,
+  formerPaths,
   renamedBlocksIn,
   renamedBlocksSql,
   withCurrentBlockNames,
@@ -249,22 +249,25 @@ export async function upgrade(
     );
   }
 
-  lines.push(
-    ...(await write(
-      config,
-      args,
-      config.blockNames,
-      sqlLayout,
-      now,
-      undefined,
-      migrations ? steps : [],
-      former,
-    )),
+  const written = await write(
+    config,
+    args,
+    config.blockNames,
+    sqlLayout,
+    now,
+    undefined,
+    migrations ? steps : [],
+    former,
   );
 
+  lines.push(...written.lines);
+
   return {
-    code: 0,
+    code: written.error === undefined ? 0 : 1,
     output: lines.join("\n"),
+    ...(written.error === undefined
+      ? {}
+      : { error: written.error, errorCode: "file_conflict" as const }),
     data,
     next: [await nextStep(config)],
   };
@@ -297,13 +300,16 @@ async function installedFromFiles(
     readFile(resolve(config.root, path), "utf-8").catch(() => undefined);
 
   for (const file of files) {
-    const formerPath = formerBlockPath(file.path, file.module);
+    const earlier = formerPaths(file.path, file.module);
+    let formerText: string | undefined;
 
-    const formerText =
-      formerPath === undefined ? undefined : await read(formerPath);
+    for (const formerPath of earlier) {
+      const text = await read(formerPath);
 
-    if (formerPath !== undefined && formerText !== undefined) {
-      former.push(formerPath);
+      if (text !== undefined) {
+        former.push(formerPath);
+        formerText ??= text;
+      }
     }
 
     if (file.kind === "data") {

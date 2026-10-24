@@ -537,7 +537,7 @@ describe("generated and module files (BS303, BS304)", () => {
     );
 
     expect(missing.map((finding) => finding.target)).toContain(
-      "supabase/schemas/900_better_supabase_28_api_keys.sql",
+      "supabase/schemas/900_better_supabase_028_api_keys.sql",
     );
     expect(await run("BS304", rooted(config))).toEqual([]);
   });
@@ -565,7 +565,7 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(await run("BS304", ctx)).toEqual([]);
 
     const grants = await readFile(
-      join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
+      join(root, "supabase/schemas/900_better_supabase_013_grants.sql"),
       "utf-8",
     );
 
@@ -624,10 +624,54 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(await run("BS304", ctx)).toEqual([
       expect.objectContaining({
         target: audit!.path,
-        message: expect.stringContaining("(audit) is out of date"),
+        message: `${audit!.path} (audit) was edited by hand. Move the change to an override file or a SQL hook, or run \`better-supabase upgrade --force\`.`,
         location: { file: audit!.path, line: 1 },
       }),
     ]);
+
+    await write(
+      audit!.path,
+      audit!.contents
+        .replace(/^-- @bsb-hash .*\n/m, "")
+        .replace("create schema", "-- older\ncreate schema"),
+    );
+    expect(await run("BS304", ctx)).toEqual([
+      expect.objectContaining({
+        target: audit!.path,
+        message: expect.stringContaining("(audit) is out of date"),
+      }),
+    ]);
+  });
+
+  it("reports block files no installed block renders, apart from edited ones", async () => {
+    const ctx = rooted({ blocks: ["audit"] });
+    const files = renderBlocks(["audit"], moduleLayout(ctx.config));
+
+    for (const file of files) {
+      await write(file.path, file.contents);
+    }
+
+    const tags = renderBlocks(["tags"], moduleLayout(ctx.config)).find(
+      (file) => file.module === "tags" && file.kind === "schema",
+    )!;
+
+    await write(tags.path, tags.contents);
+    await write(
+      "supabase/schemas/010_app.sql",
+      "create table public.notes ();\n",
+    );
+
+    expect(await run("BS304", ctx)).toEqual([
+      expect.objectContaining({
+        target: tags.path,
+        message: `${tags.path} is left from a block that is no longer installed. Run \`better-supabase upgrade\` to remove it.`,
+      }),
+    ]);
+
+    await write(tags.path, `${tags.contents}\n-- mine\n`);
+    expect((await run("BS304", ctx))[0]!.message).toContain(
+      "is left from a block that is no longer installed, and it was edited by hand",
+    );
   });
 
   it("checks the newest module migration under the migrations workflow", async () => {
@@ -810,7 +854,7 @@ describe("module upgrades (BS309, BS310)", () => {
               text: "select better_supabase.current_org_id();",
             },
             {
-              path: "supabase/schemas/900_better_supabase_04_memberships.sql",
+              path: "supabase/schemas/900_better_supabase_004_memberships.sql",
               text: "-- @bsb-block memberships@2 managed\nselect better_supabase.current_org_id();",
             },
           ],
@@ -3180,7 +3224,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
   it("flags extensions the schema files create that no migration does", async () => {
     const jobs = file(
       "-- @bsb-block queue@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;\nraise exception 'needs pg_cron: create extension pg_cron with schema pg_catalog';",
-      "supabase/schemas/900_better_supabase_07_queue.sql",
+      "supabase/schemas/900_better_supabase_007_queue.sql",
     );
 
     const own = file(
@@ -3201,7 +3245,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
     expect(
       findings.map((finding) => [finding.target, finding.location?.line]),
     ).toEqual([
-      ["supabase/schemas/900_better_supabase_07_queue.sql", 2],
+      ["supabase/schemas/900_better_supabase_007_queue.sql", 2],
       ["supabase/schemas/010_extensions.sql", 2],
     ]);
     expect(findings[0]!.message).toContain("better-supabase upgrade");

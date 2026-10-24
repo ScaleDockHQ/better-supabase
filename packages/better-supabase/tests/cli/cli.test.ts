@@ -1089,7 +1089,7 @@ describe("sql", () => {
     const added = await run(["add", "queue", "pgtap", "--cwd", dir]);
     expect(added.code).toBe(0);
     expect(added.stdout).toMatch(
-      /Created supabase\/schemas\/900_better_supabase_\d\d_queue\.sql/,
+      /Created supabase\/schemas\/900_better_supabase_\d{3}_queue\.sql/,
     );
     expect(added.stdout).toContain(
       "supabase/tests/000_better_supabase_pgtap.test.sql",
@@ -1117,7 +1117,7 @@ describe("sql", () => {
     const added = await run(["add", "audit", "--cwd", dir]);
     expect(added.stdout).toContain("no entry matches these files");
     expect(added.stdout).toMatch(
-      /^ {2}"\.\/schemas\/900_better_supabase_\d\d_audit\.sql",$/m,
+      /^ {2}"\.\/schemas\/900_better_supabase_\d{3}_audit\.sql",$/m,
     );
 
     await writeFile(
@@ -1183,7 +1183,7 @@ describe("sql", () => {
     ]);
 
     expect(forced.code).toBe(0);
-    expect(forced.stdout).toMatch(/900_better_supabase_\d\d_memberships\.sql/);
+    expect(forced.stdout).toMatch(/900_better_supabase_\d{3}_memberships\.sql/);
   });
 
   it("writes entitlements on the provider's member functions", async () => {
@@ -1210,7 +1210,7 @@ describe("sql", () => {
     expect(added.stdout).not.toContain("came along as a dependency");
 
     const path =
-      /supabase\/schemas\/900_better_supabase_\d\d_entitlements\.sql/.exec(
+      /supabase\/schemas\/900_better_supabase_\d{3}_entitlements\.sql/.exec(
         added.stdout,
       )![0];
 

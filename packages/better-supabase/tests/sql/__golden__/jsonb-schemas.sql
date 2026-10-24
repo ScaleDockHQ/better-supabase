@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_11_jsonb_schemas.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_011_jsonb_schemas.sql
 -- better-supabase module: jsonb-schemas
 -- @bsb-block jsonb-schemas@1 managed
+-- @bsb-hash sha256:ca850942946bb0bc992f8540fdbc3832544fc4a422924a6724fe58134c35e503
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
@@ -62,12 +63,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_11_jsonb_schemas.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_011_jsonb_schemas.sql
 -- better-supabase module: jsonb-schemas
 -- @bsb-block-data jsonb-schemas
+-- @bsb-hash sha256:5731222167a8cd73a46980c1e5a175b3e562af01da2ae571aa9e76477c2cf2f2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pg_jsonschema" with schema "extensions";
@@ -77,11 +79,12 @@ values ('jsonb-schemas', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_11_jsonb_schemas.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_011_jsonb_schemas.sql
 -- better-supabase module: jsonb-schemas
 -- @bsb-block jsonb-schemas@1 managed
+-- @bsb-hash sha256:ca850942946bb0bc992f8540fdbc3832544fc4a422924a6724fe58134c35e503
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
@@ -141,12 +144,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_11_jsonb_schemas.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_011_jsonb_schemas.sql
 -- better-supabase module: jsonb-schemas
 -- @bsb-block-data jsonb-schemas
+-- @bsb-hash sha256:5731222167a8cd73a46980c1e5a175b3e562af01da2ae571aa9e76477c2cf2f2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pg_jsonschema" with schema "extensions";
@@ -156,11 +160,12 @@ values ('jsonb-schemas', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_11_jsonb_schemas.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_011_jsonb_schemas.sql
 -- better-supabase module: jsonb-schemas
 -- @bsb-block jsonb-schemas@1 managed
+-- @bsb-hash sha256:ca850942946bb0bc992f8540fdbc3832544fc4a422924a6724fe58134c35e503
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
@@ -220,12 +225,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_11_jsonb_schemas.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_011_jsonb_schemas.sql
 -- better-supabase module: jsonb-schemas
 -- @bsb-block-data jsonb-schemas
+-- @bsb-hash sha256:5731222167a8cd73a46980c1e5a175b3e562af01da2ae571aa9e76477c2cf2f2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pg_jsonschema" with schema "extensions";
@@ -235,11 +241,12 @@ values ('jsonb-schemas', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_11_jsonb_schemas.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_011_jsonb_schemas.sql
 -- better-supabase module: jsonb-schemas
 -- @bsb-block jsonb-schemas@1 managed
+-- @bsb-hash sha256:ca850942946bb0bc992f8540fdbc3832544fc4a422924a6724fe58134c35e503
 -- pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists pg_jsonschema with schema extensions;
@@ -299,12 +306,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_11_jsonb_schemas.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_011_jsonb_schemas.sql
 -- better-supabase module: jsonb-schemas
 -- @bsb-block-data jsonb-schemas
+-- @bsb-hash sha256:5731222167a8cd73a46980c1e5a175b3e562af01da2ae571aa9e76477c2cf2f2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create extension if not exists "pg_jsonschema" with schema "extensions";

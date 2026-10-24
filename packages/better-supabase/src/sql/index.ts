@@ -18,9 +18,14 @@ export {
 
 export { entityRenamePlan } from "./entity-upgrade.ts";
 
-export { moduleFilePaths } from "./paths.ts";
+export { moduleDataDir, moduleFilePaths } from "./paths.ts";
 
-export { moduleFileVersion, sameBlockFile } from "./markers.ts";
+export {
+  blockFileState,
+  isModuleDataFile,
+  moduleFileVersion,
+  sameBlockFile,
+} from "./markers.ts";
 
 export {
   modulePermissionKeys,

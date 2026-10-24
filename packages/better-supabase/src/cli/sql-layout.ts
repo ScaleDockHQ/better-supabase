@@ -40,7 +40,7 @@ export async function schemasDirOf(config: ResolvedConfig): Promise<string> {
 /** The declarative schema files, then the migrations oldest first. */
 async function schemaTexts(
   config: ResolvedConfig,
-): Promise<{ readonly text: string }[]> {
+): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
   const migrations = resolve(config.root, migrationsDir(config));
 
@@ -56,6 +56,7 @@ async function schemaTexts(
 
   return Promise.all(
     paths.map(async (path) => ({
+      path,
       text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
@@ -63,7 +64,7 @@ async function schemaTexts(
 
 async function declarativeTexts(
   config: ResolvedConfig,
-): Promise<{ readonly text: string }[]> {
+): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
 
   const { files } = await schemaPaths(
@@ -78,6 +79,7 @@ async function declarativeTexts(
 
   return Promise.all(
     files.map(async (path) => ({
+      path,
       text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
@@ -198,7 +200,36 @@ export async function moduleLayoutFor(
           ),
         }
       : {}),
+    ownTables: ownDeclaredTables(
+      await declarativeTexts(config),
+      config.schemas,
+    ),
   };
+}
+
+const BLOCK_MARKER = /^-- @(?:bsb-block|bsb-tables|bs-module|bs-app-tables)\b/m;
+
+/**
+ * `schema.table` to the app's own schema file that creates it: every
+ * declarative file without a block marker.
+ */
+function ownDeclaredTables(
+  sources: readonly { readonly path: string; readonly text: string }[],
+  schemas: readonly string[],
+): Readonly<Record<string, string>> {
+  const ownTables: Record<string, string> = {};
+
+  for (const source of sources) {
+    if (BLOCK_MARKER.test(source.text)) {
+      continue;
+    }
+
+    for (const table of declaredTables([source], schemas)) {
+      ownTables[table] ??= source.path;
+    }
+  }
+
+  return ownTables;
 }
 
 function vectorSchemaOf(sources: readonly { readonly text: string }[]): {
@@ -246,7 +277,16 @@ export function sqlPlan(
       path: resolve(config.root, file.path),
     })),
     ...(plan.remove
-      ? { remove: plan.remove.map((path) => resolve(config.root, path)) }
+      ? {
+          remove: plan.remove.map((entry) => {
+            const path = resolve(
+              config.root,
+              typeof entry === "string" ? entry : entry.path,
+            );
+
+            return typeof entry === "string" ? path : { ...entry, path };
+          }),
+        }
       : {}),
   };
 }

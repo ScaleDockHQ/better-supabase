@@ -1,8 +1,9 @@
--- ==== schema supabase/schemas/900_better_supabase_36_sso.sql
+-- ==== schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
+-- @bsb-hash sha256:22fa1de0e6ae9842dab7b497ced00210683fb7337d86ecd29a4a8aaf0a7b7c78
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create or replace function better_supabase.actor_may_write()
@@ -939,12 +940,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_36_sso.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block-data sso
+-- @bsb-hash sha256:d38048fbda2607095076ae975e4d87981b53a76b3618e4e4f5ffd208e67eedfe
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)

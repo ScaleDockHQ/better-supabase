@@ -1,8 +1,9 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_02_created_by.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
+-- @bsb-hash sha256:4cef7278c999e26507ac61a8700e91b0d386710dfa6d2d14c9e1929e852dff35
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -180,12 +181,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_02_created_by.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block-data created-by
+-- @bsb-hash sha256:60944e1f67ae9e05b433eb2e4935c46e6d61176c538cc3feee165f92923d8911
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -193,11 +195,12 @@ values ('created-by', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_02_created_by.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
+-- @bsb-hash sha256:4cef7278c999e26507ac61a8700e91b0d386710dfa6d2d14c9e1929e852dff35
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -375,12 +378,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_02_created_by.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block-data created-by
+-- @bsb-hash sha256:60944e1f67ae9e05b433eb2e4935c46e6d61176c538cc3feee165f92923d8911
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -388,11 +392,12 @@ values ('created-by', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_02_created_by.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
+-- @bsb-hash sha256:4cef7278c999e26507ac61a8700e91b0d386710dfa6d2d14c9e1929e852dff35
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -570,12 +575,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_02_created_by.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block-data created-by
+-- @bsb-hash sha256:60944e1f67ae9e05b433eb2e4935c46e6d61176c538cc3feee165f92923d8911
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
@@ -583,11 +589,12 @@ values ('created-by', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_02_created_by.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block created-by@1 managed
+-- @bsb-hash sha256:3f938839ee6c1445325989dfe9b372c4722d40a4d1acb5d78c40d61d5913d227
 -- Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
@@ -805,12 +812,13 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_02_created_by.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_002_created_by.sql
 -- better-supabase module: created-by
 -- @bsb-block-data created-by
+-- @bsb-hash sha256:60944e1f67ae9e05b433eb2e4935c46e6d61176c538cc3feee165f92923d8911
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
--- Managed by `better-supabase add`; re-running it overwrites this file.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
