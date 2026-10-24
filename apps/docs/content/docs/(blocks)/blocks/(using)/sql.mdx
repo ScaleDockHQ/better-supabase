@@ -1255,6 +1255,34 @@ instance, unlike an in-memory map on serverless functions.
 `purge_rate_limits()` removes counters without a rule after a day, so keep a
 per-call `period` under a day or define the rule.
 
+### Several limits at once
+
+A sign-in route often limits per user, per IP and per organization.
+`checkAll` counts one hit against several limits in one database round trip
+(`check_rate_limits(hits)`), and the hit counts only when every limit allows
+it, so a refused attempt leaves all counters as they were. Each limit takes
+its own scope and key; two windows on the same key take two scopes, such as
+`login:minute` and `login:day`:
+
+```ts
+const hit = await limits
+  .checkAll([
+    { scope: "login:user", key: email, rule: { max: 5, period: "15 minutes" } },
+    { scope: "login:ip", key: ip, rule: { max: 50, period: "1 hour" } },
+  ])
+  .orThrow();
+
+if (!hit.allowed) return rateLimited(hit);
+```
+
+`blocked` names the first limit over its maximum (`index`, `scope`, `key`),
+`retryAfter` is the longest wait of the refusing limits, `remaining` the
+lowest of all, and `results` holds one decision per limit. The counters are
+locked in a fixed order, so concurrent calls over the same keys never
+deadlock. A list that names one scope and key twice fails with
+`RATE_LIMIT_HITS`, a scope without a rule or a per-call one with
+`RATE_LIMIT_UNKNOWN`.
+
 ### Limits as middleware
 
 The [Hono](/docs/frameworks/hono#rate-limits) and

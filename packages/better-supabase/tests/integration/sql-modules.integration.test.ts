@@ -5217,6 +5217,79 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     }
   });
 
+  it("counts a hit against several limits only when all allow it", async () => {
+    const user = `all-user-${RUN}`;
+    const ip = `all-ip-${RUN}`;
+    const limit = createRateLimit({ sql: postgres.admin });
+
+    const hits = [
+      { scope: user, key: "u-1", rule: { max: 3, period: "1 minute" } },
+      { scope: ip, key: "ip-1", rule: { max: 1, period: "1 minute" } },
+    ] as const;
+
+    const counters = async () =>
+      (
+        await pool.query<{ scope: string; hits: number }>(
+          "select scope, hits from better_supabase.rate_limits where scope = any($1) order by scope",
+          [[user, ip]],
+        )
+      ).rows.map((row) => [row.scope, row.hits]);
+
+    try {
+      const first = await limit.checkAll(hits).orThrow();
+      expect(first).toMatchObject({ allowed: true, remaining: 0 });
+      expect(first.blocked).toBeUndefined();
+
+      const second = await limit.checkAll(hits).orThrow();
+      expect(second).toMatchObject({
+        allowed: false,
+        blocked: { index: 1, scope: ip, key: "ip-1" },
+        results: [
+          { allowed: true, remaining: 2 },
+          { allowed: false, remaining: 0 },
+        ],
+      });
+      expect(second.retryAfter).toBeGreaterThan(0);
+      expect(await counters()).toEqual([
+        [ip, 1],
+        [user, 1],
+      ]);
+
+      const overTransport = createRateLimit({
+        transport: sqlTransport(postgres.admin),
+      });
+
+      expect(
+        await overTransport
+          .checkAll([
+            { scope: user, key: "u-1", rule: { max: 3, period: "1 minute" } },
+          ])
+          .orThrow(),
+      ).toMatchObject({ allowed: true, remaining: 1 });
+      expect(
+        await limit.checkAll([
+          { scope: user, key: "u-1", rule: { max: 3, period: 60 } },
+          { scope: user, key: "u-1", rule: { max: 9, period: 60 } },
+        ]),
+      ).toMatchObject({ ok: false, error: { hint: "RATE_LIMIT_HITS" } });
+      expect(
+        await limit.checkAll([{ scope: `none-${RUN}`, key: "k" }]),
+      ).toMatchObject({ ok: false, error: { hint: "RATE_LIMIT_UNKNOWN" } });
+      expect(
+        (
+          await pool.query<{ allowed: boolean }>(
+            "select has_function_privilege('authenticated', 'better_supabase.check_rate_limits(jsonb)', 'execute') as allowed",
+          )
+        ).rows[0]!.allowed,
+      ).toBe(false);
+    } finally {
+      await pool.query(
+        "delete from better_supabase.rate_limits where scope = any($1)",
+        [[user, ip]],
+      );
+    }
+  });
+
   it("answers writes over the limit with 429 and Retry-After", async () => {
     const probe = `bsb_rate_probe_${RUN}`;
     const scope = `/rpc/${probe}`;

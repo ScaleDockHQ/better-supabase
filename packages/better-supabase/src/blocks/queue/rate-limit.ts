@@ -33,6 +33,26 @@ export interface RateLimitRule {
   readonly period: number | string;
 }
 
+/** One limit of a `checkAll` call: its own scope and key, and an optional rule. */
+export interface RateLimitHit {
+  readonly scope: string;
+  readonly key: string;
+  /** A limit for this call, instead of the scope's rule from `set_rate_limit`. */
+  readonly rule?: RateLimitRule;
+}
+
+/** The answer of `checkAll`: allowed only when every limit allowed the hit. */
+export interface RateLimitAllDecision extends RateLimitDecision {
+  /** The first limit over its maximum, or `undefined` when the hit counted. */
+  readonly blocked?: {
+    readonly index: number;
+    readonly scope: string;
+    readonly key: string;
+  };
+  /** One decision per limit, in the order of the hits. */
+  readonly results: readonly RateLimitDecision[];
+}
+
 export interface RateLimit {
   /**
    * Counts a hit of `key` (an API key, a public token, a tenant) against
@@ -44,6 +64,15 @@ export interface RateLimit {
     key: string,
     rule?: RateLimitRule,
   ): AsyncResult<RateLimitDecision>;
+  /**
+   * Counts one hit against several limits in one database round trip, such as a
+   * per-user, a per-IP and a per-organization limit. The hit counts only when
+   * every limit allows it; a refusal leaves every counter as it was. Each hit
+   * needs its own scope and key: two limits on the same key take two scopes,
+   * such as `login:minute` and `login:day`. `remaining` is the lowest of the
+   * limits and `retryAfter` the longest wait of the refusing ones.
+   */
+  checkAll(hits: readonly RateLimitHit[]): AsyncResult<RateLimitAllDecision>;
   /**
    * Deletes up to `batch` counters whose window ended (`purge_rate_limits`);
    * returns how many.
@@ -104,6 +133,17 @@ export function createRateLimit(options: RateLimitOptions): RateLimit {
       ? overSql(options.sql)
       : overTransport(call);
 
+  const hitAll: HitAll =
+    options.transport === undefined
+      ? (hits) =>
+          run(async () =>
+            decodeAll(await checkRateLimits(options.sql, hits), hits),
+          )
+      : (hits) =>
+          call("check_rate_limits", { hits }, (value) =>
+            decodeAll(value, hits),
+          );
+
   const client: RateLimit = {
     purge: (purgeOptions = {}) =>
       call("purge_rate_limits", { batch: purgeOptions.batch }, (value) =>
@@ -127,6 +167,39 @@ export function createRateLimit(options: RateLimitOptions): RateLimit {
         rule === undefined ? null : seconds(rule.period),
       );
     },
+    checkAll: (hits) => {
+      if (hits.length === 0) {
+        return AsyncResult.err(
+          dbError("invalid_input", "checkAll needs at least one limit"),
+        );
+      }
+
+      const rows: LimitRow[] = [];
+
+      for (const hit of hits) {
+        if (
+          hit.rule !== undefined &&
+          (!Number.isInteger(hit.rule.max) || hit.rule.max < 1)
+        ) {
+          return AsyncResult.err(
+            dbError(
+              "invalid_input",
+              "A rate limit's max must be a positive integer",
+            ),
+          );
+        }
+
+        rows.push({
+          scope: hit.scope,
+          key: hit.key,
+          ...(hit.rule === undefined
+            ? {}
+            : { max_requests: hit.rule.max, period: seconds(hit.rule.period) }),
+        });
+      }
+
+      return hitAll(rows);
+    },
   };
 
   const hooked = withBlockHooks(client, options.hooks, {
@@ -135,6 +208,76 @@ export function createRateLimit(options: RateLimitOptions): RateLimit {
   });
 
   return hooked;
+}
+
+interface LimitRow {
+  readonly scope: string;
+  readonly key: string;
+  readonly max_requests?: number;
+  readonly period?: string;
+}
+
+type HitAll = (hits: readonly LimitRow[]) => AsyncResult<RateLimitAllDecision>;
+
+const numberOr = (value: unknown, fallback: number): number => {
+  const parsed = Number(value ?? fallback);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+function decodeOne(value: unknown): RateLimitDecision {
+  const row = isRecord(value) ? value : {};
+
+  return {
+    allowed: row["allowed"] === true,
+    remaining: numberOr(row["remaining"], 0),
+    retryAfter: numberOr(row["retry_after"], 0),
+  };
+}
+
+/** Reads `check_rate_limits`' answer; a missing one is a refusal. */
+function decodeAll(
+  value: unknown,
+  hits: readonly LimitRow[],
+): RateLimitAllDecision {
+  const row = isRecord(value) ? value : {};
+
+  const results = Array.isArray(row["results"])
+    ? row["results"].map(decodeOne)
+    : [];
+
+  const allowed = row["allowed"] === true && results.length === hits.length;
+
+  const index =
+    typeof row["blocked"] === "number" ? row["blocked"] : allowed ? -1 : 0;
+
+  const blocked = hits[index];
+
+  return {
+    allowed,
+    remaining:
+      results.length === 0
+        ? 0
+        : Math.min(...results.map((each) => each.remaining)),
+    retryAfter: allowed ? 0 : numberOr(row["retry_after"], 0),
+    ...(allowed || blocked === undefined
+      ? {}
+      : { blocked: { index, scope: blocked.scope, key: blocked.key } }),
+    results,
+  };
+}
+
+/** One `check_rate_limits` call over SQL. */
+async function checkRateLimits(
+  sql: SqlClient,
+  hits: readonly LimitRow[],
+): Promise<unknown> {
+  const [row] = await sql.queryRaw<{ result: unknown }>(
+    "select better_supabase.check_rate_limits($1::jsonb) as result",
+    [JSON.stringify(hits)],
+  );
+
+  return row?.result;
 }
 
 type Hit = (

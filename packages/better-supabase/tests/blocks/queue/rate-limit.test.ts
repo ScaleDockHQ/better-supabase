@@ -151,3 +151,112 @@ describe("rateLimited", () => {
     ).toEqual({ code: "RATE_LIMITED", status: 429 });
   });
 });
+
+describe("createRateLimit checkAll", () => {
+  it("sends every limit in one call and reports the one that blocked", async () => {
+    const fake = fakeSql([
+      [
+        "check_rate_limits",
+        [
+          {
+            result: {
+              allowed: false,
+              blocked: 1,
+              retry_after: 30,
+              results: [
+                { allowed: true, remaining: 4, retry_after: 0 },
+                { allowed: false, remaining: 0, retry_after: 30 },
+              ],
+            },
+          },
+        ],
+      ],
+    ]);
+
+    const limit = createRateLimit({ sql: fake.sql });
+
+    expect(
+      await limit
+        .checkAll([
+          { scope: "login:user", key: "user-1" },
+          { scope: "login:ip", key: "1.2.3.4", rule: { max: 3, period: 60 } },
+        ])
+        .orThrow(),
+    ).toEqual({
+      allowed: false,
+      remaining: 0,
+      retryAfter: 30,
+      blocked: { index: 1, scope: "login:ip", key: "1.2.3.4" },
+      results: [
+        { allowed: true, remaining: 4, retryAfter: 0 },
+        { allowed: false, remaining: 0, retryAfter: 30 },
+      ],
+    });
+    expect(fake.calls).toHaveLength(1);
+    expect(JSON.parse(String(fake.calls[0]!.values[0]))).toEqual([
+      { scope: "login:user", key: "user-1" },
+      {
+        scope: "login:ip",
+        key: "1.2.3.4",
+        max_requests: 3,
+        period: "60 seconds",
+      },
+    ]);
+  });
+
+  it("answers allowed with the lowest remaining", async () => {
+    const calls: [string, unknown][] = [];
+
+    const limit = createRateLimit({
+      transport: {
+        async call(_schema, fn, args) {
+          calls.push([fn, args["hits"]]);
+
+          return {
+            allowed: true,
+            blocked: null,
+            retry_after: 0,
+            results: [
+              { allowed: true, remaining: 9, retry_after: 0 },
+              { allowed: true, remaining: 2, retry_after: 0 },
+            ],
+          };
+        },
+      },
+    });
+
+    expect(
+      await limit
+        .checkAll([
+          { scope: "a", key: "k" },
+          { scope: "b", key: "k" },
+        ])
+        .orThrow(),
+    ).toMatchObject({ allowed: true, remaining: 2, retryAfter: 0 });
+    expect(calls).toEqual([
+      [
+        "check_rate_limits",
+        [
+          { scope: "a", key: "k" },
+          { scope: "b", key: "k" },
+        ],
+      ],
+    ]);
+  });
+
+  it("refuses an empty list and a bad rule without a call", async () => {
+    const fake = fakeSql([]);
+    const limit = createRateLimit({ sql: fake.sql });
+
+    expect(await limit.checkAll([])).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_input" },
+    });
+    expect(
+      await limit.checkAll([
+        { scope: "a", key: "k", rule: { max: 0, period: 1 } },
+      ]),
+    ).toMatchObject({ ok: false, error: { kind: "invalid_input" } });
+    expect(fake.calls).toEqual([]);
+  });
+});
