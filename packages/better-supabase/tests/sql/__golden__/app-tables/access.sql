@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:6b2e49b2587a3999a5b4f15f51171eb3406fc1754aae20d69cd2ac6e06b889c0
+-- @bsb-hash sha256:b5cb866f25269f57362e7e4dfa0218e6f2885937890530e577dccd9b017c7274
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -114,7 +114,7 @@ comment on view "public"."projects_view" is 'The rollups and lookups of public.p
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:8572a02c2284f231e5e9ba69a6f90a4294a33ed7d67503aca9b126367eec6833
+-- @bsb-hash sha256:76ce2c9ec34923634388a6231756e142e32bf0c5ebec0e9ff92a173f8b521409
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 

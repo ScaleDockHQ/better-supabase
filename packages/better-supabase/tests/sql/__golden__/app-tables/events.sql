@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:ce1cc1d7b16cea5df0444dae39c62130e51405da0426c0bb58158e2f67168429
+-- @bsb-hash sha256:3dcdfd7e5ac3baf4f113d31c78739f830d252743203b2b7e76dc80036582d5c3
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -130,7 +130,7 @@ create trigger "bsb_emit_event" after delete on "public"."notes"
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:114ff5fdea6e6ff2ff9f33af008e41fcfbe8c0bcbf5d487dcd1689bbf04e671b
+-- @bsb-hash sha256:156d6918154013f9596f85fd921ec69dd55b0de5d838be1fa7292f11f7f47291
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 

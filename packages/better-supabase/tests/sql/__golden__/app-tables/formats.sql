@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:f982011f69d3d0f9b6f0921a4c7fbff5be845fe7baae9b8904d8fbae515d18d6
+-- @bsb-hash sha256:df3854352e0d6e4698cfcd048f071752db7c3f565d691c0c8bb8eaa8c28b7fd7
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -107,7 +107,7 @@ alter table "public"."notes" add constraint "notes_contact_id_fkey" foreign key 
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:a4e62db57591d3bef76cc92987b8c3776ee912db746c0059b822a86bbd111dd6
+-- @bsb-hash sha256:77d38c7a02ed72d326b82b20afbbf9b07d914fa3ff2b645b5e443c1e61a27339
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 

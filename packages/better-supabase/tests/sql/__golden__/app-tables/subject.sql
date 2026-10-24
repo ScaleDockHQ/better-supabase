@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:3e304a1c67016b60f9fe5c662703ba955ac21b886817070834ab53136938c6c6
+-- @bsb-hash sha256:c68dddf0d06a5c03b829a0cd3035cfd8a063d25088a6a3ef99d3a1567ec6d821
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -49,7 +49,7 @@ create trigger "bsb_search_project_index"
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:2948f52a3911059441d262ab06270b74e2df9ea5397e2e606706c7f456d0caab
+-- @bsb-hash sha256:6ecce10941ab210a642a75d6f2193e5685d4c4c3841569f32da15eec80246956
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:67c474afdf5cfed06cfc7f8095c0904ee10fddd6f5ab79e4324c58413ad95b6f
+-- @bsb-hash sha256:62af34560a7e3417be0592190780f81335b48afb2cae61ec65bc857a84bc43c8
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -365,7 +365,7 @@ grant execute on function "public"."keys_reveal"(bigint[]) to authenticated, ser
 -- ==== test supabase/tests/900_better_supabase_app_tables.test.sql
 -- better-supabase module: app-tables
 -- @bsb-block-test app-tables
--- @bsb-hash sha256:d84e4cd9bdd974841a98ba45aa23a19622b35bdbaf6f38a93344adb848d6a8f6
+-- @bsb-hash sha256:a22b87aa8e92fb37917f8e55ed0840e013b50c4558b5017cc11c1731eb9c2da2
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
 
