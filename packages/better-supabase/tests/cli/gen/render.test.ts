@@ -1,8 +1,16 @@
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
-import { mapperFilePath, render } from "../../../src/cli/gen/render.ts";
+import {
+  mapperFilePath,
+  render,
+  renderTypesModule,
+} from "../../../src/cli/gen/render.ts";
+import { CACHE_DIR } from "../../../src/cli/introspect/cache.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { loadFixtureSnapshot } from "../fixtures/render.ts";
 
@@ -70,5 +78,27 @@ describe("render", () => {
       text.split("\n").filter((line) => line.startsWith("export type "));
 
     expect(typeLines(typesModule)).toEqual(typeLines(written));
+  });
+
+  it("caches the served module per config and snapshot", async () => {
+    const snapshot = await loadFixtureSnapshot();
+    const root = await mkdtemp(join(tmpdir(), "bsb-render-"));
+
+    try {
+      const config = resolveConfig(
+        { ...base, gen: { contentMapper: true } },
+        root,
+      );
+
+      const first = await renderTypesModule(config, snapshot, "config");
+
+      expect(first).toBe((await render(config, snapshot)).typesModule);
+      expect(await renderTypesModule(config, snapshot, "config")).toBe(first);
+      expect(await readdir(join(root, CACHE_DIR))).toEqual(
+        expect.arrayContaining([expect.stringMatching(/^types-/)]),
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

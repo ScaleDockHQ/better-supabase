@@ -16,7 +16,11 @@ import type { Snapshot } from "../introspect/types.ts";
 
 import { CliError, errorText } from "../core/errors.ts";
 import { importPath } from "../core/io.ts";
-import { cachedDatabaseTypes } from "../introspect/cache.ts";
+import {
+  cachedDatabaseTypes,
+  cachedTypesModule,
+  typesModuleKey,
+} from "../introspect/cache.ts";
 import {
   generateDatabaseTypes,
   oxfmtInstalled,
@@ -86,6 +90,26 @@ export async function renderFiles(
   options: RenderOptions = {},
 ): Promise<GeneratedFile[]> {
   return (await render(config, snapshot, options)).files;
+}
+
+/**
+ * The module the content mapper serves for `schema.bsb`: the full generated
+ * module with `database.types.ts` inlined, from the cache when the CLI and
+ * typegen versions, the config (and `configText`, its file) and the snapshot
+ * match the last render.
+ */
+export async function renderTypesModule(
+  config: ResolvedConfig,
+  snapshot: Snapshot,
+  configText: string | undefined,
+): Promise<string> {
+  return cachedTypesModule(
+    config.root,
+    config.output,
+    typesModuleKey(config, configText, snapshot),
+    async () =>
+      (await render(config, snapshot, { typesModule: true })).typesModule ?? "",
+  );
 }
 
 export async function render(

@@ -300,6 +300,7 @@ export const genCommand: AnyCommand = defineCliCommand({
 
     const options: GenOptions = {
       config: context.config,
+      ...(context.configFile ? { configFile: context.configFile } : {}),
       env: context.env,
       check: args.check === true,
       dryRun: args["dry-run"] === true,
