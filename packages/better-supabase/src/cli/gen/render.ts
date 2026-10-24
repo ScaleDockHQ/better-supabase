@@ -1,4 +1,11 @@
-import { basename, isAbsolute, relative, resolve } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from "node:path";
 
 import type {
   GeneratedFile,
@@ -9,7 +16,11 @@ import type { Snapshot } from "../introspect/types.ts";
 
 import { CliError, errorText } from "../core/errors.ts";
 import { importPath } from "../core/io.ts";
-import { cachedDatabaseTypes } from "../introspect/cache.ts";
+import {
+  cachedDatabaseTypes,
+  cachedTypesModule,
+  typesModuleKey,
+} from "../introspect/cache.ts";
 import {
   generateDatabaseTypes,
   oxfmtInstalled,
@@ -19,7 +30,7 @@ import {
   generatorBlocks,
   schemaExtensions,
 } from "./blocks.ts";
-import { emitMeta, emitModule, metaPaths } from "./emit.ts";
+import { emitMeta, emitModule, emitRuntime, metaPaths } from "./emit.ts";
 import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
 import { emitRecords } from "./records.ts";
@@ -38,7 +49,24 @@ export interface RenderOptions {
    * code that installs them with `.use()` itself. Defaults to `true`.
    */
   readonly extensions?: boolean;
+  /**
+   * Also renders the module the content mapper serves for `schema.bsb`, in
+   * `typesModule`. Mapper mode (`gen.contentMapper`) always renders it.
+   */
+  readonly typesModule?: boolean;
 }
+
+/** The file the content mapper serves the schema types for. */
+const MAPPER_FILE = "schema.bsb";
+
+/** Where `schema.bsb` sits: next to the generated module. */
+export function mapperFilePath(config: ResolvedConfig): string {
+  return join(dirname(config.output), MAPPER_FILE);
+}
+
+export const MAPPER_FILE_CONTENTS: string = `// The better-supabase content mapper serves the schema types for this file.
+// Its contents are ignored. Run \`better-supabase gen\` after a config change.
+`;
 
 export interface Rendered {
   readonly files: GeneratedFile[];
@@ -46,6 +74,8 @@ export interface Rendered {
   readonly warnings: readonly string[];
   /** Hints about the schema, printed as they are. */
   readonly notices: readonly string[];
+  /** The module the content mapper serves, when `typesModule` asked for it. */
+  readonly typesModule?: string;
 }
 
 /**
@@ -60,6 +90,26 @@ export async function renderFiles(
   options: RenderOptions = {},
 ): Promise<GeneratedFile[]> {
   return (await render(config, snapshot, options)).files;
+}
+
+/**
+ * The module the content mapper serves for `schema.bsb`: the full generated
+ * module with `database.types.ts` inlined, from the cache when the CLI and
+ * typegen versions, the config (and `configText`, its file) and the snapshot
+ * match the last render.
+ */
+export async function renderTypesModule(
+  config: ResolvedConfig,
+  snapshot: Snapshot,
+  configText: string | undefined,
+): Promise<string> {
+  return cachedTypesModule(
+    config.root,
+    config.output,
+    typesModuleKey(config, configText, snapshot),
+    async () =>
+      (await render(config, snapshot, { typesModule: true })).typesModule ?? "",
+  );
 }
 
 export async function render(
@@ -106,12 +156,23 @@ export async function render(
     ...runtime,
   });
 
+  const mapper = config.gen.contentMapper === true;
+
   const files: GeneratedFile[] = [
-    { path: config.databaseTypesOutput, contents: databaseTypes },
     { path: config.output, contents: "" },
     { path: metaFiles.js, contents: meta.js },
     { path: metaFiles.dts, contents: meta.dts },
   ];
+
+  files.splice(
+    mapper ? 1 : 0,
+    0,
+    mapper
+      ? { path: mapperFilePath(config), contents: MAPPER_FILE_CONTENTS }
+      : { path: config.databaseTypesOutput, contents: databaseTypes },
+  );
+
+  const main = mapper ? 0 : 1;
 
   const blockConfig = emitBlockConfig(config, runtime);
 
@@ -186,20 +247,41 @@ export async function render(
       ? undefined
       : files.find((file) => file.validators === true);
 
-  files[1] = {
-    path: config.output,
-    contents: emitModule(model, {
-      ...emitOptions,
-      ...(validators === undefined
-        ? {}
-        : {
-            validatorsImport: importPath(
-              output,
-              resolve(config.root, validators.path),
-            ),
-          }),
-    }),
+  const withValidators = {
+    ...emitOptions,
+    ...(validators === undefined
+      ? {}
+      : {
+          validatorsImport: importPath(
+            output,
+            resolve(config.root, validators.path),
+          ),
+        }),
   };
 
-  return { files, warnings: model.warnings, notices: model.notices };
+  files[main] = {
+    path: config.output,
+    contents: mapper
+      ? emitRuntime(model, {
+          ...withValidators,
+          typesImport: `./${MAPPER_FILE}`,
+        })
+      : emitModule(model, withValidators),
+  };
+
+  const typesModule =
+    mapper || options.typesModule === true
+      ? emitModule(model, {
+          ...withValidators,
+          databaseTypes,
+          declareMeta: true,
+        })
+      : undefined;
+
+  return {
+    files,
+    warnings: model.warnings,
+    notices: model.notices,
+    ...(typesModule === undefined ? {} : { typesModule }),
+  };
 }

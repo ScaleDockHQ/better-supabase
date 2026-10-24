@@ -170,6 +170,8 @@ export interface ConventionKeys {
   readonly provider?: boolean;
   /** The newest migration, written to `doctor.migrationSafety.since`. */
   readonly migrationSince?: string;
+  /** Turns on `gen.contentMapper`. */
+  readonly contentMapper?: boolean;
 }
 
 const quote = (text: string): string =>
@@ -222,7 +224,7 @@ export default defineConfig({${
         ? ""
         : `\n  // Expands into blocks and conventions; \`better-supabase config --preset\` shows what it holds.\n  preset: ${literal(preset)},`
     }
-  gen: { casing: '${casing}', output: '${context.generated}' },${
+  gen: { casing: '${casing}', output: '${context.generated}'${keys.contentMapper === true ? ", contentMapper: true" : ""} },${
     grouped["database"] === undefined
       ? ""
       : `\n  database: ${literal(grouped["database"])},`

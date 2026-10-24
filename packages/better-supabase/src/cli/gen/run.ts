@@ -14,6 +14,7 @@ import type { Paint } from "../style.ts";
 import { moduleLayout, renderBlocks, sameBlockFile } from "../../sql/index.ts";
 import { providerLabel, unsafeKey } from "../authorization.ts";
 import { loadSnapshot } from "../commands/snapshot.ts";
+import { schemaStampPath } from "../content-mapper.ts";
 import {
   applyPlan,
   hasConflicts,
@@ -23,6 +24,11 @@ import {
 import { display, sameText } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { providerBucketKeys } from "../doctor/authorization.ts";
+import {
+  storeTypesModule,
+  typesModuleKey,
+  writeAtomic,
+} from "../introspect/cache.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import {
@@ -46,6 +52,11 @@ export interface GenOptions extends SnapshotSource {
   readonly force?: boolean;
   /** Colors the `--check` diffs. */
   readonly paint?: Paint;
+  /**
+   * The config file, whose text keys the content mapper's cache; mapper mode
+   * stores the module it serves there.
+   */
+  readonly configFile?: string;
   /** Pre-loaded snapshot (tests, watch mode). */
   readonly snapshot?: Snapshot;
   /**
@@ -127,7 +138,11 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
 
-  const { files, warnings, notices } = await render(config, snapshot);
+  const { files, warnings, notices, typesModule } = await render(
+    config,
+    snapshot,
+  );
+
   // Under the migrations workflow the read sets go into a migration, which
   // the manifest never lists: a later run must not remove it.
   const migrations = !options.isolated && (await writesMigrations(config));
@@ -296,6 +311,20 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
 
   if (!options.isolated && options.dryRun !== true) {
     await writeManifest(config.root, generated);
+  }
+
+  if (typesModule !== undefined && options.dryRun !== true) {
+    const configText = options.configFile
+      ? await readFile(options.configFile, "utf-8").catch(() => undefined)
+      : undefined;
+
+    const key = typesModuleKey(config, configText, snapshot);
+
+    if (await storeTypesModule(config.root, config.output, key, typesModule)) {
+      await writeAtomic(schemaStampPath(config.root, config.output), key).catch(
+        () => undefined,
+      );
+    }
   }
 
   const tables = snapshot.extras.tables.filter((table) =>

@@ -293,4 +293,24 @@ describe("doctor command", () => {
 
     expect(findings(skipped)).toEqual([]);
   });
+
+  it("reads the content mapper setup from the project for BS602", async () => {
+    await write("tsconfig.json", JSON.stringify({ compilerOptions: {} }));
+    await write(
+      "package.json",
+      JSON.stringify({ scripts: { typecheck: "tsc --noEmit" } }),
+    );
+
+    const result = await doctor(
+      ["--only", "BS602", "--json"],
+      { snapshot: await parseSnapshot(fixture) },
+      { gen: { contentMapper: true } },
+    );
+
+    expect(findings(result)).toEqual([
+      expect.objectContaining({ code: "BS602", target: "tsconfig.json" }),
+      expect.objectContaining({ code: "BS602", target: "typescript" }),
+      expect.objectContaining({ code: "BS602", target: "package.json" }),
+    ]);
+  });
 });

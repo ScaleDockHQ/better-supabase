@@ -175,6 +175,8 @@ export default defineConfig({
         // The CLI reads its environment: DATABASE_URL, SUPABASE_BIN and CI.
         "src/cli/core/run.ts",
         "src/cli/bin.ts",
+        // The content mapper reads the same variables for the project tsc opens.
+        "src/mapper/bin.ts",
         // The Supabase World reads its options as the Workflow SDK's worlds do.
         "src/workflow-sdk/world/world.ts",
         "src/workflow-sdk/world/env.ts",

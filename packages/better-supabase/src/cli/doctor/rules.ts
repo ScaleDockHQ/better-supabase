@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { BlockSqlLayout } from "../../sql/index.ts";
+import type { ContentMapperSetup } from "../content-mapper.ts";
 import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
 import type { PeerVersion } from "../peers.ts";
 import type { SupabaseToml, TomlValue } from "../supabase-toml.ts";
@@ -135,6 +136,11 @@ export interface DoctorContext {
   readonly codes?: readonly string[];
   /** Better-supabase's peers and the versions the project installs (BS601). */
   readonly peers?: readonly PeerVersion[];
+  /**
+   * `tsconfig.json`, the typecheck script and TypeScript, in mapper mode
+   * (BS602).
+   */
+  readonly contentMapper?: ContentMapperSetup;
   readonly stackEnv?: StackEnvCheck;
   /** The variables the shell exports (BS504). */
   readonly shellEnv?: Readonly<Record<string, string | undefined>>;

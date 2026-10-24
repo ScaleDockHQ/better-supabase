@@ -1,0 +1,27 @@
+{
+  "name": "@better-supabase/example-content-mapper",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A Node script whose schema types TypeScript 7.1 gets from the better-supabase content mapper instead of database.types.ts.",
+  "type": "module",
+  "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
+    "lint": "oxlint",
+    "start": "node src/main.ts",
+    "test": "vitest run",
+    "transit": "true",
+    "typecheck": "tsc --runExternalCode --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "catalog:",
+    "better-supabase": "workspace:*"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:ts71",
+    "vitest": "catalog:"
+  }
+}

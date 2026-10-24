@@ -30,7 +30,9 @@ alwaysApply: true
    `tests/standards/wintertc.test.ts`): `workflow-sdk/world` (it imports
    `pg`) and `eve` (eve runs on Node; ADR 0013).
    `streams/redis` stays a runtime entry: it imports nothing from Node and
-   loads `redis` only for its `url` option.
+   loads `redis` only for its `url` option. The content mapper
+   (`dist/mapper/bin.js`, ADR 0097) is a Node process `tsc` starts, not an
+   entry; the bundle check tracks its startup next to the CLI's.
 7. Auth never calls the Auth server when the access token is still valid,
    unless the app turns on the proxy's `endedSession` check. Refresh happens
    only in the proxy, never in Server Components.

@@ -66,6 +66,19 @@ methods, which the examples' typecheck catches. After a change, run
 `pnpm build` in the package and `pnpm exec better-supabase gen` in
 `apps/examples/nextjs`, the one example with record binding blocks.
 
+## Content mapper
+
+`src/mapper` is the TypeScript 7.1 content mapper (ADR 0097). It reuses gen's
+config loading, snapshot and `cachedTypesModule`, and imports no command
+module beyond `loadSnapshot`, so keep it free of citty; the bundle test
+tracks its startup as `content mapper (startup)`. It must never throw: a
+failure becomes a BS603 to BS606 diagnostic in the transform result. Every
+path in `watchedFiles` is absolute and real (`realPath`); a relative or
+symlinked path fails with TS18093 or never fires. Files mode output must stay
+byte-identical, which `tests/cli/gen` checks. Try a change end to end with
+`pnpm build`, then `pnpm --filter @better-supabase/types-ts71 typecheck:matrix`;
+`tsc --watch --runExternalCode` in `tests/types/ts-7.1` shows the reload.
+
 ## Docs
 
 - Each command's docs section has a `Side effects:` line, or a

@@ -909,6 +909,7 @@ const ENTRIES = {
       watchInterval: v.optional(
         v.pipe(v.number(), v.minValue(1, "must be a positive number of ms")),
       ),
+      contentMapper: v.optional(v.boolean()),
       ...pickEntries([
         "output",
         "casing",
