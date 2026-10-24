@@ -308,7 +308,8 @@ block another installed block requires; remove both together. It writes no
 migration: [`db diff -f remove_comments`](/docs/cli/db#diff) writes the one
 that drops their tables, so you can read the `drop` statements before they
 run. `--dry-run` prints what it would change, and `--check` exits 1 while
-the files still differ.
+the files still differ. A module file edited by hand stays, and the command
+exits 1 naming it; `--force` deletes it anyway.
 
 Side effects: Writes files.
 
@@ -327,5 +328,13 @@ the files. Run it after you bump `better-supabase` or change a block's
 options. `--check` exits 1 when a file differs and is the CI check,
 `--dry-run` prints the diff, and `--tests-dir <dir>` writes the pgTAP files
 somewhere other than `database.sql.testsDir`.
+
+Each block file carries a `-- @bsb-hash sha256:...` line over its SQL. When
+the SQL no longer matches the hash, the file was edited by hand: `upgrade`
+leaves it alone and exits 1 naming it. Move the change into your own schema
+file or a SQL hook, or pass `--force` to overwrite it. `upgrade` also renames
+files from earlier releases (2-digit positions such as
+`900_better_supabase_04_memberships.sql` become `..._004_...`) and removes
+block files that no installed block writes, unless they were edited by hand.
 
 Side effects: Writes files.
