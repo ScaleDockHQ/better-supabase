@@ -64,12 +64,43 @@ const OVER_APP_OPTIONS: Record<string, { options: Record<string, unknown> }> = {
   "webhooks-out": { options: { defaultFormat: "standard" } },
 };
 
-function render(variant: Variant, module: string): string {
-  let files;
+type Rendered = ReturnType<typeof renderBlocks> | { readonly error: unknown };
 
-  try {
-    files = renderBlocks(variant.modules(module), variant.layout(module));
-  } catch (cause) {
+const RENDERS = new Map<string, Rendered>();
+
+function filesOf(variant: Variant, module: string): Rendered {
+  const key = `${variant.name}\u0000${module}`;
+  let rendered = RENDERS.get(key);
+
+  if (rendered === undefined) {
+    try {
+      rendered = renderBlocks(variant.modules(module), variant.layout(module));
+    } catch (error) {
+      rendered = { error };
+    }
+
+    RENDERS.set(key, rendered);
+  }
+
+  return rendered;
+}
+
+const EVERY_MODULE = NAMES.filter((name) => name !== "pgtap");
+
+let everyModule: ReturnType<typeof renderBlocks> | undefined;
+
+function renderEveryModule(): ReturnType<typeof renderBlocks> {
+  everyModule ??= renderBlocks(EVERY_MODULE, {});
+
+  return everyModule;
+}
+
+function render(variant: Variant, module: string): string {
+  const files = filesOf(variant, module);
+
+  if ("error" in files) {
+    const cause = files.error;
+
     return `-- ==== ${variant.name}: throws\n-- ${String(cause instanceof Error ? cause.message : cause)}\n`;
   }
 
@@ -92,11 +123,10 @@ describe("SQL module output", () => {
   });
 
   it("renders the same files whatever order the modules come in", () => {
-    const names = NAMES.filter((name) => name !== "pgtap");
-    const forward = renderBlocks(names, {});
+    const forward = renderEveryModule();
 
     const reversed = new Map(
-      renderBlocks(names.toReversed(), {}).map((file) => [
+      renderBlocks(EVERY_MODULE.toReversed(), {}).map((file) => [
         file.path,
         file.contents,
       ]),
@@ -114,21 +144,13 @@ describe("SQL module output", () => {
       (variant) => variant.name !== "with every module",
     ).flatMap((variant) =>
       NAMES.filter((module) => variant.applies(module)).flatMap((module) => {
-        try {
-          return renderBlocks(variant.modules(module), variant.layout(module));
-        } catch {
-          return [];
-        }
+        const files = filesOf(variant, module);
+
+        return "error" in files ? [] : files;
       }),
     );
 
-    const files = [
-      ...each,
-      ...renderBlocks(
-        NAMES.filter((name) => name !== "pgtap"),
-        {},
-      ),
-    ];
+    const files = [...each, ...renderEveryModule()];
 
     expect(
       files
