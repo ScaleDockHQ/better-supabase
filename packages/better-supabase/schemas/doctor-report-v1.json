@@ -84,6 +84,7 @@
               "BS233",
               "BS234",
               "BS235",
+              "BS236",
               "BS301",
               "BS302",
               "BS303",
@@ -164,6 +165,10 @@
           "target": {
             "type": "string",
             "description": "What the finding is about, e.g. `public.customers` or `.env.local:SUPABASE_SECRET_KEY`."
+          },
+          "fix": {
+            "type": "string",
+            "description": "SQL that `doctor --fix` runs against the database to resolve the finding."
           },
           "location": {
             "type": "object",
