@@ -349,6 +349,29 @@ describe("doctor command", () => {
     expect(findings(clean)).toEqual([]);
     expect(requireConsent).not.toHaveBeenCalled();
 
+    const quiet = await doctor(
+      ["--only", "BS236", "--fix", "--json"],
+      // SAFETY: the fake returns BS236's rows and runs the fix; no log is passed.
+      {
+        snapshot,
+        database: {
+          describe: "test",
+          session: true,
+          query: async (sql: string) => {
+            if (sql.includes("pg_constraint")) {
+              return constraints;
+            }
+
+            return sql.startsWith("select exists") ? [{ failing: false }] : [];
+          },
+        },
+      } as Parameters<typeof runDoctor>[3],
+      {},
+      { DATABASE_URL: "postgres://postgres:postgres@127.0.0.1:54322/postgres" },
+    );
+
+    expect(findings(quiet)).toEqual([]);
+
     const failed = await doctor(
       ["--only", "BS236", "--fix", "--json"],
       // SAFETY: the fake returns BS236's rows, then fails the fix and its rollback.

@@ -1310,6 +1310,31 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
       expect(check.error).toContain(`supabase/tests/${file!}`);
     });
 
+    it("reports a deleted pgTAP file and a block test that is no longer written", async () => {
+      const config = migrations(["pgtap"]);
+      await sql(["sync"], config);
+
+      const tests = await readdir(join(root, "supabase/tests"), {
+        recursive: true,
+      });
+
+      const file = tests.find((name) => name.endsWith(".sql"))!;
+      const leftover = "900_better_supabase_pgtap_old.test.sql";
+
+      await rm(join(root, "supabase/tests", file));
+      await writeFile(
+        join(root, "supabase/tests", leftover),
+        "-- @bsb-block-test pgtap\nselect 1;\n",
+      );
+
+      const check = await sql(["sync", "--check"], config);
+      expect(check.code).toBe(1);
+      expect(check.output).toContain(
+        `supabase/tests/${leftover} is no longer written; \`upgrade\` removes it.`,
+      );
+      expect(check.error).toContain(`supabase/tests/${file}`);
+    });
+
     it("upgrades nothing before the first module migration", async () => {
       expect(await sql(["upgrade", "--check"], migrations(["mfa"]))).toEqual({
         code: 0,
