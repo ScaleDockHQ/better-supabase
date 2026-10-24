@@ -1,6 +1,6 @@
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:f13dd6e93eb4e18c9f13566fd0c750b5c3e469793eab8f30e5d4eb9f16b2cc57
+-- @bsb-hash sha256:2161067ed64bd75b01ee6b4f35fa028af884873accaacd5873558426fda94167
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -239,6 +239,18 @@ grant execute on function "better_supabase"."list_reminder_schedule"() to servic
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."recurrence_rules";
 create policy bsb_tenant_scope on "centrakit"."recurrence_rules" as restrictive
   for all to authenticated

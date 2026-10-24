@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:b63be5e736712d46de05566776464ec8a8cb859f6cc6b87ef6460ca6093de28e
+-- @bsb-hash sha256:9a5443df4d309566b02483de12782aaf2c42043aefbd9a260cc1333e48c39448
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -444,6 +444,18 @@ grant execute on function "better_supabase"."list_ai_batch_items"(uuid, text, in
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_workspace_ids(text[])') is null then
+    create function better_supabase.member_workspace_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."ai_provider_keys";
 create policy bsb_tenant_scope on "better_supabase"."ai_provider_keys" as restrictive
   for all to authenticated

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:1a0bce4db0fa07acf75248ed522c4ee84c532db90420dac34ade0fff3b1ba757
+-- @bsb-hash sha256:61d2ae35ab0377b8fc95e56ebce277d396753d02825c885b820a1c7e960b92d4
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -652,6 +652,18 @@ grant execute on function "better_supabase"."company_people_of"(uuid) to authent
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
 create policy bsb_tenant_scope on "better_supabase"."companies" as restrictive
   for all to authenticated
@@ -707,7 +719,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:20d38e19e672a05b173641822ea9c3af0bd75a37a9d367daf69127bef236a415
+-- @bsb-hash sha256:1b82bc0fe7a12617209de9a9e27707b5774ccb21b418de9024d8243ca6cc1ce8
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1511,6 +1523,18 @@ grant execute on function "better_supabase"."person_for_inbox_contact"(uuid, boo
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
 create policy bsb_tenant_scope on "better_supabase"."companies" as restrictive
   for all to authenticated
@@ -1574,7 +1598,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:083b4e1deeb63ddaab072bc3aef42e4e706c769ff395515e8c55f13e5b44782c
+-- @bsb-hash sha256:5f824c79a18f7a37f0435822b13f2d284561fb4b068f620d7fb3beb8ef75409f
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2227,6 +2251,18 @@ grant execute on function "app_private"."company_people_of"(uuid) to authenticat
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "app_private"."companies";
 create policy bsb_tenant_scope on "app_private"."companies" as restrictive
   for all to authenticated
@@ -2282,7 +2318,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:ec8f1615704b9918f1faae65f0211a5436a6d874b61c4fc12f1974ac634baae7
+-- @bsb-hash sha256:25bab89f355e02955d24723cc643193176f22b07ae8b0f9e54e0c913a664beef
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2933,6 +2969,18 @@ grant execute on function "better_supabase"."company_people_of"(uuid) to authent
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."companies";
 create policy bsb_tenant_scope on "better_supabase"."companies" as restrictive
   for all to authenticated

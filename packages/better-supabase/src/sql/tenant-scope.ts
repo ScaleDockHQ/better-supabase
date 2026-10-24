@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "./context.ts";
 
+import { sqlString } from "../core/template.ts";
 import { closingParen } from "./actor-guard.ts";
 
 /**
@@ -257,6 +258,31 @@ function grantedBy(policies: readonly ParsedPolicy[]): {
 }
 
 /**
+ * The memberships module's `member_organization_ids` as an empty set when it
+ * doesn't exist yet, so a module that installs before memberships can create
+ * its tenant scope policies. Memberships replaces it with `create or replace`,
+ * which needs the same name, arguments and return type.
+ */
+function membersStub(ctx: BlockSqlContext): string {
+  const fn = ctx.scope.members().replace(/\(\)$/, "");
+  const id = ctx.idType;
+
+  return `-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure(${sqlString(`${fn}(text[])`)}) is null then
+    create function ${fn}(roles text[] default null)
+    returns setof ${id}
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::${id} where false $members$;
+  end if;
+end $$;
+`;
+}
+
+/**
  * `sql` with a restrictive tenant scope policy on each tenant-scoped table the
  * module grants to `authenticated` or writes a permissive policy for it on. A
  * table is tenant-scoped when its spec names a `lifecycle.tenant` column. Each
@@ -325,7 +351,7 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
-${statements.join("\n")}`;
+${ctx.module === "memberships" ? "" : membersStub(ctx)}${statements.join("\n")}`;
 
   return `-- The tenant scope policies call the module's functions, so they go before
 -- the module drops or replaces one and come back at the end.

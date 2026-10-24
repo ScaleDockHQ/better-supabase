@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:b4331fa1eba7aa6f533df102b5c1e2ea8ca83650ff1720d40e157b5d9840e36f
+-- @bsb-hash sha256:23dbed9526584bdaa63b9c664c9c7dd678d1f60472e25f0a5bf2d0bbacd097f6
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1961,6 +1961,18 @@ drop policy if exists product_media_storefront on "better_supabase"."product_med
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."products";
 create policy bsb_tenant_scope on "better_supabase"."products" as restrictive
   for all to authenticated

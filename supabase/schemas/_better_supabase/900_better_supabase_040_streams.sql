@@ -1,6 +1,6 @@
 -- better-supabase module: streams
 -- @bsb-block streams@1 managed
--- @bsb-hash sha256:e5d5858199fa11e3dedaa8cd9b945e4dbec89c8a46878d94155d828176183c77
+-- @bsb-hash sha256:1a55081f91785e633425824bff268360818156c26d1146b0c129c9c02aaacc2a
 -- Ordered text chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -329,6 +329,18 @@ $$;
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."streams";
 create policy bsb_tenant_scope on "better_supabase"."streams" as restrictive
   for all to authenticated

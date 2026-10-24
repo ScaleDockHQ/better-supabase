@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:90e2d8462807d69016feee7e2795b3f2c4501707ec162f4eba53a16491185c60
+-- @bsb-hash sha256:22d926a3f2a95966ee18d7c5662c5adcb83932c9ce5d324ebc82c65e5212ea4c
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -901,6 +901,18 @@ grant execute on function "better_supabase"."policy_acknowledgements"(uuid) to a
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."control_frameworks";
 create policy bsb_tenant_scope on "better_supabase"."control_frameworks" as restrictive
   for all to authenticated

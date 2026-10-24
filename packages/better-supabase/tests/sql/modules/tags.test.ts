@@ -43,6 +43,7 @@ describe("tags module", () => {
 
     expect(sql).toContain('delete from "public"."task_tags"');
     expect(sql).not.toContain('delete from "better_supabase"."taggings"');
+    expect(sql).not.toMatch(/create table if not exists\s+\(/);
   });
 
   it("appends a rank key per tenant and kind, and sets one with rank_tag", () => {

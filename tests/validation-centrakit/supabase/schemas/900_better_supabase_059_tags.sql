@@ -1,6 +1,6 @@
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:955d2ef2ea2c477aa3ce2b6558744809829c84592227d460ebecb94767fe03a2
+-- @bsb-hash sha256:9281ea0c4026d27832461647af51b2b71f09b2c46bb4c51d843d0db19781dc3b
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -71,18 +71,6 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 alter table "centrakit"."organization_tags" enable row level security;
 grant select on "centrakit"."organization_tags" to authenticated;
 grant all on "centrakit"."organization_tags" to service_role;
-create table if not exists  (
-  "tenant_id" uuid not null,
-  "tag_id" uuid not null references "centrakit"."organization_tags" ("id") on delete cascade,
-  "subject_type" text not null,
-  "subject_id" text not null,
-  "created_at" timestamptz not null default now(),
-  primary key ("tag_id", "subject_type", "subject_id")
-);
-alter table  enable row level security;
-revoke all on  from anon, authenticated;
-grant select on  to authenticated;
-grant all on  to service_role;
 
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
 drop function if exists "better_supabase"."create_tag"(uuid, text, text, text, text, jsonb);
@@ -326,6 +314,18 @@ grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to 
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."organization_tags";
 create policy bsb_tenant_scope on "centrakit"."organization_tags" as restrictive
   for all to authenticated

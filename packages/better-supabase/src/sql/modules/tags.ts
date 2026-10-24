@@ -233,7 +233,10 @@ ${ranked ? `  ${rank} text collate "C" not null default 'V',\n` : ""}  ${created
   unique${shared ? " nulls not distinct" : ""} (${tenant}, ${kind}, ${slug})
 );${addExtraColumns(tags, extras)}
 ${lockTable(tags, { read: true })}
-create table if not exists ${taggings} (
+${
+  taggings === ""
+    ? ""
+    : `create table if not exists ${taggings} (
   ${ctx.col("taggings", "tenant")} ${ctx.scope.column()},
   ${ctx.col("taggings", "tag")} uuid not null references ${tags} (${id}) on delete cascade,
   ${ctx.col("taggings", "subjectType")} text not null,
@@ -244,6 +247,7 @@ create table if not exists ${taggings} (
 create index if not exists ${sqlIdent(`${ctx.tableName("taggings").name}_subject_idx`)} on ${taggings} (${ctx.col("taggings", "tenant")}, ${ctx.col("taggings", "subjectType")}, ${ctx.col("taggings", "subjectId")});
 ${lockTable(taggings, { read: true })}
 `
+}`
     : "";
 
   const apply = bound

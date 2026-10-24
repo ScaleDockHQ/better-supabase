@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:d17d8983c5562405f1825907146b0546aadaf61c485bd5473459547e95235711
+-- @bsb-hash sha256:1d6970f82a081ba128f658b4c92225faa45c9dc13ee4001424c7e4d384b5ff65
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -476,6 +476,18 @@ grant execute on function "better_supabase"."set_agent_skills"(uuid, jsonb) to a
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."agents";
 create policy bsb_tenant_scope on "better_supabase"."agents" as restrictive
   for all to authenticated

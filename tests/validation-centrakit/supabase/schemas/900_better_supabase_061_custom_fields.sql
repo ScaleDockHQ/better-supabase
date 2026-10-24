@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:811d427c27c12f8f4a5671a419b0d000936df2c12f12dad08a3fa3c3b23436a7
+-- @bsb-hash sha256:0066da09c4a5e7d601b176ab0e6986524b8e32c92b0f682a2d6ea18e6e06ab9f
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -206,6 +206,18 @@ grant execute on function "better_supabase"."list_field_definitions"(uuid, text)
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "centrakit"."field_definitions";
 create policy bsb_tenant_scope on "centrakit"."field_definitions" as restrictive
   for all to authenticated

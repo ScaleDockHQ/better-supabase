@@ -87,6 +87,31 @@ create policy invoices_read on ${TABLE}
     expect(drop).toBeLessThan(sql.indexOf(body));
   });
 
+  it("creates an empty member_organization_ids before memberships installs", () => {
+    const sql = scoped(`grant select on ${TABLE} to authenticated;`);
+
+    const stub = sql.indexOf(
+      "if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then",
+    );
+
+    expect(stub).toBeGreaterThan(-1);
+    expect(stub).toBeLessThan(
+      sql.indexOf(`create policy ${TENANT_SCOPE_POLICY}`),
+    );
+    expect(sql).toContain(
+      "create function better_supabase.member_organization_ids(roles text[] default null)",
+    );
+  });
+
+  it("leaves member_organization_ids to the memberships module itself", () => {
+    const sql = applyTenantScope(
+      `grant select on better_supabase.memberships to authenticated;`,
+      moduleContext("memberships"),
+    );
+
+    expect(sql).not.toContain("to_regprocedure");
+  });
+
   it("checks an update's using when it has no with check", () => {
     const sql = scoped(`create policy invoices_update on ${TABLE}
   for update to authenticated

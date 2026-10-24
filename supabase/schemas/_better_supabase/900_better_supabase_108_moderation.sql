@@ -1,6 +1,6 @@
 -- better-supabase module: moderation
 -- @bsb-block moderation@1 managed
--- @bsb-hash sha256:6d400caa822d59797dbd467d8a5aa25df4fea6c115c04fcc9f83c6bdcb06edf7
+-- @bsb-hash sha256:a5ff4cc2d23ec7e0bb88b6e242f2183f1d63a347c3c03ba6418c561df6598c64
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -652,6 +652,18 @@ grant execute on function "better_supabase"."moderation_hidden"(text, text) to a
 -- Tenant isolation (ADR 0098): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
 drop policy if exists bsb_tenant_scope on "better_supabase"."moderation_items";
 create policy bsb_tenant_scope on "better_supabase"."moderation_items" as restrictive
   for all to authenticated
