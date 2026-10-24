@@ -85,7 +85,8 @@ export interface MigrationOptionUse {
 
 /**
  * The migration-only options `blocks` sets to a value other than the managed
- * default. They are accepted in `adopt` mode only; doctor warns about each.
+ * default. They are accepted only for a block over a table the app already has
+ * (or in `adopt` mode); doctor warns about each.
  */
 export function migrationOptionUses(
   modules: AnyBlocksConfig = {},

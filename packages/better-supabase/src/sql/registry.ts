@@ -485,7 +485,7 @@ export function checkModules(
 
     if (!use.adopted && !overAppTables) {
       throw new TypeError(
-        `${use.message} Only adopt mode accepts it: set blocks.${use.module}.mode to "adopt" while you migrate an existing schema, or remove the option.`,
+        `${use.message} It fits only a block over a table your schema already has: remove the option, or keep it while you migrate that table.`,
       );
     }
   }

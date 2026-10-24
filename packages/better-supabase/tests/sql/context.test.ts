@@ -315,7 +315,7 @@ describe("module modes", () => {
     expect(() => {
       checkModules({ invitations: { options: { tokenStorage: "plain" } } });
     }).toThrow(
-      'blocks.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. Only adopt mode accepts it: set blocks.invitations.mode to "adopt" while you migrate an existing schema, or remove the option.',
+      'blocks.invitations.options.tokenStorage is "plain". It stores invitation tokens in plain text instead of their SHA-256 hash. It fits only a block over a table your schema already has: remove the option, or keep it while you migrate that table.',
     );
     expect(() => {
       checkModules({ outbox: { options: { blockSource: "domain" } } });

@@ -430,7 +430,7 @@ describe("audit value mapping", () => {
   it("accepts values only in adopt mode and checks their shape", () => {
     expect(() =>
       audit({ options: { values: { outcome: { success: "ok" } } } }),
-    ).toThrow(/Only adopt mode accepts it/);
+    ).toThrow(/It fits only a block over a table your schema already has/);
     expect(() =>
       audit({ ...ADOPTED, options: { values: { op: { insert: "i" } } } }),
     ).toThrow(/unknown column "op"/);
