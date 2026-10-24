@@ -217,7 +217,7 @@ describe("blocks next to the app's tables", () => {
     );
 
   it("casts the conversation access channels write to the app's column type", () => {
-    const conversations = tablesOf("messaging").conversations!;
+    const conversations = tablesOf("messaging")["conversations"]!;
 
     const sql = files(["messaging", "channels"], {
       [conversations]: "app.sql",
@@ -231,7 +231,7 @@ describe("blocks next to the app's tables", () => {
   });
 
   it("binds pipelines to the tenant column the app's applications table names", () => {
-    const applications = tablesOf("hiring").applications!;
+    const applications = tablesOf("hiring")["applications"]!;
 
     const sql = files(
       ["hiring", "pipelines"],
