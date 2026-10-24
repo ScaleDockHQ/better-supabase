@@ -14,10 +14,11 @@ import {
   TOTAL_COLUMNS,
   totalColumnsSql,
 } from "../line-items-sql.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
+import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
-import { quoteFunctions } from "./quotes-functions.ts";
+import { quoteFunctions, quoteOrigin, quoteParty } from "./quotes-functions.ts";
 
 const QUOTE = [
   "organizationId",
@@ -65,6 +66,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     quotes: {
       name: "quotes",
+      app: {},
       lifecycle: { tenant: "tenant", user: "owner", export: true },
       columns: {
         id: "id",
@@ -97,6 +99,20 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
         ...TOTAL_COLUMNS,
       },
+      optional: [
+        "companyType",
+        "companyId",
+        "contactType",
+        "contactId",
+        "terms",
+        "note",
+        "originType",
+        "originId",
+        "viewedAt",
+        "decisionNote",
+        "createdBy",
+      ],
+      typed: ["status"],
     },
     lines: lineTableSpec("quote_lines"),
   },
@@ -109,6 +125,22 @@ function tables(ctx: BlockSqlContext, n: QuoteNames): string {
 
   const { t, c } = n;
   const q = (column: string): string => c("quotes", column);
+  const company = quoteParty(ctx, "company");
+  const origin = quoteOrigin(ctx);
+
+  // A column definition, left out when the app maps the column to null.
+  const column = (logical: string, definition: string): string =>
+    ctx.has("quotes", logical) ? `\n  ${q(logical)} ${definition},` : "";
+
+  const constraints = [
+    `unique (${q("tenant")}, ${q("number")}, ${q("revision")})`,
+    ...(company
+      ? [`check ((${q("companyType")} is null) = (${q("companyId")} is null))`]
+      : []),
+    ...(origin
+      ? [`check ((${q("originType")} is null) = (${q("originId")} is null))`]
+      : []),
+  ];
 
   return `
 create table if not exists ${t("quotes")} (
@@ -118,37 +150,23 @@ create table if not exists ${t("quotes")} (
   ${q("identifier")} text not null,
   ${q("revision")} integer not null default 1,
   ${q("supersedes")} uuid references ${t("quotes")} (${q("id")}) on delete set null,
-  ${q("title")} text not null check (length(${q("title")}) between 1 and 300),
-  ${q("companyType")} text,
-  ${q("companyId")} text,
-  ${q("contactType")} text,
-  ${q("contactId")} text,
+  ${q("title")} text not null check (length(${q("title")}) between 1 and 300),${column("companyType", "text")}${column("companyId", "text")}${column("contactType", "text")}${column("contactId", "text")}
   ${q("owner")} uuid,
   ${q("currency")} char(3) not null check (${q("currency")} ~ '^[A-Z]{3}$'),
   ${q("status")} text not null default 'draft' check (${q("status")} in ('draft', 'sent', 'viewed', 'accepted', 'rejected', 'changes_requested', 'expired', 'withdrawn')),
-  ${q("validUntil")} date,
-  ${q("terms")} text,
-  ${q("note")} text,
-  ${q("originType")} text,
-  ${q("originId")} text,
+  ${q("validUntil")} date,${column("terms", "text")}${column("note", "text")}${column("originType", "text")}${column("originId", "text")}
   ${q("tokenHash")} text unique,
-  ${q("sentAt")} timestamptz,
-  ${q("viewedAt")} timestamptz,
+  ${q("sentAt")} timestamptz,${column("viewedAt", "timestamptz")}
   ${q("decidedAt")} timestamptz,
-  ${q("decidedBy")} text,
-  ${q("decisionNote")} text,
-  ${q("createdBy")} uuid,
+  ${q("decidedBy")} text,${column("decisionNote", "text")}${column("createdBy", "uuid")}
   ${q("createdAt")} timestamptz not null default now(),
   ${q("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "quotes")},
-  unique (${q("tenant")}, ${q("number")}, ${q("revision")}),
-  check ((${q("companyType")} is null) = (${q("companyId")} is null)),
-  check ((${q("originType")} is null) = (${q("originId")} is null))
+  ${constraints.join(",\n  ")}
 );
-create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);
-create index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});
+create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
 create index if not exists ${ctx.naming.rename("quotes_supersedes_idx")} on ${t("quotes")} (${q("supersedes")});${addExtraColumns(t("quotes"), n.extras)}
-${lockTable(t("quotes"), { read: true })}
+${lockModuleTable(ctx, "quotes", { read: true })}
 drop policy if exists ${ctx.naming.rename("quotes_read")} on ${t("quotes")};
 create policy ${ctx.naming.rename("quotes_read")} on ${t("quotes")} for select to authenticated
 using (${ctx.scope.check(q("tenant"), n.read)});

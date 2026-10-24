@@ -64,6 +64,19 @@ export function createdFromLink(
     );`;
 }
 
+/** Whether the quotes table has both columns of a company or contact link. */
+export function quoteParty(
+  ctx: BlockSqlContext,
+  party: "company" | "contact",
+): boolean {
+  return ctx.has("quotes", `${party}Type`) && ctx.has("quotes", `${party}Id`);
+}
+
+/** Whether the quotes table has both columns of the record it was made from. */
+export function quoteOrigin(ctx: BlockSqlContext): boolean {
+  return ctx.has("quotes", "originType") && ctx.has("quotes", "originId");
+}
+
 export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
   const catalogPrice = ctx.installed("catalog")
     ? catalogLineFallback(ctx)
@@ -72,6 +85,57 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
   const { fn, t, c } = n;
   const q = (column: string): string => c("quotes", column);
   const l = (column: string): string => c("lines", column);
+  const company = quoteParty(ctx, "company");
+  const contact = quoteParty(ctx, "contact");
+  const origin = quoteOrigin(ctx);
+  const has = (logical: string): boolean => ctx.has("quotes", logical);
+
+  // A column of row, or null when the app maps it to null.
+  const or = (row: string, logical: string): string =>
+    has(logical) ? `${row}.${q(logical)}` : "null";
+
+  // ", <column>" for an insert's column list, when the column exists.
+  const also = (logical: string): string =>
+    has(logical) ? `, ${q(logical)}` : "";
+
+  // The column's name, or "" when the app maps it to null, so present() can
+  // take it without throwing.
+  const copy = (logical: string): string => (has(logical) ? q(logical) : "");
+
+  // value when the column exists, for valueLines().
+  const present = (logical: string, value: string): string | undefined =>
+    has(logical) ? value : undefined;
+
+  // `<column> = value(<column>),` on its own line of an update's set list.
+  const assign = (
+    logical: string,
+    value: (column: string) => string,
+  ): string =>
+    has(logical) ? `\n      ${q(logical)} = ${value(q(logical))},` : "";
+
+  // The values of an insert, the present ones of each group on a line.
+  const valueLines = (
+    indent: string,
+    ...groups: readonly (string | undefined)[][]
+  ): string =>
+    groups
+      .map((group) => group.filter((value) => value !== undefined).join(", "))
+      .filter((line) => line !== "")
+      .join(`,\n${indent}`);
+
+  // Refuses a value the app's quotes table has no column for.
+  const refuse = (
+    supported: boolean,
+    given: string,
+    thing: string,
+    what: string,
+  ): string =>
+    supported
+      ? ""
+      : `
+  if ${given} is not null then
+    ${fail(`QUOTE_${thing}_UNSUPPORTED`, `this quotes table has no ${what}`, "22023")}
+  end if;`;
 
   const editable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${q("tenant")}`, n.write)})`;
@@ -108,10 +172,13 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
     type: string,
     id: string,
     tenant: string,
-  ): string => `
+  ): string =>
+    (kind === "COMPANY" ? company : contact)
+      ? `
   if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
     ${fail(`QUOTE_${kind}_FORBIDDEN`, `the ${kind.toLowerCase()} is unknown or not readable in this organization`, "42501")}
-  end if;`;
+  end if;`
+      : refuse(false, id, kind, `${kind.toLowerCase()} columns`);
 
   const notifyOwner = (event: string): string =>
     ctx.installed("notifications")
@@ -133,19 +200,26 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
   end if;`
       : "";
 
-  const decide = (decision: string, note: string, by: string): string => `
-  update ${t("quotes")} x set ${q("status")} = ${decision}, ${q("decidedAt")} = now(), ${q("decidedBy")} = ${by},
-    ${q("decisionNote")} = nullif(trim(${note}), ''), ${q("updatedAt")} = now()
+  // Without a note column the note still reaches the event.
+  const decide = (decision: string, note: string, by: string): string => {
+    const noted = has("decisionNote")
+      ? `v_row.${q("decisionNote")}`
+      : `nullif(trim(${note}), '')`;
+
+    return `
+  update ${t("quotes")} x set ${q("status")} = ${ctx.cast("quotes", "status", decision)}, ${q("decidedAt")} = now(), ${q("decidedBy")} = ${by},
+    ${has("decisionNote") ? `${q("decisionNote")} = nullif(trim(${note}), ''), ` : ""}${q("updatedAt")} = now()
   where x.${q("id")} = v_row.${q("id")}
   returning * into v_row;
   case ${decision}
     when 'accepted' then
       ${record("quote.accepted", "v_row", `, 'total', v_row.${q("total")}::text, 'currency', v_row.${q("currency")}, 'byName', v_row.${q("decidedBy")}`)}
     when 'rejected' then
-      ${record("quote.rejected", "v_row", `, 'note', v_row.${q("decisionNote")}`)}
+      ${record("quote.rejected", "v_row", `, 'note', ${noted}`)}
     else
-      ${record("quote.changes_requested", "v_row", `, 'note', v_row.${q("decisionNote")}`)}
+      ${record("quote.changes_requested", "v_row", `, 'note', ${noted}`)}
   end case;${notifyOwner("quote.decided")}`;
+  };
 
   const deals = ctx.installed("deals") ? ctx.of("deals") : undefined;
 
@@ -156,6 +230,22 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
           const d = (column: string): string => deals.col("deals", column);
           const dk = (column: string): string => deals.col("contacts", column);
           const dl = (column: string): string => deals.col("lines", column);
+
+          const fromDealBody = `select x.${dk("contactType")} as type, x.${dk("contactId")} as id into v_contact
+  from ${deals.table("contacts")} x where x.${dk("deal")} = v_deal.${d("id")} order by x.${dk("isPrimary")} desc limit 1;
+  select coalesce(jsonb_agg(jsonb_build_object('description', x.${dl("description")}, 'quantity', x.${dl("quantity")}, 'unitAmount', x.${dl("unitAmount")}::text,
+      'discountBps', x.${dl("discountBps")}, 'taxRateBps', x.${dl("taxRateBps")}, 'taxCode', x.${dl("taxCode")},
+      'product', case when x.${dl("productType")} is null then null else jsonb_build_object('type', x.${dl("productType")}, 'id', x.${dl("productId")}) end
+    ) order by x.${dl("position")}), '[]'::jsonb) into v_lines
+  from ${deals.table("lines")} x where x.${dl("parent")} = v_deal.${d("id")};
+  if jsonb_array_length(v_lines) = 0 and v_deal.${d("amount")} > 0 then
+    v_lines := jsonb_build_array(jsonb_build_object('description', v_deal.${d("name")}, 'quantity', 1, 'unitAmount', v_deal.${d("amount")}::text));
+  end if;
+  return ${fn("create_quote")}(v_deal.${d("tenant")}, jsonb_build_object(
+    'title', v_deal.${d("name")}, 'currency', v_deal.${d("currency")}, 'ownerId', v_deal.${d("owner")},
+    'company', ${company ? `case when v_deal.${d("companyId")} is null then null else jsonb_build_object('type', v_deal.${d("companyType")}, 'id', v_deal.${d("companyId")}) end` : "null"},
+    'contact', ${contact ? "case when v_contact.id is null then null else jsonb_build_object('type', v_contact.type, 'id', v_contact.id) end" : "null"},
+    'origin', jsonb_build_object('type', 'deal', 'id', v_deal.${d("id")}::text)), v_lines);`;
 
           return `
 -- A draft quote from a deal: its name, company, primary contact, currency,
@@ -176,28 +266,19 @@ begin
   select * into v_deal from ${deals.table("deals")} x where x.${d("id")} = quote_from_deal.deal;
   if v_deal.${d("id")} is null or not (${n.service} or ${ctx.scope.can(`v_deal.${d("tenant")}`, n.write)}) then
     ${fail("QUOTE_ORIGIN_NOT_FOUND", "no such deal you can quote", "P0002")}
-  end if;
+  end if;${
+    origin
+      ? `
   select * into v_row from ${t("quotes")} x
   where x.${q("originType")} = 'deal' and x.${q("originId")} = v_deal.${d("id")}::text and x.${q("supersedes")} is null
   order by x.${q("createdAt")} limit 1;
   if v_row.${q("id")} is not null then
     return ${row("v_row")};
   end if;
-  select x.${dk("contactType")} as type, x.${dk("contactId")} as id into v_contact
-  from ${deals.table("contacts")} x where x.${dk("deal")} = v_deal.${d("id")} order by x.${dk("isPrimary")} desc limit 1;
-  select coalesce(jsonb_agg(jsonb_build_object('description', x.${dl("description")}, 'quantity', x.${dl("quantity")}, 'unitAmount', x.${dl("unitAmount")}::text,
-      'discountBps', x.${dl("discountBps")}, 'taxRateBps', x.${dl("taxRateBps")}, 'taxCode', x.${dl("taxCode")},
-      'product', case when x.${dl("productType")} is null then null else jsonb_build_object('type', x.${dl("productType")}, 'id', x.${dl("productId")}) end
-    ) order by x.${dl("position")}), '[]'::jsonb) into v_lines
-  from ${deals.table("lines")} x where x.${dl("parent")} = v_deal.${d("id")};
-  if jsonb_array_length(v_lines) = 0 and v_deal.${d("amount")} > 0 then
-    v_lines := jsonb_build_array(jsonb_build_object('description', v_deal.${d("name")}, 'quantity', 1, 'unitAmount', v_deal.${d("amount")}::text));
-  end if;
-  return ${fn("create_quote")}(v_deal.${d("tenant")}, jsonb_build_object(
-    'title', v_deal.${d("name")}, 'currency', v_deal.${d("currency")}, 'ownerId', v_deal.${d("owner")},
-    'company', case when v_deal.${d("companyId")} is null then null else jsonb_build_object('type', v_deal.${d("companyType")}, 'id', v_deal.${d("companyId")}) end,
-    'contact', case when v_contact.id is null then null else jsonb_build_object('type', v_contact.type, 'id', v_contact.id) end,
-    'origin', jsonb_build_object('type', 'deal', 'id', v_deal.${d("id")}::text)), v_lines);
+  ${fromDealBody}`
+      : `
+  ${fail("QUOTE_ORIGIN_UNSUPPORTED", "this quotes table has no origin columns, so a deal can't be converted once", "22023")}`
+  }
 end;
 $$;
 ${userGrant(`${fn("quote_from_deal")}(uuid)`)}
@@ -228,7 +309,7 @@ begin
   end if;
   if nullif(trim(create_quote.attrs ->> 'title'), '') is null then
     ${fail("QUOTE_ATTRS_INVALID", "a quote needs a title", "23502")}
-  end if;${checkParty("COMPANY", "v_company_type", "v_company_id", "create_quote.tenant")}${checkParty("CONTACT", "v_contact_type", "v_contact_id", "create_quote.tenant")}
+  end if;${checkParty("COMPANY", "v_company_type", "v_company_id", "create_quote.tenant")}${checkParty("CONTACT", "v_contact_type", "v_contact_id", "create_quote.tenant")}${refuse(has("terms"), "create_quote.attrs ->> 'terms'", "TERMS", "terms column")}${refuse(has("note"), "create_quote.attrs ->> 'note'", "NOTE", "note column")}${refuse(origin, "(create_quote.attrs -> 'origin' ->> 'id')", "ORIGIN", "origin columns")}
   ${assignNumberSql(
     ctx,
     "quote",
@@ -242,25 +323,59 @@ begin
     },
   )}
   begin
-    insert into ${t("quotes")} (${q("tenant")}, ${q("number")}, ${q("identifier")}, ${q("title")}, ${q("companyType")}, ${q("companyId")}, ${q("contactType")}, ${q("contactId")},
-      ${q("owner")}, ${q("currency")}, ${q("validUntil")}, ${q("terms")}, ${q("note")}, ${q("originType")}, ${q("originId")}, ${q("createdBy")})
-    values (create_quote.tenant, v_seq, v_identifier, trim(create_quote.attrs ->> 'title'),
-      case when v_company_id is null then null else v_company_type end, v_company_id,
-      case when v_contact_id is null then null else v_contact_type end, v_contact_id,
-      coalesce((create_quote.attrs ->> 'ownerId')::uuid, auth.uid()), upper(coalesce(create_quote.attrs ->> 'currency', 'EUR')),
-      coalesce((create_quote.attrs ->> 'validUntil')::date, current_date + ${String(n.validDays)}),
-      create_quote.attrs ->> 'terms', create_quote.attrs ->> 'note',
-      create_quote.attrs -> 'origin' ->> 'type', create_quote.attrs -> 'origin' ->> 'id', auth.uid())
+    insert into ${t("quotes")} (${q("tenant")}, ${q("number")}, ${q("identifier")}, ${q("title")}${also("companyType")}${also("companyId")}${also("contactType")}${also("contactId")},
+      ${q("owner")}, ${q("currency")}, ${q("validUntil")}${also("terms")}${also("note")}${also("originType")}${also("originId")}${also("createdBy")})
+    values (${valueLines(
+      "      ",
+      [
+        "create_quote.tenant",
+        "v_seq",
+        "v_identifier",
+        "trim(create_quote.attrs ->> 'title')",
+      ],
+      company
+        ? [
+            "case when v_company_id is null then null else v_company_type end",
+            "v_company_id",
+          ]
+        : [],
+      contact
+        ? [
+            "case when v_contact_id is null then null else v_contact_type end",
+            "v_contact_id",
+          ]
+        : [],
+      [
+        "coalesce((create_quote.attrs ->> 'ownerId')::uuid, auth.uid())",
+        "upper(coalesce(create_quote.attrs ->> 'currency', 'EUR'))",
+      ],
+      [
+        `coalesce((create_quote.attrs ->> 'validUntil')::date, current_date + ${String(n.validDays)})`,
+      ],
+      [
+        present("terms", "create_quote.attrs ->> 'terms'"),
+        present("note", "create_quote.attrs ->> 'note'"),
+      ],
+      [
+        present("originType", "create_quote.attrs -> 'origin' ->> 'type'"),
+        present("originId", "create_quote.attrs -> 'origin' ->> 'id'"),
+        present("createdBy", "auth.uid()"),
+      ],
+    )})
     returning * into v_row;${writeExtraColumns(t("quotes"), n.extras, "(create_quote.attrs -> 'fields')", `x.${q("id")} = v_row.${q("id")}`)}
   exception when check_violation or invalid_text_representation or datetime_field_overflow then
     ${fail("QUOTE_ATTRS_INVALID", "a quote field has an invalid value", "22023")}
   end;
   if create_quote.lines is not null then
     perform ${fn("set_quote_lines")}(v_row.${q("id")}, create_quote.lines);
-  end if;
+  end if;${
+    origin
+      ? `
   if v_row.${q("originId")} is not null then
     ${createdFromLink(ctx, { tenant: `v_row.${q("tenant")}`, sourceType: "'quote'", sourceId: `v_row.${q("id")}::text`, originType: `v_row.${q("originType")}`, originId: `v_row.${q("originId")}` })}
-  end if;
+  end if;`
+      : ""
+  }
   ${record("quote.created", "v_row")}
   return (select ${row("x")} from ${t("quotes")} x where x.${q("id")} = v_row.${q("id")});
 end;
@@ -284,19 +399,13 @@ begin
   end if;
   if not (${open("v_row")}) then
     ${fail("QUOTE_NOT_EDITABLE", "only a draft quote, or one with changes requested, can change", "55000")}
-  end if;${checkParty("COMPANY", `coalesce(update_quote.attrs -> 'company' ->> 'type', ${sqlString(n.company)})`, "(update_quote.attrs -> 'company' ->> 'id')", `v_row.${q("tenant")}`)}${checkParty("CONTACT", `coalesce(update_quote.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)})`, "(update_quote.attrs -> 'contact' ->> 'id')", `v_row.${q("tenant")}`)}
+  end if;${checkParty("COMPANY", `coalesce(update_quote.attrs -> 'company' ->> 'type', ${sqlString(n.company)})`, "(update_quote.attrs -> 'company' ->> 'id')", `v_row.${q("tenant")}`)}${checkParty("CONTACT", `coalesce(update_quote.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)})`, "(update_quote.attrs -> 'contact' ->> 'id')", `v_row.${q("tenant")}`)}${refuse(has("terms"), "update_quote.attrs ->> 'terms'", "TERMS", "terms column")}${refuse(has("note"), "update_quote.attrs ->> 'note'", "NOTE", "note column")}
   begin
     update ${t("quotes")} x set
       ${q("title")} = coalesce(nullif(trim(update_quote.attrs ->> 'title'), ''), x.${q("title")}),
       ${q("currency")} = coalesce(upper(update_quote.attrs ->> 'currency'), x.${q("currency")}),
       ${q("owner")} = case when update_quote.attrs ? 'ownerId' then (update_quote.attrs ->> 'ownerId')::uuid else x.${q("owner")} end,
-      ${q("validUntil")} = case when update_quote.attrs ? 'validUntil' then (update_quote.attrs ->> 'validUntil')::date else x.${q("validUntil")} end,
-      ${q("terms")} = case when update_quote.attrs ? 'terms' then update_quote.attrs ->> 'terms' else x.${q("terms")} end,
-      ${q("note")} = case when update_quote.attrs ? 'note' then update_quote.attrs ->> 'note' else x.${q("note")} end,
-      ${q("companyType")} = case when update_quote.attrs ? 'company' then case when update_quote.attrs -> 'company' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'company' ->> 'type', ${sqlString(n.company)}) end else x.${q("companyType")} end,
-      ${q("companyId")} = case when update_quote.attrs ? 'company' then update_quote.attrs -> 'company' ->> 'id' else x.${q("companyId")} end,
-      ${q("contactType")} = case when update_quote.attrs ? 'contact' then case when update_quote.attrs -> 'contact' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)}) end else x.${q("contactType")} end,
-      ${q("contactId")} = case when update_quote.attrs ? 'contact' then update_quote.attrs -> 'contact' ->> 'id' else x.${q("contactId")} end,
+      ${q("validUntil")} = case when update_quote.attrs ? 'validUntil' then (update_quote.attrs ->> 'validUntil')::date else x.${q("validUntil")} end,${assign("terms", (col) => `case when update_quote.attrs ? 'terms' then update_quote.attrs ->> 'terms' else x.${col} end`)}${assign("note", (col) => `case when update_quote.attrs ? 'note' then update_quote.attrs ->> 'note' else x.${col} end`)}${company ? assign("companyType", (col) => `case when update_quote.attrs ? 'company' then case when update_quote.attrs -> 'company' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'company' ->> 'type', ${sqlString(n.company)}) end else x.${col} end`) + assign("companyId", (col) => `case when update_quote.attrs ? 'company' then update_quote.attrs -> 'company' ->> 'id' else x.${col} end`) : ""}${contact ? assign("contactType", (col) => `case when update_quote.attrs ? 'contact' then case when update_quote.attrs -> 'contact' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)}) end else x.${col} end`) + assign("contactId", (col) => `case when update_quote.attrs ? 'contact' then update_quote.attrs -> 'contact' ->> 'id' else x.${col} end`) : ""}
       ${q("updatedAt")} = now()
     where x.${q("id")} = v_row.${q("id")}
     returning * into v_row;${
@@ -349,7 +458,7 @@ begin
   end if;
   ${ctx.hook("before_quote_send", [["uuid", `v_row.${q("id")}`]])}
   update ${t("quotes")} x set ${q("status")} = 'sent', ${q("sentAt")} = now(), ${q("tokenHash")} = ${sha256Hex("v_token")},
-    ${q("decidedAt")} = null, ${q("decidedBy")} = null, ${q("decisionNote")} = null, ${q("updatedAt")} = now()
+    ${q("decidedAt")} = null, ${q("decidedBy")} = null, ${has("decisionNote") ? `${q("decisionNote")} = null, ` : ""}${q("updatedAt")} = now()
   where x.${q("id")} = v_row.${q("id")}
   returning * into v_row;
   ${record("quote.sent", "v_row")}
@@ -414,11 +523,58 @@ begin
   if exists (select 1 from ${t("quotes")} x where x.${q("supersedes")} = v_old.${q("id")}) then
     ${fail("QUOTE_ALREADY_REVISED", "this quote already has a newer revision", "55000")}
   end if;
-  insert into ${t("quotes")} (${q("tenant")}, ${q("number")}, ${q("identifier")}, ${q("revision")}, ${q("supersedes")}, ${q("title")}, ${q("companyType")}, ${q("companyId")},
-    ${q("contactType")}, ${q("contactId")}, ${q("owner")}, ${q("currency")}, ${q("validUntil")}, ${q("terms")}, ${q("note")}, ${q("originType")}, ${q("originId")}, ${q("createdBy")})
-  select x.${q("tenant")}, x.${q("number")}, x.${q("identifier")}, x.${q("revision")} + 1, x.${q("id")}, x.${q("title")}, x.${q("companyType")}, x.${q("companyId")},
-    x.${q("contactType")}, x.${q("contactId")}, x.${q("owner")}, x.${q("currency")}, greatest(x.${q("validUntil")}, current_date + ${String(n.validDays)}), x.${q("terms")}, x.${q("note")},
-    x.${q("originType")}, x.${q("originId")}, auth.uid()
+  insert into ${t("quotes")} (${valueLines(
+    "    ",
+    [
+      q("tenant"),
+      q("number"),
+      q("identifier"),
+      q("revision"),
+      q("supersedes"),
+      q("title"),
+      present("companyType", copy("companyType")),
+      present("companyId", copy("companyId")),
+    ],
+    [
+      present("contactType", copy("contactType")),
+      present("contactId", copy("contactId")),
+      q("owner"),
+      q("currency"),
+      q("validUntil"),
+      present("terms", copy("terms")),
+      present("note", copy("note")),
+      present("originType", copy("originType")),
+      present("originId", copy("originId")),
+      present("createdBy", copy("createdBy")),
+    ],
+  )})
+  select ${valueLines(
+    "    ",
+    [
+      `x.${q("tenant")}`,
+      `x.${q("number")}`,
+      `x.${q("identifier")}`,
+      `x.${q("revision")} + 1`,
+      `x.${q("id")}`,
+      `x.${q("title")}`,
+      present("companyType", `x.${copy("companyType")}`),
+      present("companyId", `x.${copy("companyId")}`),
+    ],
+    [
+      present("contactType", `x.${copy("contactType")}`),
+      present("contactId", `x.${copy("contactId")}`),
+      `x.${q("owner")}`,
+      `x.${q("currency")}`,
+      `greatest(x.${q("validUntil")}, current_date + ${String(n.validDays)})`,
+      present("terms", `x.${copy("terms")}`),
+      present("note", `x.${copy("note")}`),
+    ],
+    [
+      present("originType", `x.${copy("originType")}`),
+      present("originId", `x.${copy("originId")}`),
+      present("createdBy", "auth.uid()"),
+    ],
+  )}
   from ${t("quotes")} x where x.${q("id")} = v_old.${q("id")}
   returning * into v_row;${
     n.extras.length === 0
@@ -455,14 +611,14 @@ begin
     ${fail("QUOTE_LINK_INVALID", "this link is not valid", "P0002")}
   end if;
   if v_row.${q("status")} = 'sent' then
-    update ${t("quotes")} x set ${q("status")} = 'viewed', ${q("viewedAt")} = now() where x.${q("id")} = v_row.${q("id")}
+    update ${t("quotes")} x set ${q("status")} = 'viewed'${has("viewedAt") ? `, ${q("viewedAt")} = now()` : ""} where x.${q("id")} = v_row.${q("id")}
     returning * into v_row;
     ${record("quote.viewed", "v_row")}
   end if;
   return jsonb_build_object(
     'identifier', v_row.${q("identifier")}, 'revision', v_row.${q("revision")}, 'title', v_row.${q("title")},
     'status', v_row.${q("status")}, 'currency', v_row.${q("currency")}, 'validUntil', v_row.${q("validUntil")},
-    'terms', v_row.${q("terms")}, 'subtotal', v_row.${q("subtotal")}::text, 'discountTotal', v_row.${q("discountTotal")}::text,
+    'terms', ${or("v_row", "terms")}, 'subtotal', v_row.${q("subtotal")}::text, 'discountTotal', v_row.${q("discountTotal")}::text,
     'taxTotal', v_row.${q("taxTotal")}::text, 'total', v_row.${q("total")}::text, 'lines', ${lines("v_row")});
 end;
 $$;

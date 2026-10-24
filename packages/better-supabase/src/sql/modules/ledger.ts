@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { fail, lockTable, schemaPreamble } from "../shared.ts";
 import { ledgerFunctions } from "./ledger-functions.ts";
+import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const ACCOUNT_PAYLOAD = [
@@ -85,6 +86,8 @@ const NAMES: BlockSqlNames = {
   tables: {
     accounts: {
       name: "ledger_accounts",
+      app: {},
+      typed: ["kind"],
       lifecycle: { tenant: "tenant", user: "owner", export: true },
       columns: {
         id: "id",
@@ -108,6 +111,8 @@ const NAMES: BlockSqlNames = {
     },
     transactions: {
       name: "ledger_transactions",
+      app: {},
+      optional: ["memo"],
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -126,6 +131,7 @@ const NAMES: BlockSqlNames = {
     },
     entries: {
       name: "ledger_entries",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -217,7 +223,7 @@ export function ledgerTables(ctx: BlockSqlContext): string {
   ${a("updatedAt")} timestamptz not null default now(),
   unique (${a("tenant")}, ${a("code")}),
   check ((${a("holderType")} is null) = (${a("holderId")} is null))
-);
+);${appUniqueIndex(ctx, "accounts", ["tenant", "code"])}
 create index if not exists ${name("accounts", "holder_idx")} on ${accounts} (${a("tenant")}, ${a("holderType")}, ${a("holderId")}) where ${a("holderType")} is not null;
 create index if not exists ${name("accounts", "kind_idx")} on ${accounts} (${a("tenant")}, ${a("kind")});
 create index if not exists ${name("accounts", "owner_idx")} on ${accounts} (${a("owner")}) where ${a("owner")} is not null;
@@ -227,8 +233,7 @@ create table if not exists ${transactions} (
   ${t("tenant")} ${idType} not null,
   ${t("kind")} text not null check (${t("kind")} ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$'),
   ${t("referenceType")} text,
-  ${t("referenceId")} text,
-  ${t("memo")} text check (${t("memo")} is null or length(${t("memo")}) <= 2000),
+  ${t("referenceId")} text,${ctx.has("transactions", "memo") ? `\n  ${t("memo")} text check (${t("memo")} is null or length(${t("memo")}) <= 2000),` : ""}
   ${t("key")} text,
   ${t("reverses")} uuid references ${transactions} (${t("id")}) on delete restrict,
   ${t("metadata")} jsonb not null default '{}'::jsonb,
@@ -327,7 +332,7 @@ function build(ctx: BlockSqlContext): string {
 
   const tables = ctx.manages
     ? `${ledgerTables(ctx)}
-${lockTable(accounts, { read: true })}
+${lockModuleTable(ctx, "accounts", { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("accounts").name}_read_permission_idx`)} on ${accounts} (${a("tenant")}, ${a("readPermission")}) where ${a("readPermission")} is not null;
 -- The (tenant, permission) pairs of account read permissions the caller
 -- holds, so the policy checks each pair once per statement, not per row.
@@ -355,12 +360,12 @@ create policy ${policyName("accounts")} on ${accounts} for select to authenticat
   using (${ctx.scope.check(a("tenant"), read)}
     or ${a("owner")} = (select auth.uid())
     or (${a("tenant")}, ${a("readPermission")}) in (select g.tenant, g.permission from ${fn("ledger_read_grants")}() g));
-${lockTable(transactions, { read: true })}
+${lockModuleTable(ctx, "transactions", { read: true })}
 drop policy if exists ${policyName("transactions")} on ${transactions};
 create policy ${policyName("transactions")} on ${transactions} for select to authenticated
   using (${ctx.scope.check(t("tenant"), read)}
     or exists (select 1 from ${entries} y where y.${e("transaction")} = ${t("id")}));
-${lockTable(entries, { read: true })}
+${lockModuleTable(ctx, "entries", { read: true })}
 drop policy if exists ${policyName("entries")} on ${entries};
 create policy ${policyName("entries")} on ${entries} for select to authenticated
   using (${e("account")} in (select y.${a("id")} from ${accounts} y));
