@@ -401,6 +401,14 @@ overrides:
   "nanoid@>=4.0.0 <5.1.16": ^5.1.16
   "hono@<4.13.7": ^4.13.7
   "@hono/node-server@<1.19.15": ^1.19.15
+  # undici 7.18 to 7.30.0 and 8 to 8.12.1 fail on a response with too many
+  # content encodings (high); they arrive through the AI SDK, dotenvx, shadcn,
+  # the Workflow worlds, eve, Effect and unifont.
+  "undici@>=7.18.0 <7.30.1": ^7.30.1
+  "undici@>=8.0.0 <8.12.2": ^8.12.2
+  # body-parser 2.0 to 2.3 reads past a compressed body (high); it arrives
+  # through express and @modelcontextprotocol/sdk.
+  "body-parser@>=2.0.0 <2.4.0": ^2.4.0
 
 # eslint-plugin-playwright and eslint-plugin-turbo peer on eslint but import
 # nothing from it at runtime; Oxlint loads their rules as JS plugins. An
