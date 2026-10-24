@@ -175,6 +175,26 @@ describe.each(MODULES)("%s over the app's tables", (module) => {
     },
   );
 
+  it.each(cases)(
+    "names its policies and triggers on the app's tables bsb_ (%s)",
+    (_name, own) => {
+      const sql = unquote(render(module, own));
+
+      const named = [
+        ...sql.matchAll(
+          /(?:create|drop|alter) policy (?:if exists )?(\S+) on ([\w.]+)/gi,
+        ),
+        ...sql.matchAll(
+          /(?:create (?:or replace )?(?:constraint )?|drop |alter )trigger (?:if exists )?(\S+)\s[\s\S]*?\bon ([\w.]+)/gi,
+        ),
+      ]
+        .filter((match) => Object.hasOwn(own, match[2]!))
+        .map((match) => `${match[2]!}: ${match[1]!}`);
+
+      expect(named.filter((name) => !name.includes(": bsb_"))).toEqual([]);
+    },
+  );
+
   it("renders with every optional column mapped to null", () => {
     const modules = nullOptional(module);
 
