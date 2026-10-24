@@ -10,6 +10,7 @@ import type { BlockSqlLayout, BlockSql } from "./module-types.ts";
 import { createModuleContext } from "./context.ts";
 import { providerAnswersForGuests } from "./guest-sql.ts";
 import { renamedInstances, rendersOwnInstance } from "./instance-names.ts";
+import { runsOverAppTables } from "./module-types.ts";
 
 /** The registry `moduleContext` reads names and integrations from. */
 export interface BlockSqlRegistry {
@@ -61,6 +62,11 @@ export function moduleContext(
       ...(layout.subjects ? { subjects: layout.subjects } : {}),
       ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
       ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
+      overAppTables: (module) => {
+        const definition = registry().modules[module];
+
+        return definition === undefined || runsOverAppTables(definition);
+      },
       ...(installed ? { installed } : {}),
       ...(layout.instances ? { instances: layout.instances } : {}),
       ...(instance === undefined || instance === name ? {} : { instance }),

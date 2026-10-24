@@ -25,7 +25,7 @@ import {
 import { moduleExtensions } from "./introspect.ts";
 import { entitiesMarker, withBlockHash } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
-import { blockSqlVersion } from "./module-types.ts";
+import { blockSqlVersion, runsOverAppTables } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { ownerSearchTriggers } from "./modules/search.ts";
 import { overAppTables } from "./over-app-tables.ts";
@@ -197,12 +197,26 @@ function moduleFiles(
       : [],
   );
 
-  const scoped = (sql: string): string =>
-    overAppTables(
-      renameIdentifiers(renameQualifiers(sql, ctx), renames),
-      appTables,
-      layout.ownColumns,
+  const collisions = ownTablesCreatedBy(module, ctx, layout);
+
+  const scoped = (sql: string): string => {
+    const renamed = renameIdentifiers(renameQualifiers(sql, ctx), renames);
+
+    const collision = [...collisions].find(
+      (table) => overAppTables(renamed, new Set([table])) !== renamed,
     );
+
+    if (collision !== undefined) {
+      const file = layout.ownTables?.[collision];
+      const where = file === "database" ? "the database" : file;
+
+      throw new Error(
+        `blocks.${ctx.instance} creates ${collision}, which is already in ${where}. This module can't run over a table the app has: rename yours, or map the block's table to another name in blocks.${ctx.instance}.tables.`,
+      );
+    }
+
+    return overAppTables(renamed, appTables, layout.ownColumns);
+  };
 
   const title = `-- better-supabase module: ${ctx.instance}`;
 
@@ -358,6 +372,33 @@ function checkTenantName(
       `blocks.memberships.names.organization: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
     );
   }
+}
+
+/**
+ * The app's tables (`layout.ownTables`) that `module` names but can't run over
+ * (`BlockSql.overAppTables`), as `schema.table`.
+ */
+function ownTablesCreatedBy(
+  module: BlockSql,
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): ReadonlySet<string> {
+  const { ownTables } = layout;
+
+  if (!ctx.manages || ownTables === undefined || runsOverAppTables(module)) {
+    return new Set();
+  }
+
+  return new Set(
+    Object.keys(module.names?.tables ?? {})
+      .filter((logical) => ctx.config.tables[logical] !== null)
+      .map((logical) => {
+        const parts = ctx.tableName(logical);
+
+        return `${parts.schema}.${parts.name}`;
+      })
+      .filter((table) => Object.hasOwn(ownTables, table)),
+  );
 }
 
 /**

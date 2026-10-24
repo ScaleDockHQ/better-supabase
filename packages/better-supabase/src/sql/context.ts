@@ -618,6 +618,8 @@ export interface BlockSqlContextSource {
   ) => readonly Contributor<K>[];
   /** `layout.ownTables`: the app's tables, as `schema.table`. */
   readonly ownTables?: Readonly<Record<string, string>>;
+  /** Whether `module` runs over the app's tables (`BlockSql.overAppTables`). */
+  readonly overAppTables?: (module: string) => boolean;
 }
 
 /** An installed instance that adds to a generic block. */
@@ -1231,14 +1233,7 @@ export function createModuleContext(
       }),
     modules,
     manages: config.mode === "managed",
-    ...tableOwnership({
-      module,
-      tables: names.tables,
-      config,
-      ownTables: source.ownTables,
-      tableName,
-      column: requiredColumn,
-    }),
+    ...tableOwnership(module, names, config, source, tableName, requiredColumn),
     names,
     installedModules: [...installed],
     fn: (name) =>

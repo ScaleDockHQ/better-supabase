@@ -120,6 +120,14 @@ export interface BlockSql {
   readonly version?: number;
   /** The modes `blocks.<name>.ownership` accepts. Defaults to `managed` only. */
   readonly modes?: readonly BlockMode[];
+  /**
+   * Whether the tables in `names.tables` can be tables the app already has
+   * (`layout.ownTables`): the module then adds only the columns it needs, and
+   * reaches each column through `ctx.names`. Without it the module always
+   * creates its tables, and a table of the same name in the app's schema is an
+   * error. Defaults to whether `modes` lists `adopt`.
+   */
+  readonly overAppTables?: boolean;
   /** The logical tables and columns `blocks.<name>.tables` and `columns` map. */
   readonly names?: BlockSqlNames;
   /** The functions other modules and the TypeScript side call. */
@@ -378,4 +386,9 @@ export interface BlockSqlAccessProvider {
   readonly approvals?: { readonly distinctApprover?: boolean };
   /** The provider's operations table; `operationPermission` reads it. */
   readonly operations?: Readonly<Record<string, AuthorizationOperation>>;
+}
+
+/** `module.overAppTables`, defaulting to whether `modes` lists `adopt`. */
+export function runsOverAppTables(module: BlockSql): boolean {
+  return module.overAppTables ?? module.modes?.includes("adopt") === true;
 }

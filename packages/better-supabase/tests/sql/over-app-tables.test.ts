@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { moduleContext } from "../../src/sql/module-context.ts";
+import { runsOverAppTables } from "../../src/sql/module-types.ts";
 import { overAppTables } from "../../src/sql/over-app-tables.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
@@ -60,8 +61,18 @@ function rendersAlone(module: string): boolean {
   }
 }
 
-const NAMES = Object.keys(SQL_MODULES).filter(
+const ALONE = Object.keys(SQL_MODULES).filter(
   (name) => name !== "pgtap" && rendersAlone(name),
+);
+
+const OVER = ALONE.filter((name) => {
+  const module = SQL_MODULES[name];
+
+  return module !== undefined && runsOverAppTables(module);
+});
+
+const CREATING = ALONE.filter(
+  (name) => !OVER.includes(name) && createdAlone(name).length > 0,
 );
 
 function tablesOf(module: string): string[] {
@@ -85,6 +96,12 @@ function created(module: string, ownTables: Record<string, string>): string[] {
     files.map((file) => ({ text: file.contents })),
     ["public", "better_supabase"],
   );
+}
+
+function createdAlone(module: string): string[] {
+  const alone = created(module, {});
+
+  return tablesOf(module).filter((table) => alone.includes(table));
 }
 
 describe("ctx.owns", () => {
@@ -114,13 +131,21 @@ describe("ctx.owns", () => {
 });
 
 describe("blocks over the app's tables", () => {
-  it.each(NAMES)("%s creates none of the tables the app has", (module) => {
-    const alone = created(module, {});
-    const tables = tablesOf(module).filter((table) => alone.includes(table));
-    const own = Object.fromEntries(tables.map((table) => [table, "app.sql"]));
+  it.each(OVER)("%s creates none of the tables the app has", (module) => {
+    const own = Object.fromEntries(
+      createdAlone(module).map((table) => [table, "app.sql"]),
+    );
 
     expect(
-      created(module, own).filter((table) => tables.includes(table)),
+      created(module, own).filter((table) => Object.hasOwn(own, table)),
     ).toEqual([]);
+  });
+
+  it.each(CREATING)("%s refuses to create a table the app has", (module) => {
+    const table = createdAlone(module)[0] ?? "";
+
+    expect(() => created(module, { [table]: "app.sql" })).toThrow(
+      `creates ${table}, which is already in app.sql`,
+    );
   });
 });
