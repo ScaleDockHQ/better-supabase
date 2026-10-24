@@ -27,6 +27,7 @@ import { orphanedBlockFiles } from "../sql/orphans.ts";
 import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
+import { APP_TABLE_SCOPE_RULES } from "./app-table-scope.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { BLOCK_PREFIX, blockTargets } from "./block-policies.ts";
 import { COOKIE_RULES } from "./cookies.ts";
@@ -1124,6 +1125,7 @@ export const RULES: readonly Rule[] = [
   ...ADOPTION_RULES,
   ...MIGRATION_SAFETY_RULES,
   ...NOT_VALID_RULES,
+  ...APP_TABLE_SCOPE_RULES,
   ...ENV_RULES,
   ...WIRING_RULES,
   ...STACK_RULES,

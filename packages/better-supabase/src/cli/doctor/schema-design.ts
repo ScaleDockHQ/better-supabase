@@ -8,6 +8,7 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { configFor } from "../gen/shared.ts";
 import { splinterTables } from "./advisor-rules.ts";
+import { enrichedAppTables } from "./app-table-scope.ts";
 import { escape, withoutStrings } from "./rls.ts";
 import {
   catalogOf,
@@ -556,6 +557,8 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
           .map((column) => [`${column.table}.${column.name}`, column]),
       );
 
+      const enriched = enrichedAppTables(context);
+
       return Object.entries(context.config.appTables).flatMap(
         ([table, config]) =>
           Object.entries(config.columns ?? {}).flatMap(
@@ -573,7 +576,14 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
                 ? "text"
                 : APP_COLUMN_FORMAT[column.type];
 
-              const nullable = column.nullable !== false;
+              // An enriched table's existing rows have no value for a required
+              // column without a default, so the entry adds it nullable.
+              const nullable =
+                column.nullable !== false ||
+                (enriched.has(table) &&
+                  found.is_nullable &&
+                  column.default === undefined &&
+                  column.identity !== true);
 
               const drift = [
                 ...(found.format === format
