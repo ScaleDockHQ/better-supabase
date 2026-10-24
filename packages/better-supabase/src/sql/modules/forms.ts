@@ -250,8 +250,7 @@ function publicLimitOf(ctx: BlockSqlContext): PublicLimit | undefined {
 function scoringOn(ctx: BlockSqlContext): boolean {
   const keys = ctx.manages
     ? true
-    : ctx.config.tables["answerKeys"] !== undefined &&
-      ctx.hasTable("answerKeys");
+    : !ctx.owns("answerKeys") && ctx.hasTable("answerKeys");
 
   return (
     keys &&

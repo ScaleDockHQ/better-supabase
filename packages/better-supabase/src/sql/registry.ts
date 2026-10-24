@@ -444,6 +444,7 @@ export function resolveBlocks(
 export function checkModules(
   config: AnyBlocksConfig = {},
   registry: Readonly<Record<string, BlockSql>> = SQL_MODULES,
+  ownTables?: Readonly<Record<string, string>>,
 ): void {
   for (const [name, entry] of Object.entries(config)) {
     const module = registry[name];
@@ -477,7 +478,12 @@ export function checkModules(
   }
 
   for (const use of migrationOptionUses(config)) {
-    if (!use.adopted) {
+    const overAppTables =
+      ownTables !== undefined &&
+      moduleContext(use.module, { modules: config, ownTables }).appOwned
+        .length > 0;
+
+    if (!use.adopted && !overAppTables) {
       throw new TypeError(
         `${use.message} Only adopt mode accepts it: set blocks.${use.module}.mode to "adopt" while you migrate an existing schema, or remove the option.`,
       );

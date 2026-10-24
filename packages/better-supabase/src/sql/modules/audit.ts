@@ -241,8 +241,7 @@ function contextPairs(
 function restrictedOn(ctx: BlockSqlContext): boolean {
   return ctx.manages
     ? ctx.flag("restricted", false)
-    : ctx.config.tables["restricted"] !== undefined &&
-        ctx.hasTable("restricted");
+    : !ctx.owns("restricted") && ctx.hasTable("restricted");
 }
 
 /** `[column, value]` pairs for the logical columns the log has. */

@@ -28,6 +28,7 @@ import { moduleContext } from "./module-context.ts";
 import { blockSqlVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { ownerSearchTriggers } from "./modules/search.ts";
+import { overAppTables } from "./over-app-tables.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
 import { checkModules, resolveBlocks, SQL_MODULES } from "./registry.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
@@ -69,7 +70,7 @@ export function moduleBody(
   name: string,
   layout: BlockSqlLayout = {},
 ): string | undefined {
-  checkModules(layout.modules);
+  checkModules(layout.modules, SQL_MODULES, layout.ownTables);
   const modules = resolveBlocks([name], layout);
   const module = modules.find((entry) => entry.name === name)!;
 
@@ -135,7 +136,7 @@ export function renderBlocks(
   names: readonly string[],
   layout: BlockSqlLayout = {},
 ): BlockSqlFile[] {
-  checkModules(layout.modules);
+  checkModules(layout.modules, SQL_MODULES, layout.ownTables);
   const modules = resolveBlocks(names, layout);
   checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);
@@ -186,8 +187,22 @@ function moduleFiles(
         instancePrefix(ctx.instance),
       );
 
+  const appTables = new Set(
+    ctx.manages
+      ? ctx.appOwned.map((table) => {
+          const parts = ctx.tableName(table);
+
+          return `${parts.schema}.${parts.name}`;
+        })
+      : [],
+  );
+
   const scoped = (sql: string): string =>
-    renameIdentifiers(renameQualifiers(sql, ctx), renames);
+    overAppTables(
+      renameIdentifiers(renameQualifiers(sql, ctx), renames),
+      appTables,
+      layout.ownColumns,
+    );
 
   const title = `-- better-supabase module: ${ctx.instance}`;
 
@@ -381,7 +396,10 @@ function checkEntityTables(
       }
 
       return Object.entries(module.names?.tables ?? {})
-        .filter(([logical]) => ctx.config.tables[logical] === undefined)
+        .filter(
+          ([logical]) =>
+            ctx.config.tables[logical] === undefined && ctx.owns(logical),
+        )
         .map(([logical, spec]) => {
           const { schema, name } = ctx.tableName(logical);
 

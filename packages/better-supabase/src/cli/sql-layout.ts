@@ -14,6 +14,7 @@ import type { FilePlan } from "./core/files.ts";
 import {
   adoptedColumnProblems,
   auditRegistrations,
+  declaredTableColumns,
   declaredTables,
   extensionSchema,
   moduleLayout,
@@ -23,6 +24,9 @@ import {
   sameTenantLayout,
   rlsTables,
 } from "../sql/index.ts";
+import { parseSnapshot } from "./commands/snapshot.ts";
+import { toCatalog } from "./introspect/catalog.ts";
+import { TypegenMissingError } from "./introspect/typegen.ts";
 import {
   declarativeSchemasDir,
   readSupabaseToml,
@@ -200,18 +204,113 @@ export async function moduleLayoutFor(
           ),
         }
       : {}),
-    ownTables: ownDeclaredTables(
-      await declarativeTexts(config),
-      config.schemas,
-    ),
+    ...(await ownLayout(config)),
+  };
+}
+
+/** `ownTables` and `ownColumns`: the database's tables, then the app's files. */
+async function ownLayout(
+  config: ResolvedConfig,
+): Promise<Pick<BlockSqlLayout, "ownTables" | "ownColumns">> {
+  const database = await databaseTables(config);
+
+  const own = (await declarativeTexts(config)).filter(
+    (source) => !writtenByBlocks(source),
+  );
+
+  const columns = Object.fromEntries(
+    [...declaredTableColumns(own, config.schemas)].map(([table, names]) => [
+      table,
+      [...names],
+    ]),
+  );
+
+  return {
+    ownTables: {
+      ...database.tables,
+      ...ownDeclaredTables(own, config.schemas),
+    },
+    ownColumns: { ...database.columns, ...columns },
   };
 }
 
 const BLOCK_MARKER = /^-- @(?:bsb-block|bsb-tables|bs-module|bs-app-tables)\b/m;
 
+const BLOCK_MIGRATION = /_better_supabase_[a-z_]+\.sql$/;
+
+/** A file better-supabase wrote: a block file or a module migration. */
+function writtenByBlocks(source: {
+  readonly path: string;
+  readonly text: string;
+}): boolean {
+  return BLOCK_MARKER.test(source.text) || BLOCK_MIGRATION.test(source.path);
+}
+
+/**
+ * Under `workflow: migrations`, the tables in the saved snapshot
+ * (`source.snapshot`) that no module migration created, mapped to `database`.
+ * Without a snapshot, the migrations stand in for it.
+ */
+async function databaseTables(
+  config: ResolvedConfig,
+): Promise<{
+  readonly tables: Readonly<Record<string, string>>;
+  readonly columns: Readonly<Record<string, readonly string[]>>;
+}> {
+  const none = { tables: {}, columns: {} };
+  const toml = await readSupabaseToml(config.root);
+  const path = config.source.snapshot;
+
+  if (
+    sqlWorkflow(config, toml) !== "migrations" ||
+    path === undefined ||
+    !existsSync(resolve(config.root, path))
+  ) {
+    return none;
+  }
+
+  let snapshot;
+
+  try {
+    snapshot = await parseSnapshot(
+      JSON.parse(await readFile(resolve(config.root, path), "utf-8")),
+      path,
+    );
+  } catch (cause) {
+    // Reading a snapshot's metadata needs the optional typegen peer; without
+    // it, the migrations still name the app's tables.
+    if (cause instanceof TypegenMissingError) {
+      return none;
+    }
+
+    throw cause;
+  }
+
+  const created = new Set(
+    declaredTables(
+      (await schemaTexts(config)).filter(writtenByBlocks),
+      config.schemas,
+    ),
+  );
+
+  const tables: Record<string, string> = {};
+  const columns: Record<string, readonly string[]> = {};
+
+  for (const table of toCatalog(snapshot).tables) {
+    const name = `${table.schema}.${table.name}`;
+
+    if (config.schemas.includes(table.schema) && !created.has(name)) {
+      tables[name] = "database";
+      columns[name] = table.columns.map((column) => column.name);
+    }
+  }
+
+  return { tables, columns };
+}
+
 /**
  * `schema.table` to the app's own schema file that creates it: every
- * declarative file without a block marker.
+ * declarative file, or migration, that better-supabase didn't write.
  */
 function ownDeclaredTables(
   sources: readonly { readonly path: string; readonly text: string }[],
@@ -220,10 +319,6 @@ function ownDeclaredTables(
   const ownTables: Record<string, string> = {};
 
   for (const source of sources) {
-    if (BLOCK_MARKER.test(source.text)) {
-      continue;
-    }
-
     for (const table of declaredTables([source], schemas)) {
       ownTables[table] ??= source.path;
     }

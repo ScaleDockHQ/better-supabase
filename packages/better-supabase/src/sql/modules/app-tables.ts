@@ -890,7 +890,7 @@ function checkBlockTables(
 
     if (file !== undefined) {
       throw new TypeError(
-        `tables.${name}: ${qualified} is already created in ${file}; choose another name`,
+        `tables.${name}: ${qualified} ${file === "database" ? "is already in the database" : `is already created in ${file}`}; choose another name`,
       );
     }
   }

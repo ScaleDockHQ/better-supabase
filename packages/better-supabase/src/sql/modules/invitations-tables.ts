@@ -135,7 +135,7 @@ export function platformTable(ctx: BlockSqlContext): InviteTable | undefined {
     return undefined;
   }
 
-  if (!ctx.manages && ctx.config.tables["platformInvitations"] === undefined) {
+  if (!ctx.manages && ctx.owns("platformInvitations")) {
     return undefined;
   }
 
