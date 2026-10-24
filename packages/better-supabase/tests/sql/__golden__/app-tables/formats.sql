@@ -45,6 +45,11 @@ drop policy if exists "contacts_update" on "public"."contacts";
 create policy "contacts_update" on "public"."contacts" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "contacts_delete" on "public"."contacts";
 create policy "contacts_delete" on "public"."contacts" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."contacts";
+create policy bsb_tenant_scope on "public"."contacts" as restrictive
+  for all to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 alter table "public"."contacts" drop constraint if exists "contacts_email_check";
 alter table "public"."contacts" add constraint "contacts_email_check" check ("email" ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$');
 alter table "public"."contacts" drop constraint if exists "contacts_website_check";
@@ -83,6 +88,11 @@ drop policy if exists "notes_update" on "public"."notes";
 create policy "notes_update" on "public"."notes" for update to authenticated using ("organization_id" in (select better_supabase.member_organization_ids())) with check ("organization_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists "notes_delete" on "public"."notes";
 create policy "notes_delete" on "public"."notes" for delete to authenticated using ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "public"."notes";
+create policy bsb_tenant_scope on "public"."notes" as restrictive
+  for all to authenticated
+  using ("organization_id" in (select better_supabase.member_organization_ids()))
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 create index if not exists "notes_organization_id_idx" on "public"."notes" ("organization_id");
 create index if not exists "notes_contact_id_idx" on "public"."notes" ("contact_id");
 drop trigger if exists "bsb_updated_at" on "public"."notes";
@@ -105,7 +115,7 @@ select extensions.plan(25);
 
 select extensions.has_table('public', 'contacts', 'public.contacts exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."contacts"'::regclass), 'public.contacts has row level security on');
-select extensions.policies_are('public', 'contacts', array['contacts_select', 'contacts_insert', 'contacts_update', 'contacts_delete'], 'public.contacts has the policies for its scope');
+select extensions.policies_are('public', 'contacts', array['contacts_select', 'contacts_insert', 'contacts_update', 'contacts_delete', 'bsb_tenant_scope'], 'public.contacts has the policies for its scope');
 select extensions.col_has_check('public'::name, 'contacts'::name, 'email'::name, 'public.contacts.email has its check');
 select extensions.col_has_check('public'::name, 'contacts'::name, 'website'::name, 'public.contacts.website has its check');
 select extensions.col_has_check('public'::name, 'contacts'::name, 'stage'::name, 'public.contacts.stage has its check');
@@ -126,15 +136,18 @@ with o as (
 )
 insert into "public"."contacts" ("organization_id") select o.id from o;
 
+-- An app's own permissive policy can't widen the tenant scope.
+create policy bsb_test_app_widens on "public"."contacts" for all to authenticated using (true) with check (true);
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."contacts"), 0, 'a signed-in user does not read a row of public.contacts outside their scope');
-select extensions.throws_ok($$insert into "public"."contacts" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.contacts outside their scope');
+select extensions.is((select count(*)::integer from "public"."contacts"), 0, 'a signed-in user does not read a row of public.contacts outside their scope even through an app policy using (true)');
+select extensions.throws_ok($$insert into "public"."contacts" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.contacts outside their scope even through an app policy using (true)');
 reset role;
 
 select extensions.has_table('public', 'notes', 'public.notes exists');
 select extensions.ok((select c.relrowsecurity from pg_catalog.pg_class c where c.oid = '"public"."notes"'::regclass), 'public.notes has row level security on');
-select extensions.policies_are('public', 'notes', array['notes_select', 'notes_insert', 'notes_update', 'notes_delete'], 'public.notes has the policies for its scope');
+select extensions.policies_are('public', 'notes', array['notes_select', 'notes_insert', 'notes_update', 'notes_delete', 'bsb_tenant_scope'], 'public.notes has the policies for its scope');
 select extensions.ok(exists (select 1 from pg_catalog.pg_constraint k where k.conrelid = '"public"."notes"'::regclass and k.conname = 'notes_contact_id_fkey' and k.contype = 'f' and cardinality(k.conkey) = 2), 'public.notes.contact_id references a row of the same tenant');
 select extensions.table_privs_are('public', 'notes', 'anon', array[]::text[], 'anon has no privileges on public.notes');
 select extensions.table_privs_are('public', 'notes', 'authenticated', array['DELETE', 'INSERT', 'SELECT', 'UPDATE'], 'authenticated has the privileges for its scope on public.notes');
@@ -146,10 +159,13 @@ with o as (
 )
 insert into "public"."notes" ("organization_id") select o.id from o;
 
+-- An app's own permissive policy can't widen the tenant scope.
+create policy bsb_test_app_widens on "public"."notes" for all to authenticated using (true) with check (true);
+
 select set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated')::text, true);
 set local role authenticated;
-select extensions.is((select count(*)::integer from "public"."notes"), 0, 'a signed-in user does not read a row of public.notes outside their scope');
-select extensions.throws_ok($$insert into "public"."notes" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.notes outside their scope');
+select extensions.is((select count(*)::integer from "public"."notes"), 0, 'a signed-in user does not read a row of public.notes outside their scope even through an app policy using (true)');
+select extensions.throws_ok($$insert into "public"."notes" ("organization_id") values (gen_random_uuid())$$, '42501', null, 'a signed-in user cannot insert a row of public.notes outside their scope even through an app policy using (true)');
 reset role;
 
 select * from extensions.finish();

@@ -31,6 +31,7 @@ import { ownerSearchTriggers } from "./modules/search.ts";
 import { moduleDataPath, modulePath } from "./paths.ts";
 import { checkModules, resolveBlocks, SQL_MODULES } from "./registry.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
+import { applyTenantScope } from "./tenant-scope.ts";
 import { deprecationWrappers } from "./upgrade.ts";
 
 /**
@@ -59,7 +60,10 @@ function moduleSql(
 ) {
   return withSubjectMergeFunction(
     withColumnTypeFunction(
-      applyActorWriteGuards(module.build(ctx, layout), layout),
+      applyActorWriteGuards(
+        applyTenantScope(module.build(ctx, layout), ctx),
+        layout,
+      ),
     ),
   );
 }

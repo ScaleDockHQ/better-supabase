@@ -626,6 +626,32 @@ grant execute on function "better_supabase"."list_attachments"(uuid, text, text)
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid())
+    and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1327,6 +1353,32 @@ grant execute on function "better_supabase"."list_attachments"(uuid, text, text)
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid())
+    and (coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false) or (("organization_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('upload') g))
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1987,6 +2039,32 @@ grant execute on function "app_private"."list_attachments"(uuid, text, text) to 
 grant execute on function "app_private"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."delete_attachment"(uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."attachments";
+create policy bsb_tenant_scope on "app_private"."attachments" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "app_private"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid())
+    and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)
+    and "app_private"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+  );
+drop policy if exists bsb_tenant_scope on "app_private"."attachment_versions";
+create policy bsb_tenant_scope on "app_private"."attachment_versions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "app_private"."attachments" a where a."id" = "attachment_id"))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2644,6 +2722,32 @@ grant execute on function "better_supabase"."set_attachment_status"(uuid, text, 
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."delete_attachment"(uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachments";
+create policy bsb_tenant_scope on "better_supabase"."attachments" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("organization_id" in (select better_supabase.tenant_ids_with('attachments.read')) and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+    or ("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage')))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("uploaded_by" = (select auth.uid())
+    and coalesce(better_supabase.can('tenant', "organization_id", 'attachments.upload'), false)
+    and "better_supabase"."attachment_subject_readable"("subject_type", "subject_id", "organization_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."attachment_versions";
+create policy bsb_tenant_scope on "better_supabase"."attachment_versions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (select 1 from "better_supabase"."attachments" a where a."id" = "attachment_id"))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.attachments.api: entry points for the Data API.
 create schema if not exists "api";

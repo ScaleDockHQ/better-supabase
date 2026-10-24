@@ -745,6 +745,35 @@ $$;
 revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope on "better_supabase"."asset_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
+create policy bsb_tenant_scope on "better_supabase"."assets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
+    or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope on "better_supabase"."asset_assignments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1619,6 +1648,35 @@ $$;
 revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope on "better_supabase"."asset_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
+create policy bsb_tenant_scope on "better_supabase"."assets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
+    or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope on "better_supabase"."asset_assignments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2394,6 +2452,35 @@ $$;
 revoke execute on function "app_private"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "app_private"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."asset_locations";
+create policy bsb_tenant_scope on "app_private"."asset_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."assets";
+create policy bsb_tenant_scope on "app_private"."assets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
+    or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."asset_assignments";
+create policy bsb_tenant_scope on "app_private"."asset_assignments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("asset_id" in (select y."id" from "app_private"."assets" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3166,6 +3253,35 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_locations";
+create policy bsb_tenant_scope on "better_supabase"."asset_locations" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."assets";
+create policy bsb_tenant_scope on "better_supabase"."assets" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
+    or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."asset_assignments";
+create policy bsb_tenant_scope on "better_supabase"."asset_assignments" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("asset_id" in (select y."id" from "better_supabase"."assets" y))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.assets.api: entry points for the Data API.
 create schema if not exists "api";

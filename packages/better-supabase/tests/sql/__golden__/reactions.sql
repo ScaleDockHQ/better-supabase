@@ -512,6 +512,41 @@ begin
 end;
 $do$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
+create policy bsb_tenant_scope on "better_supabase"."reactions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+    and "actor" = (select auth.uid())::text
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
+create policy bsb_tenant_scope on "better_supabase"."reaction_scores" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
+create policy bsb_tenant_scope on "better_supabase"."custom_emoji" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1051,6 +1086,41 @@ begin
   end if;
 end;
 $do$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
+create policy bsb_tenant_scope on "better_supabase"."reactions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+    and "actor" = (select auth.uid())::text
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
+create policy bsb_tenant_scope on "better_supabase"."reaction_scores" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
+create policy bsb_tenant_scope on "better_supabase"."custom_emoji" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1594,6 +1664,41 @@ begin
 end;
 $do$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."reactions";
+create policy bsb_tenant_scope on "app_private"."reactions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+    and "actor" = (select auth.uid())::text
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
+    and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  );
+drop policy if exists bsb_tenant_scope on "app_private"."reaction_scores";
+create policy bsb_tenant_scope on "app_private"."reaction_scores" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "app_private"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."custom_emoji";
+create policy bsb_tenant_scope on "app_private"."custom_emoji" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2133,6 +2238,41 @@ begin
   end if;
 end;
 $do$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."reactions";
+create policy bsb_tenant_scope on "better_supabase"."reactions" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid())
+    and "actor" = (select auth.uid())::text
+    and "tenant_id" in (select better_supabase.tenant_ids_with('reactions.create'))
+    and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."reaction_scores";
+create policy bsb_tenant_scope on "better_supabase"."reaction_scores" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')) and "better_supabase"."reaction_subject_visible"("subject_type", "subject_id", "tenant_id"))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."custom_emoji";
+create policy bsb_tenant_scope on "better_supabase"."custom_emoji" as restrictive
+  for all to authenticated
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('reactions.read')))
+  )
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.reactions.api: entry points for the Data API.
 create schema if not exists "api";

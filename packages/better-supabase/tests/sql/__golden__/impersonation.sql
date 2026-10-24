@@ -737,6 +737,27 @@ grant execute on function "better_supabase"."support_target_claims"(uuid) to ser
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1543,6 +1564,27 @@ grant execute on function "better_supabase"."support_target_claims"(uuid) to ser
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2308,6 +2350,27 @@ grant execute on function "app_private"."support_target_claims"(uuid) to service
 revoke execute on function "app_private"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "app_private"."expire_support_sessions"() to service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."support_sessions";
+create policy bsb_tenant_scope on "app_private"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."support_requests";
+create policy bsb_tenant_scope on "app_private"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3072,6 +3135,27 @@ revoke execute on function "better_supabase"."support_target_claims"(uuid) from 
 grant execute on function "better_supabase"."support_target_claims"(uuid) to service_role;
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_sessions";
+create policy bsb_tenant_scope on "better_supabase"."support_sessions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ((select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.impersonation.api: entry points for the Data API.
 create schema if not exists "api";
@@ -3920,6 +4004,19 @@ revoke execute on function "better_supabase"."support_target_claims"(uuid) from 
 grant execute on function "better_supabase"."support_target_claims"(uuid) to service_role;
 revoke execute on function "better_supabase"."expire_support_sessions"() from public, anon, authenticated;
 grant execute on function "better_supabase"."expire_support_sessions"() to service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."support_requests";
+create policy bsb_tenant_scope on "better_supabase"."support_requests" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("admin_id" = (select auth.uid())
+    or (select "better_supabase"."is_platform"('support.read')))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

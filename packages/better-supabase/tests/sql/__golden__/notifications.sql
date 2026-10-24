@@ -1251,6 +1251,80 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."event_id" = "better_supabase"."notification_events"."id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_recipients";
+create policy bsb_tenant_scope on "better_supabase"."notification_recipients" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."notification_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_delivery_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_subscriptions";
+create policy bsb_tenant_scope on "better_supabase"."notification_subscriptions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_preferences";
+create policy bsb_tenant_scope on "better_supabase"."notification_preferences" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -2603,6 +2677,80 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."event_id" = "better_supabase"."notification_events"."id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_recipients";
+create policy bsb_tenant_scope on "better_supabase"."notification_recipients" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."notification_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_delivery_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_subscriptions";
+create policy bsb_tenant_scope on "better_supabase"."notification_subscriptions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_preferences";
+create policy bsb_tenant_scope on "better_supabase"."notification_preferences" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3884,6 +4032,80 @@ begin
 end;
 $$;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."notification_events";
+create policy bsb_tenant_scope on "app_private"."notification_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "app_private"."notification_recipients" r
+    where r."event_id" = "app_private"."notification_events"."id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."notification_recipients";
+create policy bsb_tenant_scope on "app_private"."notification_recipients" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "app_private"."notification_deliveries";
+create policy bsb_tenant_scope on "app_private"."notification_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "app_private"."notification_recipients" r
+    where r."id" = "app_private"."notification_deliveries"."recipient_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."notification_delivery_events";
+create policy bsb_tenant_scope on "app_private"."notification_delivery_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "app_private"."notification_deliveries" d
+    join "app_private"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "app_private"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."notification_subscriptions";
+create policy bsb_tenant_scope on "app_private"."notification_subscriptions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "app_private"."notification_preferences";
+create policy bsb_tenant_scope on "app_private"."notification_preferences" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -5162,6 +5384,80 @@ begin
   end if;
 end;
 $$;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."event_id" = "better_supabase"."notification_events"."id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_recipients";
+create policy bsb_tenant_scope on "better_supabase"."notification_recipients" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_deliveries";
+create policy bsb_tenant_scope on "better_supabase"."notification_deliveries" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_recipients" r
+    where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_delivery_events";
+create policy bsb_tenant_scope on "better_supabase"."notification_delivery_events" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or (exists (
+    select 1 from "better_supabase"."notification_deliveries" d
+    join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
+    where d."id" = "better_supabase"."notification_delivery_events"."delivery_id"
+      and r."user_id" = (select auth.uid())
+  ))
+  )
+  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_subscriptions";
+create policy bsb_tenant_scope on "better_supabase"."notification_subscriptions" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
+drop policy if exists bsb_tenant_scope on "better_supabase"."notification_preferences";
+create policy bsb_tenant_scope on "better_supabase"."notification_preferences" as restrictive
+  for all to authenticated
+  using (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  )
+  with check (
+    "organization_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()))
+  );
 
 -- blocks.notifications.api: entry points for the Data API.
 create schema if not exists "api";

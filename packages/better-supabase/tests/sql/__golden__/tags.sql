@@ -335,6 +335,20 @@ $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
+create policy bsb_tenant_scope on "better_supabase"."tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
+create policy bsb_tenant_scope on "better_supabase"."taggings" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -697,6 +711,20 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
+create policy bsb_tenant_scope on "better_supabase"."tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
+create policy bsb_tenant_scope on "better_supabase"."taggings" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1063,6 +1091,20 @@ $$;
 revoke execute on function "app_private"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."subject_tags"(uuid, text, text) to authenticated, service_role;
 
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "app_private"."tags";
+create policy bsb_tenant_scope on "app_private"."tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."taggings";
+create policy bsb_tenant_scope on "app_private"."taggings" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -1425,6 +1467,20 @@ end;
 $$;
 revoke execute on function "better_supabase"."subject_tags"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."subject_tags"(uuid, text, text) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0098): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+drop policy if exists bsb_tenant_scope on "better_supabase"."tags";
+create policy bsb_tenant_scope on "better_supabase"."tags" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."taggings";
+create policy bsb_tenant_scope on "better_supabase"."taggings" as restrictive
+  for all to authenticated
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.tags.api: entry points for the Data API.
 create schema if not exists "api";
