@@ -457,6 +457,24 @@ describe("gen", () => {
     ).toBe(1);
   });
 
+  it("writes the mapper-mode files when the cache and the stamp can't be written", async () => {
+    await writeFile(join(root, "node_modules"), "");
+
+    const mapper = configure({ gen: { contentMapper: true } });
+
+    const written = await runGen({
+      config: mapper,
+      env: {},
+      check: false,
+      snapshot,
+      configFile: join(root, "missing.config.ts"),
+    });
+
+    expect(written.code).toBe(0);
+    expect(existsSync(join(root, "src/db/schema.bsb"))).toBe(true);
+    expect(existsSync(schemaStampPath(root, mapper.output))).toBe(false);
+  });
+
   it("reports missing files with --check", async () => {
     const result = await runGen({
       config: configure({}),

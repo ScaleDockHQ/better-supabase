@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   addContentMapper,
   addRunExternalCode,
+  contentMapperFiles,
   contentMapperSetup,
   hasContentMapper,
   needsRunExternalCode,
@@ -137,5 +138,38 @@ describe("contentMapperSetup", () => {
       typescript: "7.1.0-beta",
       typecheck: "tsc --noEmit",
     });
+  });
+});
+
+describe("contentMapperFiles", () => {
+  it("edits both files, or prints a note for each one it can't edit", async () => {
+    const empty = await mkdtemp(join(tmpdir(), "bsb-mapper-"));
+    const missing = await contentMapperFiles(empty);
+
+    expect(missing.files).toEqual([]);
+    expect(missing.notes).toEqual([
+      expect.stringContaining("init left the file alone: it does not exist"),
+      expect.stringContaining(
+        "init left package.json alone: it does not exist",
+      ),
+    ]);
+
+    const root = await mkdtemp(join(tmpdir(), "bsb-mapper-"));
+    await writeFile(join(root, "tsconfig.json"), "{}\n");
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { typecheck: "tsc --noEmit" } }),
+    );
+
+    const edited = await contentMapperFiles(root);
+
+    expect(edited.notes).toEqual([]);
+    expect(edited.files.map((file) => file.path)).toEqual([
+      "tsconfig.json",
+      "package.json",
+    ]);
+    expect(edited.files[1]!.contents).toContain(
+      '"typecheck": "tsc --runExternalCode --noEmit"',
+    );
   });
 });

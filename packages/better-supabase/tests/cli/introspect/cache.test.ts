@@ -251,6 +251,20 @@ describe("cachedTypesModule", () => {
       ),
     ).toHaveLength(1);
   });
+
+  it("serves the module when the cache folder can't be written", async () => {
+    await writeFile(join(root, "node_modules"), "");
+
+    expect(
+      await cachedTypesModule(root, "src/generated.ts", "k", () =>
+        Promise.resolve("module"),
+      ),
+    ).toBe("module");
+    expect(await storeTypesModule(root, "src/generated.ts", "k", "x")).toBe(
+      true,
+    );
+    expect(await lastTypesModule(root, "src/generated.ts")).toBeUndefined();
+  });
 });
 
 describe("writeAtomic", () => {
