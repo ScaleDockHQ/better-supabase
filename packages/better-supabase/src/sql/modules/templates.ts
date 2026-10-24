@@ -11,7 +11,6 @@ import {
   addExtraColumns,
   extraFieldsArg,
   fail,
-  lockTable,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
@@ -20,6 +19,7 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
+import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 import { workflowParts } from "./templates-workflows.ts";
 
@@ -56,6 +56,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     templates: {
       name: "templates",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -73,9 +74,20 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
+      optional: [
+        "scope",
+        "key",
+        "isDefault",
+        "settings",
+        "forkedFrom",
+        "forkedFromVersion",
+        "createdBy",
+      ],
+      typed: ["scope"],
     },
     versions: {
       name: "template_versions",
+      app: {},
       columns: {
         id: "id",
         template: "template_id",
@@ -86,9 +98,11 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
       },
+      optional: ["createdBy"],
     },
     applications: {
       name: "template_applications",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -100,6 +114,7 @@ const NAMES: BlockSqlNames = {
         appliedBy: "applied_by",
         appliedAt: "applied_at",
       },
+      optional: ["appliedBy"],
     },
     workflows: {
       name: "template_workflows",
@@ -138,6 +153,60 @@ function build(ctx: BlockSqlContext): string {
   const ct = (column: string): string => ctx.col("templates", column);
   const cv = (column: string): string => ctx.col("versions", column);
   const ca = (column: string): string => ctx.col("applications", column);
+
+  const has = (table: string, logical: string): boolean =>
+    ctx.has(table, logical);
+
+  // A column of row, or fallback when the app maps it to null.
+  const or = (
+    table: string,
+    row: string,
+    logical: string,
+    fallback = "null",
+  ): string =>
+    has(table, logical) ? `${row}.${ctx.col(table, logical)}` : fallback;
+
+  // text when the column exists.
+  const also = (table: string, logical: string, text: () => string): string =>
+    has(table, logical) ? text() : "";
+
+  // "<column> <definition>," as a line of create table, when it exists.
+  const column = (
+    table: string,
+    logical: string,
+    definition: () => string,
+  ): string =>
+    has(table, logical)
+      ? `  ${ctx.col(table, logical)} ${definition()},\n`
+      : "";
+
+  // The columns and values of an insert, for the columns that exist.
+  const insert = (
+    table: string,
+    pairs: readonly (readonly [string, string])[],
+  ): { readonly columns: string; readonly values: readonly string[] } => {
+    const kept = pairs.filter(([logical]) => has(table, logical));
+
+    return {
+      columns: kept.map(([logical]) => ctx.col(table, logical)).join(", "),
+      values: kept.map(([, value]) => value),
+    };
+  };
+
+  // A system template has no tenant; the scope column, when the app keeps
+  // one, says so too.
+  const system = (prefix: string): string =>
+    has("templates", "scope")
+      ? `${prefix}${ct("scope")} = 'system'`
+      : `${prefix}${ct("tenant")} is null`;
+
+  const unsupported = (thing: string): string =>
+    fail(
+      `TEMPLATE_${thing.toUpperCase().replaceAll(" ", "_")}_UNSUPPORTED`,
+      `this templates table has no ${thing} column`,
+      "22023",
+    );
+
   const read = ctx.permission("read", OPERATIONS["templates.read"]);
   const apply = ctx.permission("apply", OPERATIONS["templates.apply"]);
   const manage = ctx.permission("manage", OPERATIONS["templates.manage"]);
@@ -156,7 +225,7 @@ function build(ctx: BlockSqlContext): string {
     `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.scope.can(tenant, manage)}))`;
 
   const readable = `${ct("tenant")} in (select ${ctx.scope.ids(read)})
-    or (${ct("scope")} = 'system' and exists (select ${ctx.scope.ids(read)}))`;
+    or (${system("")} and exists (select ${ctx.scope.ids(read)}))`;
 
   // The template's newest published version.
   const published = (template: string): string =>
@@ -167,18 +236,18 @@ function build(ctx: BlockSqlContext): string {
       `jsonb_build_object(
     'id', ${alias}.${ct("id")},
     'tenant', ${alias}.${ct("tenant")},
-    'scope', ${alias}.${ct("scope")},
-    'key', ${alias}.${ct("key")},
+    'scope', ${has("templates", "scope") ? `${alias}.${ct("scope")}` : `case when ${alias}.${ct("tenant")} is null then 'system' else 'tenant' end`},
+    'key', ${or("templates", alias, "key")},
     'type', ${alias}.${ct("type")},
     'name', ${alias}.${ct("name")},
     'language', ${alias}.${ct("language")},
-    'isDefault', ${alias}.${ct("isDefault")},
-    'settings', ${alias}.${ct("settings")},
-    'forkedFrom', ${alias}.${ct("forkedFrom")},
-    'forkedFromVersion', ${alias}.${ct("forkedFromVersion")},
+    'isDefault', ${or("templates", alias, "isDefault", "false")},
+    'settings', ${or("templates", alias, "settings", "'{}'::jsonb")},
+    'forkedFrom', ${or("templates", alias, "forkedFrom")},
+    'forkedFromVersion', ${or("templates", alias, "forkedFromVersion")},
     'publishedVersion', ${published(`${alias}.${ct("id")}`)},
-    'upstreamVersion', case when ${alias}.${ct("forkedFrom")} is not null then ${published(`${alias}.${ct("forkedFrom")}`)} end,
-    'createdBy', ${alias}.${ct("createdBy")},
+    'upstreamVersion', ${has("templates", "forkedFrom") ? `case when ${alias}.${ct("forkedFrom")} is not null then ${published(`${alias}.${ct("forkedFrom")}`)} end` : "null"},
+    'createdBy', ${or("templates", alias, "createdBy")},
     'createdAt', ${alias}.${ct("createdAt")},
     'updatedAt', ${alias}.${ct("updatedAt")}
   )`,
@@ -193,7 +262,7 @@ function build(ctx: BlockSqlContext): string {
     'version', ${alias}.${cv("version")},
     'hash', ${alias}.${cv("hash")},
     'publishedAt', ${alias}.${cv("publishedAt")},
-    'createdBy', ${alias}.${cv("createdBy")},
+    'createdBy', ${or("versions", alias, "createdBy")},
     'createdAt', ${alias}.${cv("createdAt")}${
       full
         ? `,
@@ -209,9 +278,98 @@ function build(ctx: BlockSqlContext): string {
     'tenant', ${alias}.${ca("tenant")},
     'subjectType', ${alias}.${ca("subjectType")},
     'subjectId', ${alias}.${ca("subjectId")},
-    'appliedBy', ${alias}.${ca("appliedBy")},
+    'appliedBy', ${or("applications", alias, "appliedBy")},
     'appliedAt', ${alias}.${ca("appliedAt")}
   )`;
+
+  const created = insert("templates", [
+    ["tenant", "save_template.tenant"],
+    [
+      "scope",
+      has("templates", "scope")
+        ? ctx.cast(
+            "templates",
+            "scope",
+            "case when save_template.tenant is null then 'system' else 'tenant' end",
+          )
+        : "",
+    ],
+    ["type", "save_template.type"],
+    ["name", "save_template.name"],
+    ["language", "coalesce(save_template.language, 'en')"],
+    ["settings", "coalesce(save_template.settings, '{}'::jsonb)"],
+    ["createdBy", "(select auth.uid())"],
+  ]);
+
+  const forked = insert("templates", [
+    ["tenant", "fork_template.tenant"],
+    ["scope", "'tenant'"],
+    ["type", `v_src.${ct("type")}`],
+    ["name", `v_src.${ct("name")}`],
+    ["language", `v_src.${ct("language")}`],
+    ["settings", or("templates", "v_src", "settings")],
+    ["forkedFrom", `v_src.${ct("id")}`],
+    ["forkedFromVersion", `v_version.${cv("version")}`],
+    ["createdBy", "(select auth.uid())"],
+  ]);
+
+  const starter = insert("templates", [
+    ["tenant", "null"],
+    ["scope", "'system'"],
+    ["key", "v_starter ->> 'key'"],
+    ["type", "v_starter ->> 'type'"],
+    ["name", "v_starter ->> 'name'"],
+    ["language", "coalesce(v_starter ->> 'language', 'en')"],
+    ["settings", "coalesce(v_starter -> 'settings', '{}'::jsonb)"],
+  ]);
+
+  const split = starter.values.length - (has("templates", "settings") ? 2 : 1);
+
+  const syncLoop =
+    (): string => `  for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
+    if coalesce(v_starter ->> 'key', '') !~ ${KEY_PATTERN} or not (v_starter ? 'body') then
+      ${fail("TEMPLATE_INVALID", "Each starter needs a key and a body", "22023")}
+    end if;
+    select * into v_row from ${t} x where x.${ct("tenant")} is null and x.${ct("key")} = v_starter ->> 'key' for update;
+    if not found then
+      insert into ${t} (${starter.columns})
+      values (${starter.values.slice(0, split).join(", ")},
+        ${starter.values.slice(split).join(", ")})
+      returning * into v_row;
+    else
+      update ${t} x set
+        ${ct("type")} = coalesce(v_starter ->> 'type', x.${ct("type")}),
+        ${ct("name")} = coalesce(v_starter ->> 'name', x.${ct("name")}),
+        ${ct("language")} = coalesce(v_starter ->> 'language', x.${ct("language")}),
+${also("templates", "settings", () => `        ${ct("settings")} = coalesce(v_starter -> 'settings', x.${ct("settings")}),\n`)}        ${ct("updatedAt")} = now()
+      where x.${ct("id")} = v_row.${ct("id")}
+      returning * into v_row;
+    end if;
+    v_hash := ${sha256Hex("(v_starter -> 'body')::text")};
+    if v_hash is distinct from (select y.${cv("hash")} from ${ver} y
+        where y.${cv("template")} = v_row.${ct("id")} and y.${cv("publishedAt")} is not null
+        order by y.${cv("version")} desc limit 1) then
+      delete from ${ver} y where y.${cv("template")} = v_row.${ct("id")} and y.${cv("publishedAt")} is null;
+      insert into ${ver} (${cv("template")}, ${cv("version")}, ${cv("body")}, ${cv("hash")}, ${cv("publishedAt")})
+      values (
+        v_row.${ct("id")},
+        coalesce((select max(y.${cv("version")}) from ${ver} y where y.${cv("template")} = v_row.${ct("id")}), 0) + 1,
+        v_starter -> 'body',
+        v_hash,
+        now()
+      )
+      returning * into v_version;
+      v_count := v_count + 1;
+      ${ctx.record({
+        type: "template.published",
+        payload: `jsonb_build_object('organizationId', null, 'id', v_row.${ct("id")}, 'versionId', v_version.${cv("id")}, 'version', v_version.${cv("version")}, 'type', v_row.${ct("type")})`,
+        subject: `'templates/' || v_row.${ct("id")}::text`,
+        audit: false,
+      })}
+    end if;
+  end loop;
+  return v_count;
+`;
 
   const workflows =
     builder === undefined
@@ -227,27 +385,24 @@ create extension if not exists pgcrypto with schema extensions;
 create table if not exists ${t} (
   ${ct("id")} uuid primary key default gen_random_uuid(),
   ${ct("tenant")} ${id},
-  ${ct("scope")} text not null default 'tenant' check (${ct("scope")} in ('tenant', 'system')),
-  ${ct("key")} text check (${ct("key")} ~ ${KEY_PATTERN}),
-  ${ct("type")} text not null check (${ct("type")} ~ ${TYPE_PATTERN}),
+${column("templates", "scope", () => `text not null default 'tenant' check (${ct("scope")} in ('tenant', 'system'))`)}${column("templates", "key", () => `text check (${ct("key")} ~ ${KEY_PATTERN})`)}  ${ct("type")} text not null check (${ct("type")} ~ ${TYPE_PATTERN}),
   ${ct("name")} text not null check (length(${ct("name")}) between 1 and 200),
   ${ct("language")} text not null default 'en' check (${ct("language")} ~ ${LANGUAGE_PATTERN}),
-  ${ct("isDefault")} boolean not null default false,
-  ${ct("settings")} jsonb not null default '{}'::jsonb
-    check (jsonb_typeof(${ct("settings")}) = 'object' and pg_column_size(${ct("settings")}) <= ${String(MAX_SETTINGS_BYTES)}),
-  ${ct("forkedFrom")} uuid references ${t} (${ct("id")}) on delete set null,
-  ${ct("forkedFromVersion")} integer check (${ct("forkedFromVersion")} > 0),
-  ${ct("createdBy")} uuid references auth.users (id) on delete set null,
-  ${ct("createdAt")} timestamptz not null default now(),
-  ${ct("updatedAt")} timestamptz not null default now(),
-  constraint ${ctx.naming.rename("templates_system_check")} check ((${ct("scope")} = 'system') = (${ct("tenant")} is null))
+${column("templates", "isDefault", () => "boolean not null default false")}${column(
+    "templates",
+    "settings",
+    () => `jsonb not null default '{}'::jsonb
+    check (jsonb_typeof(${ct("settings")}) = 'object' and pg_column_size(${ct("settings")}) <= ${String(MAX_SETTINGS_BYTES)})`,
+  )}${column("templates", "forkedFrom", () => `uuid references ${t} (${ct("id")}) on delete set null`)}${column("templates", "forkedFromVersion", () => `integer check (${ct("forkedFromVersion")} > 0)`)}${column("templates", "createdBy", () => "uuid references auth.users (id) on delete set null")}  ${ct("createdAt")} timestamptz not null default now(),
+  ${ct("updatedAt")} timestamptz not null default now()${also(
+    "templates",
+    "scope",
+    () => `,
+  constraint ${ctx.naming.rename("templates_system_check")} check ((${ct("scope")} = 'system') = (${ct("tenant")} is null))`,
+  )}
 );${addExtraColumns(t, extras)}
-create unique index if not exists ${ctx.naming.rename("templates_key_idx")} on ${t} (${ct("tenant")}, ${ct("key")}) nulls not distinct where ${ct("key")} is not null;
-create unique index if not exists ${ctx.naming.rename("templates_default_idx")} on ${t} (${ct("tenant")}, ${ct("type")}, ${ct("language")}) nulls not distinct where ${ct("isDefault")};
-create index if not exists ${ctx.naming.rename("templates_type_idx")} on ${t} (${ct("tenant")}, ${ct("type")});
-create index if not exists ${ctx.naming.rename("templates_forked_from_idx")} on ${t} (${ct("forkedFrom")}) where ${ct("forkedFrom")} is not null;
-create index if not exists ${ctx.naming.rename("templates_created_by_idx")} on ${t} (${ct("createdBy")});
-${lockTable(t, { read: true })}
+${also("templates", "key", () => `create unique index if not exists ${ctx.naming.rename("templates_key_idx")} on ${t} (${ct("tenant")}, ${ct("key")}) nulls not distinct where ${ct("key")} is not null;\n`)}${also("templates", "isDefault", () => `create unique index if not exists ${ctx.naming.rename("templates_default_idx")} on ${t} (${ct("tenant")}, ${ct("type")}, ${ct("language")}) nulls not distinct where ${ct("isDefault")};\n`)}create index if not exists ${ctx.naming.rename("templates_type_idx")} on ${t} (${ct("tenant")}, ${ct("type")});
+${also("templates", "forkedFrom", () => `create index if not exists ${ctx.naming.rename("templates_forked_from_idx")} on ${t} (${ct("forkedFrom")}) where ${ct("forkedFrom")} is not null;\n`)}${also("templates", "createdBy", () => `create index if not exists ${ctx.naming.rename("templates_created_by_idx")} on ${t} (${ct("createdBy")});\n`)}${lockModuleTable(ctx, "templates", { read: true })}
 drop policy if exists ${ctx.naming.rename("templates_read")} on ${t};
 create policy ${ctx.naming.rename("templates_read")} on ${t} for select to authenticated
   using (${readable});
@@ -261,13 +416,11 @@ create table if not exists ${ver} (
   ${cv("body")} jsonb not null check (pg_column_size(${cv("body")}) <= ${String(MAX_BODY_BYTES)}),
   ${cv("hash")} text not null,
   ${cv("publishedAt")} timestamptz,
-  ${cv("createdBy")} uuid references auth.users (id) on delete set null,
-  ${cv("createdAt")} timestamptz not null default now(),
+${column("versions", "createdBy", () => "uuid references auth.users (id) on delete set null")}  ${cv("createdAt")} timestamptz not null default now(),
   constraint ${ctx.naming.rename("template_versions_template_version_key")} unique (${cv("template")}, ${cv("version")})
 );
-create unique index if not exists ${ctx.naming.rename("template_versions_one_draft_idx")} on ${ver} (${cv("template")}) where ${cv("publishedAt")} is null;
-create index if not exists ${ctx.naming.rename("template_versions_created_by_idx")} on ${ver} (${cv("createdBy")});
-${lockTable(ver, { read: true })}
+create unique index if not exists ${ctx.naming.rename("template_versions_one_draft_idx")} on ${ver} (${cv("template")}) where ${cv("publishedAt")} is null;${appUniqueIndex(ctx, "versions", ["template", "version"])}
+${also("versions", "createdBy", () => `create index if not exists ${ctx.naming.rename("template_versions_created_by_idx")} on ${ver} (${cv("createdBy")});\n`)}${lockModuleTable(ctx, "versions", { read: true })}
 drop policy if exists ${ctx.naming.rename("template_versions_read")} on ${ver};
 create policy ${ctx.naming.rename("template_versions_read")} on ${ver} for select to authenticated
   using (exists (select 1 from ${t} x where x.${ct("id")} = ${cv("template")}));
@@ -280,15 +433,13 @@ create table if not exists ${app} (
   ${ca("tenant")} ${id} not null,
   ${ca("subjectType")} text not null check (length(${ca("subjectType")}) between 1 and 100),
   ${ca("subjectId")} text not null check (length(${ca("subjectId")}) between 1 and 200),
-  ${ca("appliedBy")} uuid references auth.users (id) on delete set null,
-  ${ca("appliedAt")} timestamptz not null default now()
+${column("applications", "appliedBy", () => "uuid references auth.users (id) on delete set null")}  ${ca("appliedAt")} timestamptz not null default now()
 );
 create index if not exists ${ctx.naming.rename("template_applications_tenant_idx")} on ${app} (${ca("tenant")}, ${ca("appliedAt")} desc);
 create index if not exists ${ctx.naming.rename("template_applications_template_idx")} on ${app} (${ca("template")});
 create index if not exists ${ctx.naming.rename("template_applications_version_idx")} on ${app} (${ca("version")});
 create index if not exists ${ctx.naming.rename("template_applications_subject_idx")} on ${app} (${ca("subjectType")}, ${ca("subjectId")});
-create index if not exists ${ctx.naming.rename("template_applications_applied_by_idx")} on ${app} (${ca("appliedBy")});
-${lockTable(app, { read: true })}
+${also("applications", "appliedBy", () => `create index if not exists ${ctx.naming.rename("template_applications_applied_by_idx")} on ${app} (${ca("appliedBy")});\n`)}${lockModuleTable(ctx, "applications", { read: true })}
 drop policy if exists ${ctx.naming.rename("template_applications_read")} on ${app};
 create policy ${ctx.naming.rename("template_applications_read")} on ${app} for select to authenticated
   using (${ca("tenant")} in (select ${ctx.scope.ids(read)}));
@@ -310,7 +461,14 @@ declare
 begin
   if save_template.settings is not null and jsonb_typeof(save_template.settings) <> 'object' then
     ${fail("TEMPLATE_INVALID", "settings must be an object", "22023")}
-  end if;
+  end if;${
+    has("templates", "settings")
+      ? ""
+      : `
+  if save_template.settings is not null then
+    ${unsupported("settings")}
+  end if;`
+  }
   if save_template.template_id is not null then
     select * into v_row from ${t} x where x.${ct("id")} = save_template.template_id for update;
     if not found or v_row.${ct("tenant")} is distinct from save_template.tenant then
@@ -332,23 +490,25 @@ begin
     ["jsonb", "save_template.settings"],
   ])}
   if save_template.template_id is null then
-    insert into ${t} (${ct("tenant")}, ${ct("scope")}, ${ct("type")}, ${ct("name")}, ${ct("language")}, ${ct("settings")}, ${ct("createdBy")})
+    insert into ${t} (${created.columns})
     values (
-      save_template.tenant,
-      case when save_template.tenant is null then 'system' else 'tenant' end,
-      save_template.type,
-      save_template.name,
-      coalesce(save_template.language, 'en'),
-      coalesce(save_template.settings, '{}'::jsonb),
-      (select auth.uid())
+      ${created.values.join(",\n      ")}
     )
     returning * into v_row;
   else
     update ${t} x set
       ${ct("name")} = coalesce(save_template.name, x.${ct("name")}),
-      ${ct("language")} = coalesce(save_template.language, x.${ct("language")}),
-      ${ct("settings")} = coalesce(save_template.settings, x.${ct("settings")}),
-      ${ct("isDefault")} = x.${ct("isDefault")} and coalesce(save_template.language, x.${ct("language")}) = x.${ct("language")},
+      ${ct("language")} = coalesce(save_template.language, x.${ct("language")}),${also(
+        "templates",
+        "settings",
+        () => `
+      ${ct("settings")} = coalesce(save_template.settings, x.${ct("settings")}),`,
+      )}${also(
+        "templates",
+        "isDefault",
+        () => `
+      ${ct("isDefault")} = x.${ct("isDefault")} and coalesce(save_template.language, x.${ct("language")}) = x.${ct("language")},`,
+      )}
       ${ct("updatedAt")} = now()
     where x.${ct("id")} = save_template.template_id
     returning * into v_row;
@@ -374,9 +534,9 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(${templateJson("x")}
-    order by x.${ct("isDefault")} desc, x.${ct("scope")} desc, x.${ct("name")}, x.${ct("id")}), '[]'::jsonb)
+    order by ${also("templates", "isDefault", () => `x.${ct("isDefault")} desc, `)}${has("templates", "scope") ? `${asText(ctx, "templates", `x.${ct("scope")}`)} desc` : `x.${ct("tenant")} is null`}, x.${ct("name")}, x.${ct("id")}), '[]'::jsonb)
   from ${t} x
-  where (x.${ct("tenant")} = templates_list.tenant or x.${ct("scope")} = 'system')
+  where (x.${ct("tenant")} = templates_list.tenant or ${system("x.")})
     and (templates_list.type is null or x.${ct("type")} = templates_list.type)
     and (templates_list.language is null or x.${ct("language")} = templates_list.language)
 $$;
@@ -454,13 +614,17 @@ begin
   where x.${cv("template")} = save_template_draft.template_id and x.${cv("publishedAt")} is null
   returning * into v_row;
   if not found then
-    insert into ${ver} (${cv("template")}, ${cv("version")}, ${cv("body")}, ${cv("hash")}, ${cv("createdBy")})
+    insert into ${ver} (${cv("template")}, ${cv("version")}, ${cv("body")}, ${cv("hash")}${also("versions", "createdBy", () => `, ${cv("createdBy")}`)})
     values (
       save_template_draft.template_id,
       coalesce((select max(y.${cv("version")}) from ${ver} y where y.${cv("template")} = save_template_draft.template_id), 0) + 1,
       save_template_draft.body,
-      ${sha256Hex("save_template_draft.body::text")},
-      (select auth.uid())
+      ${sha256Hex("save_template_draft.body::text")}${also(
+        "versions",
+        "createdBy",
+        () => `,
+      (select auth.uid())`,
+      )}
     )
     returning * into v_row;
   end if;
@@ -544,7 +708,9 @@ begin
   if not ${mayManage(`v_row.${ct("tenant")}`)} then
     ${fail("TEMPLATE_FORBIDDEN", "You may not change this template")}
   end if;
-  if set_default_template.on_default then
+${
+  has("templates", "isDefault")
+    ? `  if set_default_template.on_default then
     update ${t} x set ${ct("isDefault")} = false, ${ct("updatedAt")} = now()
     where x.${ct("tenant")} is not distinct from v_row.${ct("tenant")}
       and x.${ct("type")} = v_row.${ct("type")} and x.${ct("language")} = v_row.${ct("language")}
@@ -552,7 +718,9 @@ begin
   end if;
   update ${t} x set ${ct("isDefault")} = coalesce(set_default_template.on_default, false), ${ct("updatedAt")} = now()
   where x.${ct("id")} = set_default_template.template_id;
-  return true;
+  return true;`
+    : `  ${unsupported("default")}`
+}
 end;
 $$;
 ${userGrant(`${fn("set_default_template")}(uuid, boolean)`)}
@@ -573,7 +741,7 @@ declare
   v_row ${t}%rowtype;
 begin
   select * into v_src from ${t} x where x.${ct("id")} = fork_template.source;
-  if not found or not (v_src.${ct("scope")} = 'system' or v_src.${ct("tenant")} is not distinct from fork_template.tenant) then
+  if not found or not (${system("v_src.")} or v_src.${ct("tenant")} is not distinct from fork_template.tenant) then
     ${fail("TEMPLATE_NOT_FOUND", "No such template", "P0002")}
   end if;
   if fork_template.tenant is null or not ${mayManage("fork_template.tenant")} then
@@ -585,11 +753,11 @@ begin
   if not found then
     ${fail("TEMPLATE_NOT_PUBLISHED", "This template has no published version", "P0002")}
   end if;
-  insert into ${t} (${ct("tenant")}, ${ct("scope")}, ${ct("type")}, ${ct("name")}, ${ct("language")}, ${ct("settings")}, ${ct("forkedFrom")}, ${ct("forkedFromVersion")}, ${ct("createdBy")})
-  values (fork_template.tenant, 'tenant', v_src.${ct("type")}, v_src.${ct("name")}, v_src.${ct("language")}, v_src.${ct("settings")}, v_src.${ct("id")}, v_version.${cv("version")}, (select auth.uid()))
+  insert into ${t} (${forked.columns})
+  values (${forked.values.join(", ")})
   returning * into v_row;
-  insert into ${ver} (${cv("template")}, ${cv("version")}, ${cv("body")}, ${cv("hash")}, ${cv("publishedAt")}, ${cv("createdBy")})
-  values (v_row.${ct("id")}, 1, v_version.${cv("body")}, v_version.${cv("hash")}, now(), (select auth.uid()));
+  insert into ${ver} (${cv("template")}, ${cv("version")}, ${cv("body")}, ${cv("hash")}, ${cv("publishedAt")}${also("versions", "createdBy", () => `, ${cv("createdBy")}`)})
+  values (v_row.${ct("id")}, 1, v_version.${cv("body")}, v_version.${cv("hash")}, now()${also("versions", "createdBy", () => ", (select auth.uid())")});
 ${workflows?.forkCopy ?? ""}
   return ${templateJson("v_row")};
 end;
@@ -616,51 +784,7 @@ begin
   if jsonb_typeof(sync_templates.starters) <> 'array' then
     ${fail("TEMPLATE_INVALID", "starters must be an array", "22023")}
   end if;
-  for v_starter in select value from jsonb_array_elements(sync_templates.starters) loop
-    if coalesce(v_starter ->> 'key', '') !~ ${KEY_PATTERN} or not (v_starter ? 'body') then
-      ${fail("TEMPLATE_INVALID", "Each starter needs a key and a body", "22023")}
-    end if;
-    select * into v_row from ${t} x where x.${ct("tenant")} is null and x.${ct("key")} = v_starter ->> 'key' for update;
-    if not found then
-      insert into ${t} (${ct("tenant")}, ${ct("scope")}, ${ct("key")}, ${ct("type")}, ${ct("name")}, ${ct("language")}, ${ct("settings")})
-      values (null, 'system', v_starter ->> 'key', v_starter ->> 'type', v_starter ->> 'name',
-        coalesce(v_starter ->> 'language', 'en'), coalesce(v_starter -> 'settings', '{}'::jsonb))
-      returning * into v_row;
-    else
-      update ${t} x set
-        ${ct("type")} = coalesce(v_starter ->> 'type', x.${ct("type")}),
-        ${ct("name")} = coalesce(v_starter ->> 'name', x.${ct("name")}),
-        ${ct("language")} = coalesce(v_starter ->> 'language', x.${ct("language")}),
-        ${ct("settings")} = coalesce(v_starter -> 'settings', x.${ct("settings")}),
-        ${ct("updatedAt")} = now()
-      where x.${ct("id")} = v_row.${ct("id")}
-      returning * into v_row;
-    end if;
-    v_hash := ${sha256Hex("(v_starter -> 'body')::text")};
-    if v_hash is distinct from (select y.${cv("hash")} from ${ver} y
-        where y.${cv("template")} = v_row.${ct("id")} and y.${cv("publishedAt")} is not null
-        order by y.${cv("version")} desc limit 1) then
-      delete from ${ver} y where y.${cv("template")} = v_row.${ct("id")} and y.${cv("publishedAt")} is null;
-      insert into ${ver} (${cv("template")}, ${cv("version")}, ${cv("body")}, ${cv("hash")}, ${cv("publishedAt")})
-      values (
-        v_row.${ct("id")},
-        coalesce((select max(y.${cv("version")}) from ${ver} y where y.${cv("template")} = v_row.${ct("id")}), 0) + 1,
-        v_starter -> 'body',
-        v_hash,
-        now()
-      )
-      returning * into v_version;
-      v_count := v_count + 1;
-      ${ctx.record({
-        type: "template.published",
-        payload: `jsonb_build_object('organizationId', null, 'id', v_row.${ct("id")}, 'versionId', v_version.${cv("id")}, 'version', v_version.${cv("version")}, 'type', v_row.${ct("type")})`,
-        subject: `'templates/' || v_row.${ct("id")}::text`,
-        audit: false,
-      })}
-    end if;
-  end loop;
-  return v_count;
-end;
+${has("templates", "key") ? syncLoop() : `  ${unsupported("key")}\n  return 0;\n`}end;
 $$;
 ${serviceGrant(`${fn("sync_templates")}(jsonb)`)}
 
@@ -688,7 +812,7 @@ begin
     ${fail("TEMPLATE_FORBIDDEN", "You may not apply templates here")}
   end if;
   select * into v_tpl from ${t} x where x.${ct("id")} = template_apply_target.template_id;
-  if not found or not (v_tpl.${ct("scope")} = 'system' or v_tpl.${ct("tenant")} = template_apply_target.tenant) then
+  if not found or not (${system("v_tpl.")} or v_tpl.${ct("tenant")} = template_apply_target.tenant) then
     ${fail("TEMPLATE_NOT_FOUND", "No such template", "P0002")}
   end if;
   select * into v_version from ${ver} y
@@ -727,7 +851,7 @@ begin
     ${fail("TEMPLATE_FORBIDDEN", "You may not apply templates here")}
   end if;
   select * into v_tpl from ${t} x where x.${ct("id")} = record_template_application.template_id;
-  if not found or not (v_tpl.${ct("scope")} = 'system' or v_tpl.${ct("tenant")} = record_template_application.tenant) then
+  if not found or not (${system("v_tpl.")} or v_tpl.${ct("tenant")} = record_template_application.tenant) then
     ${fail("TEMPLATE_NOT_FOUND", "No such template", "P0002")}
   end if;
   if not exists (select 1 from ${ver} y where y.${cv("id")} = record_template_application.version_id
@@ -740,9 +864,9 @@ begin
     ["text", "record_template_application.subject_type"],
     ["text", "record_template_application.subject_id"],
   ])}
-  insert into ${app} (${ca("template")}, ${ca("version")}, ${ca("tenant")}, ${ca("subjectType")}, ${ca("subjectId")}, ${ca("appliedBy")})
+  insert into ${app} (${ca("template")}, ${ca("version")}, ${ca("tenant")}, ${ca("subjectType")}, ${ca("subjectId")}${also("applications", "appliedBy", () => `, ${ca("appliedBy")}`)})
   values (v_tpl.${ct("id")}, record_template_application.version_id, record_template_application.tenant,
-    record_template_application.subject_type, record_template_application.subject_id, (select auth.uid()))
+    record_template_application.subject_type, record_template_application.subject_id${also("applications", "appliedBy", () => ", (select auth.uid())")})
   returning * into v_row;
   ${ctx.record({
     type: "template.applied",
