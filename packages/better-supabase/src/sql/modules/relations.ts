@@ -98,6 +98,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     relations: {
       name: "relations",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",

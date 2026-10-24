@@ -125,6 +125,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     products: {
       name: "products",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -141,6 +142,7 @@ const NAMES: BlockSqlNames = {
     },
     options: {
       name: "product_options",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -153,6 +155,7 @@ const NAMES: BlockSqlNames = {
     },
     optionValues: {
       name: "product_option_values",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -165,6 +168,7 @@ const NAMES: BlockSqlNames = {
     },
     variants: {
       name: "product_variants",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -184,6 +188,7 @@ const NAMES: BlockSqlNames = {
     },
     variantValues: {
       name: "product_variant_values",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -194,6 +199,7 @@ const NAMES: BlockSqlNames = {
     },
     priceLists: {
       name: "price_lists",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -206,6 +212,7 @@ const NAMES: BlockSqlNames = {
     },
     prices: {
       name: "product_prices",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -224,6 +231,7 @@ const NAMES: BlockSqlNames = {
     },
     categories: {
       name: "categories",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -240,6 +248,7 @@ const NAMES: BlockSqlNames = {
     },
     productCategories: {
       name: "product_categories",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -250,6 +259,7 @@ const NAMES: BlockSqlNames = {
     },
     collections: {
       name: "product_collections",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -265,6 +275,7 @@ const NAMES: BlockSqlNames = {
     },
     collectionProducts: {
       name: "collection_products",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -276,6 +287,7 @@ const NAMES: BlockSqlNames = {
     },
     storefronts: {
       name: "storefronts",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: { tenant: "tenant_id", publishedAt: "published_at" },
@@ -284,7 +296,7 @@ const NAMES: BlockSqlNames = {
       name: "catalog_channels",
       lifecycle: tenantExport,
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -302,7 +314,7 @@ const NAMES: BlockSqlNames = {
       name: "catalog_channel_products",
       lifecycle: tenantExport,
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
       columns: {
         tenant: "tenant_id",
         channel: "channel_id",
@@ -314,7 +326,7 @@ const NAMES: BlockSqlNames = {
       name: "product_translations",
       lifecycle: tenantExport,
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
       columns: {
         tenant: "tenant_id",
         product: "product_id",
@@ -329,7 +341,7 @@ const NAMES: BlockSqlNames = {
       name: "product_variant_translations",
       lifecycle: tenantExport,
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
       columns: {
         tenant: "tenant_id",
         variant: "variant_id",
@@ -342,7 +354,7 @@ const NAMES: BlockSqlNames = {
       name: "product_media",
       lifecycle: tenantExport,
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
       columns: {
         id: "id",
         tenant: "tenant_id",

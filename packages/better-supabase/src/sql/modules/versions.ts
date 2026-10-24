@@ -65,6 +65,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     versions: {
       name: "versions",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",

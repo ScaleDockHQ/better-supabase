@@ -12,41 +12,50 @@ interface Ownership {
   readonly module: string;
   readonly tables: Readonly<Record<string, BlockSqlTableSpec>>;
   readonly config: Pick<ResolvedBlock, "mode" | "tables">;
-  readonly source: Pick<BlockSqlContextSource, "ownTables" | "overAppTables">;
+  readonly source: Pick<BlockSqlContextSource, "ownTables">;
   readonly tableName: BlockSqlContext["tableName"];
 }
 
 /**
- * The logical tables the app already has: those `ownTables` lists. The legacy
- * `adopt` mode says so for every table, apart from those adopted only when
- * mapped. A table mapped to `null` doesn't exist, custom mode creates nothing,
- * and a module without `overAppTables` always creates its tables.
+ * Whether the app's table can stand in for the module's logical table: its spec
+ * has `app`, and the block maps it when the spec says `onlyWhenMapped`.
+ */
+export function canBeAppTable(
+  spec: BlockSqlTableSpec,
+  mapped: string | null | undefined,
+): boolean {
+  return (
+    spec.app !== undefined &&
+    mapped !== null &&
+    (spec.app.onlyWhenMapped !== true || mapped !== undefined)
+  );
+}
+
+/**
+ * The logical tables the app already has: those `ownTables` lists and whose
+ * spec lets them be the app's (`BlockSqlTableSpec.app`). A table mapped to
+ * `null` doesn't exist, and custom mode creates nothing.
  */
 function appOwnedTables(input: Ownership): string[] {
   const { config, source } = input;
-
-  const ownTables =
-    source.overAppTables?.(input.module) === false
-      ? undefined
-      : source.ownTables;
 
   return Object.entries(input.tables)
     .filter(([logical, spec]) => {
       const mapped = config.tables[logical];
 
-      if (mapped === null || config.mode === "custom") {
+      if (config.mode === "custom" || !canBeAppTable(spec, mapped)) {
         return false;
       }
 
       if (config.mode === "adopt") {
-        return spec.adoptOnlyWhenMapped !== true || mapped !== undefined;
+        return true;
       }
 
       const parts = input.tableName(logical);
 
       return (
-        ownTables !== undefined &&
-        Object.hasOwn(ownTables, `${parts.schema}.${parts.name}`)
+        source.ownTables !== undefined &&
+        Object.hasOwn(source.ownTables, `${parts.schema}.${parts.name}`)
       );
     })
     .map(([logical]) => logical);

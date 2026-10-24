@@ -69,6 +69,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     calendars: {
       name: "calendars",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -84,6 +85,7 @@ const NAMES: BlockSqlNames = {
     },
     events: {
       name: "calendar_events",
+      app: {},
       lifecycle: {
         tenant: "tenant",
         user: "createdBy",
@@ -131,6 +133,7 @@ const NAMES: BlockSqlNames = {
     },
     attendees: {
       name: "calendar_attendees",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       optionalTable: true,
       columns: {

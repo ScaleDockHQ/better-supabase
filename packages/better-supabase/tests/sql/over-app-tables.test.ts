@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { canBeAppTable } from "../../src/sql/app-owned.ts";
 import { moduleContext } from "../../src/sql/module-context.ts";
 import { runsOverAppTables } from "../../src/sql/module-types.ts";
 import { overAppTables } from "../../src/sql/over-app-tables.ts";
@@ -65,14 +66,32 @@ const ALONE = Object.keys(SQL_MODULES).filter(
   (name) => name !== "pgtap" && rendersAlone(name),
 );
 
-const OVER = ALONE.filter((name) => {
-  const module = SQL_MODULES[name];
+/** `[module, table]` for each table a module creates on its own. */
+const TABLES = ALONE.flatMap((name) =>
+  createdAlone(name).map((table) => [name, table] as const),
+);
 
-  return module !== undefined && runsOverAppTables(module);
+function specOf(module: string, table: string) {
+  const ctx = moduleContext(module, {}, [module]);
+
+  return Object.entries(SQL_MODULES[module]?.names?.tables ?? {}).find(
+    ([logical]) => {
+      const parts = ctx.tableName(logical);
+
+      return `${parts.schema}.${parts.name}` === table;
+    },
+  )?.[1];
+}
+
+const OVER = TABLES.filter(([module, table]) => {
+  const spec = specOf(module, table);
+
+  return spec !== undefined && canBeAppTable(spec, undefined);
 });
 
-const CREATING = ALONE.filter(
-  (name) => !OVER.includes(name) && createdAlone(name).length > 0,
+const CREATING = TABLES.filter(
+  ([module, table]) =>
+    !OVER.some(([other, own]) => other === module && own === table),
 );
 
 function tablesOf(module: string): string[] {
@@ -131,21 +150,33 @@ describe("ctx.owns", () => {
 });
 
 describe("blocks over the app's tables", () => {
-  it.each(OVER)("%s creates none of the tables the app has", (module) => {
-    const own = Object.fromEntries(
-      createdAlone(module).map((table) => [table, "app.sql"]),
-    );
+  it.each(OVER)(
+    "%s leaves %s to the app and creates its other tables",
+    (module, table) => {
+      const made = created(module, { [table]: "app.sql" });
 
-    expect(
-      created(module, own).filter((table) => Object.hasOwn(own, table)),
-    ).toEqual([]);
-  });
+      expect(made).not.toContain(table);
+      expect(tablesOf(module).filter((other) => made.includes(other))).toEqual(
+        createdAlone(module).filter((other) => other !== table),
+      );
+    },
+  );
 
-  it.each(CREATING)("%s refuses to create a table the app has", (module) => {
-    const table = createdAlone(module)[0] ?? "";
-
+  it.each(CREATING)("%s refuses to create %s the app has", (module, table) => {
     expect(() => created(module, { [table]: "app.sql" })).toThrow(
       `creates ${table}, which is already in app.sql`,
     );
+  });
+
+  it("covers every table of a module that runs over app tables", () => {
+    const over = new Set(OVER.map(([module]) => module));
+
+    expect(
+      [...over].filter((module) => {
+        const definition = SQL_MODULES[module];
+
+        return definition === undefined || !runsOverAppTables(definition);
+      }),
+    ).toEqual([]);
   });
 });

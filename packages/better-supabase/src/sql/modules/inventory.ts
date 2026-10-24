@@ -117,6 +117,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     locations: {
       name: "inventory_locations",
+      app: {},
       optionalTable: true,
       lifecycle: tenantExport,
       columns: {
@@ -132,6 +133,7 @@ const NAMES: BlockSqlNames = {
     },
     levels: {
       name: "stock_levels",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         tenant: "tenant_id",
@@ -147,6 +149,7 @@ const NAMES: BlockSqlNames = {
     },
     reservations: {
       name: "stock_reservations",
+      app: {},
       lifecycle: tenantExport,
       columns: {
         id: "id",
@@ -164,6 +167,7 @@ const NAMES: BlockSqlNames = {
     },
     transfers: {
       name: "stock_transfers",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -180,6 +184,7 @@ const NAMES: BlockSqlNames = {
     },
     transferLines: {
       name: "stock_transfer_lines",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -191,6 +196,7 @@ const NAMES: BlockSqlNames = {
     },
     purchaseOrders: {
       name: "purchase_orders",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {
@@ -210,6 +216,7 @@ const NAMES: BlockSqlNames = {
     },
     purchaseOrderLines: {
       name: "purchase_order_lines",
+      app: {},
       lifecycle: tenantExport,
       optionalTable: true,
       columns: {

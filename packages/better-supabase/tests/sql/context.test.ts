@@ -25,6 +25,7 @@ const names = {
   tables: {
     items: {
       name: "items",
+      app: {},
       columns: { tenant: "org_id", label: "label" },
       optional: ["label"],
       typed: ["label"],

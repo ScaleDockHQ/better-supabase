@@ -563,6 +563,10 @@ export const TENANT: BlockSqlDefinition = {
     tables: {
       memberships: {
         name: "memberships",
+        app: {
+          unused: (ctx) =>
+            membershipDisabledAt(ctx) === undefined ? ["disabledAt"] : [],
+        },
         lifecycle: { user: "user", tenant: "tenant" },
         columns: {
           tenant: "organization_id",
@@ -577,10 +581,6 @@ export const TENANT: BlockSqlDefinition = {
       },
     },
   },
-  adoptOptional: (ctx) =>
-    membershipDisabledAt(ctx) === undefined
-      ? { memberships: ["disabledAt"] }
-      : {},
   contract: () => [
     { name: "current_tenant_id", args: [], returns: "{id}" },
     { name: "member_organization_ids", args: ["text[]"], returns: "{id}" },

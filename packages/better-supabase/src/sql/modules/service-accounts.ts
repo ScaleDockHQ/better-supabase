@@ -47,6 +47,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     principals: {
       name: "service_principals",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",

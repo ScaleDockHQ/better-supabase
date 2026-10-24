@@ -2,6 +2,7 @@ import type { AnyBlocksConfig } from "../config/blocks.ts";
 import type { BlockSqlContext } from "./context.ts";
 import type { BlockSqlLayout } from "./module-types.ts";
 
+import { canBeAppTable } from "./app-owned.ts";
 import { moduleContext } from "./module-context.ts";
 import { SQL_MODULES } from "./registry.ts";
 import { moduleBody } from "./render.ts";
@@ -124,6 +125,18 @@ function managedTextColumns(
   return tables;
 }
 
+/** Per logical table, the columns the module's configuration doesn't use. */
+function unusedColumns(
+  name: string,
+  ctx: BlockSqlContext,
+): Readonly<Record<string, readonly string[]>> {
+  return Object.fromEntries(
+    Object.entries(SQL_MODULES[name]?.names?.tables ?? {}).map(
+      ([logical, table]) => [logical, table.app?.unused?.(ctx) ?? []],
+    ),
+  );
+}
+
 /**
  * A module's context. An adopted module's context throws on what it refuses; a
  * managed one's problems are reported when it renders, so it has none here.
@@ -184,9 +197,7 @@ export function adoptedTables(
   for (const [name, ctx] of contexts) {
     const spec = SQL_MODULES[name]!.names!.tables;
 
-    const unchecked = ctx.manages
-      ? {}
-      : (SQL_MODULES[name]?.adoptOptional?.(ctx) ?? {});
+    const unchecked = unusedColumns(name, ctx);
 
     const text = managedTextColumns(name);
 
@@ -225,9 +236,7 @@ export function adoptedTables(
       });
     }
 
-    const subjects = ctx.manages
-      ? []
-      : (SQL_MODULES[name]?.adoptSubjectTables?.(ctx) ?? []);
+    const subjects = SQL_MODULES[name]?.appSubjectTables?.(ctx) ?? [];
 
     for (const extra of subjects) {
       const columns: Record<string, string> = {};
@@ -278,13 +287,12 @@ export function adoptedColumnProblems(
     }
 
     const ctx = moduleContext(name, { modules }, Object.keys(modules));
-    const unchecked = SQL_MODULES[name]?.adoptOptional?.(ctx) ?? {};
+    const unchecked = unusedColumns(name, ctx);
 
     for (const [logical, table] of Object.entries(spec)) {
       if (
         !ctx.hasTable(logical) ||
-        (table.adoptOnlyWhenMapped === true &&
-          ctx.config.tables[logical] === undefined)
+        !canBeAppTable(table, ctx.config.tables[logical])
       ) {
         continue;
       }
@@ -318,7 +326,7 @@ export function adoptedColumnProblems(
       }
     }
 
-    for (const extra of SQL_MODULES[name]?.adoptSubjectTables?.(ctx) ?? []) {
+    for (const extra of SQL_MODULES[name]?.appSubjectTables?.(ctx) ?? []) {
       const columns = declared.get(`${extra.schema}.${extra.table}`);
 
       if (columns === undefined) {

@@ -130,11 +130,6 @@ export const DRIVE: BlockSqlDefinition = {
   modes: ["managed", "adopt", "custom"],
   version: 1,
   names: NAMES,
-  adoptOptional: (ctx) => ({
-    grants: ctx.has("grants", "principalType")
-      ? ["user", "team"]
-      : ["principalType", "principalId"],
-  }),
   contract,
   build: (ctx) =>
     ctx.mode === "custom" ? "" : driveCoreSql(driveKit(ctx, ctx)),

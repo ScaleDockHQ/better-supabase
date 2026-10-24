@@ -68,6 +68,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     requests: {
       name: "signature_requests",
+      app: {},
       lifecycle: { tenant: "tenant", user: "requestedBy", export: true },
       columns: {
         id: "id",
@@ -88,6 +89,7 @@ const NAMES: BlockSqlNames = {
     },
     signatures: {
       name: "signatures",
+      app: {},
       lifecycle: { tenant: "tenant", user: "signer", export: true },
       columns: {
         id: "id",

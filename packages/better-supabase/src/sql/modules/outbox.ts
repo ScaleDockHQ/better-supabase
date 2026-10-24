@@ -29,6 +29,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     events: {
       name: "outbox_events",
+      app: { unused: () => ["xid"] },
       // No user export: an actor's events describe other members too.
       lifecycle: { tenant: "tenant" },
       columns: {
@@ -48,6 +49,7 @@ const NAMES: BlockSqlNames = {
     },
     consumers: {
       name: "outbox_consumers",
+      app: {},
       columns: {
         name: "name",
         cursorXid: "cursor_xid",
@@ -63,6 +65,7 @@ const NAMES: BlockSqlNames = {
     },
     deadLetters: {
       name: "outbox_dead_letters",
+      app: {},
       columns: {
         consumer: "consumer",
         position: "position",
@@ -821,7 +824,6 @@ export const OUTBOX: BlockSqlDefinition = {
   version: 5,
   integrates: ["data-lifecycle"],
   names: NAMES,
-  adoptOptional: () => ({ events: ["xid"] }),
   upgrades: [
     {
       from: 1,

@@ -31,6 +31,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     documents: {
       name: "search_documents",
+      app: {},
       lifecycle: { tenant: "tenant", export: false },
       columns: {
         tenant: "tenant_id",

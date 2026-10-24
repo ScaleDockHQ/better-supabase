@@ -84,6 +84,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     employees: {
       name: "employees",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       optional: [
         "email",
@@ -122,6 +123,7 @@ const NAMES: BlockSqlNames = {
     },
     privateDetails: {
       name: "employee_private_details",
+      app: {},
       optionalTable: true,
       lifecycle: { tenant: "tenant", user: "user", export: true },
       optional: [
@@ -156,6 +158,7 @@ const NAMES: BlockSqlNames = {
     },
     contracts: {
       name: "employee_contracts",
+      app: {},
       optionalTable: true,
       lifecycle: { tenant: "tenant", export: true },
       optional: ["salaryPeriod", "note", "createdBy", "createdAt"],

@@ -53,6 +53,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     organizations: {
       name: "organizations",
+      app: {},
       columns: {
         id: "id",
         name: "name",

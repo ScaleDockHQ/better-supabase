@@ -83,6 +83,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     events: {
       name: "notification_events",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -115,6 +116,7 @@ const NAMES: BlockSqlNames = {
     },
     recipients: {
       name: "notification_recipients",
+      app: {},
       lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
@@ -131,6 +133,7 @@ const NAMES: BlockSqlNames = {
     },
     deliveries: {
       name: "notification_deliveries",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -180,10 +183,11 @@ const NAMES: BlockSqlNames = {
       },
       optional: ["tenant", "provider"],
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
     },
     subscriptions: {
       name: "notification_subscriptions",
+      app: {},
       lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
@@ -200,6 +204,7 @@ const NAMES: BlockSqlNames = {
     },
     preferences: {
       name: "notification_preferences",
+      app: {},
       lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
@@ -229,7 +234,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
     },
   },
   // after_notify predates the before_/after_<entity>_<action> names and keeps

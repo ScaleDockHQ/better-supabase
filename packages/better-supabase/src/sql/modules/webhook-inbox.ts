@@ -508,6 +508,7 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
     tables: {
       messages: {
         name: "webhook_inbox",
+        app: {},
         columns: MESSAGE_COLUMNS,
         optional: [
           "eventType",

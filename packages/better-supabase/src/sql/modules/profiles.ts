@@ -34,6 +34,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     profiles: {
       name: "profiles",
+      app: {},
       lifecycle: { user: "key" },
       columns: {
         key: "id",

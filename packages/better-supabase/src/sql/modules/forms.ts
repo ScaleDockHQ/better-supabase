@@ -93,6 +93,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     forms: {
       name: "forms",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -109,6 +110,7 @@ const NAMES: BlockSqlNames = {
     },
     versions: {
       name: "form_versions",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -123,6 +125,7 @@ const NAMES: BlockSqlNames = {
     },
     submissions: {
       name: "form_submissions",
+      app: {},
       lifecycle: { tenant: "tenant", user: "respondent", export: true },
       columns: {
         id: "id",
@@ -156,7 +159,7 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
       },
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
     },
   },
 };

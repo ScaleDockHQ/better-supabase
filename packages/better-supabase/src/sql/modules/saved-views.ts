@@ -56,6 +56,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     views: {
       name: "saved_views",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -75,6 +76,7 @@ const NAMES: BlockSqlNames = {
     },
     preferences: {
       name: "saved_view_preferences",
+      app: {},
       lifecycle: { user: "user", tenant: "tenant" },
       optionalTable: true,
       columns: {

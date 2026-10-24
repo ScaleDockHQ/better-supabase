@@ -89,6 +89,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     entries: {
       name: "time_entries",
+      app: { unused: () => ["seconds"] },
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         id: "id",
@@ -109,6 +110,7 @@ const NAMES: BlockSqlNames = {
     },
     timesheets: {
       name: "timesheets",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         id: "id",
@@ -1071,7 +1073,6 @@ export const TIME_TRACKING: BlockSqlDefinition = {
     },
   ],
   names: NAMES,
-  adoptOptional: () => ({ entries: ["seconds"] }),
   contract,
   build,
 };

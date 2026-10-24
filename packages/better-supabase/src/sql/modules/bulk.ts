@@ -48,6 +48,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     runs: {
       name: "bulk_runs",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",

@@ -35,6 +35,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     sequences: {
       name: "number_sequences",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         tenant: "tenant_id",

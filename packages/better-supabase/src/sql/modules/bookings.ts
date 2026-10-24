@@ -77,6 +77,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     resources: {
       name: "booking_resources",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -95,6 +96,7 @@ const NAMES: BlockSqlNames = {
     },
     availability: {
       name: "booking_availability",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -107,6 +109,7 @@ const NAMES: BlockSqlNames = {
     },
     exceptions: {
       name: "booking_exceptions",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -119,6 +122,7 @@ const NAMES: BlockSqlNames = {
     },
     services: {
       name: "booking_services",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -139,6 +143,7 @@ const NAMES: BlockSqlNames = {
     },
     bookings: {
       name: "bookings",
+      app: {},
       lifecycle: { tenant: "tenant", user: "customerUser", export: true },
       columns: {
         id: "id",

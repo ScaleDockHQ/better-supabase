@@ -48,6 +48,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     links: {
       name: "share_links",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -69,6 +70,7 @@ const NAMES: BlockSqlNames = {
     },
     views: {
       name: "subject_views",
+      app: {},
       optionalTable: true,
       columns: {
         id: "id",
@@ -85,6 +87,7 @@ const NAMES: BlockSqlNames = {
     },
     state: {
       name: "subject_user_state",
+      app: {},
       optionalTable: true,
       columns: {
         subjectType: "subject_type",

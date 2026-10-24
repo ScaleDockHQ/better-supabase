@@ -52,6 +52,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     definitions: {
       name: "field_definitions",
+      app: { unused: () => ["encrypted"] },
       optionalTable: true,
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -71,6 +72,7 @@ const NAMES: BlockSqlNames = {
     },
     options: {
       name: "field_options",
+      app: {},
       optionalTable: true,
       columns: {
         id: "id",
@@ -83,6 +85,7 @@ const NAMES: BlockSqlNames = {
     },
     values: {
       name: "field_values",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -607,7 +610,6 @@ alter table ${definitions} drop column if exists position;`;
     },
   ],
   names: NAMES,
-  adoptOptional: () => ({ definitions: ["encrypted"] }),
   contract,
   build,
 };

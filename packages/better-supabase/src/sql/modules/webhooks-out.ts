@@ -59,6 +59,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     endpoints: {
       name: "webhook_endpoints",
+      app: { unused: () => ADDED_COLUMNS["endpoints"] ?? [] },
       lifecycle: { tenant: "tenant", credentials: ["credentialRef"] },
       columns: {
         id: "id",
@@ -96,6 +97,13 @@ const NAMES: BlockSqlNames = {
     },
     secrets: {
       name: "webhook_endpoint_secrets",
+      app: {
+        unused: (ctx) => [
+          ctx.text("secretStorage", "vault") === "column"
+            ? "vaultId"
+            : "secret",
+        ],
+      },
       // Purged with the tenant (a trigger drops the Vault secret), never exported.
       lifecycle: { tenant: "tenant", export: false },
       columns: {
@@ -111,6 +119,7 @@ const NAMES: BlockSqlNames = {
     },
     deliveries: {
       name: "webhook_deliveries",
+      app: { unused: () => ADDED_COLUMNS["deliveries"] ?? [] },
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -504,12 +513,6 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
   modes: ["managed", "adopt", "custom"],
   version: 5,
   names: NAMES,
-  adoptOptional: (ctx) => ({
-    ...ADDED_COLUMNS,
-    secrets: [
-      ctx.text("secretStorage", "vault") === "column" ? "vaultId" : "secret",
-    ],
-  }),
   contract,
   upgrades: [
     {

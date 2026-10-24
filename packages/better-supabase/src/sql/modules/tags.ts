@@ -56,6 +56,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     tags: {
       name: "tags",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -74,6 +75,7 @@ const NAMES: BlockSqlNames = {
     },
     taggings: {
       name: "taggings",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       optionalTable: true,
       columns: {
@@ -695,7 +697,7 @@ alter table ${tags} drop column if exists position;`;
   names: NAMES,
   contract,
   build,
-  adoptSubjectTables(ctx) {
+  appSubjectTables(ctx) {
     return links(ctx).map((link) => ({
       logical: `links_${link.type}`,
       schema: link.schema,

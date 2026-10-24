@@ -849,16 +849,17 @@ export const WEBHOOKS_IN: BlockSqlDefinition = {
   requires: ["permissions", "updated-at", "webhook-inbox"],
   target: "schema",
   modes: ["managed", "adopt"],
-  adoptOptional: (ctx) => ({
-    endpoints: secretStorage(ctx)
-      ? ["secret", "previousSecret"]
-      : ["secretId", "previousSecretId"],
-  }),
   names: {
     events: EVENTS,
     tables: {
       endpoints: {
         name: "incoming_webhooks",
+        app: {
+          unused: (ctx) =>
+            secretStorage(ctx)
+              ? ["secret", "previousSecret"]
+              : ["secretId", "previousSecretId"],
+        },
         columns: ENDPOINT_COLUMNS,
         optional: [
           "secret",

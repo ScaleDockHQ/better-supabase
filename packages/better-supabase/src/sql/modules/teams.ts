@@ -50,6 +50,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     teams: {
       name: "teams",
+      app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
         id: "id",
@@ -65,6 +66,7 @@ const NAMES: BlockSqlNames = {
     },
     members: {
       name: "team_members",
+      app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         team: "team_id",

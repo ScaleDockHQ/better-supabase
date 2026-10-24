@@ -22,6 +22,13 @@ const NAMES: BlockSqlNames = {
   tables: {
     secrets: {
       name: "credentials",
+      app: {
+        unused: (ctx) => [
+          ctx.text("secretStorage", "vault") === "column"
+            ? "vaultId"
+            : "secret",
+        ],
+      },
       columns: {
         provider: "provider",
         name: "name",
@@ -452,11 +459,6 @@ export const CREDENTIALS: BlockSqlDefinition = {
   modes: ["managed", "adopt", "custom"],
   version: 1,
   names: NAMES,
-  adoptOptional: (ctx) => ({
-    secrets: [
-      ctx.text("secretStorage", "vault") === "column" ? "vaultId" : "secret",
-    ],
-  }),
   contract,
   build,
 };

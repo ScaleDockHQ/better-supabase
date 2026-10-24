@@ -101,6 +101,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     invitations: {
       name: "invitations",
+      app: {},
       lifecycle: { tenant: "tenant", omit: ["tokenHash"] },
       columns: {
         ...PLATFORM_COLUMNS,
@@ -129,7 +130,7 @@ const NAMES: BlockSqlNames = {
         "revokedAt",
       ],
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
     },
   },
   hooks: [

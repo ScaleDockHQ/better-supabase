@@ -74,6 +74,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     sessions: {
       name: "support_sessions",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
@@ -92,6 +93,7 @@ const NAMES: BlockSqlNames = {
     },
     requests: {
       name: "support_requests",
+      app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",

@@ -32,6 +32,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     points: {
       name: "metric_points",
+      app: {},
       lifecycle: { tenant: "tenant", export: false },
       columns: {
         tenant: "tenant_id",

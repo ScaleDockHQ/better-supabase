@@ -84,6 +84,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     log: {
       name: "audit_events",
+      app: {},
       // Exports leave out the row snapshots and the impersonation details,
       // which describe other people.
       lifecycle: {
@@ -179,7 +180,7 @@ const NAMES: BlockSqlNames = {
         "changedValues",
       ],
       optionalTable: true,
-      adoptOnlyWhenMapped: true,
+      app: { onlyWhenMapped: true },
     },
   },
   hooks: ["audit_retention"],

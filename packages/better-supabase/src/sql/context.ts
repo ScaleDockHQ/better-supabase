@@ -13,6 +13,7 @@ import type { BlockEventType, EventMap } from "../core/block-events.ts";
 import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { BlockContributions } from "./contributions.ts";
+import type { BlockSqlAppTable } from "./module-types.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
 import type { BlockSqlScope } from "./scope.ts";
 
@@ -70,7 +71,11 @@ export interface BlockSqlTableSpec {
   readonly optional?: readonly string[];
   /** The app may lack the whole table (`blocks.<name>.tables.<table>: null`). */
   readonly optionalTable?: boolean;
-  readonly adoptOnlyWhenMapped?: boolean;
+  /**
+   * How the table can be a table the app already has (ADR 0097). Without it the
+   * module always creates the table.
+   */
+  readonly app?: BlockSqlAppTable;
   readonly lifecycle?: BlockSqlTableLifecycle;
   /**
    * Text columns an adopted table may declare with another type, such as an
@@ -618,8 +623,6 @@ export interface BlockSqlContextSource {
   ) => readonly Contributor<K>[];
   /** `layout.ownTables`: the app's tables, as `schema.table`. */
   readonly ownTables?: Readonly<Record<string, string>>;
-  /** Whether `module` runs over the app's tables (`BlockSql.overAppTables`). */
-  readonly overAppTables?: (module: string) => boolean;
 }
 
 /** An installed instance that adds to a generic block. */

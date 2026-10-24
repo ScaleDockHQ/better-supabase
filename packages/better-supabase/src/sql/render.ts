@@ -13,6 +13,7 @@ import { instancePrefix } from "../config/instances.ts";
 import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
+import { canBeAppTable } from "./app-owned.ts";
 import { withColumnTypeFunction } from "./column-type.ts";
 import { entityTableClash, tenantNameClashes } from "./entity-clashes.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
@@ -25,7 +26,7 @@ import {
 import { moduleExtensions } from "./introspect.ts";
 import { entitiesMarker, withBlockHash } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
-import { blockSqlVersion, runsOverAppTables } from "./module-types.ts";
+import { blockSqlVersion } from "./module-types.ts";
 import { appTablesFiles } from "./modules/app-tables.ts";
 import { ownerSearchTriggers } from "./modules/search.ts";
 import { overAppTables } from "./over-app-tables.ts";
@@ -380,7 +381,8 @@ function checkTenantName(
 
 /**
  * The app's tables (`layout.ownTables`) that `module` names but can't run over
- * (`BlockSql.overAppTables`), as `schema.table`.
+ * (no `app` in their spec, or `onlyWhenMapped` and unmapped), as
+ * `schema.table`.
  */
 function ownTablesCreatedBy(
   module: BlockSql,
@@ -389,14 +391,18 @@ function ownTablesCreatedBy(
 ): ReadonlySet<string> {
   const { ownTables } = layout;
 
-  if (!ctx.manages || ownTables === undefined || runsOverAppTables(module)) {
+  if (!ctx.manages || ownTables === undefined) {
     return new Set();
   }
 
   return new Set(
-    Object.keys(module.names?.tables ?? {})
-      .filter((logical) => ctx.config.tables[logical] !== null)
-      .map((logical) => {
+    Object.entries(module.names?.tables ?? {})
+      .filter(
+        ([logical, spec]) =>
+          ctx.config.tables[logical] !== null &&
+          !canBeAppTable(spec, ctx.config.tables[logical]),
+      )
+      .map(([logical]) => {
         const parts = ctx.tableName(logical);
 
         return `${parts.schema}.${parts.name}`;

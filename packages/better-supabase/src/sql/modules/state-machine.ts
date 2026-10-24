@@ -45,6 +45,7 @@ const NAMES: BlockSqlNames = {
   tables: {
     history: {
       name: "status_history",
+      app: {},
       lifecycle: { tenant: "tenant", user: "actor", export: true },
       columns: {
         id: "id",
@@ -60,6 +61,7 @@ const NAMES: BlockSqlNames = {
     },
     stages: {
       name: "status_stages",
+      app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -75,6 +77,7 @@ const NAMES: BlockSqlNames = {
     },
     lifecycles: {
       name: "subject_lifecycles",
+      app: {},
       optionalTable: true,
       lifecycle: { tenant: "tenant", export: true },
       columns: {
