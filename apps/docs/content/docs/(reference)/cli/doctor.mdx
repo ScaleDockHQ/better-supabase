@@ -772,15 +772,24 @@ column. Add the check after the backfill when the app still writes those rows.
 
 ### BS237
 
-**Warning: app table keeps permissive policies of its own.** When a
+**Warning: app table keeps permissive policies or grants of its own.** When a
 `tables.<name>` entry enriches a table your schema already creates, your own
-policies on it stay. Postgres ORs permissive policies, so each one widens what
+policies on it stay: the entry names its policies `bsb_<table>_<command>`, so it
+never replaces one of yours, even one named `<table>_select`. Postgres ORs permissive policies, so each one widens what
 the entry's scope allows. In `tenant` scope the restrictive `bsb_tenant_scope`
 policy still keeps every row inside the member's tenants, so BS237 is a hint
 (info): check that your policies need no role or permission the scope's
 policies ask for. In `user` scope, or without `bsb_tenant_scope`, nothing
 narrows them, and a signed-in user reaches every row they allow. Drop your
 policies, or recreate them `as restrictive`.
+
+Enriching never revokes your grants either; it only adds the ones the scope
+needs. BS237 lists the select, insert, update and delete grants that `anon` and
+`authenticated` hold beyond that. While row level security filters the rows
+this is a hint (info). It is a warning when the entry restricts columns
+(`access` or `encrypted`), because a table-level grant reaches every column:
+revoke it in your schema and the entry's column grants take over. BS111 reports
+truncate, references and trigger grants.
 
 ### BS238
 

@@ -1,6 +1,8 @@
 import type { FindingInput, DoctorContext, Rule } from "./rules.ts";
 
+import { hasColumnAccess } from "../../config/app-access.ts";
 import { sqlIdent } from "../../core/template.ts";
+import { scopePolicyName } from "../../sql/modules/app-table-enrich.ts";
 import { notNullCheckName } from "../../sql/shared.ts";
 import { TENANT_SCOPE_POLICY } from "../../sql/tenant-scope.ts";
 import { errorText } from "../core/errors.ts";
@@ -69,6 +71,60 @@ export function scopedAppTables(context: DoctorContext): ScopedAppTable[] {
   );
 }
 
+const WRITES = ["INSERT", "UPDATE", "DELETE"];
+
+const ROW_PRIVILEGES = new Set(["SELECT", ...WRITES]);
+
+/**
+ * The grants an enriched app table holds beyond what its scope grants, for anon
+ * and authenticated. Truncate, references and trigger are BS111's.
+ */
+function broaderGrants(
+  context: DoctorContext,
+  name: string,
+): { readonly grants: readonly string[]; readonly columns: boolean } {
+  const config = context.config.appTables[name];
+
+  const table = catalogOf(context).tables.find(
+    (entry) => entry.schema === SCHEMA && entry.name === name,
+  );
+
+  if (
+    config === undefined ||
+    table === undefined ||
+    context.config.expose[`${SCHEMA}.${name}`] !== undefined ||
+    context.config.expose[name] !== undefined
+  ) {
+    return { grants: [], columns: false };
+  }
+
+  const scope =
+    config.scope === undefined || config.scope === "inherit"
+      ? (context.config.sql.scope ?? "tenant")
+      : config.scope;
+
+  const columns = hasColumnAccess(config);
+
+  const allowed = new Set<string>([
+    ...(columns ? [] : ["SELECT"]),
+    ...(scope === "none" ? [] : columns ? ["DELETE"] : WRITES),
+  ]);
+
+  const grants = table.grants.flatMap((grant) =>
+    grant.role === "anon" || grant.role === "authenticated"
+      ? grant.privileges
+          .filter(
+            (privilege) =>
+              ROW_PRIVILEGES.has(privilege) &&
+              (grant.role === "anon" || !allowed.has(privilege)),
+          )
+          .map((privilege) => `${privilege.toLowerCase()} to ${grant.role}`)
+      : [],
+  );
+
+  return { grants, columns };
+}
+
 /** The `<table>_<column>_not_null` check an enriched table's scope column gets. */
 export const scopeCheckName = (table: ScopedAppTable): string =>
   notNullCheckName(
@@ -80,54 +136,86 @@ export const APP_TABLE_SCOPE_RULES: readonly Rule[] = [
   {
     code: "BS237",
     severity: "warning",
-    title: "App table keeps permissive policies of its own",
+    title: "App table keeps permissive policies or grants of its own",
     description:
-      "An app table in `tenant` or `user` scope has permissive policies next to the ones its scope renders, usually the app's own policies on a table that a `tables.<name>` entry enriches. Postgres ORs permissive policies, so each one widens what the scope allows. In `tenant` scope the restrictive `bsb_tenant_scope` policy still keeps rows inside the member's tenants, so this is a hint (info) to check the roles and permissions those policies skip. In `user` scope, or without `bsb_tenant_scope`, nothing narrows them: a signed-in user reaches every row they allow. Drop the app's policies, or make them restrictive.",
+      "An app table in `tenant` or `user` scope has permissive policies next to the ones its scope renders, usually the app's own policies on a table that a `tables.<name>` entry enriches. Postgres ORs permissive policies, so each one widens what the scope allows. In `tenant` scope the restrictive `bsb_tenant_scope` policy still keeps rows inside the member's tenants, so this is a hint (info) to check the roles and permissions those policies skip. In `user` scope, or without `bsb_tenant_scope`, nothing narrows them: a signed-in user reaches every row they allow. Drop the app's policies, or make them restrictive. Enriching never revokes the app's grants either, so the rule also lists the grants anon and authenticated hold on an enriched table beyond what its scope grants: a hint (info) while row level security filters the rows, and a warning when the entry restricts columns (`access` or `encrypted`), since a table-level grant reaches every column.",
     check: (context) => {
       const { tables } = catalogOf(context);
 
-      return scopedAppTables(context).flatMap((app): FindingInput[] => {
-        const table = tables.find(
-          (entry) => entry.schema === SCHEMA && entry.name === app.name,
-        );
+      const grants = [...enrichedAppTables(context)].flatMap(
+        (name): FindingInput[] => {
+          const broader = broaderGrants(context, name);
 
-        if (table === undefined) {
-          return [];
-        }
+          if (broader.grants.length === 0) {
+            return [];
+          }
 
-        const own = new Set(
-          COMMANDS.map((command) => `${app.name}_${command}`),
-        );
+          const label = `${SCHEMA}.${name}`;
 
-        const extra = table.policies.filter(
-          (policy) => policy.permissive && !own.has(policy.name),
-        );
+          return [
+            {
+              message: broader.columns
+                ? `${label} keeps the app's table-level grants (${broader.grants.join(", ")}), which reach the columns tables.${name} restricts. Revoke them in the app's schema; the column grants stay.`
+                : `${label} keeps the app's grants beyond its scope (${broader.grants.join(", ")}). Row level security still filters the rows; revoke them in the app's schema if nothing needs them.`,
+              ...(broader.columns ? {} : { severity: "info" as const }),
+              target: label,
+              object: { kind: "table", schema: SCHEMA, name },
+            },
+          ];
+        },
+      );
 
-        if (extra.length === 0) {
-          return [];
-        }
-
-        const narrowed =
-          app.scope === "tenant" &&
-          table.policies.some(
-            (policy) =>
-              !policy.permissive && policy.name === TENANT_SCOPE_POLICY,
+      const policies = scopedAppTables(context).flatMap(
+        (app): FindingInput[] => {
+          const table = tables.find(
+            (entry) => entry.schema === SCHEMA && entry.name === app.name,
           );
 
-        const names = extra.map((policy) => policy.name).join(", ");
-        const label = `${SCHEMA}.${app.name}`;
+          if (table === undefined) {
+            return [];
+          }
 
-        return [
-          {
-            message: narrowed
-              ? `${label} has permissive policies of its own (${names}). ${TENANT_SCOPE_POLICY} keeps rows inside the member's tenants, but within a tenant these widen what tables.${app.name} allows. Check that they need no role or permission.`
-              : `${label} has permissive policies of its own (${names}), and nothing narrows them to the ${app.scope === "user" ? "signed-in user's rows" : "member's tenants"}. Drop them, or make them restrictive.`,
-            ...(narrowed ? { severity: "info" as const } : {}),
-            target: label,
-            object: { kind: "table", schema: SCHEMA, name: app.name },
-          },
-        ];
-      });
+          const own = new Set(
+            COMMANDS.map((command) =>
+              scopePolicyName(
+                { name: app.name, enrich: app.enriched },
+                command,
+              ),
+            ),
+          );
+
+          const extra = table.policies.filter(
+            (policy) => policy.permissive && !own.has(policy.name),
+          );
+
+          if (extra.length === 0) {
+            return [];
+          }
+
+          const narrowed =
+            app.scope === "tenant" &&
+            table.policies.some(
+              (policy) =>
+                !policy.permissive && policy.name === TENANT_SCOPE_POLICY,
+            );
+
+          const names = extra.map((policy) => policy.name).join(", ");
+          const label = `${SCHEMA}.${app.name}`;
+
+          return [
+            {
+              message: narrowed
+                ? `${label} has permissive policies of its own (${names}). ${TENANT_SCOPE_POLICY} keeps rows inside the member's tenants, but within a tenant these widen what tables.${app.name} allows. Check that they need no role or permission.`
+                : `${label} has permissive policies of its own (${names}), and nothing narrows them to the ${app.scope === "user" ? "signed-in user's rows" : "member's tenants"}. Drop them, or make them restrictive.`,
+              ...(narrowed ? { severity: "info" as const } : {}),
+              target: label,
+              object: { kind: "table", schema: SCHEMA, name: app.name },
+            },
+          ];
+        },
+      );
+
+      return [...policies, ...grants];
     },
   },
   {

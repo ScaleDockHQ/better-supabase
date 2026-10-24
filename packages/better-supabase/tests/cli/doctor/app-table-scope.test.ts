@@ -96,11 +96,19 @@ const run = (ctx: DoctorContext, ...codes: string[]) =>
     RULES.filter((rule) => codes.includes(rule.code)),
   );
 
+const SCOPE_GRANTS = [
+  {
+    role: "authenticated",
+    privileges: ["SELECT", "INSERT", "UPDATE", "DELETE"],
+  },
+];
+
 const scoped = (notes: Mutable<CatalogTable>, restrictive: boolean) => {
+  notes.grants = SCOPE_GRANTS;
   notes.policies = [
     ...["select", "insert", "update", "delete"].map((command) =>
       policy({
-        name: `notes_${command}`,
+        name: `bsb_notes_${command}`,
         command: command as CatalogPolicy["command"],
       }),
     ),
@@ -155,6 +163,7 @@ describe("BS237", () => {
   it("skips tables in none scope and tables with only the scope's policies", async () => {
     const extra = snapshot((notes) => {
       scoped(notes, true);
+      notes.grants = [{ role: "authenticated", privileges: ["SELECT"] }];
     });
 
     expect(
@@ -169,6 +178,113 @@ describe("BS237", () => {
     });
 
     expect(await run(context(clean, { notes: {} }), "BS237")).toEqual([]);
+  });
+
+  it("counts a policy the app named <table>_<command> as the app's own", async () => {
+    const snap = snapshot((notes) => {
+      scoped(notes, true);
+      notes.policies = [
+        ...notes.policies.filter((entry) => entry.name !== "notes_app_read"),
+        policy({ name: "notes_select" }),
+      ];
+    });
+
+    expect(await run(context(snap, { notes: {} }), "BS237")).toMatchObject([
+      {
+        severity: "info",
+        message: expect.stringContaining(
+          "permissive policies of its own (notes_select)",
+        ),
+      },
+    ]);
+  });
+
+  describe("grants of an enriched table", () => {
+    const granted = (grants: CatalogTable["grants"]) =>
+      snapshot((notes) => {
+        scoped(notes, true);
+        notes.policies = notes.policies.filter(
+          (entry) => entry.name !== "notes_app_read",
+        );
+        notes.grants = grants;
+      });
+
+    it("lists the app's grants beyond the scope as a hint", async () => {
+      const snap = granted([
+        ...SCOPE_GRANTS,
+        { role: "anon", privileges: ["SELECT", "TRUNCATE"] },
+      ]);
+
+      expect(await run(context(snap, { notes: {} }), "BS237")).toMatchObject([
+        {
+          severity: "info",
+          target: "public.notes",
+          message:
+            "public.notes keeps the app's grants beyond its scope (select to anon). Row level security still filters the rows; revoke them in the app's schema if nothing needs them.",
+        },
+      ]);
+
+      expect(
+        await run(context(snap, { notes: { scope: "none" } }), "BS237"),
+      ).toMatchObject([
+        {
+          message: expect.stringContaining(
+            "(insert to authenticated, update to authenticated, delete to authenticated, select to anon)",
+          ),
+        },
+      ]);
+    });
+
+    it("warns when table-level grants reach the columns the entry restricts", async () => {
+      const snap = granted(SCOPE_GRANTS);
+
+      expect(
+        await run(
+          context(snap, {
+            notes: { columns: { body: { type: "text", access: "read" } } },
+          }),
+          "BS237",
+        ),
+      ).toMatchObject([
+        {
+          severity: "warning",
+          message: expect.stringContaining(
+            "keeps the app's table-level grants (select to authenticated, insert to authenticated, update to authenticated), which reach the columns tables.notes restricts",
+          ),
+        },
+      ]);
+    });
+
+    it("skips a table better-supabase creates, and one expose grants", async () => {
+      const snap = granted([
+        ...SCOPE_GRANTS,
+        { role: "anon", privileges: ["SELECT"] },
+      ]);
+
+      const created = await run(
+        context(snap, { notes: {} }, { sqlFiles: [blockFile("notes")] }),
+        "BS237",
+      );
+
+      expect(created.map((finding) => finding.message)).not.toContainEqual(
+        expect.stringContaining("grants"),
+      );
+
+      const exposed = context(snap, { notes: {} });
+
+      expect(
+        await run(
+          {
+            ...exposed,
+            config: {
+              ...exposed.config,
+              expose: { "public.notes": { anon: ["select"] } },
+            },
+          },
+          "BS237",
+        ),
+      ).toEqual([]);
+    });
   });
 });
 
