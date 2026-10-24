@@ -292,6 +292,10 @@ describe("db backfill", () => {
       "--batch-size",
     ],
     [["invoices.currency", "with", "x", "--value", "1"], "Unexpected with x"],
+    [
+      ["invoices.organization_id", "--value", "1", "via", "project_id"],
+      "--value needs none",
+    ],
   ])("rejects %j", async (argv, message) => {
     const open = fakeConnect(fakeDb().client);
 
@@ -350,5 +354,46 @@ describe("db backfill", () => {
         { open: open.connect },
       ),
     ).rejects.toThrow("has no foreign key to public.projects");
+  });
+
+  it("fails on a missing column to follow", async () => {
+    const open = fakeConnect(fakeDb({ missing: "project_id" }).client);
+
+    await expect(
+      runBackfill(
+        config,
+        args([
+          "invoices.organization_id",
+          "--from",
+          "projects.organization_id",
+          "via",
+          "project_id",
+        ]),
+        LOCAL,
+        { open: open.connect },
+      ),
+    ).rejects.toThrow("no column public.invoices.project_id to follow");
+  });
+
+  it("returns a database error as a failed result", async () => {
+    const open = fakeConnect({
+      // SAFETY: the fake only ever rejects.
+      query: () =>
+        Promise.reject(new Error("canceling statement due to lock timeout")),
+    });
+
+    const result = await runBackfill(
+      config,
+      args(["invoices.currency", "--value", "'EUR'"]),
+      LOCAL,
+      { open: open.connect },
+    );
+
+    expect(result).toMatchObject({
+      code: 1,
+      errorCode: "failed",
+      error:
+        "db backfill public.invoices.currency failed: canceling statement due to lock timeout",
+    });
   });
 });

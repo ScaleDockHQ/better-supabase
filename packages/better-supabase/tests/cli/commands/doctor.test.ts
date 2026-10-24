@@ -323,6 +323,70 @@ describe("doctor command", () => {
     expect(ran.at(-1)).toBe("rollback");
   });
 
+  it("asks no consent when nothing is fixable, and names the database without a URL", async () => {
+    const snapshot = await parseSnapshot(fixture);
+    const requireConsent = vi.fn();
+
+    const constraints = [
+      {
+        schema: "public",
+        table: "invoices",
+        name: "invoices_currency_not_null",
+        expression: "(currency IS NOT NULL)",
+      },
+    ];
+
+    const clean = await doctor(
+      ["--only", "BS236", "--fix", "--json"],
+      // SAFETY: the fake answers BS236 with no not valid checks.
+      {
+        snapshot,
+        requireConsent,
+        database: { describe: "test", session: true, query: async () => [] },
+      },
+    );
+
+    expect(findings(clean)).toEqual([]);
+    expect(requireConsent).not.toHaveBeenCalled();
+
+    const failed = await doctor(
+      ["--only", "BS236", "--fix", "--json"],
+      // SAFETY: the fake returns BS236's rows, then fails the fix and its rollback.
+      {
+        snapshot,
+        requireConsent,
+        database: {
+          describe: "test",
+          session: true,
+          query: async (sql: string) => {
+            if (sql.startsWith("begin;") || sql === "rollback") {
+              throw new Error("connection lost");
+            }
+
+            if (sql.includes("pg_constraint")) {
+              return constraints;
+            }
+
+            return sql.startsWith("select exists") ? [{ failing: false }] : [];
+          },
+        },
+      } as Parameters<typeof runDoctor>[3],
+    );
+
+    expect(requireConsent).toHaveBeenCalledExactlyOnceWith({
+      effect: "database-write",
+      detail: "doctor --fix runs 1 fix(es) against the database",
+    });
+    expect(findings(failed)).toEqual([
+      expect.objectContaining({
+        code: "BS236",
+        message: expect.stringContaining(
+          "doctor --fix failed: connection lost",
+        ),
+      }),
+    ]);
+  });
+
   it("scans doctor.sources, skipping node_modules", async () => {
     const snapshot = await parseSnapshot({
       ...fixture,

@@ -16,6 +16,7 @@ import {
   MIXED_SCHEMAS_BLOCKS,
   MIXED_SCHEMAS_CONFIG,
 } from "../../fixtures/mixed-schemas/config.ts";
+import { moduleSnapshotFixture } from "../fixtures/library.ts";
 
 const FIXTURE = join(import.meta.dirname, "../../fixtures/mixed-schemas");
 
@@ -96,6 +97,39 @@ describe("an app's own declarative schema with blocks over it", () => {
       ],
       "public.notes": ["id", "body"],
     });
+  });
+
+  it("adds the saved snapshot's tables, while the app's files still win", async () => {
+    await writeFile(
+      join(root, "supabase/snapshot.json"),
+      JSON.stringify(moduleSnapshotFixture),
+    );
+
+    const layout = await moduleLayoutFor(
+      resolveConfig(
+        {
+          ...MIXED_SCHEMAS_CONFIG,
+          database: { source: { snapshot: "supabase/snapshot.json" } },
+        },
+        root,
+      ),
+      { names: Object.keys(MIXED_SCHEMAS_BLOCKS) },
+    );
+
+    expect(layout.ownTables).toMatchObject({
+      ...APP,
+      "public.customers": "database",
+    });
+    expect(layout.ownTables).not.toHaveProperty("better_supabase.memberships");
+    expect(layout.ownColumns?.["public.customers"]).toContain(
+      "organization_id",
+    );
+    expect(layout.ownUpdatedAtTriggers).toMatchObject({
+      "public.customers": "customers_set_updated_at",
+    });
+    expect(layout.ownUpdatedAtTriggers).not.toHaveProperty(
+      "public.notifications",
+    );
   });
 
   it("creates the block tables the app lacks and none of the app's", async () => {
