@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
+import type { ResolvedConfig } from "../../config/index.ts";
 import type { IntrospectionSource } from "./source.ts";
 import type { Snapshot } from "./types.ts";
 
@@ -117,6 +118,124 @@ export async function cachedDatabaseTypes(
   );
 
   return contents;
+}
+
+/**
+ * JSON for the resolved config with each function as its source text, so
+ * generators and plugins count toward the key. Options a factory closes over
+ * are invisible here, which is why the key also takes the config file's text.
+ */
+function configJson(config: ResolvedConfig): string {
+  return JSON.stringify(config, (_key, value: unknown) =>
+    typeof value === "function"
+      ? String(value)
+      : typeof value === "bigint"
+        ? `${value}n`
+        : value,
+  );
+}
+
+/**
+ * The key of the module the content mapper serves: the CLI and typegen
+ * versions, the config (resolved, and the text of its file) and the snapshot.
+ * `gen` and the mapper compute the same key, so a `gen` run warms the mapper.
+ */
+export function typesModuleKey(
+  config: ResolvedConfig,
+  configText: string | undefined,
+  snapshot: Snapshot,
+): string {
+  return sha256(
+    JSON.stringify([
+      VERSION,
+      TYPEGEN_VERSION,
+      configText ?? null,
+      sha256(configJson(config)),
+      sha256(JSON.stringify(snapshot)),
+    ]),
+  );
+}
+
+const typesModuleFile = (root: string, output: string): string =>
+  resolve(root, CACHE_DIR, `types-${sha256(output).slice(0, 16)}.json`);
+
+async function readTypesModule(
+  root: string,
+  output: string,
+): Promise<{ readonly key: string; readonly contents: string } | undefined> {
+  const cached: unknown = await readFile(typesModuleFile(root, output), "utf-8")
+    .then((text): unknown => JSON.parse(text))
+    .catch(() => undefined);
+
+  return typeof cached === "object" &&
+    cached !== null &&
+    "key" in cached &&
+    typeof cached.key === "string" &&
+    "contents" in cached &&
+    typeof cached.contents === "string"
+    ? { key: cached.key, contents: cached.contents }
+    : undefined;
+}
+
+/**
+ * Stores the module the content mapper serves for `output`, and returns whether
+ * it replaced one under another key. One file per generated module keeps the
+ * cache from growing.
+ */
+export async function storeTypesModule(
+  root: string,
+  output: string,
+  key: string,
+  contents: string,
+): Promise<boolean> {
+  const previous = await readTypesModule(root, output);
+
+  if (previous?.key === key) {
+    return false;
+  }
+
+  await writeAtomic(
+    typesModuleFile(root, output),
+    JSON.stringify({ key, contents }),
+  ).catch(() => undefined);
+
+  return true;
+}
+
+/**
+ * Calls `produce`, or returns the module cached for `output` under the same
+ * `key` (see `typesModuleKey`).
+ */
+export async function cachedTypesModule(
+  root: string,
+  output: string,
+  key: string,
+  produce: () => Promise<string>,
+): Promise<string> {
+  const cached = await readTypesModule(root, output);
+
+  if (cached?.key === key) {
+    return cached.contents;
+  }
+
+  const contents = await produce();
+  await writeAtomic(
+    typesModuleFile(root, output),
+    JSON.stringify({ key, contents }),
+  ).catch(() => undefined);
+
+  return contents;
+}
+
+/**
+ * The module last cached for `output`, whatever its key: what the content
+ * mapper serves while the schema source can't be read.
+ */
+export async function lastTypesModule(
+  root: string,
+  output: string,
+): Promise<string | undefined> {
+  return (await readTypesModule(root, output))?.contents;
 }
 
 /**

@@ -177,6 +177,20 @@ in `supabase/config.toml` with a secret of 32 or more characters in `.env`.
 Pass `backend: 'lite'` to `createServer` (or the framework adapter) so the
 server verifies Lite's HS256 tokens.
 
+## Content mapper
+
+```bash
+pnpm better-supabase init --content-mapper
+```
+
+`--content-mapper` sets `gen.contentMapper: true`, adds the better-supabase
+entry to `contentMappers` in `tsconfig.json` and adds `--runExternalCode` to
+the `typecheck` script, so TypeScript 7.1 serves the schema types from the
+[content mapper](/docs/content-mapper) instead of `database.types.ts`. A
+`tsconfig.json` that holds comments or is missing, and a `package.json`
+without a `typecheck` script that runs `tsc`, are left alone; the next steps
+print the change to make instead.
+
 ## Workspaces
 
 At the root of a pnpm, npm, yarn or bun workspace (a `pnpm-workspace.yaml`,

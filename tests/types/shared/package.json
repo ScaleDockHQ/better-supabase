@@ -2,6 +2,9 @@
   "name": "@better-supabase/types-shared",
   "private": true,
   "type": "module",
+  "exports": {
+    "./generated": "./generated.ts"
+  },
   "scripts": {
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",

@@ -898,6 +898,7 @@ Options
   --workflow <pg-delta|migra|migrations>    How the SQL modules reach the database: pg-delta (the default), migra or migrations
   --preset <name|code|url|file>             A named preset, a design code from /create, its URL or a downloaded design file: the config starts from it, and init writes its modules and lib/blocks.ts
   --lite                                    Run on Supabase Lite: install @supabase/lite and use its CLI in the next steps
+  --content-mapper                          Serve the schema types through the TypeScript 7.1 content mapper: sets gen.contentMapper and adds it to tsconfig.json
   --dry-run                                 Print what would change, with a diff, and write nothing
   --check                                   Write nothing; exit 1 with a diff when a file would change
   --force                                   Overwrite files the CLI did not generate

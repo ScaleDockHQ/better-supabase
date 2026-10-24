@@ -8,6 +8,7 @@ export default defineConfig({
       "packages/registry",
       "apps/docs",
       "apps/marketing",
+      "apps/examples/content-mapper",
       "apps/examples/express",
       "apps/examples/nextjs",
       "tests/bundle",

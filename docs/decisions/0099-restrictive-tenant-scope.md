@@ -1,4 +1,4 @@
-# 0098: Render tenant isolation as one restrictive policy per tenant table
+# 0099: Render tenant isolation as one restrictive policy per tenant table
 
 - Status: accepted
 - Date: 2026-10-24

@@ -12,6 +12,7 @@ import type { Paint } from "../style.ts";
 import type { SnapshotSource } from "./snapshot.ts";
 
 import { databaseUrl, stdinDatabaseUrl } from "../config.ts";
+import { contentMapperSetup } from "../content-mapper.ts";
 import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
 import { defineCliCommand, list } from "../core/command.ts";
 import { errorText, CliError } from "../core/errors.ts";
@@ -135,6 +136,8 @@ export interface DoctorOptions {
   readonly database?: DoctorContext["database"];
   /** Peers and installed versions (tests); otherwise read from `node_modules`. */
   readonly peers?: DoctorContext["peers"];
+  /** The content mapper setup (tests); otherwise read from the project (BS602). */
+  readonly contentMapper?: DoctorContext["contentMapper"];
   /**
    * The shell and stack variables (tests); otherwise read from `supabase
    * status` (BS503).
@@ -328,6 +331,7 @@ export async function runDoctor(
     sources,
     readSets,
     peers,
+    contentMapper,
     stackEnv,
     localStacks,
   ] = await Promise.all([
@@ -348,6 +352,11 @@ export async function runDoctor(
       skipped: errorText(cause),
     })),
     options.peers ?? peerVersions(config.root).catch(() => []),
+    options.contentMapper ??
+      (config.gen.contentMapper === true &&
+      rules.some((rule) => rule.code === "BS602")
+        ? contentMapperSetup(config.root)
+        : undefined),
     options.stackEnv ??
       (rules.some((rule) => rule.code === "BS503")
         ? loadStackEnvCheck(config.root, env, options.signal)
@@ -380,6 +389,7 @@ export async function runDoctor(
     sources,
     readSets,
     peers,
+    ...(contentMapper ? { contentMapper } : {}),
     ...(stackEnv ? { stackEnv } : {}),
     shellEnv: env[PROCESS_ENV] ?? {},
     ...(localStacks ? { localStacks } : {}),

@@ -1,0 +1,135 @@
+---
+title: Content mapper
+description: Serve the schema types to TypeScript 7.1 from the snapshot, without writing database.types.ts.
+---
+
+TypeScript 7.1 can ask a package for the types of a file instead of reading
+it from disk. With `gen.contentMapper` on, better-supabase uses that for the
+schema types: `gen` writes a small `generated.ts` and a `schema.bsb` marker,
+and `tsc` gets the types from better-supabase's content mapper, which renders
+them from the same config and snapshot `gen` reads. The types are identical
+to the files `gen` writes otherwise; the repository no longer holds
+`database.types.ts` or the type half of `generated.ts`.
+
+Content mappers need TypeScript 7.1, which is in beta (`7.1.0-beta`). Files
+mode stays the default and works on every supported TypeScript version.
+
+## Set it up
+
+```bash
+pnpm add -D typescript@7.1.0-beta
+pnpm better-supabase init --content-mapper
+pnpm better-supabase gen
+```
+
+[`init --content-mapper`](/docs/cli/init#content-mapper) sets
+`gen.contentMapper: true`, adds the mapper to `tsconfig.json` and adds
+`--runExternalCode` to the `typecheck` script. When a file holds comments or
+has no `typecheck` script, it leaves the file alone and prints the change to
+make instead. In an existing project, set the option yourself:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({
+  gen: { output: "src/lib/supabase/generated.ts", contentMapper: true },
+});
+```
+
+```json title="tsconfig.json"
+{
+  "contentMappers": [{ "package": "better-supabase", "extensions": [".bsb"] }],
+  "compilerOptions": { "strict": true }
+}
+```
+
+```json title="package.json"
+{ "scripts": { "typecheck": "tsc --runExternalCode --noEmit" } }
+```
+
+`tsc` runs a content mapper only with `--runExternalCode`, because the mapper
+is code from `node_modules`. Editors run it only in a workspace you trust.
+Without either, imports of `schema.bsb` have no types.
+[Doctor](/docs/cli/doctor#bs602) reports a missing `contentMappers` entry, a
+TypeScript older than 7.1 and a `typecheck` script without the flag.
+
+## What gen writes
+
+| File                | Files mode                         | Mapper mode                                   |
+| ------------------- | ---------------------------------- | --------------------------------------------- |
+| `generated.ts`      | The runtime values and every type  | The runtime values and `export type *` below  |
+| `schema.bsb`        | not written                        | One line; the mapper serves its types         |
+| `database.types.ts` | The Supabase `Database` type       | not written; `Database` comes from the mapper |
+| `generated.meta.js` | The runtime metadata and its types | The same                                      |
+
+The app imports from `generated.ts` in both modes, so switching changes no
+import. Code that imported `Database` from `database.types.ts` imports it
+from `generated.ts` instead, which gives the enriched `Database` (typed
+`jsonb` columns, generated columns read-only).
+
+```ts title="src/lib/supabase/generated.ts"
+import type { schema as typedSchema } from "./schema.bsb";
+import meta from "./generated.meta.js";
+
+export type * from "./schema.bsb";
+```
+
+Turning the option on removes `database.types.ts` on the next `gen`; turning
+it off writes it again. `gen --check` checks the files in both modes.
+
+## Caching and reloads
+
+The mapper renders the types once per project and keeps them in
+`node_modules/.cache/better-supabase`, keyed by the config, the snapshot and
+the better-supabase version. `gen` writes the same cache, so the first `tsc`
+after a `gen` reads the types instead of rendering them.
+
+The mapper tells TypeScript to watch the config, the snapshot,
+`supabase/config.toml` and a stamp file in the cache folder, and TypeScript
+asks for the types again when one changes. TypeScript can't watch a folder
+pattern, so a change to `supabase/schemas` or a migration reaches the editor
+through `gen`, or through [`gen --watch`](/docs/cli/gen#introspection-cache),
+which rewrites the stamp only when the types change.
+
+Each `tsc` run starts the mapper, which takes about 0.3 seconds; checking the
+types costs the same as in files mode.
+
+## Diagnostics
+
+The mapper never stops `tsc`. When it can't render, it reports one of these
+on the first character of `schema.bsb`:
+
+| Code  | Meaning                                                                                                  |
+| ----- | -------------------------------------------------------------------------------------------------------- |
+| BS603 | No types: the config is missing or invalid, or there is no snapshot and nothing in the cache. Run `gen`. |
+| BS604 | The config or the snapshot failed to load, so the mapper serves the last types it rendered.              |
+| BS605 | A `.bsb` file other than the one `gen` writes next to `gen.output`. It gets an empty module.             |
+| BS606 | An option in the `contentMappers` entry that the mapper doesn't read. It reads `config` only.            |
+
+The mapper loads the config from the folder of `tsconfig.json`. Point it at a
+config file in another folder with the `config` option, a path relative to
+that `tsconfig.json`:
+
+```json title="tsconfig.json"
+{
+  "contentMappers": [
+    {
+      "package": "better-supabase",
+      "extensions": [".bsb"],
+      "options": { "config": "../db/better-supabase.config.ts" }
+    }
+  ]
+}
+```
+
+## Limits
+
+- TypeScript 7.1 only. Tools that read types without running `tsc` 7.1 (an
+  older editor, a bundler's type stripping) see `schema.bsb` as an untyped
+  module; the runtime values in `generated.ts` still load everywhere.
+- The mapper is a Node process. It runs where `tsc` runs, never in the app.
+- It speaks protocol 1 of TypeScript's content mapper protocol, pinned as
+  `SPEC_PINS.typescriptContentMapper` ([standards](/docs/standards)).
+
+The [content-mapper example](https://github.com/ScaleDockHQ/better-supabase/tree/main/apps/examples/content-mapper)
+type-checks a small app this way.

@@ -207,6 +207,17 @@ export interface EmitOptions {
   readonly runtimeImport?: string;
   /** Import path from the generated module to `database.types.ts`. */
   readonly databaseTypesImport?: string;
+  /**
+   * The text of `database.types.ts`, written into the module instead of
+   * imported. The content mapper serves one virtual file, which has no sibling
+   * it could import.
+   */
+  readonly databaseTypes?: string;
+  /**
+   * Declares `meta` instead of importing it: a type-only module (the content
+   * mapper's) never reads the metadata.
+   */
+  readonly declareMeta?: boolean;
   /** Import path for each JSON type import, keyed by the configured path. */
   readonly importPathFor: (from: string) => string;
   /** Import path from the generated module to the metadata module (`emitMeta`). */
@@ -339,6 +350,147 @@ const RESERVED_EXPORTS = [
   "validators",
 ];
 
+/** An enum or a CHECK's value list: a constant and the union type of it. */
+interface ValueList {
+  readonly constant: string;
+  readonly typeName: string;
+  readonly values: readonly string[];
+  readonly source: string;
+}
+
+function valueLists(model: Model): ValueList[] {
+  const lists: ValueList[] = model.enums.map((entry) => ({
+    constant: entry.constant,
+    typeName: entry.typeName,
+    values: entry.values,
+    source: `enum ${entry.schema}.${entry.name}`,
+  }));
+
+  for (const table of model.tables) {
+    for (const column of table.columns) {
+      if (column.values && !column.snapshot.isEnum) {
+        lists.push({
+          constant: identifier(
+            `${table.key}${pascal(column.app)}Values`.replace(/^[A-Z]/, (c) =>
+              c.toLowerCase(),
+            ),
+          ),
+          typeName: identifier(`${pascal(table.key)}${pascal(column.app)}`),
+          values: column.values,
+          source: `the CHECK on ${table.snapshot.schema}.${table.snapshot.name}.${column.db}`,
+        });
+      }
+    }
+  }
+
+  return lists;
+}
+
+/** The repository extension calls the schema carries, in install order. */
+function extensionCalls(
+  options: EmitOptions,
+): { readonly fn: string; readonly call: string }[] {
+  return [
+    ...(options.extensions ?? []).map((extension) => ({
+      fn: extension.export,
+      call: `${extension.export}(${extension.args})`,
+    })),
+    ...(options.validatorsImport === undefined
+      ? []
+      : [{ fn: "validation", call: "validation({ schemas: validators })" }]),
+  ];
+}
+
+function runtimeImports(options: EmitOptions, runtime: string): string[] {
+  const { validatorsImport } = options;
+
+  return [
+    ...(options.extensions ?? []).map(
+      (extension) =>
+        `import { ${extension.export} } from ${q(runtimeSubpath(runtime, extension.subpath))};`,
+    ),
+    ...(validatorsImport === undefined
+      ? []
+      : [`import { validators } from ${q(validatorsImport)};`]),
+  ];
+}
+
+/**
+ * `database.types.ts` inside a type-only namespace, so its `Json` and
+ * `Database` don't clash with the module's own. Its `Constants` value is left
+ * out: a namespace holding a value is not erasable syntax.
+ */
+function inlineDatabaseTypes(text: string): string[] {
+  const constants = text.search(/^export const Constants\b/m);
+  const types = (constants === -1 ? text : text.slice(0, constants)).trimEnd();
+
+  return [
+    "declare namespace SupabaseTypes {",
+    ...indent([types], 1),
+    "}",
+    "type SupabaseDatabase = SupabaseTypes.Database;",
+  ];
+}
+
+/**
+ * The runtime half of the generated module, for the content mapper: the values
+ * (value lists, buckets, topics, extensions, subject types and `schema`), with
+ * every type re-exported from the virtual module at `typesImport`, which holds
+ * the full module.
+ */
+export function emitRuntime(
+  model: Model,
+  options: EmitOptions & { readonly typesImport: string },
+): string {
+  const runtime = options.runtimeImport ?? "better-supabase";
+  const calls = extensionCalls(options);
+  const subjects = Object.keys(model.config.subjects);
+
+  const lines: string[] = [
+    GENERATED_HEADER,
+    "/* oxlint-disable */",
+    "/* eslint-disable */",
+    "",
+    `import { defineSchema${options.validatorsImport === undefined ? "" : ", validation"} } from ${q(runtime)};`,
+    ...runtimeImports(options, runtime),
+    `import type { schema as typedSchema } from ${q(options.typesImport)};`,
+    `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
+    "",
+    `export type * from ${q(options.typesImport)};`,
+    "",
+    ...valueLists(model).map(
+      (list) =>
+        `export const ${list.constant} = [${list.values.map(q).join(", ")}] as const;`,
+    ),
+  ];
+
+  if (model.meta.buckets) {
+    lines.push(
+      `export const buckets = ${JSON.stringify(model.meta.buckets, null, 2)} as const;`,
+    );
+  }
+
+  if (model.meta.topics) {
+    lines.push(
+      `export const topics = ${JSON.stringify(model.meta.topics, null, 2)} as const;`,
+    );
+  }
+
+  if (subjects.length > 0) {
+    lines.push(
+      `export const subjectTypes = [${subjects.map(q).join(", ")}] as const;`,
+    );
+  }
+
+  lines.push(
+    "",
+    `export const schema: typeof typedSchema = defineSchema(meta${calls.length > 0 ? `, [${calls.map(({ call }) => call).join(", ")}]` : ""});`,
+    "",
+  );
+
+  return lines.join("\n");
+}
+
 /** Renders the generated module. */
 export function emitModule(model: Model, options: EmitOptions): string {
   const runtime = options.runtimeImport ?? "better-supabase";
@@ -346,19 +498,16 @@ export function emitModule(model: Model, options: EmitOptions): string {
   const { validatorsImport } = options;
   const extended = extensions.length > 0 || validatorsImport !== undefined;
 
+  const declaresMeta =
+    options.inlineMeta === true || options.declareMeta === true;
+
   const lines: string[] = [
     GENERATED_HEADER,
     "/* oxlint-disable */",
     "/* eslint-disable */",
     "",
-    `import { defineSchema, ${validatorsImport === undefined ? "" : "validation, "}${extended ? "type ExtensionsOf, " : ""}type Schema${options.inlineMeta ? ", type SchemaMeta" : ""} } from ${q(runtime)};`,
-    ...extensions.map(
-      (extension) =>
-        `import { ${extension.export} } from ${q(runtimeSubpath(runtime, extension.subpath))};`,
-    ),
-    ...(validatorsImport === undefined
-      ? []
-      : [`import { validators } from ${q(validatorsImport)};`]),
+    `import { defineSchema, ${validatorsImport === undefined ? "" : "validation, "}${extended ? "type ExtensionsOf, " : ""}type Schema${declaresMeta ? ", type SchemaMeta" : ""} } from ${q(runtime)};`,
+    ...runtimeImports(options, runtime),
   ];
 
   const storagePaths = model.tables.some((table) =>
@@ -367,8 +516,14 @@ export function emitModule(model: Model, options: EmitOptions): string {
 
   lines.push(
     `import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput${storagePaths ? ", StoragePath" : ""}, WritableColumns } from ${q(runtime)};`,
-    `import type { Database as SupabaseDatabase } from ${q(options.databaseTypesImport ?? "./database.types.ts")};`,
   );
+
+  if (options.databaseTypes === undefined) {
+    lines.push(
+      `import type { Database as SupabaseDatabase } from ${q(options.databaseTypesImport ?? "./database.types.ts")};`,
+    );
+  }
+
   const byFile = new Map<string, string[]>();
 
   for (const entry of model.jsonImports) {
@@ -388,7 +543,12 @@ export function emitModule(model: Model, options: EmitOptions): string {
   lines.push(
     options.inlineMeta
       ? `\nconst meta: SchemaMeta = ${compactJson({ ...model.meta })};`
-      : `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
+      : options.declareMeta
+        ? "\ndeclare const meta: SchemaMeta;"
+        : `import meta from ${q(options.metaImport ?? "./generated.meta.js")};`,
+    ...(options.databaseTypes === undefined
+      ? []
+      : ["", ...inlineDatabaseTypes(options.databaseTypes)]),
     "",
     "export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];",
     "",
@@ -418,35 +578,11 @@ export function emitModule(model: Model, options: EmitOptions): string {
     return name;
   };
 
-  for (const entry of model.enums) {
-    const source = `enum ${entry.schema}.${entry.name}`;
+  for (const list of valueLists(model)) {
     lines.push(
-      `export const ${claim(entry.constant, source)} = [${entry.values.map(q).join(", ")}] as const;`,
-      `export type ${claim(entry.typeName, source)} = (typeof ${entry.constant})[number];`,
+      `export const ${claim(list.constant, list.source)} = [${list.values.map(q).join(", ")}] as const;`,
+      `export type ${claim(list.typeName, list.source)} = (typeof ${list.constant})[number];`,
     );
-  }
-
-  for (const table of model.tables) {
-    for (const column of table.columns) {
-      if (column.values && !column.snapshot.isEnum) {
-        const source = `the CHECK on ${table.snapshot.schema}.${table.snapshot.name}.${column.db}`;
-
-        const constant = identifier(
-          `${table.key}${pascal(column.app)}Values`.replace(/^[A-Z]/, (c) =>
-            c.toLowerCase(),
-          ),
-        );
-
-        const typeName = identifier(
-          `${pascal(table.key)}${pascal(column.app)}`,
-        );
-
-        lines.push(
-          `export const ${claim(constant, source)} = [${column.values.map(q).join(", ")}] as const;`,
-          `export type ${claim(typeName, source)} = (typeof ${constant})[number];`,
-        );
-      }
-    }
   }
 
   if (model.enums.length > 0) {
@@ -497,15 +633,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
 
   const subjects = Object.keys(model.config.subjects);
 
-  const calls = [
-    ...extensions.map((extension) => ({
-      fn: extension.export,
-      call: `${extension.export}(${extension.args})`,
-    })),
-    ...(validatorsImport === undefined
-      ? []
-      : [{ fn: "validation", call: "validation({ schemas: validators })" }]),
-  ];
+  const calls = extensionCalls(options);
 
   if (extended) {
     lines.push(

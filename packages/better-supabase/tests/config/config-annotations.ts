@@ -518,6 +518,11 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Milliseconds between checks in gen --watch and spec emit --watch.",
   },
+  "gen.contentMapper": {
+    description:
+      "Serve the schema types through the TypeScript 7.1 content mapper: gen writes a slim generated.ts and schema.bsb instead of the type files.",
+    default: false,
+  },
   "tooling.env": {
     description: "The env file better-supabase dev env writes.",
   },

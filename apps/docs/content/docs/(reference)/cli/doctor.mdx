@@ -1759,6 +1759,18 @@ peer can break at runtime. Doctor reads the version from the nearest
 Install a version in the range, or remove the package if nothing imports it.
 [Peers](/docs/getting-started/peers) lists which subpath needs which peer.
 
+### BS602
+
+**Error: content mapper not set up.** `gen.contentMapper` is on, so `gen`
+writes `schema.bsb` instead of the type files, but `tsc` can't load the
+[content mapper](/docs/content-mapper) that serves its types. The finding
+names each missing piece: `tsconfig.json` has no `contentMappers` entry for
+`better-supabase`, the project resolves TypeScript older than 7.1, or the
+`typecheck` script in `package.json` runs `tsc` without `--runExternalCode`.
+Doctor skips the script check when there is no `typecheck` script.
+`better-supabase init --content-mapper` adds the entry and the flag. To go
+back to the type files, turn `gen.contentMapper` off and run `gen`.
+
 ## Local stacks
 
 These checks read the machine's System V shared memory with `ipcs`, so they

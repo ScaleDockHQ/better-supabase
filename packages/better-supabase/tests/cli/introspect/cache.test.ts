@@ -13,15 +13,21 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { IntrospectionSource } from "../../../src/cli/introspect/source.ts";
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
+import type { GeneratedFile } from "../../../src/config/types/codegen.ts";
 
 import {
   CACHE_DIR,
   cachedDatabaseTypes,
   cachedIntrospect,
+  cachedTypesModule,
+  lastTypesModule,
+  storeTypesModule,
+  typesModuleKey,
   writeAtomic,
 } from "../../../src/cli/introspect/cache.ts";
 import { TYPEGEN_VERSION } from "../../../src/cli/introspect/typegen-version.ts";
 import { VERSION } from "../../../src/cli/version.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 
 const snapshot = (name: string) =>
   ({ version: 2, schemas: [name] }) as unknown as Snapshot;
@@ -166,6 +172,98 @@ describe("cachedDatabaseTypes", () => {
     await writeFile(join(root, CACHE_DIR, "database-types.json"), "{");
     expect(await cachedDatabaseTypes(root, ["b"], produce)).toBe("types 3");
     expect(calls).toBe(3);
+  });
+});
+
+describe("cachedTypesModule", () => {
+  const config = (generate: () => readonly GeneratedFile[]) =>
+    resolveConfig(
+      { gen: { generators: [{ name: "g", apiVersion: 1, generate }] } },
+      "/app",
+    );
+
+  it("keys on the config, its file and the snapshot", () => {
+    const base = typesModuleKey(
+      config(() => [{ path: "a", contents: "" }]),
+      "x",
+      snapshot("public"),
+    );
+
+    expect(
+      typesModuleKey(
+        config(() => [{ path: "a", contents: "" }]),
+        "x",
+        snapshot("public"),
+      ),
+    ).toBe(base);
+    expect(
+      typesModuleKey(
+        config(() => [{ path: "b", contents: "" }]),
+        "x",
+        snapshot("public"),
+      ),
+    ).not.toBe(base);
+    expect(
+      typesModuleKey(
+        config(() => [{ path: "a", contents: "" }]),
+        "y",
+        snapshot("public"),
+      ),
+    ).not.toBe(base);
+    expect(
+      typesModuleKey(
+        config(() => [{ path: "a", contents: "" }]),
+        "x",
+        snapshot("app"),
+      ),
+    ).not.toBe(base);
+  });
+
+  it("reuses the module for a key and keeps the last one per output", async () => {
+    let calls = 0;
+
+    const produce = () => {
+      calls += 1;
+
+      return Promise.resolve(`module ${calls}`);
+    };
+
+    const output = "src/generated.ts";
+
+    expect(await cachedTypesModule(root, output, "k1", produce)).toBe(
+      "module 1",
+    );
+    expect(await cachedTypesModule(root, output, "k1", produce)).toBe(
+      "module 1",
+    );
+    expect(await cachedTypesModule(root, output, "k2", produce)).toBe(
+      "module 2",
+    );
+    expect(await lastTypesModule(root, output)).toBe("module 2");
+    expect(await lastTypesModule(root, "other.ts")).toBeUndefined();
+
+    await storeTypesModule(root, output, "k3", "stored");
+    expect(await cachedTypesModule(root, output, "k3", produce)).toBe("stored");
+    expect(calls).toBe(2);
+    expect(
+      (await readdir(join(root, CACHE_DIR))).filter((name) =>
+        name.startsWith("types-"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("serves the module when the cache folder can't be written", async () => {
+    await writeFile(join(root, "node_modules"), "");
+
+    expect(
+      await cachedTypesModule(root, "src/generated.ts", "k", () =>
+        Promise.resolve("module"),
+      ),
+    ).toBe("module");
+    expect(await storeTypesModule(root, "src/generated.ts", "k", "x")).toBe(
+      true,
+    );
+    expect(await lastTypesModule(root, "src/generated.ts")).toBeUndefined();
   });
 });
 

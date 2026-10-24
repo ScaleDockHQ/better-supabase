@@ -20,7 +20,15 @@ interface Measurement {
   readonly checkTime: number;
 }
 
-type Compiler = "ts6" | "ts7";
+type Compiler = "ts6" | "ts7" | "ts71";
+
+/**
+ * Each compiler on the generated files, plus TypeScript 7.1 through the content
+ * mapper.
+ */
+type Mode = Compiler | "ts71Mapper";
+
+const MODES = ["ts6", "ts7", "ts71", "ts71Mapper"] as const;
 
 interface Profile {
   readonly tables: number;
@@ -36,8 +44,9 @@ interface Profile {
 }
 
 interface BaselineEntry extends Profile {
-  readonly measurement: Readonly<Record<Compiler, Measurement>>;
+  readonly measurement: Readonly<Record<Mode, Measurement>>;
   readonly gen?: GenTimes;
+  readonly mapper?: MapperTimes;
 }
 
 interface Baseline {
@@ -74,6 +83,7 @@ const tscFrom = (resolve: (id: string) => string): string =>
 const compilers = {
   ts6: tscFrom(require.resolve),
   ts7: tscFrom(createRequire(join(here, "../ts-7/package.json")).resolve),
+  ts71: tscFrom(createRequire(join(here, "../ts-7.1/package.json")).resolve),
 } satisfies Readonly<Record<Compiler, string>>;
 
 const cli = join(
@@ -331,11 +341,16 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
   });
 }
 
-function consumer(profile: Profile): string {
+/**
+ * Mapper mode writes no database.types.ts, so `Database` comes from
+ * generated.ts: the enriched type, which costs the composite profile about four
+ * times the instantiations in either mode.
+ */
+function consumer(profile: Profile, database = "./database.types.ts"): string {
   const lines = [
     "import { createClient, type SupabaseClient } from '@supabase/supabase-js';",
     ...(profile.composite
-      ? ["import type { Database } from './database.types.ts';"]
+      ? [`import type { Database } from '${database}';`]
       : []),
     "import { defineSupabase } from 'better-supabase';",
     "import { membershipsExtension } from 'better-supabase/blocks/memberships';",
@@ -417,13 +432,14 @@ function calibrate() {
   return {
     ts6: measure(compilers.ts6).checkTime,
     ts7: measure(compilers.ts7).checkTime,
+    ts71: measure(compilers.ts71).checkTime,
   } satisfies Readonly<Record<Compiler, number>>;
 }
 
-function measure(tsc: string): Measurement {
+function measure(tsc: string, flags: readonly string[] = []): Measurement {
   const result = spawnSync(
     process.execPath,
-    [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics"],
+    [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics", ...flags],
     { encoding: "utf-8" },
   );
 
@@ -460,9 +476,40 @@ interface GenTimes {
   readonly incremental: number;
 }
 
+/**
+ * Seconds for `tsc --runExternalCode` in mapper mode, start to finish:
+ * machine-dependent, so gated loosely.
+ */
+interface MapperTimes {
+  /** TypeScript 7.1 on the generated files, for comparison. */
+  readonly files: number;
+  /** The mapper renders the types with an empty cache. */
+  readonly cold: number;
+  /** Again with nothing changed: the mapper reads the cached types. */
+  readonly warm: number;
+  /** After one column is added to one table, with no `gen` in between. */
+  readonly incremental: number;
+}
+
 interface Run {
-  readonly measurement: Readonly<Record<Compiler, Measurement>>;
+  readonly measurement: Readonly<Record<Mode, Measurement>>;
   readonly gen: GenTimes;
+  readonly mapper: MapperTimes;
+}
+
+interface Timed<T> {
+  readonly value: T;
+  readonly seconds: number;
+}
+
+function timed<T>(task: () => T): Timed<T> {
+  const started = performance.now();
+  const value = task();
+
+  return {
+    value,
+    seconds: Number(((performance.now() - started) / 1000).toFixed(2)),
+  };
 }
 
 function gen(): number {
@@ -474,10 +521,7 @@ function gen(): number {
   return Number(((performance.now() - started) / 1000).toFixed(2));
 }
 
-function run(profile: Profile): Run {
-  rmSync(work, { recursive: true, force: true });
-  mkdirSync(work, { recursive: true });
-  writeFileSync(join(work, "snapshot.json"), JSON.stringify(snapshot(profile)));
+function writeConfig(profile: Profile, contentMapper: boolean): void {
   writeFileSync(
     join(work, "better-supabase.config.json"),
     JSON.stringify({
@@ -489,6 +533,7 @@ function run(profile: Profile): Run {
         casing: "camel",
         output: "generated.ts",
         tasks: ["types"],
+        contentMapper: contentMapper || undefined,
         json: profile.composite
           ? { [`${name(1)}.metadata`]: { type: "{ tags: string[] }" } }
           : undefined,
@@ -500,10 +545,15 @@ function run(profile: Profile): Run {
       },
     }),
   );
-  writeFileSync(join(work, "consumer.ts"), consumer(profile));
+}
+
+function writeTsconfig(contentMapper: boolean): void {
   writeFileSync(
     join(work, "tsconfig.json"),
     JSON.stringify({
+      contentMappers: contentMapper
+        ? [{ package: "better-supabase", extensions: [".bsb"] }]
+        : undefined,
       compilerOptions: {
         strict: true,
         exactOptionalPropertyTypes: true,
@@ -519,11 +569,23 @@ function run(profile: Profile): Run {
       files: ["consumer.ts"],
     }),
   );
+}
+
+function run(profile: Profile): Run {
+  rmSync(work, { recursive: true, force: true });
+  mkdirSync(work, { recursive: true });
+  writeFileSync(join(work, "snapshot.json"), JSON.stringify(snapshot(profile)));
+  writeConfig(profile, false);
+  writeFileSync(join(work, "consumer.ts"), consumer(profile));
+  writeTsconfig(false);
   const cold = gen();
+
+  const ts71 = timed(() => measure(compilers.ts71));
 
   const measurement = {
     ts6: measure(compilers.ts6),
     ts7: measure(compilers.ts7),
+    ts71: ts71.value,
   };
 
   const warm = gen();
@@ -533,7 +595,34 @@ function run(profile: Profile): Run {
   );
   const incremental = gen();
 
-  return { measurement, gen: { cold, warm, incremental } };
+  writeFileSync(join(work, "snapshot.json"), JSON.stringify(snapshot(profile)));
+  writeConfig(profile, true);
+  writeFileSync(join(work, "consumer.ts"), consumer(profile, "./generated.ts"));
+  writeTsconfig(true);
+  gen();
+  rmSync(join(work, "node_modules/.cache"), { recursive: true, force: true });
+
+  const mapped = (): Measurement =>
+    measure(compilers.ts71, ["--runExternalCode"]);
+
+  const mapperCold = timed(mapped);
+  const mapperWarm = timed(mapped);
+  writeFileSync(
+    join(work, "snapshot.json"),
+    JSON.stringify(snapshot(profile, name(1))),
+  );
+  const mapperIncremental = timed(mapped);
+
+  return {
+    measurement: { ...measurement, ts71Mapper: mapperWarm.value },
+    gen: { cold, warm, incremental },
+    mapper: {
+      files: ts71.seconds,
+      cold: mapperCold.seconds,
+      warm: mapperWarm.seconds,
+      incremental: mapperIncremental.seconds,
+    },
+  };
 }
 
 const baselinePath = join(here, "baseline.json");
@@ -545,8 +634,11 @@ const next: Record<string, BaselineEntry> = {};
 const calibration = calibrate();
 
 console.log(
-  `calibration: ts6 ${calibration.ts6.toFixed(2)}s, ts7 ${calibration.ts7.toFixed(2)}s`,
+  `calibration: ts6 ${calibration.ts6.toFixed(2)}s, ts7 ${calibration.ts7.toFixed(2)}s, ts71 ${calibration.ts71.toFixed(2)}s`,
 );
+
+const compilerOf = (mode: Mode): Compiler =>
+  mode === "ts71Mapper" ? "ts71" : mode;
 
 const describe = (measurement: Measurement): string =>
   `${String(measurement.instantiations)} instantiations, ${String(measurement.types)} types, check ${measurement.checkTime.toFixed(2)}s`;
@@ -557,14 +649,19 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
     ...profile,
     measurement: current.measurement,
     gen: current.gen,
+    mapper: current.mapper,
   };
   console.log(
     `${profileName}: ${String(profile.tables)} tables, ${String(profile.queried)} queried, gen cold ${current.gen.cold.toFixed(2)}s, warm ${current.gen.warm.toFixed(2)}s, incremental ${current.gen.incremental.toFixed(2)}s`,
   );
 
-  for (const compiler of ["ts6", "ts7"] as const) {
-    console.log(`  ${compiler}: ${describe(current.measurement[compiler])}`);
+  for (const mode of MODES) {
+    console.log(`  ${mode}: ${describe(current.measurement[mode])}`);
   }
+
+  console.log(
+    `  ts71 tsc: files ${current.mapper.files.toFixed(2)}s, mapper cold ${current.mapper.cold.toFixed(2)}s, warm ${current.mapper.warm.toFixed(2)}s, incremental ${current.mapper.incremental.toFixed(2)}s`,
+  );
 
   if (update) {
     continue;
@@ -580,9 +677,10 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
     continue;
   }
 
-  for (const compiler of ["ts6", "ts7"] as const) {
-    const now = current.measurement[compiler];
-    const before = previous.measurement[compiler];
+  for (const mode of MODES) {
+    const compiler = compilerOf(mode);
+    const now = current.measurement[mode];
+    const before = previous.measurement[mode];
 
     for (const metric of ["instantiations", "types"] as const) {
       if (now[metric] <= before[metric] * (1 + TOLERANCE)) {
@@ -590,7 +688,7 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
       }
 
       console.error(
-        `${profileName} (${compiler}): ${metric} grew from ${String(before[metric])} to ${String(now[metric])} (tolerance ${String(TOLERANCE * 100)}%). Run \`pnpm --filter @better-supabase/types-perf update\` if the growth is intended.`,
+        `${profileName} (${mode}): ${metric} grew from ${String(before[metric])} to ${String(now[metric])} (tolerance ${String(TOLERANCE * 100)}%). Run \`pnpm --filter @better-supabase/types-perf update\` if the growth is intended.`,
       );
       process.exitCode = 1;
     }
@@ -605,13 +703,46 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
 
     if (now.checkTime > limit) {
       console.error(
-        `${profileName} (${compiler}): check time grew from ${expected.toFixed(2)}s to ${now.checkTime.toFixed(2)}s (limit ${limit.toFixed(2)}s, baseline ${before.checkTime.toFixed(2)}s on a machine ${speed.toFixed(1)}x faster).`,
+        `${profileName} (${mode}): check time grew from ${expected.toFixed(2)}s to ${now.checkTime.toFixed(2)}s (limit ${limit.toFixed(2)}s, baseline ${before.checkTime.toFixed(2)}s on a machine ${speed.toFixed(1)}x faster).`,
       );
       process.exitCode = 1;
     }
   }
 
   checkGen(profileName, current.gen, previous.gen);
+  checkMapper(profileName, current.mapper, previous.mapper);
+}
+
+/** Mapper runs are TypeScript 7.1 runs, so its calibration scales them. */
+function checkMapper(
+  profileName: string,
+  now: MapperTimes,
+  before: MapperTimes | undefined,
+): void {
+  if (!before) {
+    console.error(
+      `${profileName} has no mapper baseline. Run \`pnpm --filter @better-supabase/types-perf update\`.`,
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
+  const speed = Math.max(1, calibration.ts71 / baseline.calibration.ts71);
+
+  for (const phase of ["files", "cold", "warm", "incremental"] as const) {
+    const expected = before[phase] * speed;
+    const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
+
+    if (now[phase] <= limit) {
+      continue;
+    }
+
+    console.error(
+      `${profileName}: ${phase} tsc in mapper mode grew from ${expected.toFixed(2)}s to ${now[phase].toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
+    );
+    process.exitCode = 1;
+  }
 }
 
 /**

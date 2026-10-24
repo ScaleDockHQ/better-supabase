@@ -128,6 +128,16 @@ run prints one envelope on its own line
 connection, including a query in flight. Connecting gives up after 10 seconds,
 and each introspection query after 2 minutes.
 
+## Content mapper
+
+With `gen.contentMapper: true`, `gen` writes `schema.bsb` and a
+`generated.ts` that re-exports its types, and no `database.types.ts`;
+TypeScript 7.1 gets the types from the
+[content mapper](/docs/content-mapper). The `types` task also writes the
+mapper's cache, and when the types change, a stamp file in
+`node_modules/.cache/better-supabase` that the editor watches, so `--watch`
+reloads the types in the editor too. `--check` checks the mapper-mode files.
+
 ## Options
 
 | Option                 | Effect                                                                                                                                                           |

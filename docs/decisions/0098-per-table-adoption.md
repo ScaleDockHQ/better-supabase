@@ -1,4 +1,4 @@
-# 0097: Detect the app's tables per table instead of an adopt mode
+# 0098: Detect the app's tables per table instead of an adopt mode
 
 - Status: accepted
 - Date: 2026-10-24

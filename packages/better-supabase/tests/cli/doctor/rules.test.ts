@@ -3321,6 +3321,66 @@ describe("peer versions (BS601)", () => {
   });
 });
 
+describe("content mapper setup (BS602)", () => {
+  const mapper = { gen: { contentMapper: true } };
+
+  const ready = {
+    tsconfig: {
+      contentMappers: [{ package: "better-supabase", extensions: [".bsb"] }],
+    },
+    typescript: "7.1.0-beta",
+    typecheck: "tsc --runExternalCode --noEmit",
+  };
+
+  it("passes a project that tsc can load the mapper in", async () => {
+    expect(
+      await run("BS602", context(base, { contentMapper: ready }, mapper)),
+    ).toEqual([]);
+  });
+
+  it("names each missing piece", async () => {
+    const findings = await run(
+      "BS602",
+      context(
+        base,
+        {
+          contentMapper: {
+            tsconfig: { compilerOptions: {} },
+            typescript: "7.0.2",
+            typecheck: "tsc --noEmit",
+          },
+        },
+        mapper,
+      ),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "tsconfig.json",
+      "typescript",
+      "package.json",
+    ]);
+    expect(findings[1]?.message).toContain("typescript@7.0.2");
+  });
+
+  it("skips files mode and a project without a typecheck script", async () => {
+    const setup = { ...ready, typescript: "7.0.2" };
+
+    expect(await run("BS602", context(base, { contentMapper: setup }))).toEqual(
+      [],
+    );
+    expect(
+      await run(
+        "BS602",
+        context(
+          base,
+          { contentMapper: { ...ready, typecheck: undefined } },
+          mapper,
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("Supabase Lite gaps (BS328, BS329)", () => {
   const lite = (driver: string) => toml(`[db]\ndriver = "${driver}"\n`);
 

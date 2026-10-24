@@ -12,6 +12,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 const PACKAGE = resolve(import.meta.dirname, "../../packages/better-supabase");
 const CLI_BIN = resolve(PACKAGE, "dist/cli/bin.js");
 const SHIM = resolve(PACKAGE, "bin/better-supabase.js");
+const MAPPER_BIN = resolve(PACKAGE, "dist/mapper/bin.js");
 
 /** The region comments Rolldown leaves around each source module in a chunk. */
 const COMMAND_REGION = /^\/\/#region (src\/cli\/commands\/\S+)/gm;
@@ -21,6 +22,12 @@ const COMMAND_REGION = /^\/\/#region (src\/cli\/commands\/\S+)/gm;
  * command.
  */
 const CLI_STARTUP = "better-supabase CLI (startup)";
+
+/** What tsc loads when it starts the content mapper for a project. */
+const MAPPER_STARTUP = "content mapper (startup)";
+
+/** Node-only closures that no subpath exports. */
+const NODE_CLOSURES = new Set([CLI_STARTUP, MAPPER_STARTUP]);
 const BASELINE = resolve(import.meta.dirname, "baseline.json");
 const SHIPPED_BASELINE = resolve(import.meta.dirname, "baseline-shipped.json");
 const WORK = resolve(import.meta.dirname, "tmp");
@@ -343,18 +350,22 @@ describe("bundle", () => {
       closures.set(subpath, await closure(file));
     }
 
-    if (!existsSync(CLI_BIN)) {
-      throw new Error(`${CLI_BIN} is missing. Run \`pnpm build\` first.`);
+    for (const bin of [CLI_BIN, MAPPER_BIN]) {
+      if (!existsSync(bin)) {
+        throw new Error(`${bin} is missing. Run \`pnpm build\` first.`);
+      }
     }
 
     closures.set(CLI_STARTUP, await closure(CLI_BIN, false));
+    closures.set(MAPPER_STARTUP, await closure(MAPPER_BIN, false));
     // Bundles every entry in turn; under `pnpm verify` it shares the CPU with the other tasks.
   }, 60_000);
 
   it("keeps runtime entries free of Node built-ins (WinterTC)", () => {
     const offenders = [...closures]
       .filter(
-        ([subpath]) => !NODE_ENTRIES.has(subpath) && subpath !== CLI_STARTUP,
+        ([subpath]) =>
+          !NODE_ENTRIES.has(subpath) && !NODE_CLOSURES.has(subpath),
       )
       .flatMap(([subpath, { externals }]) =>
         externals
@@ -420,6 +431,10 @@ describe("bundle", () => {
         (name) => !BUILTINS.has(name) && name !== "citty",
       ),
     ).toEqual([]);
+  });
+
+  it("starts the content mapper without the CLI framework", () => {
+    expect(closures.get(MAPPER_STARTUP)!.externals).not.toContain("citty");
   });
 
   it(
@@ -525,7 +540,7 @@ describe("bundle", () => {
       .filter(
         ([subpath, { externals }]) =>
           subpath !== "./cli" &&
-          subpath !== CLI_STARTUP &&
+          !NODE_CLOSURES.has(subpath) &&
           externals.some((name) =>
             name.startsWith("@supabase/postgrest-typegen"),
           ),
